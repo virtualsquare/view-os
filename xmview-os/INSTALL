@@ -1,0 +1,16 @@
+To compile UMVIEWOS type
+$ make
+
+If you want to install it (login as root or "su" to root) and type:
+# make install
+
+You need the following libraries:
+
+libfuse
+e2fslibs
+libiso9660
+
+(with development files, includes etc.).
+
+See doc/tutorial for a simple example to test some UMVIEWOS features.
+
