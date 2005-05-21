@@ -1,6 +1,6 @@
 CFLAGS=-I../include -D_GNU_SOURCE -ggdb -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=22 -rdynamic
 
-ALL=testmodule.so testmodul2.so unreal.so real.so sockettest.so sockip.so
+ALL=testmodule.so testmodul2.so unreal.so real.so sockettest.so sockip.so personalities.so
 
 all: $(ALL)
 
@@ -16,6 +16,9 @@ unreal.so: unreal.o ../um_lib/libumlib.a
 real.so: real.o ../um_lib/libumlib.a
 	$(CC) -shared -o $@ $< ../um_lib/libumlib.a
 
+personalities.so: personalities.o ../um_lib/libumlib.a
+	$(CC) -shared -o $@ $< ../um_lib/libumlib.a
+
 sockettest.so: sockettest.o ../um_lib/libumlib.a
 	$(CC) -shared -o $@ $< ../um_lib/libumlib.a
 
@@ -29,6 +32,8 @@ testmodul2.o: testmodul2.c ../include/module.h
 unreal.o: unreal.c ../include/module.h ../include/libummod.h
 
 real.o: real.c ../include/module.h ../include/libummod.h
+
+personalities.o: personalities.c ../include/module.h ../include/libummod.h
 
 sockettest.o: sockettest.c ../include/module.h ../include/libummod.h
 
