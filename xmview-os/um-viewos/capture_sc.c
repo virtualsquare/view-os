@@ -331,9 +331,9 @@ void tracehand(int s)
 			if (pc->scno == __NR_execve && syscall != __NR_execve){
 				pc->scno = NOSC;
 			}
-			/* rt_sigreturn gives random "OUT" values, maybe 0.
+			/* sigreturn and rt_sigreturn give random "OUT" values, maybe 0.
 			 * this is a workaroud */
-			if (pc->scno == __NR_rt_sigreturn) {
+			if (pc->scno == __NR_rt_sigreturn || pc->scno == __NR_sigreturn) {
 				pc->scno = NOSC;
 			}
 			else if (syscall == 0) {
