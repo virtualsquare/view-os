@@ -61,7 +61,7 @@ clean:
 distclean: clean
 	rm -f *.d
 	rm -f syscallnames.h
-	rm -f compile_code.c
+	rm -f syscall_code.h syscall_code.c
 
 install: all
 	install umview ${bindir}
