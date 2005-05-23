@@ -33,7 +33,6 @@
 extern int has_ptrace_multi;
 #include <sys/ptrace.h>
 #include <asm/ptrace.h>
-//#define PIVOTING_ENABLED
 
 #ifdef _MALLOC_DEBUG
 #define free(X) ({ printf("MDBG-FREE %x %s %d\n",(X),__FILE__,__LINE__); \
@@ -55,6 +54,13 @@ extern int has_ptrace_multi;
 #define FRAME_SIZE 13
 #endif
 
+/**
+ * The type of a callback function. Look pivoting.h.
+ */
+struct pcb;
+enum phase { PHASE_IN, PHASE_OUT };
+typedef void pivoting_callback(int scno, enum phase p, struct pcb *pc,
+		int counter);
 /* Process Control Block */
 struct pcb {
 	short flags;
@@ -70,9 +76,21 @@ struct pcb {
 
 	long saved_regs[FRAME_SIZE];
 #ifdef PIVOTING_ENABLED
-	/* address of the last syscall executed; it's an address in the
-	 * process's space, not ours! */
-	void *sys_address;
+	/* address of the first instruction executed by the process (needed to
+	 * know where to start for injecting code) - it's an address in the
+	 * ptraced process address space, not ours! */
+	void *first_instruction_address;
+	/* saved code: when we inject some syscall code, we save the
+	 * overwritten code in here */
+	size_t saved_code_length;
+	char *saved_code;
+	/* saved address: here we were when the syscall was diverted to our
+	 * address */
+	void *saved_address;
+	/* the pivoting counter: give a look at pivoting_inject */
+	int counter;
+	/* the callback function */
+	pivoting_callback *piv_callback;
 #endif
 	void *data;
 };
@@ -85,6 +103,9 @@ int capture_main(char **argv);
 #define NOSC -1
 #define PCB_INUSE 0x1
 #define PCB_BPTSET 0x2
+#ifdef PIVOTING_ENABLED
+#define PCB_INPIVOTING 0x100
+#endif
 #define PCB_SOFTSUSP 0x2000
 #define PCB_FAKEWAITSTOP 0x4000
 #define PCB_FAKESTOP 0x8000
@@ -112,7 +133,7 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define setregs(PC) ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs)
 //#define printregs(PC)
 #define printregs(PC) \
-	 printf("saved_regs:eax:%ld\torig_eax:%ld\n\tebx:%ld\tecx:%ld\n\tedx:%ld\tesi:%ld\n",\
+	 GDEBUG(3, "saved_regs:eax:%x\torig_eax:%x\n\tebx:%x\tecx:%x\n\tedx:%x\tesi:%x",\
 			 (PC)->saved_regs[EAX],(PC)->saved_regs[ORIG_EAX],\
 			 (PC)->saved_regs[EBX],(PC)->saved_regs[ECX],\
 			 (PC)->saved_regs[EDX],(PC)->saved_regs[ESI])
@@ -136,8 +157,8 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 		ptrace(PTRACE_POKEUSER, ((PC)->pid), 4 * ORIG_EAX, (ERR)); \
 	} while (0)
 	*/
-#define getsp(PC) ( (PC)->saved_regs[UESP] )
-#define getpc(PC) ( (PC)->saved_regs[EIP]; )
+#define getsp(PC) (PC)->saved_regs[UESP]
+#define getpc(PC) (PC)->saved_regs[EIP]
 #define putsp(RV,PC) ( (PC)->saved_regs[UESP]=(RV) )
 #define putpc(RV,PC) ( (PC)->saved_regs[EIP]=(RV) )
 #elif defined(__powerpc__) //setregs/getresg for ppc
@@ -223,6 +244,21 @@ extern short _i386_sc_remap[];
 #define cdtab(X) (((X) < BASEUSC) ? scdtab[(X)] : scdtab[_i386_sc_remap[(X)-BASEUSC]])
 #define setcdtab(X,Y) (((X) < BASEUSC) ? (scdtab[(X)] = (Y)) : (scdtab[_i386_sc_remap[(X)-BASEUSC]] = (Y)))
 
+#ifdef PIVOTING_ENABLED
+/**
+ * %0 = num syscall
+ * %1..%6 = up to 6 arguments of syscall (doesn't matter about unused ones)
+ */
+#define ASM_SYSCALL \
+	"mov  %0,    %%eax\n\t" \
+	"mov  %1,    %%ebx\n\t" \
+	"mov  %2,    %%ecx\n\t" \
+	"mov  %3,    %%edx\n\t" \
+	"mov  %4,    %%esi\n\t" \
+	"mov  %5,    %%edi\n\t" \
+	"mov  %6,    %%ebp\n\t" \
+	"int  $0x80\n\t"
+#endif
 
 /*                                  POWERPC *********************************/
 #elif defined (__powerpc__) && !defined(__powerpc64__)
@@ -239,6 +275,10 @@ extern short _i386_sc_remap[];
 #define MAXUSC		8
 #define cdtab(X) (((X) < BASEUSC) ? scdtab[(X)] : scdutab[(X)-BASEUSC])
 #define setcdtab(X,Y) (((X) < BASEUSC) ? (scdtab[(X)] = (Y)) : (scdutab[(X)-BASEUSC] = (Y)))
+
+#ifdef PIVOTING_ENABLED
+#error "Still to take the ASM_SYSCALL definition for i386 and adapt it to PowerPC"
+#endif
 
 #else
 #error Unsupported HW Architecure

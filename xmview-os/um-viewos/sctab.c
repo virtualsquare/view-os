@@ -205,9 +205,6 @@ void pcb_plus(struct pcb *pc,int flags)
 		pcpe->fds = ((struct pcb_ext *)(pc->pp->data))->fds;
 	lfd_addproc(&(pcpe->fds),flags & CLONE_FILES);
 	um_proc_add(pc);
-#ifdef PIVOTING_ENABLED
-	pc->sys_address = NULL;
-#endif
 }
 
 void pcb_minus(struct pcb *pc)

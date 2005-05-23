@@ -50,6 +50,9 @@
 #include "utils.h"
 #include "syscallnames.h"
 #include "gdebug.h"
+#ifdef PIVOTING_ENABLED
+#include "pivoting.h"
+#endif
 
 
 #define PCBSIZE 10
@@ -126,6 +129,10 @@ struct pcb *newpcb (int pid)
 			pcb->scno = NOSC;
 			pcb->pp = NULL;
 			pcb->data = NULL;
+#ifdef PIVOTING_ENABLED
+			pcb->first_instruction_address = NULL;
+			pcb->saved_code = NULL;
+#endif
 			nprocs++;
 			return pcb;
 		}
@@ -315,6 +322,19 @@ void tracehand(int s)
 			}
 		}
 
+#ifdef PIVOTING_TEST
+		if(pc->flags & PCB_INPIVOTING)
+		{
+			int _pc;
+			int data;
+			if(popper(pc) < 0)
+				GPERROR(0, "saving register");
+			_pc = getpc(pc);
+			umoven(pc->pid, _pc, 4, &data);
+			GDEBUG(3, "pc=%x, instruction=%x", _pc, data);
+		}
+#endif
+
 		if(WIFSTOPPED(status) && (WSTOPSIG(status) == SIGTRAP)){
 			if ( popper(pc) < 0 ){
 				GPERROR(0, "saving register");
@@ -322,11 +342,8 @@ void tracehand(int s)
 			}
 			//printregs(pc);
 			syscall=getscno(pc);
-#ifdef PIVOTING_ENABLED
-			/* save last syscall address */
-			pc->sys_address = (void*)getpc(pc);
-#endif
-			GDEBUG(3, "+++pid %d syscall %d (%s) --", pid, syscall, SYSCALLNAME(syscall));
+			GDEBUG(3, "+++pid %d syscall %d (%s) @ %p --", pid, syscall, SYSCALLNAME(syscall),
+					getpc(pc));
 			/* execve does not return */
 			if (pc->scno == __NR_execve && syscall != __NR_execve){
 				pc->scno = NOSC;
@@ -340,81 +357,120 @@ void tracehand(int s)
 				if (pc->scno == __NR_execve)
 					pc->scno = NOSC;
 			}
-			else if (pc->scno == NOSC) 
+			else if (pc->scno == NOSC)
 			{
-				divfun fun;
-				//printf("IN\n");
-				pc->scno = syscall;
-				fun=cdtab(syscall);
-				if (fun != NULL)
-					pc->behavior=fun(syscall,IN,pc);
-				else
-					pc->behavior=STD_BEHAVIOR;
-#ifdef FAKESIGSTOP
-				if (syscall == __NR_kill && pc->behavior == STD_BEHAVIOR)
-					pc->behavior=fakesigstopcont(pc);
-#endif
-				if (pc->behavior == SC_FAKE) {
-					//printf("syscall %d faked",pc->scno);
-					/* fake syscall with getpid */
-					putscno(__NR_getpid,pc);
-				} else if (pc->behavior == SC_SOFTSUSP) {
-					sc_soft_suspend(pc);
-				} else
+#ifdef PIVOTING_ENABLED
+				/* if we are in pivoting, calls are diverted to the callback function */
+				if(pc->flags & PCB_INPIVOTING)
 				{
-					/* fork is translated into clone 
-					 * offspring management */
-					if (syscall == __NR_fork ||
-							syscall == __NR_vfork ||
-							syscall == __NR_clone)
-						offspring_enter(pc);
-				}
-			} else {
-				divfun fun;
-				//printf("OUT\n");
-				if (pc->behavior == SC_SOFTSUSP) {
-					int n=getrv(pc);
-					if (n <= 0) {
-						puterrno(EAGAIN,pc);
-						putrv(-1,pc);
-						pc->behavior = STD_BEHAVIOR;
-					} else {
-						sc_soft_resume(pc);
-						syscall=pc->scno;
-						fun=cdtab(syscall);
-						//GDEBUG(2, "enter resumed fun");
-						pc->behavior=fun(syscall,IN,pc);
-						//GDEBUG(2, "exit resumed fun %d",pc->behavior);
-						if (pc->behavior == SC_FAKE)
-							syscall=__NR_getpid;
+					GDEBUG(3, "pivoting, IN phase");
+					printregs(pc);
+					pc->scno = syscall;
+					pc->piv_callback(syscall, PHASE_IN, pc, pc->counter++);
+					/* we put by hand a fake syscall, with a big number; check if this is
+					 * the case. if it is, pivoting has ended */
+					if(syscall == BIG_SYSCALL)
+					{
+						pivoting_eject(pc);
+						/* simulate a fake syscall */
+						putscno(__NR_getpid, pc);
+						pc->behavior = SC_FAKE;
 					}
 				}
-				if (syscall == __NR_fork ||
-						syscall == __NR_vfork ||
-						syscall == __NR_clone) {
-					int newpid;
-					newpid=getrv(pc);
-					handle_new_proc(newpid,pc);
-					GDEBUG(3, "FORK! %d->%d",pid,newpid);
-					
-					/* restore original arguments */
-					offspring_exit(pc);
-					putrv(newpid,pc);
+				else
+				{
+#endif
+					divfun fun;
+					//printf("IN\n");
+					pc->scno = syscall;
+					fun=cdtab(syscall);
+					if (fun != NULL)
+						pc->behavior=fun(syscall,IN,pc);
+					else
+						pc->behavior=STD_BEHAVIOR;
+#ifdef FAKESIGSTOP
+					if (syscall == __NR_kill && pc->behavior == STD_BEHAVIOR)
+						pc->behavior=fakesigstopcont(pc);
+#endif
+					if (pc->behavior == SC_FAKE) {
+						//printf("syscall %d faked",pc->scno);
+						/* fake syscall with getpid */
+						putscno(__NR_getpid,pc);
+					} else if (pc->behavior == SC_SOFTSUSP) {
+						sc_soft_suspend(pc);
+					} else
+					{
+						/* fork is translated into clone 
+						 * offspring management */
+						if (syscall == __NR_fork ||
+								syscall == __NR_vfork ||
+								syscall == __NR_clone)
+							offspring_enter(pc);
+					}
+#ifdef PIVOTING_ENABLED
 				}
-				if ((pc->behavior == SC_FAKE && syscall != __NR_getpid) && 
-						syscall != pc->scno)
-					GDEBUG(0, "error FAKE != %d",syscall);
-				fun=cdtab(pc->scno);
-				if (fun != NULL &&
-						(pc->behavior == SC_FAKE ||
-						 pc->behavior == SC_CALLONXIT)) {
-					pc->behavior = fun(pc->scno,OUT,pc);
-					if ((pc->behavior & SC_SUSPENDED) == 0)
+#endif
+			} else {
+#ifdef PIVOTING_ENABLED
+				/* if we are in pivoting, calls are diverted to the callback function */
+				if(pc->flags & PCB_INPIVOTING)
+				{
+					GDEBUG(3, "pivoting, OUT phase");
+					printregs(pc);
+					pc->piv_callback(syscall, PHASE_OUT, pc, pc->counter++);
+					pc->scno = NOSC;
+				}
+				else
+				{
+#endif
+					divfun fun;
+					//printf("OUT\n");
+					if (pc->behavior == SC_SOFTSUSP) {
+						int n=getrv(pc);
+						if (n <= 0) {
+							puterrno(EAGAIN,pc);
+							putrv(-1,pc);
+							pc->behavior = STD_BEHAVIOR;
+						} else {
+							sc_soft_resume(pc);
+							syscall=pc->scno;
+							fun=cdtab(syscall);
+							//GDEBUG(2, "enter resumed fun");
+							pc->behavior=fun(syscall,IN,pc);
+							//GDEBUG(2, "exit resumed fun %d",pc->behavior);
+							if (pc->behavior == SC_FAKE)
+								syscall=__NR_getpid;
+						}
+					}
+					if (syscall == __NR_fork ||
+							syscall == __NR_vfork ||
+							syscall == __NR_clone) {
+						int newpid;
+						newpid=getrv(pc);
+						handle_new_proc(newpid,pc);
+						GDEBUG(3, "FORK! %d->%d",pid,newpid);
+
+						/* restore original arguments */
+						offspring_exit(pc);
+						putrv(newpid,pc);
+					}
+					if ((pc->behavior == SC_FAKE && syscall != __NR_getpid) && 
+							syscall != pc->scno)
+						GDEBUG(0, "error FAKE != %d",syscall);
+					fun=cdtab(pc->scno);
+					if (fun != NULL &&
+							(pc->behavior == SC_FAKE ||
+							 pc->behavior == SC_CALLONXIT)) {
+						pc->behavior = fun(pc->scno,OUT,pc);
+						if ((pc->behavior & SC_SUSPENDED) == 0)
+							pc->scno=NOSC;
+					} else {
+						pc->behavior = STD_BEHAVIOR;
 						pc->scno=NOSC;
-				} else {
-					pc->behavior = STD_BEHAVIOR;
-					pc->scno=NOSC;
+					}
+#ifdef PIVOTING_ENABLED
 				}
+#endif
 			} // end if scno==NOSC (OUT)
 			if( pusher(pc) == -1 ){
 					//printf("errno - pusher: %d on process %d \n",errno,pc->pid);
@@ -576,7 +632,7 @@ static void setsigaction()
 	// fillset: syscall hadling is not interruptable
 	sigfillset(&sa.sa_mask);
 	/* 
-	 * The signal handler is no more the whole tracehand()
+	 * The signal handler is no longer the whole tracehand()
 	 * but a smaller function whose only duty is to
 	 * wake up the select() in main().
 	 */
@@ -610,6 +666,9 @@ int capture_main(char **argv)
 				GPERROR(0, "Waiting for stop");
 				exit(1);
 			}
+#ifdef PIVOTING_ENABLED
+			register_first_instruction(pcbtab[0]);
+#endif
 			setsigaction();
 			if(ptrace(PTRACE_SYSCALL, first_child_pid, 0, 0) < 0){
 				GPERROR(0, "continuing");
@@ -620,4 +679,4 @@ int capture_main(char **argv)
 	return 0;
 }
 
-/* vim: set ts=2: */
+/* vim: set ts=2 shiftwidth=2: */

@@ -51,6 +51,11 @@ wrapinfun wrap_in_umask, wrap_in_chroot;
 wrapoutfun wrap_out_open, wrap_out_std, wrap_out_close, wrap_out_chdir;
 wrapoutfun wrap_out_dup, wrap_out_select, wrap_out_poll, wrap_out_fcntl;
 
+#ifdef PIVOTING_TEST
+wrapinfun wrap_in_getpid;
+wrapoutfun wrap_out_getpid;
+#endif
+
 struct sc_map scmap[]={
 	{__NR_chdir,	choice_path,	wrap_in_chdir,	wrap_out_chdir, ALWAYS,	1},
 	{__NR_fchdir,	choice_fd,	wrap_in_fchdir,	wrap_out_chdir, ALWAYS,	1},
@@ -116,6 +121,9 @@ struct sc_map scmap[]={
 	{__NR_pwrite64,	choice_fd,	wrap_in_pwrite, wrap_out_std,	0,	5},
 #else
 	{__NR_pwrite,	choice_fd,	wrap_in_pwrite, wrap_out_std,	0,	5},
+#endif
+#ifdef PIVOTING_TEST
+	{__NR_getpid,	always_umnone,	wrap_in_getpid, wrap_out_getpid,ALWAYS,	0},
 #endif
 };
 
