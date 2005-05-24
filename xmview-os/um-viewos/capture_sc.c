@@ -494,6 +494,13 @@ void tracehand(int s)
 		}
 		else if(WIFSTOPPED(status)) {
 			GDEBUG(3, "%d: stopped sig=%d",pid,(WSTOPSIG(status)));
+			if(WSTOPSIG(status) == SIGSEGV)
+			{
+				if(popper(pc) == -1)
+					GDEBUG(3, "[err]");
+				GDEBUG(3, "%d: stopped sig=SIGSEGV @ %p",
+						pc->pid, getpc(pc));
+			}
 			/*if (!sigishandled(pc,  WSTOPSIG(status))) {
 				// also progenie, but for now 
 				//ptrace(PTRACE_KILL,pid,0,0);

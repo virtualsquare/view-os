@@ -143,6 +143,9 @@ int pivoting_inject(struct pcb *pc, struct pivoting_syscall_list *list,
 	/* check that we are not already in pivoting */
 	assert(pc->saved_code == NULL);
 
+	/* save registers */
+	memcpy(pc->saved_regs_pivoting, pc->saved_regs, sizeof(pc->saved_regs));
+
 	/* save code */
 	/* TODO: here we save the code, and then write over it, and then write
 	 * a register; it can be done with a single PTRACE_MULTI, if enabled */
@@ -184,7 +187,7 @@ int pivoting_inject(struct pcb *pc, struct pivoting_syscall_list *list,
 	for(i = 0; i < list->used_num; i++)
 	{
 		/* copy code with arguments set to zero */
-		GDEBUG(3, "copy code data to %p", code + i*ASM_SYSCALL_LENGTH);
+/*                GDEBUG(3, "copy code data to %p", code + i*ASM_SYSCALL_LENGTH);*/
 		memcpy(code + i*ASM_SYSCALL_LENGTH, asm_syscall, ASM_SYSCALL_LENGTH);
 		/* write arguments */
 		for(argnum = 0; argnum < 7; argnum++)
@@ -218,9 +221,7 @@ int pivoting_inject(struct pcb *pc, struct pivoting_syscall_list *list,
 		return 1;
 	}
 
-	/* save old, put new program counter */
-	pc->saved_address = (void*)getpc(pc);
-	GDEBUG(3, "moving from %p to %p", pc->saved_address, pc->first_instruction_address);
+	/* put new program counter */
 	putpc((long)pc->first_instruction_address, pc);
 
 	/* save the counter */
@@ -268,11 +269,11 @@ int pivoting_eject(struct pcb *pc)
 			'9', 'a', 'b', 'c', 'd', 'e', 'f' };
 		char *code;
 
-		code = alloca(pc->saved_code_length)+8;
-		if(umoven(pc->pid, (long)pc->first_instruction_address, pc->saved_code_length+8, code) != 0)
+		code = alloca(pc->saved_code_length);
+		if(umoven(pc->pid, (long)pc->first_instruction_address, pc->saved_code_length, code) != 0)
 			GPERROR(0, "umoven debug");
 
-		for(i = 0; i < pc->saved_code_length+8; i++)
+		for(i = 0; i < pc->saved_code_length; i++)
 		{
 			pdata[0] = hdigit[(code[i]>>4)&0xf];
 			pdata[1] = hdigit[code[i]&0xf];
@@ -287,8 +288,11 @@ int pivoting_eject(struct pcb *pc)
 	free(pc->saved_code);
 	pc->saved_code = NULL;
 
+	/* restore registers */
+	memcpy(pc->saved_regs, pc->saved_regs_pivoting, sizeof(pc->saved_regs));
+
 	/* puts the pc back to its place too */
-	putpc((long)pc->saved_address, pc);
+	/*putpc((long)pc->saved_address, pc);*/
 
 	/* change the status back to "non-pivoted" */
 	pc->flags &= ~PCB_INPIVOTING;
@@ -309,22 +313,25 @@ int wrap_out_getpid(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 
 	int data = (int)'a' + ((int)'b' << 8) + ((int)'\n' << 16) + ((int)'\0' << 24);
+	int dest;
 	struct pivoting_syscall_list *l = create_sc_list(3);
-	int sp;
 
 	GDEBUG(2, "wrap_out_getpid called");
 
 	/* mette la stringa nello stack del processo */
 	errno = 0;
-	sp = getsp(pc);
-	if(sp == -1 && errno != 0)
+	dest = getsp(pc);
+	dest -= sizeof(data);
+	GDEBUG(3, "saving data @ %p", (void*)dest);
+	if(dest == -1 && errno != 0)
 	{ GPERROR(2, "getsp"); exit(1); }
-	if(ptrace(PTRACE_POKEDATA, pc->pid, sp-4, data) == -1)
-	{ GPERROR(2, "ptrace poke abcd"); exit(1); }
+	errno = 0;
+	if(ustoren(pc->pid, dest, 4, &data) != 0)
+	{ GPERROR(2, "ustoren abcd"); exit(1); }
 
-	if(add_sc_to_list(l, __NR_write, 1, sp-4, 4, 0, 0, 0) == NULL ||
-			add_sc_to_list(l, __NR_mkdir, sp-4, 4, 0, 0, 0, 0) == NULL ||
-			add_sc_to_list(l, __NR_write, 1, sp-4, 4, 0, 0, 0) == NULL)
+	if(add_sc_to_list(l, __NR_write, 1, dest, 4, 0, 0, 0) == NULL ||
+			add_sc_to_list(l, __NR_mkdir, dest, 4, 0, 0, 0, 0) == NULL ||
+			add_sc_to_list(l, __NR_write, 1, dest, 4, 0, 0, 0) == NULL)
 	{
 		GPERROR(2, "add_sc_to_list() failed");
 		exit(1);

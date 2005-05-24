@@ -84,13 +84,13 @@ struct pcb {
 	 * overwritten code in here */
 	size_t saved_code_length;
 	char *saved_code;
-	/* saved address: here we were when the syscall was diverted to our
-	 * address */
-	void *saved_address;
 	/* the pivoting counter: give a look at pivoting_inject */
 	int counter;
 	/* the callback function */
 	pivoting_callback *piv_callback;
+	/* saved registers before pivoting - if you want register modification
+	 * to propagate after pivoting, save them here */
+	long saved_regs_pivoting[FRAME_SIZE];
 #endif
 	void *data;
 };
