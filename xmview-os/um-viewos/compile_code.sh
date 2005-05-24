@@ -44,7 +44,7 @@
 
 OUTFILE_H="$1"
 OUTFILE="$2"
-DEFS=abcdef.h
+DEFS=defs.h
 # 6, but there's syscall number too
 NUMARGS=7
 
@@ -68,10 +68,7 @@ int main()
 	return 0;
 }
 _END_
-set -x
 cc -I. -DPIVOTING_ENABLED -Wall -o $GET_OUT_ASM_ELF $GET_OUT_ASM || exit 1
-set +x
-exit
 ASM_SYSCALL=`$GET_OUT_ASM_ELF`
 ASM_SYSCALL_CODE=`$GET_OUT_ASM_ELF | while read LINE ; do echo "\"$LINE\\n\"" ; done`
 
