@@ -151,8 +151,13 @@ int lfd_open (service_t service, int sfd, char *path)
 		//printf("lfd_tab realloc newnfd %d\n",um_maxlfd);
 		lfd_tab=(struct lfd_top *) realloc (lfd_tab, (um_maxlfd * sizeof (struct lfd_top)));
 		assert (lfd_tab);
-		for (;i < um_maxlfd;i++) 
+
+		/* Clean the new entries in lfd_tab or lfd_cleanall will not work properly */
+		for (;i < um_maxlfd;i++)
+		{
+			lfd_tab[i].pvtab=NULL;
 			lfd_tab[i].ptab=NULL;
+		}
 	}
 	assert(lfd_tab[lfd].ptab == NULL);
 	lfd_tab[lfd].ptab = (struct lfd_table *)malloc (sizeof(struct lfd_table));
