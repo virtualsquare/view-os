@@ -26,6 +26,7 @@
  */   
 #include <fcntl.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -40,11 +41,14 @@
 /* Check if "path" can be accessed by the traced process. If yes, execute
  * "func" and return its return value. Else, set errno to "newerrno"
  * and return "rv". */
+#if 0
 #define UMPERS_VERIFY(func, path, rv, newerrno) \
 	{ \
-		/* printf("%s: verifying %s...\n", __func__, (path)); */ \
+		/* fprintf(stderr,"%s: verifying %s...\n", __func__, (path)); */ \
 		return (umpers_verify(path) ? (func) : (errno = newerrno, rv)); \
 	}
+#endif
+
 
 /* Base directory of personalities mask (e.g. /home/ludovico/.umview/umpers)
  * It's stored in a global variable for better performances; this should not
@@ -56,24 +60,6 @@ static int umpers_fullprefix_len = 0;
 static int alwaysfalse()
 {
 	return 0;
-}
-
-/* Tell if the given path has to be managed by this module or not. For now
- * we can't manage dynamic libraries, so we skip everything starting with
- * /lib or /usr/lib or /usr/X11R6/lib.
- * FIXME: Ugly. Very ugly. At least we should parse ld configuration. */
-static int umpers_path(char *path)
-{
-	int retval = ((strncmp(path, "/lib", 4) != 0) &&
-			(strncmp(path, "/usr/lib", 8) != 0) &&
-			(strncmp(path, "/usr/X11R6/lib", 14) != 0));
-
-	if (!retval)
-		printf("--- personalities: ignoring %s\n", path);
-	else
-		printf("+++ personalities: considering %s\n", path);
-
-	return retval;
 }
 
 /* Build the name of the "ghost" file in the umview configuration directory.
@@ -107,6 +93,10 @@ static char *umpers_maskfile(char *path)
 static int umpers_verify(char *path)
 {
 	char *fullpath;
+	char *curpath;
+	struct stat path_info;
+	int found;
+	int prefix_length=strlen(UMPERS_PREFIX);
 	
 	/* First of all: the traced processes MUST NOT read, write or do
 	 * anything else on the mask directory. */
@@ -117,18 +107,79 @@ static int umpers_verify(char *path)
 
 	if (strncmp(path, umpers_fullprefix, umpers_fullprefix_len) == 0)
 	{
-		printf("!!! WARNING - Attempt to access to config directory: %s\n", path);
+		fprintf(stderr,"!!! WARNING - Attempt to access to config directory: %s\n", path);
 		return 0; 
 	}
 
 	/* TODO: here we should perform the check. For now we don't do anything
 	 * and let everyone do everything. */
 	fullpath = umpers_maskfile(path);
-//	printf("FIXME: check for %s\n", fullpath);
+
+	/* Start from the full path and try to find the file or directory
+	 * in the ghost directory. If not found, go up level by level until
+	 * one of the directories of the path is found. */
+	curpath = strdup(fullpath);
+
+	found = 0;
+	while (!found && (strlen(curpath) > prefix_length))
+	{
+		int retval = stat(curpath, &path_info);
+		
+		if (retval < 0)
+		{
+			/* Not found, go up one level */
+			int i;
+			int slen = strlen(curpath);
+			if (curpath[slen-1] == '/')
+				curpath[slen-1] = '\0';
+
+			for (i = slen-1; (curpath[i] != '/' && i >= prefix_length); i--)
+				curpath[i] = '\0';
+
+			if ((i-1 >= prefix_length) && (curpath[i-1] == '/'))
+				curpath[i-1] = '\0';
+		}
+		else
+		{
+			if (S_ISDIR(path_info.st_mode))
+				found = 2;
+			else
+				found = 1;
+		}
+	}
+
+	free(curpath);
 	free(fullpath);
-	return 1;
+	return (found==1)?0:-1;
 }
 
+/* Tell if the given path has to be managed by this module or not. For now
+ * we can't manage dynamic libraries, so we skip everything starting with
+ * /lib or /usr/lib or /usr/X11R6/lib.
+ * FIXME: Ugly. Very ugly. At least we should parse ld configuration. */
+static int umpers_path(char *path)
+{
+	int retval;
+	
+	retval = ((strncmp(path, "/lib", 4) != 0) &&
+			(strncmp(path, "/usr/lib", 8) != 0) &&
+			(strncmp(path, "/usr/bin/X11", 12) != 0) &&
+			(strncmp(path, "/usr/X11R6/lib", 14) != 0));
+
+	retval &= ~umpers_verify(path);
+
+	if (!retval)
+	//	fprintf(stderr,"+++ personalities: allowing %s\n", path);
+		;
+	else
+		fprintf(stderr,"--- personalities: denying %s\n", path);
+
+	return retval;
+}
+
+
+
+#if 0
 /* Begin of system calls wrappers.
  * FIXME: Maybe some of them should do a weaker check. For instance, I don't
  * want ls to print "Permission denied" when I list a directory which contain
@@ -233,14 +284,22 @@ ssize_t umpers_pwrite(int fd, const void *buf, size_t count, long long offset)
 	return pwrite(fd,buf,count,off);
 }
 
+#endif
+
+static int umpers_deny(void)
+{
+	errno = EACCES;
+	return -1;
+}
+
 static struct service s;
 
 static void
 __attribute__ ((constructor))
 init (void)
 {
-	printf("*** THIS CODE STILL DOES NOT WORK, PLEASE DO NOT USE IT ***\n");
-	printf("personalities init\n");
+	fprintf(stderr,"*** THIS CODE STILL DOES NOT WORK, PLEASE DO NOT USE IT ***\n");
+	fprintf(stderr,"personalities init\n");
 
 	char *home = getenv("HOME");
 	
@@ -256,13 +315,14 @@ init (void)
 	strncpy(umpers_fullprefix, home, strlen(home));
 	strncat(umpers_fullprefix, UMPERS_PREFIX, strlen(UMPERS_PREFIX));
 
-	printf("Configuration directory is %s\n", umpers_fullprefix);
+	fprintf(stderr,"Configuration directory is %s\n", umpers_fullprefix);
 	s.name="Personalities management";
 	s.code=0xfc;
 	s.checkpath=umpers_path;
 	s.checksocket=alwaysfalse;
 	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
 	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
+#if 0
 	s.syscall[uscno(__NR_open)]=umpers_open;
 	/* creat must me mapped onto open */
 	/* FIXME: Is this true? If yes, shall we manually set flags to 
@@ -304,7 +364,51 @@ init (void)
 	s.syscall[uscno(__NR_pwrite64)]=umpers_pwrite;
 	s.syscall[uscno(__NR_utime)]=umpers_utime;
 	s.syscall[uscno(__NR_utimes)]=umpers_utimes;
+#endif
+
+	s.syscall[uscno(__NR_open)]=umpers_deny;
+	/* creat must me mapped onto open */
+	/* FIXME: Is this true? If yes, shall we manually set flags to 
+	 * O_CREAT|O_WRONLY|O_TRUNC (see creat(2))? */
+	s.syscall[uscno(__NR_creat)]=umpers_deny;
+	s.syscall[uscno(__NR_read)]=read;
+	s.syscall[uscno(__NR_write)]=write;
+	s.syscall[uscno(__NR_readv)]=readv;
+	s.syscall[uscno(__NR_writev)]=writev;
+	s.syscall[uscno(__NR_close)]=close;
+	s.syscall[uscno(__NR_stat)]=umpers_deny;
+	s.syscall[uscno(__NR_lstat)]=umpers_deny;
+	s.syscall[uscno(__NR_fstat)]=fstat;
+	s.syscall[uscno(__NR_stat64)]=umpers_deny;
+	s.syscall[uscno(__NR_lstat64)]=umpers_deny;
+	s.syscall[uscno(__NR_fstat64)]=fstat64;
+	s.syscall[uscno(__NR_readlink)]=umpers_deny;
+	s.syscall[uscno(__NR_getdents)]=getdents;
+	s.syscall[uscno(__NR_getdents64)]=getdents64;
+	s.syscall[uscno(__NR_access)]=umpers_deny;
+	s.syscall[uscno(__NR_fcntl)]=fcntl32;
+	s.syscall[uscno(__NR_fcntl64)]=fcntl64;
+	s.syscall[uscno(__NR__llseek)]=_llseek;
+	s.syscall[uscno(__NR_lseek)]= (intfun) lseek;
+	s.syscall[uscno(__NR_mkdir)]=umpers_deny;
+	s.syscall[uscno(__NR_rmdir)]=umpers_deny;
+	s.syscall[uscno(__NR_chown)]=umpers_deny;
+	s.syscall[uscno(__NR_lchown)]=umpers_deny;
+	s.syscall[uscno(__NR_fchown)]=fchown;
+	s.syscall[uscno(__NR_chmod)]=umpers_deny;
+	s.syscall[uscno(__NR_fchmod)]=fchmod;
+	s.syscall[uscno(__NR_unlink)]=umpers_deny;
+	s.syscall[uscno(__NR_fsync)]=fsync;
+	s.syscall[uscno(__NR_fdatasync)]=fdatasync;
+	s.syscall[uscno(__NR__newselect)]=select;
+	s.syscall[uscno(__NR_link)]=umpers_deny;
+	s.syscall[uscno(__NR_symlink)]=umpers_deny;
+	s.syscall[uscno(__NR_pread64)]=umpers_deny;
+	s.syscall[uscno(__NR_pwrite64)]=umpers_deny;
+	s.syscall[uscno(__NR_utime)]=umpers_deny;
+	s.syscall[uscno(__NR_utimes)]=umpers_deny;
 	add_service(&s);
+	
 }
 
 static void
@@ -313,5 +417,5 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	printf("personalities fini\n");
+	fprintf(stderr,"personalities fini\n");
 }
