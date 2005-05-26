@@ -128,18 +128,22 @@ char *um_abspath(int laddr,struct pcb *pc,int link)
  * decision:
  * - An argument parser function (dcpa): this function extracts the arguments
  *   from the process registers/memory into our data structures (usually
- *   arg{0,1,...}, but also others - e.g., sockregs). It must also return the
- *   index inside the system call table that regards the current system call.
+ *   arg{0,1,...}, but also others - e.g., sockregs).
+ * - An index function (dcif): returns the index inside the system call table
+ *   that regards the current system call.
  * - A service call function (sc): the service code and system call number is
  *   given to this function, and it must return the function of the
  *   module/service which manage the syscall
  * - A system call table (sm): this is a table of sc_map entries - look at that
  *   structure for more informations.
  */
-typedef int (*dsys_commonwrap_parse_arguments)(struct pcb *pc, struct pcb_ext *pcdata, int usc);
+typedef void (*dsys_commonwrap_parse_arguments)(struct pcb *pc, struct pcb_ext *pcdata, int usc);
+typedef int (*dsys_commonwrap_index_function)(struct pcb *pc, int usc);
 typedef intfun (*service_call)(service_t code, int scno);
 int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
-		dsys_commonwrap_parse_arguments dcpa, service_call sc,
+		dsys_commonwrap_parse_arguments dcpa,
+		dsys_commonwrap_index_function dcif,
+		service_call sc,
 		struct sc_map *sm)
 {
 	struct pcb_ext *pcdata=(struct pcb_ext *)(pc->data);
@@ -147,9 +151,12 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 	/* -- IN phase -- */
 	if (inout == IN) {
 		service_t sercode;
-		/* extract argument, and get the index of the system call table
+		int index;
+		/* extract argument */
+		dcpa(pc, pcdata, usc);
+		/* and get the index of the system call table
 		 * regarding this syscall */
-		int index = dcpa(pc, pcdata, usc);
+		index = dcif(pc, usc);
 		/* looks in the system call table what is the 'choice function'
 		 * and ask it the service to manage */
 		sercode=sm[index].scchoice(sc_number,pc,pcdata);
@@ -186,8 +193,11 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		if (pcdata->path != um_patherror) {
 			/* ok, try to call the wrapout */
 			int retval;
+			/* and get the index of the system call table
+			 * regarding this syscall */
+			int index = dcif(pc, usc);
 			/* call the wrapout */
-			retval=scmap[usc].wrapout(sc_number,pc,pcdata);
+			retval=sm[index].wrapout(sc_number,pc,pcdata);
 			/* check if we can free the path (not NULL and not
 			 * used) */
 			if (pcdata->path != NULL && (retval & SC_SUSPENDED) == 0)
@@ -205,7 +215,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 	}
 }
 
-int dsys_socketwrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int usc)
+void dsys_socketwrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int usc)
 {
 	pc->arg0=getargn(0,pc); // arg0 is the current socket call
 	pc->arg1=getargn(1,pc);
@@ -223,14 +233,18 @@ int dsys_socketwrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int 
 		for (i=1;i<sockmap[pc->arg0].nargs;i++)
 			pcdata->sockregs[i]=ptrace(PTRACE_PEEKDATA,pc->pid,4*i+pc->arg1,0);
 	}
+}
 
+int dsys_socketwrap_index_function(struct pcb *pc, int usc)
+{
 	return pc->arg0;
 }
 
 int dsys_socketwrap(int sc_number,int inout,struct pcb *pc)
 {
 	return dsys_commonwrap(sc_number, inout, pc,
-			dsys_socketwrap_parse_arguments, service_socketcall,
+			dsys_socketwrap_parse_arguments,
+			dsys_socketwrap_index_function, service_socketcall,
 			sockmap);
 }
 
@@ -396,18 +410,22 @@ char always_umnone(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	return UM_NONE;
 }
 
-int dsys_megawrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int usc)
+void dsys_megawrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int usc)
 {
 	pcdata->path = NULL;
 	pc->arg0 = getargn(0, pc);
+}
+
+int dsys_megawrap_index_function(struct pcb *pc, int usc)
+{
 	return usc;
 }
 
 int dsys_megawrap(int sc_number,int inout,struct pcb *pc)
 {
 	return dsys_commonwrap(sc_number, inout, pc,
-			dsys_megawrap_parse_arguments, service_syscall,
-			scmap);
+			dsys_megawrap_parse_arguments,
+			dsys_megawrap_index_function, service_syscall, scmap);
 }
 
 #define __NR_UM_SERVICE BASEUSC+0
