@@ -234,9 +234,14 @@ intfun service_syscall(service_t code, int scno)
 
 intfun service_socketcall(service_t code, int scno)
 {
-	int pos=servmap[code]-1;
-	struct service *s=services[pos];
-	return (s->socket[scno] == NULL) ? errnosys : s->socket[scno];
+	if(code == UM_NONE)
+		return NULL;
+	else {
+		int pos=servmap[code]-1;
+		struct service *s=services[pos];
+		assert( s != NULL );
+		return (s->socket[scno] == NULL) ? errnosys : s->socket[scno];
+	}
 }
 
 

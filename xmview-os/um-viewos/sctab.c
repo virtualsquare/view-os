@@ -119,43 +119,119 @@ char *um_abspath(int laddr,struct pcb *pc,int link)
 	}
 }
 
-// Socketcall is a special call let us keep it out from the "wrap" structure.
-int dsys_socketwrap(int sc_number,int inout,struct pcb *pc)
+/* Common framework for the dsys_{megawrap,socketwrap,mmapwrap,...} - they all
+ * do the usual work, but with different parameter handling.
+ * What a dsys_* function do is, in general, receiving the notification of an
+ * IN/OUT phase of syscall about a certain process, and decide what to do. What
+ * it has to do is to deliver the notification to the correct functions.
+ * This common framework asks for three more parameters to make such a
+ * decision:
+ * - An argument parser function (dcpa): this function extracts the arguments
+ *   from the process registers/memory into our data structures (usually
+ *   arg{0,1,...}, but also others - e.g., sockregs). It must also return the
+ *   index inside the system call table that regards the current system call.
+ * - A service call function (sc): the service code and system call number is
+ *   given to this function, and it must return the function of the
+ *   module/service which manage the syscall
+ * - A system call table (sm): this is a table of sc_map entries - look at that
+ *   structure for more informations.
+ */
+typedef int (*dsys_commonwrap_parse_arguments)(struct pcb *pc, struct pcb_ext *pcdata, int usc);
+typedef intfun (*service_call)(service_t code, int scno);
+int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
+		dsys_commonwrap_parse_arguments dcpa, service_call sc,
+		struct sc_map *sm)
 {
 	struct pcb_ext *pcdata=(struct pcb_ext *)(pc->data);
+	int usc=uscno(sc_number);
+	/* -- IN phase -- */
 	if (inout == IN) {
 		service_t sercode;
-		pc->arg0=getargn(0,pc); // arg0 is the current socket call
-		pc->arg1=getargn(1,pc);
-		if (has_ptrace_multi) {
-			struct ptrace_multi req[] = {{PTRACE_PEEKDATA, pc->arg1, &(pcdata->sockregs[0]), sockmap[pc->arg0].nargs}};
-			errno=0;
-			ptrace(PTRACE_MULTI,pc->pid,req,1);
-			pc->arg2=pcdata->sockregs[0];
+		/* extract argument, and get the index of the system call table
+		 * regarding this syscall */
+		int index = dcpa(pc, pcdata, usc);
+		/* looks in the system call table what is the 'choice function'
+		 * and ask it the service to manage */
+		sercode=sm[index].scchoice(sc_number,pc,pcdata);
+		/* something went wrong during a path lookup - fake the
+		 * syscall, we do not want to make it run */
+		if (pcdata->path == um_patherror) {
+			pc->retval = -1;
+			return SC_FAKE;
 		}
-		else
-			pc->arg2=pcdata->sockregs[0]=ptrace(PTRACE_PEEKDATA,pc->pid,pc->arg1,0);
-		//printf("socketwrap pid = %d args %d %d %d \n",pc->pid,pc->arg0,pc->arg1,pc->arg2);
-		sercode=sockmap[pc->arg0].scchoice(sc_number,pc,pcdata);
-		//printf("-->sercode %x\n",sercode);
-		if (sercode != UM_NONE) {
-			int howsusp =sockmap[pc->arg0].flags & 0x7;
+		/* if some service want to manage the syscall (or the ALWAYS
+		 * flag is set), we process it */
+		if (sercode != UM_NONE || (sm[usc].flags & ALWAYS)) {
+			/* suspend management - TODO: don't know how it works!
+			 * :P */
+			int howsusp = sm[index].flags & 0x7;
 			int what;
-			if (!has_ptrace_multi) {
-				int i;
-				for (i=1;i<sockmap[pc->arg0].nargs;i++)
-					pcdata->sockregs[i]=ptrace(PTRACE_PEEKDATA,pc->pid,4*i+pc->arg1,0);
-			}
 			if (howsusp != 0 && (what=check_suspend_on(pc, pcdata, pc->arg2, howsusp))!=STD_BEHAVIOR)
 				return what;
 			else
-				return sockmap[pc->arg0].wrapin(sc_number,pc,pcdata,sercode,service_socketcall(sercode,pc->arg0));
+				/* normal management: call the wrapin function,
+				 * with the correct service syscall function */
+				return sm[index].wrapin(sc_number,pc,pcdata,sercode,sc(sercode,index));
 		}
-		else
+		else {
+			/* we do not want to manage the syscall: free the path
+			 * field in case, since we do not need it, and ask for
+			 * a standard behavior */
+			if (pcdata->path != NULL)
+				free(pcdata->path);
 			return STD_BEHAVIOR;
+		}
+	/* -- OUT phase -- */
 	} else {
-		return sockmap[pc->arg0].wrapout(sc_number,pc,pcdata);
+		if (pcdata->path != um_patherror) {
+			/* ok, try to call the wrapout */
+			int retval;
+			/* call the wrapout */
+			retval=scmap[usc].wrapout(sc_number,pc,pcdata);
+			/* check if we can free the path (not NULL and not
+			 * used) */
+			if (pcdata->path != NULL && (retval & SC_SUSPENDED) == 0)
+				free(pcdata->path);
+			return retval;
+		}
+		else {
+			/* during the IN phase something gone wrong (XXX: is
+			 * this the point?) - simply pass return value and
+			 * errno to the process */
+			putrv(pc->retval,pc);
+			puterrno(pc->erno,pc);
+			return STD_BEHAVIOR;
+		}
 	}
+}
+
+int dsys_socketwrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int usc)
+{
+	pc->arg0=getargn(0,pc); // arg0 is the current socket call
+	pc->arg1=getargn(1,pc);
+	pcdata->path = NULL;
+	if (has_ptrace_multi) {
+		struct ptrace_multi req[] = {{PTRACE_PEEKDATA, pc->arg1, &(pcdata->sockregs[0]), sockmap[pc->arg0].nargs}};
+		errno=0;
+		ptrace(PTRACE_MULTI,pc->pid,req,1);
+		pc->arg2=pcdata->sockregs[0];
+	}
+	else
+	{
+		int i;
+		pc->arg2=pcdata->sockregs[0]=ptrace(PTRACE_PEEKDATA,pc->pid,pc->arg1,0);
+		for (i=1;i<sockmap[pc->arg0].nargs;i++)
+			pcdata->sockregs[i]=ptrace(PTRACE_PEEKDATA,pc->pid,4*i+pc->arg1,0);
+	}
+
+	return pc->arg0;
+}
+
+int dsys_socketwrap(int sc_number,int inout,struct pcb *pc)
+{
+	return dsys_commonwrap(sc_number, inout, pc,
+			dsys_socketwrap_parse_arguments, service_socketcall,
+			sockmap);
 }
 
 /* ??? */
@@ -163,6 +239,7 @@ void um_proc_add(struct pcb *pc)
 {
 }
 
+/* ??? */
 void um_proc_del(struct pcb *pc)
 {
 }
@@ -319,52 +396,18 @@ char always_umnone(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	return UM_NONE;
 }
 
+int dsys_megawrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int usc)
+{
+	pcdata->path = NULL;
+	pc->arg0 = getargn(0, pc);
+	return usc;
+}
+
 int dsys_megawrap(int sc_number,int inout,struct pcb *pc)
 {
-	int usc=uscno(sc_number);
-	struct pcb_ext *pcdata=(struct pcb_ext *)(pc->data);
-	if (inout == IN) {
-		service_t sercode;
-		assert(usc >= 0);
-		pcdata->path=NULL;
-		pc->arg0=getargn(0,pc);
-		sercode=scmap[usc].scchoice(sc_number,pc,pcdata);
-		//printf("-> path: %s - sc_number: %d - servcode:%d - fd: %d\n", pcdata->path,sc_number,sercode,pcdata->fds);
-		if (pcdata->path == um_patherror) {
-			pc->retval = -1;
-			return SC_FAKE;
-		}
-		if (sercode != UM_NONE || (scmap[usc].flags & ALWAYS)) {
-			int howsusp =scmap[usc].flags & 0x7;
-			int what;
-			if (howsusp != 0 && (what=check_suspend_on(pc, pcdata, pc->arg0, howsusp))!=STD_BEHAVIOR)
-				return what;
-			else
-				return scmap[usc].wrapin(sc_number,pc,pcdata,sercode,service_syscall(sercode,usc));
-		}
-		else {
-			if (pcdata->path != NULL)
-				free(pcdata->path);
-			return STD_BEHAVIOR;
-		}
-	} else {
-		if (pcdata->path != um_patherror) {
-			int retval;
-			retval=scmap[usc].wrapout(sc_number,pc,pcdata);
-			/*if (pc->retval < 0)
-				printf("ERR sc %d rv %d val %d \n",sc_number,pc->retval,pc->erno);*/
-			if (pcdata->path != NULL && (retval & SC_SUSPENDED) == 0)
-				free(pcdata->path);
-			return retval;
-		}
-		else {
-			putrv(pc->retval,pc);
-			puterrno(pc->erno,pc);
-			/*if (pc->retval < 0)
-				printf("PATHERR sc %d rv %d val %d \n",sc_number,pc->retval,pc->erno);*/
-			return STD_BEHAVIOR;
-		}
-	}
+	return dsys_commonwrap(sc_number, inout, pc,
+			dsys_megawrap_parse_arguments, service_syscall,
+			scmap);
 }
 
 #define __NR_UM_SERVICE BASEUSC+0
