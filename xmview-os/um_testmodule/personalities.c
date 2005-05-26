@@ -38,6 +38,7 @@
 
 #define UMPERS_PREFIX "/.umview/umpers"
 
+
 /* Check if "path" can be accessed by the traced process. If yes, execute
  * "func" and return its return value. Else, set errno to "newerrno"
  * and return "rv". */
@@ -63,28 +64,51 @@ static int alwaysfalse()
 }
 
 /* Build the name of the "ghost" file in the umview configuration directory.
- * For now, just append the pathname to UMVIEW_PREFIX.
+ * For now, just append the first <depth> directories of <path> to UMVIEW_PREFIX.
+ * If depth is < 0, add the full path. The result is put in the string pointed
+ * to by <dest>, that must have enough space for it.
+ * Return <depth> if the path is at least so deep, or the real path depth 
+ * otherwise.
  * TODO: Add support for different trees (each umview instance, or each
  * traced process, should be able to use its set of permissions).
  */
-static char *umpers_maskfile(char *path)
+static int umpers_maskfile(char* dest, char *path, int depth)
 {
 	char *fullpath;
-
+	int pathlen; 
+	int curdepth;
+	
 	/* Probably never needed, but this is safer. */
 	if (!path)
 		path = "";
 
-	/* FIXME: This memory has to be free()d outside this function. I don't
-	 * like asymmetric allocations, should change umpers_maskfile to accept a
-	 * pointer to an already allocated string? */
-	fullpath = malloc(umpers_fullprefix_len + strlen(path) + 1);
+	pathlen = strlen(path);
+
+	fullpath = dest;
 	
 	/* Build fullpath */
 	strncpy(fullpath, umpers_fullprefix, umpers_fullprefix_len + 1);
-	strncat(fullpath, path, strlen(path));
-	
-	return fullpath;
+
+	if (depth < 0)
+		strncat(fullpath, path, pathlen);
+	else
+	{
+		int i = 0;
+		for (curdepth = 0; (curdepth < depth) && (i < pathlen); curdepth++)
+		{
+			fullpath[umpers_fullprefix_len + i] = path[i];
+			i++;
+			
+			while ((i < pathlen) && (path[i] != '/'))
+			{
+				fullpath[umpers_fullprefix_len + i] = path[i];
+				i++;
+			}
+		}
+		fullpath[umpers_fullprefix_len + i] = '\0';
+	}
+
+	return curdepth;
 
 }
 
@@ -93,17 +117,13 @@ static char *umpers_maskfile(char *path)
 static int umpers_verify(char *path)
 {
 	char *fullpath;
-	char *curpath;
 	struct stat path_info;
 	int found;
 	int prefix_length=strlen(UMPERS_PREFIX);
+	int curdepth, lastdepth;
 	
 	/* First of all: the traced processes MUST NOT read, write or do
 	 * anything else on the mask directory. */
-
-	/* FIXME: are we sure that "path" does not contain relative references
-	 * that may confuse this check? Something as
-	 * "/home/../home/ludovico/../ludovico/.umview/umpers" or the like. */
 
 	if (strncmp(path, umpers_fullprefix, umpers_fullprefix_len) == 0)
 	{
@@ -111,44 +131,42 @@ static int umpers_verify(char *path)
 		return 0; 
 	}
 
-	/* TODO: here we should perform the check. For now we don't do anything
-	 * and let everyone do everything. */
-	fullpath = umpers_maskfile(path);
-
-	/* Start from the full path and try to find the file or directory
-	 * in the ghost directory. If not found, go up level by level until
-	 * one of the directories of the path is found. */
-	curpath = strdup(fullpath);
+	fullpath = malloc(strlen(path) + umpers_fullprefix_len + 1);
 
 	found = 0;
-	while (!found && (strlen(curpath) > prefix_length))
+	lastdepth = -1;
+	curdepth = 1;
+//	fprintf(stderr, "*** verify for %s\n", path);
+	while (found == 0)
 	{
-		int retval = stat(curpath, &path_info);
-		
-		if (retval < 0)
+		int retval;
+		curdepth = umpers_maskfile(fullpath, path, curdepth);
+//		fprintf(stderr, "maskfile is %s...", fullpath);
+		if (curdepth == lastdepth) /* Search is over, not found */
 		{
-			/* Not found, go up one level */
-			int i;
-			int slen = strlen(curpath);
-			if (curpath[slen-1] == '/')
-				curpath[slen-1] = '\0';
-
-			for (i = slen-1; (curpath[i] != '/' && i >= prefix_length); i--)
-				curpath[i] = '\0';
-
-			if ((i-1 >= prefix_length) && (curpath[i-1] == '/'))
-				curpath[i-1] = '\0';
+//			fprintf(stderr,"maxdepth %d and not found, allowing\n", curdepth);
+			found = -1;
 		}
 		else
 		{
-			if (S_ISDIR(path_info.st_mode))
-				found = 2;
+			retval = stat(fullpath, &path_info);
+			if (retval < 0) /* Not found */
+			{
+//				fprintf(stderr,"at depth %d, not found, allowing\n", curdepth);
+				found = -1;
+			}
+			else if (S_ISDIR(path_info.st_mode));
+//				fprintf(stderr,"at depth %d, found and is a directory, continuing\n", curdepth);
 			else
+			{
+//				fprintf(stderr,"at depth %d, found and not a directory, DENYING\n", curdepth);
 				found = 1;
+			}
 		}
+		lastdepth = curdepth;
+		curdepth++;
 	}
 
-	free(curpath);
 	free(fullpath);
 	return (found==1)?0:-1;
 }
@@ -325,8 +343,6 @@ init (void)
 #if 0
 	s.syscall[uscno(__NR_open)]=umpers_open;
 	/* creat must me mapped onto open */
-	/* FIXME: Is this true? If yes, shall we manually set flags to 
-	 * O_CREAT|O_WRONLY|O_TRUNC (see creat(2))? */
 	s.syscall[uscno(__NR_creat)]=umpers_open;
 	s.syscall[uscno(__NR_read)]=read;
 	s.syscall[uscno(__NR_write)]=write;
@@ -368,8 +384,6 @@ init (void)
 
 	s.syscall[uscno(__NR_open)]=umpers_deny;
 	/* creat must me mapped onto open */
-	/* FIXME: Is this true? If yes, shall we manually set flags to 
-	 * O_CREAT|O_WRONLY|O_TRUNC (see creat(2))? */
 	s.syscall[uscno(__NR_creat)]=umpers_deny;
 	s.syscall[uscno(__NR_read)]=read;
 	s.syscall[uscno(__NR_write)]=write;
