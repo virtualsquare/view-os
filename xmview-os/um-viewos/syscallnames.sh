@@ -78,7 +78,7 @@ cat > syscallnames.h << _END_
 #ifndef _SYSCALLNAMES_H
 #define _SYSCALLNAMES_H
 
-const char *syscallnames[] = {
+static const char *syscallnames[] = {
 _END_
 
 $tmpoutfile | sort -n | uniq | ( while read scno scname
@@ -105,7 +105,7 @@ scsize=$(($lastscno + 1))
 cat >> syscallnames.h << _END_
 };
 
-const int syscallnames_size = $scsize;
+static const int syscallnames_size = $scsize;
 
 #define SYSCALLNAME(n) (((n) < syscallnames_size) ? syscallnames[(n)] : "OUTOFBOUNDS")
 
