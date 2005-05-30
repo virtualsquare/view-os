@@ -152,8 +152,8 @@ struct sc_map sockmap[]={
 /*13*/	{SYS_SHUTDOWN,  	choice_fd,	wrap_in_shutdown,	wrap_out_std,	0,	2},
 /*14*/	{SYS_SETSOCKOPT,        choice_fd,	wrap_in_setsockopt,	wrap_out_std,	0,	5},
 /*15*/	{SYS_GETSOCKOPT,        choice_fd,	wrap_in_getsockopt,	wrap_out_std,	0,	5},
-/*16*/	{SYS_SENDMSG,   	choice_fd,	wrap_in_sendmsg,	wrap_out_std,	0,	5},
-/*17*/	{SYS_RECVMSG,   	choice_fd,	wrap_in_recvmsg,	wrap_out_std,	0,	5}
+/*16*/	{SYS_SENDMSG,   	choice_fd,	wrap_in_sendmsg,	wrap_out_std,	0,	3},
+/*17*/	{SYS_RECVMSG,   	choice_fd,	wrap_in_recvmsg,	wrap_out_std,	0,	3}
 };
 #define SIZESOCKMAP (sizeof(sockmap)/sizeof(struct sc_map))
 
