@@ -50,7 +50,7 @@ static int alwaystrue(char *path)
 
 static int check(int domain)
 {
-	return(domain == AF_INET || domain != PF_INET6 || domain != PF_NETLINK || domain != PF_PACKET);
+	return(domain == AF_INET || domain == PF_INET6 || domain == PF_NETLINK || domain == PF_PACKET);
 }
 
 struct libtab {
