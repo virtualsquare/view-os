@@ -49,6 +49,8 @@
 #include "sctab.h"
 #include "scmap.h"
 #include "utils.h"
+#include <sys/time.h>
+#include <time.h>
 
 #define umNULL ((int) NULL)
 
@@ -60,6 +62,9 @@ static void ioctl_getarg(pid_t pid, int request, unsigned int arg, void **larg)
 			break;
 		case SIOCGIFCONF:
 			*larg=malloc(sizeof(struct ifconf));
+			break;
+		case SIOCGSTAMP:
+			*larg=malloc(sizeof(struct timeval));
 			break;
 		case SIOCGIFFLAGS:
 		case SIOCGIFADDR:
@@ -79,6 +84,7 @@ static void ioctl_getarg(pid_t pid, int request, unsigned int arg, void **larg)
 		case SIOCSIFMEM:
 		case SIOCSIFMTU:
 		case SIOCSIFHWADDR:
+		case SIOCGIFINDEX:
 			*larg=malloc(sizeof(struct ifreq));
 			umoven(pid,arg,sizeof(struct ifreq),*larg);
 			break;
@@ -101,6 +107,9 @@ static void ioctl_putarg(pid_t pid, int request, unsigned int arg, void *larg)
 		case SIOCGIFCONF:
 			ustoren(pid,arg,sizeof(struct ifconf),larg);
 			break;
+		case SIOCGSTAMP:
+			ustoren(pid,arg,sizeof(struct timeval),larg);
+			break;
 		case SIOCGIFFLAGS:
 		case SIOCGIFADDR:
 		case SIOCGIFDSTADDR:
@@ -110,6 +119,7 @@ static void ioctl_putarg(pid_t pid, int request, unsigned int arg, void *larg)
 		case SIOCGIFMEM:
 		case SIOCGIFMTU:
 		case SIOCGIFHWADDR:
+		case SIOCGIFINDEX:
 			ustoren(pid,arg,sizeof(struct ifreq),larg);
 			break;
 	}
@@ -128,13 +138,14 @@ int wrap_in_ioctl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->arg1=req;
 		void *larg;
 		ioctl_getarg(pc->pid,req,arg,&larg);
-		/*printf("wrap_in_ioctl %d req %x arg %x\n",sfd,req,larg);*/
+		//printf("wrap_in_ioctl %d req %x arg %x\n",sfd,req,larg);
 		pc->retval = syscall(sfd,req,larg);
 		pc->erno=errno;
 		if (pc->retval >= 0)
 			ioctl_putarg(pc->pid,req,arg,larg);
 		if (larg != NULL)
 			free(larg);
+		//printf("wrap_in_ioctl %d %d\n",pc->retval,pc->erno);
 	}
 	return SC_FAKE;
 }
