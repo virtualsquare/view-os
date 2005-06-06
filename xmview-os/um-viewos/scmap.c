@@ -144,7 +144,7 @@ struct sc_map sockmap[]={
 /* 5*/	{SYS_ACCEPT,    	choice_fd,	wrap_in_accept,		wrap_out_socket,	CB_R,	3},
 /* 6*/	{SYS_GETSOCKNAME,       choice_fd,	wrap_in_getsock,	wrap_out_std,	0,	3},
 /* 7*/	{SYS_GETPEERNAME,       choice_fd,	wrap_in_getsock,	wrap_out_std,	0,	3},
-/* 8*/	{SYS_SOCKETPAIR,        0,		NULL, 			NULL,	0,	4}, /* not used */
+/* 8*/	{SYS_SOCKETPAIR,        always_umnone,		NULL, 			NULL,	0,	4}, /* not used */
 /* 9*/	{SYS_SEND,      	choice_fd,	wrap_in_send,		wrap_out_std,	0,	4},
 /*10*/	{SYS_RECV,      	choice_fd,	wrap_in_recv,		wrap_out_std,	0,	4},
 /*11*/	{SYS_SENDTO,    	choice_fd,	wrap_in_sendto,		wrap_out_std,	0,	6},
