@@ -61,7 +61,7 @@ struct sc_map scmap[]={
 	{__NR_fchdir,	choice_fd,	wrap_in_fchdir,	wrap_out_chdir, ALWAYS,	1},
 	{__NR_getcwd,	always_umnone,
 					wrap_in_getcwd,	wrap_out_std,	ALWAYS,	2},
-	{__NR_open,	choice_path,	wrap_in_open,	wrap_out_open,	ALWAYS,	4},
+	{__NR_open,	choice_path,	wrap_in_open,	wrap_out_open,	ALWAYS,	3},
 	{__NR_creat,	choice_path,    wrap_in_open,   wrap_out_open,	ALWAYS,	2},
 	{__NR_close,	choice_fd,	wrap_in_close,	wrap_out_close,	ALWAYS,	1},
 	{__NR_select,	always_umnone,	wrap_in_select,	wrap_out_select,ALWAYS,	5},
