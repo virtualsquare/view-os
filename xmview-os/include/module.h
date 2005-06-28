@@ -38,6 +38,6 @@ struct service {
 	intfun *socket;
 };
 
-
+extern int _lwip_version;
 extern int scmap_scmapsize;
 extern int scmap_sockmapsize;

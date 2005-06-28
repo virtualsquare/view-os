@@ -31,6 +31,7 @@
 #include "ptrace2.h"
 
 extern int has_ptrace_multi;
+extern int _lwip_version;
 #include <sys/ptrace.h>
 #include <asm/ptrace.h>
 

@@ -46,6 +46,25 @@
 #define NAME_SERVICE 4
 #define LOCK_SERVICE 5
 
+void *open_dllib(char *name)
+{
+	char *args;
+	for (args=name;*args != 0 && *args != ',';args++)
+		;
+	if (*args == ',') {
+		*args = 0;
+		args++;
+	}
+	void *handle=dlopen(name,RTLD_LAZY|RTLD_GLOBAL);
+	if (handle != NULL) {
+		void (*pinit)() = dlsym(handle,"_um_mod_init");
+		if (pinit != NULL) {
+			pinit(args);
+		}
+	}
+	return handle;
+}
+
 int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 {
 	//printf("dsys_um_service pid %d call %d\n",pc->pid,sc_number);
@@ -62,12 +81,13 @@ int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 					//	pc->retval=-1;
 					//	pc->erno=errno;
 					//} else {
-						void *handle=dlopen(buf,RTLD_LAZY|RTLD_GLOBAL);
+						void *handle=open_dllib(buf);
 						if (handle==NULL) {
 							pc->retval= -1;
 							pc->erno=EINVAL;
 						} else {
 							if ((pc->retval=set_handle_new_service(handle,arg1)) != 0) {
+								dlclose(handle);
 								pc->erno=errno;
 							}
 						}

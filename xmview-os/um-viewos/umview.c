@@ -36,8 +36,12 @@
 #include "sctab.h"
 #include "services.h"
 #include "um_select.h"
+#include "um_services.h"
 #include "ptrace_multi_test.h"
 
+int _lwip_version = 1; /* modules interface version id.
+													modules can test to be compatible with
+													um-viewos kernel*/
 int has_ptrace_multi;
 extern int nprocs;
 char *preload;
@@ -78,7 +82,7 @@ int main(int argc,char *argv[])
 				usage(argv[0]);
 				break;
 			case 'p': {
-					  void *handle=dlopen(optarg,RTLD_LAZY|RTLD_GLOBAL);
+					  void *handle=open_dllib(optarg);
 					  if (handle==NULL) {
 						  fprintf(stderr, "%s\n",dlerror());
 						  exit (-1);

@@ -33,6 +33,7 @@
 #include "module.h"
 #include "lwip/sockets.h"
 #include <linux/net.h>
+#include <limits.h>
 #include "asm/unistd.h"
 #include "sockmsg.h"
 
@@ -124,51 +125,91 @@ ssize_t lwip_sendmsg(int fd, const struct msghdr *msg, int flags) {
 	return rv;
 }
 
+static char *intname[]={"vd","tp","tn"};
+static void myputenv(char *arg)
+{
+	static char intnum[sizeof(intname)/sizeof(char *)];
+	int i,j;
+	char env[PATH_MAX];
+	for (i=0;i<(sizeof(intname)/sizeof(char *));i++) {
+		if (strncmp(arg,intname[i],2)==0 && arg[2] >= '0' && arg[2] <= '9') {
+			if (arg[3] == '=') {
+				sprintf(env,"LWIPV6%s%c=%s",intname[i],arg[2],arg+4);
+				putenv(env);
+				printf("E=%s\n",env);
+				if (arg[2]-'0' > intnum[i]) intnum[i]=arg[2]-'0'+1;
+			}
+			else if (arg[3] == 0) {
+				intnum[i] = arg[2]-'0';
+			}
+			sprintf(env,"LWIPV6LIB=%s%c",intname[0],intnum[0]+'0');
+			for (j=1;j<(sizeof(intname)/sizeof(char *));j++)
+				sprintf(env,"%s,%s%c",env,intname[j],intnum[j]+'0');
+			putenv(env);
+			printf("E=%s\n",env);
+			break;
+		}
+	}	
+}
+
+static void lwipargtoenv(char *initargs)
+{
+	char *next;
+	char *unquoted;
+	char quoted=0;
+
+	while (*initargs != 0) {
+		next=initargs;
+		unquoted=initargs;
+		while ((*next != ',' || quoted) && *next != 0) {
+			*unquoted=*next;
+			if (*next == quoted)
+				quoted=0;
+			else if (*next == '\'' || *next == '\"')
+				quoted=*next; 
+			else
+				unquoted++;
+			next++;
+		}
+		if (*next == ',') {
+			*unquoted=*next=0;
+			next++;
+		}
+		if (*initargs != 0)
+			myputenv(initargs);
+		initargs=next;
+	}
+}
+
+
+static int initflag=0;
 static void
 __attribute__ ((constructor))
 init (void)
 {
-	printf("lwipv6 init\n");
-	s.name="light weight ipv6 stack";
-	s.code=0x02;
-	s.checkpath=alwaysfalse;
-	s.checksocket=check;
-	s.syscall=(intfun *)calloc(1,scmap_scmapsize * sizeof(intfun));
-	s.socket=(intfun *)calloc(1,scmap_sockmapsize * sizeof(intfun));
-	openlwiplib();
-	s.syscall[uscno(__NR__newselect)]=alwaysfalse;
-	s.syscall[uscno(__NR_poll)]=alwaysfalse;
-	s.socket[SYS_SENDMSG]=lwip_sendmsg;
-	s.socket[SYS_RECVMSG]=lwip_recvmsg;
+	initflag=1;
+}
 
-#if 0
-	s.socket[SYS_SOCKET]=lwip_socket;
-	s.socket[SYS_BIND]=lwip_bind;
-	s.socket[SYS_CONNECT]=lwip_connect;
-	s.socket[SYS_LISTEN]=lwip_listen;
-	s.socket[SYS_ACCEPT]=lwip_accept;
-	s.socket[SYS_GETSOCKNAME]=lwip_getsockname;
-	s.socket[SYS_GETPEERNAME]=lwip_getpeername;
-	s.socket[SYS_SEND]=lwip_send;
-	s.socket[SYS_RECV]=lwip_recv;
-	s.socket[SYS_SENDTO]=lwip_sendto;
-	s.socket[SYS_RECVFROM]=lwip_recvfrom;
-	s.socket[SYS_SHUTDOWN]=lwip_shutdown;
-	s.socket[SYS_SETSOCKOPT]=lwip_setsockopt;
-	s.socket[SYS_GETSOCKOPT]=lwip_getsockopt;
-	//s.socket[SYS_SENDMSG]=lwip_sendmsg;
-	//s.socket[SYS_RECVMSG]=lwip_recvmsg;
-	s.syscall[uscno(__NR_read)]=lwip_read;
-	s.syscall[uscno(__NR_write)]=lwip_write;
-	//s.syscall[uscno(__NR_readv)]=lwip_readv;
-	//s.syscall[uscno(__NR_writev)]=lwip_writev;
-        s.syscall[uscno(__NR_close)]=lwip_close;
-	//s.syscall[uscno(__NR_fcntl)]=lwip_fcntl;
-	//s.syscall[uscno(__NR_fcntl64)]=lwip_fcntl64;
-	s.syscall[uscno(__NR_ioctl)]=(intfun) lwip_ioctl;
-#endif
+void _um_mod_init(char *initargs)
+{
+	if (initflag) {
+		printf("lwipv6 init\n");
+		s.name="light weight ipv6 stack";
+		s.code=0x02;
+		lwipargtoenv(initargs);
+		s.checkpath=alwaysfalse;
+		s.checksocket=check;
+		s.syscall=(intfun *)calloc(1,scmap_scmapsize * sizeof(intfun));
+		s.socket=(intfun *)calloc(1,scmap_sockmapsize * sizeof(intfun));
+		openlwiplib();
+		s.syscall[uscno(__NR__newselect)]=alwaysfalse;
+		s.syscall[uscno(__NR_poll)]=alwaysfalse;
+		s.socket[SYS_SENDMSG]=lwip_sendmsg;
+		s.socket[SYS_RECVMSG]=lwip_recvmsg;
 
-	add_service(&s);
+		add_service(&s);
+		initflag=0;
+	}
 }
 
 static void
