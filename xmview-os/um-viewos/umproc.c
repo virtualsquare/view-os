@@ -373,3 +373,13 @@ void lfd_delsignal(int lfd)
 		read(lfd_tab[lfd].pvtab->ififo,buf,1024);
 	}
 }
+
+char *sfd_getpath(service_t code, int sfd)
+{
+	int lfd;
+	for (lfd=0; lfd<um_maxlfd; lfd++)
+		if(lfd_tab[lfd].ptab && lfd_tab[lfd].ptab->service == code &&
+				lfd_tab[lfd].ptab->sfd == sfd)
+			return lfd_tab[lfd].ptab->path;
+	return NULL;
+}

@@ -70,5 +70,6 @@ void lfd_closeall();
 void lfd_signal(int lfd);
 void lfd_delsignal(int lfd);
 service_t service_fd(struct pcb_file *p, int fd);
+char *sfd_getpath(service_t code, int sfd);
 
 #endif
