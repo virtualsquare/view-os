@@ -50,7 +50,7 @@ static int unrealpath(char *path,void *umph)
 	 * calling process. */
 	/*printf("test umph info pid=%d, scno=%d, arg[0]=%d, argv[1]=%d\n",
 			um_mod_getpid(umph),um_mod_getsyscallno(umph),
-			um_mod_getregs(umph)[0],um_mod_getregs(umph)[1]); */
+			um_mod_getargs(umph)[0],um_mod_getregs(umph)[1]); */
 	return(strncmp(path,"/unreal",7) == 0);
 }
 

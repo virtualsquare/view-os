@@ -44,4 +44,4 @@ extern int scmap_sockmapsize;
 
 extern int um_mod_getpid(void *umph);
 extern int um_mod_getsyscallno(void *umph);
-extern int* um_mod_getregs(void *umph);
+extern int* um_mod_getargs(void *umph);

@@ -440,7 +440,7 @@ int um_mod_getsyscallno(void *umph)
 	return (pc->scno);
 }
 
-int *um_mod_getregs(void *umph)
+int *um_mod_getargs(void *umph)
 {
 	struct pcb *pc=umph;
 	return (getargp(pc));

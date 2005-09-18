@@ -72,7 +72,7 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz,void *umph);
 /* modules callbacks for extra args */
 int um_mod_getpid(void *umph);
 int um_mod_getsyscallno(void *umph);
-int* um_mod_getregs(void *umph);
+int* um_mod_getargs(void *umph);
 
 //struct pcb* pid2pcb(int pid);
 
