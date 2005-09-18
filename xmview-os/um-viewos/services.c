@@ -186,7 +186,7 @@ void invisible_services()
 	invisible=1;
 }
 
-service_t service_path(char *path)
+service_t service_path(char *path,void *umph)
 {
 	int i;
 	if (path == NULL) 
@@ -194,7 +194,7 @@ service_t service_path(char *path)
 	else {
 		for (i=0;i<noserv;i++) {
 			struct service *s=services[i];
-			if (s->checkpath != NULL && s->checkpath(path))
+			if (s->checkpath != NULL && s->checkpath(path,umph))
 				return(s->code);
 		}
 		return(UM_NONE);
@@ -202,13 +202,13 @@ service_t service_path(char *path)
 }
 
 //char service_socket(int domain, int type, int protocol)
-service_t service_socket(int domain)
+service_t service_socket(int domain,void *umph)
 {
 	int i;
 	for (i=0;i<noserv;i++) {
 		struct service *s=services[i];
 		//if (s->checksocket != NULL && s->checksocket(domain, type, protocol))
-		if (s->checksocket != NULL && s->checksocket(domain))
+		if (s->checksocket != NULL && s->checksocket(domain,umph))
 			return(s->code);
 	}
 	return(UM_NONE);

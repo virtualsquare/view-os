@@ -61,20 +61,20 @@ char *um_getcwd(struct pcb *pc,char *buf,int size) {
 	return buf;
 }
 
-int um_lstat64(char *filename, struct stat64 *buf)
+int um_x_lstat64(char *filename, struct stat64 *buf,void *umph)
 {
 	service_t sercode;
 	//printf("-> um_lstat: %s\n",filename);
-	if ((sercode=service_path(filename)) == UM_NONE)
+	if ((sercode=service_path(filename,umph)) == UM_NONE)
 		return lstat64(filename,buf);
 	else 
 		return service_syscall(sercode,uscno(__NR_lstat64))(filename,buf);
 }
 
-int um_readlink(char *path, char *buf, size_t bufsiz)
+int um_x_readlink(char *path, char *buf, size_t bufsiz,void *umph)
 {
 	service_t sercode;
-	if ((sercode=service_path(path)) == UM_NONE)
+	if ((sercode=service_path(path,umph)) == UM_NONE)
 		return readlink(path,buf,bufsiz);
 	else 
 		return service_syscall(sercode,uscno(__NR_readlink))(path,buf,bufsiz);
@@ -357,7 +357,7 @@ char choice_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		char filesystemtype[PATH_MAX];
 		unsigned int fstype=getargn(2,pc);
 		if (umovestr(pc->pid,fstype,PATH_MAX,filesystemtype) == 0) {
-			return service_path(filesystemtype);
+			return service_path(filesystemtype,pc);
 		}
 		else
 			return UM_NONE;
@@ -374,7 +374,7 @@ char choice_path(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	if (pcdata->path==um_patherror)
 		return UM_NONE;
 	else
-		return service_path(pcdata->path);
+		return service_path(pcdata->path,pc);
 }
 
 /* choice link (dirname must be defined, basename can be non-existent) */
@@ -385,7 +385,7 @@ char choice_link(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	if (pcdata->path==um_patherror)
 		return UM_NONE;
 	else
-		return service_path(pcdata->path);
+		return service_path(pcdata->path,pc);
 }
 
 /* choice link (dirname must be defined, basename can be non-existent second arg)*/
@@ -397,12 +397,12 @@ char choice_link2(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	if (pcdata->path==um_patherror)
 		return UM_NONE;
 	else
-		return service_path(pcdata->path);
+		return service_path(pcdata->path,pc);
 }
 
 char choice_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
-	return service_socket(pc->arg2);
+	return service_socket(pc->arg2,pc);
 }
 
 char always_umnone(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
@@ -426,6 +426,24 @@ int dsys_megawrap(int sc_number,int inout,struct pcb *pc)
 	return dsys_commonwrap(sc_number, inout, pc,
 			dsys_megawrap_parse_arguments,
 			dsys_megawrap_index_function, service_syscall, scmap);
+}
+
+int um_mod_getpid(void *umph)
+{
+	struct pcb *pc=umph;
+	return (pc->pid);
+}
+
+int um_mod_getsyscallno(void *umph)
+{
+	struct pcb *pc=umph;
+	return (pc->scno);
+}
+
+int *um_mod_getregs(void *umph)
+{
+	struct pcb *pc=umph;
+	return (getargp(pc));
 }
 
 #define __NR_UM_SERVICE BASEUSC+0

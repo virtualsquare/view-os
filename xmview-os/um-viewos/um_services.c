@@ -117,7 +117,7 @@ int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 				arg1=getargn(1,pc);
 				arg2=getargn(2,pc);
 				if (arg2>PATH_MAX) arg2=PATH_MAX;
-				pc->retval=list_services(buf,arg2);
+				pc->retval=list_services((unsigned char *)buf,arg2);
 				pc->erno=errno;
 				if (pc->retval > 0)
 					ustoren(pc->pid,arg1,pc->retval,buf);

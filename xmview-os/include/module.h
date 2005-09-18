@@ -41,3 +41,7 @@ struct service {
 extern int _lwip_version;
 extern int scmap_scmapsize;
 extern int scmap_sockmapsize;
+
+extern int um_mod_getpid(void *umph);
+extern int um_mod_getsyscallno(void *umph);
+extern int* um_mod_getregs(void *umph);

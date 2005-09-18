@@ -39,7 +39,7 @@
    holds the same value as the value returned.  */
 
 char *
-um_realpath (void *pc, const char *name, char *resolved)
+um_realpath (void *umph, const char *name, char *resolved)
 {
   char *rpath, *dest, *extra_buf = NULL;
   const char *start, *end, *rpath_limit;
@@ -52,7 +52,7 @@ um_realpath (void *pc, const char *name, char *resolved)
 	 either parameter is a null pointer.  We extend this to allow
 	 the RESOLVED parameter to be NULL in case the we are expected to
 	 allocate the room for the return value.  */
-      um_set_errno (pc,EINVAL);
+      um_set_errno (umph,EINVAL);
       return NULL;
     }
 
@@ -60,7 +60,7 @@ um_realpath (void *pc, const char *name, char *resolved)
     {
       /* As per Single Unix Specification V2 we must return an error if
 	 the name argument points to an empty string.  */
-      um_set_errno (pc,ENOENT);
+      um_set_errno (umph,ENOENT);
       return NULL;
     }
 
@@ -88,7 +88,7 @@ um_realpath (void *pc, const char *name, char *resolved)
 
   if (name[0] != '/')
     {
-      if (!um_getcwd (pc,rpath, path_max))
+      if (!um_getcwd (umph,rpath, path_max))
 	{
 	  rpath[0] = '\0';
 	  goto error;
@@ -138,7 +138,7 @@ um_realpath (void *pc, const char *name, char *resolved)
 
 	      if (resolved)
 		{
-		  um_set_errno (pc,ENAMETOOLONG);
+		  um_set_errno (umph,ENAMETOOLONG);
 		  if (dest > rpath + 1)
 		    dest--;
 		  *dest = '\0';
@@ -163,8 +163,8 @@ um_realpath (void *pc, const char *name, char *resolved)
 	  *dest = '\0';
 
 	  /*check the dir along the path */
-	  if (um_lstat64 (rpath, &st) < 0) {
-		  um_set_errno (pc,errno);
+	  if (um_x_lstat64 (rpath, &st, umph) < 0) {
+		  um_set_errno (umph,errno);
 		  goto error;
 	   }
 
@@ -175,14 +175,14 @@ um_realpath (void *pc, const char *name, char *resolved)
 
 	      if (++num_links > MAXSYMLINKS)
 		{
-		  um_set_errno (pc,ELOOP);
+		  um_set_errno (umph,ELOOP);
 		  goto error;
 		}
 
 	      /* symlink! */
-	      n = um_readlink (rpath, buf, path_max);
+	      n = um_x_readlink (rpath, buf, path_max, umph);
 	      if (n < 0) {
-		  um_set_errno (pc,errno);
+		  um_set_errno (umph,errno);
 		  goto error;
 	      }
 	      buf[n] = '\0';
@@ -193,7 +193,7 @@ um_realpath (void *pc, const char *name, char *resolved)
 	      len = strlen (end);
 	      if ((long int) (n + len) >= path_max)
 		{
-		  um_set_errno (pc,ENAMETOOLONG);
+		  um_set_errno (umph,ENAMETOOLONG);
 		  goto error;
 		}
 
@@ -214,7 +214,7 @@ um_realpath (void *pc, const char *name, char *resolved)
     --dest;
   *dest = '\0';
 
-  um_set_errno (pc,0);
+  um_set_errno (umph,0);
   return resolved ? memcpy (resolved, rpath, dest - rpath + 1) : rpath;
 
 error:
@@ -229,8 +229,8 @@ error:
 
 #if 0
 char *
-um_canonicalize_file_name (void * pc,const char *name)
+um_canonicalize_file_name (void *umph,const char *name)
 {
-  return um_realpath (pc,name, NULL);
+  return um_realpath (umph,name, NULL);
 }
 #endif

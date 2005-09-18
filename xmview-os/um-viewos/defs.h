@@ -143,6 +143,7 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define getscno(PC) ( (PC)->saved_regs[ORIG_EAX] )
 #define putscno(X,PC) ( (PC)->saved_regs[ORIG_EAX]=(X) )
 #define getargn(N,PC) ( (PC)->saved_regs[(N)] )
+#define getargp(PC) ((PC)->saved_regs)
 #define putargn(N,X,PC) ( (PC)->saved_regs[N]=(X) )
 #define getarg0orig(PC) ( (PC)->saved_regs[0] )
 #define putarg0orig(N,PC) ( (PC)->saved_regs[0]=(N) )
@@ -208,6 +209,7 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define getscno(PC) ( (PC)->saved_regs[PT_R0] )
 #define putscno(X,PC) ( (PC)->saved_regs[PT_R0]=(X) )
 #define getargn(N,PC) ( (PC)->saved_regs[PT_R3+(N)] )
+#define getargp(PC) (&((PC)->saved_regs[PT_R3]))
 #define putargn(N,X,PC) ( (PC)->saved_regs[PT_R3+(N)]=(X) )
 #define getarg0orig(PC) ( (PC)->saved_regs[11];)
 #define putarg0orig(N,PC) ( (PC)->saved_regs[11]=(N) )
@@ -216,7 +218,7 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define puterrno(ERR,PC) ({ if(ERR!=0){\
 				(PC)->saved_regs[12]=(PC)->saved_regs[12] | 0x10000000;\
 				(PC)->saved_regs[PT_R3]=(ERR);\
-				}else 0;0;\
+				} 0;\
 				})
 #define getsp(PC) ( (PC)->saved_regs[PT_R1] )
 #define getpc(PC) ( (PC)->saved_regs[10] )

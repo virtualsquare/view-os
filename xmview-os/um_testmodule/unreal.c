@@ -30,6 +30,8 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <utime.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <sys/time.h>
 #include "module.h"
 #include "libummod.h"
@@ -42,8 +44,13 @@ static int alwaysfalse()
 	return 0;
 }
 
-static int unrealpath(char *path)
+static int unrealpath(char *path,void *umph)
 {
+	/* This is an example that shows how to pick up extra info in the
+	 * calling process. */
+	/*printf("test umph info pid=%d, scno=%d, arg[0]=%d, argv[1]=%d\n",
+			um_mod_getpid(umph),um_mod_getsyscallno(umph),
+			um_mod_getregs(umph)[0],um_mod_getregs(umph)[1]); */
 	return(strncmp(path,"/unreal",7) == 0);
 }
 
