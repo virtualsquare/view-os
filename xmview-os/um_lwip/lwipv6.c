@@ -136,7 +136,7 @@ static void myputenv(char *arg)
 			if (arg[3] == '=') {
 				sprintf(env,"LWIPV6%s%c=%s",intname[i],arg[2],arg+4);
 				putenv(env);
-				printf("E=%s\n",env);
+				/*printf("E=%s\n",env);*/
 				if (arg[2]-'0' > intnum[i]) intnum[i]=arg[2]-'0'+1;
 			}
 			else if (arg[3] == 0) {
@@ -146,18 +146,20 @@ static void myputenv(char *arg)
 			for (j=1;j<(sizeof(intname)/sizeof(char *));j++)
 				sprintf(env,"%s,%s%c",env,intname[j],intnum[j]+'0');
 			putenv(env);
-			printf("E=%s\n",env);
+			/*printf("E=%s\n",env);*/
 			break;
 		}
 	}	
 }
 
+static char stdargs[]="vd1";
 static void lwipargtoenv(char *initargs)
 {
 	char *next;
 	char *unquoted;
 	char quoted=0;
 
+	if (*initargs == 0) initargs=stdargs;
 	while (*initargs != 0) {
 		next=initargs;
 		unquoted=initargs;

@@ -111,6 +111,7 @@ int main(int argc,char *argv[])
 	if (has_ptrace_multi > 0)
 		fprintf(stderr,"Running with PTRACE_IPMULTI enabled\n");
 	capture_main(argv+optind);
+	setenv("_INSIDE_UMVIEW_MODULE","",1);
 
 	/* Creation of the pipe for the signal handler */
 	wake_tracer_init();
