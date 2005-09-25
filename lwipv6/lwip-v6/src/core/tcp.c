@@ -1099,7 +1099,6 @@ void
 tcp_accept(struct tcp_pcb *pcb,
      err_t (* accept)(void *arg, struct tcp_pcb *newpcb, err_t err))
 {
-  printf("tcp accept (registering)\n");
   ((struct tcp_pcb_listen *)pcb)->accept = accept;
 }
 #endif /* LWIP_CALLBACK_API */

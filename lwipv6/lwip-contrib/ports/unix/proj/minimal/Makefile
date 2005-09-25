@@ -42,7 +42,7 @@ LWIPARCH=$(CONTRIBDIR)/ports/unix
 
 #Set this to where you have the lwip core module checked out from CVS
 #default assumes it's a dir named lwip at the same level as the contrib module
-LWIPDIR=$(CONTRIBDIR)/../lwip/src
+LWIPDIR=$(CONTRIBDIR)/../lwip-v6/src
 
 CFLAGS:=$(CFLAGS) \
 	-I$(LWIPDIR)/include -I$(LWIPARCH)/include -I$(LWIPDIR)/include/ipv4 \

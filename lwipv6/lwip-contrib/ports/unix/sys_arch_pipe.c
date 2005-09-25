@@ -214,6 +214,7 @@ sys_mbox_post(struct sys_mbox *mbox, void *msg)
 {
   LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_post: mbox %p msg %p\n", (void *)mbox, (void *)msg));
   
+	//printf("sys_mbox_post %p %x\n",msg,(msg != NULL)?*((int *)msg):0);
 	write(mbox->pipe[1],&msg,sizeof(void *));
 }
 /*-----------------------------------------------------------------------------------*/
@@ -244,6 +245,7 @@ sys_arch_mbox_fetch(struct sys_mbox *mbox, void **msg, u32_t timeout)
 			read(mbox->pipe[0],msg,sizeof(void *));
 		else
 			read(mbox->pipe[0],&fdn,sizeof(void *));
+	//printf("sys_mbox_read %p %x\n",(msg==NULL)?NULL:(void *)*msg, (msg==NULL)?0:**(int **)msg);
 	if (timeout != 0)
 		time=timeout - (tv.tv_sec * 1000+tv.tv_usec / 1000);
 	else time=0;

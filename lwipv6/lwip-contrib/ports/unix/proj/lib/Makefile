@@ -57,7 +57,7 @@ COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_dynmalloc.c\
 CORE6FILES=$(wildcard $(LWIPDIR)/core/ipv6/*.c) $(LWIPDIR)/core/inet6.c
 # APIFILES: The files which implement the sequential and socket APIs.
 APIFILES=$(LWIPDIR)/api/api_lib.c $(LWIPDIR)/api/api_msg.c $(LWIPDIR)/api/tcpip.c \
-	$(LWIPDIR)/api/err.c $(LWIPDIR)/api/sockets.ale4net.c\
+	$(LWIPDIR)/api/err.c $(LWIPDIR)/api/sockets.c\
 	$(LWIPDIR)/api/netlink.c
 
 # NETIFFILES: Files implementing various generic network interface functions.'

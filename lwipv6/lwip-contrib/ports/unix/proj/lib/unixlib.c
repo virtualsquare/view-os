@@ -58,6 +58,8 @@
 #include "netif/tapif.h"
 #include "netif/loopif.h"
 
+#define IFF_RUNNING 0x40
+
 static void
 tcpip_init_done(void *arg)
 {
@@ -66,13 +68,12 @@ tcpip_init_done(void *arg)
   sys_sem_signal(*sem);
 }
 
-
-static void libvdeif_add()
+struct netif *lwip_vdeif_add(void *arg)
 {
   struct ip_addr ipaddr, netmask;
 	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
-	netif_add(pnetif, NULL, vdeif_init, tcpip_input);
+	netif_add(pnetif, arg, vdeif_init, tcpip_input);
 	IP6_ADDR(&ipaddr, 0xfe80,0x0,0x0,0x0,
 			(pnetif->hwaddr[0]<<8 |pnetif->hwaddr[1]),
 			(pnetif->hwaddr[2]<<8 | 0xff),
@@ -80,14 +81,15 @@ static void libvdeif_add()
 			(pnetif->hwaddr[4]<<8 |pnetif->hwaddr[5]));
 	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
 	netif_add_addr(pnetif,&ipaddr, &netmask);
+	return(pnetif);
 }
 
-static void libtapif_add()
+struct netif *lwip_tapif_add(void *arg)
 {
   struct ip_addr ipaddr, netmask;
 	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
-	netif_add(pnetif, NULL, tapif_init, tcpip_input);
+	netif_add(pnetif, arg, tapif_init, tcpip_input);
 	IP6_ADDR(&ipaddr, 0xfe80,0x0,0x0,0x0,
 			(pnetif->hwaddr[0]<<8 |pnetif->hwaddr[1]),
 			(pnetif->hwaddr[2]<<8 | 0xff),
@@ -95,16 +97,18 @@ static void libtapif_add()
 			(pnetif->hwaddr[4]<<8 |pnetif->hwaddr[5]));
 	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
 	netif_add_addr(pnetif,&ipaddr, &netmask);
+	return(pnetif);
 }
 
-static void libtunif_add()
+struct netif *lwip_tunif_add(void *arg)
 {
 	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
-	netif_add(pnetif, NULL, tunif_init, tcpip_input);
+	netif_add(pnetif, arg, tunif_init, tcpip_input);
+	return(pnetif);
 }
 
-static void libloopif_add()
+static void lwip_loopif_add()
 {
 	static struct netif loopif;
   struct ip_addr ipaddr, netmask;
@@ -117,10 +121,55 @@ static void libloopif_add()
 	netif_add_addr(&loopif,&ipaddr, &netmask);
 }
 
+int lwip_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask)
+{
+	return netif_add_addr(netif,ipaddr,netmask);
+}
+
+int lwip_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask)
+{
+	return netif_del_addr(netif,ipaddr,netmask);
+}
+
+int lwip_add_route(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags)
+{
+	if (netif==NULL) 
+		netif=netif_find_direct_destination(nexthop);
+	if (netif==NULL)
+		return -ENETUNREACH;
+	else
+		return ip_route_list_add(addr,netmask,nexthop,netif,flags);
+}
+
+int lwip_del_route(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags)
+{
+	if (netif==NULL) 
+		netif=netif_find_direct_destination(nexthop);
+	if (netif==NULL)
+		return -ENETUNREACH;
+	else
+		return ip_route_list_del(addr,netmask,nexthop,netif,flags);
+}
+
+int lwip_ifup(struct netif *netif)
+{
+	netif->flags |= NETIF_FLAG_UP;
+	return 0;
+}
+
+int lwip_ifdown(struct netif *netif)
+{
+	netif->flags &= ~NETIF_FLAG_UP;
+	return 0;
+}
+
+extern int _nofdfake;
 void _init(void){
   sys_sem_t sem;
 	char *interfaces;
 
+	if (getenv("_INSIDE_UMVIEW_MODULE") != NULL)
+		_nofdfake=1;
 	srand(getpid()+time(NULL));
 
   stats_init();
@@ -145,7 +194,7 @@ void _init(void){
 				n=interfaces[2]-'0';
 				if (n>=0 && n<=10)
 					for(i=0;i<n;i++)
-						libvdeif_add();
+						lwip_vdeif_add(NULL);
 				interfaces+=3;
 			}
 			else if (strncmp(interfaces,"tp",2) == 0) {
@@ -153,7 +202,7 @@ void _init(void){
 				n=interfaces[2]-'0';
 				if (n>=0 && n<=10)
 					for(i=0;i<n;i++)
-						libtapif_add();
+						lwip_tapif_add(NULL);
 				interfaces+=3;
 			}
 			else if (strncmp(interfaces,"tn",2) == 0) {
@@ -161,14 +210,12 @@ void _init(void){
 				n=interfaces[2]-'0';
 				if (n>=0 && n<=10)
 					for(i=0;i<n;i++)
-						libtunif_add();
+						lwip_tunif_add(NULL);
 				interfaces+=3;
 			}
 		}
 	}
-	else
-		libvdeif_add();
-	libloopif_add();
+	lwip_loopif_add();
 }
 
 void _fini(void){

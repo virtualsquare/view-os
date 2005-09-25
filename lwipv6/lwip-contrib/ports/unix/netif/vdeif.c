@@ -84,6 +84,7 @@
 #include <libgen.h>
 #include "vde.h"
 #include <sys/poll.h>
+#include <pwd.h>
 
 #endif /* linux */
 
@@ -120,45 +121,57 @@ static void vdeif_thread(void *data);
 
 enum request_type { REQ_NEW_CONTROL };
 
+#define MAXDESCR 128
 struct request_v3 {
   uint32_t magic;
   uint32_t version;
   enum request_type type;
   struct sockaddr_un sock;
+	char description[MAXDESCR];
 };
 
 
-static int send_fd(char *name, int fddata, struct sockaddr_un *datasock, int intno, int group)
+static int send_fd(char *name, int fddata, struct sockaddr_un *datasock, int intno, int port, int ifnum)
 {
   int pid = getpid();
   struct request_v3 req;
   int fdctl;
+	struct passwd *callerpwd;
 
   struct sockaddr_un sock;
+	callerpwd=getpwuid(getuid());
+
 
   if((fdctl = socket(AF_UNIX, SOCK_STREAM, 0)) < 0){
 		return ERR_IF;
 	}
 
   sock.sun_family = AF_UNIX;
-  snprintf(sock.sun_path, sizeof(sock.sun_path), "%s", name);
+  snprintf(sock.sun_path, sizeof(sock.sun_path), "%s/ctl", name);
   if(connect(fdctl, (struct sockaddr *) &sock, sizeof(sock))){
-		return ERR_IF;
+		snprintf(sock.sun_path, sizeof(sock.sun_path), "%s", name);
+		if(connect(fdctl, (struct sockaddr *) &sock, sizeof(sock))){
+			return ERR_IF;
+		}
   }
 
   req.magic=SWITCH_MAGIC;
   req.version=3;
-  req.type=REQ_NEW_CONTROL+((group > 0)?((geteuid()<<8) + group) << 8:0);
+	req.type=REQ_NEW_CONTROL+((port > 0)?port << 8:0);
   
   req.sock.sun_family=AF_UNIX;
   memset(req.sock.sun_path, 0, sizeof(req.sock.sun_path));
   sprintf(&req.sock.sun_path[1], "%5d-%2d", pid, intno);
+	
+	snprintf(req.description,MAXDESCR,"%sLWIPv6 user=%s PID=%d port=vd%c",
+			(getenv("_INSIDE_UMVIEW_MODULE") != NULL)?"UMVIEW-":"",
+			      callerpwd->pw_name,getpid(),ifnum + '0');
 
   if(bind(fddata, (struct sockaddr *) &req.sock, sizeof(req.sock)) < 0){
 		return ERR_IF;
   }
 
-  if (send(fdctl,&req,sizeof(req),0) < 0) {
+  if (send(fdctl,&req,sizeof(req)-MAXDESCR+strlen(req.description),0) < 0) {
 		return ERR_IF;
   }
 
@@ -169,9 +182,25 @@ static int send_fd(char *name, int fddata, struct sockaddr_un *datasock, int int
   return fdctl;
 }
 
+static char *mem_strdup(const char *s)
+{
+	if (s==NULL)
+		return NULL;
+	else {
+		int l=strlen(s);
+		char *rv;
+		if ((rv=mem_malloc(l+1)) == NULL)
+			return NULL;
+		else {
+			strcpy(rv,s);
+			return rv;
+		}
+	}
+}
+
 /*-----------------------------------------------------------------------------------*/
 static int
-low_level_init(struct netif *netif)
+low_level_init(struct netif *netif,char *path)
 {
   struct vdeif *vdeif;
   int randaddr;
@@ -194,7 +223,9 @@ low_level_init(struct netif *netif)
   /* Do whatever else is needed to initialize interface. */
    
 	envkey[8]=netif->num + '0';	
-	if ((vdeif->sockname=getenv(envkey))==NULL)
+	if (path != NULL)
+		vdeif->sockname=mem_strdup(path);
+	else if ((vdeif->sockname=getenv(envkey))==NULL)
 		vdeif->sockname=VDESTDSOCK;
   vdeif->intno=netif->num;
   vdeif->group=0;
@@ -202,7 +233,7 @@ low_level_init(struct netif *netif)
 	  perror ("vde: can't open socket");
 		return ERR_IF;
   }
-  vdeif->connected_fd=send_fd(vdeif->sockname, vdeif->fddata, &(vdeif->dataout), vdeif->intno, vdeif->group);
+  vdeif->connected_fd=send_fd(vdeif->sockname, vdeif->fddata, &(vdeif->dataout), vdeif->intno, vdeif->group,netif->num);
 
 	if (vdeif->connected_fd >= 0) {
 		sys_thread_new(vdeif_thread, netif, DEFAULT_THREAD_PRIO);
@@ -444,10 +475,12 @@ vdeif_init(struct netif *netif)
 {
   struct vdeif *vdeif;
 	static u8_t num=0;
+	char *path;
     
   vdeif = mem_malloc(sizeof(struct vdeif));
   if (!vdeif)
       return ERR_MEM;
+	path=netif->state;
   netif->state = vdeif;
   netif->name[0] = IFNAME0;
   netif->name[1] = IFNAME1;
@@ -463,7 +496,7 @@ vdeif_init(struct netif *netif)
 #endif
   
   vdeif->ethaddr = (struct eth_addr *)&(netif->hwaddr[0]);
-  if (low_level_init(netif) < 0) {
+  if (low_level_init(netif,path) < 0) {
 		mem_free(vdeif);
 		return ERR_IF;
 	}

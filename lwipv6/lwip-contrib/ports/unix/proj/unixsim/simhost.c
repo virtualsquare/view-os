@@ -44,7 +44,7 @@
 
 #include "lwip/tcpip.h"
 
-//#include "netif/tapif.h"
+//#include "lwipv6.h"
 #include "netif/vdeif.h"
 #include "netif/tunif.h"
 
@@ -177,7 +177,7 @@ ping_send(struct raw_pcb *raw, struct ip_addr *addr)
   if (!p) return;
 
   iecho = p->payload;
-  ICMPH_TYPE_SET(iecho,ICMP_ECHO);
+  ICMPH_TYPE_SET(iecho,ICMP4_ECHO);
   iecho->chksum = 0;
   iecho->seqno = htons(seq_num);
 
@@ -199,7 +199,7 @@ ping_thread(void *arg)
 
   raw_recv(raw,ping_recv,NULL);
 
-  IP4_ADDR(&dest_addr,192,168,2,1);
+  IP64_ADDR(&dest_addr,192,168,2,1);
 
   while (1)
   {
@@ -222,12 +222,13 @@ ping_send(int s, struct ip_addr *addr)
   if (!(iecho = malloc(sizeof(struct icmp_echo_hdr))))
     return;
 
-  ICMPH_TYPE_SET(iecho,ICMP_ECHO);
+  ICMPH_TYPE_SET(iecho,ICMP4_ECHO);
   iecho->chksum = 0;
   iecho->seqno = htons(seq_num);
   iecho->chksum = inet_chksum(iecho, sizeof(*iecho));
 
-  to.sin_len = sizeof(to);
+  //to.sin_len = sizeof(to);
+  to.sin_port = 0;
   to.sin_family = AF_INET;
   to.sin_addr.s_addr = addr->addr;
 
@@ -259,7 +260,7 @@ ping_thread(void *arg)
     return;
   }
 
-  IP4_ADDR(&dest_addr,192,168,2,1);
+  IP64_ADDR(&dest_addr,192,168,2,1);
 
   while (1) {
     printf("sending ping\n");
@@ -315,39 +316,47 @@ main_thread(void *arg)
   
 #if LWIP_DHCP
   {
-    IP4_ADDR(&gw, 0,0,0,0);
-    IP4_ADDR(&ipaddr, 0,0,0,0);
-    IP4_ADDR(&netmask, 0,0,0,0);
+    IP64_ADDR(&gw, 0,0,0,0);
+    IP64_ADDR(&ipaddr, 0,0,0,0);
+    IP64_MASKADDR(&netmask, 0,0,0,0);
 
-    netif_add(&netif, &ipaddr, &netmask, &gw, NULL, vdeif_init,
-		      tcpip_input);
-    netif_set_default(&netif);
+    /*netif_add(&netif, &ipaddr, &netmask, &gw, NULL, vdeif_init,
+		      tcpip_input);*/
+		
+    /*netif_set_default(&netif);*/
     dhcp_init();
     dhcp_start(&netif);
   }
 #else
-  IP4_ADDR(&gw, 192,168,0,1);
-  IP4_ADDR(&ipaddr, 192,168,0,2);
-  IP4_ADDR(&netmask, 255,255,255,0);
+  IP64_ADDR(&gw, 192,168,250,1);
+  IP64_ADDR(&ipaddr, 192,168,250,2);
+  IP64_MASKADDR(&netmask, 255,255,255,0);
   
-  netif_set_default(netif_add(&netif,&ipaddr, &netmask, &gw, NULL, vdeif_init,
-			      tcpip_input));
+	netif_add(&netif, arg, vdeif_init, tcpip_input);
+	netif_add_addr(&netif,&ipaddr,&netmask);
+	ip_route_list_add(IP_ADDR_ANY,IP_ADDR_ANY,&gw,&netif,0);
+
+  /*netif_set_default(netif_add(&netif,&ipaddr, &netmask, &gw, NULL, vdeif_init,
+			      tcpip_input));*/
 #endif
   /* Only used for testing purposes: */
-  /*  IP4_ADDR(&gw, 193,10,66,1);
-  IP4_ADDR(&ipaddr, 193,10,66,107);
-  IP4_ADDR(&netmask, 255,255,252,0);
+  /*  IP64_ADDR(&gw, 193,10,66,1);
+  IP64_ADDR(&ipaddr, 193,10,66,107);
+  IP64_ADDR(&netmask, 255,255,252,0);
   
   netif_add(&ipaddr, &netmask, &gw, NULL, pcapif_init,
   tcpip_input);*/
 
 #if LWIP_HAVE_LOOPIF  
-  IP4_ADDR(&gw, 127,0,0,1);
-  IP4_ADDR(&ipaddr, 127,0,0,1);
-  IP4_ADDR(&netmask, 255,0,0,0);
+  IP64_ADDR(&gw, 127,0,0,1);
+  IP64_ADDR(&ipaddr, 127,0,0,1);
+  IP64_MASKADDR(&netmask, 255,0,0,0);
   
-  netif_set_default(netif_add(&loopif, &ipaddr, &netmask, &gw, NULL, loopif_init,
-	    tcpip_input));
+	netif_add(&loopif,NULL, loopif_init, tcpip_input);
+	netif_add_addr(&netif,&ipaddr,&netmask);
+
+  /*netif_set_default(netif_add(&loopif, &ipaddr, &netmask, &gw, NULL, loopif_init,
+	    tcpip_input));*/
 #endif
  	loopif.flags |= NETIF_FLAG_UP; 
  	netif.flags |= NETIF_FLAG_UP; 

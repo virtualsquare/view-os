@@ -181,14 +181,14 @@ a lot of data that needs to be copied, this should be set high. */
 
 #define DBG_MIN_LEVEL 0
 //#define SOCKETS_DEBUG DBG_ON
-#define PBUF_DEBUG DBG_ON
+//#define PBUF_DEBUG DBG_ON
 //#define ETHARP_DEBUG DBG_ON
 //#define VDEIF_DEBUG DBG_ON
 //#define MEMP_DEBUG DBG_ON
 //#define TCPIP_DEBUG DBG_ON
 //#define IP_DEBUG DBG_ON
 //#define ICMP_DEBUG DBG_ON
-//#define DBG_TYPES_ON    (DBG_ON|DBG_TRACE|DBG_STATE|DBG_FRESH|DBG_HALT)
+#define DBG_TYPES_ON    (DBG_ON|DBG_TRACE|DBG_STATE|DBG_FRESH|DBG_HALT)
 
 #define TCPIP_THREAD_PRIO 3
 #endif /* __LWIPOPTS_H__ */

@@ -670,12 +670,11 @@ netconn_write(struct netconn *conn, void *dataptr, u16_t size, u8_t copy)
     }
   }
 
-  if ((msg = memp_malloc(MEMP_API_MSG)) == NULL) {
+	if ((msg = memp_malloc(MEMP_API_MSG)) == NULL) {
     return (conn->err = ERR_MEM);
   }
   msg->type = API_MSG_WRITE;
   msg->msg.conn = conn;
-        
 
   conn->state = NETCONN_WRITE;
   while (conn->err == ERR_OK && size > 0) {

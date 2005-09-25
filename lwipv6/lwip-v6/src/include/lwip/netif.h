@@ -158,12 +158,12 @@ struct netif *netif_find(char *name);
 struct netif *netif_find_id(int id);
 struct netif * netif_find_direct_destination(struct ip_addr *addr);
 
-void netif_set_default(struct netif *netif);
+/* void netif_set_default(struct netif *netif);
 void netif_set_ipaddr(struct netif *netif, struct ip_addr *ipaddr);
 void netif_set_netmask(struct netif *netif, struct ip_addr *netmast);
 void netif_set_gw(struct netif *netif, struct ip_addr *gw);
 void netif_set_up(struct netif *netif);
 void netif_set_down(struct netif *netif);
-u8_t netif_is_up(struct netif *netif);
+u8_t netif_is_up(struct netif *netif); */
 
 #endif /* __LWIP_NETIF_H__ */

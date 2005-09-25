@@ -93,7 +93,6 @@ sys_mbox_fetch(sys_mbox_t mbox, void **msg)
 				timeouts->next->time = 0;
       }
     }
-
   }
 }
 

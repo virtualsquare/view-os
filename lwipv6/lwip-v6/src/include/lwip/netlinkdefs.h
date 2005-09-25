@@ -191,7 +191,7 @@ enum
 	RTN_PROHIBIT,		/* Administratively prohibited	*/
 	RTN_THROW,		/* Not in this table		*/
 	RTN_NAT,		/* Translate this address	*/
-	RTN_XRESOLVE,		/* Use external resolver	*/
+	RTN_XRESOLVE		/* Use external resolver	*/
 };
 
 #define RTN_MAX RTN_XRESOLVE
@@ -279,7 +279,7 @@ enum rtattr_type_t
 	RTA_PROTOINFO,
 	RTA_FLOW,
 	RTA_CACHEINFO,
-	RTA_SESSION,
+	RTA_SESSION
 };
 
 #define RTA_MAX RTA_SESSION
@@ -365,7 +365,7 @@ enum
 #define RTAX_HOPLIMIT RTAX_HOPLIMIT
 	RTAX_INITCWND,
 #define RTAX_INITCWND RTAX_INITCWND
-	RTAX_FEATURES,
+	RTAX_FEATURES
 #define RTAX_FEATURES RTAX_FEATURES
 };
 
@@ -589,7 +589,7 @@ enum
 #define IFLA_MASTER IFLA_MASTER
 	IFLA_WIRELESS,		/* Wireless Extension event - see wireless.h */
 #define IFLA_WIRELESS IFLA_WIRELESS
-	IFLA_PROTINFO,		/* Protocol specific information for a link */
+	IFLA_PROTINFO		/* Protocol specific information for a link */
 #define IFLA_PROTINFO IFLA_PROTINFO
 };
 
@@ -635,7 +635,7 @@ enum
 	IFLA_INET6_FLAGS,	/* link flags			*/
 	IFLA_INET6_CONF,	/* sysctl parameters		*/
 	IFLA_INET6_STATS,	/* statistics			*/
-	IFLA_INET6_MCAST,	/* MC things. What of them?	*/
+	IFLA_INET6_MCAST	/* MC things. What of them?	*/
 };
 
 #define IFLA_INET6_MAX	IFLA_INET6_MCAST
@@ -662,7 +662,7 @@ enum
 	TCA_OPTIONS,
 	TCA_STATS,
 	TCA_XSTATS,
-	TCA_RATE,
+	TCA_RATE
 };
 
 #define TCA_MAX TCA_RATE

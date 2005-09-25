@@ -70,7 +70,7 @@
 #include "lwip/tcp.h"
 #include "lwip/if.h"
 
-static struct netif *netif_list = NULL;
+struct netif *netif_list = NULL;
 
 /**
  * Add a network interface to the list of lwIP netifs.
@@ -163,7 +163,7 @@ static void ip_addr_close(struct ip_addr *ipaddr)
 		 if (ip_addr_cmp(&(pcb->local_ip), ipaddr)) {
 			 /* this connection must be aborted */
 			 struct tcp_pcb *next = pcb->next;
-			 LWIP_DEBUGF(NETIF_DEBUG | 1, ("netif_set_ipaddr: aborting TCP pcb %p\n", (void *)pcb));
+			 LWIP_DEBUGF(NETIF_DEBUG | 1, ("netif_addr_close: aborting TCP pcb %p\n", (void *)pcb));
 			 tcp_abort(pcb);
 			 pcb = next;
 		 } else {
@@ -345,11 +345,11 @@ int netif_ioctl(int cmd,struct ifreq *ifr)
 #undef ifrname
 				switch (cmd) {
 					case SIOCGIFFLAGS:
-						ifr->ifr_flags= nip->flags & ~(0x40);
+						ifr->ifr_flags= nip->flags & ~(IFF_RUNNING);
 						/*printf("SIOCGIFFLAGS %x\n",nip->flags);*/
 						retval=ERR_OK; break;
 					case SIOCSIFFLAGS:
-						nip->flags = (nip->flags & 0x40) | (ifr->ifr_flags & ~(0x40));
+						nip->flags = (nip->flags & IFF_RUNNING) | (ifr->ifr_flags & ~(IFF_RUNNING));
 						/*printf("SIOCSIFFLAGS %x %x\n",ifr->ifr_flags, nip->flags);*/
 						retval=ERR_OK; break;
 
