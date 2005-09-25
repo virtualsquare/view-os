@@ -540,7 +540,6 @@ void sc_resume(struct pcb *pc)
 	int inout=pc->behavior-SC_SUSPENDED;
 	divfun fun;
 	fun=cdtab(syscall);
-	//printf("SC_RESUME pid=%d %d %d %d \n",pid,pc->arg0,pc->arg1,pc->arg2);
 	if (fun != NULL)
 		pc->behavior=fun(syscall,inout,pc);
 	else
@@ -557,6 +556,12 @@ void sc_resume(struct pcb *pc)
 	} else { /* inout == OUT */
 		if ((pc->behavior & SC_SUSPENDED) == 0)
 			pc->scno=NOSC;
+	}
+	if( pusher(pc) == -1 ){
+		          //printf("errno - pusher: %d on process %d \n",errno,pc->pid);
+		GPERROR(0, "pusher");
+		// think if we have to decomment this line...
+		//exit(-1);
 	}
 	if((pc->behavior & SC_SUSPENDED) == 0) {
 		if (ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0){

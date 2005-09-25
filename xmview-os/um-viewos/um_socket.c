@@ -114,23 +114,21 @@ int wrap_in_accept(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_out_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) {
-	//printf("socketout %d\n\n",pc->retval);
+	int lerno=errno;
 	if (pc->retval >= 0) {
 		int fd=getrv(pc);	
-		//printf("open %d\n",fd);
 		if (fd >= 0) {
-			//printf("NEW SOCKET %d %d\n",fd,pc->retval);
 			/* update open file table*/
 			lfd_register(pcdata->fds,fd,pc->retval);
-			//printf("socket lfd_register %d %d %d\n", pc->pid, fd, pc->retval);
 			/* restore parms*/
 			putscno(pc->scno,pc);
 			putarg0orig(pc->arg0,pc);
 			putargn(1,pc->arg1,pc);
-			//err=putrv(fd,pc->pid);
+			putrv(fd,pc);
 		} else {
 			putrv(pc->retval,pc);
 			puterrno(pc->erno,pc);
+			lfd_close(pc->retval);
 		}
 	} else {
 		putrv(pc->retval,pc);

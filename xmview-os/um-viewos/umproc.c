@@ -88,7 +88,7 @@ void um_proc_close()
 
 static char *um_proc_tmpfile(service_t service, int lfd)
 {
-	sprintf(um_tmpfile_tail,"%02x%d",service,lfd);
+	sprintf(um_tmpfile_tail,"%02x%02d",service,lfd);
 	//printf("um_proc_tmpfile %s\n",um_tmpfile);
 	return um_tmpfile;
 }

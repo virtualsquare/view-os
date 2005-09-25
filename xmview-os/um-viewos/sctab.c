@@ -169,11 +169,17 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		/* if some service want to manage the syscall (or the ALWAYS
 		 * flag is set), we process it */
 		if (sercode != UM_NONE || (sm[usc].flags & ALWAYS)) {
-			/* suspend management - TODO: don't know how it works!
-			 * :P */
+			/* suspend management:
+			 * when howsusp has at least one bit set (CB_R, CB_W, CB_X) 
+			 * the system checks with a select if the call is blocking or not.
+			 * when the call would be blocking the process is suspended and an event
+			 * event callback is loaded.
+			 */
 			int howsusp = sm[index].flags & 0x7;
 			int what;
-			if (howsusp != 0 && (what=check_suspend_on(pc, pcdata, pc->arg2, howsusp))!=STD_BEHAVIOR)
+			if (howsusp != 0 && (what=check_suspend_on(pc, pcdata, 
+							(sc_number == __NR_socketcall)?pc->arg2:pc->arg0,
+							howsusp))!=STD_BEHAVIOR)
 				return what;
 			else
 				/* normal management: call the wrapin function,

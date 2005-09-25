@@ -159,7 +159,6 @@ int wrap_out_std(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	pc->retval<0?puterrno(pc->erno,pc):0;
 /*  err=puterrno(pc->erno,pc);*/
 	return STD_BEHAVIOR;
-
 }
 
 int wrap_in_read(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
