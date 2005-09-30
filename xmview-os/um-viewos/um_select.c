@@ -204,6 +204,9 @@ void select_check_wset(int max,fd_set *wset)
 	//printf("select_check_wset end\n");
 }
 
+/* check for possibly blocking operation.
+ * e.g. READ or recvmsg can block if there is no pending data
+ */
 int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how)
 {
 	if (pcdata != NULL) {
@@ -216,6 +219,7 @@ int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how)
 			intfun local_select_register;
 			if ((local_select_register=service_select_register(sercode)) == NULL) {
 				intfun localselect=service_syscall(sercode,uscno(__NR__newselect));
+				/* use the standard "select" provided by the service. */
 				if (localselect != NULL) {
 					fd_set tfds[3];
 					fd_set wrfds[3];
@@ -247,6 +251,8 @@ int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how)
 					}
 				}
 			} else {
+				/* use a pro-active service.
+				 * select register calls a predefined function when new data is available.  */
 				struct seldata *sd=(struct seldata *)malloc(sizeof(struct seldata));
 				sd->wakemeup=WAKEONCB;
 				if (local_select_register(select_wakeup_cb, &(sd->wakemeup), sfd, how) == 0)
@@ -308,6 +314,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		//printf("ltimeout=%d %d\n",ltimeout.tv_sec,ltimeout.tv_usec);
 	} else
 		lptimeout=NULL;
+	/* check if there are already satisfied fd requests*/
 	for(fd=0,count=0,countcb=0,signaled=0;fd<n;fd++) { /* maybe timeout==0 is a special case */
 		int sercode=service_fd(pcdata->fds,fd);
 		//printf("loop %d sercode %d\n", fd,sercode);
@@ -345,6 +352,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 				//	dumpfdset(n,stype_str[i],&lfds[i]);
 				//}
 					if (local_select_register == NULL) {
+						/* use service provided select */
 						if (rfd>rfdmax) rfdmax=rfd;
 						if (localselect(sfd+1,&tfds[0],&tfds[1],&tfds[2],&timeout0) > 0) {
 							signaled++;
@@ -352,6 +360,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 							lfd_signal(fd2lfd(pcdata->fds,fd));
 						}
 					} else /* if (local_select_register != NULL) */ {
+					  /* use local register service function (call back when hit) */
 						countcb++;
 						if (local_select_register(select_wakeup_cb, &(sd->wakemeup), sfd, how) > 0) {
 							signaled++;
@@ -401,10 +410,11 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		} else
 			sd->rfdmax= -1;
 		//printf("a_random_lfd=%d\n",a_random_lfd);
+		/* use one of the fake files (it is a fifo) to signal when 
+		 * select must be unblocked*/
 		sd->a_random_lfd=a_random_lfd;
-		//printf("aggiuntso %d %d\n",pc->pid,sd->rfdmax);
+		//printf("added %d %d\n",pc->pid,sd->rfdmax);
 		pcdata->selset=sd;
-		//printf("SC_CALLONXIT!\n");
 		return SC_CALLONXIT;
 	}
 }
@@ -427,6 +437,8 @@ int wrap_out_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 			pfds[i]=getargn(i+1,pc);
 			getfdset(pfds[i],pc->pid,n,&lfds[i]);
 		}
+		/* convert the return values of the real world select call
+		 * to the correct values. */
 		for(fd=0,pc->retval=0;fd<n;fd++) {
 			int sercode=service_fd(pcdata->fds,fd);
 			int sfd;
@@ -528,6 +540,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	/*for (i=0;i<nfds;i++) {
 		printf("pollfdin %d %d %d\n",ufds[i].fd,ufds[i].events,ufds[i].revents);
 	}*/
+	/* preliminary check: can we pass through the poll without blocking? */
 	for(i=0,count=0,countcb=0,signaled=0;i<nfds;i++)
 	{
 		int fd=ufds[i].fd;
@@ -540,6 +553,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			/*printf("POLL fd %d sfd %d lfd %d service %d %x\n",
 					fd,sfd,fd2lfd(pcdata->fds,fd),sercode,localpoll); */
 			if (localpoll != NULL || local_select_register != NULL) {
+				/* use service provided "poll"*/
 				int rfd;
 				int how=0;
 				rfd=sfd;
@@ -565,6 +579,8 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 							ufds[i].fd=fd;
 						}
 					} else /* if (local_select_register != NULL) */ {
+						/* use select register: the callback function get called
+						 * when a relevant event occurs */
 						if (ufds[i].events & (POLLIN | POLLHUP) )
 							how |= 1;
 						if (ufds[i].events & POLLOUT)
@@ -588,6 +604,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		}
 	}
 	if (count == 0) {
+		/* all the fds are managed by the real kernel */
 		free(sd);
 		return STD_BEHAVIOR;
 	} else {
@@ -620,7 +637,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		} else
 			sd->rfdmax= -1;
 		sd->a_random_lfd=a_random_lfd;
-		/*printf("aggiunto %d %d\n",pc->pid,sd->rfdmax);*/
+		/*printf("added %d %d\n",pc->pid,sd->rfdmax);*/
 		pcdata->selset=sd;
 		return SC_CALLONXIT;
 	}
