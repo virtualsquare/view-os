@@ -1,68 +1,68 @@
-/**
- * @file
- * Address Resolution Protocol module for IP over Ethernet
- *
- * Functionally, ARP is divided into two parts. The first maps an IP address
- * to a physical address when sending a packet, and the second part answers
- * requests from other machines for our physical address.
- *
- * This implementation complies with RFC 826 (Ethernet ARP). It supports
- * Gratuitious ARP from RFC3220 (IP Mobility Support for IPv4) section 4.6
- * if an interface calls etharp_query(our_netif, its_ip_addr, NULL) upon
- * address change.
- */
+	/**
+	 * @file
+	 * Address Resolution Protocol module for IP over Ethernet
+	 *
+	 * Functionally, ARP is divided into two parts. The first maps an IP address
+	 * to a physical address when sending a packet, and the second part answers
+	 * requests from other machines for our physical address.
+	 *
+	 * This implementation complies with RFC 826 (Ethernet ARP). It supports
+	 * Gratuitious ARP from RFC3220 (IP Mobility Support for IPv4) section 4.6
+	 * if an interface calls etharp_query(our_netif, its_ip_addr, NULL) upon
+	 * address change.
+	 */
 
-/*   This is part of LWIPv6
- *   Developed for the Ale4NET project
- *   Application Level Environment for Networking
- *   
- *   Copyright 2004 Renzo Davoli University of Bologna - Italy
- *   
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
- *
- *   You should have received a copy of the GNU General Public License along
- *   with this program; if not, write to the Free Software Foundation, Inc.,
- *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
- */   
-/*
- * Copyright (c) 2001-2003 Swedish Institute of Computer Science.
- * Copyright (c) 2003-2004 Leon Woestenberg <leon.woestenberg@axon.tv>
- * Copyright (c) 2003-2004 Axon Digital Design B.V., The Netherlands.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote products
- *    derived from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
- * SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
- * OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
- * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
- * OF SUCH DAMAGE.
- *
- * This file is part of the lwIP TCP/IP stack.
- *
- */
+	/*   This is part of LWIPv6
+	 *   Developed for the Ale4NET project
+	 *   Application Level Environment for Networking
+	 *   
+	 *   Copyright 2004 Renzo Davoli University of Bologna - Italy
+	 *   
+	 *   This program is free software; you can redistribute it and/or modify
+	 *   it under the terms of the GNU General Public License as published by
+	 *   the Free Software Foundation; either version 2 of the License, or
+	 *   (at your option) any later version.
+	 *
+	 *   This program is distributed in the hope that it will be useful,
+	 *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+	 *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	 *   GNU General Public License for more details.
+	 *
+	 *   You should have received a copy of the GNU General Public License along
+	 *   with this program; if not, write to the Free Software Foundation, Inc.,
+	 *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+	 */   
+	/*
+	 * Copyright (c) 2001-2003 Swedish Institute of Computer Science.
+	 * Copyright (c) 2003-2004 Leon Woestenberg <leon.woestenberg@axon.tv>
+	 * Copyright (c) 2003-2004 Axon Digital Design B.V., The Netherlands.
+	 * All rights reserved.
+	 *
+	 * Redistribution and use in source and binary forms, with or without modification,
+	 * are permitted provided that the following conditions are met:
+	 *
+	 * 1. Redistributions of source code must retain the above copyright notice,
+	 *    this list of conditions and the following disclaimer.
+	 * 2. Redistributions in binary form must reproduce the above copyright notice,
+	 *    this list of conditions and the following disclaimer in the documentation
+	 *    and/or other materials provided with the distribution.
+	 * 3. The name of the author may not be used to endorse or promote products
+	 *    derived from this software without specific prior written permission.
+	 *
+	 * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+	 * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+	 * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
+	 * SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+	 * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+	 * OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+	 * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+	 * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+	 * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+	 * OF SUCH DAMAGE.
+	 *
+	 * This file is part of the lwIP TCP/IP stack.
+	 *
+	 */
 
 #include "lwip/opt.h"
 #include "lwip/inet.h"
@@ -71,26 +71,30 @@
 #include "lwip/stats.h"
 #include "lwip/icmp.h"
 
-/* ARP needs to inform DHCP of any ARP replies? */
-/* #if (LWIP_DHCP && DHCP_DOES_ARP_CHECK)
+	/* ARP needs to inform DHCP of any ARP replies? */
+	/* #if (LWIP_DHCP && DHCP_DOES_ARP_CHECK)
 #  include "lwip/dhcp.h"
 #endif */
 
-/** the time an ARP entry stays valid after its last update,
- * (240 * 5) seconds = 20 minutes.
- */
-#define ARP_MAXAGE 240
-/** the time an ARP entry stays pending after first request,
- * (2 * 5) seconds = 10 seconds.
- * 
- * @internal Keep this number at least 2, otherwise it might
- * run out instantly if the timeout occurs directly after a request.
- */
+	/** the time an ARP entry stays valid after its last update,
+	 * (240 * 5) seconds = 20 minutes.
+	 */
+	//#define ARP_MAXAGE 240
+	/** the time an ARP entry stays valid after its last update,
+	 * (6 * 5) seconds = 0.5 minutes.
+	 */
+#define ARP_MAXAGE 6
+	/** the time an ARP entry stays pending after first request,
+	 * (2 * 5) seconds = 10 seconds.
+	 * 
+	 * @internal Keep this number at least 2, otherwise it might
+	 * run out instantly if the timeout occurs directly after a request.
+	 */
 #define ARP_MAXPENDING 2
 
 #define HWTYPE_ETHERNET 1
 
-/** ARP message types */
+	/** ARP message types */
 #define ARP_REQUEST 1
 #define ARP_REPLY 2
 
@@ -101,106 +105,112 @@
 #define ARPH_PROTOLEN_SET(hdr, len) (hdr)->_hwlen_protolen = htons((len) | (ARPH_HWLEN(hdr) << 8))
 
 #define LINKOUTPUT(N,P) ({ \
-		ETH_CHECK_PACKET_OUT((N),(P)); \
-		(N)->linkoutput((N),(P)); \
-		})
-		
-enum etharp_state {
-  ETHARP_STATE_EMPTY,
-  ETHARP_STATE_PENDING,
-  ETHARP_STATE_STABLE,
-  /** @internal transitional state used in etharp_tmr() for convenience*/
-  ETHARP_STATE_EXPIRED
-};
+			ETH_CHECK_PACKET_OUT((N),(P)); \
+			(N)->linkoutput((N),(P)); \
+			})
+			
+	enum etharp_state {
+		ETHARP_STATE_EMPTY=0,
+		ETHARP_STATE_PENDING,
+		ETHARP_STATE_STABLE,
+		/** @internal transitional state used in etharp_tmr() for convenience*/
+		ETHARP_STATE_EXPIRED
+	};
 
-struct etharp_entry {
+	struct etharp_entry {
 #if ARP_QUEUEING
-  /** 
-   * Pointer to queue of pending outgoing packets on this ARP entry.
-   */
-   struct pbuf *p;
+		/** 
+		 * Pointer to queue of pending outgoing packets on this ARP entry.
+		 */
+		 struct pbuf *p;
 #endif
-  struct ip_addr ipaddr;
-  struct eth_addr ethaddr;
-  enum etharp_state state;
-  u8_t ctime;
-};
+		struct ip_addr ipaddr;
+		struct eth_addr ethaddr;
+		enum etharp_state state;
+		u8_t ctime;
+		u8_t if_id;
+	};
 
-static const struct eth_addr ethbroadcast = {{0xff,0xff,0xff,0xff,0xff,0xff}};
-static struct etharp_entry arp_table[ARP_TABLE_SIZE];
+	static const struct eth_addr ethbroadcast = {{0xff,0xff,0xff,0xff,0xff,0xff}};
+	static struct etharp_entry arp_table[ARP_TABLE_SIZE];
 
 #define ARP_INSERT_FLAG 1
 
-/**
- * Try hard to create a new entry - we want the IP address to appear in
- * the cache (even if this means removing an active entry or so). */
+	/**
+	 * Try hard to create a new entry - we want the IP address to appear in
+	 * the cache (even if this means removing an active entry or so). */
 #define ETHARP_TRY_HARD 1
 
-static s8_t find_entry(struct ip_addr *ipaddr, u8_t flags);
-static err_t update_arp_entry(struct netif *netif, struct ip_addr *ipaddr, struct eth_addr *ethaddr, u8_t flags);
-/**
- * Initializes ARP module.
- */
-void
-etharp_init(void)
-{
-  u8_t i;
-  /* clear ARP entries */
-  for(i = 0; i < ARP_TABLE_SIZE; ++i) {
-    arp_table[i].state = ETHARP_STATE_EMPTY;
+	static s8_t find_entry(struct ip_addr *ipaddr, u8_t flags);
+	static err_t update_arp_entry(struct netif *netif, struct ip_addr *ipaddr, struct eth_addr *ethaddr, u8_t flags);
+	/**
+	 * Initializes ARP module.
+	 */
+	void
+	etharp_init(void)
+	{
+		/* global vars are zeroed by definition */
+#if 0
+		u8_t i;
+		/* clear ARP entries */
+		for(i = 0; i < ARP_TABLE_SIZE; ++i) {
+			arp_table[i].state = ETHARP_STATE_EMPTY;
 #if ARP_QUEUEING
-    arp_table[i].p = NULL;
+			arp_table[i].p = NULL;
 #endif
-    arp_table[i].ctime = 0;
-  }
-}
+			arp_table[i].ctime = 0;
+		}
+#endif
+	}
 
-/**
- * Clears expired entries in the ARP table.
- *
- * This function should be called every ETHARP_TMR_INTERVAL microseconds (5 seconds),
- * in order to expire entries in the ARP table.
- */
-void
-etharp_tmr(void)
-{
-  u8_t i;
+	/**
+	 * Clears expired entries in the ARP table.
+	 *
+	 * This function should be called every ETHARP_TMR_INTERVAL microseconds (5 seconds),
+	 * in order to expire entries in the ARP table.
+	 */
+	void
+	etharp_tmr(struct netif *netif)
+	{
+		u8_t i;
 
-  LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer\n"));
-  /* remove expired entries from the ARP table */
-  for (i = 0; i < ARP_TABLE_SIZE; ++i) {
-    arp_table[i].ctime++;
-    /* stable entry? */
-    if ((arp_table[i].state == ETHARP_STATE_STABLE) &&
-         /* entry has become old? */
-        (arp_table[i].ctime >= ARP_MAXAGE)) {
-      LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer: expired stable entry %u.\n", i));
-      arp_table[i].state = ETHARP_STATE_EXPIRED;
-    /* pending entry? */
-    } else if (arp_table[i].state == ETHARP_STATE_PENDING) {
-      /* entry unresolved/pending for too long? */
-      if (arp_table[i].ctime >= ARP_MAXPENDING) {
-        LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer: expired pending entry %u.\n", i));
-        arp_table[i].state = ETHARP_STATE_EXPIRED;
+		LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer\n"));
+		/* remove expired entries from the ARP table */
+		for (i = 0; i < ARP_TABLE_SIZE; ++i) {
+			if (arp_table[i].if_id==netif->id) {
+				arp_table[i].ctime++;
+				/* stable entry? */
+				if ((arp_table[i].state == ETHARP_STATE_STABLE) &&
+						/* entry has become old? */
+						(arp_table[i].ctime >= ARP_MAXAGE)) {
+					LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer: expired stable entry %u.\n", i));
+					arp_table[i].state = ETHARP_STATE_EXPIRED;
+					/* pending entry? */
+				} else if (arp_table[i].state == ETHARP_STATE_PENDING) {
+					/* entry unresolved/pending for too long? */
+					if (arp_table[i].ctime >= ARP_MAXPENDING) {
+						LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer: expired pending entry %u.\n", i));
+						arp_table[i].state = ETHARP_STATE_EXPIRED;
 #if ARP_QUEUEING
-      } else if (arp_table[i].p != NULL) {
-        /* resend an ARP query here */
+					} else if (arp_table[i].p != NULL) {
+						/* resend an ARP query here */
 #endif
-      }
-    }
-    /* clean up entries that have just been expired */
-    if (arp_table[i].state == ETHARP_STATE_EXPIRED) {
+					}
+				}
+				/* clean up entries that have just been expired */
+				if (arp_table[i].state == ETHARP_STATE_EXPIRED) {
 #if ARP_QUEUEING
-      /* and empty packet queue */
-      if (arp_table[i].p != NULL) {
-        /* remove all queued packets */
-        LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer: freeing entry %u, packet queue %p.\n", i, (void *)(arp_table[i].p)));
-        pbuf_free(arp_table[i].p);
-        arp_table[i].p = NULL;
-      }
+					/* and empty packet queue */
+					if (arp_table[i].p != NULL) {
+						/* remove all queued packets */
+						LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer: freeing entry %u, packet queue %p.\n", i, (void *)(arp_table[i].p)));
+						pbuf_free(arp_table[i].p);
+						arp_table[i].p = NULL;
+					}
 #endif
-      /* recycle entry for re-use */      
-      arp_table[i].state = ETHARP_STATE_EMPTY;
+					/* recycle entry for re-use */      
+					arp_table[i].state = ETHARP_STATE_EMPTY;
+				}
     }
   }
 }
@@ -414,6 +424,7 @@ update_arp_entry(struct netif *netif, struct ip_addr *ipaddr, struct eth_addr *e
   for (k = 0; k < netif->hwaddr_len; ++k) {
     arp_table[i].ethaddr.addr[k] = ethaddr->addr[k];
   }
+	arp_table[i].if_id=netif->id;
   /* reset time stamp */
   arp_table[i].ctime = 0;
 /* this is where we will send out queued packets! */

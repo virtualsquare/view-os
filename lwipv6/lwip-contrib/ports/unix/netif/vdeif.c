@@ -348,9 +348,13 @@ vdeif_thread(void *arg)
   struct vdeif *vdeif;
   fd_set fdset;
   int ret;
+	struct timeval tv;
   
   netif = arg;
   vdeif = netif->state;
+
+	tv.tv_sec=ARP_TMR_INTERVAL/1000;
+	tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
   
   while(1) {
     FD_ZERO(&fdset);
@@ -358,8 +362,13 @@ vdeif_thread(void *arg)
 
 	  LWIP_DEBUGF(VDEIF_DEBUG, ("vde_thread: waiting4packet\n"));
     /* Wait for a packet to arrive. */
-    ret = select(vdeif->fddata + 1, &fdset, NULL, NULL, NULL);
+    ret = select(vdeif->fddata + 1, &fdset, NULL, NULL, &tv);
 
+		if (tv.tv_sec == 0 && tv.tv_usec==0) {
+			etharp_tmr(netif);
+			tv.tv_sec=ARP_TMR_INTERVAL/1000;
+			tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
+		}
     if(ret == 1) {
       /* Handle incoming packet. */
       vdeif_input(netif);
@@ -454,12 +463,12 @@ vdeif_input(struct netif *netif)
   }
 }
 /*-----------------------------------------------------------------------------------*/
-static void
+/*static void
 arp_timer(void *arg)
 {
-  etharp_tmr();
-  sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, NULL);
-}
+  etharp_tmr(arg);
+  sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, arg);
+}*/
 /*-----------------------------------------------------------------------------------*/
 /*
  * vdeif_init():
@@ -502,7 +511,7 @@ vdeif_init(struct netif *netif)
 	}
   etharp_init();
   
-  sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, NULL);
+/*  sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, netif);*/
   return ERR_OK;
 }
 /*-----------------------------------------------------------------------------------*/

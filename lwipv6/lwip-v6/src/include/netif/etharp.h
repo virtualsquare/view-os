@@ -151,7 +151,7 @@ PACK_STRUCT_END
 #define ETHTYPE_IP6  0x86DD
 
 void etharp_init(void);
-void etharp_tmr(void);
+void etharp_tmr(struct netif *netif);
 void etharp_ip_input(struct netif *netif, struct pbuf *p);
 void etharp_arp_input(struct netif *netif, struct eth_addr *ethaddr,
          struct pbuf *p);

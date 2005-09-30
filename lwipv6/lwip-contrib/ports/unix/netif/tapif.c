@@ -239,9 +239,13 @@ tapif_thread(void *arg)
   struct tapif *tapif;
   fd_set fdset;
   int ret;
+	struct timeval tv;
   
   netif = arg;
   tapif = netif->state;
+
+	tv.tv_sec=ARP_TMR_INTERVAL/1000;
+	tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
   
   while(1) {
     FD_ZERO(&fdset);
@@ -249,6 +253,12 @@ tapif_thread(void *arg)
 
     /* Wait for a packet to arrive. */
     ret = select(tapif->fd + 1, &fdset, NULL, NULL, NULL);
+
+		if (tv.tv_sec == 0 && tv.tv_usec==0) {
+			etharp_tmr(netif);
+			tv.tv_sec=ARP_TMR_INTERVAL/1000;
+			tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
+		}
 
     if(ret == 1) {
       /* Handle incoming packet. */
@@ -272,7 +282,11 @@ static err_t
 tapif_output(struct netif *netif, struct pbuf *p,
 		  struct ip_addr *ipaddr)
 {
-  return etharp_output(netif, ipaddr, p);
+	if (! (netif->flags & NETIF_FLAG_UP)) {
+		LWIP_DEBUGF(TAPIF_DEBUG, ("tapif_output: interface DOWN, discarded\n"));
+		return ERR_OK;
+	} else
+		return etharp_output(netif, ipaddr, p);
 }
 /*-----------------------------------------------------------------------------------*/
 /*
@@ -303,6 +317,9 @@ tapif_input(struct netif *netif)
   }
   ethhdr = p->payload;
 
+#ifdef LWIP_PACKET
+	  ETH_CHECK_PACKET_IN(netif,p);
+#endif
   switch(htons(ethhdr->type)) {
 #ifdef IPv6
 		case ETHTYPE_IP6:
@@ -326,12 +343,12 @@ tapif_input(struct netif *netif)
   }
 }
 /*-----------------------------------------------------------------------------------*/
-static void
+/*static void
 arp_timer(void *arg)
 {
-  etharp_tmr();
-  sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, NULL);
-}
+  etharp_tmr(arg);
+  sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, arg);
+}*/
 /*-----------------------------------------------------------------------------------*/
 /*
  * tapif_init():
@@ -370,7 +387,7 @@ tapif_init(struct netif *netif)
 
   etharp_init();
   
-  sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, NULL);
+  /*sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, tapif);*/
   return ERR_OK;
 }
 /*-----------------------------------------------------------------------------------*/

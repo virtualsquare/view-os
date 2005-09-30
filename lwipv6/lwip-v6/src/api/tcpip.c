@@ -103,11 +103,13 @@ tcpip_thread(void *arg)
 		LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: waiting4message\n"));
     sys_mbox_fetch(mbox, (void *)&msg);
 		if (msg==NULL) {
-			fprintf(stderr,"tcpip NULL MSG, this should not happen!\n");
+			//fprintf(stderr,"tcpip NULL MSG, this should not happen!\n");
+			printf("tcpip NULL MSG, this should not happen!\n");
 		} else {
 			switch (msg->type) {
 				case TCPIP_MSG_API:
-					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: API message %p\n", (void *)msg));
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: API message %p %p\n", (void *)msg,
+							(void *)msg->msg.apimsg));
 					api_msg_input(msg->msg.apimsg);
 					break;
 				case TCPIP_MSG_INPUT:

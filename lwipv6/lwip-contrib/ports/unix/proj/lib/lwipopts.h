@@ -186,6 +186,7 @@ a lot of data that needs to be copied, this should be set high. */
 //#define VDEIF_DEBUG DBG_ON
 //#define MEMP_DEBUG DBG_ON
 //#define TCPIP_DEBUG DBG_ON
+//#define MEMP_DEBUG DBG_ON
 //#define IP_DEBUG DBG_ON
 //#define ICMP_DEBUG DBG_ON
 #define DBG_TYPES_ON    (DBG_ON|DBG_TRACE|DBG_STATE|DBG_FRESH|DBG_HALT)

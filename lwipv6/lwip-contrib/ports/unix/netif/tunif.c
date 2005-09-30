@@ -132,13 +132,6 @@ low_level_output(struct tunif *tunif, struct pbuf *p)
   
   /* initiate transfer(); */
 
-#if 0
-  if (((double)rand()/(double)RAND_MAX) < 0.4) {
-    printf("drop\n");
-    return ERR_OK;
-  }
-#endif
-  
   
   bufptr = &buf[0];
   
@@ -167,7 +160,7 @@ low_level_output(struct tunif *tunif, struct pbuf *p)
  */
 /*-----------------------------------------------------------------------------------*/
 static struct pbuf *
-low_level_input(struct tunif *tunif)
+low_level_input(struct tunif *tunif,u16_t ifflags)
 {
   struct pbuf *p, *q;
   u16_t len;
@@ -177,13 +170,11 @@ low_level_input(struct tunif *tunif)
   /* Obtain the size of the packet and put it into the "len"
      variable. */
   len = read(tunif->fd, buf, sizeof(buf));
+	if (! (ifflags & NETIF_FLAG_UP)) {
+		LWIP_DEBUGF(TUNIF_DEBUG, ("tunif_output: interface DOWN, discarded\n"));
+		return NULL;
+	} 
 
-  /*  if (((double)rand()/(double)RAND_MAX) < 0.1) {
-    printf("drop\n");
-    return NULL;
-    }*/
-
-  
   /* We allocate a pbuf chain of pbufs from the pool. */
   p = pbuf_alloc(PBUF_LINK, len, PBUF_POOL);
   
@@ -250,9 +241,11 @@ tunif_output(struct netif *netif, struct pbuf *p,
   struct tunif *tunif;
 
   tunif = netif->state;
-
-  return low_level_output(tunif, p);
-
+	if (! (netif->flags & NETIF_FLAG_UP)) {
+		LWIP_DEBUGF(TUNIF_DEBUG, ("tunif_output: interface DOWN, discarded\n"));
+		return ERR_OK;
+	} else
+		return low_level_output(tunif, p);
 }
 /*-----------------------------------------------------------------------------------*/
 /*
@@ -274,16 +267,14 @@ tunif_input(struct netif *netif)
 
   tunif = netif->state;
   
-  p = low_level_input(tunif);
+  p = low_level_input(tunif,netif->flags);
 
   if (p == NULL) {
     LWIP_DEBUGF(TUNIF_DEBUG, ("tunif_input: low_level_input returned NULL\n"));
     return;
   }
 
-  //if (ip_lookup(p->payload, netif)) {
-    netif->input(p, netif);
-  //}
+	netif->input(p, netif);
 }
 /*-----------------------------------------------------------------------------------*/
 /*

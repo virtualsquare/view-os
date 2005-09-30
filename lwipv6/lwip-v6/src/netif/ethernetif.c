@@ -29,6 +29,9 @@
  * Author: Adam Dunkels <adam@sics.se>
  *
  */
+/*
+ * modified for LWIPv6 Renzo Davoli - University of Bologna 2005
+ */
 
 /*
  * This file is a skeleton for developing Ethernet network interface
@@ -45,6 +48,10 @@
 #include <lwip/stats.h>
 
 #include "netif/etharp.h"
+#if LWIP_NL
+#include "lwip/arphdr.h"
+#endif
+
 
 /* Define those to better describe your network interface. */
 #define IFNAME0 'e'
@@ -62,7 +69,7 @@ static void  ethernetif_input(struct netif *netif);
 static err_t ethernetif_output(struct netif *netif, struct pbuf *p,
              struct ip_addr *ipaddr);
 
-static void
+static int
 low_level_init(struct netif *netif)
 {
   struct ethernetif *ethernetif = netif->state;
@@ -82,6 +89,7 @@ low_level_init(struct netif *netif)
   netif->flags = NETIF_FLAG_BROADCAST;
  
   /* Do whatever else is needed to initialize interface. */  
+	return ERR_OK;
 }
 
 /*
@@ -134,7 +142,7 @@ low_level_output(struct netif *netif, struct pbuf *p)
  */
 
 static struct pbuf *
-low_level_input(struct netif *netif)
+low_level_input(struct netif *netif,,u16_t ifflags)
 {
   struct ethernetif *ethernetif = netif->state;
   struct pbuf *p, *q;
@@ -143,6 +151,10 @@ low_level_input(struct netif *netif)
   /* Obtain the size of the packet and put it into the "len"
      variable. */
   len = ;
+
+	if (!(ETH_RECEIVING_RULE(buf,vdeif->ethaddr->addr,ifflags))) {
+		return NULL;
+	}
 
 #if ETH_PAD_SIZE
   len += ETH_PAD_SIZE;						/* allow room for Ethernet padding */
@@ -198,10 +210,11 @@ static err_t
 ethernetif_output(struct netif *netif, struct pbuf *p,
       struct ip_addr *ipaddr)
 {
-  
+	  if (! (netif->flags & NETIF_FLAG_UP)) {
+					    return ERR_OK;
+		} else
  /* resolve hardware address, then send (or queue) packet */
-  return etharp_output(netif, ipaddr, p);
- 
+			return etharp_output(netif, ipaddr, p);
 }
 
 /*
@@ -224,7 +237,7 @@ ethernetif_input(struct netif *netif)
   ethernetif = netif->state;
   
   /* move received packet into a new pbuf */
-  p = low_level_input(netif);
+  p = low_level_input(netif,netif->flags);
   /* no packet could be read, silently ignore this */
   if (p == NULL) return;
   /* points to packet payload, which starts with an Ethernet header */

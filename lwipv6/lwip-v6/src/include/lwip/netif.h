@@ -118,7 +118,7 @@ struct netif {
 	/** NETIF_FLAG_* */
 	u16_t flags;
 	/** number of this interface */
-	u16_t id;
+	u8_t id;
 	/* unique id */
 
 #ifdef LWIP_NL

@@ -903,6 +903,7 @@ static api_msg_decode decode[API_MSG_MAX] = {
   do_write,
   do_close
   };
+
 void
 api_msg_input(struct api_msg *msg)
 {  
