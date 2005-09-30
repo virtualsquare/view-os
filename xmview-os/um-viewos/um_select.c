@@ -525,9 +525,9 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	for (i=0;i<3;i++)
 		FD_ZERO(&wrfds[i]);
 
-	for (i=0;i<nfds;i++) {
-		//printf("pollfdin %d %d %d\n",ufds[i].fd,ufds[i].events,ufds[i].revents);
-	}
+	/*for (i=0;i<nfds;i++) {
+		printf("pollfdin %d %d %d\n",ufds[i].fd,ufds[i].events,ufds[i].revents);
+	}*/
 	for(i=0,count=0,countcb=0,signaled=0;i<nfds;i++)
 	{
 		int fd=ufds[i].fd;
@@ -537,8 +537,8 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		if (sercode != UM_NONE && (sfd=fd2sfd(pcdata->fds,fd)) >= 0) {
 			intfun localpoll=service_syscall(sercode,uscno(__NR_poll));
 			intfun local_select_register=service_select_register(sercode);
-			//printf("POLL fd %d sfd %d lfd %d service %d %x\n",
-			//		fd,sfd,fd2lfd(pcdata->fds,fd),sercode,localpoll);
+			/*printf("POLL fd %d sfd %d lfd %d service %d %x\n",
+					fd,sfd,fd2lfd(pcdata->fds,fd),sercode,localpoll); */
 			if (localpoll != NULL || local_select_register != NULL) {
 				int rfd;
 				int how=0;
@@ -591,7 +591,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		free(sd);
 		return STD_BEHAVIOR;
 	} else {
-		//printf("POLL! add waitset for global select\n");
+		/*printf("POLL! add waitset for global select\n");*/
 		ustoren(pc->pid,pufds,nfds*sizeof(struct pollfd),ufds);
 		sd->wakemeup=WAKEONRFD;
 		sd->sop.origevents=(int *)malloc(nfds*sizeof(int));
@@ -620,7 +620,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		} else
 			sd->rfdmax= -1;
 		sd->a_random_lfd=a_random_lfd;
-		//printf("aggiunto %d %d\n",pc->pid,sd->rfdmax);
+		/*printf("aggiunto %d %d\n",pc->pid,sd->rfdmax);*/
 		pcdata->selset=sd;
 		return SC_CALLONXIT;
 	}
@@ -681,16 +681,16 @@ int wrap_out_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 						how |= 4;
 					if ((howret=local_select_register(NULL, &(sd->wakemeup), sfd, how)) > 0) {
 						pc->retval++;
-						ufds[i].events=0;
+						ufds[i].revents=0;
 						if ((sd->sop.origevents[i] & (POLLIN) ) &&
 								(howret & 1))
-							ufds[i].events |= POLLIN;
+							ufds[i].revents |= POLLIN;
 						if ((sd->sop.origevents[i] & POLLOUT) &&
 								(howret & 2))
-							ufds[i].events |= POLLOUT;
+							ufds[i].revents |= POLLOUT;
 						if ((sd->sop.origevents[i] & POLLPRI) &&
 								(howret & 4))
-							ufds[i].events |= POLLPRI;
+							ufds[i].revents |= POLLPRI;
 						/* XXX ERR/HUP ??? */
 					}
 				}

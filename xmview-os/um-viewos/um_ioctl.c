@@ -138,14 +138,14 @@ int wrap_in_ioctl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->arg1=req;
 		void *larg;
 		ioctl_getarg(pc->pid,req,arg,&larg);
-		//printf("wrap_in_ioctl %d req %x arg %x\n",sfd,req,larg);
+		/*printf("wrap_in_ioctl %d req %x arg %x\n",sfd,req,larg);*/
 		pc->retval = syscall(sfd,req,larg);
 		pc->erno=errno;
 		if (pc->retval >= 0)
 			ioctl_putarg(pc->pid,req,arg,larg);
 		if (larg != NULL)
 			free(larg);
-		//printf("wrap_in_ioctl %d %d\n",pc->retval,pc->erno);
+		/*printf("wrap_in_ioctl %d %d\n",pc->retval,pc->erno);*/
 	}
 	return SC_FAKE;
 }

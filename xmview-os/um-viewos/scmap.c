@@ -146,14 +146,14 @@ struct sc_map sockmap[]={
 /* 7*/	{SYS_GETPEERNAME,       choice_fd,	wrap_in_getsock,	wrap_out_std,	0,	3},
 /* 8*/	{SYS_SOCKETPAIR,        always_umnone,		NULL, 			NULL,	0,	4}, /* not used */
 /* 9*/	{SYS_SEND,      	choice_fd,	wrap_in_send,		wrap_out_std,	0,	4},
-/*10*/	{SYS_RECV,      	choice_fd,	wrap_in_recv,		wrap_out_std,	0,	4},
+/*10*/	{SYS_RECV,      	choice_fd,	wrap_in_recv,		wrap_out_std,	CB_R,	4},
 /*11*/	{SYS_SENDTO,    	choice_fd,	wrap_in_sendto,		wrap_out_std,	0,	6},
-/*12*/	{SYS_RECVFROM,  	choice_fd,	wrap_in_recvfrom,	wrap_out_std,	0,	6},
+/*12*/	{SYS_RECVFROM,  	choice_fd,	wrap_in_recvfrom,	wrap_out_std,	CB_R,	6},
 /*13*/	{SYS_SHUTDOWN,  	choice_fd,	wrap_in_shutdown,	wrap_out_std,	0,	2},
 /*14*/	{SYS_SETSOCKOPT,        choice_fd,	wrap_in_setsockopt,	wrap_out_std,	0,	5},
 /*15*/	{SYS_GETSOCKOPT,        choice_fd,	wrap_in_getsockopt,	wrap_out_std,	0,	5},
 /*16*/	{SYS_SENDMSG,   	choice_fd,	wrap_in_sendmsg,	wrap_out_std,	0,	3},
-/*17*/	{SYS_RECVMSG,   	choice_fd,	wrap_in_recvmsg,	wrap_out_std,	0,	3}
+/*17*/	{SYS_RECVMSG,   	choice_fd,	wrap_in_recvmsg,	wrap_out_std,	CB_R,	3}
 };
 #define SIZESOCKMAP (sizeof(sockmap)/sizeof(struct sc_map))
 

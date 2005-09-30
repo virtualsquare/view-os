@@ -479,7 +479,8 @@ void tracehand(int s)
 					//exit(-1);
 			}
 			//debug string
-			//printf("+++pid %d syscall %d %d rv %d --\n",pid,pc->scno,syscall,getrv(pc));
+			/*printf("+++pid %d syscall %d %d %s rv %d --\n",pid,pc->scno,syscall,
+					 SYSCALLNAME(syscall),getrv(pc));*/
 			if((pc->behavior & SC_SUSPENDED) == 0) {
 				if (ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0){
 					GPERROR(0, "continuing");
