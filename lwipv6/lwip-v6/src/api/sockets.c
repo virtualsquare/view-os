@@ -1085,14 +1085,19 @@ int lwip_select_register(void (* cb)(), void *arg, int fd, int how)
 {
 	struct lwip_socket *psock=get_socket(fd);
 	int rv=0;
-	//printf("UMSELECT REGISTER %s %d how %x arg %x psock %x\n",
-	//(cb != NULL)?"REG" : "DEL" ,
-	//fd,how,arg,psock);
+	/*printf("UMSELECT REGISTER %s %d how %x arg %x psock %x\n",
+	(cb != NULL)?"REG" : "DEL" ,
+	fd,how,arg,psock);*/
 	if (!selectsem)
 		selectsem = sys_sem_new(1);
 	sys_sem_wait(selectsem);
 	if (psock) {
 		//printf("R %d L %d S %d\n", psock->rcvevent, psock->lastdata, psock->sendevent);
+#ifdef LWIP_NL
+		if (psock->family == PF_NETLINK)
+			rv=how;
+		else
+#endif
 		if ((rv= (how & 0x1) * (psock->lastdata || psock->rcvevent) +
 					(how & 0x2) * psock->sendevent +
 					(how & 0x4) * 0) == 0 && cb != NULL)
@@ -1101,7 +1106,7 @@ int lwip_select_register(void (* cb)(), void *arg, int fd, int how)
 	if (cb == NULL || rv>0)
 		um_sel_del(arg);
 	sys_sem_signal(selectsem);
-	//printf("UMSELECT REGISTER returns %x\n",rv);
+	/*printf("UMSELECT REGISTER returns %x\n",rv);*/
 	return rv;
 }
 
@@ -1833,7 +1838,7 @@ int lwip_ioctl(int s, long cmd, void *argp)
 
 			*((u32_t*)argp) = sock->conn->recv_avail;
 
-			LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_ioctl(%d, FIONREAD, %p) = %u\n", s, argp, *((u16_t*)argp)));
+			LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_ioctl(%d, FIONREAD, %p) = %u\n", s, argp, *((u32_t*)argp)));
 			sock_set_errno(sock, 0);
 			return 0;
 
@@ -1890,6 +1895,7 @@ int lwip_ioctl(int s, long cmd, void *argp)
 int lwip_fcntl(int s, int cmd, int arg)
 {
 	struct lwip_socket *sock = get_socket(s);
+	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_fcntl(%d, %x)\n",s,cmd));
 
 	if (!sock
 #ifdef LWIP_NL

@@ -240,7 +240,6 @@ sys_arch_mbox_fetch(struct sys_mbox *mbox, void **msg, u32_t timeout)
 			tv.tv_sec=tv.tv_usec=0;
 			fdn=select(mbox->pipe[0]+1,&rds,NULL,NULL,NULL);
 		}
-		if (fdn < 0 && errno==EINTR) printf("****************************** THPBSZ \n");
 	} while (fdn < 0 && errno==EINTR);
 	//printf("FDN %p %d %s %d\n",(void *)mbox,fdn,strerror(errno),FD_ISSET(mbox->pipe[0],&rds));
 
