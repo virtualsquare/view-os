@@ -232,7 +232,7 @@ int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how)
 							FD_SET(rfd,&wrfds[i]);
 						}
 					}
-					if (localselect(sfd+1,&tfds[RX],&tfds[WX],&tfds[XX],&timeout0) == 0) 
+					if (localselect(sfd+1,&tfds[RX],&tfds[WX],&tfds[XX],&timeout0,pc) == 0) 
 					{
 						struct seldata *sd=(struct seldata *)malloc(sizeof(struct seldata));
 						sd->wakemeup=WAKEONRFD;
@@ -255,7 +255,7 @@ int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how)
 				 * select register calls a predefined function when new data is available.  */
 				struct seldata *sd=(struct seldata *)malloc(sizeof(struct seldata));
 				sd->wakemeup=WAKEONCB;
-				if (local_select_register(select_wakeup_cb, &(sd->wakemeup), sfd, how) == 0)
+				if (local_select_register(select_wakeup_cb, &(sd->wakemeup), sfd, how, pc) == 0)
 				{
 					sd->rfdmax=-1;
 					sd->a_random_lfd=fd2lfd(pcdata->fds,fd);
@@ -354,7 +354,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 					if (local_select_register == NULL) {
 						/* use service provided select */
 						if (rfd>rfdmax) rfdmax=rfd;
-						if (localselect(sfd+1,&tfds[0],&tfds[1],&tfds[2],&timeout0) > 0) {
+						if (localselect(sfd+1,&tfds[0],&tfds[1],&tfds[2],&timeout0,pc) > 0) {
 							signaled++;
 							//printf("signaled\n");
 							lfd_signal(fd2lfd(pcdata->fds,fd));
@@ -362,7 +362,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 					} else /* if (local_select_register != NULL) */ {
 					  /* use local register service function (call back when hit) */
 						countcb++;
-						if (local_select_register(select_wakeup_cb, &(sd->wakemeup), sfd, how) > 0) {
+						if (local_select_register(select_wakeup_cb, &(sd->wakemeup), sfd, how, pc) > 0) {
 							signaled++;
 							lfd_signal(fd2lfd(pcdata->fds,fd));
 						}
@@ -456,7 +456,7 @@ int wrap_out_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 						}
 					}
 					lfd_delsignal(fd2lfd(pcdata->fds,fd));
-					if (flag && localselect(sfd+1,&tfds[0],&tfds[1],&tfds[2],&timeout0) > 0) {
+					if (flag && localselect(sfd+1,&tfds[0],&tfds[1],&tfds[2],&timeout0,pc) > 0) {
 						pc->retval++;
 						//printf("ADD %d virtual (max=%d)\n",fd,n);
 						for (i=0;i<3;i++) {
@@ -476,7 +476,7 @@ int wrap_out_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 						}
 					}
 					lfd_delsignal(fd2lfd(pcdata->fds,fd));
-					if (flag && (howret=local_select_register(NULL, &(sd->wakemeup), sfd, how)) > 0)
+					if (flag && (howret=local_select_register(NULL, &(sd->wakemeup), sfd, how, pc)) > 0)
 					{
 						pc->retval++;
 						for (i=0;i<3;i++) {
@@ -592,7 +592,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 							count++; countcb++;
 							a_random_lfd=fd2lfd(pcdata->fds,fd);
 							ufds[i].fd=fd;
-							if (local_select_register(select_wakeup_cb, &(sd->wakemeup), sfd, how) > 0) {
+							if (local_select_register(select_wakeup_cb, &(sd->wakemeup), sfd, how, pc) > 0) {
 								signaled++;
 								lfd_signal(a_random_lfd);
 							}
@@ -696,7 +696,7 @@ int wrap_out_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 						how |= 2;
 					if (sd->sop.origevents[i] & (POLLPRI | POLLERR | POLLHUP) )
 						how |= 4;
-					if ((howret=local_select_register(NULL, &(sd->wakemeup), sfd, how)) > 0) {
+					if ((howret=local_select_register(NULL, &(sd->wakemeup), sfd, how, pc)) > 0) {
 						pc->retval++;
 						ufds[i].revents=0;
 						if ((sd->sop.origevents[i] & (POLLIN) ) &&

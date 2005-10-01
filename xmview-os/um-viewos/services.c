@@ -38,6 +38,7 @@ static int invisible=0;
 static int noserv=0;
 static int maxserv=0;
 static struct service **services=NULL;
+static intfun reg_service,dereg_service;
 
 #define OSER_STEP 8 /*only power of 2 values */
 #define OSER_STEP_1 (OSER_STEP - 1)
@@ -67,17 +68,19 @@ int add_service(struct service *s)
 		}
 		services[noserv-1]=s;
 		servmap[services[noserv-1]->code] = noserv;
-		s->handle=NULL;
+		s->dlhandle=NULL;
+		if (reg_service)
+			reg_service(s->code);
 		return 0;
 	}
 }
 
-int set_handle_new_service(void *handle,int position)
+int set_handle_new_service(void *dlhandle,int position)
 {
-	if (noserv == 0 || services[noserv-1]->handle != NULL)
+	if (noserv == 0 || services[noserv-1]->dlhandle != NULL)
 		return s_error(EFAULT);
 	else {
-		services[noserv-1]->handle = handle;
+		services[noserv-1]->dlhandle = dlhandle;
 		mov_service(services[noserv-1]->code,position);
 		return 0;
 	}
@@ -88,7 +91,7 @@ void *get_handle_service(service_t code) {
 	if (invisible || locked || i<0)
 		return NULL;
 	else {
-		return services[i]->handle;
+		return services[i]->dlhandle;
 	}
 }
 
@@ -102,6 +105,8 @@ int del_service(service_t code)
 		return s_error(ENOENT);
 	else {
 		int i;
+		if (dereg_service)
+			dereg_service(code);
 		for (i= servmap[code]-1; i<noserv-1; i++)
 			services[i]=services[i+1];
 		noserv--;
@@ -186,6 +191,34 @@ void invisible_services()
 	invisible=1;
 }
 
+void service_addproc(service_t code,int id,int max, void *arg)
+{
+	int pos;
+	if (code == UM_NONE) {
+		for (pos=0;pos<noserv;pos++)
+			if (services[pos]->addproc)
+				services[pos]->addproc(id,max,arg);
+	} else {
+		int pos=servmap[code]-1;
+		if (services[pos]->addproc)
+				services[pos]->addproc(id,max,arg);
+	}
+}
+
+void service_delproc(service_t code,int id, void *arg)
+{
+	int pos;
+	if (code == UM_NONE) {
+		for (pos=0;pos<noserv;pos++)
+			if (services[pos]->delproc)
+				services[pos]->delproc(id,arg);
+	} else {
+		int pos=servmap[code]-1;
+		if (services[pos]->delproc)
+				services[pos]->delproc(id,arg);
+	}
+}
+
 service_t service_path(char *path,void *umph)
 {
 	int i;
@@ -250,4 +283,10 @@ intfun service_select_register(service_t code)
 	int pos=servmap[code]-1;
 	struct service *s=services[pos];
 	return (s->select_register);
+}
+
+void _service_init(intfun register_service,intfun deregister_service)
+{
+	reg_service=register_service;
+	dereg_service=deregister_service;
 }

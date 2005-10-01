@@ -24,6 +24,8 @@
  */
 #include <fuse/fuse.h>
 #include <errno.h>
+#include <stdio.h>
+
 /** Get file attributes.
  *
  * Similar to stat().  The 'st_dev' and 'st_blksize' fields are

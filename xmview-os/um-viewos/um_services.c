@@ -99,12 +99,12 @@ int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 				break;
 			case DEL_SERVICE:
 				arg1=getargn(1,pc) & 0xff;
+				pc->retval=del_service(arg1);
 				{void * handle=get_handle_service(arg1);
 					if (handle!= NULL) {
 						dlclose(handle);
 					}
 				}
-				pc->retval=del_service(arg1);
 				pc->erno=errno;
 				break;
 			case MOV_SERVICE:

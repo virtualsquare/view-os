@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <sys/uio.h>
 #include "module.h"
 #include "libummod.h"
 

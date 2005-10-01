@@ -82,6 +82,11 @@ int tracerpipecounter = 0;
 pid_t first_child_pid;
 int first_child_exit_status = -1;
 
+int pcbtablesize(void)
+{
+	return pcbtabsize;
+}
+
 struct pcb *newpcb (int pid)
 {
 	register int i,j;
@@ -125,6 +130,7 @@ struct pcb *newpcb (int pid)
 		pcb=pcbtab[i];
 		if (! (pcb->flags & PCB_INUSE)) {
 			pcb->pid=pid;
+			pcb->umpid=i;
 			pcb->flags = PCB_INUSE;
 			pcb->scno = NOSC;
 			pcb->pp = NULL;
@@ -208,7 +214,7 @@ static int handle_new_proc(int pid, struct pcb *pp)
 		}
 		pc->pp = pp;
 		if (pcb_constr != NULL)
-			pcb_constr(pc,pp->arg2);
+			pcb_constr(pc,pp->arg2,pcbtabsize);
 	}
 	return 0;
 }

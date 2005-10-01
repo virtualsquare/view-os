@@ -29,6 +29,8 @@
 int capture_main(char **argv);
 void sc_resume(void *pc);
 
+int pcbtablesize(void);
+
 void wake_tracer_init();
 void wake_tracer(int s);
 int add_tracerpipe_to_wset(int prevmax, fd_set *wset);

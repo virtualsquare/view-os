@@ -25,8 +25,11 @@
  */   
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/uio.h>
 #include <string.h>
 #include "module.h"
 #include "libummod.h"
@@ -40,9 +43,19 @@ static int alwaysfalse()
 	return 0;
 }
 
-static int realpath(char *path)
+static int real_path(char *path)
 {
 	return (strncmp(path,"/lib",4) != 0);
+}
+
+static int addproc(int id, int max, void *umph)
+{
+	printf("new process id %d  pid %d   max %d\n",id,um_mod_getpid(umph),max);
+}
+
+static int delproc(int id, void *umph)
+{
+	printf("terminated process id %d  pid %d\n",id,um_mod_getpid(umph));
 }
 
 static void
@@ -52,8 +65,10 @@ init (void)
 	printf("real init\n");
 	s.name="Identity (server side)";
 	s.code=0x00;
-	s.checkpath=realpath;
+	s.checkpath=real_path;
 	s.checksocket=alwaysfalse;
+	s.addproc=addproc;
+	s.delproc=delproc;
 	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
 	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
 	s.syscall[uscno(__NR_open)]=(intfun)open;

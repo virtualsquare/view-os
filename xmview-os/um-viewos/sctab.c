@@ -50,6 +50,7 @@
 #include "scmap.h"
 #include "utils.h"
 #include "canonicalize.h"
+#include "capture_sc.h"
 #include "gdebug.h"
 
 void um_set_errno(struct pcb *pc,int i) {
@@ -68,7 +69,7 @@ int um_x_lstat64(char *filename, struct stat64 *buf,void *umph)
 	if ((sercode=service_path(filename,umph)) == UM_NONE)
 		return lstat64(filename,buf);
 	else 
-		return service_syscall(sercode,uscno(__NR_lstat64))(filename,buf);
+		return service_syscall(sercode,uscno(__NR_lstat64))(filename,buf,umph);
 }
 
 int um_x_readlink(char *path, char *buf, size_t bufsiz,void *umph)
@@ -77,7 +78,7 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz,void *umph)
 	if ((sercode=service_path(path,umph)) == UM_NONE)
 		return readlink(path,buf,bufsiz);
 	else 
-		return service_syscall(sercode,uscno(__NR_readlink))(path,buf,bufsiz);
+		return service_syscall(sercode,uscno(__NR_readlink))(path,buf,bufsiz,umph);
 }
 
 char um_patherror[]="PE";
@@ -254,14 +255,38 @@ int dsys_socketwrap(int sc_number,int inout,struct pcb *pc)
 			sockmap);
 }
 
-/* ??? */
-void um_proc_add(struct pcb *pc)
+static void _reg_service(struct pcb *pc,service_t *pcode)
 {
+	service_addproc(*pcode,pc->umpid,pcbtablesize(),pc);
 }
 
-/* ??? */
-void um_proc_del(struct pcb *pc)
+static int reg_service(service_t code)
 {
+	forallpcbdo(_reg_service,&code);
+	return 0;
+}
+
+static void _dereg_service(struct pcb *pc,service_t *pcode)
+{
+	service_delproc(*pcode,pc->umpid,pc);
+}
+
+static int dereg_service(service_t code)
+{
+	forallpcbdo(_dereg_service,&code);
+	return 0;
+}
+
+/* UM actions for a new process entering the game*/
+static void um_proc_add(struct pcb *pc)
+{
+	service_addproc(UM_NONE,pc->umpid,pcbtablesize(),pc);
+}
+
+/* UM actions for a terminated process */
+static void um_proc_del(struct pcb *pc)
+{
+	service_delproc(UM_NONE,pc->umpid,pc);
 }
 
 static mode_t local_getumask(void) {
@@ -270,7 +295,7 @@ static mode_t local_getumask(void) {
 	return mask;
 }
 
-void pcb_plus(struct pcb *pc,int flags)
+void pcb_plus(struct pcb *pc,int flags,int maxtablesize)
 {
 	struct pcb_ext *pcpe;
 	pc->data = (void *) (pcpe = (struct pcb_ext *) malloc(sizeof (struct pcb_ext)));
@@ -437,19 +462,25 @@ int dsys_megawrap(int sc_number,int inout,struct pcb *pc)
 int um_mod_getpid(void *umph)
 {
 	struct pcb *pc=umph;
-	return (pc->pid);
+	return (pc?pc->pid:0);
 }
 
 int um_mod_getsyscallno(void *umph)
 {
 	struct pcb *pc=umph;
-	return (pc->scno);
+	return (pc?pc->scno:0);
 }
 
-int *um_mod_getargs(void *umph)
+long *um_mod_getargs(void *umph)
 {
 	struct pcb *pc=umph;
-	return (getargp(pc));
+	return (pc?getargp(pc):NULL);
+}
+
+int um_mod_getumpid(void *umph)
+{
+	struct pcb *pc=umph;
+	return (pc?pc->umpid:0);
 }
 
 #define __NR_UM_SERVICE BASEUSC+0
@@ -458,6 +489,7 @@ void scdtab_init()
 	register int i;
 	pcb_constr=pcb_plus;
 	pcb_destr=pcb_minus;
+	_service_init((intfun)reg_service,(intfun)dereg_service);
 
 	setcdtab(__NR_socketcall,dsys_socketwrap);
 

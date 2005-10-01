@@ -65,6 +65,7 @@ typedef void pivoting_callback(int scno, enum phase p, struct pcb *pc,
 /* Process Control Block */
 struct pcb {
 	short flags;
+	unsigned short umpid;
 	int pid;                /* Process Id of this entry */
 	struct pcb *pp;         /* Parent Process */
 	long scno;              /* System call number */
@@ -112,7 +113,7 @@ int capture_main(char **argv);
 #define PCB_FAKESTOP 0x8000
 
 typedef	int (*divfun)(int sc_number,int inout,struct pcb *ppcb);
-typedef	void (*t_pcb_constr)(struct pcb *ppcb, int flags);
+typedef	void (*t_pcb_constr)(struct pcb *ppcb, int flags, int maxtabsize);
 typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define IN 0
 #define OUT 1

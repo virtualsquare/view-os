@@ -58,7 +58,7 @@ int wrap_in_mkdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 {
 	int mode;
 	mode=getargn(1,pc);
-	pc->retval = syscall(pcdata->path,mode & ~ (pcdata->fdfs->mask));
+	pc->retval = syscall(pcdata->path,mode & ~ (pcdata->fdfs->mask),pc);
 	pc->erno=errno;
 	return SC_FAKE;
 }
@@ -66,7 +66,7 @@ int wrap_in_mkdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_unlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                char sercode, intfun syscall)
 {
-	pc->retval = syscall(pcdata->path);
+	pc->retval = syscall(pcdata->path,pc);
 	pc->erno=errno;
 	return SC_FAKE;
 }
@@ -77,7 +77,7 @@ int wrap_in_chown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	int owner,group;
 	owner=getargn(1,pc);
 	group=getargn(2,pc);
-	pc->retval = syscall(pcdata->path,owner,group);
+	pc->retval = syscall(pcdata->path,owner,group,pc);
 	pc->erno=errno;
 	return SC_FAKE;
 }
@@ -94,7 +94,7 @@ int wrap_in_fchown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		int owner,group;
 		owner=getargn(1,pc);
 		group=getargn(2,pc);
-		pc->retval = syscall(sfd,owner,group);
+		pc->retval = syscall(sfd,owner,group,pc);
 		pc->erno=errno;
 		return SC_FAKE;
 	}
@@ -105,7 +105,7 @@ int wrap_in_chmod(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 {
 	int mode;
 	mode=getargn(1,pc);
-	pc->retval = syscall(pcdata->path,mode);
+	pc->retval = syscall(pcdata->path,mode,pc);
 	pc->erno=errno;
 	return SC_FAKE;
 }
@@ -121,7 +121,7 @@ int wrap_in_fchmod(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	} else {
 		int mode;
 		mode=getargn(1,pc);
-		pc->retval = syscall(sfd,mode);
+		pc->retval = syscall(sfd,mode,pc);
 		pc->erno=errno;
 		return SC_FAKE;
 	}
@@ -204,7 +204,7 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			lfd_dup(pc->retval);
 			return SC_CALLONXIT;
 		} else {
-			pc->retval = syscall(sfd,cmd,arg);
+			pc->retval = syscall(sfd,cmd,arg,pc);
 			//pc->erno= pc->retval<0?errno:0;
 			pc->erno= errno;
 			return SC_FAKE;
@@ -245,7 +245,7 @@ int wrap_in_fsync(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->erno= EBADF;
 		return SC_FAKE;
 	} else {
-		pc->retval = syscall(sfd);
+		pc->retval = syscall(sfd,pc);
 		pc->erno=errno;
 	}
 	return SC_FAKE;
@@ -265,7 +265,7 @@ int wrap_in_link(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			pc->retval= -1;
 			pc->erno= EXDEV;
 		} else {
-			pc->retval=syscall(source,pcdata->path);
+			pc->retval=syscall(source,pcdata->path,pc);
 			pc->erno= errno;
 		}
 		free(source);
@@ -281,7 +281,7 @@ int wrap_in_symlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= ENOENT;
 	} else {
-		pc->retval=syscall(source,pcdata->path);
+		pc->retval=syscall(source,pcdata->path,pc);
 		free(source);
 	}
 	return SC_FAKE;
@@ -303,7 +303,7 @@ int wrap_in_utime(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		larg=alloca(argsize);
 	}
 	umoven(pc->pid,argaddr,argsize,larg);
-	pc->retval = syscall(pcdata->path,larg);
+	pc->retval = syscall(pcdata->path,larg,pc);
 	pc->erno=errno;
 	return SC_FAKE;
 }
@@ -325,7 +325,7 @@ int wrap_in_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		umovestr(pc->pid,pdata,PATH_MAX,data);
 	else
 		datax=NULL;
-	pc->retval = syscall(source,pcdata->path,filesystemtype,mountflags,datax);
+	pc->retval = syscall(source,pcdata->path,filesystemtype,mountflags,datax,pc);
 	pc->erno=errno;
 	return SC_FAKE;
 }
@@ -336,7 +336,7 @@ int wrap_in_umount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	unsigned int flags=0;
 	if (sc_number == __NR_umount2)
 		flags=getargn(1,pc);
-	pc->retval = syscall(pcdata->path,flags);
+	pc->retval = syscall(pcdata->path,flags,pc);
 	pc->erno=errno;
 	return SC_FAKE;
 }
