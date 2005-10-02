@@ -98,6 +98,8 @@ struct netif {
   err_t (* linkoutput)(struct netif *netif, struct pbuf *p);
   /** This field can be set by the device driver and could point
    *  to state information for the device. */
+	err_t (* cleanup)(struct netif *netif);
+	/* garbage collection function */
   void *state;
 #if LWIP_DHCP
   /** the DHCP client state information for this netif */
@@ -134,6 +136,8 @@ extern struct netif *netif_default;
 
 /* netif_init() must be called first. */
 void netif_init(void);
+/* netif_cleanup() must be called for a final garbage collection. */
+void netif_cleanup(void);
 
 struct netif *netif_add(struct netif *netif, 
       void *state,

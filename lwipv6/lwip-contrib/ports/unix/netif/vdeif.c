@@ -100,12 +100,11 @@ static const struct eth_addr ethbroadcast = {{0xff,0xff,0xff,0xff,0xff,0xff}};
 struct vdeif {
   struct eth_addr *ethaddr;
   /* Add whatever per-interface state that is needed here. */
-  char *sockname;
   int connected_fd;
   int fddata;
   struct sockaddr_un dataout;
+  struct sockaddr_un datain;
   int intno;
-  int group;
 };
 
 /* Forward declarations. */
@@ -119,7 +118,7 @@ static void vdeif_thread(void *data);
 #define BUFSIZE 2048
 #define ETH_ALEN 6
 
-enum request_type { REQ_NEW_CONTROL };
+enum request_type { REQ_NEW_CONTROL, REQ_NEW_PORT0 };
 
 #define MAXDESCR 128
 struct request_v3 {
@@ -131,53 +130,74 @@ struct request_v3 {
 };
 
 
-static int send_fd(char *name, int fddata, struct sockaddr_un *datasock, int intno, int port, int ifnum)
+static int send_fd(char *name, int fddata, struct sockaddr_un *datasock, 
+		 struct sockaddr_un *datain, int intno, int ifnum)
 {
   int pid = getpid();
   struct request_v3 req;
   int fdctl;
 	struct passwd *callerpwd;
-
+	int port=0;
+	enum request_type rtype=REQ_NEW_CONTROL;
   struct sockaddr_un sock;
 	callerpwd=getpwuid(getuid());
-
 
   if((fdctl = socket(AF_UNIX, SOCK_STREAM, 0)) < 0){
 		return ERR_IF;
 	}
 
+	if (name == NULL)
+		name=VDESTDSOCK;
+	else {
+		char *split;
+		if(name[strlen(name)-1] == ']' && (split=rindex(name,'[')) != NULL) {
+			*split=0;
+			split++;
+			port=atoi(split);
+			if (port==0) rtype=REQ_NEW_PORT0;
+			if (*name==0) name=VDESTDSOCK;
+		}
+	}
   sock.sun_family = AF_UNIX;
   snprintf(sock.sun_path, sizeof(sock.sun_path), "%s/ctl", name);
   if(connect(fdctl, (struct sockaddr *) &sock, sizeof(sock))){
-		snprintf(sock.sun_path, sizeof(sock.sun_path), "%s", name);
-		if(connect(fdctl, (struct sockaddr *) &sock, sizeof(sock))){
-			return ERR_IF;
+		if (name == VDESTDSOCK) {
+			name=VDETMPSOCK;
+			snprintf(sock.sun_path, sizeof(sock.sun_path), "%s/ctl", name);
+			if(connect(fdctl, (struct sockaddr *) &sock, sizeof(sock))){
+				snprintf(sock.sun_path, sizeof(sock.sun_path), "%s", name);
+				if(connect(fdctl, (struct sockaddr *) &sock, sizeof(sock))){
+					return ERR_IF;
+				}
+			}
 		}
-  }
+	}
 
   req.magic=SWITCH_MAGIC;
   req.version=3;
-	req.type=REQ_NEW_CONTROL+((port > 0)?port << 8:0);
-  
+	req.type=rtype+(port << 8);
   req.sock.sun_family=AF_UNIX;
-  memset(req.sock.sun_path, 0, sizeof(req.sock.sun_path));
-  sprintf(&req.sock.sun_path[1], "%5d-%2d", pid, intno);
-	
-	snprintf(req.description,MAXDESCR,"%sLWIPv6 user=%s PID=%d port=vd%c",
+	snprintf(req.description,MAXDESCR,"%sLWIPv6 user=%s PID=%d if=vd%c",
 			(getenv("_INSIDE_UMVIEW_MODULE") != NULL)?"UMVIEW-":"",
 			      callerpwd->pw_name,getpid(),ifnum + '0');
 
+	/* First choice, return socket from the switch close to the control dir*/
+  memset(req.sock.sun_path, 0, sizeof(req.sock.sun_path));
+  sprintf(req.sock.sun_path, "%s.%05d-%02d", name, pid, intno);
   if(bind(fddata, (struct sockaddr *) &req.sock, sizeof(req.sock)) < 0){
-		return ERR_IF;
+		/* if it is not possible -> /tmp */
+		memset(req.sock.sun_path, 0, sizeof(req.sock.sun_path));
+		sprintf(req.sock.sun_path, "/tmp/vde.%05d-%02d", pid, intno);
+		if(bind(fddata, (struct sockaddr *) &req.sock, sizeof(req.sock)) < 0)
+			return ERR_IF;
   }
+	memcpy(datain,&req.sock,sizeof(struct sockaddr_un));
 
-  if (send(fdctl,&req,sizeof(req)-MAXDESCR+strlen(req.description),0) < 0) {
+  if (send(fdctl,&req,sizeof(req)-MAXDESCR+strlen(req.description),0) < 0) 
 		return ERR_IF;
-  }
 
-  if (recv(fdctl,datasock,sizeof(struct sockaddr_un),0)<0) {
+  if (recv(fdctl,datasock,sizeof(struct sockaddr_un),0)<0) 
 		return ERR_IF;
-  }
 
   return fdctl;
 }
@@ -223,17 +243,13 @@ low_level_init(struct netif *netif,char *path)
   /* Do whatever else is needed to initialize interface. */
    
 	envkey[8]=netif->num + '0';	
-	if (path != NULL)
-		vdeif->sockname=mem_strdup(path);
-	else if ((vdeif->sockname=getenv(envkey))==NULL)
-		vdeif->sockname=VDESTDSOCK;
   vdeif->intno=netif->num;
-  vdeif->group=0;
   if ((vdeif->fddata=socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
 	  perror ("vde: can't open socket");
 		return ERR_IF;
   }
-  vdeif->connected_fd=send_fd(vdeif->sockname, vdeif->fddata, &(vdeif->dataout), vdeif->intno, vdeif->group,netif->num);
+  vdeif->connected_fd=send_fd(path, vdeif->fddata, &(vdeif->dataout), 
+			&(vdeif->datain), vdeif->intno, netif->num);
 
 	if (vdeif->connected_fd >= 0) {
 		sys_thread_new(vdeif_thread, netif, DEFAULT_THREAD_PRIO);
@@ -462,13 +478,17 @@ vdeif_input(struct netif *netif)
     break;
   }
 }
-/*-----------------------------------------------------------------------------------*/
-/*static void
-arp_timer(void *arg)
+
+/* cleanup: garbage collection */
+static err_t cleanup(struct netif *netif)
 {
-  etharp_tmr(arg);
-  sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, arg);
-}*/
+	struct vdeif *vdeif=netif->state;
+	if (vdeif) {
+		unlink(vdeif->datain.sun_path);
+	}
+	return ERR_OK;
+}
+
 /*-----------------------------------------------------------------------------------*/
 /*
  * vdeif_init():
@@ -487,15 +507,17 @@ vdeif_init(struct netif *netif)
 	char *path;
     
   vdeif = mem_malloc(sizeof(struct vdeif));
+	memset(vdeif,0,sizeof(struct vdeif));
   if (!vdeif)
       return ERR_MEM;
-	path=netif->state;
+	path=netif->state; /*state is temporarily used to store the VDE path*/
   netif->state = vdeif;
   netif->name[0] = IFNAME0;
   netif->name[1] = IFNAME1;
 	netif->num=num++;
   netif->output = vdeif_output;
   netif->linkoutput = low_level_output;
+	netif->cleanup = cleanup;
   netif->mtu = 1500; 	 
   /* hardware address length */
   netif->hwaddr_len = 6;

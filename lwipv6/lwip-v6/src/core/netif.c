@@ -104,6 +104,7 @@ netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
   netif->num = 0;
   netif->input = input;
   netif->addrs = NULL;
+  netif->cleanup = NULL;
   netif->id = ++uniqueid;
   netif->flags = NETIF_RUNNING;
   /* printf("netif_add %x netif->input %x\n",netif,netif->input); */
@@ -229,6 +230,8 @@ void netif_remove(struct netif * netif)
       return; /*  we didn't find any netif today */
   }
   ip_route_list_delnetif(netif);
+	if(netif->cleanup)
+		netif->cleanup(netif);
   LWIP_DEBUGF( NETIF_DEBUG, ("netif_remove: removed netif\n") );
 }
 
@@ -288,6 +291,17 @@ netif_init(void)
   ip_route_list_init();
   netif_list = NULL;
 }
+
+void
+netif_cleanup(void)
+{
+  struct netif *nip;
+
+  for (nip=netif_list; nip!=NULL; nip=nip->next)
+		if (nip->cleanup)
+			nip->cleanup(nip);
+}
+
 
 static int netif_ifconf(struct ifconf *ifc) 
 {
