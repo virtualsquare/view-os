@@ -23,15 +23,10 @@
  *
  */   
 #include <unistd.h>
-//#include <fcntl.h>
-//#include <sys/types.h>
-//#include <sys/stat.h>
-//#include <sys/ioctl.h>
-//#include <sys/poll.h>
-//#include <string.h>
+#include <stdio.h>
 #include <dlfcn.h>
 #include "module.h"
-#include "lwip/sockets.h"
+#include <lwipv6.h>
 #include <linux/net.h>
 #include <limits.h>
 #include "asm/unistd.h"
