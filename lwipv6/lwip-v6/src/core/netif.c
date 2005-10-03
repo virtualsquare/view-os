@@ -192,10 +192,13 @@ netif_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netma
 
  if ((el=ip_addr_list_find(netif->addrs, ipaddr, netmask)) == NULL) {
 	  LWIP_DEBUGF( NETIF_DEBUG, ("netif_del_addr: Address does not exist\n") );
-	  return -ENXIO;
+	  return -EADDRNOTAVAIL;
 
  } else
  {
+	 /*printf("netif_del_addr %p %x %x\n",netif,
+			 (ipaddr)?ipaddr->addr[3]:0,
+			 (netmask)?netmask->addr[3]:0);*/
 	 ip_addr_close(ipaddr);
 	 ip_route_list_del(ipaddr,netmask,NULL,netif,0);
 	 ip_addr_list_del(&(netif->addrs),el);	 
@@ -469,7 +472,7 @@ static void netif_netlink_link_out(struct nlmsghdr *msg,struct netif *nip,void *
 	(*offset) += sizeof (struct nlmsghdr);
 
 	struct ifinfomsg ifi;
-	ifi.ifi_family=0; 
+	ifi.ifi_family=AF_INET6; 
 	ifi.__ifi_pad=0;
 	ifi.ifi_type=nip->type; 
 	ifi.ifi_index=nip->id;
@@ -596,7 +599,10 @@ void netif_netlink_getaddr(struct nlmsghdr *msg,void * buf,int *offset)
 			if (ial != NULL) {
 				ial=nip->addrs->next;
 				do {
-					netif_netlink_out_addr(msg,nip,ial,buf,offset);
+					if (ifa->ifa_family== AF_UNSPEC ||
+							(ifa->ifa_family== AF_INET && ip_addr_is_v4comp(&ial->ipaddr) )||
+							(ifa->ifa_family== AF_INET6 && !ip_addr_is_v4comp(&ial->ipaddr)))
+						netif_netlink_out_addr(msg,nip,ial,buf,offset);
 					ial=ial->next;
 				} while (ial != nip->addrs->next);
 			}

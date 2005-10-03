@@ -58,8 +58,6 @@ void netlink_addanswer(void *inbuf,int *offset,void *in,int len)
 	char *s=in;
 	struct netlinkbuf *buf=inbuf;
 	register int i;
-	//for (i=0; i<len && *offset<BUF_MAXLEN; i++, (*offset)++)
-	//	buf[(*offset)]=s[i];
 	for (i=0; i<len && *offset<buf->length; i++, (*offset)++)
 		buf->data[(*offset)]=s[i];
 }
@@ -114,6 +112,7 @@ void netlink_ackerror(void *msg,int ackerr,void *buf,int *offset)
 	struct nlmsghdr *h=(struct nlmsghdr *)msg;
 	int myoffset=*offset;
 	int restorelen=h->nlmsg_len;
+	/*printf("netlink_ackerror %d\n",ackerr);*/
 	*offset += sizeof(struct nlmsghdr);
 	netlink_addanswer(buf,offset,&ackerr,sizeof(int));
 	netlink_addanswer(buf,offset,msg,sizeof(struct nlmsghdr));
@@ -163,7 +162,7 @@ static void netlink_decode (void *msg,int size,int bufsize,struct pbuf **out,u32
 }
 
 
-/*
+#if 0
 static void dump(char *data,int size)
 {
 	register int i,j;
@@ -184,7 +183,7 @@ static void dump(char *data,int size)
 		printf("\n");
 	}
 }
-*/
+#endif
 
 struct netconn *
 netlink_open(int type,int proto)
@@ -248,9 +247,10 @@ netlink_recvfrom(void *sock, void *mem, int len, unsigned int flags,
 	memset(from,0,*fromlen);
 	from->sa_family=PF_NETLINK;
 	if (nl->answer[0]==NULL) {
-		printf("netlink: answNULL\n");
+		/*printf("netlink: answNULL\n");*/
 		return 0;
 	}
+	/* it is not able to split the answer into several messages */
 	else if (nl->answer[0]->tot_len > len) {
 		pbuf_free(nl->answer[0]);
 		nl->answer[0]=NULL;
@@ -264,8 +264,7 @@ netlink_recvfrom(void *sock, void *mem, int len, unsigned int flags,
 	else {
 		register int outlen=nl->answer[0]->tot_len;
 		memcpy(mem,nl->answer[0]->payload,outlen);
-		/*printf("ANSWER\n");*/
-		/*dump(mem,outlen);*/
+		/*printf("ANSWER\n"); dump(mem,outlen);*/
 		pbuf_free(nl->answer[0]);
 		nl->answer[0]=nl->answer[1];
 		nl->answer[1]=NULL;
@@ -277,16 +276,15 @@ int
 netlink_send(void *sock, void *data, int size, unsigned int flags)
 {
 	struct netlink *nl=sock;
-	/*printf("netlink_send\n");*/
-	if (nl->answer[0] != NULL)
-		/* one single request pending */
+	/*printf("netlink_send\n"); dump(data,size);*/
+	/* one single answer pending, multiple requests return one long answer */
+	/*if (0 && nl->answer[0] != NULL)
 		return (-1);
-	else {
-		/*dump(data,size);*/
+	else { */
 		netlink_decode(data,size,nl->rcvbufsize,nl->answer,nl->pid);
 		memcpy(&(nl->hdr),data,sizeof(struct nlmsghdr));
 		return 0;
-	}
+	/*}*/
 }
 
 int

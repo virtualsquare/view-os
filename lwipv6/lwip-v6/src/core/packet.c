@@ -242,7 +242,7 @@ packet_sendto(struct packet_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr, u1
 {
 	struct sockaddr_ll sll;
 
-	printf("packet_sendto\n");
+	//printf("packet_sendto\n");
 	IPADDR2SALL(*ipaddr, sll);
   struct netif *netif;
   
