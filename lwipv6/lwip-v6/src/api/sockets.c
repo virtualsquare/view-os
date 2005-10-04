@@ -998,18 +998,18 @@ lwip_selscan(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset)
 	return nready;
 }
 
-/*
-	 pfdset(int max, fd_set *fds)
-	 {
-	 register int i;
-	 if (fds == NULL)
-	 printf("NULL");
-	 else
-	 for (i=0;i<max;i++)
-	 printf("%d|",FD_ISSET(i,fds));
-	 printf("\n");
-	 }
-	 */
+#if 0
+pfdset(int max, fd_set *fds)
+{
+	register int i;
+	if (fds == NULL)
+		printf("NULL");
+	else
+		for (i=0;i<max;i++)
+			printf("%d|",FD_ISSET(i,fds));
+	printf("\n");
+}
+#endif
 
 
 struct um_sel_wait {
@@ -1169,7 +1169,7 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 			0x1 * (sock->rcvevent || sock->lastdata) +
 			0x2 * sock->sendevent +
 			0x4 * 0 );
-	//printf("EVENT fd %d R%d S%d\n",s,sock->rcvevent,sock->sendevent);
+	/*printf("EVENT fd %d R%d S%d\n",s,sock->rcvevent,sock->sendevent);*/
 	sys_sem_signal(selectsem);
 
 	/* Now decide if anyone is waiting for this socket */
@@ -1198,6 +1198,7 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 		if (scb)
 		{
 			scb->sem_signalled = 1;
+			write(scb->pipe[1],"\0",1);
 			sys_sem_signal(selectsem);
 		} else {
 			sys_sem_signal(selectsem);
@@ -1838,7 +1839,7 @@ int lwip_ioctl(int s, long cmd, void *argp)
 
 			*((u32_t*)argp) = sock->conn->recv_avail;
 
-			LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_ioctl(%d, FIONREAD, %p) = %u\n", s, argp, *((u32_t*)argp)));
+			LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_ioctl(%d, FIONREAD, %p) = %lu\n", s, argp, *((u32_t*)argp)));
 			sock_set_errno(sock, 0);
 			return 0;
 
@@ -2123,7 +2124,7 @@ int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptse
 		FD_ZERO(readset);
 	if (writeset)
 		FD_ZERO(writeset);
-	if (writeset)
+	if (exceptset)
 		FD_ZERO(exceptset);
 	for (i=0;i<maxfdp1;i++) {
 		if (readset) {
