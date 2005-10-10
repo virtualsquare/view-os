@@ -184,37 +184,6 @@ void _init(void){
   sys_sem_free(sem);
   
 	netif_init();
-	if ((interfaces=getenv("LWIPV6LIB")) != NULL)
-	{
-		while (strlen(interfaces) > 2) {
-			if (*interfaces == ',' || *interfaces == ' ')
-				interfaces++;
-			else if (strncmp(interfaces,"vd",2) == 0) {
-				int i,n;
-				n=interfaces[2]-'0';
-				if (n>=0 && n<=10)
-					for(i=0;i<n;i++)
-						lwip_vdeif_add(NULL);
-				interfaces+=3;
-			}
-			else if (strncmp(interfaces,"tp",2) == 0) {
-				int i,n;
-				n=interfaces[2]-'0';
-				if (n>=0 && n<=10)
-					for(i=0;i<n;i++)
-						lwip_tapif_add(NULL);
-				interfaces+=3;
-			}
-			else if (strncmp(interfaces,"tn",2) == 0) {
-				int i,n;
-				n=interfaces[2]-'0';
-				if (n>=0 && n<=10)
-					for(i=0;i<n;i++)
-						lwip_tunif_add(NULL);
-				interfaces+=3;
-			}
-		}
-	}
 	lwip_loopif_add();
 }
 

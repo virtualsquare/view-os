@@ -972,7 +972,7 @@ lwip_selscan(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset)
 		{
 			/* See if netconn of this socket is ready for read */
 			p_sock = get_socket(i);
-			if (p_sock && (p_sock->lastdata || p_sock->rcvevent))
+			if (p_sock && (p_sock->lastdata || p_sock->rcvevent || p_sock->conn->recv_avail))
 			{
 				FD_SET(i, &lreadset);
 				LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_selscan: fd=%d ready for reading\n", i));
@@ -1098,7 +1098,7 @@ int lwip_select_register(void (* cb)(), void *arg, int fd, int how)
 			rv=how;
 		else
 #endif
-		if ((rv= (how & 0x1) * (psock->lastdata || psock->rcvevent) +
+		if ((rv= (how & 0x1) * (psock->lastdata || psock->rcvevent || psock->conn->recv_avail) +
 					(how & 0x2) * psock->sendevent +
 					(how & 0x4) * 0) == 0 && cb != NULL)
 			um_sel_add(cb,arg,fd,how);
@@ -1118,7 +1118,7 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 	struct lwip_socket *sock;
 	struct lwip_select_cb *scb;
 
-	/*printf("event_callback\n");*/
+	/*printf("event_callback %p ",conn);*/
 	/* Get socket */
 	if (conn)
 	{
@@ -1132,9 +1132,10 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 			 * can happen before the new socket is set up. */
 			/* if should not be needed with async accept 
 			 * I have left a message to see if this event may happen */
+			
 			if (evt == NETCONN_EVT_RCVPLUS)
 				/* conn->socket--;*/
-				printf("----socket hack needed %d\n",conn->socket);
+				/*printf("----socket hack needed %d\n",conn->socket)*/;
 			return;
 		}
 
@@ -1166,7 +1167,7 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 			break;
 	}
 	um_sel_signal(sock->fdfake, 
-			0x1 * (sock->rcvevent || sock->lastdata) +
+			0x1 * (sock->rcvevent || sock->lastdata || sock->conn->recv_avail) +
 			0x2 * sock->sendevent +
 			0x4 * 0 );
 	/*printf("EVENT fd %d R%d S%d\n",s,sock->rcvevent,sock->sendevent);*/

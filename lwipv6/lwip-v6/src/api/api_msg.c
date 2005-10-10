@@ -332,9 +332,9 @@ accept_function(void *arg, struct tcp_pcb *newpcb, err_t err)
     newconn->callback = conn->callback;
     /* old version: count of lost messages into socket (negative)
      * it should not been needed with async accept */
-    /* printf("----marked socket -1\n");
-     * newconn->socket = -1;
-     * newconn->socket =0; */
+    /* printf("----marked socket -1\n"); */
+     newconn->socket = -1;
+     /* * newconn->socket =0; */
   }
   
   return ERR_OK;

@@ -224,7 +224,6 @@ low_level_init(struct netif *netif,char *path)
 {
   struct vdeif *vdeif;
   int randaddr;
-	char envkey[]="LWIPV6vdx";
 
   vdeif = netif->state;
   
@@ -242,7 +241,6 @@ low_level_init(struct netif *netif,char *path)
 
   /* Do whatever else is needed to initialize interface. */
    
-	envkey[8]=netif->num + '0';	
   vdeif->intno=netif->num;
   if ((vdeif->fddata=socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
 	  perror ("vde: can't open socket");
