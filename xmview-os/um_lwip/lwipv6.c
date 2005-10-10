@@ -29,8 +29,10 @@
 #include <lwipv6.h>
 #include <linux/net.h>
 #include <limits.h>
+#include <string.h>
 #include "asm/unistd.h"
 #include "sockmsg.h"
+#include <lwipv6.h>
 
 static struct service s;
 
@@ -121,27 +123,63 @@ ssize_t lwip_sendmsg(int fd, const struct msghdr *msg, int flags) {
 }
 
 static char *intname[]={"vd","tp","tn"};
+#define INTTYPES (sizeof(intname)/sizeof(char *))
+typedef struct netif *((*netifstarfun)());
+char *initfunname[INTTYPES]={"lwip_vdeif_add","lwip_tapif_add","lwip_tunif_add"};
+static netifstarfun initfun[INTTYPES];
+static char intnum[INTTYPES];
+struct ifname {
+	unsigned char type;
+	unsigned char num;
+	char *name;
+	struct ifname *next;
+} *ifh;
+
+static void iffree(struct ifname *head)
+{
+	if (head==NULL)
+		return;
+	else {
+		iffree(head->next);
+		free(head->name);
+		free(head);
+	}
+}
+
+static char *ifname(struct ifname *head,unsigned char type,unsigned char num)
+{
+	if (head==NULL)
+		return NULL;
+	else if (head->type == type && head->num == num)
+		return head->name;
+	else return ifname(head->next,type,num);
+}
+
+static void ifaddname(char type,char num,char *name)
+{
+	struct ifname *thisif=malloc(sizeof (struct ifname));
+	if (thisif != NULL) {
+		thisif->type=type;
+		thisif->num=num;
+		thisif->name=strdup(name);
+		thisif->next=ifh;
+		ifh=thisif;
+	}
+}
+
 static void myputenv(char *arg)
 {
-	static char intnum[sizeof(intname)/sizeof(char *)];
 	int i,j;
 	char env[PATH_MAX];
-	for (i=0;i<(sizeof(intname)/sizeof(char *));i++) {
+	for (i=0;i<INTTYPES;i++) {
 		if (strncmp(arg,intname[i],2)==0 && arg[2] >= '0' && arg[2] <= '9') {
 			if (arg[3] == '=') {
-				sprintf(env,"LWIPV6%s%c=%s",intname[i],arg[2],arg+4);
-				putenv(env);
-				/*printf("E=%s\n",env);*/
+				ifaddname(i,arg[2]-'0',arg+4);
 				if (arg[2]-'0' > intnum[i]) intnum[i]=arg[2]-'0'+1;
 			}
 			else if (arg[3] == 0) {
-				intnum[i] = arg[2]-'0';
+				if (arg[2]-'0' > intnum[i]) intnum[i]=arg[2]-'0';
 			}
-			sprintf(env,"LWIPV6LIB=%s%c",intname[0],intnum[0]+'0');
-			for (j=1;j<(sizeof(intname)/sizeof(char *));j++)
-				sprintf(env,"%s,%s%c",env,intname[j],intnum[j]+'0');
-			putenv(env);
-			/*printf("E=%s\n",env);*/
 			break;
 		}
 	}	
@@ -153,7 +191,14 @@ static void lwipargtoenv(char *initargs)
 	char *next;
 	char *unquoted;
 	char quoted=0;
+	char totint=0;
+	register int i,j;
 
+	ifh=NULL;
+	for (i=0;i<INTTYPES;i++) {
+		intnum[i]=0;
+		initfun[i]=dlsym(lwiphandle,initfunname[i]);
+	}
 	if (*initargs == 0) initargs=stdargs;
 	while (*initargs != 0) {
 		next=initargs;
@@ -176,8 +221,16 @@ static void lwipargtoenv(char *initargs)
 			myputenv(initargs);
 		initargs=next;
 	}
+	for (i=0;i<INTTYPES;i++) 
+		totint+=intnum[i];
+	if (totint==0)
+		intnum[0]=1;
+	for (i=0;i<INTTYPES;i++)
+		for (j=0;j<intnum[i];j++)
+			if (initfun[i] != NULL)
+			initfun[i](ifname(ifh,i,j));
+	iffree(ifh);
 }
-
 
 static int initflag=0;
 static void
@@ -193,12 +246,12 @@ void _um_mod_init(char *initargs)
 		printf("lwipv6 init\n");
 		s.name="light weight ipv6 stack";
 		s.code=0x02;
-		lwipargtoenv(initargs);
 		s.checkpath=alwaysfalse;
 		s.checksocket=check;
 		s.syscall=(intfun *)calloc(1,scmap_scmapsize * sizeof(intfun));
 		s.socket=(intfun *)calloc(1,scmap_sockmapsize * sizeof(intfun));
 		openlwiplib();
+		lwipargtoenv(initargs);
 		s.syscall[uscno(__NR__newselect)]=alwaysfalse;
 		s.syscall[uscno(__NR_poll)]=alwaysfalse;
 		s.socket[SYS_SENDMSG]=lwip_sendmsg;
