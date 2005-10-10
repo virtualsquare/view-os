@@ -32,7 +32,6 @@
 #include <string.h>
 #include "asm/unistd.h"
 #include "sockmsg.h"
-#include <lwipv6.h>
 
 static struct service s;
 
