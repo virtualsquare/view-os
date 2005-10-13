@@ -584,7 +584,7 @@ void sc_resume(struct pcb *pc)
  */
 void wake_tracer_init()
 {
-	pipe(tracerpipe);	
+	pipe(tracerpipe);
 	fcntl(tracerpipe[0],F_SETFL,O_NONBLOCK);
 }
 

@@ -31,12 +31,15 @@
 #include "services.h"
 #include "defs.h"
 
+/* servmap[service code] - 1 is the index of the service description into
+ * 'services' */
 static char servmap[255];
 
 static int locked=0;
 static int invisible=0;
 static int noserv=0;
 static int maxserv=0;
+/* descriptor of all services */
 static struct service **services=NULL;
 static intfun reg_service,dereg_service;
 

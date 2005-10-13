@@ -47,7 +47,9 @@ struct lfd_table {
 };
 
 struct lfd_vtable {
-	int signaled;
+	int signaled;   /* set when there some data on the fifo, telling that
+			   some blocking call have to be unblocked, not yet
+			   read - a flag */
 	char *filename; /* the fifo */
 	int ififo,ofifo;
 };
@@ -142,8 +144,10 @@ int lfd_open (service_t service, int sfd, char *path)
 {
 	int lfd,fifo;
 	//printf("lfd_open %x sfd %d %s",service,sfd,(path==NULL)?"<null>":path);
+	/* looks for a free local file descriptor */
 	for (lfd=0; lfd<um_maxlfd && lfd_tab[lfd].ptab != NULL ; lfd++)
 		;
+	/* if there are none, expands the lfd table */
 	if (lfd >= um_maxlfd) {
 		int i=um_maxlfd;
 		//printf("lfd_tab realloc oldndf %d\n",um_maxlfd);
@@ -293,6 +297,8 @@ int fd2sfd(struct pcb_file *p, int fd)
 		return -1;
 }
 
+/* tell the identifier of the service which manages given fd, or UM_NONE if no
+ * service handle it */
 service_t service_fd(struct pcb_file *p, int fd)
 {
 	//printf("service fd p=%x\n",p);

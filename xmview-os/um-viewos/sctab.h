@@ -46,6 +46,7 @@ struct pcb_fs {
 #define MAX_SOCKET_ARGS 6
 struct pcb_ext {
 	void *path;
+	/* struct seldata* */
 	void *selset;
 	/* keep track of file system informations - look at clone 2
 	 * (CLONE_FS) */
