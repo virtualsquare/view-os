@@ -986,7 +986,7 @@ void eth_packet_mgmt(struct netif *netif, struct pbuf *p,u8_t pkttype)
 	struct sockaddr_ll sll;
 	struct eth_hdr *eh=p->payload;
 	memset(&sll, 0, sizeof(struct sockaddr_ll));
-	sll.sll_protocol = eh->type;
+	sll.sll_protocol = ntohs(eh->type);
 	sll.sll_hatype = ARPHRD_ETHER;
 	sll.sll_ifindex = netif->id;
 	memcpy(sll.sll_addr,&(eh->src),sizeof(struct eth_addr));
@@ -1029,7 +1029,7 @@ u16_t eth_packet_out(struct netif *netif, struct pbuf *p, struct sockaddr_ll *sl
 		struct eth_hdr *eh=(struct eth_hdr *)q->payload;
 		memcpy(&eh->dest,sll->sll_addr,sizeof(struct eth_addr));
 		memcpy(&eh->src,netif->hwaddr,sizeof(struct eth_addr));
-		eh->type=protocol;
+		eh->type=htons(protocol);
 	} else
 		q=p;
 	
