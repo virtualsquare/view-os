@@ -98,7 +98,7 @@ static struct pbuf *recv_data;
 struct tcp_pcb *tcp_input_pcb;
 
 /* Forward declarations. */
-static err_t tcp_process(struct tcp_pcb *pcb);
+static err_t tcp_process(struct tcp_pcb *pcb,struct pseudo_iphdr *piphdr);
 static void tcp_receive(struct tcp_pcb *pcb);
 static void tcp_parseopt(struct tcp_pcb *pcb);
 
@@ -334,7 +334,7 @@ tcp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr
     recv_flags = 0;
 
     tcp_input_pcb = pcb;
-    err = tcp_process(pcb);
+    err = tcp_process(pcb,piphdr);
     tcp_input_pcb = NULL;
     /* A return value of ERR_ABRT means that tcp_abort() was called
        and that the pcb has been freed. If so, we don't do anything. */
@@ -522,7 +522,7 @@ tcp_timewait_input(struct tcp_pcb *pcb)
  */
 
 static err_t
-tcp_process(struct tcp_pcb *pcb)
+tcp_process(struct tcp_pcb *pcb,struct pseudo_iphdr *piphdr)
 {
   struct tcp_seg *rseg;
   u8_t acceptable = 0;
@@ -571,6 +571,7 @@ tcp_process(struct tcp_pcb *pcb)
   case SYN_SENT:
     LWIP_DEBUGF(TCP_INPUT_DEBUG, ("SYN-SENT: ackno %lu pcb->snd_nxt %lu unacked %lu\n", ackno,
      pcb->snd_nxt, ntohl(pcb->unacked->tcphdr->seqno)));
+    /* received SYN ACK with expected sequence number? */
     if ((flags & TCP_ACK) && (flags & TCP_SYN)
         && ackno == ntohl(pcb->unacked->tcphdr->seqno) + 1) {
       pcb->snd_buf ++;
@@ -594,12 +595,17 @@ tcp_process(struct tcp_pcb *pcb)
       TCP_EVENT_CONNECTED(pcb, ERR_OK, err);
       tcp_ack(pcb);
     }
+    /* received ACK? possibly a half-open connection */
+    else if (flags & TCP_ACK) {
+	    /* send a RST to bring the other side in a non-synchronized state. */
+	    tcp_rst(ackno, seqno + tcplen, piphdr->dest, piphdr->src,
+			    tcphdr->dest, tcphdr->src);
+    }
     break;
   case SYN_RCVD:
     if (flags & TCP_ACK &&
        !(flags & TCP_RST)) {
-      /*if (TCP_SEQ_LT(pcb->lastack, ackno) &&
-        TCP_SEQ_LEQ(ackno, pcb->snd_nxt)) { */
+	/* expected ACK number? */
       if(TCP_SEQ_BETWEEN(ackno, pcb->lastack+1, pcb->snd_nxt)){
         pcb->state = ESTABLISHED;
         LWIP_DEBUGF(TCP_DEBUG, ("TCP connection established %u -> %u.\n", inseg.tcphdr->src, inseg.tcphdr->dest));
@@ -618,6 +624,12 @@ tcp_process(struct tcp_pcb *pcb)
          * we'd better pass it on to the application as well. */
         tcp_receive(pcb);
         pcb->cwnd = pcb->mss;
+      }
+      /* incorrect ACK number */
+      else {
+	      /* send RST */
+	      tcp_rst(ackno, seqno + tcplen, piphdr->dest, piphdr->src,
+			      tcphdr->dest, tcphdr->src);
       }
     }
     break;

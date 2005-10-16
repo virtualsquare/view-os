@@ -446,6 +446,14 @@ udp_send(struct udp_pcb *pcb, struct pbuf *p)
     }
   }
 
+  /* find the outgoing network interface for this packet */
+  /* no outgoing network interface could be found? */
+	if (ip_route_findpath(&(pcb->remote_ip), &nexthop, &netif, &flags) != ERR_OK) { 
+    LWIP_DEBUGF(UDP_DEBUG | 1, ("udp_send: No route to 0x%lx\n", 0L /*pcb->remote_ip.addr*/));
+    UDP_STATS_INC(udp.rterr);
+    return ERR_RTE;
+  }
+
   /* not enough space to add an UDP header to first pbuf in given p chain? */
   if (pbuf_header(p, UDP_HLEN)) {
     /* allocate header in a seperate new pbuf */
@@ -472,13 +480,6 @@ udp_send(struct udp_pcb *pcb, struct pbuf *p)
   /* in UDP, 0 checksum means 'no checksum' */
   udphdr->chksum = 0x0000; 
 
-  /* find the outgoing network interface for this packet */
-  /* no outgoing network interface could be found? */
-	if (ip_route_findpath(&(pcb->remote_ip), &nexthop, &netif, &flags) != ERR_OK) { 
-    LWIP_DEBUGF(UDP_DEBUG | 1, ("udp_send: No route to 0x%lx\n", 0L /*pcb->remote_ip.addr*/));
-    UDP_STATS_INC(udp.rterr);
-    return ERR_RTE;
-  }
   /* PCB local address is IP_ANY_ADDR? */
   if (ip_addr_isany(&pcb->local_ip)) {
     /* use outgoing network interface IP address as source address */

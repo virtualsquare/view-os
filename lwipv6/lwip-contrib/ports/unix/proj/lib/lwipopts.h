@@ -113,7 +113,8 @@ a lot of data that needs to be copied, this should be set high. */
 
 /* TCP Maximum segment size. */
 //#define TCP_MSS                 128
-#define TCP_MSS                 1024
+//#define TCP_MSS                 1024
+#define TCP_MSS                 1488
 
 /* TCP sender buffer space (bytes). */
 #define TCP_SND_BUF             32768

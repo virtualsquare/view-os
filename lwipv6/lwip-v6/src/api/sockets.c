@@ -58,6 +58,7 @@
 #include <sys/select.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include "lwip/opt.h"
 #include "lwip/api.h"
@@ -734,13 +735,14 @@ lwip_send(int s, void *data, int size, unsigned int flags)
 	else 
 #endif
 	{
+		/*netconn parms are u16*/
+		if (size > USHRT_MAX) size=USHRT_MAX;
 		switch (netconn_type(sock->conn)) {
 			case NETCONN_RAW:
 			case NETCONN_UDP:
 			case NETCONN_UDPLITE:
 			case NETCONN_PACKET_RAW:
 			case NETCONN_PACKET_DGRAM:
-				/* create a buffer */
 				/* create a buffer */
 				buf = netbuf_new();
 
