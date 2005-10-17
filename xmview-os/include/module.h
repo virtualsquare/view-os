@@ -28,6 +28,10 @@
 typedef int (*intfun)();
 typedef unsigned char service_t;
 
+#define CHECKPATH 0
+#define CHECKSOCKET 1
+#define CHECKFSTYPE 2
+
 struct service {
 	char *name;
 	service_t code;
@@ -44,30 +48,20 @@ struct service {
 	 * the life of a process, can be used as an index for internal data*/
 	intfun addproc;
 
-  /*delproc is called when a process terminates.
+	/*delproc is called when a process terminates.
 	 * (int id, void *umph)
 	 * is the garbage collection function for the data that addproc may have created
 	 */
 	intfun delproc;
 
-	/* pathname choice: returns TRUE if this path must be managed by this module
+	/* choice function: returns TRUE if this path must be managed by this module
 	 * FALSE otherwise.
-	 * checkpath functions has the following args:
-	 * 	(char *path) or
-	 * 	(char *path, void *umph)
-	 * path is either the absolute path of the file (has always a leading '/')
-	 * or a filesystem type for mount system call.
+	 * checkfun functions has the following args:
+	 *  (int type, void *arg) or
+	 *  (int type, void *arg, void *umph)
+	 *  type is defined by CHECK... constants above
 	 */
-	intfun checkpath;
-
-	/* socket choice: returns TRUE if this socket must be managed by this module
-	 * FALSE otherwise.
-	 * checkpath functions has the following args:
-	 * 	(int domain) or
-	 * 	(int domain, void *umph)
-	 * it is invoked when a process use a "socket" system call.
-	 */
-	intfun checksocket;
+	intfun checkfun;
 
 	/* proactive management of select/poll system call. The module provides this function
 	 * to activate a callback when an event occurs.

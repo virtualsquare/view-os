@@ -59,11 +59,6 @@
 static char *umpers_fullprefix = NULL;
 static int umpers_fullprefix_len = 0;
 
-static int alwaysfalse()
-{
-	return 0;
-}
-
 /* Build the name of the "ghost" file in the umview configuration directory.
  * For now, just append the first <depth> directories of <path> to UMVIEW_PREFIX.
  * If depth is < 0, add the full path. The result is put in the string pointed
@@ -196,6 +191,13 @@ static int umpers_path(char *path)
 	return retval;
 }
 
+static int umpers_choice(int type, void *arg)
+{
+	if (type == CHECKPATH)
+		return umpers_path(arg);
+	else
+		return 0;
+}
 
 
 #if 0
@@ -337,8 +339,7 @@ init (void)
 	fprintf(stderr,"Configuration directory is %s\n", umpers_fullprefix);
 	s.name="Personalities management";
 	s.code=0xfc;
-	s.checkpath=umpers_path;
-	s.checksocket=alwaysfalse;
+	s.checkfun=umpers_choice;
 	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
 	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
 #if 0

@@ -45,9 +45,13 @@ static int alwaystrue(char *path)
 	return 1;
 }
 
-static int check(int domain)
+static int checksock(int type, void *arg)
 {
-	return(domain == AF_INET || domain == PF_INET6 || domain == PF_NETLINK || domain == PF_PACKET);
+	if (type == CHECKSOCKET) {
+		int domain=*((int *) arg);
+		return(domain == AF_INET || domain == PF_INET6 || domain == PF_NETLINK || domain == PF_PACKET);
+	} else
+		return 0;
 }
 
 struct libtab {
@@ -245,8 +249,7 @@ void _um_mod_init(char *initargs)
 		printf("lwipv6 init\n");
 		s.name="light weight ipv6 stack";
 		s.code=0x02;
-		s.checkpath=alwaysfalse;
-		s.checksocket=check;
+		s.checkfun=checksock;
 		s.syscall=(intfun *)calloc(1,scmap_scmapsize * sizeof(intfun));
 		s.socket=(intfun *)calloc(1,scmap_sockmapsize * sizeof(intfun));
 		openlwiplib();

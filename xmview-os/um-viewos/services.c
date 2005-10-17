@@ -222,32 +222,19 @@ void service_delproc(service_t code,int id, void *arg)
 	}
 }
 
-service_t service_path(char *path,void *umph)
+service_t service_check(int type, void *arg,void *umph)
 {
 	int i;
-	if (path == NULL) 
+	if (arg == NULL) 
 		return(UM_NONE);
 	else {
 		for (i=0;i<noserv;i++) {
 			struct service *s=services[i];
-			if (s->checkpath != NULL && s->checkpath(path,umph))
+			if (s->checkfun != NULL && s->checkfun(type,arg,umph))
 				return(s->code);
 		}
 		return(UM_NONE);
 	}
-}
-
-//char service_socket(int domain, int type, int protocol)
-service_t service_socket(int domain,void *umph)
-{
-	int i;
-	for (i=0;i<noserv;i++) {
-		struct service *s=services[i];
-		//if (s->checksocket != NULL && s->checksocket(domain, type, protocol))
-		if (s->checksocket != NULL && s->checksocket(domain,umph))
-			return(s->code);
-	}
-	return(UM_NONE);
 }
 
 static int errnosys()

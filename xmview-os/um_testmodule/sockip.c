@@ -40,19 +40,15 @@ int read(), write(), close();
 
 static struct service s;
 
-static int alwaysfalse()
-{
-	return 0;
-}
 
-static int alwaystrue(char *path)
+static int checkip(int type, void *arg)
 {
-	return 1;
-}
-
-static int check(int domain)
-{
-	return(domain == AF_INET);
+	if (type ==  CHECKSOCKET) {
+		int *pdomain=arg;
+		return(*pdomain == AF_INET);
+	}
+	else
+		return 0;
 }
 
 #if 0
@@ -86,8 +82,7 @@ init (void)
 	printf("sockettest init\n");
 	s.name="sockettest (syscall are executed server side)";
 	s.code=0xfb;
-	s.checkpath=alwaysfalse;
-	s.checksocket=check;
+	s.checkfun=checkip;
 	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
 	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
 	s.socket[SYS_SOCKET]=socket;

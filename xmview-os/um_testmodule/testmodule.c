@@ -40,8 +40,7 @@ init (void)
 	printf("testmodule init\n");
 	s.name="Test Module";
 	s.code=0xfe;
-	s.checkpath=alwaysfalse;
-	s.checksocket=alwaysfalse;
+	s.checkfun=alwaysfalse;
 	s.syscall=NULL;
 	s.socket=NULL;
 	add_service(&s);

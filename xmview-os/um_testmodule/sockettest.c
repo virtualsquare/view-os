@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
@@ -39,14 +40,12 @@ int read(), write(), close();
 
 static struct service s;
 
-static int alwaysfalse()
+static int choiceissocket(int type,void *arg)
 {
-	return 0;
-}
-
-static int alwaystrue(char *path)
-{
-	return 1;
+	if (type==CHECKSOCKET)
+		return 1;
+	else
+		return 0;
 }
 
 static void
@@ -56,8 +55,7 @@ init (void)
 	printf("sockettest init\n");
 	s.name="sockettest (syscall are executed server side)";
 	s.code=0xfa;
-	s.checkpath=alwaysfalse;
-	s.checksocket=alwaystrue;
+	s.checkfun=choiceissocket;
 	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
 	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
 	s.socket[SYS_SOCKET]=socket;

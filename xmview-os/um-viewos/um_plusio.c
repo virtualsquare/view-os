@@ -260,7 +260,7 @@ int wrap_in_link(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= ENOENT;
 	} else {
-		int ser2=service_path(source,pc);
+		int ser2=service_check(CHECKPATH,source,pc);
 		if (ser2 != sercode) {
 			pc->retval= -1;
 			pc->erno= EXDEV;

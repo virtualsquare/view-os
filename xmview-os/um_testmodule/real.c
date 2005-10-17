@@ -38,14 +38,14 @@ int read(), write(), close();
 
 static struct service s;
 
-static int alwaysfalse()
+static int real_path(int type, void *arg)
 {
-	return 0;
-}
-
-static int real_path(char *path)
-{
-	return (strncmp(path,"/lib",4) != 0);
+	if (type == CHECKPATH) {
+		char *path=arg;
+		return (strncmp(path,"/lib",4) != 0);
+	}
+	else
+		return 0;
 }
 
 static int addproc(int id, int max, void *umph)
@@ -65,8 +65,7 @@ init (void)
 	printf("real init\n");
 	s.name="Identity (server side)";
 	s.code=0x00;
-	s.checkpath=real_path;
-	s.checksocket=alwaysfalse;
+	s.checkfun=real_path;
 	s.addproc=addproc;
 	s.delproc=delproc;
 	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));

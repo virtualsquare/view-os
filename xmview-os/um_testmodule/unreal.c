@@ -40,19 +40,20 @@
 int read(), write(), close();
 
 
-static int alwaysfalse()
-{
-	return 0;
-}
 
-static int unrealpath(char *path,void *umph)
+static int unrealpath(int type,void *arg,void *umph)
 {
 	/* This is an example that shows how to pick up extra info in the
 	 * calling process. */
 	/*printf("test umph info pid=%d, scno=%d, arg[0]=%d, argv[1]=%d\n",
 			um_mod_getpid(umph),um_mod_getsyscallno(umph),
 			um_mod_getargs(umph)[0],um_mod_getregs(umph)[1]); */
-	return(strncmp(path,"/unreal",7) == 0);
+	if (type== CHECKPATH) {
+		char *path=arg;
+		return(strncmp(path,"/unreal",7) == 0);
+	}
+	 else
+		 return 0;
 }
 
 static char *unwrap(char *path)
@@ -169,8 +170,7 @@ init (void)
 	printf("unreal init\n");
 	s.name="/unreal Mapping to FS (server side)";
 	s.code=0xfe;
-	s.checkpath=unrealpath;
-	s.checksocket=alwaysfalse;
+	s.checkfun=unrealpath;
 	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
 	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
 	s.syscall[uscno(__NR_open)]=unreal_open;

@@ -832,17 +832,22 @@ static int umfuse_access(char *path, int mode);
 /*search the currect context depending on path
  * return 1 succesfull o 0 if an error occur*/
 
-static int fuse_path(char *path)
+static int fuse_path(int type, void *arg)
 {
-	if(strncmp(path,"umfuse",6) == 0) /* a path with no leading / is a filesystemtype */
-		return TRUE;
-	else {
+	if (type == CHECKPATH) {
+		char *path=arg;
 		umfuse_current_context=searchcontext(path,SUBSTR);
-		if (umfuse_current_context >= 0) {
+		if (umfuse_current_context >= 0) 
 			return TRUE; 
-		}
+		else
+			return FALSE;
+	} else if (type == CHECKFSTYPE) {
+		char *path=arg;
+		return (strncmp(path,"umfuse",6) == 0);/* a path with no leading / is a filesystemtype */
+		return TRUE;
+	} else {
+		return FALSE;
 	}
-	return FALSE;
 }
 
 static char *unwrap(struct fuse_context *fc,char *path)
@@ -1644,8 +1649,7 @@ init (void)
 	printf("umfuse init\n");
 	s.name="umfuse fuse ";
 	s.code=0x01;
-	s.checkpath=fuse_path;
-	s.checksocket=alwaysfalse;
+	s.checkfun=fuse_path;
 	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
 	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
 	s.syscall[uscno(__NR_mount)]=umfuse_mount;
