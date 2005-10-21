@@ -93,6 +93,8 @@ struct fuse {
 #define FUSE_ABORT -3
 /* horrible! the only way to have some context to allow multiple mount is
  * a global var: XXX new solution needed. This is not thread-scalable */
+/* anyway this is okay for single threaded umfuse. In case of multiple threads we'd need a
+ * solution based on pthread_getspecific like in fuse_mt */
 
 static int umfuse_current_context;
 static struct fuse_context **fusetab=NULL;
@@ -125,6 +127,7 @@ struct fileinfo {
 	char *path;						
 	int count;				/* number of processes that opened the file */
 	long long pos;				/* file offset */
+	long long size;				/* file offset */
 	struct fuse_file_info ffi;		/* includes open flags, file handle and page_write mode  */
 	struct umdirent *dirinfo;		/* conversion fuse-getdir into kernel compliant
 						   dirent. Dir head pointer */
@@ -310,16 +313,6 @@ static void *startmain(void *vsmo)
 	
 	char *opts = mountflag2options(*(psmo->pmountflags), psmo->data);
 	
-	/* syntax: fuse_filesystem: filesystem_name, mountpoint(or target), source or NULL?!, [-o opt1,opts..] */
-	
-	/*
-	 * char *argv[] = {psmo->new->fuse->filesystemtype,"-o", opts, psmo->source, psmo->new->fuse->path, (char *)0};
-	 */
-	
-	// //char *argv[] = {psmo->new->fuse->filesystemtype, psmo->new->fuse->path,psmo->source, "-o", opts, (char *)0};
-
-	// // pmain(5,argv); /* better with a va_list argument */
-	// // free(opts);
 	int newargc;
 	char **newargv;
 	newargc=fuseargs(psmo->new->fuse->filesystemtype,psmo->source, psmo->new->fuse->path,opts, &newargv, &(psmo->new->fuse->flags));
@@ -340,99 +333,23 @@ static void *startmain(void *vsmo)
 	return NULL;
 }
 
-#if 0
-//parse and delete flags for fuse but not for filesystem_fuse, es: debug
-void *mountflag2fuse(int *flags, void *data)
-{
-	char *tmpdata = data;
-	char *flag = strdup(tmpdata);
-	char newdata[PATH_MAX];
-	char *tmp;
-
-	//TODO -r passare al filesystem come -o ro
-
-	PRINTDEBUG(10,"DATA:%s\n",data);
-	PRINTDEBUG(10,"FLAG:%s\n",flag);
-	
-	newdata[0] = 0;
-	while((tmp = strsep(&flag, ",")) != NULL) {
-		if (strcmp("debug", tmp) != 0) {
-			if (strlen(newdata))
-				strcat(newdata, ",");
-			strcat(newdata, tmp);
-		}
-		else//=debug
-			*flags |= FUSE_DEBUG;
-	}
-	
-	PRINTDEBUG(10,"cleaned data: %s\n", newdata);
-	return((void *)strdup(newdata));
-}
-#endif
-
-
 /*TODO parse cmd, es dummy is rw o ro!*/
 //see fuse_setup_common lib/helper.c
 int fuse_main_real(int argc, char *argv[], const struct fuse_operations *op,
 		size_t op_size)
 {
 	struct fuse *f;
-	//int fd = fuse_mount(mountpoint, "dummy");//sarebbero kernel_opts, ma le ho separate prima!!//non solo lettura!!es helo che us amain!!
-	int fd = fuse_mount(NULL, NULL);//sarebbero kernel_opts, ma le ho separate prima!!//non solo lettura!!es helo che us amain!!
+	int fd = fuse_mount(NULL, NULL); //sarebbero kernel_opts, ma le ho separate prima!!//non solo lettura!!es helo che us amain!!
 	f = fuse_new(fd, NULL, op, op_size);//ora opts sono lib_opts;debug,hard_remove,use_ino
 	fuse_loop(f);
 	return 0;	
 }
 
-#if 0
-struct mount_flags {
-	const char *opt;
-	unsigned long flag;
-	int on;
-	int safe;
-};
-
-static struct mount_flags mount_flags[] = {
-	{"rw",      MS_RDONLY,      0, 1},
-	{"ro",      MS_RDONLY,      1, 1},
-	{"suid",    MS_NOSUID,      0, 0},
-	{"nosuid",  MS_NOSUID,      1, 1},
-	{"dev",     MS_NODEV,       0, 0},
-	{"nodev",   MS_NODEV,       1, 1},
-	{"exec",    MS_NOEXEC,      0, 1},
-	{"noexec",  MS_NOEXEC,      1, 1},
-	{"async",   MS_SYNCHRONOUS, 0, 1},
-	{"sync",    MS_SYNCHRONOUS, 1, 1},
-	{"atime",   MS_NOATIME,     0, 1},
-	{"noatime", MS_NOATIME,     1, 1},
-	{NULL,      0,              0, 0}
-};
-
-/* convert the option string into the correspondent flag bit_field */
-static int find_mount_flag(const char *s, unsigned len, int *flag)
-{
-	int i;
-
-	for (i = 0; mount_flags[i].opt != NULL; i++) {
-		const char *opt = mount_flags[i].opt;
-		if (strlen(opt) == len && strncmp(opt, s, len) == 0) {
-			if (mount_flags[i].on)
-				*flag |= mount_flags[i].flag;
-			else
-				*flag &= ~mount_flags[i].flag;
-			return 1;
-		}
-	}
-	return 0;
-}
-#endif
-
 int fuse_mount(const char *mountpoint, const char *opts)
 {
-	/* int fd=searchcontext(mountpoint, EXACT); */
-	/* fd == umfuse_current_context && mountpoint == fusetab[fd]->fuse->path */
-
-	PRINTDEBUG(10,"fuse_mount %d %d\n",fd,umfuse_current_context);
+#ifdef __UMFUSE_DEBUG__
+	 PRINTDEBUG(10,"fuse_mount %s %s\n",mountpoint,opts);
+#endif
 	return umfuse_current_context;
 }
 
@@ -462,9 +379,13 @@ struct fuse *fuse_new(int fd, const char *opts,
 		const struct fuse_operations *op, size_t op_size)
 {
 	PRINTDEBUG(10,"%d %d %d %d\n",fd,umfuse_current_context,op_size,sizeof(struct fuse_operations));
+	if (op_size != sizeof(struct fuse_operations))
+		fprintf(stderr, "Fuse module vs umfuse support version mismatch\n");
 	
-	if (fd != umfuse_current_context || op_size != sizeof(struct fuse_operations))
+	if (fd != umfuse_current_context || op_size != sizeof(struct fuse_operations)){
+		fusetab[fd]->fuse->inuse=FUSE_ABORT;
 		return NULL;
+	}
 	else {
 		fusetab[fd]->fuse->fops = *op;
 		fopsfill(&fusetab[fd]->fuse->fops, op_size);
@@ -481,7 +402,6 @@ void fuse_destroy(struct fuse *f)
  *
  * @param f the FUSE handle
  */
-//void fuse_destroy(struct fuse *f);
 
 }
 
@@ -501,7 +421,7 @@ int fuse_loop(struct fuse *f)
 		pthread_mutex_unlock( &f->endmutex );
 		//pthread_mutex_unlock( &condition_mutex );
 		//printf("done loopPID %d TID %d \n",getpid(),pthread_self());
-	}
+	} 
 	return 0;
 }
 
@@ -641,6 +561,8 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 			errno = EIO;
 			return -1;
 		}
+		if (new->fuse->fops.init != NULL)
+			new->private_data=new->fuse->fops.init();
 		return 0;
 	}
 }
@@ -662,6 +584,8 @@ static int umfuse_umount2(char *target, int flags)
 		//printf("PID %d TID %d \n",getpid(),pthread_self());
 		pthread_mutex_lock( &fc_norace->fuse->endmutex );
 		//pthread_mutex_lock( &condition_mutex );
+		if (fc_norace->fuse->fops.destroy != NULL)
+			fc_norace->fuse->fops.destroy(fc_norace->private_data);
 		fc_norace->fuse->inuse= EXITING;
 		pthread_cond_signal(&fc_norace->fuse->endloop);
 		pthread_mutex_unlock(&fc_norace->fuse->endmutex );
@@ -706,6 +630,34 @@ static int umfusefilldir(fuse_dirh_t h, const char *name, int type, ino_t ino)
 	return 0;
 }
 
+static int umfusefillreaddir(void *buf, const char *name, const struct stat *stbuf, off_t off)
+{
+	fuse_dirh_t h=buf;
+	if (name != NULL) {
+		struct umdirent *new=(struct umdirent *)malloc(sizeof(struct umdirent));
+		if (stbuf == NULL) {
+			new->de.d_ino=0;
+			new->de.d_type=0;
+		} else {
+			new->de.d_ino=stbuf->st_ino;
+			new->de.d_type=stbuf->st_mode >> 12;
+		}
+		new->de.d_name=strdup(name);
+		new->de.d_reclen=WORDALIGN(SIZEDIRENT64NONAME+strlen(name)+1);
+		new->d_reclen32=WORDALIGN(SIZEDIRENT32NONAME+strlen(name)+1);
+		/* virtualize the offset on a real file, 64bit ino+16len+8namlen+8type */
+		new->de.d_off=h->offset=h->offset+WORDALIGN(12+strlen(name));
+		if (h->tail==NULL) {
+			new->next=new;
+		} else {
+			new->next=h->tail->next;
+			h->tail->next=new;
+		}
+		h->tail=new;
+	}
+	return 0;
+}
+
 static struct umdirent *umfilldirinfo(struct fileinfo *fi)
 {
 	int rv;
@@ -713,7 +665,12 @@ static struct umdirent *umfilldirinfo(struct fileinfo *fi)
 	int cc=fi->context;
 	dh.tail=NULL;
 	dh.offset=0;
-	rv=fusetab[cc]->fuse->fops.getdir(fi->path, &dh, umfusefilldir);
+	if (fusetab[cc]->fuse->fops.readdir)
+	{
+		rv=fusetab[cc]->fuse->fops.readdir(fi->path,&dh, umfusefillreaddir, 0, &fi->ffi);
+	}
+	else
+		rv=fusetab[cc]->fuse->fops.getdir(fi->path, &dh, umfusefilldir);
 	if (rv < 0)
 		return NULL;
 	else 
@@ -733,7 +690,7 @@ static void umcleandirinfo(struct umdirent *tail)
 	}
 }
 
-static int um_getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
+static int umfuse_getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
 {
 	if (filetab[fd]==NULL) {
 		errno=ENOENT;
@@ -774,7 +731,7 @@ static int um_getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
 	}
 }
 
-static int um_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
+static int umfuse_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
 {
 	if (filetab[fd]==NULL) {
 		errno=ENOENT;
@@ -865,6 +822,7 @@ static int umfuse_open(char *path, int flags, mode_t mode)
 	int fi = addfiletab();
 	int rv;
 	int exists_err;
+	struct stat buf;
 
 #ifdef __UMFUSE_DEBUG__
 	PRINTDEBUG(10,"FLAGOPEN path:%s unwrap:%s\nFLAGS:0x%x MODE:%d\n",path,unwrap(fusetab[cc],path),flags,mode);
@@ -906,18 +864,21 @@ static int umfuse_open(char *path, int flags, mode_t mode)
 #endif
 
 
+	umfuse_current_context = cc;
+	assert(cc>=0);
+	exists_err = fusetab[cc]->fuse->fops.getattr(unwrap(fusetab[cc], path), &buf);
 	filetab[fi]->context = cc;
 	filetab[fi]->count = 0;
 	filetab[fi]->pos = 0;
+	filetab[fi]->size = buf.st_size;
 	filetab[fi]->ffi.flags = flags;
 	filetab[fi]->ffi.writepage = 0; //XXX do we need writepage != 0?
 	filetab[fi]->dirinfo = NULL;
 	filetab[fi]->dirpos = NULL;
 	filetab[fi]->path = strdup(unwrap(fusetab[cc], path));
-	assert(cc>=0);
+
 
 #ifdef __UMFUSE_EXPERIMENTAL__
-	exists_err=umfuse_access(path, F_OK);
 	if(exists_err == 0 && (flags & O_TRUNC) && (flags & (O_WRONLY | O_RDWR))) {
 		rv=fusetab[cc]->fuse->fops.truncate(filetab[fi]->path, 0);
 		if (rv < 0) {
@@ -925,7 +886,7 @@ static int umfuse_open(char *path, int flags, mode_t mode)
 			return -1;
 		}
 	}
-        if (flags & O_CREAT) { 
+	if (flags & O_CREAT) { 
 		if (exists_err == 0) {
 			if (flags & O_EXCL) {
 				errno= EEXIST;
@@ -939,17 +900,20 @@ static int umfuse_open(char *path, int flags, mode_t mode)
 				return -1;
 			}
 		}
-        }
+	}
 #else
-        if (flags & (O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC)) {
-                errno = EROFS;
-                return -1;
+	if (flags & (O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC)) {
+		errno = EROFS;
+		return -1;
 	}
 #endif
 
-        filetab[fi]->ffi.flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
-	PRINTDEBUG(10,"open_fuse_fulesystem CALL!\n");
-	rv = fusetab[cc]->fuse->fops.open(filetab[fi]->path, &filetab[fi]->ffi);
+	filetab[fi]->ffi.flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
+	PRINTDEBUG(10,"open_fuse_filesystem CALL!\n");
+	if ((flags & O_DIRECTORY) && fusetab[cc]->fuse->fops.opendir)
+		rv = fusetab[cc]->fuse->fops.opendir(filetab[fi]->path, &filetab[fi]->ffi);
+	else
+		rv = fusetab[cc]->fuse->fops.open(filetab[fi]->path, &filetab[fi]->ffi);
 
 	if (rv < 0)
 	{
@@ -991,8 +955,8 @@ static int umfuse_close(int fd)
                 	fflush(stderr);
 	        }
 	
-		rv=fusetab[cc]->fuse->fops.flush(filetab[fd]->path,
-				&filetab[fd]->ffi);
+		if (!(fusetab[cc]->fuse->flags & O_DIRECTORY))
+			rv=fusetab[cc]->fuse->fops.flush(filetab[fd]->path, &filetab[fd]->ffi);
 		
 		if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
 			fprintf(stderr, "FLUSH[%d] => path:%s\n",
@@ -1004,9 +968,10 @@ static int umfuse_close(int fd)
 		PRINTDEBUG(10,"->CLOSE %s %d\n",filetab[fd]->path, filetab[fd]->count);
 		if (filetab[fd]->count == 0) {			 
 			fusetab[cc]->fuse->inuse--;
-			rv=fusetab[cc]->fuse->fops.release(
-					filetab[fd]->path,
-					&filetab[fd]->ffi);
+			if ((fusetab[cc]->fuse->flags & O_DIRECTORY) && fusetab[cc]->fuse->fops.opendir)
+				rv = fusetab[cc]->fuse->fops.releasedir(filetab[fd]->path, &filetab[fd]->ffi);
+			else
+				rv=fusetab[cc]->fuse->fops.release(filetab[fd]->path, &filetab[fd]->ffi);
 			if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
         			fprintf(stderr, "RELEASE[%d] => path:%s flags:0x%x\n",
 					fd, filetab[fd]->path, fusetab[cc]->fuse->flags);
@@ -1031,7 +996,9 @@ static int umfuse_read(int fd, void *buf, size_t count)
 	if (filetab[fd]==NULL) {
 		errno=ENOENT;
 		return -1;
-	} else {
+	} else if (filetab[fd]->pos == filetab[fd]->size)
+		return 0;
+	else {
 		int cc = filetab[fd]->context;
 		umfuse_current_context = cc;
 		rv = fusetab[cc]->fuse->fops.read(
@@ -1671,8 +1638,8 @@ init (void)
 	s.syscall[uscno(__NR_lstat64)]=umfuse_lstat64;
 	s.syscall[uscno(__NR_fstat64)]=umfuse_fstat64;
 	s.syscall[uscno(__NR_readlink)]=umfuse_readlink;
-	s.syscall[uscno(__NR_getdents)]=um_getdents;
-	s.syscall[uscno(__NR_getdents64)]=um_getdents64;
+	s.syscall[uscno(__NR_getdents)]=umfuse_getdents;
+	s.syscall[uscno(__NR_getdents64)]=umfuse_getdents64;
 	s.syscall[uscno(__NR_access)]=umfuse_access;
 	s.syscall[uscno(__NR_fcntl)]=umfuse_fcntl32;
 	s.syscall[uscno(__NR_fcntl64)]=umfuse_fcntl64;

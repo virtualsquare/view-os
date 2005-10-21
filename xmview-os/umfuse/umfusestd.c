@@ -24,6 +24,15 @@
  */
 #include <fuse/fuse.h>
 #include <errno.h>
+#include <stdio.h>
+
+#undef UMFUSE_SHOW_STDCALL
+#ifdef UMFUSE_SHOW_STDCALL
+#define PRINTCALL(X,Y) fprintf(stderr,(X),(Y));
+#else
+#define PRINTCALL(X,Y) 
+#endif
+		
 /** Get file attributes.
  *
  * Similar to stat().  The 'st_dev' and 'st_blksize' fields are
@@ -32,7 +41,7 @@
  */
 static int umstd_getattr (const char *path, struct stat *stat)
 {
-	//printf("default getattr %s\n", path);
+	PRINTCALL("default getattr %s\n", path);
 	return -ENOSYS;
 }
 
@@ -46,19 +55,19 @@ static int umstd_getattr (const char *path, struct stat *stat)
  */
 static int umstd_readlink (const char *path, char *link, size_t size)
 {
-	//printf("default readlink %s\n", path);
+	PRINTCALL("default readlink %s\n", path);
 	return -EINVAL;
 }
 
 /** Read the contents of a directory
- *
+ * **** OLD INTERFACE **** DEPRECATED!
  * This operation is the opendir(), readdir(), ..., closedir()
  * sequence in one call. For each directory entry the filldir
  * function should be called.
  */
 static int umstd_getdir (const char *path, fuse_dirh_t dir, fuse_dirfil_t dirf)
 {
-	//printf("default getdir %s\n", path);
+	printf("default getdir %s\n", path);
 	return -ENOSYS;
 }
 
@@ -69,77 +78,77 @@ static int umstd_getdir (const char *path, fuse_dirh_t dir, fuse_dirfil_t dirf)
  */
 static int umstd_mknod (const char *path, mode_t mode, dev_t dev)
 {
-	//printf("default mknod %s\n", path);
+	PRINTCALL("default mknod %s\n", path);
 	return -ENOSYS;
 }
 
 /** Create a directory */
 static int umstd_mkdir (const char *path, mode_t mode)
 {
-	//printf("default mkdir %s\n", path);
+	PRINTCALL("default mkdir %s\n", path);
 	return -ENOSYS;
 }
 
 /** Remove a file */
 static int umstd_unlink (const char *path)
 {
-	//printf("default unlink %s\n", path);
+	PRINTCALL("default unlink %s\n", path);
 	return -ENOSYS;
 }
 
 /** Remove a directory */
 static int umstd_rmdir (const char *path)
 {
-	//printf("default rmdir %s\n", path);
+	PRINTCALL("default rmdir %s\n", path);
 	return -ENOSYS;
 }
 
 /** Create a symbolic link */
 static int umstd_symlink (const char *path, const char *newpath)
 {
-	//printf("default symlink %s\n", path);
+	PRINTCALL("default symlink %s\n", path);
 	return -ENOSYS;
 }
 
 /** Rename a file */
 static int umstd_rename (const char *path, const char *newpath)
 {
-	//printf("default rename %s\n", path);
+	PRINTCALL("default rename %s\n", path);
 	return -ENOSYS;
 }
 
 /** Create a hard link to a file */
 static int umstd_link (const char *path, const char *newpath)
 {
-	//printf("default link %s\n", path);
+	PRINTCALL("default link %s\n", path);
 	return -ENOSYS;
 }
 
 /** Change the permission bits of a file */
 static int umstd_chmod (const char *path, mode_t mode)
 {
-	//printf("default chmod %s\n", path);
+	PRINTCALL("default chmod %s\n", path);
 	return -ENOSYS;
 }
 
 /** Change the owner and group of a file */
 static int umstd_chown (const char *path, uid_t uid, gid_t gid)
 {
-	//printf("default chown %s\n", path);
+	PRINTCALL("default chown %s\n", path);
 	return -ENOSYS;
 }
 
 /** Change the size of a file */
 static int umstd_truncate (const char *path, off_t off)
 {
-	//printf("default truncat %s\n", path);
+	PRINTCALL("default truncat %s\n", path);
 	return -ENOSYS;
 }
 
 /** Change the access and/or modification times of a file */
 static int umstd_utime (const char *path, struct utimbuf *timbuf)
 {
-	//printf("default utime %s\n", path);
+	PRINTCALL("default utime %s\n", path);
 	return -ENOSYS;
 }
 
@@ -153,7 +162,7 @@ static int umstd_utime (const char *path, struct utimbuf *timbuf)
  */
 static int umstd_open (const char *path, struct fuse_file_info *fileinfo)
 {
-	//printf("default open %s\n", path);
+	PRINTCALL("default open %s\n", path);
 	return -ENOSYS;
 }
 
@@ -168,7 +177,7 @@ static int umstd_open (const char *path, struct fuse_file_info *fileinfo)
  */
 static int umstd_read (const char *path, char *buf, size_t size, off_t off, struct fuse_file_info *fileinfo)
 {
-	//printf("default read %s\n", path);
+	PRINTCALL("default read %s\n", path);
 	return -ENOSYS;
 }
 
@@ -181,7 +190,7 @@ static int umstd_read (const char *path, char *buf, size_t size, off_t off, stru
 static int umstd_write (const char *path, const char *buf, size_t size, off_t off,
 		struct fuse_file_info *fileinfo)
 {
-	//printf("default write %s\n", path);
+	PRINTCALL("default write %s\n", path);
 	return -ENOSYS;
 }
 
@@ -191,7 +200,7 @@ static int umstd_write (const char *path, const char *buf, size_t size, off_t of
  */
 static int umstd_statfs (const char *path, struct statfs *stat)
 {
-	//printf("default statfs %s\n", path);
+	PRINTCALL("default statfs %s\n", path);
 	return -ENOSYS;
 }
 
@@ -215,7 +224,7 @@ static int umstd_statfs (const char *path, struct statfs *stat)
  */
 static int umstd_flush (const char *path, struct fuse_file_info *fileinfo)
 {
-	//printf("default flush %s\n", path);
+	PRINTCALL("default flush %s\n", path);
 	return 0; //maybe flush is not relevant
 }
 
@@ -233,7 +242,7 @@ static int umstd_flush (const char *path, struct fuse_file_info *fileinfo)
  */
 static int umstd_release (const char *path, struct fuse_file_info *fileinfo)
 {
-	//printf("default release %s\n", path);
+	PRINTCALL("default release %s\n", path);
 	return 0;
 }
 
@@ -244,35 +253,66 @@ static int umstd_release (const char *path, struct fuse_file_info *fileinfo)
  */
 static int umstd_fsync (const char *path, int flags, struct fuse_file_info *fileinfo)
 {
-	//printf("default fsync %s\n", path);
+	PRINTCALL("default fsync %s\n", path);
 	return 0;
 }
 
 /** Set extended attributes */
 static int umstd_setxattr (const char *path, const char *name, const char *attr, size_t size, int flags)
 {
-	//printf("default setxattr %s\n", path);
+	PRINTCALL("default setxattr %s\n", path);
 	return -ENOSYS;
 }
 
 /** Get extended attributes */
 static int umstd_getxattr (const char *path, const char *name, char *attr, size_t size)
 {
-	//printf("default getxattr %s\n", path);
+	PRINTCALL("default getxattr %s\n", path);
 	return -ENOSYS;
 }
 
 /** List extended attributes */
 static int umstd_listxattr (const char *path, char *addrlist, size_t size)
 {
-	//printf("default listxattr %s\n", path);
+	PRINTCALL("default listxattr %s\n", path);
 	return -ENOSYS;
 }
 
 /** Remove extended attributes */
 static int umstd_removexattr (const char *path, const char *name)
 {
-	//printf("default removexattr %s\n", path);
+	PRINTCALL("default removexattr %s\n", path);
+	return -ENOSYS;
+}
+
+#if 0
+/** Open directory */
+static int umstd_opendir (const char *path, struct fuse_file_info *fileinfo)
+{
+	PRINTCALL("default opendir %s\n", path);
+	return 0;
+}
+
+/** Read directory */
+static int umstd_readdir (const char *path, void *buf, fuse_fill_dir_t filler, 
+		off_t offset, struct fuse_file_info *fileinfo)
+{
+	printf("default readdir %s\n", path);
+	return -ENOSYS;
+}
+#endif 
+
+/** Release directory */
+static int umstd_releasedir (const char *path, struct fuse_file_info *fileinfo)
+{
+	PRINTCALL("default removexattr %s\n", path);
+	return 0;
+}
+
+/** Synchronize directory contents */
+static int umstd_fsyncdir (const char *path, int user_meta, struct fuse_file_info *fileinfo)
+{
+	PRINTCALL("default fsyncdir %s\n", path);
 	return -ENOSYS;
 }
 
@@ -302,5 +342,11 @@ struct fuse_operations defaultservice={
 	.setxattr = umstd_setxattr,
 	.getxattr = umstd_getxattr,
 	.listxattr = umstd_listxattr,
-	.removexattr = umstd_removexattr
+	.removexattr = umstd_removexattr,
+	.opendir = NULL,
+	.readdir = NULL,
+	.releasedir = umstd_releasedir,
+	.fsyncdir = umstd_fsyncdir,
+	.init = NULL,
+	.destroy = NULL,
 };
