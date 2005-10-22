@@ -285,7 +285,6 @@ static int umstd_removexattr (const char *path, const char *name)
 	return -ENOSYS;
 }
 
-#if 0
 /** Open directory */
 static int umstd_opendir (const char *path, struct fuse_file_info *fileinfo)
 {
@@ -293,6 +292,7 @@ static int umstd_opendir (const char *path, struct fuse_file_info *fileinfo)
 	return 0;
 }
 
+#if 0
 /** Read directory */
 static int umstd_readdir (const char *path, void *buf, fuse_fill_dir_t filler, 
 		off_t offset, struct fuse_file_info *fileinfo)
@@ -343,7 +343,7 @@ struct fuse_operations defaultservice={
 	.getxattr = umstd_getxattr,
 	.listxattr = umstd_listxattr,
 	.removexattr = umstd_removexattr,
-	.opendir = NULL,
+	.opendir = umstd_opendir,
 	.readdir = NULL,
 	.releasedir = umstd_releasedir,
 	.fsyncdir = umstd_fsyncdir,

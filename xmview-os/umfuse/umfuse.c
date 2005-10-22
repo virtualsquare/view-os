@@ -167,13 +167,38 @@ static void printdebug(int level, const char *file, const int line, const char *
 }
 #endif
 
+static cutdots(char *path)
+{
+	int l=strlen(path);
+	l--;
+	if (path[l]=='.') {
+		l--;
+		if(path[l]=='/') {
+			if (l!=0) path[l]=0; else path[l+1]=0;
+		} else if (path[l]=='.') {
+			l--;
+			if(path[l]=='/') {
+				while(l>0) {
+					l--;
+					if (path[l]=='/')
+						break;
+				}
+				if(path[l]=='/') {
+					if (l!=0) path[l]=0; else path[l+1]=0;
+				}
+			}
+		}
+	}
+}
+
 /* search a path, returns the context i.e. the index of info for mounted file
  * -1 otherwise */
-static int searchcontext(const char *path,int exact)
+static int searchcontext(char *path,int exact)
 {
 	register int i;
 	int result=-1;
  PRINTDEBUG(0,"SearchContext:%s-%s\n",path, exact?"EXACT":"SUBSTR");
+ cutdots(path);
 	for (i=0;i<fusetabmax && result<0;i++)
 	{
 		if ((fusetab[i] != NULL) && (fusetab[i]->fuse != NULL)) {
@@ -636,7 +661,7 @@ static int umfusefillreaddir(void *buf, const char *name, const struct stat *stb
 	if (name != NULL) {
 		struct umdirent *new=(struct umdirent *)malloc(sizeof(struct umdirent));
 		if (stbuf == NULL) {
-			new->de.d_ino=0;
+			new->de.d_ino=-1;
 			new->de.d_type=0;
 		} else {
 			new->de.d_ino=stbuf->st_ino;
@@ -877,7 +902,6 @@ static int umfuse_open(char *path, int flags, mode_t mode)
 	filetab[fi]->dirpos = NULL;
 	filetab[fi]->path = strdup(unwrap(fusetab[cc], path));
 
-
 #ifdef __UMFUSE_EXPERIMENTAL__
 	if(exists_err == 0 && (flags & O_TRUNC) && (flags & (O_WRONLY | O_RDWR))) {
 		rv=fusetab[cc]->fuse->fops.truncate(filetab[fi]->path, 0);
@@ -910,7 +934,7 @@ static int umfuse_open(char *path, int flags, mode_t mode)
 
 	filetab[fi]->ffi.flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
 	PRINTDEBUG(10,"open_fuse_filesystem CALL!\n");
-	if ((flags & O_DIRECTORY) && fusetab[cc]->fuse->fops.opendir)
+	if ((flags & O_DIRECTORY) && fusetab[cc]->fuse->fops.readdir)
 		rv = fusetab[cc]->fuse->fops.opendir(filetab[fi]->path, &filetab[fi]->ffi);
 	else
 		rv = fusetab[cc]->fuse->fops.open(filetab[fi]->path, &filetab[fi]->ffi);
@@ -955,7 +979,7 @@ static int umfuse_close(int fd)
                 	fflush(stderr);
 	        }
 	
-		if (!(fusetab[cc]->fuse->flags & O_DIRECTORY))
+		if (!(filetab[fd]->ffi.flags & O_DIRECTORY))
 			rv=fusetab[cc]->fuse->fops.flush(filetab[fd]->path, &filetab[fd]->ffi);
 		
 		if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
@@ -968,7 +992,7 @@ static int umfuse_close(int fd)
 		PRINTDEBUG(10,"->CLOSE %s %d\n",filetab[fd]->path, filetab[fd]->count);
 		if (filetab[fd]->count == 0) {			 
 			fusetab[cc]->fuse->inuse--;
-			if ((fusetab[cc]->fuse->flags & O_DIRECTORY) && fusetab[cc]->fuse->fops.opendir)
+			if ((filetab[fd]->ffi.flags & O_DIRECTORY) && fusetab[cc]->fuse->fops.readdir)
 				rv = fusetab[cc]->fuse->fops.releasedir(filetab[fd]->path, &filetab[fd]->ffi);
 			else
 				rv=fusetab[cc]->fuse->fops.release(filetab[fd]->path, &filetab[fd]->ffi);
@@ -1215,7 +1239,7 @@ static int umfuse_lstat64(char *path, struct stat64 *buf64)
 	rv = fusetab[cc]->fuse->fops.getattr(
 			unwrap(fusetab[cc],path),&buf);
 	if (fusetab[cc]->fuse->flags & FUSE_DEBUG)
-        	fprintf(stderr, "ltat64->GETATTR => path:%s status: %s\n",
+        	fprintf(stderr, "lstat64->GETATTR => path:%s status: %s\n",
 				path, rv ? "Error" : "Succes");
 	if (rv < 0) {
 		errno = -rv;
