@@ -29,6 +29,10 @@
 # Author: Adam Dunkels <adam@sics.se>
 #
 
+#=============================================================================
+# Directories
+#=============================================================================
+
 CONTRIBDIR=../../../..
 LWIPARCH=$(CONTRIBDIR)/ports/unix
 
@@ -36,26 +40,47 @@ LWIPARCH=$(CONTRIBDIR)/ports/unix
 #default assumes it's a dir named lwip at the same level as the contrib module
 LWIPDIR=$(CONTRIBDIR)/../lwip-v6/src
 
+# added by Diego Billi
+LWIPFILTERDIR=$(LWIPDIR)/userfilter
+
+#=============================================================================
+# Defines
+#=============================================================================
 
 CCDEP=gcc
 CC=gcc
 #CFLAGS=-g -Wall -fPIC -DIPv4 -DLWIP_DEBUG 
 CFLAGS=-g -Wall -fPIC -DIPv6 -DLWIP_DEBUG -DLWIP_NL -DLWIP_PACKET -DRD235LIB -DLWIP_COMPAT_SOCKETS=0
 
+# added by Diego Billi
+CFLAGS:=$(CFLAGS) -DLWIP_USERFILTER 
+
 CFLAGS:=$(CFLAGS) \
 	-I$(LWIPDIR)/include -I$(LWIPARCH)/include -I$(LWIPDIR)/include/ipv6 \
 	-Iapps -I.
 
+# added by Diego Billi
+CFLAGS:=$(CFLAGS) -I$(LWIPDIR)/include/userfilter
+
+# added by Diego Billi
+ARFLAGS=rs
+
+#=============================================================================
+# Files
+#=============================================================================
+
 # COREFILES, CORE4FILES: The minimum set of files needed for lwIP.
 # COREFILES= 
-#COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_dynmalloc.c
-COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_malloc.c\
+#COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_malloc.c
+COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_dynmalloc.c \
 	$(LWIPDIR)/core/netif.c \
 	$(LWIPDIR)/core/pbufnopool.c $(LWIPDIR)/core/stats.c $(LWIPDIR)/core/sys.c \
         $(LWIPDIR)/core/tcp.c $(LWIPDIR)/core/tcp_in.c \
         $(LWIPDIR)/core/tcp_out.c $(LWIPDIR)/core/udp.c \
 				$(LWIPDIR)/core/raw.c $(LWIPDIR)/core/packet.c
+
 CORE6FILES=$(wildcard $(LWIPDIR)/core/ipv6/*.c) $(LWIPDIR)/core/inet6.c
+
 # APIFILES: The files which implement the sequential and socket APIs.
 APIFILES=$(LWIPDIR)/api/api_lib.c $(LWIPDIR)/api/api_msg.c $(LWIPDIR)/api/tcpip.c \
 	$(LWIPDIR)/api/err.c $(LWIPDIR)/api/sockets.c\
@@ -71,12 +96,28 @@ ARCHFILES=$(LWIPARCH)/sys_arch_pipe.c $(LWIPARCH)/netif/vdeif.c \
 	$(LWIPARCH)/netif/tapif.c \
 	$(LWIPARCH)/netif/tunif.c
 
+# added by Diego Billi
+LWIPFILTERFILES=$(LWIPFILTERDIR)/userfilter.c 
+
+#=============================================================================
+# Objects
+#=============================================================================
+
 # LWIPFILES: All the above.
-LWIPFILES=$(COREFILES) $(CORE6FILES) $(APIFILES) $(NETIFFILES) $(ARCHFILES)
+#LWIPFILES=$(COREFILES) $(CORE6FILES) $(APIFILES) $(NETIFFILES) $(ARCHFILES)
+LWIPFILES=$(COREFILES) $(CORE6FILES) $(APIFILES) $(NETIFFILES) $(ARCHFILES)  $(LWIPFILTERFILES)
 LWIPFILESW=$(wildcard $(LWIPFILES))
 LWIPOBJS=$(notdir $(LWIPFILESW:.c=.o))
 
+#=============================================================================
+# Targets
+#=============================================================================
+
 LWIPLIB=liblwip.so
+
+# added by Diego Billi
+STATICLWIPLIB=liblwip.a
+
 
 %.o:
 	$(CC) $(CFLAGS) -c $(<:.o=.c)
@@ -84,8 +125,13 @@ LWIPLIB=liblwip.so
 all: $(LWIPLIB) 
 .PHONY: all
 
+# added by Diego Billi
+allstatic: $(STATICLWIPLIB)
+.PHONY: allstatic
+
 clean:
-	rm -f *.o $(LWIPLIB) *.s .depend* *.core core
+#	rm -f *.o $(LWIPLIB) *.s .depend* *.core core
+	rm -f *.o $(LWIPLIB) *.s .depend* *.core core $(STATICLWIPLIB)
 
 depend dep: .depend
 
@@ -93,6 +139,10 @@ include .depend
 
 $(LWIPLIB): $(LWIPOBJS) unixlib.o
 	$(CC) -g -nostartfiles -shared -o $@ $^
+
+# added by Diego Billi
+$(STATICLWIPLIB): $(LWIPOBJS)
+	$(AR) $(ARFLAGS) $(STATICLWIPLIB) $?
 
 .depend: unixlib.c $(LWIPFILES)
 	$(CCDEP) $(CFLAGS) -MM $^ > .depend || rm -f .depend

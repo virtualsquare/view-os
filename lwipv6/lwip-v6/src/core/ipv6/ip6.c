@@ -75,6 +75,12 @@
 
 #include "arch/perf.h"
 
+/* added by Diego Billi */
+#ifdef LWIP_USERFILTER
+#include "lwip/userfilter.h"
+#endif
+
+
 /* ip_init:
  *
  * Initializes the IP layer.
@@ -92,11 +98,20 @@ ip_init(void)
  * appropriate interface.
  */
 
+/* added by Diego Billi */
+#ifdef LWIP_USERFILTER
+/* With need source and destination interfaces */
+static void
+ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif, struct netif *netif, struct ip_addr *nexthop)
+#else
 static void
 ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *netif, struct ip_addr *nexthop)
+#endif
 {
   PERF_START;
 
+  /* added by Diego Billi */	
+  if (IPH_V(iphdr) == 6) {
   /* Decrement TTL and send ICMP if ttl == 0. */
   IPH_HOPLIMIT_SET(iphdr, IPH_HOPLIMIT(iphdr) -1);
   /*if (--iphdr->hoplim == 0) {*/
@@ -108,6 +123,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *netif, struct ip_
     }
     pbuf_free(p);
     return;
+  }
   }
 
   LWIP_DEBUGF(IP_DEBUG, ("ip_forward: forwarding packet to "));
@@ -122,6 +138,14 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *netif, struct ip_
 #endif /* IP_STATS */
 
   PERF_STOP("ip_forward");
+
+/* added by Diego Billi */
+#ifdef LWIP_USERFILTER
+  /* pbuf_free() is called by caller */
+  if (UF_HOOK(UF_IP_POST_ROUTING, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
+    return;
+  }
+#endif
 
   /* netif->output(netif, p, (struct ip_addr *)&(iphdr->dest)); */
   netif->output(netif, p, nexthop);
@@ -204,6 +228,14 @@ ip_input(struct pbuf *p, struct netif *inp) {
   ++lwip_stats.ip.recv;
 #endif /* IP_STATS */
 
+
+/* added by Diego Billi */
+#ifdef LWIP_USERFILTER
+  if (UF_HOOK(UF_IP_PRE_ROUTING, &p, inp, NULL, UF_FREE_BUF) <= 0) {
+    return;
+  }
+#endif
+
   /* identify the IP header */
   iphdr = p->payload;
 
@@ -246,6 +278,14 @@ ip_input(struct pbuf *p, struct netif *inp) {
 		pbuf_realloc(p, IP_HLEN + ntohs(iphdr->len)); 
 	else
 		pbuf_realloc(p, ntohs(IPH4_LEN(ip4hdr)));
+
+/* added by Diego Billi */
+#ifdef LWIP_USERFILTER
+    if (UF_HOOK(UF_IP_LOCAL_IN, &p, inp, NULL, UF_FREE_BUF) <= 0) {
+      return;
+    }
+#endif
+
 	/*ip_inpacket(addrel, p, iphdr->nexthdr);*/
 	ip_inpacket(addrel, p, &piphdr);
   }
@@ -254,7 +294,14 @@ ip_input(struct pbuf *p, struct netif *inp) {
   else if (ip_route_findpath(piphdr.dest, &nexthop, &netif, &fwflags) == ERR_OK &&
 		  netif != inp)
   { /* forwarding */
+
+/* added by Diego Billi */
+#ifdef LWIP_USERFILTER
+	  ip_forward(p, iphdr, inp, netif, nexthop);
+#else
 	  ip_forward(p, iphdr, netif, nexthop);
+#endif
+
 	  pbuf_free(p);
   }
 #endif
@@ -351,6 +398,14 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 	  }
   }
 
+/* added by Diego Billi */
+#ifdef LWIP_USERFILTER
+  /* FIX: LOCAL_OUT after routing decisions? It this the right place */
+  if (UF_HOOK(UF_IP_LOCAL_OUT, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
+    return ERR_OK;
+  }
+#endif
+
 #ifdef IP_STATS
   ++lwip_stats.ip.xmit;
 #endif /* IP_STATS */
@@ -384,11 +439,27 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 				memcpy(ptr, q->payload, q->len);
 				ptr += q->len;
 			}
+
+/* added by Diego Billi */
+#ifdef LWIP_USERFILTER
+            if (UF_HOOK(UF_IP_POST_ROUTING, &r, NULL, netif, UF_DONTFREE_BUF) <= 0) {
+              return ERR_OK;
+            }
+#endif
+
 			netif->input( r, netif );
 		}
 		return ERR_OK;
 	} else
   //printf("outputoutput dest\n");
+
+/* added by Diego Billi */
+#ifdef LWIP_USERFILTER
+  if (UF_HOOK(UF_IP_POST_ROUTING, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
+    return ERR_OK;
+  }
+#endif
+
   return netif->output(netif, p, nexthop);
 }
 

@@ -166,7 +166,6 @@ int lwip_ifdown(struct netif *netif)
 extern int _nofdfake;
 void _init(void){
   sys_sem_t sem;
-	char *interfaces;
 
 	if (getenv("_INSIDE_UMVIEW_MODULE") != NULL)
 		_nofdfake=1;
