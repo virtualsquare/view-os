@@ -55,6 +55,7 @@ the format string is similar to that used in printf.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fuse/fuse.h>
 #include "umfusestd.h"
 
 #define MAXARGS 256
@@ -66,6 +67,8 @@ the format string is similar to that used in printf.
 #define FUSEARGPOST 4 //"post"
 #define FUSEARGFMT 5 //"format"
 #define FUSEARGSHOWCALL 6 //"format"
+#define FUSEARGUID 7 //"format"
+#define FUSEARGGID 8 //"format"
 #define FUSEFLAGHASSTRING 1
 #define FUSEFLAGCOPY 2
 static struct fuseargitem {
@@ -78,7 +81,9 @@ static struct fuseargitem {
 	{"showcall",FUSEARGSHOWCALL, 0},
 	{"pre=", FUSEARGPRE, FUSEFLAGHASSTRING},
 	{"post=",FUSEARGPOST, FUSEFLAGHASSTRING},
-	{"format=",FUSEARGFMT, FUSEFLAGHASSTRING}
+	{"format=",FUSEARGFMT, FUSEFLAGHASSTRING},
+	{"fuseuid=",FUSEARGUID, FUSEFLAGHASSTRING},
+	{"fusegid=",FUSEARGGID, FUSEFLAGHASSTRING}
 };
 #define FUSEARGTABSIZE sizeof(fuseargtab)/sizeof(struct fuseargitem)
 
@@ -166,7 +171,7 @@ static int fuseaddargs(char *fmt, char *source, char *mountpoint, char *opts, ch
 	return nargc;
 }
 
-int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, char ***pargv,int *pflags)
+int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, char ***pargv,struct fuse_context *fc,int *pflags)
 {
 	char *sepopts[MAXARGS];
 	int nsepopts=0;
@@ -238,6 +243,12 @@ int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, ch
 				break;
 			case FUSEARGFMT:
 				fmt=sepopts[i]+strlen(fuseargtab[j].arg);
+				break;
+			case FUSEARGUID:
+				fc->uid=atoi(sepopts[i]+strlen(fuseargtab[j].arg));
+				break;
+			case FUSEARGGID:
+				fc->gid=atoi(sepopts[i]+strlen(fuseargtab[j].arg));
 				break;
 			default:
 				{
