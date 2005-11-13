@@ -47,6 +47,7 @@ wrapinfun wrap_in_chmod, wrap_in_fchmod, wrap_in_dup, wrap_in_fsync;
 wrapinfun wrap_in_link, wrap_in_symlink, wrap_in_pread, wrap_in_pwrite;
 wrapinfun wrap_in_utime, wrap_in_mount, wrap_in_umount;
 wrapinfun wrap_in_umask, wrap_in_chroot;
+wrapinfun wrap_in_umask, wrap_in_execve;
 
 wrapoutfun wrap_out_open, wrap_out_std, wrap_out_close, wrap_out_chdir;
 wrapoutfun wrap_out_dup, wrap_out_select, wrap_out_poll, wrap_out_fcntl;
@@ -57,6 +58,7 @@ wrapoutfun wrap_out_getpid;
 #endif
 
 struct sc_map scmap[]={
+	{__NR_execve,	choice_path,	wrap_in_execve,	NULL,	0,	3},
 	{__NR_chdir,	choice_path,	wrap_in_chdir,	wrap_out_chdir, ALWAYS,	1},
 	{__NR_fchdir,	choice_fd,	wrap_in_fchdir,	wrap_out_chdir, ALWAYS,	1},
 	{__NR_getcwd,	always_umnone, wrap_in_getcwd,	wrap_out_std,	ALWAYS,	2},

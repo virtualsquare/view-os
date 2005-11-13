@@ -681,6 +681,7 @@ static struct umdirent *umfilldirinfo(struct fileinfo *fi)
 	int rv;
 	struct fuse_dirhandle dh;
 	int cc=fi->context;
+	umfuse_current_context = cc;
 	dh.tail=NULL;
 	dh.offset=0;
 	if (fusetab[cc]->fuse->fops.readdir)
