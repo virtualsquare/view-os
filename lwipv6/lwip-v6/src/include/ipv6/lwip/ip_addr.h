@@ -87,6 +87,15 @@ struct in6_addr {
                                                (ipaddr)->addr[2] = htonl(((e & 0xffff) << 16) | (f & 0xffff)); \
                                                (ipaddr)->addr[3] = htonl(((g & 0xffff) << 16) | (h & 0xffff)); } while(0)
 
+/* added by Diego Billi */
+#define IP6_ADDR_LINKSCOPE(ip, hwaddr) \
+	IP6_ADDR((ip), 0xfe80, 0x0000, 0x0000, 0x0000,      \
+  		(( ((hwaddr)[0])&(0x02) ?                       \
+			((hwaddr)[0])&(~(0x02)) :                   \
+			((hwaddr)[0])&(0x02)  <<8) | (hwaddr)[1] ), \
+		((hwaddr)[2]<<8 | 0xff),	                    \
+		(0xfe00         | (hwaddr)[3] ),                \
+		((hwaddr)[4]<<8 | (hwaddr)[5]))
 
 struct in_addr {
 	  u32_t s_addr;
@@ -170,10 +179,12 @@ void ip4_addr_set(struct ip4_addr *dest, struct ip4_addr *src);
 	((addr1)->addr[2] == IP64_PREFIX) && \
 	(((addr1)->addr[3] & htonl(0xf0000000)) == htonl(0xe0000000)))
 
+/* added by Diego Billi */
+#define ip4_addr_cmp(addr1, addr2) ((addr1)->addr == (addr2)->addr)
 	
-#if IP_DEBUG
+/*#if IP_DEBUG*/
 void ip_addr_debug_print(int how, struct ip_addr *addr);
-#endif /* IP_DEBUG */
+/*#endif*/ /* IP_DEBUG */
 
 struct netif;
 

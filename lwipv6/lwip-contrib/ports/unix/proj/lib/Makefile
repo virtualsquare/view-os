@@ -50,7 +50,20 @@ LWIPFILTERDIR=$(LWIPDIR)/userfilter
 CCDEP=gcc
 CC=gcc
 #CFLAGS=-g -Wall -fPIC -DIPv4 -DLWIP_DEBUG 
-CFLAGS=-g -Wall -fPIC -DIPv6 -DLWIP_DEBUG -DLWIP_NL -DLWIP_PACKET -DRD235LIB -DLWIP_COMPAT_SOCKETS=0
+#CFLAGS=-g -Wall -fPIC -DIPv6 -DLWIP_DEBUG -DLWIP_NL -DLWIP_PACKET -DRD235LIB -DLWIP_COMPAT_SOCKETS=0
+
+CFLAGS=-g -Wall -fPIC
+CFLAGS:=$(CFLAGS) -DIPv6
+CFLAGS:=$(CFLAGS) -DIPv4_CHECK_CHECKSUM 
+CFLAGS:=$(CFLAGS) -DIPv4_FRAGMENTATION
+CFLAGS:=$(CFLAGS) -DIPv6_FRAGMENTATION
+#CFLAGS:=$(CFLAGS) -DIPv6_PMTU_DISCOVERY   not working yet
+CFLAGS:=$(CFLAGS) -DLWIP_NL    
+CFLAGS:=$(CFLAGS) -DLWIP_PACKET 
+CFLAGS:=$(CFLAGS) -DRD235LIB 
+CFLAGS:=$(CFLAGS) -DLWIP_COMPAT_SOCKETS=0 
+CFLAGS:=$(CFLAGS) -DLWIP_DEBUG 
+
 
 # added by Diego Billi
 CFLAGS:=$(CFLAGS) -DLWIP_USERFILTER 
@@ -82,8 +95,11 @@ COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_dynmalloc.c \
 CORE6FILES=$(wildcard $(LWIPDIR)/core/ipv6/*.c) $(LWIPDIR)/core/inet6.c
 
 # APIFILES: The files which implement the sequential and socket APIs.
-APIFILES=$(LWIPDIR)/api/api_lib.c $(LWIPDIR)/api/api_msg.c $(LWIPDIR)/api/tcpip.c \
-	$(LWIPDIR)/api/err.c $(LWIPDIR)/api/sockets.c\
+APIFILES=$(LWIPDIR)/api/api_lib.c \
+    $(LWIPDIR)/api/api_msg.c \
+    $(LWIPDIR)/api/tcpip.c \
+	$(LWIPDIR)/api/err.c \
+    $(LWIPDIR)/api/sockets.c\
 	$(LWIPDIR)/api/netlink.c
 
 # NETIFFILES: Files implementing various generic network interface functions.'
@@ -92,7 +108,8 @@ NETIFFILES=$(LWIPDIR)/netif/loopif.c \
 
 # ARCHFILES: Architecture specific files.
 #ARCHFILES=$(wildcard $(LWIPDIR)/arch/$(LWIPARCH)/*.c $(LWIPDIR)/arch/$(LWIPARCH)/netif/*.c)
-ARCHFILES=$(LWIPARCH)/sys_arch_pipe.c $(LWIPARCH)/netif/vdeif.c \
+ARCHFILES=$(LWIPARCH)/sys_arch_pipe.c \
+    $(LWIPARCH)/netif/vdeif.c \
 	$(LWIPARCH)/netif/tapif.c \
 	$(LWIPARCH)/netif/tunif.c
 
@@ -141,7 +158,9 @@ $(LWIPLIB): $(LWIPOBJS) unixlib.o
 	$(CC) -g -nostartfiles -shared -o $@ $^
 
 # added by Diego Billi
-$(STATICLWIPLIB): $(LWIPOBJS)
+# NB: unixlib.o should not be included, it's used only by ViewOS project.
+# It's here only for debug.
+$(STATICLWIPLIB): $(LWIPOBJS) unixlib.o
 	$(AR) $(ARFLAGS) $(STATICLWIPLIB) $?
 
 .depend: unixlib.c $(LWIPFILES)

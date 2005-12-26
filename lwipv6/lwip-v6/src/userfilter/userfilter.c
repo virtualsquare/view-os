@@ -25,7 +25,6 @@
 #include "lwip/netif.h"
 #include "lwip/userfilter.h"
 
-
 #ifndef USERFILTER_DEBUG
 #define USERFILTER_DEBUG     DBG_OFF
 #endif
@@ -41,7 +40,8 @@ struct uf_hook_handler  * uf_hooks_list[UF_IP_NUMHOOKS];
 /* Functions */
 /****************************************************************************/
 
-int userfilter_init(void)
+int 
+userfilter_init(void)
 {
 	int i;
 	
@@ -169,4 +169,3 @@ int uf_visit_hook(uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct 
 }
 
 #endif /* LWIP_USERFILTER */
-

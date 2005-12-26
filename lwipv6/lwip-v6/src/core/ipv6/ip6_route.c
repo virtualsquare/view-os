@@ -23,16 +23,35 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
+#include "lwip/debug.h"
 
 #include "lwip/ip_route.h"
 #include "lwip/inet.h"
 #include "lwip/netlink.h"
 
+
+/* added by Diego Billi */
+#if 0
+#ifdef IPv6_PMTU_DISCOVERY
+static void ip_pmtu_init();
+static void ip_pmtu_free_list(struct pmtu_info  *head);
+#define IP_PMTU_FREELIST(list) \
+	do {                                 \
+		if ((list) != NULL) {            \
+			ip_pmtu_free_list( (list) ); \
+			(list) = NULL;               \
+		}                                \
+	} while(0);
+#endif
+#endif
+
+
 static struct ip_route_list ip_route_pool[IP_ROUTE_POOL_SIZE];
 static struct ip_route_list *ip_route_freelist;
-static struct ip_route_list *ip_route_head;
+/*static struct ip_route_list *ip_route_head;*/
+struct ip_route_list *ip_route_head;
 
-void ip_route_list_init()
+void ip_route_list_init(void)
 {
 	register int i;
 	for (i=0;i<IP_ROUTE_POOL_SIZE-1;i++)
@@ -40,6 +59,14 @@ void ip_route_list_init()
 	ip_route_pool[i].next=NULL;
 	ip_route_freelist=ip_route_pool;
 	ip_route_head=NULL;
+
+
+#if 0
+#ifdef IPv6_PMTU_DISCOVERY
+	ip_pmtu_init();
+#endif
+#endif
+
 }
 
 #define mask_wider(x,y) \
@@ -96,6 +123,13 @@ err_t ip_route_list_del(struct ip_addr *addr, struct ip_addr *netmask, struct ip
 	else {
 		struct ip_route_list *el=*dp;
 		*dp = el->next;
+
+#if 0
+#ifdef IPv6_PMTU_DISCOVERY
+		IP_PMTU_FREELIST( el->pmtu_list );
+#endif
+#endif
+
 		el->next=ip_route_freelist;
 		ip_route_freelist=el;
 		return ERR_OK;
@@ -112,6 +146,14 @@ err_t ip_route_list_delnetif(struct netif *netif)
 			if ((*dp)->netif == netif) {
 				struct ip_route_list *el=*dp;
 				*dp = el->next;
+
+
+#if 0
+#ifdef IPv6_PMTU_DISCOVERY
+				IP_PMTU_FREELIST( el->pmtu_list );
+#endif
+#endif
+
 				el->next=ip_route_freelist;
 				ip_route_freelist=el;
 			} else
@@ -416,3 +458,327 @@ void ip_route_netlink_adddelroute(struct nlmsghdr *msg,void * buf,int *offset)
 }
 
 #endif
+
+
+
+/* added by Diego Billi */
+#if 0
+
+err_t pmtu_find_route_entry(struct ip_addr *dest, struct ip_route_list **entry)
+{
+	struct ip_route_list *r = ip_route_head;
+
+	while (r != NULL) {
+		if (ip_addr_maskcmp(dest, &(r->addr), &(r->netmask)))
+			break;
+ 
+		r = r->next;
+	}
+
+	if (r !=NULL) {
+		*entry = r;
+		return ERR_OK;
+	}
+	return ERR_RTE;
+}
+
+
+
+#ifdef IPv6_PMTU_DISCOVERY
+
+/* NOT TESTED YET, NOT TESTED YET, NOT TESTED YET, NOT TESTED YET  */
+
+/* 
+ * Here follows a simple implementation of Path MTU Discovery 
+ * protocol (RFC 1191). 
+ */
+
+/* 
+ * This table contains commont internet MTUs used by the MTU Detection
+ * algorithm described in the section 7.1. of RFC 1191 (where you can
+ * also find the original table).
+ */
+
+#ifndef PMTU_DEBUG
+#define PMTU_DEBUG  DBG_OFF
+#endif
+
+
+
+#define IP_COMMONS_MTUS 11
+u16_t ip_pmtu_common_mtus[IP_COMMONS_MTUS] = {
+	68, 296, 508, 1006, 1492, 2002, 4352, 8166, 17914, 32000, 65535
+};
+
+#define IP_PMTU_DEST_POOL_SIZE   128
+static struct pmtu_info  ip_pmtu_pool[IP_PMTU_DEST_POOL_SIZE];
+static struct pmtu_info  *ip_pmtu_freelist;
+static struct pmtu_info  *ip_pmtu_head;  /* main list */
+
+static void ip_pmtu_start_timer(void);
+
+static void ip_pmtu_init()
+{
+	register int i;
+
+	/* Clear table & lists */
+	for (i=0;i<IP_PMTU_DEST_POOL_SIZE-1;i++)
+		ip_pmtu_pool[i].next = ip_pmtu_pool + (i+1);
+	ip_pmtu_pool[i].next = NULL;
+
+	ip_pmtu_freelist  = ip_pmtu_pool;
+	ip_pmtu_head = NULL;
+
+	ip_pmtu_start_timer();
+}
+
+static void ip_pmtu_free_list(struct pmtu_info  *head)
+{
+	struct pmtu_info  *last;
+
+	/* go to end */
+	last = head;
+	while (last->next != NULL)
+		last = last->next;
+
+	last->next = ip_pmtu_freelist;
+	ip_pmtu_freelist = head;
+}
+
+/* Increase 'mtu' to the first greater internet's MTU */
+void pmtu_increase(struct pmtu_info  *p, u16_t defval)
+{
+	int i; 
+
+	p->pmtu = defval;
+
+	/* Find the first MTU greater than 'p->pmtu' */
+	for (i=0; i < IP_COMMONS_MTUS; i++) 
+		if ( p->pmtu < ip_pmtu_common_mtus[i]) { 
+			p->pmtu = ip_pmtu_common_mtus[i]; 
+			break; 
+		} 
+}
+
+err_t ip_pmtu_add(struct ip_addr *src, struct ip_addr *dest, u8_t tos, u16_t mtu)
+{
+	if (ip_pmtu_freelist == NULL)
+		return ERR_MEM;
+	else {
+		struct ip_route_list *entry;
+		struct pmtu_info **dp = (&ip_pmtu_head);
+		struct pmtu_info  *el = ip_pmtu_freelist;
+
+		LWIP_DEBUGF(PMTU_DEBUG, ("ip_pmtu_add: new entry"));
+		LWIP_DEBUGF(PMTU_DEBUG, ("[src=")); ip_addr_debug_print(PMTU_DEBUG, src);
+		LWIP_DEBUGF(PMTU_DEBUG, (" dest=")); ip_addr_debug_print(PMTU_DEBUG, dest);
+		LWIP_DEBUGF(PMTU_DEBUG, (" tos=%d", tos));
+		LWIP_DEBUGF(PMTU_DEBUG, (" mtu=%d]\n", mtu));
+
+		/* If we find a route entry in the routing which matches 
+		   destination address */
+		if (pmtu_find_route_entry(dest, &entry) == ERR_OK) {
+
+			/* Get new PMTU descriptor */
+			ip_pmtu_freelist = ip_pmtu_freelist->next;
+			el->next = *dp;
+			*dp      = el;
+
+			/* Save Path MTU informations */
+			ip_addr_set( &el->dest, dest );
+			ip_addr_set( &el->src , src  );
+			el->tos       = tos;
+			el->pmtu      = mtu;
+
+			/* Just created. Start PMTU Increase later */
+			el->op_timeout = PMTU_INCREASE_TIMEOUT; 
+			el->flags      = PMTU_FLAG_INCREASE;
+
+			/* this entry is new */
+			el->expire_time = 0; 
+			
+			/* Add PMTU informations in the route entry */
+			el->next = entry->pmtu_list;
+			entry->pmtu_list = el;
+
+			LWIP_DEBUGF(PMTU_DEBUG, ("ip_pmtu_add: added.\n"));
+			return ERR_OK;
+		}
+		else {
+			LWIP_DEBUGF(PMTU_DEBUG, ("ip_pmtu_add: not found route\n"));
+			return ERR_RTE;
+		}
+	}
+}
+
+static inline err_t ip_pmtu_findinfo(struct ip_addr *dest, struct ip_addr *src, u8_t tos, struct pmtu_info **p)
+{
+	struct ip_route_list *entry;
+
+	if (pmtu_find_route_entry(dest, &entry) == ERR_OK) {
+
+		/* Search */
+		struct pmtu_info *i = entry->pmtu_list;
+		while (i != NULL) {
+
+			if (ip_addr_cmp(&i->dest, dest) && ip_addr_cmp(&i->src, src) && (i->tos == tos))
+				break;
+
+			i = i->next;
+		}
+
+		if (i != NULL) {
+			*p = i;
+			return ERR_OK;
+		}
+		LWIP_DEBUGF(PMTU_DEBUG, ("ip_pmtu_findinfo: entry not found "));
+		LWIP_DEBUGF(PMTU_DEBUG, ("[src=")); ip_addr_debug_print(PMTU_DEBUG, src);
+		LWIP_DEBUGF(PMTU_DEBUG, (" dest=")); ip_addr_debug_print(PMTU_DEBUG, dest);
+		LWIP_DEBUGF(PMTU_DEBUG, (" tos=%d]\n", tos));
+
+		*p = NULL;		
+		return ERR_RTE;
+	}
+	else {
+		LWIP_DEBUGF(PMTU_DEBUG, ("ip_pmtu_findinfo: ______________ROUTE ENTRY NOT FOUND_______________ "));	
+	}
+	return ERR_RTE;
+}
+
+err_t ip_pmtu_getmtu(struct ip_addr *dest, struct ip_addr *src, u8_t tos, u16_t *mtu)
+{
+	struct pmtu_info *i=NULL;
+
+	/* find pmtu info */
+	if (ip_pmtu_findinfo(dest, src, tos, &i) == ERR_OK) {
+		*mtu = i->pmtu;
+		/* Reset expire time */
+		i->expire_time = 0;
+		return ERR_OK;
+	}
+	return ERR_RTE;
+}
+
+err_t ip_pmtu_decrease(struct ip_addr *dest, struct ip_addr *src, u8_t tos, u16_t new_mtu)
+{
+	struct pmtu_info *i=NULL;
+
+	/* find pmtu info */
+	if (ip_pmtu_findinfo(dest, src, tos, &i) == ERR_OK) {
+		LWIP_DEBUGF(PMTU_DEBUG, ("ip_pmtu_decrease: decreased "));
+		LWIP_DEBUGF(PMTU_DEBUG, ("[src=")); ip_addr_debug_print(PMTU_DEBUG, &i->src);
+		LWIP_DEBUGF(PMTU_DEBUG, (" dest=")); ip_addr_debug_print(PMTU_DEBUG, &i->dest);
+		LWIP_DEBUGF(PMTU_DEBUG, (" tos=%d", i->tos));
+		LWIP_DEBUGF(PMTU_DEBUG, (" mtu=%d] ", i->pmtu));
+		LWIP_DEBUGF(PMTU_DEBUG, ("downto %d\n", new_mtu ));
+
+		if (i->pmtu < new_mtu)
+			LWIP_DEBUGF(PMTU_DEBUG, ("ip_pmtu_decrease: ***WARNING*** pmtu(%d) > decremented mtu(%d) \n", i->pmtu, new_mtu ));
+
+		i->pmtu = new_mtu;
+
+		/* Reset expire time */
+		i->expire_time = 0;
+
+		/* Wait a while before increase again Path MTU */					
+		i->op_timeout = PMTU_INCREASE_TIMEOUT;
+		i->flags      = PMTU_FLAG_INCREASE;
+
+		/*
+         * TODO: notify Transport Level (TCP/UDP)
+         */
+
+		return ERR_OK;
+	}
+	return ERR_RTE;
+}
+
+
+/* Called every  minute. Visits routing table:
+ *   - remove unused pmtu_info 
+ *   - increase Path MTU
+ *   - restore PathMTU to the next-hop's mtu
+ */
+static inline void pmtu_tmr(void)
+{
+	struct ip_route_list *r;
+	struct pmtu_info **i;
+	struct pmtu_info *removed;
+
+	r  = ip_route_head;
+	while (r != NULL) { 
+
+		/* Check all per-host destination for this route */
+		i = & r->pmtu_list;
+		while (*i != NULL) {
+
+			(*i)->expire_time++;
+
+			/* First, clean garbage */
+			if ((*i)->expire_time != PMTU_NEVER_EXPIRE) 
+			if ((*i)->expire_time >= PMTU_EXPIRE_TIMEOUT) {
+				LWIP_DEBUGF(PMTU_DEBUG, ("pmtu_timer: entry "));
+				LWIP_DEBUGF(PMTU_DEBUG, ("[src=")); ip_addr_debug_print(PMTU_DEBUG, & (*i)->src);
+				LWIP_DEBUGF(PMTU_DEBUG, (" dest=")); ip_addr_debug_print(PMTU_DEBUG, & (*i)->dest);
+				LWIP_DEBUGF(PMTU_DEBUG, (" tos=%d", (*i)->tos));
+				LWIP_DEBUGF(PMTU_DEBUG, (" mtu=%d] expired! \n", (*i)->pmtu));
+				/* Adjust list pointers */
+				removed = *i;
+				*i = removed->next;
+
+				/* TODO: notify Transport Layer (UDP/TCP) */
+
+				/* add pmtu_info to the free list */
+				removed->next = ip_pmtu_freelist;
+				ip_pmtu_freelist = removed;
+				continue;
+			}
+
+			/* Update operations timeout */
+			(*i)->op_timeout --;
+
+			if ((*i)->op_timeout == 0) {
+				LWIP_DEBUGF(PMTU_DEBUG, ("pmtu_timer: timeout on entry"));
+				LWIP_DEBUGF(PMTU_DEBUG, ("[src=")); ip_addr_debug_print(PMTU_DEBUG, & (*i)->src);
+				LWIP_DEBUGF(PMTU_DEBUG, (" dest=")); ip_addr_debug_print(PMTU_DEBUG, & (*i)->dest);
+				LWIP_DEBUGF(PMTU_DEBUG, (" tos=%d", (*i)->tos));
+				LWIP_DEBUGF(PMTU_DEBUG, (" mtu=%d]\n", (*i)->pmtu));
+				if ((*i)->flags == PMTU_FLAG_INCREASE) {
+					pmtu_increase( (*i) , r->netif->mtu );
+					LWIP_DEBUGF(PMTU_DEBUG, ("pmtu_timer: increased pmtu to %d >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n",(*i)->pmtu ));
+					/* In the near future we could have to decrease mtu */					
+					(*i)->op_timeout = PMTU_DECREASE_TIMEOUT;
+					(*i)->flags      = PMTU_FLAG_DECREASE;
+
+				} else 
+				if ((*i)->flags == PMTU_FLAG_DECREASE) {
+					/* Restore PathMTU to next-hop's mtu */
+					(*i)->pmtu = r->netif->mtu;
+					LWIP_DEBUGF(PMTU_DEBUG, ("pmtu_timer: decreased pmtu downto %d <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n",(*i)->pmtu ));
+					/* Wait a while before increase again Path MTU */					
+					(*i)->op_timeout = PMTU_INCREASE_TIMEOUT;
+					(*i)->flags      = PMTU_FLAG_INCREASE;
+				}
+			}
+			i = &((*i)->next);
+		}
+		r = r->next;
+	}
+}
+
+static void pmtu_timer_callback(void *arg)
+{
+	pmtu_tmr();
+
+	sys_timeout(PMTU_TMR_INTERVAL, pmtu_timer_callback, NULL);
+}
+
+static void ip_pmtu_start_timer(void)
+{
+	sys_timeout(PMTU_TMR_INTERVAL, pmtu_timer_callback, NULL);
+}
+
+#endif
+
+
+#endif /* IPv6_PMTU_DISCOVERY */

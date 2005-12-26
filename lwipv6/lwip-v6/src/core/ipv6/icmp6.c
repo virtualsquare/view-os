@@ -55,6 +55,8 @@
 
 #include "lwip/opt.h"
 
+#include "lwip/debug.h"
+
 #include "lwip/ip.h"
 #include "lwip/icmp.h"
 #include "lwip/inet.h"
@@ -63,20 +65,27 @@
 #include "lwip/stats.h"
 
 
+#ifndef ICMP_DEBUG
+#define ICMP_DEBUG   DBG_OFF
+#endif
+
 void
 icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr)
 {
+	struct ip_hdr  *iphdr;
+	struct ip4_hdr *ip4hdr;
 	unsigned char type;
 	struct icmp_echo_hdr *iecho;
-	struct icmp_ns_hdr *ins;
-	struct ip_hdr *iphdr;
-	struct ip4_hdr *ip4hdr;
-	struct netif *inp=inad->netif;
+	struct icmp_ns_hdr   *ins;
+	struct icmp_na_hdr   *ina;
+	struct icmp_ra_hdr   *ira;
+	struct icmp_opt      *opt;
 	struct ip_addr tmpdest;
 
-#ifdef ICMP_STATS
-	++lwip_stats.icmp.recv;
-#endif /* ICMP_STATS */
+	struct netif *inp = inad->netif;
+
+
+	ICMP_STATS_INC(icmp.recv);
 
 	/* TODO: check length before accessing payload! */
 	if (pbuf_header(p, -(piphdr->iphdrlen)) || (p->tot_len < sizeof(u16_t)*2)) {
@@ -86,133 +95,162 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 	}
 
 	type = ((char *)p->payload)[0];
-	/*printf("type %d %d\n",type,piphdr->iphdrlen);*/
-
 	switch (type | (piphdr->version << 8)) {
-		case ICMP6_ECHO | (6 << 8):
-			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: ping\n"));
 
+		case ICMP6_ECHO | (6 << 8):
+			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input:  icmp6 ping\n"));
 			if (p->tot_len < sizeof(struct icmp_echo_hdr)) {
 				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: bad ICMP echo received\n"));
-
 				pbuf_free(p);
-#ifdef ICMP_STATS
-				++lwip_stats.icmp.lenerr;
-#endif /* ICMP_STATS */
-
+				ICMP_STATS_INC(icmp.lenerr);
 				return;
 			}
 			iecho = p->payload;
 			iphdr = (struct ip_hdr *)((char *)p->payload - IP_HLEN);
-			LWIP_DEBUGF(ICMP_DEBUG, ("from ")); 
-			ip_addr_debug_print(ICMP_DEBUG,  &(iphdr->src));
-			LWIP_DEBUGF(ICMP_DEBUG, ("  to ")); 
-			ip_addr_debug_print(ICMP_DEBUG,  &(iphdr->dest));
+			LWIP_DEBUGF(ICMP_DEBUG, ("from ")); ip_addr_debug_print(ICMP_DEBUG,  &(iphdr->src));
+			LWIP_DEBUGF(ICMP_DEBUG, ("  to ")); ip_addr_debug_print(ICMP_DEBUG,  &(iphdr->dest));
 			LWIP_DEBUGF(ICMP_DEBUG, ("\n")); 
-			/* if (inet_chksum_pbuf(p) != 0) { */
+
 			if (inet6_chksum_pseudo(p, &(iphdr->src), &(iphdr->dest), IP_PROTO_ICMP, p->tot_len) != 0) {
 				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: checksum failed for received ICMP echo (%x)\n", inet6_chksum_pseudo(p, &(iphdr->src), &(iphdr->dest), IP_PROTO_ICMP, p->tot_len)));
-
-#ifdef ICMP_STATS
-				++lwip_stats.icmp.chkerr;
-#endif /* ICMP_STATS */
+				ICMP_STATS_INC(icmp.chkerr);
 				return;
 			}
 			LWIP_DEBUGF(ICMP_DEBUG, ("icmp: p->len %d p->tot_len %d\n", p->len, p->tot_len));
+
+			/* Set up echo response */
 			ip_addr_set(&tmpdest, piphdr->src);
 			iecho->type = ICMP6_ER;
 
 			/*compute the new checksum*/
 			iecho->chksum = 0;
 			iecho->chksum = inet6_chksum_pseudo(p, &(iphdr->src), &(iphdr->dest), IP_PROTO_ICMP, p->tot_len);
-#ifdef ICMP_STATS
-			++lwip_stats.icmp.xmit;
-#endif /* ICMP_STATS */
 
-			/*    LWIP_DEBUGF("icmp: p->len %u p->tot_len %u\n", p->len, p->tot_len);*/
+			ICMP_STATS_INC(icmp.xmit);
+
 			/* XXX ECHO must be routed */
-			/*ip_output_if (p, &(iphdr->src), IP_HDRINCL,
-					IPH_HOPLIMIT(iphdr), 0, IP_PROTO_ICMP, inp,
-					&(iphdr->dest), 0);*/
-			ip_output (p, &(inad->ipaddr), &tmpdest,
-					IPH_HOPLIMIT(iphdr), 0, IP_PROTO_ICMP);
-			/*ip_output (p, &(inad->ipaddr), piphdr->src,
-					IPH_HOPLIMIT(iphdr), 0, IP_PROTO_ICMP);*/
+			ip_output (p, &(inad->ipaddr), &tmpdest, IPH_HOPLIMIT(iphdr), 0, IP_PROTO_ICMP);
 			break;
-		case ICMP6_RA | (6 << 8):
-			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: router advertisement\n"));
-			break;
+
+		/*
+		 * Neighbor Sollicitation protocol
+		 */
 		case ICMP6_NS | (6 << 8):
-			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: neighbor solicitation\n"));
-			if (p->tot_len < sizeof(struct icmp_echo_hdr)) {
+			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: icmp6 neighbor solicitation\n"));
+			if (p->tot_len < sizeof(struct icmp_ns_hdr)) {
 				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: bad ICMP neighbor solicitation received\n"));
 				pbuf_free(p);
-#ifdef ICMP_STATS
-				++lwip_stats.icmp.lenerr;
-#endif /* ICMP_STATS */
+				ICMP_STATS_INC(icmp.lenerr);
 				return;
 			}
 			ins = p->payload;
 			iphdr = (struct ip_hdr *)((char *)p->payload - IP_HLEN);
-			LWIP_DEBUGF(ICMP_DEBUG, ("from ")); 
-			ip_addr_debug_print(ICMP_DEBUG,  &(iphdr->src));
-			LWIP_DEBUGF(ICMP_DEBUG, ("  to ")); 
-			ip_addr_debug_print(ICMP_DEBUG,  &(iphdr->dest));
-			LWIP_DEBUGF(ICMP_DEBUG, ("  localaddr ")); 
-			ip_addr_debug_print(ICMP_DEBUG,  &(inad->ipaddr));
+			LWIP_DEBUGF(ICMP_DEBUG, ("from ")); ip_addr_debug_print(ICMP_DEBUG,  &(iphdr->src));
+			LWIP_DEBUGF(ICMP_DEBUG, ("  to ")); ip_addr_debug_print(ICMP_DEBUG,  &(iphdr->dest));
+			LWIP_DEBUGF(ICMP_DEBUG, ("  localaddr ")); ip_addr_debug_print(ICMP_DEBUG,  &(inad->ipaddr));
 			LWIP_DEBUGF(ICMP_DEBUG, ("\n")); 
 			/* it is a multicast, maybe it is not for us! */
-			if (! ip_addr_cmp(&inad->ipaddr, (struct ip_addr *)(ins+1))) {
+			if (! ip_addr_cmp(&inad->ipaddr, (struct ip_addr *) &ins->targetip)) {
 				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: not for us\n"));
 				pbuf_free(p);
 				return;
 			}
 
-			/* if (inet6_chksum_pbuf(p) != 0) { */
 			if (inet6_chksum_pseudo(p, &(iphdr->src), &(iphdr->dest), IP_PROTO_ICMP, p->tot_len) != 0) {
 				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: checksum failed for received ICMP NS (%x)\n", inet6_chksum_pseudo(p, &(iphdr->src), &(iphdr->dest), IP_PROTO_ICMP, p->tot_len)));
-#ifdef ICMP_STATS
-				++lwip_stats.icmp.chkerr;
-#endif /* ICMP_STATS */
+				ICMP_STATS_INC(icmp.chkerr);
 				pbuf_free(p);
 				return;
 			}
-			{
-				ip_addr_set(&(iphdr->dest), &(iphdr->src));
-				ip_addr_set(&(iphdr->src), &(inad->ipaddr));
-			}
-			ins->type = ICMP6_NA;
+
+			/* Create response */
+
+			iphdr = (struct ip_hdr *)((char *)p->payload - IP_HLEN);
+			ina = p->payload;
+			opt = p->payload + sizeof(struct icmp_na_hdr);			
+
+			/* Set IP header */
+			ip_addr_set(&(iphdr->dest), &(iphdr->src));
+			ip_addr_set(&(iphdr->src), &(inad->ipaddr));
+
+			/* Set ICMP NA fields */
+			ina->type = ICMP6_NA;
+			ina->icode = 0;
+			/* FIX: why R bit set ? */
+			ina->rso_flags = (ICMP6_NA_S | ICMP6_NA_O | ICMP6_NA_R);
+			bzero(ina->reserved, 3);
+
+			/* ina->targetip   Don't touch this field. For solicited 
+			   advertisements, the Target Address field in the Neighbor 
+			   Solicitation message that prompted this advertisement. */
+
+			/* Set Target link-layer address */
+			opt->type = ICMP6_OPT_DESTADDR;
+			opt->len  = ICMP6_OPT_LEN_ETHER;
+			memcpy( &opt->addr, &(inp->hwaddr), inp->hwaddr_len);
+
+			/* Calculate checksum */
 			ins->chksum = 0;
-			ins->flags = 0xe0000000;
-			*(((char *)(ins)+sizeof(struct icmp_ns_hdr)+sizeof(struct ip_addr)))=2; /*  XXX options brute-force management! */
-			memcpy(((char *)(ins)+sizeof(struct icmp_ns_hdr)+sizeof(struct ip_addr)+2),&(inp->hwaddr),inp->hwaddr_len); /*  XXX options brute-force management! */
 			ins->chksum = inet6_chksum_pseudo(p, &(iphdr->src), &(iphdr->dest), IP_PROTO_ICMP, p->tot_len);
+
 			LWIP_DEBUGF(ICMP_DEBUG, ("icmp: p->len %u p->tot_len %u\n", p->len, p->tot_len));
-			ip_output_if (p, &(iphdr->src), IP_HDRINCL,
-					IPH_HOPLIMIT(iphdr), 0, IP_PROTO_ICMP, inp, &(iphdr->dest), 0);
+			LWIP_DEBUGF(ICMP_DEBUG, ("icmp: send Neighbor Advertisement\n"));
+
+			ip_output_if (p, &(iphdr->src), IP_HDRINCL, IPH_HOPLIMIT(iphdr), 0, IP_PROTO_ICMP, inp, &(iphdr->dest), 0);
 			break;
+
 		case ICMP6_NA | (6 << 8):
-			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: neighbor advertisement\n"));
-			if (p->tot_len < sizeof(struct icmp_echo_hdr)) {
+			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input:  icmp6 neighbor advertisement\n"));
+			if (p->tot_len < sizeof(struct icmp_na_hdr)) {
 				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: bad ICMP neighbor advertisement received\n"));
 				pbuf_free(p);
-#ifdef ICMP_STATS
-				++lwip_stats.icmp.lenerr;
-#endif /* ICMP_STATS */
+				ICMP_STATS_INC(icmp.lenerr);
 				return;
 			}
-			ins = p->payload;
+			ina = p->payload;
+			opt = p->payload + sizeof(struct icmp_na_hdr);			
 			iphdr = (struct ip_hdr *)((char *)p->payload - IP_HLEN);
 			if (inet6_chksum_pseudo(p, &(iphdr->src), &(iphdr->dest), IP_PROTO_ICMP, p->tot_len) != 0) {
 				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: checksum failed for received ICMP NS (%x)\n", inet6_chksum_pseudo(p, &(iphdr->src), &(iphdr->dest), IP_PROTO_ICMP, p->tot_len)));
-#ifdef ICMP_STATS
-				++lwip_stats.icmp.chkerr;
-#endif /* ICMP_STATS */
+				ICMP_STATS_INC(icmp.chkerr);
 				return;
 			}
+
+#ifdef IPv6_PMTU_DISCOVERY
+			/* TODO: 
+			   - check R,S,O bits
+			*/
+			/* FIX: this function is 'static' in etharp.c 
+			update_arp_entry(inp, & ina->targetip, & opt->addr, 0); 
+			*/
+#endif
 			break;
+
+		/*
+		 * Router Advertisement Protocol 
+		 */
+		case ICMP6_RS | (6 << 8):
+			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: icmp6 router solicitation. Not supported!\n"));
+			break;
+
+		case ICMP6_RA | (6 << 8):
+			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: icmp6 router advertisement. Not supported!\n"));
+
+			ira = p->payload;
+			LWIP_DEBUGF(ICMP_DEBUG, ("Hop Limit: %d\n", ira->hoplimit));
+			LWIP_DEBUGF(ICMP_DEBUG, ("Flag M   : %d\n", ira->m_o_flag & ICMP6_RA_M));
+			LWIP_DEBUGF(ICMP_DEBUG, ("Flag O   : %d\n", ira->m_o_flag & ICMP6_RA_O));
+			LWIP_DEBUGF(ICMP_DEBUG, ("Router Life: %d\n", ntohs(ira->life)     ));
+			LWIP_DEBUGF(ICMP_DEBUG, ("Reachable Time: %d\n", ntohl(ira->reach)  ));
+			LWIP_DEBUGF(ICMP_DEBUG, ("Retrans Timer: %d\n", ntohl(ira->retran) ));
+
+			break;
+
+		/*
+		 * IPv4
+		 */
 		case ICMP4_ECHO | (4 << 8):
-			/*printf("echo v4\n");*/
+			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: icmp4 echo\n"));
 			if (ip_addr_is_v4broadcast(piphdr->dest, &(inad->ipaddr), &(inad->netmask)) ||
 					ip_addr_ismulticast(piphdr->dest)) {
 				LWIP_DEBUGF(ICMP_DEBUG, ("Smurf.\n"));
@@ -221,20 +259,17 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 				return;
 			}
 
-			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: ping\n"));
 			if (p->tot_len < sizeof(struct icmp_echo_hdr)) {
 				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: bad ICMP echo received\n"));
-				pbuf_free(p);
 				ICMP_STATS_INC(icmp.lenerr);
-				/*snmp_inc_icmpinerrors();*/
-
+				pbuf_free(p);
 				return;
 			}
+
+			/* Set up echo response */
 			iecho = p->payload;
 			ip4hdr = (struct ip4_hdr *)((char *)p->payload - piphdr->iphdrlen);
 			ip_addr_set(&tmpdest, piphdr->src);
-			/*ip4hdr->dest.addr=piphdr->src->addr[3];
-			ip4hdr->src.addr=piphdr->dest->addr[3];*/
 
 			iecho->type=ICMP4_ER;	
 
@@ -244,83 +279,113 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 				iecho->chksum += htons(ICMP4_ECHO << 8);
 			}
 			ICMP_STATS_INC(icmp.xmit);
-			/*ip_output_if(p, piphdr->dest, IP_HDRINCL,
-					IPH4_TTL(ip4hdr), 0, IP_PROTO_ICMP, inp,
-					piphdr->src, 0);*/
-			ip_output(p, &(inad->ipaddr), &tmpdest,
-					IPH4_TTL(ip4hdr), 0, IP_PROTO_ICMP4);
+			ip_output(p, &(inad->ipaddr), &tmpdest,	IPH4_TTL(ip4hdr), 0, IP_PROTO_ICMP4);
 			break;
 		default:
 			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: ICMP type %d not supported.\n", (int)type));
-#ifdef ICMP_STATS
-			++lwip_stats.icmp.proterr;
-			++lwip_stats.icmp.drop;
-#endif /* ICMP_STATS */
-	}
+			ICMP_STATS_INC(icmp.proterr);
+			ICMP_STATS_INC(icmp.drop);
 
+	}
 	pbuf_free(p);
 }
 
+
+/*
+ * Send a Neighbor Solicitation message.
+ * See seciont 4.3. of RFC 2461. 
+ */
 void
 icmp_neighbor_solicitation(struct ip_addr *ipaddr, struct ip_addr_list *inad)
 {
 	struct pbuf *q;
 
 	struct icmp_ns_hdr *ins;
-	char *opts;
+    struct icmp_opt    *iopt;
 	struct ip_addr targetaddr;
-	struct netif *inp=inad->netif;
-	LWIP_ASSERT("ICMP_NEIGHBOR_SOLICITATION NULL interface",inp != NULL);
-	LWIP_ASSERT("ICMP_NEIGHBOR_SOLICITATION NULL HWADDR",inp->hwaddr != NULL);
-	/*printf("icmp_neighbor_solicitation %x:%x:%x:%x from %x:%x:%x:%x\n",
-			ipaddr->addr[0],
-			ipaddr->addr[1],
-			ipaddr->addr[2],
-			ipaddr->addr[3],
-			inad->ipaddr.addr[0],
-			inad->ipaddr.addr[1],
-			inad->ipaddr.addr[2],
-			inad->ipaddr.addr[3]
-			);*/
+	struct netif *inp = inad->netif;
 
-	targetaddr.addr[0]=htonl(0xff020000);
-	targetaddr.addr[1]=0;
-	targetaddr.addr[2]=htonl(1);
-	targetaddr.addr[3]=ipaddr->addr[3] | htonl(0xff000000);
-	q=pbuf_alloc(PBUF_IP, sizeof(struct icmp_ns_hdr)+sizeof(struct ip_addr)+8, PBUF_RAM);
-	LWIP_ASSERT("icmp_neighbor_solicitation pbuf_alloc != NULL",q!=NULL);
-	ins=q->payload;
-	ins->type=ICMP6_NS;
-	ins->icode=0;
-	ins->chksum=0;
-	ins->flags=0;
-	memcpy(((char *)(ins+1)),(char *)ipaddr,sizeof(struct ip_addr));
-	opts=((char *)(ins+1))+sizeof(struct ip_addr);
-	*opts++=1;
-	*opts++=1;
-	memcpy(opts,&(inp->hwaddr),inp->hwaddr_len); /*  XXX options brute-force management! */
+	LWIP_DEBUGF(ICMP_DEBUG, ("icmp_neighbor_solicitation: sending NS\n"));
+
+    /* Setup a multicast address assigned for Neighbor Discovery */
+	targetaddr.addr[0] = htonl(0xff020000);
+	targetaddr.addr[1] =       0x00000000;
+	targetaddr.addr[2] = htonl(0x00000001);
+	targetaddr.addr[3] = htonl(0xff000000) | ipaddr->addr[3]; 	/* FIX: why ? */
+
+//	q = pbuf_alloc(PBUF_IP, 8 + IP_HLEN + sizeof(struct icmp_ns_hdr) + sizeof(struct icmp_opt), PBUF_RAM);
+	q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_ns_hdr) + sizeof(struct icmp_opt) + 6, PBUF_RAM);
+
+	/* Fill icmp header */
+	ins = q->payload;
+	ins->type  = ICMP6_NS;
+	ins->icode = 0;
+	ins->reserved = 0;
+
+	/* The IP address of the target of the solicitation.
+       It MUST NOT be a multicast address. */
+	memcpy(&ins->targetip, ipaddr, sizeof(struct ip_addr));
+
+	LWIP_DEBUGF(ICMP_DEBUG, ("\ttargetip: ")); ip_debug_print(ICMP_DEBUG, &ins->targetip);
+
+	/* Fill option header */
+    iopt = q->payload + sizeof(struct icmp_ns_hdr);
+	iopt->type = ICMP6_OPT_SRCADDR;
+    iopt->len  = ICMP6_OPT_LEN_ETHER;
+	memcpy(&iopt->addr, &(inp->hwaddr), inp->hwaddr_len);
+
+	/* Calculate checksum */
 	ins->chksum = 0;
 	ins->chksum = inet6_chksum_pseudo(q, &(inad->ipaddr), &(targetaddr), IP_PROTO_ICMP, q->tot_len);
-	/*printf("icmp_neighbor_solicitation %x:%x:%x:%x from %x:%x:%x:%x\n",
-			targetaddr.addr[0],
-			targetaddr.addr[1],
-			targetaddr.addr[2],
-			targetaddr.addr[3],
-			inad->ipaddr.addr[0],
-			inad->ipaddr.addr[1],
-			inad->ipaddr.addr[2],
-			inad->ipaddr.addr[3]
-			);*/
-	ip_output_if (q, &(inad->ipaddr), &targetaddr,
-					255, 0, IP_PROTO_ICMP, inp, &(targetaddr), 0);
-#if 0
-	/*  LOOP! ip_output_if does not recognize mcastv6 */
-	ip_output_if (q, &(inp->ip_addr), NULL,
-					255, 0, IP_PROTO_ICMP, inp);
-	ip_output_if (q, IP_ADDR_ANY, NULL,
-					255, 0, IP_PROTO_ICMP, inp);
-#endif
-	
+
+	ip_output_if (q, &(inad->ipaddr), &targetaddr, 255, 0, IP_PROTO_ICMP, inp, &(targetaddr), 0);
+
+	pbuf_free(q);
+}
+
+/*
+ * Send a Neighbor Solicitation message.
+ * See seciont 4.3. of RFC 2461. 
+ */
+void
+icmp_router_solicitation(struct ip_addr *ipaddr, struct ip_addr_list *inad)
+{
+	struct pbuf *q;
+
+	struct icmp_rs_hdr *irs;
+    struct icmp_opt    *iopt;
+	struct ip_addr      targetaddr;
+	struct netif *inp = inad->netif;
+
+	LWIP_DEBUGF(ICMP_DEBUG, ("icmp_router_solicitation: sending RS\n"));
+
+    /* Setup a multicast address assigned for Neighbor Discovery */
+	targetaddr.addr[0] = htonl(0xff020000);
+	targetaddr.addr[1] =       0x00000000;
+	targetaddr.addr[2] = htonl(0x00000002);
+	targetaddr.addr[3] = htonl(0x00000001); /* FIX: is right? no? */
+
+//	q = pbuf_alloc(PBUF_IP, 8 + IP_HLEN + sizeof(struct icmp_rs_hdr) + sizeof(struct icmp_opt), PBUF_RAM);
+	q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_rs_hdr) + sizeof(struct icmp_opt) + 6, PBUF_RAM);
+
+	/* Fill icmp header */
+	irs = q->payload;
+	irs->type     = ICMP6_RS;
+	irs->icode    = 0;
+	irs->reserved = 0;
+
+	/* Fill option header */
+    iopt = q->payload + sizeof(struct icmp_rs_hdr);
+	iopt->type = ICMP6_OPT_SRCADDR;
+    iopt->len  = ICMP6_OPT_LEN_ETHER;
+	memcpy(&iopt->addr, &(inp->hwaddr), inp->hwaddr_len);
+
+	/* Calculate checksum */
+	irs->chksum = 0;
+	irs->chksum = inet6_chksum_pseudo(q, &(inad->ipaddr), &(targetaddr), IP_PROTO_ICMP, q->tot_len);
+
+	ip_output_if (q, &(inad->ipaddr), &targetaddr, 255, 0, IP_PROTO_ICMP, inp, &(targetaddr), 0);
+
 	pbuf_free(q);
 }
 
@@ -345,9 +410,7 @@ icmp_dest_unreach(struct pbuf *p, enum icmp_dur_type t)
 	/* calculate checksum */
 	idur->chksum = 0;
 	idur->chksum = inet_chksum(idur, q->len);
-#ifdef ICMP_STATS
-	++lwip_stats.icmp.xmit;
-#endif /* ICMP_STATS */
+	ICMP_STATS_INC(icmp.xmit);
 
 	ip_output(q, NULL,
 			(struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
@@ -360,27 +423,123 @@ icmp_time_exceeded(struct pbuf *p, enum icmp_te_type t)
 	struct pbuf *q;
 	struct ip_hdr *iphdr;
 	struct icmp_te_hdr *tehdr;
-
+	
+	
 	LWIP_DEBUGF(ICMP_DEBUG, ("icmp_time_exceeded\n"));
-
+	
 	q = pbuf_alloc(PBUF_IP, 8 + IP_HLEN + 8, PBUF_RAM);
-
+	
 	iphdr = p->payload;
-
+	
 	tehdr = q->payload;
 	tehdr->type = (char)ICMP6_TE;
 	tehdr->icode = (char)t;
-
+	
 	/* copy fields from original packet */
 	memcpy((char *)q->payload + 8, (char *)p->payload, IP_HLEN + 8);
-
+	
 	/* calculate checksum */
 	tehdr->chksum = 0;
 	tehdr->chksum = inet_chksum(tehdr, q->len);
-#ifdef ICMP_STATS
-	++lwip_stats.icmp.xmit;
-#endif /* ICMP_STATS */
-	ip_output(q, NULL,
-			(struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
+	
+	ICMP_STATS_INC(icmp.xmit);
+	
+	ip_output(q, NULL, (struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
 	pbuf_free(q);
+}
+
+void
+icmp_packet_too_big(struct pbuf *p, u16_t mtu)
+{
+	struct pbuf *q;
+	struct ip_hdr *iphdr;
+	struct icmp_ptb_hdr *ptbhdr;
+	
+	LWIP_DEBUGF(ICMP_DEBUG, ("icmp_packet_too_big\n"));
+	
+	/* ICMP header + IP header + 8 bytes of data */
+	q = pbuf_alloc(PBUF_IP, 8 + IP_HLEN + 8, PBUF_RAM);
+	
+	/* Fill ICMP header */
+	ptbhdr        = q->payload;
+	ptbhdr->type  = (char)ICMP6_PTB;
+	ptbhdr->icode = 0;
+	ptbhdr->mtu   = htons(mtu);
+	
+	/* copy fields from original packet */
+	iphdr = p->payload;
+	memcpy((char *)q->payload + 8, (char *)p->payload, IP_HLEN + 8);
+	
+	/* calculate ICMP checksum */
+	ptbhdr->chksum = 0;
+	ptbhdr->chksum = inet_chksum(ptbhdr, q->len);
+	
+	ICMP_STATS_INC(icmp.xmit);
+	
+	/* Send */
+	ip_output(q, NULL, (struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
+	pbuf_free(q);
+}
+
+
+/* added by Diego Billi */
+
+void
+icmp4_dest_unreach(struct pbuf *p, enum icmp_dur_type t, u16_t nextmtu )
+{
+  struct pbuf *q;
+  struct ip4_hdr *iphdr;
+  struct icmp_dur_hdr *idur;
+  struct ip_addr tmpdest;
+
+  /* ICMP header + IP header + 8 bytes of data */
+  q = pbuf_alloc(PBUF_IP, 8 + IP4_HLEN + 8, PBUF_RAM);
+
+  iphdr = p->payload;
+
+  idur = q->payload;
+  idur->type = (char)ICMP4_DUR;
+  idur->icode = (char)t;
+  memcpy((char *)q->payload + 8, p->payload, IP4_HLEN + 8);
+
+  /* calculate checksum */
+  idur->chksum = 0;
+  idur->chksum = inet_chksum(idur, q->len);
+
+  ICMP_STATS_INC(icmp.xmit);
+
+  IP64_CONV(&tmpdest, &iphdr->src);
+  ip_output(q, NULL, &tmpdest, ICMP_TTL, 0, IP_PROTO_ICMP4);
+  pbuf_free(q);
+}
+
+void
+icmp4_time_exceeded(struct pbuf *p, enum icmp_te_type t)
+{
+  struct pbuf *q;
+  struct ip4_hdr *iphdr;
+  struct icmp_te_hdr *tehdr;
+  struct ip_addr tmpdest;
+
+  /* ICMP header + IP header + 8 bytes of data */
+  q = pbuf_alloc(PBUF_IP, 8 + IP4_HLEN + 8, PBUF_RAM);
+
+  iphdr = p->payload;
+
+  tehdr = q->payload;
+  tehdr->type = (char)ICMP4_TE;
+  tehdr->icode = (char)t;
+  /* copy fields from original packet */
+  memcpy((char *)q->payload + 8, (char *)p->payload, IP4_HLEN + 8);
+
+  /* calculate checksum */
+  tehdr->chksum = 0;
+  tehdr->chksum = inet_chksum(tehdr, q->len);
+
+  ICMP_STATS_INC(icmp.xmit);
+
+  IP64_CONV(&tmpdest, &iphdr->src);
+
+  ip_output(q, NULL, &tmpdest, ICMP_TTL, 0, IP_PROTO_ICMP4);
+  pbuf_free(q);
 }

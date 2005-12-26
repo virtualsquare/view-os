@@ -10,9 +10,9 @@
 #define AF_INET6        10
 #define PF_INET6        AF_INET6
 #define AF_NETLINK      16
-#define PF_NETLINK  AF_NETLINK
+#define PF_NETLINK      AF_NETLINK
 #define AF_PACKET       17
-#define PF_PACKET AF_PACKET
+#define PF_PACKET       AF_PACKET
 #define PF_UNSPEC       AF_UNSPEC
 
 struct ip_addr {

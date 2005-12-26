@@ -89,19 +89,22 @@ tcpip_thread(void *arg)
   (void)arg;
 
   ip_init();
+
 #if LWIP_UDP  
   udp_init();
 #endif
 #if LWIP_TCP
   tcp_init();
 #endif
+
   if (tcpip_init_done != NULL) {
     tcpip_init_done(tcpip_init_done_arg);
   }
 
   while (1) {                          /* MAIN Loop */
 		LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: waiting4message\n"));
-    sys_mbox_fetch(mbox, (void *)&msg);
+
+	    sys_mbox_fetch(mbox, (void *)&msg);
 		if (msg==NULL) {
 			//fprintf(stderr,"tcpip NULL MSG, this should not happen!\n");
 			printf("tcpip NULL MSG, this should not happen!\n");

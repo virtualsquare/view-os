@@ -1,3 +1,23 @@
+/*   This is part of LWIPv6
+ *   Developed for the Ale4NET project
+ *   Application Level Environment for Networking
+ *   
+ *   Copyright 2005 Diego Billi University of Bologna - Italy
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
 
 #ifdef LWIP_USERFILTER
 
@@ -7,21 +27,41 @@
 /*
  * Trip of IPv4/IPv6 packets throw Userfilter's hooks in the stack.
  *
- *   input                                                     output
- *   netif                                                     netif
- *    |                                                          |
- *    |   +-----------+        +-------+        +------------+   |
- *    +->-|PRE_ROUTING|->-+-->-|FORWARD|->-+-->-|POST_ROUTING|->-+
- *        +-----------+   |    +-------+   |    +------------+   
- *                        |                |
- *                   +--------+       +---------+
- *                   |LOCAL_IN|       |LOCAL_OUT|
- *                   +--------+       +---------+
- *                        |                |
- *                        `---> Lwipv6 --->'
- *                               Apps
+ *                            Apps
+ *                     .---> Lwipv6 --->.
+ *                     |                |
+ *                     |                |
+ *                     |               [4]
+ *                     |                |
+ *                    [2]           [routing]
+ *                     |                |
+ *                     |                |
+ *     +--->[1]--->[routing]--->[3]--->[5]--->+
+ *     |                                      |
+ *     |                                      |
+ *   input                                  output
+ *   netif                                  netif
  *
+ *  [1] PRE_ROUTING
+ *  [2] LOCAL_IN
+ *  [3] FORWARD
+ *  [4] LOCAL_OUT
+ *  [5] POST_ROUTING
+ *
+ * ATTENTION: When userfilter is enable, Fragmentation should be handled in a 
+ *            particular way.
+ *
+ *            Ingoing packets are NOT reassembled BEFORE any PRE_ROUTING
+ *            filtering [1]. User's hooks should use defragmentation
+ *            function at [1] before any other operation.
+ *
+ *            Outgoing packets are fragmented AFTER any POST_ROUTING [5]
+ *            filtering.  
+ *
+ *            In this way, filtering code is sure that it's working on
+ *            entire packets.
  */
+
 typedef enum {
 	UF_IP_PRE_ROUTING,      
 	UF_IP_LOCAL_IN,         
@@ -67,6 +107,9 @@ struct uf_hook_handler
 	uf_priority_t  priority; /* ascending priority. */
 };
 
+/* Stack Hooks table. you SHOULD NOT access it directy! Possible race conditions. */
+extern  struct uf_hook_handler  * uf_hooks_list[UF_IP_NUMHOOKS];
+
 /****************************************************************************/
 /* Functions */
 /****************************************************************************/
@@ -101,15 +144,10 @@ int uf_unregister_hook(struct uf_hook_handler *h);
  * Returns < 0 if 'p' has been dropped by a hook. (for a UF_DROP verdict).
  * If 'freedrop' is 1 then dropped packet 'p' is freed before exit.
  */
-int uf_visit_hook(uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct netif *out, u8_t freebuf); //, int (*okfn)(struct sk_buff *));
+int uf_visit_hook(uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct netif *out, u8_t freebuf); 
 
 #define UF_FREE_BUF      1
 #define UF_DONTFREE_BUF  0
-
-
-
-/* DO NOT access it directy! */
-extern  struct uf_hook_handler  * uf_hooks_list[UF_IP_NUMHOOKS];
 
 /*
  * Used inside ip6.c source. 
@@ -118,7 +156,7 @@ extern  struct uf_hook_handler  * uf_hooks_list[UF_IP_NUMHOOKS];
 ({ int ___r = 1;                                                       \
    if (uf_hooks_list[(hook)] != NULL)                                  \
      ___r = uf_visit_hook((hook), (pbuf), (inif), (outif), (freebuf)); \
-   ___r;                                                               \
+   ___r; /* return value */                                            \
 })
 
 

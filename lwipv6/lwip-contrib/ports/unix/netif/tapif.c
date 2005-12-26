@@ -164,6 +164,7 @@ low_level_output(struct netif *netif, struct pbuf *p)
   bufptr = &buf[0];
   
   for(q = p; q != NULL; q = q->next) {
+	//printf("%s: q->len=%d   tot_len=%d\n", __func__, q->len, p->tot_len);
     /* Send the data from the pbuf to the interface, one pbuf at a
        time. The size of the data in each pbuf is kept in the ->len
        variable. */    
@@ -322,7 +323,7 @@ tapif_input(struct netif *netif)
 #endif
   switch(htons(ethhdr->type)) {
 #ifdef IPv6
-		case ETHTYPE_IP6:
+  case ETHTYPE_IP6:
 #endif
   case ETHTYPE_IP:
     LWIP_DEBUGF(TAPIF_DEBUG, ("tapif_input: IP packet\n"));

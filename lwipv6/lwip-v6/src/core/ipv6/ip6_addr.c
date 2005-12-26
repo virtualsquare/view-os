@@ -116,51 +116,33 @@ ip4_addr_set(struct ip4_addr *dest, struct ip4_addr *src)
 		memcpy(dest, src, sizeof(struct ip4_addr));
 }
 
-/*
-
-int
-ip_addr_isany(struct ip_addr *addr)
-{
-  if (addr == NULL) return 1;
-  return((addr->addr[0] | addr->addr[1] | addr->addr[2] | addr->addr[3]) == 0);
-}
-*/
-
 /* #if IP_DEBUG*/
 void
 ip_addr_debug_print(int debk, struct ip_addr *addr)
 {
-	if (addr != NULL)
-		LWIP_DEBUGF(debk,("%lx:%lx:%lx:%lx:%lx:%lx:%lx:%lx",
-					ntohl(addr->addr[0]) >> 16 & 0xffff,
-					ntohl(addr->addr[0]) & 0xffff,
-					ntohl(addr->addr[1]) >> 16 & 0xffff,
-					ntohl(addr->addr[1]) & 0xffff,
-					ntohl(addr->addr[2]) >> 16 & 0xffff,
-					ntohl(addr->addr[2]) & 0xffff,
-					ntohl(addr->addr[3]) >> 16 & 0xffff,
-					ntohl(addr->addr[3]) & 0xffff));
+	if (addr != NULL) {
+		/* added by Diego Billi */
+		if(ip_addr_is_v4comp(addr)) {
+			LWIP_DEBUGF(debk,("%ld.%ld.%ld.%ld",
+				ntohl(addr->addr[3]) >> 24 & 0xff,
+				ntohl(addr->addr[3]) >> 16 & 0xff,
+				ntohl(addr->addr[3]) >> 8 & 0xff,
+				ntohl(addr->addr[3]) & 0xff));
+ 		} else {
+			LWIP_DEBUGF(debk,("%lx:%lx:%lx:%lx:%lx:%lx:%lx:%lx",
+				ntohl(addr->addr[0]) >> 16 & 0xffff,
+				ntohl(addr->addr[0]) & 0xffff,
+				ntohl(addr->addr[1]) >> 16 & 0xffff,
+				ntohl(addr->addr[1]) & 0xffff,
+				ntohl(addr->addr[2]) >> 16 & 0xffff,
+				ntohl(addr->addr[2]) & 0xffff,
+				ntohl(addr->addr[3]) >> 16 & 0xffff,
+				ntohl(addr->addr[3]) & 0xffff));
+		}
+	}
 	else
 		LWIP_DEBUGF(debk,("IPv6 NULL ADDR"));
 }
-#if 0
-void
-ip_addr_debug_printf(struct ip_addr *addr)
-{
-	if (addr != NULL)
-		printf("%lx:%lx:%lx:%lx:%lx:%lx:%lx:%lx",
-					ntohl(addr->addr[0]) >> 16 & 0xffff,
-					ntohl(addr->addr[0]) & 0xffff,
-					ntohl(addr->addr[1]) >> 16 & 0xffff,
-					ntohl(addr->addr[1]) & 0xffff,
-					ntohl(addr->addr[2]) >> 16 & 0xffff,
-					ntohl(addr->addr[2]) & 0xffff,
-					ntohl(addr->addr[3]) >> 16 & 0xffff,
-					ntohl(addr->addr[3]) & 0xffff);
-	else
-		printf("IPv6 NULL ADDR");
-}
-#endif
 
 /*#endif*/ /* IP_DEBUG */
 
@@ -169,8 +151,9 @@ void ip_addr_list_init()
 	register int i;
 	for (i=0;i<IP_ADDR_POOL_SIZE-1;i++)
 		ip_addr_pool[i].next=ip_addr_pool+(i+1);
-	ip_addr_pool[i].next=NULL;
-	ip_addr_freelist=ip_addr_pool;
+
+	ip_addr_pool[i].next = NULL;
+	ip_addr_freelist = ip_addr_pool;
 }
 
 struct ip_addr_list *ip_addr_list_alloc()
@@ -308,3 +291,29 @@ struct ip_addr_list *ip_addr_list_deliveryfind(struct ip_addr_list *tail, struct
 	} while (el != tail);
 	return NULL;
 }
+
+#if 0
+void
+ip_addr_debug_printf(struct ip_addr *addr)
+{
+	if (addr != NULL)
+		printf("%lx:%lx:%lx:%lx:%lx:%lx:%lx:%lx",
+					ntohl(addr->addr[0]) >> 16 & 0xffff,
+					ntohl(addr->addr[0]) & 0xffff,
+					ntohl(addr->addr[1]) >> 16 & 0xffff,
+					ntohl(addr->addr[1]) & 0xffff,
+					ntohl(addr->addr[2]) >> 16 & 0xffff,
+					ntohl(addr->addr[2]) & 0xffff,
+					ntohl(addr->addr[3]) >> 16 & 0xffff,
+					ntohl(addr->addr[3]) & 0xffff);
+	else
+		printf("IPv6 NULL ADDR");
+}
+#endif
+/*
+int
+ip_addr_isany(struct ip_addr *addr) {
+  if (addr == NULL) return 1;
+  return((addr->addr[0] | addr->addr[1] | addr->addr[2] | addr->addr[3]) == 0);
+}
+*/

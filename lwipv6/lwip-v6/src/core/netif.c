@@ -120,9 +120,8 @@ netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
   else
 	  lastnip->next=netif;
   netif->next=NULL;
-  LWIP_DEBUGF(NETIF_DEBUG, ("netif: added interface %c%c%d\n",
-    netif->name[0], netif->name[1], netif->num));
-  printf("added interface %c%c%d\n",netif->name[0],netif->name[1],netif->num);
+  LWIP_DEBUGF(NETIF_DEBUG, ("netif: added interface %c%c%d\n", netif->name[0], netif->name[1], netif->num));
+//  printf("added interface %c%c%d\n",netif->name[0],netif->name[1],netif->num);
   return netif;
 }
 
