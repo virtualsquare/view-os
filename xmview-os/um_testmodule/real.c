@@ -51,11 +51,13 @@ static int real_path(int type, void *arg)
 static int addproc(int id, int max, void *umph)
 {
 	printf("new process id %d  pid %d   max %d\n",id,um_mod_getpid(umph),max);
+	return 0;
 }
 
 static int delproc(int id, void *umph)
 {
 	printf("terminated process id %d  pid %d\n",id,um_mod_getpid(umph));
+	return 0;
 }
 
 static void

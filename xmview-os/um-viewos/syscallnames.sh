@@ -54,7 +54,7 @@ int main(void)
 _END_
 
 
-egrep "^#[[:blank:]]*define[[:blank:]]+__NR_" /usr/include/asm/unistd.h | 
+cpp -dN /usr/include/asm/unistd.h | egrep "^#[[:blank:]]*define[[:blank:]]+__NR_" | 
 	tr -s " 	" " " | cut -d" " -f2 | sed 's/__NR_//g' | sort | uniq | while read
 do
 	cat >> $tmpfile << _END_

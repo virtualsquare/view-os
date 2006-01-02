@@ -141,7 +141,7 @@ int wrap_in_dup(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	} else
 		pc->arg1= -1;
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
-	//GDEBUG(2, "DUP %d %d sfd %d %s",pc->arg0,pc->arg1,sfd,fd_getpath(pcdata->fds,pc->arg0));
+	GDEBUG(4, "DUP %d %d sfd %d %s",pc->arg0,pc->arg1,sfd,fd_getpath(pcdata->fds,pc->arg0));
 	if (sfd < 0 && sercode != UM_NONE) {
 		pc->retval= -1;
 		pc->erno= EBADF;

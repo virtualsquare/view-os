@@ -92,3 +92,7 @@ extern int um_mod_getpid(void *umph);
 extern int um_mod_getsyscallno(void *umph);
 extern long* um_mod_getargs(void *umph);
 extern int um_mod_getumpid(void *umph);
+
+extern int uscno(int scno);
+extern int add_service(struct service *);
+

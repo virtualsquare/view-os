@@ -308,6 +308,8 @@ void tracehand(int s)
 			GPERROR(0, "wait");
 			exit(1);
 		}
+
+		// FIXME: renzo: what does the following line mean?
 		////comment out the following line
 		if (pid==0) return;
 		if(WIFSTOPPED(status) && (WSTOPSIG(status) == SIGSTOP)) {

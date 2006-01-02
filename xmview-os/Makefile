@@ -1,3 +1,4 @@
+DEBUGLEVEL=3
 prefix = /usr/local
 bindir = ${prefix}/bin
 libdir = ${prefix}/lib
@@ -5,7 +6,7 @@ mandir = ${prefix}/man
 
 release = false
 
-export bindir libdir mandir
+export bindir libdir mandir DEBUGLEVEL
 
 ifeq ($(release),true)
 RELEASE_FLAGS="RELEASE=true"
@@ -14,6 +15,7 @@ RELEASE_FLAGS=
 endif
 
 all:
+	make -C gdebug $(RELEASE_FLAGS)
 	make -C um-viewos $(RELEASE_FLAGS)
 	make -C um_lib  $(RELEASE_FLAGS)
 	make -C um_cmd  $(RELEASE_FLAGS)
@@ -24,6 +26,7 @@ all:
 	make -C um_lwip  $(RELEASE_FLAGS)
 
 clean:
+	make -C gdebug clean $(RELEASE_FLAGS)
 	make -C um-viewos clean $(RELEASE_FLAGS)
 	make -C um_lib clean $(RELEASE_FLAGS)
 	make -C um_cmd clean $(RELEASE_FLAGS)
@@ -43,6 +46,7 @@ ${mandir}:
 	mkdir -p ${mandir}
 
 install: ${bindir} ${libdir} ${mandir}
+	make -C gdebug install $(RELEASE_FLAGS)
 	make -C um-viewos install $(RELEASE_FLAGS)
 	make -C um_lib install $(RELEASE_FLAGS)
 	make -C um_cmd install $(RELEASE_FLAGS)
