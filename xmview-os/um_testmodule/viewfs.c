@@ -1136,12 +1136,7 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 		 * and sort them; then, perform the correct operation (merge or
 		 * difference).
 		 */
-
-
-
 	}
-
-
 	return 0;
 }
 
