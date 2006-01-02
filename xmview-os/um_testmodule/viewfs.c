@@ -304,35 +304,53 @@ static char *unwrap(char *path)
 	return path;
 }
 
-/* A directory is reported as non-empty ONLY IF the getdents() call
- * returns success (>= 0); else, it is reported as empty. 
- * So, for instance, a non-existant directory returns error so is
- * considered as EMPTY. */
+/*
+ * Return values:
+ * >0          empty directory
+ * 0           not empty directory
+ * <0          error
+ */
 static int is_directory_empty(char *dirname)
 {
 	int retval;
 	int fd;
-	int dirp_size = 2 * sizeof(struct dirent);
+	int dirp_size = 3 * sizeof(struct dirent);
 	struct dirent *dirp = malloc(dirp_size);
-
-	/* If a getdents() called on a buffer of size 2 fails with EINVAL, it
-	 * means that the buffer is too small. So there are more than 2 entries
-	 * in the directory, so there is something in addition to "." and "..", so
-	 * the directory is not empty. */
 
 	fd = open(dirname, O_DIRECTORY);
 	if (fd < 0)
-		return 1;
+	{
+		free(dirp);
+		GDEBUG(1, "%s is ERROR during open\n", dirname);
+		return -1;
+	}
 
+	/* A directory is empty if and only if it contains only 2 files: . and ..
+	 * (unless it's a very broken directory, in that case it's an error) */
+	
 	retval = getdents(fd, dirp, dirp_size);
 
-	free(dirp);
 	close(fd);
 
-	if (retval >= 0)
-		return 0;
-	else
+	if (retval <= 0) // It could not be MORE EMPTY than this :-)
+	{
+		free(dirp);
+		GDEBUG(1, "%s is ERROR\n", dirname);
+		return -1;
+	}
+
+	if ((dirp->d_reclen < retval) && ((((struct dirent*)((char*)dirp + dirp->d_reclen))->d_reclen) + dirp->d_reclen == retval))
+	{
+		free(dirp);
+		GDEBUG(1, "%s is empty\n", dirname);
 		return 1;
+	}
+	else
+	{
+		free(dirp);
+		GDEBUG(1, "%s is NOT empty\n", dirname);
+		return 0;
+	}
 }
 
 static int viewfs_check_generic(char *path, int umpid)
@@ -1111,6 +1129,16 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 			return DAR(getdents64(fd, dirp, count));
 		else
 			GDEBUG(1, "this should never happen. please check: pd_status == %08x\n", pd_status);
+	}
+	else
+	{
+		/* What to do: for each of the potential 5 sets of files, obtain them
+		 * and sort them; then, perform the correct operation (merge or
+		 * difference).
+		 */
+
+
+
 	}
 
 
