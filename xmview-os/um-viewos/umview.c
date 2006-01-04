@@ -29,6 +29,8 @@
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <sys/select.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <stdlib.h>
 #include <signal.h>
 #include "defs.h"
@@ -62,6 +64,8 @@ int main(int argc,char *argv[])
 	fd_set wset[3];
 	sigset_t blockchild, oldset;
 	
+	setpriority(PRIO_PROCESS,0,-11);
+	setuid(getuid());
 	sigemptyset(&blockchild);
 	sigaddset(&blockchild,SIGCHLD);
 	scdtab_init();

@@ -37,6 +37,8 @@
 #include <errno.h>
 #include <sys/wait.h>
 #include <sys/ptrace.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
 #include <sched.h>
@@ -673,6 +675,7 @@ int capture_main(char **argv)
 			exit(1);
 			break;
 		case 0:
+			setpriority(PRIO_PROCESS,0,0);
 			if(ptrace(PTRACE_TRACEME, 0, 0, 0) < 0){
 				GPERROR(0, "ptrace");
 				exit(1);
