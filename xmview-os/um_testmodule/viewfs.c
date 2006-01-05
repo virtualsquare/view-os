@@ -4,7 +4,7 @@
  *   viewfs.
  *   It is possible to remap files and directories
  *   
- *   Copyright 2005 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2005 Ludovico Gardenghi
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -50,8 +50,8 @@
 
 #define EXISTS(x) ((access((x), F_OK)) == 0)
 
-#define DAR(x) (GDEBUG(2, "%s:%s:%d return %s\n", __FILE__, __func__, __LINE__, #x),(x))
-// #define DAR(x) (x)
+// #define DAR(x) (GDEBUG(2, "%s:%s:%d return %s\n", __FILE__, __func__, __LINE__, #x),(x))
+#define DAR(x) (x)
 
 #define VIEWFS_SERVICE_CODE 0xf5
 
@@ -79,6 +79,12 @@
 #define VIEWFS_CHECK_PARENT_CURRENT_HIDE	6
 #define VIEWFS_CHECK_PARENT_DEFAULT_ADD		7
 #define VIEWFS_CHECK_PARENT_DEFAULT_HIDE	8
+
+#define VIEWFS_KEEP_FIRST					0
+#define VIEWFS_KEEP_SECOND						1
+
+#define VIEWFS_CLEAR_SHALLOW				0
+#define VIEWFS_CLEAR_DEEP					1
 
 #define ISLASTCHECK(x)			(procinfo[umpid].lastcheck == (x))
 
@@ -116,7 +122,7 @@ struct d64array
 	struct dirent64 **array;
 	int size;
 	int lastindex;
-	struct dirent *dirp_orig[5];
+	struct dirent64 *dirp_orig[5];
 };
 
 // User's home directory
@@ -535,18 +541,19 @@ static int viewfs_open(char *pathname, int flags, mode_t mode, void *umph)
 	return retval;
 }
 
-static void clear_cachedata(struct d64array *data)
+static void clear_cachedata(struct d64array *data, int deep)
 {
 	int i;
 
 	GDEBUG(1, "clearing cache data for fd %d\n", data->fd);
 
-	for (i = 0; i < 5; i++)
-		if (data->dirp_orig[i])
-		{
-			GDEBUG(1, "clearing original dirp pos %d\n", i);
-			free(data->dirp_orig[i]);
-		}
+	if (deep == VIEWFS_CLEAR_DEEP)
+		for (i = 0; i < 5; i++)
+			if (data->dirp_orig[i])
+			{
+				GDEBUG(1, "clearing original dirp pos %d\n", i);
+				free(data->dirp_orig[i]);
+			}
 	
 
 	GDEBUG(1, "clearing data->array\n");
@@ -554,9 +561,6 @@ static void clear_cachedata(struct d64array *data)
 
 	GDEBUG(1, "clearing data\n");
 	free(data);
-
-	GDEBUG(1, "%d items freed.\n", i);
-
 
 	return;
 }
@@ -579,7 +583,7 @@ static int viewfs_close(int fd, void *umph)
 				if (procinfo[umpid].gd64_data[i] &&
 						(procinfo[umpid].gd64_data[i]->fd == fd))
 				{
-					clear_cachedata(procinfo[umpid].gd64_data[i]);
+					clear_cachedata(procinfo[umpid].gd64_data[i], VIEWFS_CLEAR_DEEP);
 					procinfo[umpid].gd64_data[i] = NULL;
 					break;
 				}
@@ -1246,6 +1250,98 @@ static int viewfs_getdents64_cached(struct d64array *data, struct dirent64 *dirp
 
 }
 
+static struct d64array *d64array_merge(struct d64array *a1, struct d64array *a2, int keep)
+{
+	struct d64array* retval;
+	int i, c1, c2, d, compare;
+
+	retval = malloc(sizeof(struct d64array));
+
+	// Probably too much, overlapping files count as 1. But here no
+	// assumptions can be made.
+	retval->array = malloc((a1->size + a2->size) * sizeof(struct dirent64*));
+	retval->fd = a1->fd;
+	retval->lastindex = 0;
+	retval->size = a1->size + a2->size;
+	
+	// One of them is always NULL, I'm interested in the union of the two sets
+	// of pointers
+	for (i = 0; i < 5; i++)
+		retval->dirp_orig[i] = (struct dirent64*)((int)a1->dirp_orig[i] + (int)a2->dirp_orig[i]);
+
+	c1 = 0;
+	c2 = 0;
+	d = 0;
+	
+	while (c1 < a1->size && c2 < a2->size)
+	{
+		compare = strcoll(a1->array[c1]->d_name, a2->array[c2]->d_name);
+		
+		if (compare < 0)
+			retval->array[d++] = a1->array[c1++];
+		else if (compare > 0)
+			retval->array[d++] = a2->array[c2++];
+		else if (keep == VIEWFS_KEEP_FIRST)
+		{
+			retval->array[d++] = a1->array[c1++];
+			c2++;
+			retval->size--;
+		}
+		else
+		{
+			retval->array[d++] = a2->array[c2++];
+			c1++;
+			retval->size--;
+		}
+	}
+
+	while (c1 < a1->size)
+		retval->array[d++] = a1->array[c1++];
+
+	while (c2 < a2->size)
+		retval->array[d++] = a2->array[c2++];
+	
+	return retval;
+}
+
+static struct d64array *d64array_subtract(struct d64array *a1, struct d64array *a2)
+{
+	struct d64array *retval;
+	int i, c1, c2, d, compare;
+
+	retval = malloc(sizeof(struct d64array));
+
+	retval->array = malloc(a1->size * sizeof(struct dirent64*));
+	retval->fd = a1->fd;
+	retval->lastindex = 0;
+	retval->size = a1->size;
+
+	for (i = 0; i < 5; i++)
+		retval->dirp_orig[i] = (struct dirent64*)((int)a1->dirp_orig[i] + (int)a2->dirp_orig[i]);
+
+	c1 = 0;
+	c2 = 0;
+	d = 0;
+	
+	while (c1 < a1->size)
+	{
+		compare = strcoll(a1->array[c1]->d_name, a2->array[c2]->d_name);
+
+		if (compare < 0)
+			retval->array[d++] = a1->array[c1++];
+		else if (compare > 0)
+			c2++;
+		else
+		{
+			c1++;
+			c2++;
+			retval->size--;
+		}
+	}
+
+	return retval;
+
+}
 
 static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count, void *umph)
 {
@@ -1383,41 +1479,101 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 			for (i = 0; i < 5; i++)
 				cachedata->dirp_orig[i] = NULL;
 		}
+	
+		/* TODO: Make the following a bit more efficient.
+		 * At present, for each of the 4 possible changes to the original set
+		 * (remove *-, add *+, remove P-, add P+) a d64array{merge,subtract}
+		 * is called. These functions DO NOT work in place, but create a new
+		 * array adding the elements from the original sets. So, if the 4
+		 * personal directories are all non-empty, there is a total of 4
+		 * passes and each of them allocates and copies the array.
+		 * A better approach would take the 5 original sets once and perform
+		 * the correct operations writing the result in a single new array.
+		 * I think that in-place merging and subtraction is very difficult
+		 * with the current array-based implementation. */
 		
 		if (pd_status & VIEWFS_DEFAULT_HIDE)
 		{
+			struct d64array *datmp, *old;
 			gdretval = getdents64_whole_dir(defaultpers->hide, &gdtmp, count);
 			GDEBUG(1, "gwd on *- returned %d\n", gdretval);
 			if (gdretval < 0)
 				return -1;
-			free(gdtmp);
+
+			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
+			datmp->lastindex = 0;
+			for (i = 0; i < 5; i++)
+				datmp->dirp_orig[i] = NULL;
+			datmp->dirp_orig[1] = gdtmp;
+			sort_array64(datmp);
+
+			old = cachedata;
+			cachedata = d64array_subtract(old, datmp);
+			clear_cachedata(old, VIEWFS_CLEAR_SHALLOW);
+			clear_cachedata(datmp, VIEWFS_CLEAR_SHALLOW);
 		}
 		
 		if (pd_status & VIEWFS_DEFAULT_ADD)
 		{
+			struct d64array *datmp, *old;
 			gdretval = getdents64_whole_dir(defaultpers->add, &gdtmp, count);
 			GDEBUG(1, "gwd on *+ returned %d\n", gdretval);
 			if (gdretval < 0)
 				return -1;
-			free(gdtmp);
+			
+			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
+			datmp->lastindex = 0;
+			for (i = 0; i < 5; i++)
+				datmp->dirp_orig[i] = NULL;
+			datmp->dirp_orig[2] = gdtmp;
+			sort_array64(datmp);
+
+			old = cachedata;
+			cachedata = d64array_merge(old, datmp, VIEWFS_KEEP_SECOND);
+			clear_cachedata(old, VIEWFS_CLEAR_SHALLOW);
+			clear_cachedata(datmp, VIEWFS_CLEAR_SHALLOW);
 		}
 		
 		if (pd_status & VIEWFS_CURRENT_HIDE)
 		{
+			struct d64array *datmp, *old;
 			gdretval = getdents64_whole_dir(currentpers->hide, &gdtmp, count);
 			GDEBUG(1, "gwd on P- returned %d\n", gdretval);
 			if (gdretval < 0)
 				return -1;
-			free(gdtmp);
+
+			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
+			datmp->lastindex = 0;
+			for (i = 0; i < 5; i++)
+				datmp->dirp_orig[i] = NULL;
+			datmp->dirp_orig[3] = gdtmp;
+			sort_array64(datmp);
+
+			old = cachedata;
+			cachedata = d64array_subtract(old, datmp);
+			clear_cachedata(old, VIEWFS_CLEAR_SHALLOW);
+			clear_cachedata(datmp, VIEWFS_CLEAR_SHALLOW);
 		}
 		
 		if (pd_status & VIEWFS_CURRENT_ADD)
 		{
+			struct d64array *datmp, *old;
 			gdretval = getdents64_whole_dir(currentpers->add, &gdtmp, count);
 			GDEBUG(1, "gwd on P+ returned %d\n", gdretval);
 			if (gdretval < 0)
 				return -1;
-			free(gdtmp);
+			
+			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
+			datmp->lastindex = 0;
+			for (i = 0; i < 5; i++)
+				datmp->dirp_orig[i] = NULL;
+			datmp->dirp_orig[4] = gdtmp;
+			sort_array64(datmp);
+
+			old = cachedata;
+			cachedata = d64array_merge(old, datmp, VIEWFS_KEEP_SECOND);
+			clear_cachedata(old, VIEWFS_CLEAR_SHALLOW);
+			clear_cachedata(datmp, VIEWFS_CLEAR_SHALLOW);
 		}
 
 		// Add result to cache
@@ -1429,7 +1585,7 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 					(procinfo[umpid].gd64_data[i]->fd == fd))
 			{
 				GDEBUG(1, "cache already full for fd %d, flushing and creating new", fd);
-				clear_cachedata(procinfo[umpid].gd64_data[i]);
+				clear_cachedata(procinfo[umpid].gd64_data[i], VIEWFS_CLEAR_DEEP);
 				procinfo[umpid].gd64_data[i] = cachedata;
 				found = 1;
 			}
@@ -1469,7 +1625,7 @@ static int viewfs_is_path_interesting(char *path, void *umph)
 	int scno = um_mod_getsyscallno(umph);
 	int umpid = um_mod_getumpid(umph);
 
-	GDEBUG(2, "check for %s in syscall %s\n", path, SYSCALLNAME(scno));
+//	GDEBUG(2, "check for %s in syscall %s\n", path, SYSCALLNAME(scno));
 
 	// TODO: convert this [slow?] switch into something faster, maybe
 	// a pointer array
@@ -1527,7 +1683,7 @@ static int viewfscheck(int type, void *arg, void *umph)
 
 	if (viewfs_is_path_interesting(path, umph))
 	{
-		GDEBUG(2, "interesting!\n");
+		GDEBUG(2, "found interesting file: %s\n", path);
 		return 1;
 	}
 	else
