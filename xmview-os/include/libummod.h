@@ -31,7 +31,7 @@
 
 int getdents(unsigned int fd, struct dirent *dirp, unsigned int count);
 
-int getdents64(unsigned int fd, struct dirent *dirp, unsigned int count);
+int getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count);
 
 
 int fcntl32(int fd, int cmd, long arg);

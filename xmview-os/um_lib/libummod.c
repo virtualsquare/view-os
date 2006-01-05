@@ -36,7 +36,7 @@ int getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
 	return syscall(__NR_getdents, fd, dirp, count);
 }
 
-int getdents64(unsigned int fd, struct dirent *dirp, unsigned int count)
+int getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
 {
 	return syscall(__NR_getdents64, fd, dirp, count);
 }
