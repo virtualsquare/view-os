@@ -1648,6 +1648,7 @@ static int viewfs_is_path_interesting(char *path, void *umph)
 		case __NR_utimes:
 		case __NR_chdir:
 		case __NR_rmdir:
+		case __NR_unlink:
 			return viewfs_check_generic(path, umpid);
 
 		case __NR_mkdir:
