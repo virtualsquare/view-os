@@ -44,6 +44,8 @@
 int
 umoven(int pid, long addr, int len, void *_laddr)
 {
+	if (len==0) 
+		return 0;
 	if (has_ptrace_multi) {
 		struct ptrace_multi req[] = {{PTRACE_PEEKCHARDATA, addr, _laddr, len}};
 		return ptrace(PTRACE_MULTI, pid, req, 1); 
@@ -69,7 +71,7 @@ umoven(int pid, long addr, int len, void *_laddr)
 					return 0;
 				}
 				/* But if not started, we had a bogus address. */
-				perror("umoven");
+				/*perror("umoven");*/
 				return -1;
 			}
 			started = 1;
@@ -84,8 +86,8 @@ umoven(int pid, long addr, int len, void *_laddr)
 					/* Ran into 'end of memory' - stupid "printpath" */
 					return 0;
 				}
-				if (addr != 0)
-					perror("umoven");
+				/*if (addr != 0)
+					perror("umoven");*/
 				return -1;
 			}
 			started = 1;
@@ -99,8 +101,10 @@ umoven(int pid, long addr, int len, void *_laddr)
 int
 umovestr(int pid, long addr, int len, void *_laddr)
 {
+	if (len==0) 
+		return 0;
 	if (has_ptrace_multi) {
-		struct ptrace_multi req[] = {{PTRACE_PEEKCHARDATA, addr, _laddr, len}};
+		struct ptrace_multi req[] = {{PTRACE_PEEKSTRINGDATA, addr, _laddr, len}};
 		ptrace(PTRACE_MULTI, pid, req, 1); 
 		return 0;
 	}
@@ -112,7 +116,6 @@ umovestr(int pid, long addr, int len, void *_laddr)
 			long val;
 			char x[sizeof(long)];
 		} u;
-
 		if (addr & (sizeof(long) - 1)) {
 			/* addr not a multiple of sizeof(long) */
 			n = addr - (addr & -sizeof(long)); /* residue */
@@ -124,7 +127,7 @@ umovestr(int pid, long addr, int len, void *_laddr)
 					/* Ran into 'end of memory' - stupid "printpath" */
 					return 0;
 				}
-				perror("umovestr");
+			/*	perror("umovestr");*/
 				return -1;
 			}
 			started = 1;
@@ -142,7 +145,8 @@ umovestr(int pid, long addr, int len, void *_laddr)
 					/* Ran into 'end of memory' - stupid "printpath" */
 					return 0;
 				}
-				perror("umovestr");
+				/*if (addr != 0)
+					perror("umovestr");*/
 				return -1;
 			}
 			started = 1;
@@ -160,6 +164,8 @@ umovestr(int pid, long addr, int len, void *_laddr)
 int
 ustoren(int pid, long addr, int len, void *_laddr)
 {
+	if (len==0) 
+		return 0;
 	if (has_ptrace_multi) {
 		struct ptrace_multi req[] = {{PTRACE_POKECHARDATA, addr, _laddr, len}};
 		return ptrace(PTRACE_MULTI, pid, req, 1); 
@@ -185,7 +191,7 @@ ustoren(int pid, long addr, int len, void *_laddr)
 					return 0;
 				}
 				/* But if not started, we had a bogus address. */
-				perror("ustoren1");
+				/*perror("ustoren1");*/
 				return -1;
 			}
 			started = 1;
@@ -193,7 +199,7 @@ ustoren(int pid, long addr, int len, void *_laddr)
 			ptrace(PTRACE_POKEDATA, pid, (char *) addr, u.val);
 			addr += sizeof(long), laddr += m, len -= m;
 			if (errno) {
-				perror("ustoren2");
+				/*perror("ustoren2");*/
 				return -1;
 			}
 		}
@@ -208,7 +214,7 @@ ustoren(int pid, long addr, int len, void *_laddr)
 					return 0;
 				}
 				if (addr != 0)
-					perror("ustoren3");
+					/*perror("ustoren3");*/
 				return -1;
 			}
 			started = 1;
@@ -216,7 +222,7 @@ ustoren(int pid, long addr, int len, void *_laddr)
 			ptrace(PTRACE_POKEDATA, pid, (char *) addr, u.val);
 			addr += sizeof(long), laddr += m, len -= m;
 			if (errno) {
-				perror("ustoren4");
+				/*perror("ustoren4");*/
 				return -1;
 			}
 		}
@@ -227,6 +233,8 @@ ustoren(int pid, long addr, int len, void *_laddr)
 int
 ustorestr(int pid, long addr, int len, void *_laddr)
 {
+	if (len==0) 
+		return 0;
 	if (has_ptrace_multi) {
 		struct ptrace_multi req[] = {{PTRACE_POKECHARDATA, addr, _laddr, len}};
 		return ptrace(PTRACE_MULTI, pid, req, 1); 
@@ -251,14 +259,14 @@ ustorestr(int pid, long addr, int len, void *_laddr)
 					/* Ran into 'end of memory' - stupid "printpath" */
 					return 0;
 				}
-				perror("ustorestr");
+				/*perror("ustorestr");*/
 				return -1;
 			}
 			started = 1;
 			memcpy(&u.x[n], laddr, m = MIN(sizeof(long)-n,len));
 			ptrace(PTRACE_POKEDATA, pid, (char *) addr, u.val);
 			if (errno) {
-				perror("ustoren");
+				/*perror("ustoren");*/
 				return -1;
 			}
 			while (n & (sizeof(long) - 1))
@@ -278,14 +286,14 @@ ustorestr(int pid, long addr, int len, void *_laddr)
 					/* Ran into 'end of memory' - stupid "printpath" */
 					return 0;
 				}
-				perror("ustorestr");
+				/*perror("ustorestr");*/
 				return -1;
 			}
 			started = 1;
 			memcpy(u.x, laddr, m = MIN(sizeof(long), len));
 			ptrace(PTRACE_POKEDATA, pid, (char *) addr, u.val);
 			if (errno) {
-				perror("ustoren");
+				/*perror("ustoren");*/
 				return -1;
 			}
 			for (i = 0; i < sizeof(long); i++)

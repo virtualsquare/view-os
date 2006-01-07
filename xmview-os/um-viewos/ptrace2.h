@@ -28,6 +28,7 @@
 #define PTRACE_MULTI 0x4300
 #define PTRACE_PEEKCHARDATA 0x4301
 #define PTRACE_POKECHARDATA 0x4302
+#define PTRACE_PEEKSTRINGDATA 0x4303
 
 struct ptrace_multi {
 	long request;
