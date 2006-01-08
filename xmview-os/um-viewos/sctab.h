@@ -27,6 +27,8 @@
 #define __SCTAB_H
 #include <sys/select.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "umproc.h"
 #include "defs.h"
@@ -46,6 +48,7 @@ struct pcb_fs {
 #define MAX_SOCKET_ARGS 6
 struct pcb_ext {
 	void *path;
+	struct stat64 pathstat;
 	/* struct seldata* */
 	void *selset;
 	/* keep track of file system informations - look at clone 2
@@ -63,7 +66,7 @@ extern char um_patherror[];
 void scdtab_init();
 
 char *um_getpath(int laddr,struct pcb *pc);
-char *um_abspath(int laddr,struct pcb *pc,int link);
+char *um_abspath(int laddr,struct pcb *pc,struct stat64 *pst,int link);
 
 void um_set_errno(struct pcb *pc,int i);
 char *um_getcwd(struct pcb *pc,char *buf,int size);

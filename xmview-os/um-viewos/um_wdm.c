@@ -74,7 +74,9 @@ int wrap_in_getcwd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		service_t sercode, intfun syscall)
 {
-	if (pc->erno == 0) {
+	if (!S_ISDIR(pcdata->pathstat.st_mode))
+		pc->erno=ENOTDIR;
+	if (pc->erno == 0 && S_ISDIR(pcdata->pathstat.st_mode)) {
 		int sp=getsp(pc);
 		int pathlen;
 		if (sercode != UM_NONE) {
@@ -121,11 +123,15 @@ int wrap_out_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 int wrap_in_fchdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		service_t sercode, intfun syscall)
 {
-	if (pc->erno == 0) {
-		int sp=getsp(pc);
-		int pathlen;
-		if ((pcdata->path=strdup(fd_getpath(pcdata->fds,pc->arg0))) != NULL) {
-			//printf("fchdir to %s\n",pcdata->path);
+	int sp=getsp(pc);
+	int pathlen;
+	char *path;
+
+	if ((path=fd_getpath(pcdata->fds,pc->arg0)) != NULL) {
+		//printf("fchdir to %s\n",pcdata->path);
+		pcdata->path=strdup(path);
+		um_x_lstat64(pcdata->path, &(pcdata->pathstat), pc);
+		if (S_ISDIR(pcdata->pathstat.st_mode)) {
 			if (sercode != UM_NONE) {
 				//printf("virtual path chdir to /tmp\n");
 				pathlen=8;
@@ -140,11 +146,12 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			return SC_CALLONXIT;
 		} else {
 			pc->retval = -1;
-			pc->erno = EINVAL; /* right error code? XXX */
+			pc->erno=ENOTDIR;
 			return SC_FAKE;
 		}
 	} else {
 		pc->retval = -1;
+		pc->erno = EBADF; 
 		return SC_FAKE;
 	}
 }

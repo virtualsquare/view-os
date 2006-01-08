@@ -267,7 +267,8 @@ int wrap_in_fsync(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_link(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		char sercode, intfun syscall)
 {
-	char *source=um_abspath(pc->arg0,pc,0);
+	struct stat64 sourcest;
+	char *source=um_abspath(pc->arg0,pc,&sourcest,0);
 
 	if (source==um_patherror) {
 		pc->retval= -1;

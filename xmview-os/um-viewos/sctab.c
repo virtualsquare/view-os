@@ -65,7 +65,7 @@ char *um_getcwd(struct pcb *pc,char *buf,int size) {
 int um_x_lstat64(char *filename, struct stat64 *buf,void *umph)
 {
 	service_t sercode;
-	//printf("-> um_lstat: %s\n",filename);
+	/*printf("-> um_lstat: %s\n",filename);*/
 	if ((sercode=service_check(CHECKPATH,filename,umph)) == UM_NONE)
 		return lstat64(filename,buf);
 	else 
@@ -92,7 +92,7 @@ char *um_getpath(int laddr,struct pcb *pc)
 		return um_patherror;
 }
 
-char *um_abspath(int laddr,struct pcb *pc,int link)
+char *um_abspath(int laddr,struct pcb *pc,struct stat64 *pst,int link)
 {
 	char path[PATH_MAX];
 	char newpath[PATH_MAX];
@@ -100,12 +100,12 @@ char *um_abspath(int laddr,struct pcb *pc,int link)
 		if (link) {
 			char tmppath[PATH_MAX];
 			strcpy(tmppath,path);
-			um_realpath(pc,dirname(tmppath),newpath);
+			um_realpath(pc,dirname(tmppath),newpath,pst);
 			strncat(newpath,"/",PATH_MAX);
 			strncat(newpath,basename(path),PATH_MAX);
 			//printf("um_abslpath %s %s %s %s\n",path,dirname(path),basename(path),newpath);
 		} else
-			um_realpath(pc,path,newpath);
+			um_realpath(pc,path,newpath,pst);
 		//printf("um_abspath %d %s %s\n",pc->erno,path,newpath);
 		return strdup(newpath);
 		/*
@@ -382,7 +382,7 @@ char choice_fd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 char choice_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	pc->arg1=getargn(1,pc);
-	pcdata->path=um_abspath(pc->arg1,pc,0); 
+	pcdata->path=um_abspath(pc->arg1,pc,&(pcdata->pathstat),0); 
 	
 	if (pcdata->path!=um_patherror) {
 		char filesystemtype[PATH_MAX];
@@ -399,7 +399,7 @@ char choice_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 /* choice path (filename must be defined) */
 char choice_path(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
-	pcdata->path=um_abspath(pc->arg0,pc,0); 
+	pcdata->path=um_abspath(pc->arg0,pc,&(pcdata->pathstat),0); 
 	//printf("choice_path %d %s\n",sc_number,pcdata->path);
 	
 	if (pcdata->path==um_patherror)
@@ -411,7 +411,7 @@ char choice_path(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 /* choice link (dirname must be defined, basename can be non-existent) */
 char choice_link(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
-	pcdata->path=um_abspath(pc->arg0,pc,1); 
+	pcdata->path=um_abspath(pc->arg0,pc,&(pcdata->pathstat),1); 
 	//printf("choice_path %d %s\n",sc_number,pcdata->path);
 	if (pcdata->path==um_patherror)
 		return UM_NONE;
@@ -423,7 +423,7 @@ char choice_link(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 char choice_link2(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	pc->arg1=getargn(1,pc);
-	pcdata->path=um_abspath(pc->arg1,pc,1); 
+	pcdata->path=um_abspath(pc->arg1,pc,&(pcdata->pathstat),1); 
 	//printf("choice_path %d %s\n",sc_number,pcdata->path);
 	if (pcdata->path==um_patherror)
 		return UM_NONE;
