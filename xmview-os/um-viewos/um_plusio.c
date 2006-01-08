@@ -80,8 +80,8 @@ int wrap_in_chown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	group=getargn(2,pc);
 #if __NR_chown != __NR_chown32
 	if (sc_number == __NR_chown || sc_number == __NR_lchown) {
-		owner=low2highuid(owner);
-		group=low2highgid(group);
+		owner=id16to32(owner);
+		group=id16to32(group);
 	}
 #endif
 	pc->retval = syscall(pcdata->path,owner,group,pc);
@@ -103,8 +103,8 @@ int wrap_in_fchown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		group=getargn(2,pc);
 #if __NR_fchown != __NR_fchown32
 	if (sc_number == __NR_fchown) {
-		owner=low2highuid(owner);
-		group=low2highgid(group);
+		owner=id16to32(owner);
+		group=id16to32(group);
 	}
 #endif
 		pc->retval = syscall(sfd,owner,group,pc);
