@@ -28,6 +28,7 @@
 #include <linux/net.h>
 #include "defs.h"
 #include "scmap.h"
+#include "uid16to32.h"
 
 int scmap_scmapsize;
 int scmap_sockmapsize;
@@ -89,6 +90,9 @@ struct sc_map scmap[]={
 	{__NR_chown,	choice_path,	wrap_in_chown, wrap_out_std,	0,	3},
 	{__NR_lchown,	choice_link,	wrap_in_chown, wrap_out_std,	0,	3},
 	{__NR_fchown,	choice_fd,	wrap_in_fchown, wrap_out_std,	0,	3},
+	{__NR_chown32,	choice_path,	wrap_in_chown, wrap_out_std,	0,	3},
+	{__NR_lchown32,	choice_link,	wrap_in_chown, wrap_out_std,	0,	3},
+	{__NR_fchown32,	choice_fd,	wrap_in_fchown, wrap_out_std,	0,	3},
 	{__NR_chmod,	choice_path,	wrap_in_chmod, wrap_out_std,	0,	2},
 	{__NR_fchmod,	choice_fd,	wrap_in_fchmod, wrap_out_std,	0,	2},
 	{__NR_getxattr,	choice_path,	wrap_in_notsupp, wrap_out_std,	0,	4},

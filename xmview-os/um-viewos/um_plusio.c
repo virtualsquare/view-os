@@ -50,6 +50,7 @@
 #include "sctab.h"
 #include "scmap.h"
 #include "utils.h"
+#include "uid16to32.h"
 
 #define umNULL ((int) NULL)
 
@@ -74,9 +75,15 @@ int wrap_in_unlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_chown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		char sercode, intfun syscall)
 {
-	int owner,group;
+	unsigned int owner,group;
 	owner=getargn(1,pc);
 	group=getargn(2,pc);
+#if __NR_chown != __NR_chown32
+	if (sc_number == __NR_chown || sc_number == __NR_lchown) {
+		owner=low2highuid(owner);
+		group=low2highgid(group);
+	}
+#endif
 	pc->retval = syscall(pcdata->path,owner,group,pc);
 	pc->erno=errno;
 	return SC_FAKE;
@@ -91,9 +98,15 @@ int wrap_in_fchown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->erno= EBADF;
 		return SC_FAKE;
 	} else {
-		int owner,group;
+		unsigned int owner,group;
 		owner=getargn(1,pc);
 		group=getargn(2,pc);
+#if __NR_fchown != __NR_fchown32
+	if (sc_number == __NR_fchown) {
+		owner=low2highuid(owner);
+		group=low2highgid(group);
+	}
+#endif
 		pc->retval = syscall(sfd,owner,group,pc);
 		pc->erno=errno;
 		return SC_FAKE;
