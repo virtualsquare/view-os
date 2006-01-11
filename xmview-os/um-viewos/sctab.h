@@ -70,8 +70,8 @@ char *um_abspath(int laddr,struct pcb *pc,struct stat64 *pst,int link);
 
 void um_set_errno(struct pcb *pc,int i);
 char *um_getcwd(struct pcb *pc,char *buf,int size);
-int um_x_lstat64(char *filename, struct stat64 *buf,void *umph);
-int um_x_readlink(char *path, char *buf, size_t bufsiz,void *umph);
+int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *umph);
+int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *umph);
 
 /* modules callbacks for extra args */
 int um_mod_getpid(void *umph);

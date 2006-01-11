@@ -42,15 +42,15 @@
 
 #include "module.h"
 #include "libummod.h"
-// #include "gdebug.h"
-#define GDEBUG(level, fmt...) fprintf(stderr, fmt)
+#include "gdebug.h"
 #include "../um-viewos/syscallnames.h"
 
 // #define VIEWFS_ENABLE_REMAP
+// #define VIEWFS_CHECK_CRITICAL
 
 #define EXISTS(x) ((access((x), F_OK)) == 0)
 
-// #define DAR(x) (GDEBUG(2, "%s:%s:%d return %s\n", __FILE__, __func__, __LINE__, #x),(x))
+//#define DAR(x) (GDEBUG(4, "DAR %s", #x),(x))
 #define DAR(x) (x)
 
 #define VIEWFS_SERVICE_CODE 0xf5
@@ -90,7 +90,8 @@
 #define ISLASTCHECK(x)			(procinfo[umpid].lastcheck == (x))
 
 #define VIEWFS_CRITCHECK(path, retval, deep) {	\
-	if (is_critical(path, deep))			\
+	GDEBUG(6, "entering management function"); \
+	if (is_critical(path, deep))				\
 	{											\
 		errno = EACCES;							\
 		return (retval);						\
@@ -156,6 +157,9 @@ static char *remaplinkname;
 // FIXME: #include "umproc.h" leads to duplicate definitions here
 extern char* sfd_getpath(int, int);
 
+static struct service s;
+
+#ifdef VIEWFS_ENABLE_REMAP
 static void prepare_names_remap(char *path, int which)
 {
 	if (which & VIEWFS_DEFAULT)
@@ -166,12 +170,11 @@ static void prepare_names_remap(char *path, int which)
 }
 
 
-#ifdef VIEWFS_ENABLE_REMAP
 /* This function uses a statically allocated buffer (remapbuf). This is not
  * thread safe, but is fast and avoids keeping track of mallocs and frees for
  * the buffer. */
 
-#define DAREMAP(x) (GDEBUG(1, "[REMAP] remapping %s -> %s\n", path, (x)), (x))
+#define DAREMAP(x) (GDEBUG(1, "[REMAP] remapping %s -> %s", path, (x)), (x))
 static char *remap(char *path)
 {
 	int retval;
@@ -261,7 +264,6 @@ static void prepare_names(char *path, int which)
 		strcpy(defaultpers->real, path);
 		strcpy(defaultpers->addr, path);
 		strcpy(defaultpers->hider, path);
-		strcpy(defaultpers->mapr, path);
 	}
 
 	if (which & VIEWFS_CURRENT)
@@ -269,7 +271,6 @@ static void prepare_names(char *path, int which)
 		strcpy(currentpers->real, path);
 		strcpy(currentpers->addr, path);
 		strcpy(currentpers->hider, path);
-		strcpy(currentpers->mapr, path);
 	}
 }
 
@@ -360,9 +361,9 @@ static void prepare()
 	remapbuf = malloc(PATH_MAX + 1);
 	remaplinkname = malloc(2*PATH_MAX + 1);
 
-	GDEBUG(2, "base path: %s\n", basepath);
-	GDEBUG(2, "default pers add dir: %s\n", defaultpers->add);
-	GDEBUG(2, "current pers add dir: %s\n", currentpers->add);
+	GDEBUG(2, "base path: %s", basepath);
+	GDEBUG(2, "default pers add dir: %s", defaultpers->add);
+	GDEBUG(2, "current pers add dir: %s", currentpers->add);
 }
 
 static void dispose()
@@ -378,22 +379,22 @@ static void dispose()
 
 static void procinfo_fd_set(int id, int fd, int pers)
 {
-	GDEBUG(2, "procinfo_fd_set id %d, fd %d, pers %d\n", id, fd, pers);
+	GDEBUG(2, "procinfo_fd_set id %d, fd %d, pers %d", id, fd, pers);
 	if (pers & VIEWFS_CURRENT)
 		FD_SET(fd, &procinfo[id].cur);
 	if (pers & VIEWFS_DEFAULT)
 		FD_SET(fd, &procinfo[id].def);
-	GDEBUG(2, "procinfo_fd_set end\n");
+	GDEBUG(2, "procinfo_fd_set end");
 }
 
 static void procinfo_fd_clear(int id, int fd, int pers)
 {
-	GDEBUG(2, "procinfo_fd_clear id %d, fd %d, pers %d\n", id, fd, pers);
+	GDEBUG(2, "procinfo_fd_clear id %d, fd %d, pers %d", id, fd, pers);
 	if (pers & VIEWFS_CURRENT)
 		FD_CLR(fd, &procinfo[id].cur);
 	if (pers & VIEWFS_DEFAULT)
 		FD_CLR(fd, &procinfo[id].def);
-	GDEBUG(2, "procinfo_fd_clear end\n");
+	GDEBUG(2, "procinfo_fd_clear end");
 }
 
 static int addproc(int id, int max, void *umph)
@@ -429,6 +430,7 @@ static int delproc(int id, void *umph)
 	return 0;
 }
 
+#ifdef VIEWFS_CHECK_CRITICAL
 /* Return 1 if the given path is at or under the ~/.viewfs directory.
  * If "deep" is set to VIEWFS_SHALLOW, return 1 only if the given
  * path is EQUAL to ~/.viewfs. If "deep" is set to VIEWFS_SHALLOW,
@@ -444,7 +446,9 @@ inline static int is_critical(char *path, int deep)
 		return (is_critical(path, VIEWFS_DEEP) && 
 				!is_critical(path, VIEWFS_SHALLOW));
 }
-
+#else
+#define is_critical(x, y) (0)
+#endif
 
 /*
  * Return values:
@@ -463,7 +467,7 @@ static int is_directory_empty(char *dirname)
 	if (fd < 0)
 	{
 		free(dirp);
-		GDEBUG(1, "%s is ERROR during open\n", dirname);
+		GDEBUG(3, "%s is ERROR during open", dirname);
 		return -1;
 	}
 
@@ -477,20 +481,20 @@ static int is_directory_empty(char *dirname)
 	if (retval <= 0) // It could not be MORE EMPTY than this :-)
 	{
 		free(dirp);
-		GDEBUG(1, "%s is ERROR\n", dirname);
+		GDEBUG(3, "%s is ERROR", dirname);
 		return -1;
 	}
 
 	if ((dirp->d_reclen < retval) && ((((struct dirent*)((char*)dirp + dirp->d_reclen))->d_reclen) + dirp->d_reclen == retval))
 	{
 		free(dirp);
-		GDEBUG(1, "%s is empty\n", dirname);
+		GDEBUG(5, "%s is empty", dirname);
 		return 1;
 	}
 	else
 	{
 		free(dirp);
-		GDEBUG(1, "%s is NOT empty\n", dirname);
+		GDEBUG(5, "%s is NOT empty", dirname);
 		return 0;
 	}
 }
@@ -513,8 +517,11 @@ static int check_generic(char *path, int umpid)
 
 	if (EXISTS(currentpers->hide) || (errno == EACCES))
 	{
-		procinfo[umpid].lastcheck = VIEWFS_CHECK_CURRENT_HIDE;
-		return 1;
+		if (is_directory_empty(currentpers->hide) > 0)
+		{
+			procinfo[umpid].lastcheck = VIEWFS_CHECK_CURRENT_HIDE;
+			return 1;
+		}
 	}
 	
 	if (EXISTS(defaultpers->add) || (errno != ENOENT))
@@ -525,11 +532,23 @@ static int check_generic(char *path, int umpid)
 	
 	if (EXISTS(defaultpers->hide) || (errno == EACCES))
 	{
-		procinfo[umpid].lastcheck = VIEWFS_CHECK_DEFAULT_HIDE;
-		return 1;
+		if (is_directory_empty(defaultpers->hide) > 0)
+		{
+			procinfo[umpid].lastcheck = VIEWFS_CHECK_DEFAULT_HIDE;
+			return 1;
+		}
 	}
 
 	procinfo[umpid].lastcheck = VIEWFS_CHECK_FALSE;
+	return 0;
+}
+
+static int check_chdir(char *path, int umpid)
+{
+	prepare_names(path, VIEWFS_BOTH);
+
+	procinfo[umpid].lastcheck = VIEWFS_CHECK_FALSE;
+
 	return 0;
 }
 
@@ -663,21 +682,21 @@ static void clear_cachedata(struct d64array *data, int deep)
 {
 	int i;
 
-	GDEBUG(1, "clearing cache data for fd %d\n", data->fd);
+	GDEBUG(1, "clearing cache data for fd %d", data->fd);
 
 	if (deep == VIEWFS_DEEP)
 		for (i = 0; i < 5; i++)
 			if (data->dirp_orig[i])
 			{
-				GDEBUG(1, "clearing original dirp pos %d\n", i);
+				GDEBUG(1, "clearing original dirp pos %d", i);
 				free(data->dirp_orig[i]);
 			}
 	
 
-	GDEBUG(1, "clearing data->array\n");
+	GDEBUG(1, "clearing data->array");
 	free(data->array);
 
-	GDEBUG(1, "clearing data\n");
+	GDEBUG(1, "clearing data");
 	free(data);
 
 	return;
@@ -995,7 +1014,7 @@ static int viewfs_rmdir(char *path, void *umph)
 			return retval;
 	}
 }
-
+#if 0
 static int viewfs_chdir(char *path, void *umph)
 {
 	int umpid = um_mod_getumpid(umph);
@@ -1022,6 +1041,7 @@ static int viewfs_chdir(char *path, void *umph)
 
 	return DAR(chdir(path));
 }
+#endif
 
 static int viewfs_chmod(char *path, int mode, void *umph)
 {
@@ -1247,6 +1267,13 @@ static int viewfs_utimes(char *filename, struct timeval tv[2], void *umph)
 	return DAR(utimes(filename, tv));
 }
 
+ssize_t viewfs_getxattr(char *path, char *name, void *value, size_t size)
+{
+	// TODO: add support for this. should be like stat64.
+	errno = ENOTSUP;
+	return DAR(-1);
+}
+
 ssize_t viewfs_pread(int fd, void *buf, size_t count, long long offset)
 {
 	off_t off=offset;
@@ -1261,13 +1288,13 @@ ssize_t viewfs_pwrite(int fd, const void *buf, size_t count, long long offset)
 
 static int viewfs_getdents(unsigned int fd, struct dirent *dirp, unsigned int count, void *umph)
 {
-	GDEBUG(1,"getdents!\n");
+	GDEBUG(1,"getdents!");
 	int umpid = um_mod_getumpid(umph);
 	
 	if (FD_ISSET(fd, &procinfo[umpid].cur))
-		GDEBUG(1, "fd %d is open in current personality\n", fd);
+		GDEBUG(1, "fd %d is open in current personality", fd);
 	if (FD_ISSET(fd, &procinfo[umpid].def))
-		GDEBUG(1, "fd %d is open in default personality\n", fd);
+		GDEBUG(1, "fd %d is open in default personality", fd);
 	
 	return 0;
 }
@@ -1336,7 +1363,7 @@ static struct d64array *dirent64_to_d64array(struct dirent64 *dirp, int count, i
 	}
 	while (curcount < count);
 
-	GDEBUG(1, "there are %d elements in the struct dirent\n", elems);
+	GDEBUG(1, "there are %d elements in the struct dirent", elems);
 
 	// Allocate a pointer array
 	retval->array = malloc(elems * sizeof(struct dirent64*));
@@ -1380,7 +1407,7 @@ static int getdents64_cached(struct d64array *data, struct dirent64 *dirp, unsig
 	// We're already at the end of the directory -> getdents returns 0
 	if (data->lastindex == data->size)
 	{
-		GDEBUG(1, "end of directory!\n");
+		GDEBUG(1, "end of directory!");
 		return 0;
 	}
 
@@ -1403,11 +1430,11 @@ static int getdents64_cached(struct d64array *data, struct dirent64 *dirp, unsig
 
 		curcount += dentsize;
 		memcpy(curp, data->array[data->lastindex], dentsize);
-		GDEBUG(1, "added info for %s\n", ((struct dirent64 *)curp)->d_name);
+		GDEBUG(1, "added info for %s", ((struct dirent64 *)curp)->d_name);
 		curp += dentsize;
 	}
 
-	GDEBUG(1, "curcount: %d, count: %d, lastindex: %d, size: %d\n", curcount, count, data->lastindex, data->size);
+	GDEBUG(1, "curcount: %d, count: %d, lastindex: %d, size: %d", curcount, count, data->lastindex, data->size);
 
 	// If no dirents have been copied in dirp, the buffer is too small
 	if (curcount == 0)
@@ -1515,8 +1542,6 @@ static struct d64array *d64array_subtract(struct d64array *a1, struct d64array *
 
 static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count, void *umph)
 {
-	GDEBUG(1,"getdents64!\n");
-	
 	int umpid = um_mod_getumpid(umph);
 	char *path = sfd_getpath(VIEWFS_SERVICE_CODE, fd);
 	int pd_status = 0;
@@ -1536,11 +1561,11 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 	{
 		for (i = 0; i < procinfo[umpid].gd64_size; i++)
 		{
-			GDEBUG(1, "parsing cache array: position %d (size %d), fd %d\n", i, procinfo[umpid].gd64_size, procinfo[umpid].gd64_data[i]->fd);
+			GDEBUG(1, "parsing cache array: position %d (size %d), fd %d", i, procinfo[umpid].gd64_size, procinfo[umpid].gd64_data[i]->fd);
 			if (procinfo[umpid].gd64_data[i]->fd == fd)
 				return getdents64_cached(procinfo[umpid].gd64_data[i], dirp, count);
 		}
-		GDEBUG(1, "should have cached data for getdents64(%d) but none found. This is a bug.\n", fd);
+		GDEBUG(1, "should have cached data for getdents64(%d) but none found. This is a bug.", fd);
 		return -1;
 	}
 
@@ -1572,12 +1597,12 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 		pd_total++;
 	}
 
-	GDEBUG(1, "perspath is %s\n", path);
+	GDEBUG(1, "perspath is %s", path);
 	
 	if (FD_ISSET(fd, &procinfo[umpid].cur))
-		GDEBUG(1, "fd %d is open in current personality\n", fd);
+		GDEBUG(1, "fd %d is open in current personality", fd);
 	if (FD_ISSET(fd, &procinfo[umpid].def))
-		GDEBUG(1, "fd %d is open in default personality\n", fd);
+		GDEBUG(1, "fd %d is open in default personality", fd);
 	
 	GDEBUG(1, "result =");
 
@@ -1595,7 +1620,7 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 	if (pd_status & VIEWFS_CURRENT_ADD)
 		GDEBUG(1, " U P+");
 	
-	GDEBUG(1, "\n");
+	GDEBUG(1, "");
 
 	if (!pd_status)
 		return DAR(syscall(__NR_getdents64, fd, dirp, count));
@@ -1614,7 +1639,7 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 				(pd_status & VIEWFS_DEFAULT_ADD))
 			return DAR(syscall(__NR_getdents64, fd, dirp, count));
 		else
-			GDEBUG(1, "this should never happen. please check: pd_status == %08x\n", pd_status);
+			GDEBUG(1, "this should never happen. please check: pd_status == %08x", pd_status);
 	}
 	else
 	{
@@ -1626,11 +1651,11 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 		if (pd_status & VIEWFS_REAL)
 		{
 			gdretval = getdents64_whole_dir(path, &gdtmp, count);
-			GDEBUG(1, "gwd on R returned %d\n", gdretval);
+			GDEBUG(1, "gwd on R returned %d", gdretval);
 			if (gdretval < 0)
 				return -1;
 
-			GDEBUG(1, "converting to fixed-size array\n");
+			GDEBUG(1, "converting to fixed-size array");
 			cachedata = dirent64_to_d64array(gdtmp, gdretval, fd);
 			cachedata->lastindex = 0;
 			
@@ -1638,9 +1663,9 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 			for (i = 1; i < 5; i++)
 				cachedata->dirp_orig[i] = NULL;
 				
-			GDEBUG(1, "sorting\n");
+			GDEBUG(1, "sorting");
 			sort_array64(cachedata);
-			GDEBUG(1, "sorted\n");
+			GDEBUG(1, "sorted");
 		}
 		else
 		{
@@ -1669,7 +1694,7 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 		{
 			struct d64array *datmp, *old;
 			gdretval = getdents64_whole_dir(defaultpers->hide, &gdtmp, count);
-			GDEBUG(1, "gwd on *- returned %d\n", gdretval);
+			GDEBUG(1, "gwd on *- returned %d", gdretval);
 			if (gdretval < 0)
 				return -1;
 
@@ -1690,7 +1715,7 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 		{
 			struct d64array *datmp, *old;
 			gdretval = getdents64_whole_dir(defaultpers->add, &gdtmp, count);
-			GDEBUG(1, "gwd on *+ returned %d\n", gdretval);
+			GDEBUG(1, "gwd on *+ returned %d", gdretval);
 			if (gdretval < 0)
 				return -1;
 			
@@ -1711,7 +1736,7 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 		{
 			struct d64array *datmp, *old;
 			gdretval = getdents64_whole_dir(currentpers->hide, &gdtmp, count);
-			GDEBUG(1, "gwd on P- returned %d\n", gdretval);
+			GDEBUG(1, "gwd on P- returned %d", gdretval);
 			if (gdretval < 0)
 				return -1;
 
@@ -1732,7 +1757,7 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 		{
 			struct d64array *datmp, *old;
 			gdretval = getdents64_whole_dir(currentpers->add, &gdtmp, count);
-			GDEBUG(1, "gwd on P+ returned %d\n", gdretval);
+			GDEBUG(1, "gwd on P+ returned %d", gdretval);
 			if (gdretval < 0)
 				return -1;
 			
@@ -1768,7 +1793,7 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 
 		if (!found)
 		{
-			GDEBUG(1, "saving data to cache for fd %d\n", fd);
+			GDEBUG(1, "saving data to cache for fd %d", fd);
 			if (firstempty < 0)
 			{
 				i = procinfo[umpid].gd64_size++;
@@ -1785,7 +1810,6 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 	return 0;
 }
 
-static struct service s;
 
 /* Check if the given pathname must be managed by this module or not.
  * The choice takes into account the system call number and can look at its
@@ -1798,7 +1822,7 @@ static int is_path_interesting(char *path, void *umph)
 	int scno = um_mod_getsyscallno(umph);
 	int umpid = um_mod_getumpid(umph);
 
-	GDEBUG(2, "check for %s in syscall %s\n", path, SYSCALLNAME(scno));
+	GDEBUG(5, "check for %s in syscall %s", path, SYSCALLNAME(scno));
 
 	// TODO: convert this [slow?] switch into something faster, maybe
 	// a pointer array
@@ -1821,8 +1845,11 @@ static int is_path_interesting(char *path, void *umph)
 		case __NR_utimes:
 		case __NR_rmdir:
 		case __NR_unlink:
-		case __NR_chdir:
+		case __NR_getxattr:
 			return check_generic(path, umpid);
+		
+		case __NR_chdir:
+			return check_chdir(path, umpid);
 
 		case __NR_mkdir:
 			return check_mkdir(path, umpid);
@@ -1831,11 +1858,11 @@ static int is_path_interesting(char *path, void *umph)
 			return check_generic((char*)(um_mod_getargs(umph)[1]), umpid);
 
 		case __NR_fchdir:
-			GDEBUG(1, "*CHECK* fchdir %d\n", (int)(um_mod_getargs(umph)[1]));
+			GDEBUG(1, "*CHECK* fchdir %d", (int)(um_mod_getargs(umph)[1]));
 			break;
 
 		default:
-			GDEBUG(0, "[FIXME] viewfs support for %s has to be written\n", SYSCALLNAME(scno));
+			GDEBUG(4, "[FIXME] viewfs support for %s has to be written", SYSCALLNAME(scno));
 			prepare_names(path, VIEWFS_BOTH);
 			break;
 }
@@ -1852,16 +1879,21 @@ static int viewfscheck(int type, void *arg, void *umph)
 		return 0;
 
 	path = (char*) arg;
-	
+
+	if (path[0] == '\0')
+	{
+		GDEBUG(5, "check path for empty path in syscall %s. Strange thing.", SYSCALLNAME(um_mod_getsyscallno(umph)));
+		return 0;
+	}
 	if (is_critical(path, VIEWFS_DEEP))
 	{
-		GDEBUG(1, "attempt to read inside the pers directory: %s\n", path);
+		GDEBUG(1, "attempt to read inside the pers directory: %s", path);
 		return 1;
 	}
 
 	if (is_path_interesting(path, umph))
 	{
-		GDEBUG(2, "found interesting file: %s\n", path);
+		GDEBUG(2, "%s: interested in %s", SYSCALLNAME(um_mod_getsyscallno(umph)), path);
 		return 1;
 	}
 	else
@@ -1872,7 +1904,7 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	GDEBUG(2, "viewfs init\n");
+	GDEBUG(2, "viewfs init");
 	
 	prepare();
 	
@@ -1912,6 +1944,7 @@ init (void)
 	s.syscall[uscno(__NR_fchown)]=fchown;
 	s.syscall[uscno(__NR_chmod)]=viewfs_chmod;
 	s.syscall[uscno(__NR_fchmod)]=fchmod;
+	s.syscall[uscno(__NR_getxattr)]=viewfs_getxattr;
 	s.syscall[uscno(__NR_unlink)]=viewfs_unlink;
 	s.syscall[uscno(__NR_fsync)]=fsync;
 	s.syscall[uscno(__NR_fdatasync)]=fdatasync;
@@ -1932,5 +1965,5 @@ fini (void)
 	dispose();
 	free(s.syscall);
 	free(s.socket);
-	GDEBUG(2, "viewfs fini\n");
+	GDEBUG(2, "viewfs fini");
 }

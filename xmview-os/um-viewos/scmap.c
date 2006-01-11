@@ -41,6 +41,7 @@ wrapinfun wrap_in_select, wrap_in_poll, wrap_in_ioctl;
 wrapinfun wrap_in_readv, wrap_in_writev;
 wrapinfun wrap_in_stat, wrap_in_fstat;
 wrapinfun wrap_in_stat64, wrap_in_fstat64;
+wrapinfun wrap_in_getxattr;
 wrapinfun wrap_in_readlink, wrap_in_getdents, wrap_in_access;
 wrapinfun wrap_in_fcntl, wrap_in_notsupp, wrap_in_llseek, wrap_in_lseek;
 wrapinfun wrap_in_mkdir, wrap_in_unlink, wrap_in_chown, wrap_in_fchown;
@@ -64,7 +65,7 @@ struct sc_map scmap[]={
 	{__NR_fchdir,	choice_fd,	wrap_in_fchdir,	wrap_out_chdir, ALWAYS,	1},
 	{__NR_getcwd,	always_umnone, wrap_in_getcwd,	wrap_out_std,	ALWAYS,	2},
 	{__NR_open,	choice_path,	wrap_in_open,	wrap_out_open,	ALWAYS,	3},
-	{__NR_creat,	choice_path,    wrap_in_open,   wrap_out_open,	ALWAYS,	2},
+	{__NR_creat,	choice_path,	wrap_in_open,	wrap_out_open,	ALWAYS,	2},
 	{__NR_close,	choice_fd,	wrap_in_close,	wrap_out_close,	ALWAYS,	1},
 	{__NR_select,	always_umnone,	wrap_in_select,	wrap_out_select,ALWAYS,	5},
 	{__NR_poll,	always_umnone,	wrap_in_poll,	wrap_out_poll,  ALWAYS,	3},
@@ -95,7 +96,7 @@ struct sc_map scmap[]={
 	{__NR_fchown32,	choice_fd,	wrap_in_fchown, wrap_out_std,	0,	3},
 	{__NR_chmod,	choice_path,	wrap_in_chmod, wrap_out_std,	0,	2},
 	{__NR_fchmod,	choice_fd,	wrap_in_fchmod, wrap_out_std,	0,	2},
-	{__NR_getxattr,	choice_path,	wrap_in_notsupp, wrap_out_std,	0,	4},
+	{__NR_getxattr,	choice_path,	wrap_in_getxattr, wrap_out_std,	0,	4},
 	{__NR_lgetxattr,choice_link,	wrap_in_notsupp, wrap_out_std,	0,	4},
 	{__NR_fgetxattr,choice_fd,	wrap_in_notsupp, wrap_out_std,	0,	4},
 	{__NR_readlink,	choice_link,	wrap_in_readlink,wrap_out_std,	0,	3},
@@ -189,3 +190,5 @@ int uscno(int scno)
 	else
 		return -1;
 }
+
+// vim: ts=8

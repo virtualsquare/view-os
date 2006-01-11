@@ -1,4 +1,4 @@
-DEBUGLEVEL?=3
+DEBUGLEVEL?=4
 CBASEFLAGS=-I../include -I../gdebug -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=22 -Wall -rdynamic
 CDEBUGFLAGS=-g -ggdb -DGDEBUG_ENABLED -DGDEBUG_LEVEL=$(DEBUGLEVEL)
 
@@ -43,7 +43,8 @@ sockettest.so: sockettest.o ../um_lib/libumlib.a
 sockip.so: sockip.o ../um_lib/libumlib.a
 	$(CC) -shared -o $@ $+
 
-viewfs.so: viewfs.o ../um_lib/libumlib.a ../gdebug/gdebug.o
+#viewfs.so: viewfs.o ../um_lib/libumlib.a ../gdebug/gdebug.o
+viewfs.so: viewfs.o ../um_lib/libumlib.a
 	$(CC) -shared -o $@ $+
 
 testmodule.o: testmodule.c ../include/module.h

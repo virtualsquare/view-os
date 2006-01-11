@@ -62,23 +62,33 @@ char *um_getcwd(struct pcb *pc,char *buf,int size) {
 	return buf;
 }
 
-int um_x_lstat64(char *filename, struct stat64 *buf,void *umph)
+int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *umph)
 {
 	service_t sercode;
+	long oldscno = umph->scno;
+	int retval;
 	/*printf("-> um_lstat: %s\n",filename);*/
+	umph->scno = __NR_lstat64;
 	if ((sercode=service_check(CHECKPATH,filename,umph)) == UM_NONE)
-		return lstat64(filename,buf);
+		retval = lstat64(filename,buf);
 	else 
-		return service_syscall(sercode,uscno(__NR_lstat64))(filename,buf,umph);
+		retval = service_syscall(sercode,uscno(__NR_lstat64))(filename,buf,umph);
+	umph->scno = oldscno;
+	return retval;
 }
 
-int um_x_readlink(char *path, char *buf, size_t bufsiz,void *umph)
+int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *umph)
 {
 	service_t sercode;
+	long oldscno = umph->scno;
+	int retval;
+	umph->scno = __NR_readlink;
 	if ((sercode=service_check(CHECKPATH,path,umph)) == UM_NONE)
-		return readlink(path,buf,bufsiz);
+		retval = readlink(path,buf,bufsiz);
 	else 
-		return service_syscall(sercode,uscno(__NR_readlink))(path,buf,bufsiz,umph);
+		retval = service_syscall(sercode,uscno(__NR_readlink))(path,buf,bufsiz,umph);
+	umph->scno = oldscno;
+	return retval;
 }
 
 char um_patherror[]="PE";

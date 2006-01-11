@@ -389,6 +389,23 @@ int wrap_in_fstat64(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	return SC_FAKE;
 }
 
+int wrap_in_getxattr(int sc_number, struct pcb *pc, struct pcb_ext *pcdata,
+		service_t sercode, intfun syscall)
+{
+	char *name = (char *)getargn(1, pc);
+	long pbuf = getargn(2, pc);
+	size_t size = getargn(3, pc);
+	char *buf = alloca(size);
+
+	pc->retval = syscall(pcdata->path, name, buf, size, pc);
+	pc->erno = errno;
+
+	if (pc->retval >= 0)
+		ustoren(pc->pid, pbuf, size, buf);
+
+	return SC_FAKE;
+}
+
 int wrap_in_readlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun syscall)
 {

@@ -1,9 +1,11 @@
 DEBUGLEVEL=2
-CBASEFLAGS=-Wall -D_GNU_SOURCE
+CBASEFLAGS=-Wall -D_GNU_SOURCE -I../gdebug
 CDEBUGFLAGS=-g -ggdb -DGDEBUG_ENABLED -DGDEBUG_LEVEL=$(DEBUGLEVEL)
+CPPFLAGS+=-I../gdebug
 
+#OBJS=gdebug.o capture_sc.o canonicalize.o utils.o umproc.o services.o sctab.o umview.o um_services.o scmap.o um_basicio.o um_plusio.o um_socket.o um_wdm.o um_select.o um_ioctl.o ptrace_multi_test.o um_exec.o
 
-OBJS=gdebug.o capture_sc.o canonicalize.o utils.o umproc.o services.o sctab.o umview.o um_services.o scmap.o um_basicio.o um_plusio.o um_socket.o um_wdm.o um_select.o um_ioctl.o ptrace_multi_test.o um_exec.o
+OBJS=capture_sc.o canonicalize.o utils.o umproc.o services.o sctab.o umview.o um_services.o scmap.o um_basicio.o um_plusio.o um_socket.o um_wdm.o um_select.o um_ioctl.o ptrace_multi_test.o um_exec.o 
 
 ifeq ($(PIVOTING),true)
 
@@ -12,9 +14,9 @@ CBASEFLAGS += -DPIVOTING_ENABLED -DPIVOTING_TEST
 
 endif
 
-LDFLAGS=-rdynamic
+LDFLAGS=-rdynamic -L../gdebug
 
-LOADLIBES=-ldl -lpthread
+LOADLIBES=-ldl -lpthread -lgdebug
 
 ifeq ($(RELEASE),true)
 

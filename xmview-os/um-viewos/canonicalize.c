@@ -40,7 +40,7 @@
 	 holds the same value as the value returned.  */
 
 char *
-um_realpath (void *umph, const char *name, char *resolved, struct stat64 *pst)
+um_realpath (struct pcb *umph, const char *name, char *resolved, struct stat64 *pst)
 {
 	char *dest, extra_buf[PATH_MAX];
 	const char *start, *end, *resolved_limit;
