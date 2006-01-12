@@ -50,8 +50,8 @@
 
 #define EXISTS(x) ((access((x), F_OK)) == 0)
 
-//#define DAR(x) (GDEBUG(4, "DAR %s", #x),(x))
-#define DAR(x) (x)
+#define DAR(x) (GDEBUG(6, "DAR %s", #x),(x))
+//#define DAR(x) (x)
 
 #define VIEWFS_SERVICE_CODE 0xf5
 
@@ -546,6 +546,9 @@ static int check_generic(char *path, int umpid)
 static int check_chdir(char *path, int umpid)
 {
 	prepare_names(path, VIEWFS_BOTH);
+
+	if (access(path, X_OK) != 0)
+		return 1;
 
 	procinfo[umpid].lastcheck = VIEWFS_CHECK_FALSE;
 
