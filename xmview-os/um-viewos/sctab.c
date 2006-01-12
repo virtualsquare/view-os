@@ -117,12 +117,11 @@ char *um_abspath(int laddr,struct pcb *pc,struct stat64 *pst,int link)
 		} else
 			um_realpath(pc,path,newpath,pst);
 		//printf("um_abspath %d %s %s\n",pc->erno,path,newpath);
-		return strdup(newpath);
-		/*
+		/*return strdup(newpath);*/
 		if (pc->erno)
 			return um_patherror;	//error
 		else
-			return strdup(newpath);*/
+			return strdup(newpath);
 	}
 	else {
 		pc->erno = EINVAL;

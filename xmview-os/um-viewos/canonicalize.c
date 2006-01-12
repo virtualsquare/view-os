@@ -138,10 +138,6 @@ um_realpath (struct pcb *umph, const char *name, char *resolved, struct stat64 *
 					goto error;
 				}
 			} else {
-				if (*end == '/' && !S_ISDIR(pst->st_mode)) {
-					um_set_errno (umph,ENOTDIR);
-					goto error;
-				}
 				if (S_ISLNK (pst->st_mode))
 				{
 					char buf[PATH_MAX];
@@ -178,6 +174,10 @@ um_realpath (struct pcb *umph, const char *name, char *resolved, struct stat64 *
 						/* Back up to previous component, ignore if at root already: */
 						if (dest > resolved + 1)
 							while ((--dest)[-1] != '/');
+				}
+				else if (*end == '/' && !S_ISDIR(pst->st_mode)) {
+					um_set_errno (umph,ENOTDIR);
+					goto error;
 				}
 			}
 		}
