@@ -81,6 +81,15 @@ um_realpath (struct pcb *umph, const char *name, char *resolved, struct stat64 *
 	{
 		resolved[0] = '/';
 		dest = resolved + 1;
+		/* special case "/" */
+		if (name[1] == 0) {
+			*dest='\0';
+			if (um_x_lstat64 (resolved, pst, umph) < 0)
+				um_set_errno (umph,errno);
+			else
+				um_set_errno (umph,0);
+			return resolved;
+		}
 	}
 
 	for (start = end = name; *start; start = end)
@@ -124,50 +133,52 @@ um_realpath (struct pcb *umph, const char *name, char *resolved, struct stat64 *
 
 			/*check the dir along the path */
 			if (um_x_lstat64 (resolved, pst, umph) < 0) {
-				um_set_errno (umph,errno);
-				goto error;
-			}
-			if (*end == '/' && !S_ISDIR(pst->st_mode)) {
-				um_set_errno (umph,ENOTDIR);
-				goto error;
-			}
-
-			if (S_ISLNK (pst->st_mode))
-			{
-				char buf[PATH_MAX];
-				size_t len;
-
-				if (++num_links > MAXSYMLINKS)
-				{
-					um_set_errno (umph,ELOOP);
-					goto error;
-				}
-
-				/* symlink! */
-				n = um_x_readlink (resolved, buf, PATH_MAX, umph);
-				if (n < 0) {
+				if (errno != ENOENT || *end == '/') {
 					um_set_errno (umph,errno);
 					goto error;
 				}
-				buf[n] = '\0';
-
-				len = strlen (end);
-				if ((long int) (n + len) >= PATH_MAX)
-				{
-					um_set_errno (umph,ENAMETOOLONG);
+			} else {
+				if (*end == '/' && !S_ISDIR(pst->st_mode)) {
+					um_set_errno (umph,ENOTDIR);
 					goto error;
 				}
+				if (S_ISLNK (pst->st_mode))
+				{
+					char buf[PATH_MAX];
+					size_t len;
 
-				/* Careful here, end may be a pointer into extra_buf... */
-				memmove (&extra_buf[n], end, len + 1);
-				name = end = memcpy (extra_buf, buf, n);
+					if (++num_links > MAXSYMLINKS)
+					{
+						um_set_errno (umph,ELOOP);
+						goto error;
+					}
 
-				if (buf[0] == '/')
-					dest = resolved + 1;	/* It's an absolute symlink */
-				else
-					/* Back up to previous component, ignore if at root already: */
-					if (dest > resolved + 1)
-						while ((--dest)[-1] != '/');
+					/* symlink! */
+					n = um_x_readlink (resolved, buf, PATH_MAX, umph);
+					if (n < 0) {
+						um_set_errno (umph,errno);
+						goto error;
+					}
+					buf[n] = '\0';
+
+					len = strlen (end);
+					if ((long int) (n + len) >= PATH_MAX)
+					{
+						um_set_errno (umph,ENAMETOOLONG);
+						goto error;
+					}
+
+					/* Careful here, end may be a pointer into extra_buf... */
+					memmove (&extra_buf[n], end, len + 1);
+					name = end = memcpy (extra_buf, buf, n);
+
+					if (buf[0] == '/')
+						dest = resolved + 1;	/* It's an absolute symlink */
+					else
+						/* Back up to previous component, ignore if at root already: */
+						if (dest > resolved + 1)
+							while ((--dest)[-1] != '/');
+				}
 			}
 		}
 	}
