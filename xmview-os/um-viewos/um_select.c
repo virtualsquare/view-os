@@ -159,7 +159,9 @@ void select_check_wset_item(struct pcb *pc,struct fillset *fsp)
 			if (sd->wakemeup==WAKEUP) {
 				switch (pc->scno) {
 					case __NR_select:
+#if !defined(__x86_64__)
 					case __NR__newselect:
+#endif
 					case __NR_poll:
 						lfd_signal(sd->a_random_lfd); /*private lfd*/
 						break;
@@ -225,7 +227,11 @@ int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how)
 		if (sercode != UM_NONE && (sfd=fd2sfd(pcdata->fds,fd)) >= 0) {
 			intfun local_select_register;
 			if ((local_select_register=service_select_register(sercode)) == NULL) {
+#if defined(__x86_64__)
+				intfun localselect=service_syscall(sercode,uscno(__NR_select));
+#else
 				intfun localselect=service_syscall(sercode,uscno(__NR__newselect));
+#endif
 				/* use the standard "select" provided by the service. */
 				if (localselect != NULL) {
 					fd_set tfds[3];
@@ -279,14 +285,14 @@ int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how)
 }
 
 /* optimization: copy only the useful part given the max fd */
-static void getfdset(int addr, int pid, int max, fd_set *lfds)
+static void getfdset(long addr, int pid, int max, fd_set *lfds)
 {
 	FD_ZERO(lfds);
 	if (addr != umNULL)
 		umoven(pid,addr,(__FDELT(max)+1)*sizeof(__fd_mask),lfds);
 }
 
-static void putfdset(int addr, int pid, int max, fd_set *lfds)
+static void putfdset(long addr, int pid, int max, fd_set *lfds)
 {
 	if (addr != umNULL)
 		ustoren(pid,addr,(__FDELT(max)+1)*sizeof(__fd_mask),lfds);
@@ -304,7 +310,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	fd_set tfds[3]; /* test for virtual files (one by one)*/
 	fd_set wfds[3]; /* modified waiting fds virtual files are R-waiting on the FIFOs */ 
 	fd_set wrfds[3]; /* waiting *real* fds virtual file sets for the main loop*/ 
-	int ptimeout=getargn(4,pc);
+	long ptimeout=getargn(4,pc);
 	struct timeval *lptimeout;
 	struct timeval ltimeout;
 	//printf("SELECT %d PID %d\n",sc_number,pc->pid);
@@ -349,7 +355,11 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		/* all the management of this fd happens only if if the file
 		 * descriptor is managed by us (that is, by a service) */
 		if (sercode != UM_NONE && (sfd=fd2sfd(pcdata->fds,fd)) >= 0) {
+#if defined(__x86_64__)
+			intfun localselect=service_syscall(sercode,uscno(__NR_select));
+#else
 			intfun localselect=service_syscall(sercode,uscno(__NR__newselect));
+#endif 
 			intfun local_select_register=service_select_register(sercode);
 			/* do the management only is the service is interested
 			 * in the fact (that is, at least one of the two
@@ -498,7 +508,11 @@ int wrap_out_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 			int sfd;
 			int rfd;
 			if (sercode != UM_NONE && (sfd=fd2sfd(pcdata->fds,fd)) >= 0) {
+#if defined(__x86_64__)
+				intfun localselect=service_syscall(sercode,uscno(__NR_select));
+#else
 				intfun localselect=service_syscall(sercode,uscno(__NR__newselect));
+#endif
 				intfun local_select_register=service_select_register(sercode);
 				if (localselect != NULL && local_select_register == NULL) {
 					rfd=sfd;
@@ -581,7 +595,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	fd_set wrfds[3];
 	int i,count,countcb,signaled,a_random_lfd;
 	int rfdmax=-1;
-	unsigned int pufds=pc->arg0;
+	unsigned long pufds=pc->arg0;
 	unsigned int nfds=getargn(1,pc);
 	//int timeout=getargn(2,pc);
 	//printf("POLL %x %d %d\n",pufds,nfds,timeout);
@@ -701,7 +715,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_out_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	struct pollfd *ufds;
-	unsigned int pufds=pc->arg0;
+	unsigned long pufds=pc->arg0;
 	unsigned int nfds=getargn(1,pc);
 	//int timeout=getargn(2,pc);
 	struct seldata *sd=pcdata->selset;

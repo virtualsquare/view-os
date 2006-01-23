@@ -37,7 +37,7 @@
 #include "module.h"
 #include "libummod.h"
 
-int read(), write(), close();
+// int read(), write(), close();
 
 
 
@@ -183,16 +183,20 @@ init (void)
 	s.syscall[uscno(__NR_stat)]=unreal_stat;
 	s.syscall[uscno(__NR_lstat)]=unreal_lstat;
 	s.syscall[uscno(__NR_fstat)]=fstat;
+#if !defined(__x86_64__)
 	s.syscall[uscno(__NR_stat64)]=unreal_stat64;
 	s.syscall[uscno(__NR_lstat64)]=unreal_lstat64;
 	s.syscall[uscno(__NR_fstat64)]=fstat64;
+#endif
 	s.syscall[uscno(__NR_readlink)]=unreal_readlink;
 	s.syscall[uscno(__NR_getdents)]=getdents;
 	s.syscall[uscno(__NR_getdents64)]=getdents64;
 	s.syscall[uscno(__NR_access)]=unreal_access;
 	s.syscall[uscno(__NR_fcntl)]=fcntl32;
+#if !defined(__x86_64__)
 	s.syscall[uscno(__NR_fcntl64)]=fcntl64;
 	s.syscall[uscno(__NR__llseek)]=_llseek;
+#endif
 	s.syscall[uscno(__NR_lseek)]= (intfun) lseek;
 	s.syscall[uscno(__NR_mkdir)]=unreal_mkdir;
 	s.syscall[uscno(__NR_rmdir)]=unreal_rmdir;

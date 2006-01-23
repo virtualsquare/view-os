@@ -54,7 +54,7 @@
 
 #define umNULL ((int) NULL)
 
-static void ioctl_getarg(pid_t pid, int request, unsigned int arg, void **larg)
+static void ioctl_getarg(pid_t pid, int request, unsigned long arg, void **larg)
 {
 	switch (request) {
 		case FIONREAD:
@@ -98,7 +98,7 @@ static void ioctl_getarg(pid_t pid, int request, unsigned int arg, void **larg)
  * and must be freed. When arg is a scalar must be set to NULL into putarg.
  * otherwise is misunderstood and erroneously freed */
 
-static void ioctl_putarg(pid_t pid, int request, unsigned int arg, void *larg)
+static void ioctl_putarg(pid_t pid, int request, unsigned long arg, void *larg)
 {
 	switch (request) {
 		case FIONREAD:
@@ -133,8 +133,8 @@ int wrap_in_ioctl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		unsigned int req=getargn(1,pc);
-		unsigned int arg=getargn(2,pc);
+		unsigned long req=getargn(1,pc);
+		unsigned long arg=getargn(2,pc);
 		pc->arg1=req;
 		void *larg;
 		ioctl_getarg(pc->pid,req,arg,&larg);

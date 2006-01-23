@@ -4,7 +4,7 @@
  *   sctab.c: um-ViewOS interface to capture_sc
  *   
  *   Copyright 2005 Renzo Davoli University of Bologna - Italy
- *   Modified 2005 Mattia Belletti, Ludovico Gardenghi
+ *   Modified 2005 Mattia Belletti, Ludovico Gardenghi, Andrea Gasparini
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -68,11 +68,19 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *umph)
 	long oldscno = umph->scno;
 	int retval;
 	/*printf("-> um_lstat: %s\n",filename);*/
+#if defined(__x86_64__)
+	umph->scno = __NR_lstat;
+#else
 	umph->scno = __NR_lstat64;
+#endif
 	if ((sercode=service_check(CHECKPATH,filename,umph)) == UM_NONE)
 		retval = lstat64(filename,buf);
 	else 
+#if defined(__x86_64__)
+		retval = service_syscall(sercode,uscno(__NR_lstat))(filename,buf,umph);
+#else
 		retval = service_syscall(sercode,uscno(__NR_lstat64))(filename,buf,umph);
+#endif
 	umph->scno = oldscno;
 	return retval;
 }
@@ -93,7 +101,7 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *umph)
 
 char um_patherror[]="PE";
 
-char *um_getpath(int laddr,struct pcb *pc)
+char *um_getpath(long laddr,struct pcb *pc)
 {
 	char path[PATH_MAX];
 	if (umovestr(pc->pid,laddr,PATH_MAX,path) == 0)
@@ -102,7 +110,7 @@ char *um_getpath(int laddr,struct pcb *pc)
 		return um_patherror;
 }
 
-char *um_abspath(int laddr,struct pcb *pc,struct stat64 *pst,int link)
+char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int link)
 {
 	char path[PATH_MAX];
 	char newpath[PATH_MAX];
@@ -188,7 +196,11 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 			int howsusp = sm[index].flags & 0x7;
 			int what;
 			if (howsusp != 0 && (what=check_suspend_on(pc, pcdata, 
+#if defined(__x86_64__)
+							(sc_number == __NR_socket)?pc->arg2:pc->arg0,
+#else
 							(sc_number == __NR_socketcall)?pc->arg2:pc->arg0,
+#endif
 							howsusp))!=STD_BEHAVIOR)
 				return what;
 			else
@@ -378,7 +390,11 @@ int dsys_error(int sc_number,int inout,struct pcb *pc)
 
 char choice_fd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
+#if defined(__x86_64__) // amd64 changes some syscall constants
+	int fd=(sc_number == __NR_socket)?pc->arg2:pc->arg0;
+#else
 	int fd=(sc_number == __NR_socketcall)?pc->arg2:pc->arg0;
+#endif
 	/*`int rv;
 	rv= service_fd(&(pcdata->fds),fd);
 	printf("choice_fd sc=%d %d %x\n",sc_number,fd,rv);
@@ -395,7 +411,7 @@ char choice_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	
 	if (pcdata->path!=um_patherror) {
 		char filesystemtype[PATH_MAX];
-		unsigned int fstype=getargn(2,pc);
+		unsigned long fstype=getargn(2,pc);
 		if (umovestr(pc->pid,fstype,PATH_MAX,filesystemtype) == 0) {
 			return service_check(CHECKFSTYPE,filesystemtype,pc);
 		}
@@ -500,7 +516,11 @@ void scdtab_init()
 	pcb_destr=pcb_minus;
 	_service_init((intfun)reg_service,(intfun)dereg_service);
 
+#if defined(__x86_64__) // amd64 changes some syscall constants
+	setcdtab(__NR_socket,dsys_socketwrap);
+#else
 	setcdtab(__NR_socketcall,dsys_socketwrap);
+#endif
 
 	setcdtab(__NR_UM_SERVICE,dsys_um_service);
 	init_scmap();

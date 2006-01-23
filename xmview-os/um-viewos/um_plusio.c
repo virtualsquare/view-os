@@ -304,7 +304,7 @@ int wrap_in_symlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_utime(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		char sercode, intfun syscall)
 {
-	unsigned int argaddr=getargn(1,pc);
+	unsigned long argaddr=getargn(1,pc);
 	int argsize;
 	char *larg;
 	if (argaddr == umNULL) 
@@ -329,10 +329,10 @@ int wrap_in_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	char filesystemtype[PATH_MAX];
 	char data[PATH_MAX];
 	char *datax=data;
-	unsigned int argaddr=pc->arg0;
+	unsigned long argaddr=pc->arg0;
 	unsigned int fstype=getargn(2,pc);
 	unsigned int mountflags=getargn(3,pc);
-	unsigned int pdata=getargn(4,pc);
+	unsigned long pdata=getargn(4,pc);
 	umovestr(pc->pid,fstype,PATH_MAX,filesystemtype);
 	umovestr(pc->pid,argaddr,PATH_MAX,source);
 	if (pdata != umNULL)

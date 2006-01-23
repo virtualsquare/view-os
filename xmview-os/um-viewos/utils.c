@@ -52,7 +52,8 @@ umoven(int pid, long addr, int len, void *_laddr)
 	}
 	else {
 		char *laddr=_laddr;
-		int n, m;
+		long n, m;
+		//FIXME: started is not changed after check it in "if(started && ..." 
 		int started = 0;
 		union {
 			long val;
@@ -111,7 +112,8 @@ umovestr(int pid, long addr, int len, void *_laddr)
 	else {
 		char *laddr=_laddr;
 		int started = 0;
-		int i, n, m;
+		long n,m;
+		int i;
 		union {
 			long val;
 			char x[sizeof(long)];
@@ -172,7 +174,7 @@ ustoren(int pid, long addr, int len, void *_laddr)
 	}
 	else {
 		char *laddr=_laddr;
-		int n, m;
+		long n, m;
 		int started = 0;
 		union {
 			long val;

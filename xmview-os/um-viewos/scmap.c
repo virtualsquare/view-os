@@ -69,13 +69,17 @@ struct sc_map scmap[]={
 	{__NR_close,	choice_fd,	wrap_in_close,	wrap_out_close,	ALWAYS,	1},
 	{__NR_select,	always_umnone,	wrap_in_select,	wrap_out_select,ALWAYS,	5},
 	{__NR_poll,	always_umnone,	wrap_in_poll,	wrap_out_poll,  ALWAYS,	3},
+#if !defined(__x86_64__)
 	{__NR__newselect,always_umnone,	wrap_in_select,	wrap_out_select,ALWAYS,	5},
+#endif
 	{__NR_umask,	always_umnone,	wrap_in_umask,  wrap_out_std,	ALWAYS,	1},
 	{__NR_chroot,	always_umnone,	wrap_in_chroot, wrap_out_std,	ALWAYS,	1},
 	{__NR_dup,	choice_fd,	wrap_in_dup,	wrap_out_dup,	ALWAYS,	1},
 	{__NR_dup2,	choice_fd,	wrap_in_dup,	wrap_out_dup,	ALWAYS,	2},
 	{__NR_mount,	choice_mount,	wrap_in_mount,	wrap_out_std,	0,	5},
+#if !defined(__x86_64__)
 	{__NR_umount,	choice_path,	wrap_in_umount,	wrap_out_std,	0,	1},
+#endif
 	{__NR_umount2,	choice_path,	wrap_in_umount,	wrap_out_std,	0,	2},
 	{__NR_ioctl,	choice_fd,	wrap_in_ioctl,	wrap_out_std, 	0,	3},
 	{__NR_read,	choice_fd,	wrap_in_read,	wrap_out_std,	0,	3},
@@ -85,15 +89,19 @@ struct sc_map scmap[]={
 	{__NR_stat,	choice_path,	wrap_in_stat,	wrap_out_std,	0,	2},
 	{__NR_lstat,	choice_link,	wrap_in_stat,	wrap_out_std,	0,	2},
 	{__NR_fstat,	choice_fd,	wrap_in_fstat,	wrap_out_std,	0,	2},
+#if !defined(__x86_64__)
 	{__NR_stat64,	choice_path,	wrap_in_stat64,	wrap_out_std,	0,	2},
 	{__NR_lstat64,	choice_link,	wrap_in_stat64,	wrap_out_std,	0,	2},
 	{__NR_fstat64,	choice_fd,	wrap_in_fstat64,wrap_out_std,	0,	2},
+#endif
 	{__NR_chown,	choice_path,	wrap_in_chown, wrap_out_std,	0,	3},
 	{__NR_lchown,	choice_link,	wrap_in_chown, wrap_out_std,	0,	3},
 	{__NR_fchown,	choice_fd,	wrap_in_fchown, wrap_out_std,	0,	3},
+#if !defined(__x86_64__)
 	{__NR_chown32,	choice_path,	wrap_in_chown, wrap_out_std,	0,	3},
 	{__NR_lchown32,	choice_link,	wrap_in_chown, wrap_out_std,	0,	3},
 	{__NR_fchown32,	choice_fd,	wrap_in_fchown, wrap_out_std,	0,	3},
+#endif
 	{__NR_chmod,	choice_path,	wrap_in_chmod, wrap_out_std,	0,	2},
 	{__NR_fchmod,	choice_fd,	wrap_in_fchmod, wrap_out_std,	0,	2},
 	{__NR_getxattr,	choice_path,	wrap_in_getxattr, wrap_out_std,	0,	4},
@@ -104,9 +112,13 @@ struct sc_map scmap[]={
 	{__NR_getdents64,choice_fd,	wrap_in_getdents,wrap_out_std,	0,	3},
 	{__NR_access,	choice_path,	wrap_in_access, wrap_out_std,	0,	2},
 	{__NR_fcntl,	choice_fd,	wrap_in_fcntl, wrap_out_fcntl,	0,	3},
+#if !defined(__x86_64__)
 	{__NR_fcntl64,	choice_fd,	wrap_in_fcntl, wrap_out_fcntl,	0,	3},
+#endif
 	{__NR_lseek,	choice_fd,	wrap_in_lseek, wrap_out_std,	0,	3},
+#if !defined(__x86_64__)
 	{__NR__llseek,	choice_fd,	wrap_in_llseek, wrap_out_std,	0,	5},
+#endif
 	{__NR_mkdir,	choice_link,	wrap_in_mkdir, wrap_out_std,	0,	2},
 	{__NR_rmdir,	choice_path,	wrap_in_unlink, wrap_out_std,	0,	1},
 	{__NR_link,	choice_link2,	wrap_in_link, wrap_out_std,	0,	2},

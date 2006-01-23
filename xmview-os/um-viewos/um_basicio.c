@@ -67,7 +67,7 @@ int wrap_in_open(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		if (pc->retval >= 0 && (pc->retval=lfd_open(sercode,pc->retval,pcdata->path)) >= 0) {
 			char *filename=lfd_getfilename(pc->retval);
 			int filenamelen=(strlen(filename) + 4) & (~3);
-			int sp=getsp(pc);
+			long sp=getsp(pc);
 
 			//printf("open exit b %d %d\n",pc->retval,pc->erno);
 			//printf("real filename: %s\n",filename);
@@ -164,8 +164,8 @@ int wrap_out_std(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 int wrap_in_read(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun syscall)
 {
-	unsigned int pbuf=getargn(1,pc);
-	unsigned int count=getargn(2,pc);
+	unsigned long pbuf=getargn(1,pc);
+	unsigned long count=getargn(2,pc);
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	if (sfd < 0) {
 		pc->retval= -1;
@@ -183,8 +183,8 @@ int wrap_in_read(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_write(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun syscall)
 {
-	unsigned int pbuf=getargn(1,pc);
-	unsigned int count=getargn(2,pc);
+	unsigned long pbuf=getargn(1,pc);
+	unsigned long count=getargn(2,pc);
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	if (sfd < 0) {
 		pc->retval= -1;
@@ -208,8 +208,8 @@ int wrap_in_write(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_pread(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun syscall)
 {
-	unsigned int pbuf=getargn(1,pc);
-	unsigned int count=getargn(2,pc);
+	unsigned long pbuf=getargn(1,pc);
+	unsigned long count=getargn(2,pc);
 	unsigned long long offset;
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 #ifdef __NR_pread64
@@ -233,8 +233,8 @@ int wrap_in_pread(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_pwrite(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun syscall)
 {
-	unsigned int pbuf=getargn(1,pc);
-	unsigned int count=getargn(2,pc);
+	unsigned long pbuf=getargn(1,pc);
+	unsigned long count=getargn(2,pc);
 	unsigned long long offset;
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 #ifdef __NR_pwrite64
@@ -304,6 +304,34 @@ struct kstat {
 };
 #endif
 
+#ifdef __x86_64__
+struct kstat {
+		unsigned long	kst_dev;
+		unsigned long   kst_ino;
+		unsigned long    kst_nlink;
+
+		unsigned int    kst_mode;
+		unsigned int	kst_uid;
+		unsigned int	kst_gid;
+		unsigned int	k__pad0;
+
+		unsigned long	kst_rdev;
+
+		long			kst_size;
+		long			kst_blksize;
+		long			kst_blocks;  /* Number 512-byte blocks allocated. */
+
+		unsigned long   kst_atime;
+		unsigned long   kst_atime_nsec;
+		unsigned long   kst_mtime;
+		unsigned long   kst_mtime_nsec;
+		unsigned long   kst_ctime;
+		unsigned long   kst_ctime_nsec;
+
+		long  k__unused[3];
+};
+#endif
+
 static void stat2kstat(struct stat *buf,struct kstat *kbuf)
 {
 	kbuf->kst_dev= buf->st_dev;
@@ -324,7 +352,7 @@ static void stat2kstat(struct stat *buf,struct kstat *kbuf)
 int wrap_in_stat(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		service_t sercode, intfun syscall)
 {
-	int pbuf=getargn(1,pc);
+	long pbuf=getargn(1,pc);
 	struct stat buf;
 	pc->retval = syscall(pcdata->path,&buf,pc);
 	pc->erno=errno;
@@ -339,7 +367,7 @@ int wrap_in_stat(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_fstat(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun syscall)
 {
-	int pbuf=getargn(1,pc);
+	long pbuf=getargn(1,pc);
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	if (sfd < 0) {
 		pc->retval= -1;
@@ -360,7 +388,7 @@ int wrap_in_fstat(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_stat64(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun syscall)
 {
-	int pbuf=getargn(1,pc);
+	long pbuf=getargn(1,pc);
 	struct stat64 buf;
 	pc->retval = syscall(pcdata->path,&buf,pc);
 	pc->erno=errno;
@@ -372,7 +400,7 @@ int wrap_in_stat64(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_fstat64(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun syscall)
 {
-	int pbuf=getargn(1,pc);
+	long pbuf=getargn(1,pc);
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	//printf("wrap_in_fstat: %d",sfd);
 	if (sfd < 0) {
@@ -409,8 +437,8 @@ int wrap_in_getxattr(int sc_number, struct pcb *pc, struct pcb_ext *pcdata,
 int wrap_in_readlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun syscall)
 {
-	unsigned int pbuf=getargn(1,pc);
-	unsigned int bufsiz=getargn(2,pc);
+	unsigned long pbuf=getargn(1,pc);
+	unsigned long bufsiz=getargn(2,pc);
 	char *lbuf=(char *)alloca(bufsiz);
 	pc->retval = syscall(pcdata->path,lbuf,bufsiz,pc);
 	pc->erno=errno;
@@ -422,8 +450,8 @@ int wrap_in_readlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_getdents(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun syscall)
 {
-	int pbuf=getargn(1,pc);
-	unsigned int bufsiz=getargn(2,pc);
+	long pbuf=getargn(1,pc);
+	unsigned long bufsiz=getargn(2,pc);
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	//printf("wrap_in_getdents(sc:%d ,pc,pcdata,sercode:%d,syscall);\n",sc_number,sercode);
 	if (sfd < 0) {
@@ -443,7 +471,7 @@ int wrap_in_getdents(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_access(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun syscall)
 {
-	unsigned int mode=getargn(1,pc);
+	unsigned long mode=getargn(1,pc);
 	pc->retval = syscall(pcdata->path,mode,pc);
 	pc->erno=errno;
 	return SC_FAKE;
@@ -458,8 +486,8 @@ int wrap_in_lseek(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int offset =getargn(1,pc);
-		int whence =getargn(2,pc);
+		long offset =getargn(1,pc);
+		long whence =getargn(2,pc);
 		pc->retval = syscall(sfd,offset,whence,pc);
 		pc->erno=errno;
 	}
@@ -501,9 +529,9 @@ int wrap_in_readv(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		unsigned int vecp=getargn(1,pc);
-		unsigned int count=getargn(2,pc);
-		unsigned int i,totalsize,size;
+		unsigned long vecp=getargn(1,pc);
+		unsigned long count=getargn(2,pc);
+		unsigned long i,totalsize,size;
 		struct iovec *iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
 		struct iovec liovec;
 		umoven(pc->pid,vecp,count * sizeof(struct iovec),(char *)iovec);
@@ -516,7 +544,7 @@ int wrap_in_readv(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->erno=errno;
 		if (size > 0) {
 			for (i=0;i<count && size>0;i++) {
-				int qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
+				long qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
 				ustoren(pc->pid,(long)iovec[i].iov_base,qty,lbuf);
 				lbuf += qty;
 				size -= qty;
@@ -534,9 +562,9 @@ int wrap_in_writev(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		unsigned int vecp=getargn(1,pc);
-		unsigned int count=getargn(2,pc);
-		unsigned int i,totalsize,size;
+		unsigned long vecp=getargn(1,pc);
+		unsigned long count=getargn(2,pc);
+		unsigned long i,totalsize,size;
 		struct iovec *iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
 		struct iovec liovec;
 		umoven(pc->pid,vecp,count * sizeof(struct iovec),(char *)iovec);
@@ -545,7 +573,7 @@ int wrap_in_writev(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		char *lbuf=(char *)alloca(totalsize);
 		char *p=lbuf;
 		for (i=0;i<count && size>0;i++) {
-			int qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
+			long qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
 			umoven(pc->pid,(long)iovec[i].iov_base,qty,p);
 			p += qty;
 			size -= qty;

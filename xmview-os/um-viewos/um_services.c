@@ -69,7 +69,7 @@ int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 {
 	//printf("dsys_um_service pid %d call %d\n",pc->pid,sc_number);
 	if (inout == IN) {
-		int arg1,arg2,arg3;
+		long arg1,arg2,arg3;
 		char buf[PATH_MAX];
 		pc->arg0=getargn(0,pc);
 		switch (pc->arg0) {

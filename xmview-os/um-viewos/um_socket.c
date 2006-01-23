@@ -62,7 +62,7 @@ int wrap_in_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	if (pc->retval >= 0 && (pc->retval=lfd_open(sercode,pc->retval,NULL)) >= 0) {
 		char *filename=lfd_getfilename(pc->retval);
 		int filenamelen=(strlen(filename) + 4) & (~3);
-		int sp=getsp(pc);
+		long sp=getsp(pc);
 		ustorestr(pc->pid,sp-filenamelen,filenamelen,filename); /*socket?*/
 		putscno(__NR_open,pc);
 		putargn(0,sp-filenamelen,pc);
@@ -82,8 +82,8 @@ int wrap_in_accept(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int sock_addr=pcdata->sockregs[1];
-		int sock_plen=pcdata->sockregs[2];
+		long sock_addr=pcdata->sockregs[1];
+		long sock_plen=pcdata->sockregs[2];
 		int sock_len;
 		if (sock_plen != umNULL)
 			umoven(pc->pid,sock_plen,4,&sock_len);
@@ -145,8 +145,8 @@ int wrap_in_bind_connect(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int sock_addr=pcdata->sockregs[1];
-		int sock_len=pcdata->sockregs[2];
+		long sock_addr=pcdata->sockregs[1];
+		long sock_len=pcdata->sockregs[2];
 		char *sock=(char *)alloca(sock_len);
 		umoven(pc->pid,sock_addr,sock_len,sock);
 		pc->retval = syscall(sfd,sock,sock_len,pc);
@@ -178,8 +178,8 @@ int wrap_in_getsock(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int sock_addr=pcdata->sockregs[1];
-		int sock_plen=pcdata->sockregs[2];
+		long sock_addr=pcdata->sockregs[1];
+		long sock_plen=pcdata->sockregs[2];
 		int sock_len;
 		if (sock_plen != umNULL)
 			umoven(pc->pid,sock_plen,4,&sock_len);
@@ -205,7 +205,7 @@ int wrap_in_send(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int buf=pcdata->sockregs[1];
+		long buf=pcdata->sockregs[1];
 		int len=pcdata->sockregs[2];
 		int flags=pcdata->sockregs[3];
 		char *lbuf=(char *)alloca(len); 
@@ -224,7 +224,7 @@ int wrap_in_recv(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int buf=pcdata->sockregs[1];
+		long buf=pcdata->sockregs[1];
 		int len=pcdata->sockregs[2];
 		int flags=pcdata->sockregs[3];
 		char *lbuf=(char *)alloca(len);
@@ -244,10 +244,10 @@ int wrap_in_sendto(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int buf=pcdata->sockregs[1];
+		long buf=pcdata->sockregs[1];
 		int len=pcdata->sockregs[2];
 		int flags=pcdata->sockregs[3];
-		int pto=pcdata->sockregs[4];
+		long pto=pcdata->sockregs[4];
 		int tolen=pcdata->sockregs[5];
 		char *lbuf=(char *)alloca(len); 
 		char *tosock=NULL;
@@ -270,11 +270,11 @@ int wrap_in_recvfrom(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int buf=pcdata->sockregs[1];
+		long buf=pcdata->sockregs[1];
 		int len=pcdata->sockregs[2];
 		int flags=pcdata->sockregs[3];
-		int pfrom=pcdata->sockregs[4];
-		int pfromlen=pcdata->sockregs[5];
+		long pfrom=pcdata->sockregs[4];
+		long pfromlen=pcdata->sockregs[5];
 		int fromlen=0;
 		char *lbuf=(char *)alloca(len);
 		char *fromsock=NULL;
@@ -323,8 +323,8 @@ int wrap_in_getsockopt(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	} else {
 		int level=pcdata->sockregs[1];
 		int optname=pcdata->sockregs[2];
-		int poptval=pcdata->sockregs[3];
-		int poptlen=pcdata->sockregs[4];
+		long poptval=pcdata->sockregs[3];
+		long poptlen=pcdata->sockregs[4];
 		int optlen;
 		void *optval;
 		if (poptlen != umNULL) {
@@ -354,7 +354,7 @@ int wrap_in_setsockopt(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	} else {
 		int level=pcdata->sockregs[1];
 		int optname=pcdata->sockregs[2];
-		int poptval=pcdata->sockregs[3];
+		long poptval=pcdata->sockregs[3];
 		int optlen=pcdata->sockregs[4];
 		void *optval;
 		//printf("setsockopt fd %d level %d optname %d poptval %x optlen %d\n",pc->arg2,level,optname,poptval,optlen);
@@ -379,7 +379,7 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int pmsg=pcdata->sockregs[1];
+		long pmsg=pcdata->sockregs[1];
 		int flags=pcdata->sockregs[2];
 		struct msghdr msg;
 		struct msghdr lmsg;
@@ -443,7 +443,7 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int pmsg=pcdata->sockregs[1];
+		long pmsg=pcdata->sockregs[1];
 		int flags=pcdata->sockregs[2];
 		struct msghdr msg;
 		struct msghdr lmsg;

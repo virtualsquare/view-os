@@ -50,7 +50,11 @@
 #include "defs.h"
 #include "sctab.h"
 #include "utils.h"
+#if defined(__x86_64__)
+#include "syscallnames_x86_64.h"
+#else
 #include "syscallnames.h"
+#endif
 #include "gdebug.h"
 #ifdef PIVOTING_ENABLED
 #include "pivoting.h"
@@ -72,6 +76,8 @@ t_pcb_destr pcb_destr=NULL;
 /* i386 kernel does not accept out of range system calls, 
  * user system call remapped onto unused ones */
 short _i386_sc_remap[]={251,222,17,31,32,35,44,53,56,58,98,112,127,130,137,167};
+#else // workaround for amd64
+short _i386_sc_remap[]={};
 #endif
 
 /* When a SIGCHLD is received, the main select will be notified through this
@@ -224,8 +230,8 @@ static int handle_new_proc(int pid, struct pcb *pp)
 #ifdef FAKESIGSTOP
 int fakesigstopcont(struct pcb *pc)
 {
-	int kpid=getargn(0,pc);
-	int ksig=getargn(1,pc);
+	long kpid=getargn(0,pc);
+	long ksig=getargn(1,pc);
 	struct pcb *kpc;
 	
 	if ((kpc=pid2pcb(kpid)) != NULL && ksig == SIGCONT &&
@@ -272,7 +278,7 @@ void offspring_exit(struct pcb *pc)
 
 void sc_soft_suspend(struct pcb *pc)
 {
-	unsigned int sp=getsp(pc);
+	unsigned long sp=getsp(pc);
 	GDEBUG(1, "sc_soft_suspend %d fd %d",pc->pid,pc->retval);
 	pc->arg0=getargn(0,pc);
 	pc->arg1=getargn(1,pc);
@@ -360,7 +366,11 @@ void tracehand(int s)
 			}
 			/* sigreturn and rt_sigreturn give random "OUT" values, maybe 0.
 			 * this is a workaroud */
+#if defined(__x86_64__) //sigreturn and signal aren't defineed in amd64
+			if (pc->scno == __NR_rt_sigreturn ){
+#else
 			if (pc->scno == __NR_rt_sigreturn || pc->scno == __NR_sigreturn) {
+#endif
 				pc->scno = NOSC;
 			}
 			else if (syscall == 0) {
@@ -436,7 +446,7 @@ void tracehand(int s)
 					divfun fun;
 					//printf("OUT\n");
 					if (pc->behavior == SC_SOFTSUSP) {
-						int n=getrv(pc);
+						long n=getrv(pc);
 						if (n <= 0) {
 							puterrno(EAGAIN,pc);
 							putrv(-1,pc);
@@ -455,7 +465,7 @@ void tracehand(int s)
 					if (syscall == __NR_fork ||
 							syscall == __NR_vfork ||
 							syscall == __NR_clone) {
-						int newpid;
+						long newpid;
 						newpid=getrv(pc);
 						handle_new_proc(newpid,pc);
 						GDEBUG(3, "FORK! %d->%d",pid,newpid);

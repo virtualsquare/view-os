@@ -1,4 +1,4 @@
-CFLAGS=-I../include 
+CFLAGS=-fPIC -I../include 
 
 all: libumlib.a
 

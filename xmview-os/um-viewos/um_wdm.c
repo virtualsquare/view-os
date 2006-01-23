@@ -51,7 +51,7 @@
 int wrap_in_getcwd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		service_t sercode, intfun syscall)
 {
-	int arg1=getargn(1,pc);
+	long arg1=getargn(1,pc);
 	if (pc->arg0==(int) NULL) {
 		pc->retval=(int) NULL;
 		pc->erno=EFAULT;
@@ -77,7 +77,7 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	if (!S_ISDIR(pcdata->pathstat.st_mode))
 		pc->erno=ENOTDIR;
 	if (pc->erno == 0 && S_ISDIR(pcdata->pathstat.st_mode)) {
-		int sp=getsp(pc);
+		long sp=getsp(pc);
 		int pathlen;
 		if (sercode != UM_NONE) {
 			//printf("virtual path chdir to /tmp\n");
@@ -123,7 +123,7 @@ int wrap_out_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 int wrap_in_fchdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		service_t sercode, intfun syscall)
 {
-	int sp=getsp(pc);
+	long sp=getsp(pc);
 	int pathlen;
 	char *path;
 

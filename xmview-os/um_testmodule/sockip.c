@@ -36,7 +36,7 @@
 #include "module.h"
 #include "libummod.h"
 
-int read(), write(), close();
+// int read(), write(), close();
 
 static struct service s;
 
@@ -109,7 +109,9 @@ init (void)
 	s.syscall[uscno(__NR_writev)]=writev;
         s.syscall[uscno(__NR_close)]=close;
 	s.syscall[uscno(__NR_fcntl)]=fcntl32;
+#if !defined(__x86_64__)
 	s.syscall[uscno(__NR_fcntl64)]=fcntl64;
+#endif
 	s.syscall[uscno(__NR_ioctl)]=(intfun) ioctl;
 	s.syscall[uscno(__NR__newselect)]=select;
 	s.syscall[uscno(__NR_poll)]=poll;

@@ -53,6 +53,11 @@ extern int _lwip_version;
 
 #if defined(__powerpc__) //setregs/getresg for ppc
 #define FRAME_SIZE 13
+#elif defined(__x86_64__) // asm-x86_64 define it as 168 [offset in bytes] ! //#define VIEWOS_FRAME_SIZE 22
+#define VIEWOS_FRAME_SIZE 28
+#define NR_syscalls __NR_syscall_max
+#elif defined(__i386__)
+#define VIEWOS_FRAME_SIZE FRAME_SIZE
 #endif
 
 /**
@@ -71,10 +76,10 @@ struct pcb {
 	long scno;              /* System call number */
 	short behavior;
 	unsigned int erno;
-	int retval;
-	unsigned int arg0;
-	unsigned int arg1;
-	unsigned int arg2;
+	long retval;
+	unsigned long arg0;
+	unsigned long arg1;
+	unsigned long arg2;
 
 	long saved_regs[FRAME_SIZE];
 #ifdef PIVOTING_ENABLED
@@ -226,11 +231,133 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define putsp(SP,PC) ( (PC)->saved_regs[PT_R1]=(SP) ;
 #define putpc(PCX,PC) ( (PC)->saved_regs[10]=(PCX) )
 
+#elif defined(__x86_64__)
+// asm-x86_64/ptrace.h declare this as offset in bytes (and I don't want so)
+//registers as mapped in x_86_64 kernel
+// syscall argument are in inverted order!!!!!! (from RDI to R11 ! )
+#define R15 0
+#define R14 1 //8
+#define R13 2 //16
+#define R12 3 //24
+#define RBP 4 //32
+#define RBX 5 //40
+#define R11 6 //48
+#define R10 7 // 56  
+#define R9 	8 //64
+#define R8 	9 //72
+#define RAX 10 //80
+#define RCX 11 //88
+#define RDX 12 //96
+#define RSI 13 //104
+#define RDI 14 //112
+#define ORIG_RAX 15 //120       /* = ERROR */ 
+#define RIP 16 //128
+#define CS 17 //136
+#define EFLAGS 18 //144
+#define RSP 19 //152
+#define SS 20 //160
+#define ARGOFFSET R11
+// remapped registers:
+#define MY_RDI 0 //112
+#define MY_RSI 1 //104
+#define MY_RDX 2 //96
+#define MY_RCX 3 //88
+#define MY_RAX 4 //80
+#define MY_R8  5 //72
+#define MY_R9  6 //64
+#define MY_R10 7 // 56  
+#define MY_R11 8 //48
+#define MY_RBX 9 //40
+#define MY_RBP 10//32
+#define MY_R12 11//24
+#define MY_R13 12//16
+#define MY_R14 13//8
+#define MY_R15 14
+											 
+#define MY_ORIG_RAX 15 //120       /* = ERROR */ 
+#define MY_RIP 16 //128
+#define MY_CS 17 //136
+#define MY_EFLAGS 18 //144
+#define MY_RSP 19 //152
+#define MY_SS 20 //160
+#define MY_ARGOFFSET 0
+// arguments in x86_64 are saved in order from RDI to R8
+// orig_rax contains syscall number 
+// and rax (i think...) contains return value and errno
+// for stack pointer -> RSP
+// for instruction pointer -> RIP
+				
+#define getregs(PC) ({ long temp[FRAME_SIZE]; int i = ptrace(PTRACE_GETREGS,(PC)->pid,NULL,(void*) temp);\
+			(PC)->saved_regs[MY_RDI] = temp[RDI]; \
+			(PC)->saved_regs[MY_RSI] = temp[RSI]; \
+			(PC)->saved_regs[MY_RDX] = temp[RDX]; \
+			(PC)->saved_regs[MY_RCX] = temp[RCX]; \
+			(PC)->saved_regs[MY_RAX] = temp[RAX]; \
+			(PC)->saved_regs[MY_R8] = temp[R8]; \
+			(PC)->saved_regs[MY_R9] = temp[R9]; \
+			(PC)->saved_regs[MY_R10] = temp[R10]; \
+			(PC)->saved_regs[MY_R11] = temp[R11]; \
+			(PC)->saved_regs[MY_RBX] = temp[RBX]; \
+			(PC)->saved_regs[MY_RBP] = temp[RBP]; \
+			(PC)->saved_regs[MY_R12] = temp[R12]; \
+			(PC)->saved_regs[MY_R13] = temp[R13]; \
+			(PC)->saved_regs[MY_R14] = temp[R14]; \
+			(PC)->saved_regs[MY_R15] = temp[R15]; \
+			(PC)->saved_regs[MY_ORIG_RAX] = temp[ORIG_RAX]; \
+			(PC)->saved_regs[MY_RIP] = temp[RIP]; \
+			(PC)->saved_regs[MY_CS] = temp[CS]; \
+			(PC)->saved_regs[MY_EFLAGS] = temp[EFLAGS]; \
+			(PC)->saved_regs[MY_RSP] = temp[RSP]; \
+			(PC)->saved_regs[MY_SS] = temp[SS]; \
+			i; \
+			})
+#define setregs(PC) ({ long temp[FRAME_SIZE]; \
+			temp[RDI] = (PC)->saved_regs[MY_RDI]; \
+			temp[RSI] = (PC)->saved_regs[MY_RSI]; \
+			temp[RDX] = (PC)->saved_regs[MY_RDX]; \
+			temp[RCX] = (PC)->saved_regs[MY_RCX]; \
+			temp[RAX] = (PC)->saved_regs[MY_RAX]; \
+			temp[R8] = (PC)->saved_regs[MY_R8]; \
+			temp[R9] = (PC)->saved_regs[MY_R9]; \
+			temp[R10] = (PC)->saved_regs[MY_R10]; \
+			temp[R11] = (PC)->saved_regs[MY_R11]; \
+			temp[RBX] = (PC)->saved_regs[MY_RBX]; \
+			temp[RBP] = (PC)->saved_regs[MY_RBP]; \
+			temp[R12] = (PC)->saved_regs[MY_R12]; \
+			temp[R13] = (PC)->saved_regs[MY_R13]; \
+			temp[R14] = (PC)->saved_regs[MY_R14]; \
+			temp[R15] = (PC)->saved_regs[MY_R15]; \
+			temp[ORIG_RAX] = (PC)->saved_regs[MY_ORIG_RAX]; \
+			temp[RIP] = (PC)->saved_regs[MY_RIP]; \
+			temp[CS] = (PC)->saved_regs[MY_CS]; \
+			temp[EFLAGS] = (PC)->saved_regs[MY_EFLAGS]; \
+			temp[RSP] = (PC)->saved_regs[MY_RSP]; \
+			temp[SS] = (PC)->saved_regs[MY_SS]; \
+			ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) temp); })
+#define getargp(PC) ((PC)->saved_regs[MY_RDI])
+#define printregs(PC)  // empty for a while... :P
+#define getscno(PC) ( (PC)->saved_regs[MY_ORIG_RAX] )											 
+#define putscno(X,PC) ( (PC)->saved_regs[MY_ORIG_RAX]=(X) )
+#define getargn(N,PC) ( (PC)->saved_regs[(N)] )
+#define putargn(N,X,PC) ( (PC)->saved_regs[(N)]=(X) )
+#define getarg0orig(PC) ( (PC)->saved_regs[MY_RDI] )
+#define putarg0orig(N,PC) ( (PC)->saved_regs[MY_RDI]=(N) )
+#define getrv(PC) ({ long rax; \
+		rax = (PC)->saved_regs[RAX];\
+		(rax<0 && -rax < MAXERR)? -1 : rax; })
+#define putrv(RV,PC) ( (PC)->saved_regs[MY_RAX]=(RV), 0 )
+#define puterrno(ERR,PC) ( ((ERR)!=0 && (PC)->retval==-1)?(PC)->saved_regs[MY_RAX]=-(ERR) : 0 )
+#define getsp(PC) (PC)->saved_regs[MY_RSP]
+#define getpc(PC) (PC)->saved_regs[MY_RIP]
+#define putsp(RV,PC) ( (PC)->saved_regs[MY_RSP]=(RV) )
+#define putpc(RV,PC) ( (PC)->saved_regs[MY_RIP]=(RV) )
+
+
 #endif
 
 
 /*                                  I386 *********************************/
-#if defined (__i386__)
+#if defined (__i386__) || defined(__x86_64__)
 
 #define LITTLEENDIAN
 #define LONG_LONG(_l,_h) \

@@ -41,19 +41,27 @@ int getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
 	return syscall(__NR_getdents64, fd, dirp, count);
 }
 
+#if ! defined(__x86_64__)
 int fcntl32(int fd, int cmd, long arg)
 {
 	return syscall(__NR_fcntl, fd, cmd, arg);
 }
+#endif
 
 int fcntl64(int fd, int cmd, long arg)
 {
+#if defined(__x86_64__)
+	return syscall(__NR_fcntl, fd, cmd, arg);
+#else
 	return syscall(__NR_fcntl64, fd, cmd, arg);
+#endif
 }
- 
+
+#if !defined(__x86_64__) // it doesn't appear in syscall table of amd64
 int _llseek(unsigned int fd, unsigned long offset_high,  unsigned  long
 		       offset_low, loff_t *result, unsigned int whence)
 {
 	return syscall(__NR__llseek, fd, offset_high, offset_low, result, whence);
 }
+#endif
 

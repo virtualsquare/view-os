@@ -35,8 +35,11 @@ int getdents(unsigned int fd, struct dirent *dirp, unsigned int count);
 
 int getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count);
 
-
+#if !defined(__x86_64__)
 int fcntl32(int fd, int cmd, long arg);
+#else
+#define fcntl32 fcntl
+#endif
 
 int fcntl64(int fd, int cmd, long arg);
 
@@ -110,6 +113,10 @@ int _llseek(unsigned int fd, unsigned long offset_high,  unsigned  long
 #ifdef __NR_setfsuid32
 #undef __NR_setfsuid
 #define __NR_setfsuid __NR_setfsuid32
+#endif
+
+#if defined(__x86_64__)
+#define __NR__newselect __NR_select
 #endif
 
 #endif
