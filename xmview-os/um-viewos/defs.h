@@ -35,6 +35,9 @@ extern int _lwip_version;
 #include <sys/ptrace.h>
 #include <asm/ptrace.h>
 
+#define WORDLEN sizeof(int *)
+#define WORDALIGN(X) (((X) + WORDLEN) & ~(WORDLEN-1))
+
 #ifdef _MALLOC_DEBUG
 #define free(X) ({ printf("MDBG-FREE %x %s %d\n",(X),__FILE__,__LINE__); \
 		free(X); })

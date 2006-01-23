@@ -358,8 +358,6 @@ void tracehand(int s)
 			}
 			//printregs(pc);
 			syscall=getscno(pc);
-			GDEBUG(3, "+++pid %d syscall %d (%s) @ %p --", pid, syscall, SYSCALLNAME(syscall),
-					getpc(pc));
 			/* execve does not return */
 			if (pc->scno == __NR_execve && syscall != __NR_execve){
 				pc->scno = NOSC;
@@ -401,6 +399,7 @@ void tracehand(int s)
 				{
 #endif
 					divfun fun;
+					GDEBUG(3, "--> pid %d syscall %d (%s) @ %p", pid, syscall, SYSCALLNAME(syscall), getpc(pc));
 					//printf("IN\n");
 					pc->scno = syscall;
 					fun=cdtab(syscall);
@@ -444,6 +443,7 @@ void tracehand(int s)
 				{
 #endif
 					divfun fun;
+					GDEBUG(3, "<-- pid %d syscall %d (%s) @ %p", pid, syscall, SYSCALLNAME(syscall), getpc(pc));
 					//printf("OUT\n");
 					if (pc->behavior == SC_SOFTSUSP) {
 						long n=getrv(pc);
