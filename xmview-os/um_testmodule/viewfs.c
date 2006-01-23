@@ -63,14 +63,20 @@
 #define VIEWFS_HIDENAME			"/-"
 #define VIEWFS_MAPNAME			"/#"
 
-#define VIEWFS_CURRENT_ADD		0x00000001
-#define VIEWFS_CURRENT_HIDE		0x00000002
-#define VIEWFS_DEFAULT_ADD		0x00000004
-#define VIEWFS_DEFAULT_HIDE		0x00000008
-#define VIEWFS_REAL				0x00000010
-#define VIEWFS_CURRENT			(VIEWFS_CURRENT_ADD | VIEWFS_CURRENT_HIDE)
-#define VIEWFS_DEFAULT			(VIEWFS_DEFAULT_ADD | VIEWFS_DEFAULT_HIDE)
+#define VIEWFS_CURRENT_MAP		0x00000001
+#define VIEWFS_CURRENT_ADD		0x00000002
+#define VIEWFS_CURRENT_HIDE		0x00000004
+#define VIEWFS_DEFAULT_MAP		0x00000008
+#define VIEWFS_DEFAULT_ADD		0x00000010
+#define VIEWFS_DEFAULT_HIDE		0x00000020
+#define VIEWFS_REAL				0x00000040
+#define VIEWFS_CURRENT			(VIEWFS_CURRENT_ADD | VIEWFS_CURRENT_HIDE | VIEWFS_CURRENT_MAP)
+#define VIEWFS_DEFAULT			(VIEWFS_DEFAULT_ADD | VIEWFS_DEFAULT_HIDE | VIEWFS_DEFAULT_MAP)
 #define VIEWFS_BOTH				(VIEWFS_DEFAULT | VIEWFS_CURRENT)
+
+// Total number of personality directories including the real one
+// (at the moment: R, *#, *+, *-, P#, P+, P-)
+#define VIEWFS_DIRP_TOTAL					7
 
 #define VIEWFS_CHECK_FALSE					0
 #define VIEWFS_CHECK_CURRENT_ADD			1
@@ -146,7 +152,7 @@ struct d64array
 	struct dirent64 **array;
 	int size;
 	int lastindex;
-	struct dirent64 *dirp_orig[5];
+	struct dirent64 *dirp_orig[VIEWFS_DIRP_TOTAL];
 };
 
 // User's home directory
@@ -714,7 +720,7 @@ static void clear_cachedata(struct d64array *data, int deep)
 	GDEBUG(1, "clearing cache data for fd %d", data->fd);
 
 	if (deep == VIEWFS_DEEP)
-		for (i = 0; i < 5; i++)
+		for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
 			if (data->dirp_orig[i])
 			{
 				GDEBUG(1, "clearing original dirp pos %d", i);
@@ -1448,9 +1454,7 @@ static int dirent64_compare(const void *d1, const void *d2)
 
 static void sort_array64(struct d64array *array)
 {
-	GDEBUG(3, "sorting array %p", array);
 	qsort(array->array, array->size, sizeof(struct dirent64*), dirent64_compare);
-	GDEBUG(3, "sorted array %p", array);
 }
 
 static int getdents64_cached(struct d64array *data, struct dirent64 *dirp, unsigned int count)
@@ -1530,7 +1534,7 @@ static struct d64array *d64array_merge(struct d64array *a1, struct d64array *a2,
 	
 	// One of them is always NULL, I'm interested in the union of the two sets
 	// of pointers
-	for (i = 0; i < 5; i++)
+	for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
 		retval->dirp_orig[i] = (struct dirent64*)((int)a1->dirp_orig[i] + (int)a2->dirp_orig[i]);
 
 	c1 = 0;
@@ -1580,7 +1584,7 @@ static struct d64array *d64array_subtract(struct d64array *a1, struct d64array *
 	retval->lastindex = 0;
 	retval->size = a1->size;
 
-	for (i = 0; i < 5; i++)
+	for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
 		retval->dirp_orig[i] = (struct dirent64*)((int)a1->dirp_orig[i] + (int)a2->dirp_orig[i]);
 
 	c1 = 0;
@@ -1589,10 +1593,7 @@ static struct d64array *d64array_subtract(struct d64array *a1, struct d64array *
 	
 	while ((c1 < a1->size) && (c2 < a2->size))
 	{
-		GDEBUG(3, "just before strcoll: %p %p", a1->array[c1], a2->array[c2]);
 		compare = strcoll(a1->array[c1]->d_name, a2->array[c2]->d_name);
-
-		GDEBUG(3, "comparison between %s and %s returned %d", a1->array[c1]->d_name, a2->array[c2]->d_name, compare);
 
 		if (compare < 0)
 			retval->array[d++] = a1->array[c1++];
@@ -1640,10 +1641,20 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 	}
 
 	prepare_names(path, umpid, VIEWFS_BOTH, NO);
+#ifdef VIEWFS_ENABLE_REMAP
+	prepare_names_remap(path, VIEWFS_BOTH);
+#endif
 	
 	// Should have been blocked in open(), but who knows.
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
-	
+
+#ifdef VIEWFS_ENABLE_REMAP
+	if (EXISTS(currentpers->map))
+	{
+		pd_status |= VIEWFS_CURRENT_MAP;
+		pd_total++;
+	}
+#endif
 	if (EXISTS(currentpers->add))
 	{
 		pd_status |= VIEWFS_CURRENT_ADD;
@@ -1654,6 +1665,13 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 		pd_status |= VIEWFS_CURRENT_HIDE;
 		pd_total++;
 	}
+#ifdef VIEWFS_ENABLE_REMAP
+	if (EXISTS(defaultpers->map))
+	{
+		pd_status |= VIEWFS_DEFAULT_MAP;
+		pd_total++;
+	}
+#endif
 	if (EXISTS(defaultpers->add))
 	{
 		pd_total++;
@@ -1688,12 +1706,14 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 		GDEBUG(1, " \\ *-");
 	if (pd_status & VIEWFS_DEFAULT_ADD)
 		GDEBUG(1, " U *+");
+	if (pd_status & VIEWFS_DEFAULT_MAP)
+		GDEBUG(1, " U *#");
 	if (pd_status & VIEWFS_CURRENT_HIDE)
 		GDEBUG(1, " \\ P-");
 	if (pd_status & VIEWFS_CURRENT_ADD)
 		GDEBUG(1, " U P+");
-	
-	GDEBUG(1, "");
+	if (pd_status & VIEWFS_CURRENT_MAP)
+		GDEBUG(1, " U P#");
 
 	if (!pd_status)
 		return DAR(syscall(__NR_getdents64, fd, dirp, count));
@@ -1709,7 +1729,9 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 	{
 		if ((pd_status & VIEWFS_REAL) ||
 				(pd_status & VIEWFS_CURRENT_ADD) ||
-				(pd_status & VIEWFS_DEFAULT_ADD))
+				(pd_status & VIEWFS_CURRENT_MAP) ||
+				(pd_status & VIEWFS_DEFAULT_ADD) ||
+				(pd_status & VIEWFS_DEFAULT_MAP))
 			return DAR(syscall(__NR_getdents64, fd, dirp, count));
 		else
 			GDEBUG(1, "this should never happen. please check: pd_status == %08x", pd_status);
@@ -1733,7 +1755,7 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 			cachedata->lastindex = 0;
 			
 			cachedata->dirp_orig[0] = gdtmp;
-			for (i = 1; i < 5; i++)
+			for (i = 1; i < VIEWFS_DIRP_TOTAL; i++)
 				cachedata->dirp_orig[i] = NULL;
 				
 			GDEBUG(1, "sorting");
@@ -1747,18 +1769,18 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 			cachedata->array = NULL;
 			cachedata->size = 0;
 			cachedata->lastindex = 0;
-			for (i = 0; i < 5; i++)
+			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
 				cachedata->dirp_orig[i] = NULL;
 		}
 	
 		/* TODO: Make the following a bit more efficient.
-		 * At present, for each of the 4 possible changes to the original set
-		 * (remove *-, add *+, remove P-, add P+) a d64array{merge,subtract}
+		 * At present, for each of the 6 possible changes to the original set
+		 * (remove *-, add *+, add *#, remove P-, add P+, add P#) a d64array{merge,subtract}
 		 * is called. These functions DO NOT work in place, but create a new
-		 * array adding the elements from the original sets. So, if the 4
-		 * personal directories are all non-empty, there is a total of 4
+		 * array adding the elements from the original sets. So, if the 6
+		 * personal directories are all non-empty, there is a total of 6
 		 * passes and each of them allocates and copies the array.
-		 * A better approach would take the 5 original sets once and perform
+		 * A better approach would take the 7 original sets once and perform
 		 * the correct operations writing the result in a single new array.
 		 * I think that in-place merging and subtraction is very difficult
 		 * with the current array-based implementation. */
@@ -1773,7 +1795,7 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 
 			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
 			datmp->lastindex = 0;
-			for (i = 0; i < 5; i++)
+			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
 				datmp->dirp_orig[i] = NULL;
 			datmp->dirp_orig[1] = gdtmp;
 			sort_array64(datmp);
@@ -1794,9 +1816,30 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 			
 			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
 			datmp->lastindex = 0;
-			for (i = 0; i < 5; i++)
+			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
 				datmp->dirp_orig[i] = NULL;
 			datmp->dirp_orig[2] = gdtmp;
+			sort_array64(datmp);
+
+			old = cachedata;
+			cachedata = d64array_merge(old, datmp, VIEWFS_KEEP_SECOND);
+			clear_cachedata(old, VIEWFS_SHALLOW);
+			clear_cachedata(datmp, VIEWFS_SHALLOW);
+		}
+		
+		if (pd_status & VIEWFS_DEFAULT_MAP)
+		{
+			struct d64array *datmp, *old;
+			gdretval = getdents64_whole_dir(defaultpers->map, &gdtmp, count);
+			GDEBUG(1, "gwd on *# returned %d", gdretval);
+			if (gdretval < 0)
+				return -1;
+			
+			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
+			datmp->lastindex = 0;
+			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
+				datmp->dirp_orig[i] = NULL;
+			datmp->dirp_orig[3] = gdtmp;
 			sort_array64(datmp);
 
 			old = cachedata;
@@ -1815,9 +1858,9 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 
 			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
 			datmp->lastindex = 0;
-			for (i = 0; i < 5; i++)
+			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
 				datmp->dirp_orig[i] = NULL;
-			datmp->dirp_orig[3] = gdtmp;
+			datmp->dirp_orig[4] = gdtmp;
 			sort_array64(datmp);
 
 			old = cachedata;
@@ -1836,9 +1879,30 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
 			
 			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
 			datmp->lastindex = 0;
-			for (i = 0; i < 5; i++)
+			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
 				datmp->dirp_orig[i] = NULL;
-			datmp->dirp_orig[4] = gdtmp;
+			datmp->dirp_orig[5] = gdtmp;
+			sort_array64(datmp);
+
+			old = cachedata;
+			cachedata = d64array_merge(old, datmp, VIEWFS_KEEP_SECOND);
+			clear_cachedata(old, VIEWFS_SHALLOW);
+			clear_cachedata(datmp, VIEWFS_SHALLOW);
+		}
+		
+		if (pd_status & VIEWFS_CURRENT_MAP)
+		{
+			struct d64array *datmp, *old;
+			gdretval = getdents64_whole_dir(currentpers->map, &gdtmp, count);
+			GDEBUG(1, "gwd on P# returned %d", gdretval);
+			if (gdretval < 0)
+				return -1;
+			
+			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
+			datmp->lastindex = 0;
+			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
+				datmp->dirp_orig[i] = NULL;
+			datmp->dirp_orig[6] = gdtmp;
 			sort_array64(datmp);
 
 			old = cachedata;
