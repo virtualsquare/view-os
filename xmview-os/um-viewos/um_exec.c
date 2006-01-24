@@ -62,7 +62,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	fprintf(stderr, "wrap_in_execve! %s\n",pcdata->path);
 #if 0
 	char *filename=lfd_getfilename(pc->retval);
-	int filenamelen=(strlen(filename) + 4) & (~3);
+	int filenamelen=WORDALIGN(strlen(filename));
 
 	//printf("open exit b %d %d\n",pc->retval,pc->erno);
 	//      //printf("real filename: %s\n",filename);

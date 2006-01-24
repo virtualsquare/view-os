@@ -61,7 +61,7 @@ int wrap_in_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	//printf("socket exit %d %d\n",pc->retval,pc->erno);
 	if (pc->retval >= 0 && (pc->retval=lfd_open(sercode,pc->retval,NULL)) >= 0) {
 		char *filename=lfd_getfilename(pc->retval);
-		int filenamelen=(strlen(filename) + 4) & (~3);
+		int filenamelen=WORDALIGN(strlen(filename));
 		long sp=getsp(pc);
 		ustorestr(pc->pid,sp-filenamelen,filenamelen,filename); /*socket?*/
 		putscno(__NR_open,pc);
@@ -99,7 +99,7 @@ int wrap_in_accept(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		}
 		if (pc->retval >= 0 && (pc->retval=lfd_open(sercode,pc->retval,NULL)) >= 0) {
 			char *filename=lfd_getfilename(pc->retval);
-			int filenamelen=(strlen(filename) + 4) & (~3);
+			int filenamelen=WORDALIGN(strlen(filename));
 			int sp=getsp(pc);
 			ustorestr(pc->pid,sp-filenamelen,filenamelen,filename); /*socket?*/
 			putscno(__NR_open,pc);
