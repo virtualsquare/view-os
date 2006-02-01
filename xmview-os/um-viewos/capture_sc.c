@@ -46,6 +46,7 @@
 #include <assert.h>
 
 // #define FAKESIGSTOP
+//#define SETREGSYS
 
 #include "defs.h"
 #include "sctab.h"
@@ -343,7 +344,7 @@ void tracehand(int s)
 		{
 			int _pc;
 			int data;
-			if(popper(pc) < 0)
+			if(getregs(pc) < 0)
 				GPERROR(0, "saving register");
 			_pc = getpc(pc);
 			umoven(pc->pid, _pc, 4, &data);
@@ -352,7 +353,7 @@ void tracehand(int s)
 #endif
 
 		if(WIFSTOPPED(status) && (WSTOPSIG(status) == SIGTRAP)){
-			if ( popper(pc) < 0 ){
+			if ( getregs(pc) < 0 ){
 				GPERROR(0, "saving register");
 				exit(1);
 			}
@@ -492,9 +493,14 @@ void tracehand(int s)
 				}
 #endif
 			} // end if scno==NOSC (OUT)
-			if( pusher(pc) == -1 ){
-					//printf("errno - pusher: %d on process %d \n",errno,pc->pid);
-					GPERROR(0, "pusher");
+#ifdef SETREGSYS
+			if( setregsys(pc,(pc->behavior & SC_SUSPENDED) == 0) == -1 ){
+				GPERROR(0, "setregsys");
+			}
+#else
+			if( setregs(pc) == -1 ){
+					//printf("errno - setregs: %d on process %d \n",errno,pc->pid);
+					GPERROR(0, "setregs");
 					// think if we have to decomment this line...
 					//exit(-1);
 			}
@@ -507,6 +513,7 @@ void tracehand(int s)
 					exit(1);
 				}
 			} // end if behavior & SC_SUSP
+#endif
 		} // end if SIGTRAP
 		else if(WIFSIGNALED(status)) {
 			GDEBUG(3, "%d: signaled %d",pid,WTERMSIG(status));
@@ -517,7 +524,7 @@ void tracehand(int s)
 			GDEBUG(3, "%d: stopped sig=%d",pid,(WSTOPSIG(status)));
 			if(WSTOPSIG(status) == SIGSEGV)
 			{
-				if(popper(pc) == -1)
+				if(getregs(pc) == -1)
 					GDEBUG(3, "[err]");
 				GDEBUG(3, "%d: stopped sig=SIGSEGV @ %p",
 						pc->pid, getpc(pc));
@@ -578,9 +585,14 @@ void sc_resume(struct pcb *pc)
 		if ((pc->behavior & SC_SUSPENDED) == 0)
 			pc->scno=NOSC;
 	}
-	if( pusher(pc) == -1 ){
-		          //printf("errno - pusher: %d on process %d \n",errno,pc->pid);
-		GPERROR(0, "pusher");
+#ifdef SETREGSYS
+	if( setregsys(pc,(pc->behavior & SC_SUSPENDED) == 0) == -1 ){
+		GPERROR(0, "setregsys");
+	}
+#else
+	if( setregs(pc) == -1 ){
+		          //printf("errno - setregs: %d on process %d \n",errno,pc->pid);
+		GPERROR(0, "setregs");
 		// think if we have to decomment this line...
 		//exit(-1);
 	}
@@ -590,6 +602,7 @@ void sc_resume(struct pcb *pc)
 			exit(1);
 		}
 	}
+#endif
 }
 
 /*

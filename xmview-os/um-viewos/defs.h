@@ -135,12 +135,21 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define SC_SUSPOUT 5    /* SUSPENDED + OUT */
 
 //getregs/setregs: inline-function for getting/setting registers of traced process
-#define pusher setregs
-#define popper getregs
-//printregs: current state of the working copy of registers
 #if defined(__i386__) //getregs/setregs for ia32
 #define getregs(PC) ptrace(PTRACE_GETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs)
 #define setregs(PC) ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs)
+#define setregsys(PC,SYS) (has_ptrace_multi ? ({\
+			struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, NULL, (void *) (PC)->saved_regs},\
+			{PTRACE_SYSCALL, 0, 0}};\
+			ptrace(PTRACE_MULTI,(PC)->pid,req,1+((SYS)?1:0)); }\
+			) : (\
+				{int rv;\
+				rv=ptrace(ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs);\
+					if(rv!= 0 && (SYS)) rv=ptrace(PTRACE_SYSCALL,(PC)->pid,0,0);\
+					rv;}\
+					) )
+
+//printregs: current state of the working copy of registers
 //#define printregs(PC)
 #define printregs(PC) \
 	 GDEBUG(3, "saved_regs:eax:%x\torig_eax:%x\n\tebx:%x\tecx:%x\n\tedx:%x\tesi:%x",\
@@ -214,6 +223,24 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 				ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_ORIG_R3),(PC)->saved_regs[11]);\
 				ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_CCR),(PC)->saved_regs[12]);}\
 		) )
+
+#define setregsys(PC,SYS) (has_ptrace_multi ? ({\
+		struct ptrace_multi req[] = {{PTRACE_POKEUSER, 0, (PC)->saved_regs, 10},\
+		{PTRACE_POKEUSER, 4*PT_NIP, &((PC)->saved_regs[10]), 1},\
+		{PTRACE_POKEUSER, 4*PT_CCR, &((PC)->saved_regs[12]), 1},\
+		{PTRACE_SYSCALL, 0, 0}};\
+		ptrace(PTRACE_MULTI,(PC)->pid,req,3+((SYS)?1:0)); }\
+		) : (\
+			{int i,count;for(count=0;count<10;count++){\
+			i=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*count),(PC)->saved_regs[count]);\
+			if(i!=0)break;}\
+			if(i!=0) i=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_NIP),(PC)->saved_regs[10]);\
+			if(i!=0) i=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_ORIG_R3),(PC)->saved_regs[11]);\
+			if(i!=0) i=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_CCR),(PC)->saved_regs[12]);\
+			if(i!= 0 && (SYS)) i=ptrace(PTRACE_SYSCALL,(PC)->pid,0,0);\
+			i;}\
+			) )
+
 
 #define getscno(PC) ( (PC)->saved_regs[PT_R0] )
 #define putscno(X,PC) ( (PC)->saved_regs[PT_R0]=(X) )
@@ -337,6 +364,39 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 			temp[RSP] = (PC)->saved_regs[MY_RSP]; \
 			temp[SS] = (PC)->saved_regs[MY_SS]; \
 			ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) temp); })
+#define setregsys(PC,SYS) ({ long temp[FRAME_SIZE]; \
+			temp[RDI] = (PC)->saved_regs[MY_RDI]; \
+			temp[RSI] = (PC)->saved_regs[MY_RSI]; \
+			temp[RDX] = (PC)->saved_regs[MY_RDX]; \
+			temp[RCX] = (PC)->saved_regs[MY_RCX]; \
+			temp[RAX] = (PC)->saved_regs[MY_RAX]; \
+			temp[R8] = (PC)->saved_regs[MY_R8]; \
+			temp[R9] = (PC)->saved_regs[MY_R9]; \
+			temp[R10] = (PC)->saved_regs[MY_R10]; \
+			temp[R11] = (PC)->saved_regs[MY_R11]; \
+			temp[RBX] = (PC)->saved_regs[MY_RBX]; \
+			temp[RBP] = (PC)->saved_regs[MY_RBP]; \
+			temp[R12] = (PC)->saved_regs[MY_R12]; \
+			temp[R13] = (PC)->saved_regs[MY_R13]; \
+			temp[R14] = (PC)->saved_regs[MY_R14]; \
+			temp[R15] = (PC)->saved_regs[MY_R15]; \
+			temp[ORIG_RAX] = (PC)->saved_regs[MY_ORIG_RAX]; \
+			temp[RIP] = (PC)->saved_regs[MY_RIP]; \
+			temp[CS] = (PC)->saved_regs[MY_CS]; \
+			temp[EFLAGS] = (PC)->saved_regs[MY_EFLAGS]; \
+			temp[RSP] = (PC)->saved_regs[MY_RSP]; \
+			temp[SS] = (PC)->saved_regs[MY_SS]; \
+	(has_ptrace_multi ? ({\
+											 struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, NULL, (void *) temp},\
+											 {PTRACE_SYSCALL, 0, 0}};\
+											 ptrace(PTRACE_MULTI,(PC)->pid,req,1+((SYS)?1:0)); }\
+											) : (\
+												{int rv;\
+												rv=ptrace(ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) temp);\
+													if(rv!= 0 && (SYS)) rv=ptrace(PTRACE_SYSCALL,(PC)->pid,0,0);\
+													rv;}\
+													) )\
+	})
 #define getargp(PC) ((PC)->saved_regs[MY_RDI])
 #define printregs(PC)  // empty for a while... :P
 #define getscno(PC) ( (PC)->saved_regs[MY_ORIG_RAX] )											 
