@@ -139,12 +139,12 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define getregs(PC) ptrace(PTRACE_GETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs)
 #define setregs(PC) ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs)
 #define setregsys(PC,SYS) (has_ptrace_multi ? ({\
-			struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, NULL, (void *) (PC)->saved_regs},\
+			struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, (void *) (PC)->saved_regs},\
 			{PTRACE_SYSCALL, 0, 0}};\
 			ptrace(PTRACE_MULTI,(PC)->pid,req,1+((SYS)?1:0)); }\
 			) : (\
 				{int rv;\
-				rv=ptrace(ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs);\
+				rv=ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs);\
 					if(rv!= 0 && (SYS)) rv=ptrace(PTRACE_SYSCALL,(PC)->pid,0,0);\
 					rv;}\
 					) )
@@ -387,14 +387,14 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 			temp[RSP] = (PC)->saved_regs[MY_RSP]; \
 			temp[SS] = (PC)->saved_regs[MY_SS]; \
 	(has_ptrace_multi ? ({\
-											 struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, NULL, (void *) temp},\
-											 {PTRACE_SYSCALL, 0, 0}};\
-											 ptrace(PTRACE_MULTI,(PC)->pid,req,1+((SYS)?1:0)); }\
-											) : (\
-												{int rv;\
-												rv=ptrace(ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) temp);\
-													if(rv!= 0 && (SYS)) rv=ptrace(PTRACE_SYSCALL,(PC)->pid,0,0);\
-													rv;}\
+			     struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, (void *) temp},\
+			     {PTRACE_SYSCALL, 0, 0}};\
+			     ptrace(PTRACE_MULTI,(PC)->pid,req,1+((SYS)?1:0)); }\
+			    ) : (\
+				    {int rv;\
+				    rv=ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) temp);\
+					    if(rv!= 0 && (SYS)) rv=ptrace(PTRACE_SYSCALL,(PC)->pid,0,0);\
+					    rv;}\
 													) )\
 	})
 #define getargp(PC) ((PC)->saved_regs[MY_RDI])
