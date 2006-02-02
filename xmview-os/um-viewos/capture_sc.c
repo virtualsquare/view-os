@@ -312,14 +312,14 @@ void tracehand(int s)
 
 	while(nprocs>0){
 		if((pid = waitpid(-1, &status, WUNTRACED | __WALL | WNOHANG)) < 0)
-		////if((pid = waitpid(-1, &status, WUNTRACED | __WALL)) <= 0)
 		{
 			GPERROR(0, "wait");
 			exit(1);
 		}
 
-		// FIXME: renzo: what does the following line mean?
-		////comment out the following line
+		//waitpid returns 0 when WNOHANG and no child(ren) has changed
+		//their state.
+		//tracehand manages all pending request then returns
 		if (pid==0) return;
 		if(WIFSTOPPED(status) && (WSTOPSIG(status) == SIGSTOP)) {
 			/* race condition, new procs can be faster than parents*/
