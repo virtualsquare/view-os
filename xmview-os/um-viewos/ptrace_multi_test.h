@@ -32,4 +32,4 @@
 #include "ptrace2.h"
 #include <asm/unistd.h>
 
-int test_ptracemulti(); 
+unsigned int test_ptracemulti(unsigned int *vm_mask,unsigned int *viewos_mask); 

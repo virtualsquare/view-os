@@ -25,6 +25,7 @@
 #ifndef _PTRACE2_H
 #define _PTRACE2_H
 
+#ifndef PTRACE_MULTI
 #define PTRACE_MULTI 0x4300
 #define PTRACE_PEEKCHARDATA 0x4301
 #define PTRACE_POKECHARDATA 0x4302
@@ -36,5 +37,21 @@ struct ptrace_multi {
 	void *localaddr;
 	long length;
 };
+#endif
+
+#ifndef PTRACE_SYSVM	
+#define PTRACE_SYSVM	33
+/* options for PTRACE_SYSVM */
+#define PTRACE_VM_TEST          0x80000000
+#define PTRACE_VM_SKIPCALL      1
+#define PTRACE_VM_SKIPEXIT      2
+#endif
+#define PTRACE_VM_SKIPOK        (PTRACE_VM_SKIPCALL | PTRACE_VM_SKIPEXIT)
+
+#ifndef PTRACE_VIEWOS	
+#define PTRACE_VIEWOS	0x4000
+/* options fpr PTRACE_VIEWOS */
+#define PT_VIEWOS_TEST          0x80000000
+#endif
 
 #endif

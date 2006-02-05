@@ -44,7 +44,10 @@
 int _lwip_version = 1; /* modules interface version id.
 													modules can test to be compatible with
 													um-viewos kernel*/
-int has_ptrace_multi;
+unsigned int has_ptrace_multi;
+unsigned int ptrace_vm_mask;
+unsigned int ptrace_viewos_mask;
+
 extern int nprocs;
 char *preload;
 
@@ -69,7 +72,7 @@ int main(int argc,char *argv[])
 	sigemptyset(&blockchild);
 	sigaddset(&blockchild,SIGCHLD);
 	scdtab_init();
-	has_ptrace_multi=test_ptracemulti();
+	has_ptrace_multi=test_ptracemulti(&ptrace_vm_mask,&ptrace_viewos_mask);
 	while (1) {
 		int option_index = 0;
 		static struct option long_options[] = {
@@ -77,6 +80,9 @@ int main(int argc,char *argv[])
 			{"output",1,0,'o'},
 			{"help",0,0,'h'},
 			{"nokernelpatch",0,0,'n'},
+			{"nokmulti",0,0,0x100},
+			{"nokvm",0,0,0x101},
+			{"nokviewos",0,0,0x102},
 			{0,0,0,0}
 		};
 		c=getopt_long(argc,argv,"+p:o:hn",long_options,&option_index);
@@ -109,11 +115,30 @@ int main(int argc,char *argv[])
 					 break;
 			case 'n':
 					 has_ptrace_multi=0;
+					 ptrace_vm_mask=0;
+					 ptrace_viewos_mask=0;
+					 break;
+			case 0x100:
+					 has_ptrace_multi=0;
+					 break;
+			case 0x101:
+					 ptrace_vm_mask=0;
+					 break;
+			case 0x102:
+					 ptrace_viewos_mask=0;
 					 break;
 		}
 	}
-	if (has_ptrace_multi > 0)
-		fprintf(stderr,"Running with PTRACE_MULTI enabled\n");
+	if (has_ptrace_multi > 0 || ptrace_vm_mask > 0 || ptrace_vm_mask > 0) {
+		fprintf(stderr,"Running with ");	
+		if (has_ptrace_multi > 0)
+			fprintf(stderr,"PTRACE_MULTI ");
+		if (ptrace_vm_mask > 0)
+			fprintf(stderr,"PTRACE_SYSVM ");
+		if (ptrace_viewos_mask > 0)
+			fprintf(stderr,"PTRACE_VIEWOS ");
+		fprintf(stderr,"enabled\n");
+	}
 	capture_main(argv+optind);
 	setenv("_INSIDE_UMVIEW_MODULE","",1);
 

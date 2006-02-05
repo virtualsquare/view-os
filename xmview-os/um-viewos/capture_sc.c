@@ -5,6 +5,7 @@
  *   
  *   Copyright 2005 Renzo Davoli University of Bologna - Italy
  *   Modified 2005 Mattia Belletti, Ludovico Gardenghi, Andrea Gasparini
+ *   Modified 2006 Renzo Davoli
  *
  *   Some code has been inherited from strace
  *   Copyright (c) 1991, 1992 Paul Kranenburg <pk@cs.few.eur.nl>
@@ -46,7 +47,6 @@
 #include <assert.h>
 
 // #define FAKESIGSTOP
-//#define SETREGSYS
 
 #include "defs.h"
 #include "sctab.h"
@@ -277,34 +277,6 @@ void offspring_exit(struct pcb *pc)
         pc->flags &= ~PCB_BPTSET;
 }
 
-void sc_soft_suspend(struct pcb *pc)
-{
-	unsigned long sp=getsp(pc);
-	GDEBUG(1, "sc_soft_suspend %d fd %d",pc->pid,pc->retval);
-	pc->arg0=getargn(0,pc);
-	pc->arg1=getargn(1,pc);
-	pc->arg2=getargn(2,pc);
-	putscno(__NR_read,pc);
-	putargn(0,pc->retval, pc);
-	putarg0orig(pc->retval, pc);
-	putargn(1,sp-4,pc);
-	putargn(2,1,pc);
-	pc->flags |= PCB_SOFTSUSP; /* unused ? */
-}
-
-void sc_soft_resume(struct pcb *pc)
-{
-	int syscall=pc->scno;
-	GDEBUG(1, "sc_soft_resume %d",pc->pid);
-	putscno(syscall,pc);
-	putargn(0,pc->arg0, pc);
-	putarg0orig(pc->arg0, pc);
-	putargn(1,pc->arg1,pc);
-	putargn(2,pc->arg2,pc);
-	pc->flags &= ~PCB_SOFTSUSP; /* unused ? */
-}
-
-
 void tracehand(int s)
 {
 	int pid, status, syscall=0;
@@ -317,9 +289,8 @@ void tracehand(int s)
 			exit(1);
 		}
 
-		//waitpid returns 0 when WNOHANG and no child(ren) has changed
-		//their state.
-		//tracehand manages all pending request then returns
+		// FIXME: renzo: what does the following line mean?
+		////comment out the following line
 		if (pid==0) return;
 		if(WIFSTOPPED(status) && (WSTOPSIG(status) == SIGSTOP)) {
 			/* race condition, new procs can be faster than parents*/
@@ -353,6 +324,7 @@ void tracehand(int s)
 #endif
 
 		if(WIFSTOPPED(status) && (WSTOPSIG(status) == SIGTRAP)){
+			int isreproducing=0;
 			if ( getregs(pc) < 0 ){
 				GPERROR(0, "saving register");
 				exit(1);
@@ -363,6 +335,9 @@ void tracehand(int s)
 			if (pc->scno == __NR_execve && syscall != __NR_execve){
 				pc->scno = NOSC;
 			}
+			isreproducing=(syscall == __NR_fork ||
+					syscall == __NR_vfork ||
+					syscall == __NR_clone);
 			/* sigreturn and rt_sigreturn give random "OUT" values, maybe 0.
 			 * this is a workaroud */
 #if defined(__x86_64__) //sigreturn and signal aren't defineed in amd64
@@ -413,19 +388,20 @@ void tracehand(int s)
 						pc->behavior=fakesigstopcont(pc);
 #endif
 					if (pc->behavior == SC_FAKE) {
-						//printf("syscall %d faked",pc->scno);
-						/* fake syscall with getpid */
-						putscno(__NR_getpid,pc);
-					} else if (pc->behavior == SC_SOFTSUSP) {
-						sc_soft_suspend(pc);
+						if (PT_VM_OK) {
+							if ((fun(syscall,OUT,pc) & SC_SUSPENDED)==0)
+								pc->scno=NOSC;
+						} else 
+						/* fake syscall with getpid if the kernel does not support
+						 * syscall shortcuts */
+							putscno(__NR_getpid,pc);
 					} else
 					{
 						/* fork is translated into clone 
 						 * offspring management */
-						if (syscall == __NR_fork ||
-								syscall == __NR_vfork ||
-								syscall == __NR_clone)
+						if (isreproducing) {
 							offspring_enter(pc);
+						}
 					}
 #ifdef PIVOTING_ENABLED
 				}
@@ -446,26 +422,7 @@ void tracehand(int s)
 					divfun fun;
 					GDEBUG(3, "<-- pid %d syscall %d (%s) @ %p", pid, syscall, SYSCALLNAME(syscall), getpc(pc));
 					//printf("OUT\n");
-					if (pc->behavior == SC_SOFTSUSP) {
-						long n=getrv(pc);
-						if (n <= 0) {
-							puterrno(EAGAIN,pc);
-							putrv(-1,pc);
-							pc->behavior = STD_BEHAVIOR;
-						} else {
-							sc_soft_resume(pc);
-							syscall=pc->scno;
-							fun=cdtab(syscall);
-							//GDEBUG(2, "enter resumed fun");
-							pc->behavior=fun(syscall,IN,pc);
-							//GDEBUG(2, "exit resumed fun %d",pc->behavior);
-							if (pc->behavior == SC_FAKE)
-								syscall=__NR_getpid;
-						}
-					}
-					if (syscall == __NR_fork ||
-							syscall == __NR_vfork ||
-							syscall == __NR_clone) {
+					if (isreproducing) {
 						long newpid;
 						newpid=getrv(pc);
 						handle_new_proc(newpid,pc);
@@ -493,27 +450,17 @@ void tracehand(int s)
 				}
 #endif
 			} // end if scno==NOSC (OUT)
-#ifdef SETREGSYS
-			if( setregsys(pc,(pc->behavior & SC_SUSPENDED) == 0) == -1 ){
-				GPERROR(0, "setregsys");
+			if ((pc->behavior & SC_SUSPENDED) == 0) {
+				if (PT_VM_OK) {
+					/*printf("SC %s %d\n",SYSCALLNAME(syscall),pc->behavior);*/
+					if(setregs(pc,PTRACE_SYSVM, isreproducing ? 0 : pc->behavior) == -1)
+							GPERROR(0, "setregs");
+					if(!isreproducing && (pc->behavior & PTRACE_VM_SKIPEXIT))
+						pc->scno=NOSC; 
+				} else
+					if( setregs(pc,PTRACE_SYSCALL, 0) == -1)
+						GPERROR(0, "setregs");
 			}
-#else
-			if( setregs(pc) == -1 ){
-					//printf("errno - setregs: %d on process %d \n",errno,pc->pid);
-					GPERROR(0, "setregs");
-					// think if we have to decomment this line...
-					//exit(-1);
-			}
-			//debug string
-			/*printf("+++pid %d syscall %d %d %s rv %d --\n",pid,pc->scno,syscall,
-					 SYSCALLNAME(syscall),getrv(pc));*/
-			if((pc->behavior & SC_SUSPENDED) == 0) {
-				if (ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0){
-					GPERROR(0, "continuing");
-					exit(1);
-				}
-			} // end if behavior & SC_SUSP
-#endif
 		} // end if SIGTRAP
 		else if(WIFSIGNALED(status)) {
 			GDEBUG(3, "%d: signaled %d",pid,WTERMSIG(status));
@@ -563,9 +510,12 @@ void tracehand(int s)
 
 void sc_resume(struct pcb *pc)
 {
-	int pid=pc->pid;
+	/* int pid=pc->pid; */
 	int syscall=pc->scno;
 	int inout=pc->behavior-SC_SUSPENDED;
+	int	isreproducing=(syscall == __NR_fork ||
+			syscall == __NR_vfork ||
+			syscall == __NR_clone);
 	divfun fun;
 	fun=cdtab(syscall);
 	if (fun != NULL)
@@ -574,35 +524,29 @@ void sc_resume(struct pcb *pc)
 		pc->behavior=STD_BEHAVIOR;
 	if (inout==IN) {
 		if (pc->behavior == SC_FAKE) {
-			putscno(__NR_getpid,pc);
+			if (PT_VM_OK) {
+				if (inout==IN && (fun(syscall,OUT,pc) & SC_SUSPENDED)==0)
+					pc->scno=NOSC;
+			} else
+				putscno(__NR_getpid,pc);
 		} else {
-			if (syscall == __NR_fork ||
-					syscall == __NR_vfork ||
-					syscall == __NR_clone)
+			if (isreproducing)
 				offspring_enter(pc);
 		}
 	} else { /* inout == OUT */
 		if ((pc->behavior & SC_SUSPENDED) == 0)
 			pc->scno=NOSC;
 	}
-#ifdef SETREGSYS
-	if( setregsys(pc,(pc->behavior & SC_SUSPENDED) == 0) == -1 ){
-		GPERROR(0, "setregsys");
+	if ((pc->behavior & SC_SUSPENDED) == 0) {
+		if (PT_VM_OK) {
+			if(setregs(pc,PTRACE_SYSVM,isreproducing ? 0 : pc->behavior) == -1)
+			    GPERROR(0, "setregs");
+			if(!isreproducing && (pc->behavior & PTRACE_VM_SKIPEXIT))
+				pc->scno=NOSC;
+  } else
+		if( setregs(pc,PTRACE_SYSCALL,0) == -1)
+			GPERROR(0, "setregs");
 	}
-#else
-	if( setregs(pc) == -1 ){
-		          //printf("errno - setregs: %d on process %d \n",errno,pc->pid);
-		GPERROR(0, "setregs");
-		// think if we have to decomment this line...
-		//exit(-1);
-	}
-	if((pc->behavior & SC_SUSPENDED) == 0) {
-		if (ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0){
-			GPERROR(0, "continuing");
-			exit(1);
-		}
-	}
-#endif
 }
 
 /*

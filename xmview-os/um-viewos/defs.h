@@ -30,7 +30,10 @@
 #include <unistd.h>
 #include "ptrace2.h"
 
-extern int has_ptrace_multi;
+extern unsigned int has_ptrace_multi;
+extern unsigned int ptrace_vm_mask;
+#define PT_VM_OK ((ptrace_vm_mask & PTRACE_VM_SKIPOK) == PTRACE_VM_SKIPOK)
+extern unsigned int ptrace_viewos_mask;
 extern int _lwip_version;
 #include <sys/ptrace.h>
 #include <asm/ptrace.h>
@@ -116,7 +119,6 @@ int capture_main(char **argv);
 #ifdef PIVOTING_ENABLED
 #define PCB_INPIVOTING 0x100
 #endif
-#define PCB_SOFTSUSP 0x2000
 #define PCB_FAKEWAITSTOP 0x4000
 #define PCB_FAKESTOP 0x8000
 
@@ -126,10 +128,10 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define IN 0
 #define OUT 1
 
-#define STD_BEHAVIOR 0
-#define SC_FAKE 1
-#define SC_CALLONXIT 2
-#define SC_SOFTSUSP 3
+/* constants are compatible with PTRACE_SYS_VM definitions */
+#define STD_BEHAVIOR 2	/* DO_SYSCALL SKIP_EXIT */
+#define SC_FAKE 3	/* SKIP_SYSCALL SKIP_EXIT */
+#define SC_CALLONXIT 0  /* DO_SYSCALL DO_CALLONXIT */
 #define SC_SUSPENDED 4
 #define SC_SUSPIN 4     /* SUSPENDED + IN  */
 #define SC_SUSPOUT 5    /* SUSPENDED + OUT */
@@ -137,17 +139,17 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 //getregs/setregs: inline-function for getting/setting registers of traced process
 #if defined(__i386__) //getregs/setregs for ia32
 #define getregs(PC) ptrace(PTRACE_GETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs)
-#define setregs(PC) ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs)
-#define setregsys(PC,SYS) (has_ptrace_multi ? ({\
-			struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, (void *) (PC)->saved_regs},\
-			{PTRACE_SYSCALL, 0, 0}};\
-			ptrace(PTRACE_MULTI,(PC)->pid,req,1+((SYS)?1:0)); }\
+#define setregs(PC,CALL,OP) (has_ptrace_multi ? ({\
+			struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, (void *) (PC)->saved_regs, 0},\
+			{(CALL), (OP), 0, 0}};\
+			ptrace(PTRACE_MULTI,(PC)->pid,req,2); }\
 			) : (\
 				{int rv;\
 				rv=ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs);\
-					if(rv!= 0 && (SYS)) rv=ptrace(PTRACE_SYSCALL,(PC)->pid,0,0);\
-					rv;}\
-					) )
+				if(rv== 0) rv=ptrace((CALL),(PC)->pid,(OP),0);\
+				rv;}\
+							                            ) )
+
 
 //printregs: current state of the working copy of registers
 //#define printregs(PC)
@@ -182,16 +184,6 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define putsp(RV,PC) ( (PC)->saved_regs[UESP]=(RV) )
 #define putpc(RV,PC) ( (PC)->saved_regs[EIP]=(RV) )
 #elif defined(__powerpc__) //setregs/getresg for ppc
-#if 0
-#define getregs_ppc(PC) ({int count;for(count=0;count<FRAME_SIZE;count++){\
-			(PC)->saved_regs[count]=ptrace(PTRACE_PEEKUSER,(PC)->pid,(void*)(4*count),0);\
-			if(errno!=0) break;}\
-			(errno!=0)? -1:0;\
-			})
-#define setregs_ppc(PC) ({int i,count;for(count=0;count<FRAME_SIZE;count++){\
-			i=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*count),(PC)->saved_regs[count]);\
-			if(i!=0) break;}; (i!=0)? -1 : 0 ;})
-#endif
 
 #define getregs(PC) (has_ptrace_multi ? ({\
 		struct ptrace_multi req[] = {{PTRACE_PEEKUSER, 0, (PC)->saved_regs, 10},\
@@ -210,36 +202,21 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 				errno!=0?-1:0;}\
 		) )
 /* XXX PTRACE_MULTI ORIG_R3 returns -1 when saved */
-#define setregs(PC) (has_ptrace_multi ? ({\
-		struct ptrace_multi req[] = {{PTRACE_POKEUSER, 0, (PC)->saved_regs, 10},\
-		{PTRACE_POKEUSER, 4*PT_NIP, &((PC)->saved_regs[10]), 1},\
-		{PTRACE_POKEUSER, 4*PT_CCR, &((PC)->saved_regs[12]), 1}};\
-			ptrace(PTRACE_MULTI,(PC)->pid,req,3); }\
+#define setregs(PC,CALL,OP) (has_ptrace_multi ? ({\
+			struct ptrace_multi req[] = {{PTRACE_POKEUSER, 0, (PC)->saved_regs, 10},\
+			{PTRACE_POKEUSER, 4*PT_NIP, &((PC)->saved_regs[10]), 1},\
+			{PTRACE_POKEUSER, 4*PT_CCR, &((PC)->saved_regs[12]), 1},\
+			{(CALL), (OP), 0, 0}};\
+			ptrace(PTRACE_MULTI,(PC)->pid,req,4); }\
 			) : (\
-		{int i,count;for(count=0;count<10;count++){\
-				i=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*count),(PC)->saved_regs[count]);\
-				if(i!=0)break;}\
-				ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_NIP),(PC)->saved_regs[10]);\
-				ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_ORIG_R3),(PC)->saved_regs[11]);\
-				ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_CCR),(PC)->saved_regs[12]);}\
-		) )
-
-#define setregsys(PC,SYS) (has_ptrace_multi ? ({\
-		struct ptrace_multi req[] = {{PTRACE_POKEUSER, 0, (PC)->saved_regs, 10},\
-		{PTRACE_POKEUSER, 4*PT_NIP, &((PC)->saved_regs[10]), 1},\
-		{PTRACE_POKEUSER, 4*PT_CCR, &((PC)->saved_regs[12]), 1},\
-		{PTRACE_SYSCALL, 0, 0}};\
-		ptrace(PTRACE_MULTI,(PC)->pid,req,3+((SYS)?1:0)); }\
-		) : (\
-			{int i,count;for(count=0;count<10;count++){\
-			i=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*count),(PC)->saved_regs[count]);\
-			if(i!=0)break;}\
-			if(i!=0) i=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_NIP),(PC)->saved_regs[10]);\
-			if(i!=0) i=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_ORIG_R3),(PC)->saved_regs[11]);\
-			if(i!=0) i=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_CCR),(PC)->saved_regs[12]);\
-			if(i!= 0 && (SYS)) i=ptrace(PTRACE_SYSCALL,(PC)->pid,0,0);\
-			i;}\
-			) )
+				{int rv,count;for(count=0;count<10;count++){\
+				rv=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*count),(PC)->saved_regs[count]);\
+				if(rv!=0)break;}\
+				if(rv==0) rv=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_NIP),(PC)->saved_regs[10]);\
+				if(rv==0) rv=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_CCR),(PC)->saved_regs[12]);\
+				if(rv==0) rv=ptrace((CALL),(PC)->pid,(OP),0);\
+				rv;}\
+			    ) )
 
 
 #define getscno(PC) ( (PC)->saved_regs[PT_R0] )
@@ -341,30 +318,7 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 			(PC)->saved_regs[MY_SS] = temp[SS]; \
 			i; \
 			})
-#define setregs(PC) ({ long temp[FRAME_SIZE]; \
-			temp[RDI] = (PC)->saved_regs[MY_RDI]; \
-			temp[RSI] = (PC)->saved_regs[MY_RSI]; \
-			temp[RDX] = (PC)->saved_regs[MY_RDX]; \
-			temp[RCX] = (PC)->saved_regs[MY_RCX]; \
-			temp[RAX] = (PC)->saved_regs[MY_RAX]; \
-			temp[R8] = (PC)->saved_regs[MY_R8]; \
-			temp[R9] = (PC)->saved_regs[MY_R9]; \
-			temp[R10] = (PC)->saved_regs[MY_R10]; \
-			temp[R11] = (PC)->saved_regs[MY_R11]; \
-			temp[RBX] = (PC)->saved_regs[MY_RBX]; \
-			temp[RBP] = (PC)->saved_regs[MY_RBP]; \
-			temp[R12] = (PC)->saved_regs[MY_R12]; \
-			temp[R13] = (PC)->saved_regs[MY_R13]; \
-			temp[R14] = (PC)->saved_regs[MY_R14]; \
-			temp[R15] = (PC)->saved_regs[MY_R15]; \
-			temp[ORIG_RAX] = (PC)->saved_regs[MY_ORIG_RAX]; \
-			temp[RIP] = (PC)->saved_regs[MY_RIP]; \
-			temp[CS] = (PC)->saved_regs[MY_CS]; \
-			temp[EFLAGS] = (PC)->saved_regs[MY_EFLAGS]; \
-			temp[RSP] = (PC)->saved_regs[MY_RSP]; \
-			temp[SS] = (PC)->saved_regs[MY_SS]; \
-			ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) temp); })
-#define setregsys(PC,SYS) ({ long temp[FRAME_SIZE]; \
+#define setregs(PC,CALL,OP) ({ long temp[FRAME_SIZE]; \
 			temp[RDI] = (PC)->saved_regs[MY_RDI]; \
 			temp[RSI] = (PC)->saved_regs[MY_RSI]; \
 			temp[RDX] = (PC)->saved_regs[MY_RDX]; \
@@ -388,12 +342,12 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 			temp[SS] = (PC)->saved_regs[MY_SS]; \
 	(has_ptrace_multi ? ({\
 			     struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, (void *) temp},\
-			     {PTRACE_SYSCALL, 0, 0}};\
-			     ptrace(PTRACE_MULTI,(PC)->pid,req,1+((SYS)?1:0)); }\
+			     {(CALL), (OP), 0}};\
+			     ptrace(PTRACE_MULTI,(PC)->pid,req,2); }\
 			    ) : (\
 				    {int rv;\
 				    rv=ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) temp);\
-					    if(rv!= 0 && (SYS)) rv=ptrace(PTRACE_SYSCALL,(PC)->pid,0,0);\
+					    if(rv== 0) rv=ptrace((CALL),(PC)->pid,(OP),0);\
 					    rv;}\
 													) )\
 	})

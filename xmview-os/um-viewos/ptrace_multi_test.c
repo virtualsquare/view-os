@@ -32,6 +32,7 @@
 #include <asm/ptrace.h>
 #include "ptrace2.h"
 #include <asm/unistd.h>
+#include <errno.h>
 
 
 static int child(void *arg)
@@ -43,7 +44,7 @@ static int child(void *arg)
   return 0;
 }
 
-int test_ptracemulti() {
+unsigned int test_ptracemulti(unsigned int *vm_mask, unsigned int *viewos_mask) {
   int pid, status, rv;
   static char stack[1024];
 
@@ -59,6 +60,14 @@ int test_ptracemulti() {
 	  rv=0;
   else
 	  rv=1;
+  errno=0;
+  *vm_mask=ptrace(PTRACE_SYSVM, pid, PTRACE_VM_TEST, 0);
+  if (errno != 0)
+	  *vm_mask=0;
+  errno=0;
+  *viewos_mask=ptrace(PTRACE_VIEWOS, pid, PT_VIEWOS_TEST, 0);
+  if (errno != 0)
+	  *viewos_mask=0;
   ptrace(PTRACE_KILL,pid,0,0);
   if((pid = waitpid(pid, &status, WUNTRACED)) < 0){
 	  perror("Waiting for stop");
