@@ -89,6 +89,7 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		int pathlen;
 		if (sercode != UM_NONE) {
 			//printf("virtual path chdir to %s\n", CHDIR_FAKE_DIR);
+			//XXX: check length of parameter??? if arg0 was one byte long?
 			pathlen = WORDALIGN(strlen(CHDIR_FAKE_DIR));
 			ustorestr(pc->pid, sp-pathlen, pathlen, CHDIR_FAKE_DIR);
 		} else {
