@@ -48,6 +48,8 @@
 // #define VIEWFS_ENABLE_REMAP
 // #define VIEWFS_CHECK_CRITICAL
 
+#define FALLBACK_PERS "test"
+
 #define EXISTS(x) ((access((x), F_OK)) == 0)
 
 #define DAR(x) (GDEBUG(6, "DAR %s", #x),(x))
@@ -117,9 +119,6 @@
 #define REMAP(x, y) (x)
 #endif
 
-// TODO: make this editable from outside
-#define pers_name "test"
-
 struct persdirs
 {
 	// Start of strings
@@ -154,6 +153,9 @@ struct d64array
 	int lastindex;
 	struct dirent64 *dirp_orig[VIEWFS_DIRP_TOTAL];
 };
+
+// Name of current personality
+static char *pers_name;
 
 // User's home directory
 static char *homedir;
@@ -367,6 +369,13 @@ static void setpers(char *persname)
  * structures and variables. */
 static void prepare()
 {
+	char *tmppers = getenv("VIEWFS_PERS");
+
+	if (tmppers)
+		pers_name = strdup(tmppers);
+	else
+		pers_name = strdup(FALLBACK_PERS);
+	
 	homedir = getenv("HOME");
 	basepath = malloc(strlen(homedir) + strlen(VIEWFS_PREFIX) + 1);
 	strcpy(basepath, homedir);
@@ -384,6 +393,7 @@ static void prepare()
 	remapbuf = malloc(2*PATH_MAX + 1);
 #endif
 
+	GDEBUG(2, "personality name: %s", pers_name);
 	GDEBUG(2, "base path: %s", basepath);
 	GDEBUG(2, "default pers add dir: %s", defaultpers->add);
 	GDEBUG(2, "current pers add dir: %s", currentpers->add);
@@ -399,6 +409,8 @@ static void dispose()
 #ifdef VIEWFS_ENABLE_REMAP
 	free(remapbuf);
 #endif
+
+	free(pers_name);
 }
 
 static void procinfo_fd_set(int id, int fd, int pers)
@@ -1243,6 +1255,7 @@ static int viewfs_link(char *oldpath, char *newpath, void *umph)
 	VIEWFS_CRITCHECK(oldpath, -1, VIEWFS_DEEP);
 	VIEWFS_CRITCHECK(newpath, -1, VIEWFS_DEEP);
 
+	errno = EPERM;
 	return -1;
 }
 
@@ -2082,7 +2095,6 @@ init (void)
 	s.syscall[uscno(__NR_lseek)]= (intfun) lseek;
 	s.syscall[uscno(__NR_mkdir)]=viewfs_mkdir;
 	s.syscall[uscno(__NR_rmdir)]=viewfs_rmdir;
-//	s.syscall[uscno(__NR_chdir)]=viewfs_chdir;
 	s.syscall[uscno(__NR_chown)]=viewfs_chown;
 	s.syscall[uscno(__NR_lchown)]=viewfs_lchown;
 	s.syscall[uscno(__NR_fchown)]=fchown;
