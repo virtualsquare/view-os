@@ -198,7 +198,7 @@ static int umstd_write (const char *path, const char *buf, size_t size, off_t of
  *
  * The 'f_type' and 'f_fsid' fields are ignored
  */
-static int umstd_statfs (const char *path, struct statfs *stat)
+static int umstd_statfs (const char *path, struct statvfs *stat)
 {
 	PRINTCALL("default statfs %s\n", path);
 	return -ENOSYS;

@@ -370,10 +370,11 @@ int fuse_main_real(int argc, char *argv[], const struct fuse_operations *op,
 	return 0;	
 }
 
-int fuse_mount(const char *mountpoint, const char *opts)
+/*int fuse_mount(const char *mountpoint, const char *opts)*/
+int fuse_mount(const char *mountpoint, struct fuse_args *args)
 {
 #ifdef __UMFUSE_DEBUG__
-	 PRINTDEBUG(10,"fuse_mount %s %s\n",mountpoint,opts);
+	 PRINTDEBUG(10,"fuse_mount %s\n",mountpoint);
 #endif
 	return umfuse_current_context;
 }
@@ -400,7 +401,9 @@ static void fopsfill (struct fuse_operations *fops,size_t size)
 		}
 }
 
-struct fuse *fuse_new(int fd, const char *opts,
+/*struct fuse *fuse_new(int fd, const char *opts,
+		const struct fuse_operations *op, size_t op_size)*/
+struct fuse *fuse_new(int fd, struct fuse_args *args,
 		const struct fuse_operations *op, size_t op_size)
 {
 	PRINTDEBUG(10,"%d %d %d %d\n",fd,umfuse_current_context,op_size,sizeof(struct fuse_operations));
