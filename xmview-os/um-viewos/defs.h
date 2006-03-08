@@ -88,6 +88,9 @@ struct pcb {
 	unsigned long arg2;
 
 	long saved_regs[FRAME_SIZE];
+	// if regs aren't modified (because of a real syscall...), we can 
+	// avoid calling PTRACE_SETREGS
+	char regs_modified;
 #ifdef PIVOTING_ENABLED
 	/* address of the first instruction executed by the process (needed to
 	 * know where to start for injecting code) - it's an address in the
@@ -138,8 +141,11 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 
 //getregs/setregs: inline-function for getting/setting registers of traced process
 #if defined(__i386__) //getregs/setregs for ia32
-#define getregs(PC) ptrace(PTRACE_GETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs)
-#define setregs(PC,CALL,OP) (has_ptrace_multi ? ({\
+#define getregs(PC)  ( ptrace(PTRACE_GETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs), (PC)->regs_modified=0 )
+
+// this is coming to became unreadable... how about write a real function?
+#define setregs(PC,CALL,OP) ({ (PC)->regs_modified==0 ? ptrace((CALL),(PC)->pid,(OP),0) :\
+			   	(has_ptrace_multi ? ({\
 			struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, (void *) (PC)->saved_regs, 0},\
 			{(CALL), (OP), 0, 0}};\
 			ptrace(PTRACE_MULTI,(PC)->pid,req,2); }\
@@ -147,8 +153,10 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 				{int rv;\
 				rv=ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs);\
 				if(rv== 0) rv=ptrace((CALL),(PC)->pid,(OP),0);\
+				(PC)->regs_modified=0;\
 				rv;}\
-							                            ) )
+							                            ) ); \
+				})
 
 
 //printregs: current state of the working copy of registers
@@ -161,17 +169,17 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 
 
 #define getscno(PC) ( (PC)->saved_regs[ORIG_EAX] )
-#define putscno(X,PC) ( (PC)->saved_regs[ORIG_EAX]=(X) )
+#define putscno(X,PC) ( (PC)->saved_regs[ORIG_EAX]=(X) , (PC)->regs_modified=1 )
 #define getargn(N,PC) ( (PC)->saved_regs[(N)] )
 #define getargp(PC) ((PC)->saved_regs)
-#define putargn(N,X,PC) ( (PC)->saved_regs[N]=(X) )
+#define putargn(N,X,PC) ( (PC)->saved_regs[N]=(X)  , (PC)->regs_modified=1 )
 #define getarg0orig(PC) ( (PC)->saved_regs[0] )
-#define putarg0orig(N,PC) ( (PC)->saved_regs[0]=(N) )
+#define putarg0orig(N,PC) ( (PC)->saved_regs[0]=(N)  , (PC)->regs_modified=1 )
 #define getrv(PC) ({ int eax; \
 		eax = (PC)->saved_regs[EAX];\
 		(eax<0 && -eax < MAXERR)? -1 : eax; })
-#define putrv(RV,PC) ( (PC)->saved_regs[EAX]=(RV), 0 )
-#define puterrno(ERR,PC) ( ((ERR)!=0 && (PC)->retval==-1)?(PC)->saved_regs[EAX]=-(ERR) : 0 )
+#define putrv(RV,PC) ( (PC)->saved_regs[EAX]=(RV),(PC)->regs_modified=1 ,0 )
+#define puterrno(ERR,PC) ( ((ERR)!=0 && (PC)->retval==-1)?(PC)->saved_regs[EAX]=-(ERR) , (PC)->regs_modified=1  : 0 )
 /*
 #define putexit(RV,ERR,PC) \
 	do { \
