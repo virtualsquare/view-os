@@ -73,6 +73,7 @@
 #endif
 
 
+static struct service s;
 
 struct fuse {
 	char *filesystemtype;
@@ -85,6 +86,9 @@ struct fuse {
 	struct fuse_operations fops;	
 	int inuse;
 	unsigned long flags;
+#ifdef NEW_SERVICE_LIST
+	int service_no;
+#endif
 };
 
 /* values for INUSE and thread synchro */
@@ -574,7 +578,7 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 		if (new->fuse->inuse == FUSE_ABORT)
 		{
 			struct fuse_context *fc_norace=new;
-			//printf("UMOUNT ABORT\n");
+			printf("UMOUNT ABORT\n");
 			delmnttab(umfuse_current_context);
 			pthread_join(fc_norace->fuse->thread, NULL);
 			dlclose(fc_norace->fuse->dlhandle);
@@ -586,6 +590,9 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 		}
 		if (new->fuse->fops.init != NULL)
 			new->private_data=new->fuse->fops.init();
+#ifdef NEW_SERVICE_LIST
+		new->fuse->service_no = gas_register_service(&s);
+#endif
 		return 0;
 	}
 }
@@ -607,6 +614,12 @@ static int umfuse_umount2(char *target, int flags,void *umph)
 	} else {
 		/* TODO check inuse and FORCE flag */
 		struct fuse_context *fc_norace=fusetab[umfuse_current_context];
+#ifdef NEW_SERVICE_LIST
+		if( gas_deregister_service(fc_norace->fuse->service_no) == 0 ){
+			errno=EBUSY;
+			return -1;
+		}
+#endif
 		delmnttab(umfuse_current_context);
 		//printf("PID %d TID %d \n",getpid(),pthread_self());
 		pthread_mutex_lock( &fc_norace->fuse->endmutex );
@@ -1657,7 +1670,6 @@ void contextclose(struct fuse_context *fc)
 	umfuse_umount2(fc->fuse->path,MNT_FORCE,NULL);
 }
 
-static struct service s;
 
 static void
 __attribute__ ((constructor))

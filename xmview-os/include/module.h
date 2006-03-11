@@ -96,3 +96,7 @@ extern int um_mod_getumpid(void *umph);
 extern int uscno(int scno);
 extern int add_service(struct service *);
 
+#ifdef NEW_SERVICE_LIST
+extern int gas_register_service(struct service *);
+extern int gas_deregister_service(int);
+#endif

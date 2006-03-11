@@ -38,16 +38,18 @@
 #include "libummod.h"
 
 // int read(), write(), close();
-
+#ifdef NEW_SERVICE_LIST
+int service_no;
+#endif
 
 
 static int unrealpath(int type,void *arg,void *umph)
 {
 	/* This is an example that shows how to pick up extra info in the
 	 * calling process. */
-	/*printf("test umph info pid=%d, scno=%d, arg[0]=%d, argv[1]=%d\n",
+/*	printf("test umph info pid=%d, scno=%d, arg[0]=%d, argv[1]=%d\n",
 			um_mod_getpid(umph),um_mod_getsyscallno(umph),
-			um_mod_getargs(umph)[0],um_mod_getregs(umph)[1]); */
+			um_mod_getargs(umph)[0],um_mod_getargs(umph)[1]); */
 	if (type== CHECKPATH) {
 		char *path=arg;
 		return(strncmp(path,"/unreal",7) == 0);
@@ -216,12 +218,19 @@ init (void)
 	s.syscall[uscno(__NR_utime)]=unreal_utime;
 	s.syscall[uscno(__NR_utimes)]=unreal_utimes;
 	add_service(&s);
+#ifdef NEW_SERVICE_LIST
+	service_no = gas_register_service(&s);
+#endif
 }
 
 static void
 __attribute__ ((destructor))
 fini (void)
 {
+#ifdef NEW_SERVICE_LIST
+	if( gas_deregister_service(service_no) )
+		printf("deregistration ok");
+#endif
 	free(s.syscall);
 	free(s.socket);
 	printf("unreal fini\n");
