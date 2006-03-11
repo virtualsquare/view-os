@@ -335,7 +335,7 @@ int wrap_in_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	unsigned long pdata=getargn(4,pc);
 	struct stat64 imagestat;
 	umovestr(pc->pid,fstype,PATH_MAX,filesystemtype);
-	source = um_abspath(argaddr,pc,&imagestat,1);
+	source = um_abspath(argaddr,pc,&imagestat,0);
 	if (source==um_patherror) {
 		pc->retval= -1;
 		pc->erno= ENOENT;
