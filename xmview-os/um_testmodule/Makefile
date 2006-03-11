@@ -1,5 +1,5 @@
 DEBUGLEVEL?=4
-CBASEFLAGS=-fPIC -I../include -I../gdebug -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=22 -Wall -rdynamic
+CBASEFLAGS=-fPIC -I../include -I../gdebug -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -Wall -rdynamic
 CDEBUGFLAGS=-g -ggdb -DGDEBUG_ENABLED -DGDEBUG_LEVEL=$(DEBUGLEVEL)
 
 ALL=testmodule.so testmodul2.so unreal.so real.so sockettest.so sockip.so viewfs.so

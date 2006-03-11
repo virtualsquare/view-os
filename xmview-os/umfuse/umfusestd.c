@@ -196,9 +196,14 @@ static int umstd_write (const char *path, const char *buf, size_t size, off_t of
 
 /** Get file system statistics
  *
- * The 'f_type' and 'f_fsid' fields are ignored
+ * The 'f_frsize', 'f_favail', 'f_fsid' and 'f_flag' fields are ignored
+ *
  */
+#if ( FUSE_MINOR_VERSION >= 5 )
 static int umstd_statfs (const char *path, struct statvfs *stat)
+#else
+static int umstd_statfs (const char *path, struct statfs *stat)
+#endif
 {
 	PRINTCALL("default statfs %s\n", path);
 	return -ENOSYS;
@@ -316,6 +321,42 @@ static int umstd_fsyncdir (const char *path, int user_meta, struct fuse_file_inf
 	return -ENOSYS;
 }
 
+#if ( FUSE_MINOR_VERSION >= 5 )
+/**
+ * Check file access permissions
+ *
+ */
+static int umstd_access (const char *path, int mode)
+{
+	PRINTCALL("default access %s\n", path);
+	return -ENOSYS;
+}
+
+/**
+ * Create and open a file
+ */
+static int umstd_create (const char *path, mode_t mode, struct fuse_file_info *fileinfo)
+{
+	PRINTCALL("default create %s\n", path);
+	return -ENOSYS;
+}
+
+/**
+ * Change the size of an open file
+ */
+static int umstd_ftruncate (const char *path, off_t length, struct fuse_file_info *fileinfo)
+{
+	PRINTCALL("default ftruncate %s\n", path);
+	return -ENOSYS;
+}
+
+static int umstd_fgetattr (const char *path, struct stat *buf, struct fuse_file_info *fileinfo)
+{
+	PRINTCALL("default ftruncate %s\n", path);
+	return -ENOSYS;
+}
+#endif
+
 struct fuse_operations defaultservice={
 	.getattr = umstd_getattr,
 	.getattr = umstd_getattr,
@@ -349,4 +390,10 @@ struct fuse_operations defaultservice={
 	.fsyncdir = umstd_fsyncdir,
 	.init = NULL,
 	.destroy = NULL,
+#if ( FUSE_MINOR_VERSION >= 5 )
+	.access = umstd_access,
+	.create = umstd_create,
+	.ftruncate = umstd_ftruncate,
+	.fgetattr = umstd_fgetattr,
+#endif
 };
