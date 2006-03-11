@@ -65,6 +65,21 @@ void *open_dllib(char *name)
 	return handle;
 }
 
+// umview internal use only, not in syscall management.
+// because it doesn't update pc->errno
+// FIXME: should be moved from this file.
+int um_add_service(char* path,int position){
+	void *handle=open_dllib(path);
+	if (handle==NULL) {
+			return  -1;
+	} else {
+			if ( set_handle_new_service(handle,position) != 0) {
+					dlclose(handle);
+			}
+	}
+	return 0;
+}
+
 int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 {
 	//printf("dsys_um_service pid %d call %d\n",pc->pid,sc_number);

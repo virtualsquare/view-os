@@ -40,7 +40,77 @@ static int invisible=0;
 static int noserv=0;
 static int maxserv=0;
 /* descriptor of all services */
+// services maintain list of all modules loaded.
 static struct service **services=NULL;
+
+#ifdef NEW_SERVICE_LIST
+#define registered_service_check service_check
+// registered services sorted by registration requests
+// FIX: 1) maybe better a dinamically allocated array?
+//  2) when should be initialized?
+static char registered_services[255];
+static int registered_no = 0;
+
+int gas_register_service(struct service *s){
+	printf("new_register_service: %d\n",s->code);
+	registered_services[registered_no]=s->code;
+	registered_no++;
+	return registered_no;
+}
+
+// deregister tells if a module can be deleted from list of active modules
+// dumb management: when serv_no is the last service registerd, it 
+// can be deregistered, otherwise it can't...
+int gas_deregister_service(int serv_no){
+	printf("new_deregister_service: %d\n",serv_no);
+	if( serv_no == registered_no ){
+		printf("\tderegister ok\n");
+		registered_services[serv_no]=UM_NONE;
+		registered_no--;
+		return 1;
+	}
+	else{
+		printf("\tdon't deregister \n");
+		return 0;
+	}
+}
+
+// retrieve service structure in sorted registered list of services
+service_t registered_service_check(int type, void *arg,void *umph)
+{
+	int i,j;
+/*    printf("new_registered_service_check: type: %d - %d \n",type, noserv);*/
+	if (arg == NULL || noserv == 0) 
+		return(UM_NONE);
+	if ( registered_no != 0 ){
+		for (i = registered_no-1 ; i>=0 ; i--) {
+			unsigned char check_code = registered_services[i];
+			struct service *s;
+/*            printf("checking code:%u\n",check_code);*/
+			for( j = 0; j<noserv ; j++)
+				if( services[j]->code == check_code )
+					s=services[j];
+			if (s->checkfun != NULL && s->checkfun(type,arg,umph)){
+/*                printf("\tregister choice: %d\n",s->code);*/
+				return(s->code);
+			}
+		}
+	}
+	// if no services were found then we request if some module want 
+	// to be registered.
+	for (i=0 ; i<noserv ; i++) {
+/*       for (i = noserv-1 ; i>=0 ; i--) {*/
+/*        printf("checking inner code:%u\n",i);*/
+		struct service *s=services[i];
+		if (s->checkfun != NULL && s->checkfun(type,arg,umph)){
+/*            printf("\tregister choice inner: %d\n",s->code);*/
+			return(s->code);
+		}
+	}
+	return(UM_NONE);
+}
+#endif
+
 static intfun reg_service,dereg_service;
 
 #define OSER_STEP 8 /*only power of 2 values */
@@ -222,13 +292,17 @@ void service_delproc(service_t code,int id, void *arg)
 	}
 }
 
+#ifndef NEW_SERVICE_LIST
 service_t service_check(int type, void *arg,void *umph)
 {
 	int i;
-	if (arg == NULL) 
+	if (arg == NULL || noserv == 0) 
 		return(UM_NONE);
 	else {
-		for (i=0;i<noserv;i++) {
+// beginning to make some nesting-related changes
+// in this case it make more sense in beginning from last inserted service.
+		for (i=0 ; i<noserv ; i++) {
+/*        for (i = noserv-1 ; i>=0 ; i--) {*/
 			struct service *s=services[i];
 			if (s->checkfun != NULL && s->checkfun(type,arg,umph))
 				return(s->code);
@@ -236,6 +310,7 @@ service_t service_check(int type, void *arg,void *umph)
 		return(UM_NONE);
 	}
 }
+#endif
 
 static int errnosys()
 {
