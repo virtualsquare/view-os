@@ -53,7 +53,7 @@
 #define CHDIR_FAKE_DIR "/tmp"
 
 int wrap_in_getcwd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		service_t sercode, intfun syscall)
+		service_t sercode, intfun um_syscall)
 {
 	long arg1=getargn(1,pc);
 	if (pc->arg0==(int) NULL) {
@@ -80,7 +80,7 @@ int wrap_in_getcwd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
  * the correct check and where to put it, so I haven't done it at the moment.
  * But it should be changed. */
 int wrap_in_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		service_t sercode, intfun syscall)
+		service_t sercode, intfun um_syscall)
 {
 	if (!S_ISDIR(pcdata->pathstat.st_mode))
 		pc->erno=ENOTDIR;
@@ -130,7 +130,7 @@ int wrap_out_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 }
 
 int wrap_in_fchdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		service_t sercode, intfun syscall)
+		service_t sercode, intfun um_syscall)
 {
 	long sp=getsp(pc);
 	int pathlen;
@@ -187,7 +187,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_umask(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		service_t sercode, intfun syscall)
+		service_t sercode, intfun um_syscall)
 {
 	mode_t mode=pc->arg0;
 	pcdata->fdfs->mask = mode;
@@ -195,7 +195,7 @@ int wrap_in_umask(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_chroot(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		service_t sercode, intfun syscall)
+		service_t sercode, intfun um_syscall)
 {
 	if (pc->erno == 0) {
 		free(pcdata->fdfs->root);

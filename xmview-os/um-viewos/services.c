@@ -326,7 +326,7 @@ intfun service_syscall(service_t code, int scno)
 		int pos=servmap[code]-1;
 		struct service *s=services[pos];
 		assert( s != NULL);
-		return (s->syscall[scno] == NULL) ? errnosys : s->syscall[scno];
+		return (s->um_syscall[scno] == NULL) ? errnosys : s->um_syscall[scno];
 	}
 }
 

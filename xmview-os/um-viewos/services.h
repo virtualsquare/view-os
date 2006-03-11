@@ -79,7 +79,7 @@ struct service {
 
 	/* the syscall table, the arguments are the same of the "real world" syscalls,
 	 * plus umph if needed*/
-	intfun *syscall;
+	intfun *um_syscall;
 
 	/* the socket call table, the arguments are the same of the "real world" syscalls,
 	 * plus umph if needed*/

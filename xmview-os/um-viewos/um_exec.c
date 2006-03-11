@@ -54,7 +54,7 @@
 #define umNULL ((int) NULL)
 
 int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun syscall)
+		char sercode, intfun um_syscall)
 {
 	int mode;
 	int argv=getargn(2,pc);

@@ -34,7 +34,7 @@ typedef int wrapinfun();
 typedef int wrapoutfun();
 /*
 typedef int wrapinfun(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		                char sercode, intfun syscall);
+		                char sercode, intfun um_syscall);
 typedef int wrapoutfun(int sc_number,struct pcb *pc,struct pcb_ext *pcdata);
 */
 

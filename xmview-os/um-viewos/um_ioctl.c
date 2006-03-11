@@ -126,7 +126,7 @@ static void ioctl_putarg(pid_t pid, int request, unsigned long arg, void *larg)
 }
 
 int wrap_in_ioctl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun syscall)
+		char sercode, intfun um_syscall)
 {
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	if (sfd < 0) {
@@ -139,7 +139,7 @@ int wrap_in_ioctl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		void *larg;
 		ioctl_getarg(pc->pid,req,arg,&larg);
 		/*printf("wrap_in_ioctl %d req %x arg %x\n",sfd,req,larg);*/
-		pc->retval = syscall(sfd,req,larg,pc);
+		pc->retval = um_syscall(sfd,req,larg,pc);
 		pc->erno=errno;
 		if (pc->retval >= 0)
 			ioctl_putarg(pc->pid,req,arg,larg);

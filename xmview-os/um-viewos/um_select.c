@@ -299,7 +299,7 @@ static void putfdset(long addr, int pid, int max, fd_set *lfds)
 }
 
 int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun syscall)
+		char sercode, intfun um_syscall)
 {
 	register int n=pc->arg0;
 	struct seldata *sd=(struct seldata *)malloc(sizeof(struct seldata));
@@ -587,7 +587,7 @@ int wrap_out_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 
 
 int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun syscall)
+		char sercode, intfun um_syscall)
 {
 	struct pollfd *ufds; /*local copy*/
 	struct seldata *sd=(struct seldata *)malloc(sizeof(struct seldata));
