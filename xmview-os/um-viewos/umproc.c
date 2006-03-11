@@ -187,7 +187,7 @@ int lfd_open (service_t service, int sfd, char *path)
 		//printf("add lfd %d file %s\n",lfd,lfd_tab[lfd].ptab->path);
 		lfd_tab[lfd].pvtab=NULL;
 	}
-	//printf("lfd_opne: lfd %d\n",lfd);
+	//printf("lfd_open: lfd %d sfd %d file %s\n",lfd,sfd,lfd_tab[lfd].ptab->path);
 	return lfd;
 }
 

@@ -63,7 +63,7 @@ int wrap_in_open(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	if (sercode != UM_NONE) {
 		pc->retval = syscall(pcdata->path,flags,mode & ~(pcdata->fdfs->mask),pc);
 		pc->erno = errno;
-		//printf("open exit a %d %d\n",pc->retval,pc->erno);
+		//printf("open exit a %d %d %s\n",pc->retval,pc->erno,pcdata->path);
 		if (pc->retval >= 0 && (pc->retval=lfd_open(sercode,pc->retval,pcdata->path)) >= 0) {
 			char *filename=lfd_getfilename(pc->retval);
 			int filenamelen=WORDALIGN(strlen(filename));
@@ -118,9 +118,11 @@ int wrap_out_open(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) {
 int wrap_in_close(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun syscall)
 {
+	//printf("wrap in close %d\n", pc->arg0);
 	if (sercode != UM_NONE) {
 		int sfd=fd2sfd(pcdata->fds,pc->arg0);
 		int lfd=fd2lfd(pcdata->fds,pc->arg0);
+		//printf("UM_SERVICE close %d %d %d\n",pc->arg0,lfd,sfd);
 		if (sfd < 0) {
 			pc->retval= -1;
 			pc->erno= EBADF;
@@ -128,20 +130,20 @@ int wrap_in_close(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			if (lfd>=0 && lfd_getcount(lfd) <= 1) {
 				pc->retval = syscall(sfd,pc);
 				pc->erno=errno;
-				/*if (pc->retval >= 0) 
-					lfd_nullsfd(sfd);*/
+				if (pc->retval >= 0) 
+					lfd_nullsfd(lfd);
 			} else
 				pc->retval = pc ->erno = 0;
 		} 
 		return SC_FAKE;
 	} else
 		return SC_CALLONXIT;
-		//return STD_BEHAVIOR;
 }
 
 int wrap_out_close(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) 
 {
 	int lfd=fd2lfd(pcdata->fds,pc->arg0);
+	//printf("close %d ->%d\n",pc->arg0,lfd);
 	if (lfd>=0) {
 		int service=lfd_getservice(lfd);
 		lfd_deregister_n_close(pcdata->fds,pc->arg0);
@@ -497,17 +499,20 @@ int wrap_in_lseek(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_llseek(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun syscall)
 {
-	unsigned int offhi=getargn(1,pc);
-	unsigned int offlo=getargn(2,pc);
-	unsigned int result=getargn(3,pc);
-	unsigned int whence=getargn(4,pc);
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		pc->retval = syscall(sfd,offhi,offlo,result,whence,pc);
+		unsigned long offhi=getargn(1,pc);
+		unsigned long offlo=getargn(2,pc);
+		unsigned long result=getargn(3,pc);
+		unsigned int whence=getargn(4,pc);
+		loff_t lresult;
+		pc->retval = syscall(sfd,offhi,offlo,&lresult,whence,pc);
 		pc->erno=errno;
+		if (pc->retval >= 0) 
+			ustoren(pc->pid,result,sizeof(loff_t),(char *)&lresult);
 	}
 	return SC_FAKE;
 }

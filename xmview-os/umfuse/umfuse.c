@@ -265,7 +265,7 @@ static int addfiletab()
 		filetab=(struct fileinfo **)realloc(filetab,filetabmax*sizeof(struct fileinfo *));
 		assert(filetab);
 		for (j=i;j<filetabmax;j++)
-			filetab[i]=NULL;
+			filetab[j]=NULL;
 	}
 	filetab[i]=(struct fileinfo *)malloc(sizeof(struct fileinfo));
 	assert(filetab[i]);
