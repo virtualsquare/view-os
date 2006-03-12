@@ -321,7 +321,7 @@ static int umstd_fsyncdir (const char *path, int user_meta, struct fuse_file_inf
 	return -ENOSYS;
 }
 
-#if ( FUSE_MINOR_VERSION >= 5 )
+#if 0
 /**
  * Check file access permissions
  *
@@ -391,9 +391,9 @@ struct fuse_operations defaultservice={
 	.init = NULL,
 	.destroy = NULL,
 #if ( FUSE_MINOR_VERSION >= 5 )
-	.access = umstd_access,
-	.create = umstd_create,
-	.ftruncate = umstd_ftruncate,
-	.fgetattr = umstd_fgetattr,
+	.access = NULL,
+	.create = NULL,
+	.ftruncate = NULL,
+	.fgetattr = NULL,
 #endif
 };

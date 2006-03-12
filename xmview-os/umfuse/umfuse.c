@@ -57,7 +57,6 @@
 #ifdef __UMFUSE_EXPERIMENTAL__
 /* There are already some problems with dup. (e.g. output redirection)
  * TODO permission management and user management (who is the writer in the Virtual FS?)
- * TODO fuse parms management (e.g. RO file system do permit rmdir)
  */
 #endif
 
@@ -333,17 +332,15 @@ static void *startmain(void *vsmo)
 {
 	struct startmainopt *psmo = vsmo;
 	int (*pmain)() = dlsym(psmo->new->fuse->dlhandle,"main");
+	char *opts;
+	int newargc;
+	char **newargv;
 	if (pmain == NULL) {
 		fprintf(stderr, "%s\n", dlerror());
 		fflush(stderr);
 	}
-	
 	/* handle -o options and specific filesystem options */
-	
-	char *opts = mountflag2options(*(psmo->pmountflags), psmo->data);
-	
-	int newargc;
-	char **newargv;
+	opts = mountflag2options(*(psmo->pmountflags), psmo->data);
 	newargc=fuseargs(psmo->new->fuse->filesystemtype,psmo->source, psmo->new->fuse->path,opts, &newargv, &(psmo->new), &(psmo->new->fuse->flags));
 	free(opts);
 	if (psmo->new->fuse->flags & FUSE_DEBUG) {
@@ -362,18 +359,22 @@ static void *startmain(void *vsmo)
 	return NULL;
 }
 
-/*TODO parse cmd, es dummy is rw o ro!*/
+/*TODO parse cmd, es dummy is rw or ro!*/
 //see fuse_setup_common lib/helper.c
 int fuse_main_real(int argc, char *argv[], const struct fuse_operations *op,
 		size_t op_size)
 {
 	struct fuse *f;
-	int fd = fuse_mount(NULL, NULL); //sarebbero kernel_opts, ma le ho separate prima!!//non solo lettura!!es helo che us amain!!
-	f = fuse_new(fd, NULL, op, op_size);//ora opts sono lib_opts;debug,hard_remove,use_ino
+	int fd = fuse_mount(NULL, NULL); //options have been already parsed
+	f = fuse_new(fd, NULL, op, op_size);
+	//I cannot understand this comment. (renzo)
+	//"now opts are lib_opts;debug,hard_remove,use_ino"
 	fuse_loop(f);
 	return 0;	
 }
 
+/* fuse_mount and fuse_unmount are dummy functions, 
+ * the real mount operation has been done in umfuse_mount */
 #if ( FUSE_MINOR_VERSION <= 3 )
 int fuse_mount(const char *mountpoint, const char *opts)
 #else
@@ -389,8 +390,6 @@ int fuse_mount(const char *mountpoint, struct fuse_args *args)
 
 void fuse_unmount(const char *mountpoint)
 {
-	//int fd=searchcontext(mountpoint, EXACT);
-	/* TODO to be completed ? */
 }
 
 /* set standard fuse_operations (umfusestd.c) for undefined fields in the
@@ -486,10 +485,7 @@ int fuse_loop_mt(struct fuse *f)
 {
 //in fuselib is FUSE event loop with multiple threads,
 //but here is all with multiple threads ;-)
-	if(f != NULL)
-		return fuse_loop(f);
-	else
-		return -1;
+	return fuse_loop(f);
 }
 
 struct fuse_context *fuse_get_context(void)
@@ -540,6 +536,7 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 	} else {
 		struct fuse_context *new = (struct fuse_context *)
 			malloc(sizeof(struct fuse_context));
+		struct startmainopt smo;
 		assert(new);
 		new->fuse = (struct fuse *)malloc(sizeof(struct fuse));
 		assert(new->fuse);
@@ -560,7 +557,6 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 		   and traslate options from mount syntax into fuse syntax */
 		   
 		umfuse_current_context = addfusetab(new);		
-		struct startmainopt smo;
 		smo.new = new;
 		smo.pmountflags = &(new->fuse->flags);
 		smo.source = source;
@@ -707,9 +703,7 @@ static struct umdirent *umfilldirinfo(struct fileinfo *fi)
 	dh.tail=NULL;
 	dh.offset=0;
 	if (fusetab[cc]->fuse->fops.readdir)
-	{
 		rv=fusetab[cc]->fuse->fops.readdir(fi->path,&dh, umfusefillreaddir, 0, &fi->ffi);
-	}
 	else
 		rv=fusetab[cc]->fuse->fops.getdir(fi->path, &dh, umfusefilldir);
 	if (rv < 0)
@@ -734,7 +728,7 @@ static void umcleandirinfo(struct umdirent *tail)
 static int umfuse_getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
 {
 	if (filetab[fd]==NULL) {
-		errno=ENOENT;
+		errno=EBADF;
 		return -1;
 	} else {
 		//int cc=filetab[fd]->context; /* TODO check it is really a dir */
@@ -775,7 +769,7 @@ static int umfuse_getdents(unsigned int fd, struct dirent *dirp, unsigned int co
 static int umfuse_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
 {
 	if (filetab[fd]==NULL) {
-		errno=ENOENT;
+		errno=EBADF;
 		return -1;
 	} else {
 		unsigned int curoffs=0;
@@ -905,56 +899,61 @@ static int umfuse_open(char *path, int flags, mode_t mode,void *umph)
 		PRINTDEBUG(10, "SYNC\n");
 #endif
 
-
 	umfuse_current_context = cc;
 	assert(cc>=0);
-	exists_err = fusetab[cc]->fuse->fops.getattr(unwrap(fusetab[cc], path), &buf);
 	filetab[fi]->context = cc;
 	filetab[fi]->count = 0;
 	filetab[fi]->pos = 0;
 	filetab[fi]->size = buf.st_size;
-	filetab[fi]->ffi.flags = flags;
+	filetab[fi]->ffi.flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
 	filetab[fi]->ffi.writepage = 0; //XXX do we need writepage != 0?
 	filetab[fi]->dirinfo = NULL;
 	filetab[fi]->dirpos = NULL;
 	filetab[fi]->path = strdup(unwrap(fusetab[cc], path));
+	exists_err = fusetab[cc]->fuse->fops.getattr(filetab[fi]->path, &buf);
 
-#ifdef __UMFUSE_EXPERIMENTAL__
+	if ((flags & (O_CREAT | O_TRUNC | O_WRONLY | O_RDWR)) && (fusetab[cc]->fuse->flags & MS_RDONLY)) {
+		free(filetab[fi]->path);
+		errno = EROFS;
+		return -1;
+	}
 	if(exists_err == 0 && (flags & O_TRUNC) && (flags & (O_WRONLY | O_RDWR))) {
 		rv=fusetab[cc]->fuse->fops.truncate(filetab[fi]->path, 0);
 		if (rv < 0) {
+			free(filetab[fi]->path);
 			errno = -rv;
 			return -1;
 		}
 	}
-	if (flags & O_CREAT) { 
-		if (exists_err == 0) {
-			if (flags & O_EXCL) {
-				errno= EEXIST;
-				return -1;
-			} 
-		} else {
-			PRINTDEBUG(10, "umfuse open MKNOD call\n");
-			rv = fusetab[cc]->fuse->fops.mknod(filetab[fi]->path, S_IFREG | mode, (dev_t) 0);
-			if (rv < 0) {
-				errno = -rv;
-				return -1;
+#if ( FUSE_MINOR_VERSION >= 5 )
+	if (flags == O_CREAT|O_WRONLY|O_TRUNC && fusetab[cc]->fuse->fops.create != NULL) {
+			rv = fusetab[cc]->fuse->fops.create(filetab[fi]->path, mode, &filetab[fi]->ffi);
+	} else
+#endif
+	{
+		if (flags & O_CREAT) { 
+			if (exists_err == 0) {
+				if (flags & O_EXCL) {
+					free(filetab[fi]->path);
+					errno= EEXIST;
+					return -1;
+				} 
+			} else {
+				PRINTDEBUG(10, "umfuse open MKNOD call\n");
+				rv = fusetab[cc]->fuse->fops.mknod(filetab[fi]->path, S_IFREG | mode, (dev_t) 0);
+				if (rv < 0) {
+					free(filetab[fi]->path);
+					errno = -rv;
+					return -1;
+				}
 			}
 		}
+		PRINTDEBUG(10,"open_fuse_filesystem CALL!\n");
+		if ((flags & O_DIRECTORY) && fusetab[cc]->fuse->fops.readdir)
+			rv = fusetab[cc]->fuse->fops.opendir(filetab[fi]->path, &filetab[fi]->ffi);
+		else
+			rv = fusetab[cc]->fuse->fops.open(filetab[fi]->path, &filetab[fi]->ffi);
 	}
-#else
-	if (flags & (O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC)) {
-		errno = EROFS;
-		return -1;
-	}
-#endif
-
-	filetab[fi]->ffi.flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
-	PRINTDEBUG(10,"open_fuse_filesystem CALL!\n");
-	if ((flags & O_DIRECTORY) && fusetab[cc]->fuse->fops.readdir)
-		rv = fusetab[cc]->fuse->fops.opendir(filetab[fi]->path, &filetab[fi]->ffi);
-	else
-		rv = fusetab[cc]->fuse->fops.open(filetab[fi]->path, &filetab[fi]->ffi);
 
 	if (rv < 0)
 	{
@@ -985,7 +984,7 @@ static int umfuse_close(int fd,void *umph)
 	int rv;
 	
 	if (filetab[fd]==NULL) {
-		errno=ENOENT;
+		errno=EBADF;
 		return -1;
 	} else {
 		int cc=filetab[fd]->context;
@@ -1036,7 +1035,7 @@ static int umfuse_read(int fd, void *buf, size_t count,void *umph)
 {
 	int rv;
 	if (filetab[fd]==NULL) {
-		errno=ENOENT;
+		errno=EBADF;
 		return -1;
 	} else if (filetab[fd]->pos == filetab[fd]->size)
 		return 0;
@@ -1089,11 +1088,11 @@ static int umfuse_write(int fd, void *buf, size_t count,void *umph)
 				buf, count, filetab[fd]->pos, &filetab[fd]->ffi);
 		if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
 			fprintf(stderr, "WRITE[%d] => path:%s count:0x%x\n",
-				filetab[fd]->ffi.fh, filetab[fd]->path, count);
+				fd, filetab[fd]->path, count);
 			fflush(stderr);
 		}
 	
-	PRINTDEBUG(10,"WRITE rv:%d\n",rv); 
+		PRINTDEBUG(10,"WRITE rv:%d\n",rv); 
 
 //		if (fusetab[cc]->fuse->flags & FUSE_DEBUG)
   //      		fprintf(stderr, "WRITE[%lu] => path:%s count:0x%x\n",
@@ -1110,36 +1109,9 @@ static int umfuse_write(int fd, void *buf, size_t count,void *umph)
 		}
 	}
 #else
-        errno = EROFS;
-        return -1;
+	errno = EROFS;
+	return -1;
 #endif
-}
-
-static int umfuse_fstat(int fd, struct stat *buf,void *umph)
-{
-	if (filetab[fd]==NULL) {
-		errno=ENOENT;
-		return -1;
-	} else {
-		int rv;
-		int cc = filetab[fd]->context;
-		assert(cc>=0);
-		fusetab[cc]->pid=um_mod_getpid(umph);
-		umfuse_current_context = cc;
-		memset(buf, 0, sizeof(struct stat));
-		rv = fusetab[cc]->fuse->fops.getattr(
-				filetab[fd]->path,buf);
-		if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
-        		fprintf(stderr, "fstat->GETATTR[%d] => path:%s status: %s\n", fd,
-				filetab[fd]->path, rv ? "Error" : "Succes");
-			fflush(stderr);
-		}
-		if (rv<0) {
-			errno= -rv;
-			return -1;
-		} else
-			return rv;
-	}
 }
 
 static int stat2stat64(struct stat64 *s64, struct stat *s)
@@ -1160,120 +1132,101 @@ static int stat2stat64(struct stat64 *s64, struct stat *s)
 	return 0;
 }
 
+static int common_stat(int cc, char *path,  struct stat *buf,void *umph,int wrapped)
+{
+	int rv;
+	assert(cc>=0);
+	fusetab[cc]->pid=um_mod_getpid(umph);
+	umfuse_current_context = cc;
+	memset(buf, 0, sizeof(struct stat));
+	rv = fusetab[cc]->fuse->fops.getattr(
+			(wrapped)?unwrap(fusetab[cc],path):path,buf);
+	if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
+		fprintf(stderr, "stat->GETATTR => path:%s status: %s\n",
+				path, rv ? "Error" : "Success");
+		fflush(stderr);
+	}
+	if (rv<0) {
+		errno= -rv;
+		return -1;
+	} else
+		return rv;
+}
+
+static int common_stat64(int cc, char *path,  struct stat64 *buf64,void *umph,int wrapped)
+{
+	int rv;
+	struct stat buf;
+	if ((rv=common_stat(cc,path,&buf,umph,wrapped))>=0)
+		stat2stat64(buf64,&buf);
+	return rv;
+}
+
+static int umfuse_fstat(int fd, struct stat *buf,void *umph)
+{
+	if (filetab[fd]==NULL) {
+		errno=EBADF;
+		return -1;
+	} else {
+		int cc = filetab[fd]->context;
+#if ( FUSE_MINOR_VERSION >= 5 )
+		assert(cc >= 0);
+		if (fusetab[cc]->fuse->fops.fgetattr == NULL)
+			return common_stat(cc,filetab[fd]->path,buf,umph,0);
+		else {
+			int rv;
+			fusetab[cc]->pid=um_mod_getpid(umph);
+			rv = fusetab[cc]->fuse->fops.fgetattr(
+					      filetab[fd]->path,buf,&filetab[fd]->ffi);
+			if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
+				fprintf(stderr, "ftat->FETATTR => path:%s status: %s\n",
+						filetab[fd]->path, rv ? "Error" : "Success");
+				fflush(stderr);
+			}
+			if (rv < 0) {
+				errno = -rv;
+				return -1;
+			} else
+				return rv;
+		}
+#else
+		return common_stat(cc,filetab[fd]->path,buf,umph,0);
+#endif
+	}
+}
+
 static int umfuse_fstat64(int fd, struct stat64 *buf64,void *umph)
 {
 	if (filetab[fd]==NULL) {
-		errno=ENOENT;
+		errno=EBADF;
 		return -1;
 	} else {
 		int rv;
-		int cc=filetab[fd]->context;
 		struct stat buf;
-		assert(cc>=0);
-		fusetab[cc]->pid=um_mod_getpid(umph);
-		umfuse_current_context=cc;
-		memset(&buf, 0, sizeof(struct stat));
-		rv= fusetab[cc]->fuse->fops.getattr(
-				filetab[fd]->path,&buf);
-		if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
-        		fprintf(stderr, "fstat64->GETATTR[%d] => path:%s status: %s\n",fd,
-				filetab[fd]->path, rv ? "Error" : "Succes");
-			fflush(stderr);
-		}
-		if (rv<0) {
-			errno= -rv;
-			return -1;
-		} else {
+		if ((rv=umfuse_fstat(fd,&buf,umph))>=0)
 			stat2stat64(buf64,&buf);
-			return rv;
-		}
+		return rv;
 	}
 }
 
 static int umfuse_stat(char *path, struct stat *buf,void *umph)
 {
-	int cc=searchcontext(path,SUBSTR);
-	int rv;
-	assert(cc>=0);
-	fusetab[cc]->pid=um_mod_getpid(umph);
-	umfuse_current_context = cc;
-	memset(buf, 0, sizeof(struct stat));
-	rv= fusetab[cc]->fuse->fops.getattr(
-			unwrap(fusetab[cc],path),buf);
-	if (fusetab[cc]->fuse->flags & FUSE_DEBUG)
-        	fprintf(stderr, "stat->GETATTR => path:%s status: %s\n",
-				path, rv ? "Error" : "Succes");
-	if (rv<0) {
-		errno= -rv;
-		return -1;
-	} else 
-		return rv;
+	return common_stat(searchcontext(path,SUBSTR),path,buf,umph,1);
 }
 
 static int umfuse_lstat(char *path, struct stat *buf,void *umph)
 {
-	int cc=searchcontext(path,SUBSTR);
-	int rv;
-	assert(cc>=0);
-	fusetab[cc]->pid=um_mod_getpid(umph);
-	umfuse_current_context = cc;
-	memset(buf, 0, sizeof(struct stat));
-	rv= fusetab[cc]->fuse->fops.getattr(
-			unwrap(fusetab[cc],path),buf);
-	if (fusetab[cc]->fuse->flags & FUSE_DEBUG)
-        	fprintf(stderr, "lstat->GETATTR => path:%s status: %s\n",
-				path, rv ? "Error" : "Succes");
-	if (rv<0) {
-		errno= -rv;
-		return rv;
-	} else 
-		return rv;
+	return common_stat(searchcontext(path,SUBSTR),path,buf,umph,1);
 }
 
 static int umfuse_stat64(char *path, struct stat64 *buf64,void *umph)
 {
-	int cc=searchcontext(path,SUBSTR);
-	int rv;
-	struct stat buf;
-	assert(cc>=0);
-	fusetab[cc]->pid=um_mod_getpid(umph);
-	umfuse_current_context = cc;
-	memset(&buf, 0, sizeof(struct stat));
-	rv= fusetab[cc]->fuse->fops.getattr(
-			unwrap(fusetab[cc],path),&buf);
-	if (fusetab[cc]->fuse->flags & FUSE_DEBUG)
-        	fprintf(stderr, "stat64->GETATTR => path:%s status: %s\n",
-				path, rv ? "Error" : "Succes");
-	if (rv<0) {
-		errno= -rv;
-		return -1;
-	} else {
-		stat2stat64(buf64,&buf);
-		return rv;
-	}
+	return common_stat64(searchcontext(path,SUBSTR),path,buf64,umph,1);
 }
 
 static int umfuse_lstat64(char *path, struct stat64 *buf64,void *umph)
 {
-	int cc=searchcontext(path,SUBSTR);
-	int rv;
-	struct stat buf;
-	assert(cc>=0);
-	fusetab[cc]->pid=um_mod_getpid(umph);
-	umfuse_current_context = cc;
-	memset(&buf, 0, sizeof(struct stat));
-	rv = fusetab[cc]->fuse->fops.getattr(
-			unwrap(fusetab[cc],path),&buf);
-	if (fusetab[cc]->fuse->flags & FUSE_DEBUG)
-        	fprintf(stderr, "lstat64->GETATTR => path:%s status: %s\n",
-				path, rv ? "Error" : "Succes");
-	if (rv < 0) {
-		errno = -rv;
-		return -1;
-	} else {
-		stat2stat64(buf64,&buf);
-		return rv;
-	}
+	return common_stat64(searchcontext(path,SUBSTR),path,buf64,umph,1);
 }
 
 static int umfuse_readlink(char *path, char *buf, size_t bufsiz,void *umph)
@@ -1311,12 +1264,20 @@ static int umfuse_access(char *path, int mode, void *umph)
 				(mode & F_OK) ? "F_OK": "");
 		fflush(stderr);
 	}
-	rv = fusetab[cc]->fuse->fops.getattr(unwrap(fusetab[cc], path), &buf);
+#if ( FUSE_MINOR_VERSION >= 5 )
+	/* "default permission" management */
+	if (fusetab[cc]->fuse->fops.access != NULL)
+		rv= fusetab[cc]->fuse->fops.access(unwrap(fusetab[cc], path), mode);
+	else
+#endif
+	{
+		rv = fusetab[cc]->fuse->fops.getattr(unwrap(fusetab[cc], path), &buf);
+		/* XXX user permission management */
+	}
 	if (rv < 0) {
 		errno = -rv;
 		return -1;
 	} else {
-		/* XXX user permission mnagement */
 		errno = 0;
 		return 0;
 	}
@@ -1343,6 +1304,10 @@ static int umfuse_mkdir(char *path, int mode, void *umph)
 	int cc = searchcontext(path, SUBSTR);
 	int rv;
 	assert(cc >= 0);
+	if (fusetab[cc]->fuse->flags & MS_RDONLY) {
+		errno = EROFS;
+		return -1;
+	}
 	fusetab[cc]->pid=um_mod_getpid(umph);
 	umfuse_current_context = cc;
 	if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
@@ -1363,6 +1328,10 @@ static int umfuse_rmdir(char *path,void *umph)
 	int cc = searchcontext(path, SUBSTR);
 	int rv;
 	assert(cc >= 0);
+	if (fusetab[cc]->fuse->flags & MS_RDONLY) {
+		errno = EROFS;
+		return -1;
+	}
 	fusetab[cc]->pid=um_mod_getpid(umph);
 	umfuse_current_context = cc;
 	if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
@@ -1384,6 +1353,10 @@ static int umfuse_chmod(char *path, int mode, void *umph)
 	int rv;
 	umfuse_current_context = cc;
 	assert(cc >= 0);
+	if (fusetab[cc]->fuse->flags & MS_RDONLY) {
+		errno = EROFS;
+		return -1;
+	}
 	fusetab[cc]->pid=um_mod_getpid(umph);
 	if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
         	fprintf(stderr, "CHMOD => path:%s\n",path);
@@ -1403,6 +1376,10 @@ static int umfuse_chown(char *path, uid_t owner, gid_t group,void *umph)
 	int cc = searchcontext(path, SUBSTR);
 	int rv;
 	assert(cc >= 0);
+	if (fusetab[cc]->fuse->flags & MS_RDONLY) {
+		errno = EROFS;
+		return -1;
+	}
 	fusetab[cc]->pid=um_mod_getpid(umph);
 	umfuse_current_context = cc;
 	rv = fusetab[cc]->fuse->fops.chown(
@@ -1425,6 +1402,10 @@ static int umfuse_unlink(char *path,void *umph)
 	int cc = searchcontext(path, SUBSTR);
 	int rv;
 	assert(cc >= 0);
+	if (fusetab[cc]->fuse->flags & MS_RDONLY) {
+		errno = EROFS;
+		return -1;
+	}
 	fusetab[cc]->pid=um_mod_getpid(umph);
 	umfuse_current_context = cc;
 	if (fusetab[cc]->fuse->flags & FUSE_DEBUG)
@@ -1443,6 +1424,10 @@ static int umfuse_link(char *oldpath, char *newpath,void *umph)
 	int cc = searchcontext(newpath, SUBSTR);
 	int rv;
 	assert(cc >= 0);
+	if (fusetab[cc]->fuse->flags & MS_RDONLY) {
+		errno = EROFS;
+		return -1;
+	}
 	fusetab[cc]->pid=um_mod_getpid(umph);
  	umfuse_current_context = cc;
 
@@ -1512,6 +1497,10 @@ static int umfuse_symlink(char *oldpath, char *newpath, void *umph)
 	umfuse_current_context = cc;
 
 	assert(cc >= 0);
+	if (fusetab[cc]->fuse->flags & MS_RDONLY) {
+		errno = EROFS;
+		return -1;
+	}
 	fusetab[cc]->pid=um_mod_getpid(umph);
 	if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
         	fprintf(stderr, "SYMLINK => %s -> %s\n",
@@ -1534,11 +1523,15 @@ static int umfuse_truncate(char *path, off_t length,void *umph)
 	int cc = searchcontext(path, SUBSTR);
 	int rv;
 	assert(cc >= 0);
+	if (fusetab[cc]->fuse->flags & MS_RDONLY) {
+		errno = EROFS;
+		return -1;
+	}
 	umfuse_current_context = cc;
 	fusetab[cc]->pid=um_mod_getpid(umph);
 
 	if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
-        	fprintf(stderr, "TRUNCATE solodebug => path%s\n",path);		
+        	fprintf(stderr, "TRUNCATE debug => path %s\n",path);		
 		fflush(stderr);
 	}
 	rv = fusetab[cc]->fuse->fops.truncate(
@@ -1552,7 +1545,38 @@ static int umfuse_truncate(char *path, off_t length,void *umph)
 
 static int umfuse_ftruncate(int fd, off_t length, void *umph)
 {
-	return umfuse_truncate(filetab[fd]->path,length, umph);
+	if (filetab[fd]==NULL) {
+		errno=EBADF;
+		return -1;
+	} else {
+#if ( FUSE_MINOR_VERSION >= 5 )
+		int cc = filetab[fd]->context;
+		assert(cc >= 0);
+		if (fusetab[cc]->fuse->flags & MS_RDONLY) {
+			errno = EROFS;
+			return -1;
+		}
+		if (fusetab[cc]->fuse->fops.ftruncate == NULL)
+			return umfuse_truncate(filetab[fd]->path,length, umph);
+		else {
+			int rv;
+			fusetab[cc]->pid=um_mod_getpid(umph);
+			rv = fusetab[cc]->fuse->fops.ftruncate(
+					filetab[fd]->path,length,&filetab[fd]->ffi);
+			if (fusetab[cc]->fuse->flags & FUSE_DEBUG) {
+				fprintf(stderr, "FTRUNCATE debug => path %s\n",filetab[fd]->path);		
+				fflush(stderr);
+			}
+			if (rv < 0) {
+				errno = -rv;
+				return -1;
+			} else
+				return rv;	
+		}
+#else
+		return umfuse_truncate(filetab[fd]->path,length, umph);
+#endif
+	}
 }
 
 /** Change the access and/or modification times of a file */
@@ -1562,6 +1586,10 @@ static int umfuse_utime(char *path, struct utimbuf *buf, void *umph)
 	int cc = umfuse_current_context; /*???*/
 	int rv;
 	assert(cc >= 0);
+	if (fusetab[cc]->fuse->flags & MS_RDONLY) {
+		errno = EROFS;
+		return -1;
+	}
 	fusetab[cc]->pid=um_mod_getpid(umph);
 	if (buf == NULL) {
 		struct utimbuf localbuf;
@@ -1579,10 +1607,14 @@ static int umfuse_utime(char *path, struct utimbuf *buf, void *umph)
 static int umfuse_utimes(char *path, struct timeval tv[2], void *umph)
 {
 	//approximate solution. drop microseconds
-	struct utimbuf buf;
-	buf.actime=tv[0].tv_sec;
-	buf.modtime=tv[1].tv_sec;
-	return umfuse_utime(path, &buf, umph);
+	if (tv == NULL) {
+		return umfuse_utime(path, NULL, umph);	
+	} else {
+		struct utimbuf buf;
+		buf.actime=tv[0].tv_sec;
+		buf.modtime=tv[1].tv_sec;
+		return umfuse_utime(path, &buf, umph);
+	}
 }
 
 static ssize_t umfuse_pread(int fd, void *buf, size_t count, long long offset)
@@ -1723,12 +1755,12 @@ init (void)
 	s.syscall[uscno(__NR_link)]=umfuse_link;
 	s.syscall[uscno(__NR_symlink)]=umfuse_symlink;
 	s.syscall[uscno(__NR_truncate)]=umfuse_truncate;
+	s.syscall[uscno(__NR_ftruncate)]=umfuse_ftruncate;
 #endif
 	//s.syscall[uscno(__NR_pread64)]=umfuse_pread;
 	//s.syscall[uscno(__NR_pwrite64)]=umfuse_pwrite;
 	s.syscall[uscno(__NR_utime)]=umfuse_utime;
 	s.syscall[uscno(__NR_utimes)]=umfuse_utimes;
-	//s.syscall[uscno(__NR_ftruncate)]=umfuse_ftruncate;
 	add_service(&s);
 }
 

@@ -111,10 +111,9 @@ void lfd_addproc (struct pcb_file **pp,int flag)
 	}
 }
 
-void lfd_delproc (struct pcb_file **pp)
+void lfd_delproc (struct pcb_file *p, void *umph)
 {
 	int i;
-	struct pcb_file *p=*pp;
 	//printf("DELPROC count %d nolfd %d\n",p->count,p->nolfd);
 	p->count--;
 	if (p->count == 0) {
@@ -128,7 +127,7 @@ void lfd_delproc (struct pcb_file **pp)
 					}
 				} */
 				//printf("CLOSE LFD %d\n",lfd);
-				lfd_close(lfd);
+				lfd_close(lfd,umph);
 			}
 		}
 		if (p->lfdlist != NULL)
@@ -191,7 +190,7 @@ int lfd_open (service_t service, int sfd, char *path)
 	return lfd;
 }
 
-void lfd_close (int lfd)
+void lfd_close (int lfd,void *umph)
 {
 	int rv;
 	//printf("close %d %x\n",lfd,lfd_tab[lfd].ptab);
@@ -211,7 +210,7 @@ void lfd_close (int lfd)
 			//printf("del lfd %d file %s\n",lfd,lfd_tab[lfd].ptab->path);
 		register int service=lfd_tab[lfd].ptab->service;
 		if (service != UM_NONE && lfd_tab[lfd].ptab->sfd >= 0) {
-			service_syscall(service,uscno(__NR_close))(lfd_tab[lfd].ptab->sfd);
+			service_syscall(service,uscno(__NR_close))(lfd_tab[lfd].ptab->sfd,umph); 
 		}
 		if (lfd_tab[lfd].ptab->path != NULL)
 			free(lfd_tab[lfd].ptab->path);
@@ -337,12 +336,12 @@ void lfd_register (struct pcb_file *p, int fd, int lfd)
 	//printf("lfd_register fd %d lfd %d path %s\n", fd, lfd, lfd_tab[lfd].ptab->path);
 }
 
-void lfd_deregister_n_close(struct pcb_file *p, int fd)
+void lfd_deregister_n_close(struct pcb_file *p, int fd,void *umph)
 {
 	//printf("lfd_deregister_n_close %d %d \n",fd,p->nolfd);
 	//assert(fd < p->nolfd && p->lfdlist[fd] != -1);
 	if (p->lfdlist != NULL && fd < p->nolfd && p->lfdlist[fd] != -1) {
-		lfd_close(p->lfdlist[fd]);
+		lfd_close(p->lfdlist[fd],umph);
 		p->lfdlist[fd] = -1;
 	}
 }

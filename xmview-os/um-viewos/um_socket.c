@@ -128,7 +128,7 @@ int wrap_out_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) {
 		} else {
 			putrv(pc->retval,pc);
 			puterrno(pc->erno,pc);
-			lfd_close(pc->retval);
+			lfd_close(pc->retval,pc);
 		}
 	} else {
 		putrv(pc->retval,pc);

@@ -181,10 +181,10 @@ int wrap_out_dup(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		int fd=getrv(pc);
 		if (fd >= 0) {
 			if (pc->arg1 != -1)
-				lfd_deregister_n_close(pcdata->fds,pc->arg1);
+				lfd_deregister_n_close(pcdata->fds,pc->arg1,pc);
 			lfd_register(pcdata->fds,fd,pc->retval);
 		} else {
-			lfd_close(pc->retval);
+			lfd_close(pc->retval,pc);
 		}
 	} else {
 		putrv(pc->retval,pc);
@@ -236,7 +236,7 @@ int wrap_out_fcntl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 			if (fd>=0)
 				lfd_register(pcdata->fds,fd,pc->retval);
 			else
-				lfd_close(pc->retval);
+				lfd_close(pc->retval,pc);
 			break;
 		case F_SETFD:
 			/* take care of FD_CLOEXEC flag value XXX */
@@ -337,17 +337,17 @@ int wrap_in_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	umovestr(pc->pid,fstype,PATH_MAX,filesystemtype);
 	source = um_abspath(argaddr,pc,&imagestat,0);
 	if (source==um_patherror) {
-		pc->retval= -1;
-		pc->erno= ENOENT;
-	} else {
-		if (pdata != umNULL)
-			umovestr(pc->pid,pdata,PATH_MAX,data);
-		else
-			datax=NULL;
-		pc->retval = um_syscall(source,pcdata->path,filesystemtype,mountflags,datax,pc);
-		pc->erno=errno;
-		free(source);
-	}
+		source=malloc(PATH_MAX);
+		assert(source);
+		umovestr(pc->pid,argaddr,PATH_MAX,source);
+	} 
+	if (pdata != umNULL)
+		umovestr(pc->pid,pdata,PATH_MAX,data);
+	else
+		datax=NULL;
+	pc->retval = um_syscall(source,pcdata->path,filesystemtype,mountflags,datax,pc);
+	pc->erno=errno;
+	free(source);
 	return SC_FAKE;
 }
 

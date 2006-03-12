@@ -106,7 +106,7 @@ int wrap_out_open(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) {
 				putrv(pc->retval,pc);
 				pc->retval<0?puterrno(pc->erno,pc):0;
 			}
-			lfd_close(pc->retval);
+			lfd_close(pc->retval,pc);
 		}
 	} else {
 		putrv(pc->retval,pc);
@@ -146,7 +146,7 @@ int wrap_out_close(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	//printf("close %d ->%d\n",pc->arg0,lfd);
 	if (lfd>=0) {
 		int service=lfd_getservice(lfd);
-		lfd_deregister_n_close(pcdata->fds,pc->arg0);
+		lfd_deregister_n_close(pcdata->fds,pc->arg0,pc);
 		if (service != UM_NONE) {
 			putrv(pc->retval,pc);
 			puterrno(pc->erno,pc);

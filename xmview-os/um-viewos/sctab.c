@@ -354,7 +354,7 @@ void pcb_minus(struct pcb *pc)
 {
 	struct pcb_ext *pcpe=pc->data;
 	//printf("pcb_desctructor %d\n",pc->pid);
-	lfd_delproc(&(pcpe->fds));
+	lfd_delproc(pcpe->fds, pc);
 	um_proc_del(pc);
 	assert (pcpe->fdfs != NULL);
 	pcpe->fdfs->count--;
