@@ -104,6 +104,8 @@ service_t registered_service_check(int type, void *arg,void *umph)
 		struct service *s=services[i];
 		if (s->checkfun != NULL && s->checkfun(type,arg,umph)){
 /*            printf("\tregister choice inner: %d\n",s->code);*/
+			//TODO: this should only register a service: so it should return 
+			// um_none(sure??), but register a service...
 			return(s->code);
 		}
 	}
