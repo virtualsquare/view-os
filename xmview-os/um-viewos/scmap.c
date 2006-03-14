@@ -123,6 +123,7 @@ struct sc_map scmap[]={
 	{__NR_rmdir,	choice_path,	wrap_in_unlink, wrap_out_std,	0,	1},
 	{__NR_link,	choice_link2,	wrap_in_link, wrap_out_std,	0,	2},
 	{__NR_symlink,	choice_link2,	wrap_in_symlink, wrap_out_std,	0,	2},
+	{__NR_rename,	choice_link2,	wrap_in_symlink, wrap_out_std,	0,	2},
 	{__NR_unlink,	choice_path,	wrap_in_unlink, wrap_out_std,	0,	1},
 	{__NR_statfs,	choice_path,	wrap_in_notsupp, wrap_out_std,	0,	2},
 	{__NR_fstatfs,	choice_fd,	wrap_in_notsupp, wrap_out_std,	0,	2},

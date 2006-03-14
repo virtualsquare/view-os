@@ -121,10 +121,10 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int link)
 			um_realpath(pc,dirname(tmppath),newpath,pst);
 			strncat(newpath,"/",PATH_MAX);
 			strncat(newpath,basename(path),PATH_MAX);
-			//printf("um_abslpath %s %s %s %s\n",path,dirname(path),basename(path),newpath);
+			/*printf("um_abslpath %s %s %s %s\n",path,dirname(path),basename(path),newpath);*/
 		} else
 			um_realpath(pc,path,newpath,pst);
-		//printf("um_abspath %d %s %s\n",pc->erno,path,newpath);
+		/*printf("um_abspath %d %s %s\n",pc->erno,path,newpath);*/
 		/*return strdup(newpath);*/
 		if (pc->erno)
 			return um_patherror;	//error

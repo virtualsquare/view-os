@@ -1469,7 +1469,7 @@ static int umfuse_fsync(int fd)
 	return 0;
 }
 
-static int fuse_rename(char *oldpath, char *newpath, void *umph)
+static int umfuse_rename(char *oldpath, char *newpath, void *umph)
 {
 	int cc = searchcontext(newpath, SUBSTR);
 	int rv;
@@ -1754,6 +1754,7 @@ init (void)
 	//s.syscall[uscno(__NR__newselect)]=select;
 	s.syscall[uscno(__NR_link)]=umfuse_link;
 	s.syscall[uscno(__NR_symlink)]=umfuse_symlink;
+	s.syscall[uscno(__NR_rename)]=umfuse_rename;
 	s.syscall[uscno(__NR_truncate)]=umfuse_truncate;
 	s.syscall[uscno(__NR_ftruncate)]=umfuse_ftruncate;
 #endif

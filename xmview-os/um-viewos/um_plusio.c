@@ -296,6 +296,7 @@ int wrap_in_symlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->erno= ENOENT;
 	} else {
 		pc->retval=um_syscall(source,pcdata->path,pc);
+		pc->erno= errno;
 		free(source);
 	}
 	return SC_FAKE;
