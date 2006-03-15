@@ -181,8 +181,12 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		/* something went wrong during a path lookup - fake the
 		 * syscall, we do not want to make it run */
 		if (pcdata->path == um_patherror) {
+/*            fprintf(stderr,"execve dice um_path_error!!\n");*/
 			pc->retval = -1;
-			return SC_FAKE;
+			if(sc_number == __NR_execve)
+				return STD_BEHAVIOR;
+			else
+				return SC_FAKE;
 		}
 		/* if some service want to manage the syscall (or the ALWAYS
 		 * flag is set), we process it */
@@ -427,8 +431,12 @@ char choice_path(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	pcdata->path=um_abspath(pc->arg0,pc,&(pcdata->pathstat),0); 
 	//printf("choice_path %d %s\n",sc_number,pcdata->path);
 	
-	if (pcdata->path==um_patherror)
+	if (pcdata->path==um_patherror){
+		char buff[PATH_MAX];
+		umovestr(pc->pid,pc->arg0,PATH_MAX,buff);
+		fprintf(stderr,"um_patherror: %s",buff);
 		return UM_NONE;
+	}
 	else
 		return service_check(CHECKPATH,pcdata->path,pc);
 }
