@@ -1238,6 +1238,8 @@ static int umfuse_readlink(char *path, char *buf, size_t bufsiz,void *umph)
 	umfuse_current_context = cc;
 	rv = fusetab[cc]->fuse->fops.readlink(
 			unwrap(fusetab[cc], path), buf, bufsiz);
+	if (rv == 0)
+		rv=strnlen(buf,bufsiz);
 	PRINTDEBUG(10,"umfuse_readlink %s %s %d\n",unwrap(fusetab[cc],path),buf,rv);
 	if (rv < 0) {
 		errno = -rv;
