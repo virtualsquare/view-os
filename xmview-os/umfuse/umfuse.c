@@ -1773,9 +1773,12 @@ static int umfuse_lseek(int fd, int offset, int whence, void *umph)
 				 {
 				 struct stat buf;
 				 int rv;
-				 /* BUGBUGBUGBUG */
-				 fusetab[fd]->pid=um_mod_getpid(umph);
-				 rv = fusetab[fd]->fuse->fops.getattr(filetab[fd]->path,&buf);
+				 struct fuse_context *fc=filetab[fd]->context;
+				 assert(fc != NULL);
+				 fuse_set_context(fc);
+
+				 fc->pid=um_mod_getpid(umph);
+				 rv = fc->fuse->fops.getattr(filetab[fd]->path,&buf);
 				 if (rv>=0) {
 				 	filetab[fd]->pos = buf.st_size + offset;
 				 } else {
