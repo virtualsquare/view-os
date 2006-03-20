@@ -108,6 +108,11 @@ struct pcb {
 	 * to propagate after pivoting, save them here */
 	long saved_regs_pivoting[FRAME_SIZE];
 #endif
+#ifdef NESTING_TEST
+	unsigned char	come_from_nest; //bool that tells if my syscall came from the nesting
+							//system or not
+	unsigned char	stop_nest;
+#endif
 	void *data;
 };
 
@@ -115,6 +120,25 @@ typedef void (*voidfun)();
 void forallpcbdo(voidfun f,void *arg);
 int capture_main(char **argv);
 
+#ifdef NESTING_TEST
+#ifndef __LIBMODCOMP // in libmodcomp.c we define this as static.
+extern short int umview_inside_mod_flag;
+extern struct pcb* main_umview_pcb;
+extern void cancel_ld_preload(void);
+#endif
+//extern int nesting_level;
+// come_from_nest tells if the last module has nested the last called syscall or not
+// is used into wrap_in and wrap_out functions
+// I think it's better use only in that scope (for comprehensibility)
+#define inside_nesting(PC) ( (PC)->pid == main_umview_pcb->pid )
+#define set_from_nesting() ( main_umview_pcb->come_from_nest = 1 )
+#define unset_from_nesting() ( main_umview_pcb->come_from_nest = 0 )
+#define get_from_nesting() (main_umview_pcb->come_from_nest)
+
+#define set_stop_nest()	( main_umview_pcb->stop_nest=1 )
+#define unset_stop_nest()	( main_umview_pcb->stop_nest=0 )
+#define get_stop_nest() ( main_umview_pcb->stop_nest )
+#endif
 
 #define NOSC -1
 #define PCB_INUSE 0x1
@@ -139,303 +163,13 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define SC_SUSPIN 4     /* SUSPENDED + IN  */
 #define SC_SUSPOUT 5    /* SUSPENDED + OUT */
 
-//getregs/setregs: inline-function for getting/setting registers of traced process
-#if defined(__i386__) //getregs/setregs for ia32
-#define getregs(PC)  ( ptrace(PTRACE_GETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs), (PC)->regs_modified=0 )
-
-// this is coming to became unreadable... how about write a real function?
-#define setregs(PC,CALL,OP) ({ (PC)->regs_modified==0 ? ptrace((CALL),(PC)->pid,(OP),0) :\
-			   	(has_ptrace_multi ? ({\
-			struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, (void *) (PC)->saved_regs, 0},\
-			{(CALL), (OP), 0, 0}};\
-			ptrace(PTRACE_MULTI,(PC)->pid,req,2); }\
-			) : (\
-				{int rv;\
-				rv=ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs);\
-				if(rv== 0) rv=ptrace((CALL),(PC)->pid,(OP),0);\
-				(PC)->regs_modified=0;\
-				rv;}\
-							                            ) ); \
-				})
-
-
-//printregs: current state of the working copy of registers
-//#define printregs(PC)
-#define printregs(PC) \
-	 GDEBUG(3, "saved_regs:eax:%x\torig_eax:%x\n\tebx:%x\tecx:%x\n\tedx:%x\tesi:%x",\
-			 (PC)->saved_regs[EAX],(PC)->saved_regs[ORIG_EAX],\
-			 (PC)->saved_regs[EBX],(PC)->saved_regs[ECX],\
-			 (PC)->saved_regs[EDX],(PC)->saved_regs[ESI])
-
-
-#define getscno(PC) ( (PC)->saved_regs[ORIG_EAX] )
-#define putscno(X,PC) ( (PC)->saved_regs[ORIG_EAX]=(X) , (PC)->regs_modified=1 )
-#define getargn(N,PC) ( (PC)->saved_regs[(N)] )
-#define getargp(PC) ((PC)->saved_regs)
-#define putargn(N,X,PC) ( (PC)->saved_regs[N]=(X)  , (PC)->regs_modified=1 )
-#define getarg0orig(PC) ( (PC)->saved_regs[0] )
-#define putarg0orig(N,PC) ( (PC)->saved_regs[0]=(N)  , (PC)->regs_modified=1 )
-#define getrv(PC) ({ int eax; \
-		eax = (PC)->saved_regs[EAX];\
-		(eax<0 && -eax < MAXERR)? -1 : eax; })
-#define putrv(RV,PC) ( (PC)->saved_regs[EAX]=(RV),(PC)->regs_modified=1 ,0 )
-#define puterrno(ERR,PC) ( ((ERR)!=0 && (PC)->retval==-1)?(PC)->saved_regs[EAX]=-(ERR) , (PC)->regs_modified=1  : 0 )
-/*
-#define putexit(RV,ERR,PC) \
-	do { \
-		ptrace(PTRACE_POKEUSER, ((PC)->pid), 4 * PT_R3, (RV)); \
-		ptrace(PTRACE_POKEUSER, ((PC)->pid), 4 * ORIG_EAX, (ERR)); \
-	} while (0)
-	*/
-#define getsp(PC) (PC)->saved_regs[UESP]
-#define getpc(PC) (PC)->saved_regs[EIP]
-#define putsp(RV,PC) ( (PC)->saved_regs[UESP]=(RV) )
-#define putpc(RV,PC) ( (PC)->saved_regs[EIP]=(RV) )
-#elif defined(__powerpc__) //setregs/getresg for ppc
-
-#define getregs(PC) (has_ptrace_multi ? ({\
-		struct ptrace_multi req[] = {{PTRACE_PEEKUSER, 0, (PC)->saved_regs, 10},\
-		{PTRACE_PEEKUSER, 4*PT_NIP, &((PC)->saved_regs[10]), 1},\
-		{PTRACE_PEEKUSER, 4*PT_ORIG_R3, &((PC)->saved_regs[11]), 1},\
-		{PTRACE_PEEKUSER, 4*PT_CCR, &((PC)->saved_regs[12]), 1}};\
-			errno=0;\
-			ptrace(PTRACE_MULTI,(PC)->pid,req,4);}\
-			) : (\
-		{int count;for(count=0;count<10;count++){\
-				(PC)->saved_regs[count]=ptrace(PTRACE_PEEKUSER,(PC)->pid,(void*)(4*count),0);\
-				if(errno!=0)break;}\
-				(PC)->saved_regs[10]=ptrace(PTRACE_PEEKUSER,(PC)->pid,(void*)(4*PT_NIP),0);\
-				(PC)->saved_regs[11]=ptrace(PTRACE_PEEKUSER,(PC)->pid,(void*)(4*PT_ORIG_R3),0);\
-				(PC)->saved_regs[12]=ptrace(PTRACE_PEEKUSER,(PC)->pid,(void*)(4*PT_CCR),0);\
-				errno!=0?-1:0;}\
-		) )
-/* XXX PTRACE_MULTI ORIG_R3 returns -1 when saved */
-#define setregs(PC,CALL,OP) (has_ptrace_multi ? ({\
-			struct ptrace_multi req[] = {{PTRACE_POKEUSER, 0, (PC)->saved_regs, 10},\
-			{PTRACE_POKEUSER, 4*PT_NIP, &((PC)->saved_regs[10]), 1},\
-			{PTRACE_POKEUSER, 4*PT_CCR, &((PC)->saved_regs[12]), 1},\
-			{(CALL), (OP), 0, 0}};\
-			ptrace(PTRACE_MULTI,(PC)->pid,req,4); }\
-			) : (\
-				{int rv,count;for(count=0;count<10;count++){\
-				rv=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*count),(PC)->saved_regs[count]);\
-				if(rv!=0)break;}\
-				if(rv==0) rv=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_NIP),(PC)->saved_regs[10]);\
-				if(rv==0) rv=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_CCR),(PC)->saved_regs[12]);\
-				if(rv==0) rv=ptrace((CALL),(PC)->pid,(OP),0);\
-				rv;}\
-			    ) )
-
-
-#define getscno(PC) ( (PC)->saved_regs[PT_R0] )
-#define putscno(X,PC) ( (PC)->saved_regs[PT_R0]=(X) )
-#define getargn(N,PC) ( (PC)->saved_regs[PT_R3+(N)] )
-#define getargp(PC) (&((PC)->saved_regs[PT_R3]))
-#define putargn(N,X,PC) ( (PC)->saved_regs[PT_R3+(N)]=(X) )
-#define getarg0orig(PC) ( (PC)->saved_regs[11];)
-#define putarg0orig(N,PC) ( (PC)->saved_regs[11]=(N) )
-#define getrv(PC) ( (PC)->saved_regs[12] & 0x10000000 ? -1: (PC)->saved_regs[PT_R3] )
-#define putrv(RV,PC) ( (PC)->saved_regs[PT_R3]=(RV) , 0 )
-#define puterrno(ERR,PC) ({ if(ERR!=0){\
-				(PC)->saved_regs[12]=(PC)->saved_regs[12] | 0x10000000;\
-				(PC)->saved_regs[PT_R3]=(ERR);\
-				} 0;\
-				})
-#define getsp(PC) ( (PC)->saved_regs[PT_R1] )
-#define getpc(PC) ( (PC)->saved_regs[10] )
-#define putsp(SP,PC) ( (PC)->saved_regs[PT_R1]=(SP) ;
-#define putpc(PCX,PC) ( (PC)->saved_regs[10]=(PCX) )
-
-#elif defined(__x86_64__)
-// asm-x86_64/ptrace.h declare this as offset in bytes (and I don't want so)
-//registers as mapped in x_86_64 kernel
-// syscall argument are in inverted order!!!!!! (from RDI to R11 ! )
-#define R15 0
-#define R14 1 //8
-#define R13 2 //16
-#define R12 3 //24
-#define RBP 4 //32
-#define RBX 5 //40
-#define R11 6 //48
-#define R10 7 // 56  
-#define R9 	8 //64
-#define R8 	9 //72
-#define RAX 10 //80
-#define RCX 11 //88
-#define RDX 12 //96
-#define RSI 13 //104
-#define RDI 14 //112
-#define ORIG_RAX 15 //120       /* = ERROR */ 
-#define RIP 16 //128
-#define CS 17 //136
-#define EFLAGS 18 //144
-#define RSP 19 //152
-#define SS 20 //160
-#define ARGOFFSET R11
-// remapped registers:
-#define MY_RDI 0 //112
-#define MY_RSI 1 //104
-#define MY_RDX 2 //96
-#define MY_RCX 3 //88
-#define MY_RAX 4 //80
-#define MY_R8  5 //72
-#define MY_R9  6 //64
-#define MY_R10 7 // 56  
-#define MY_R11 8 //48
-#define MY_RBX 9 //40
-#define MY_RBP 10//32
-#define MY_R12 11//24
-#define MY_R13 12//16
-#define MY_R14 13//8
-#define MY_R15 14
-											 
-#define MY_ORIG_RAX 15 //120       /* = ERROR */ 
-#define MY_RIP 16 //128
-#define MY_CS 17 //136
-#define MY_EFLAGS 18 //144
-#define MY_RSP 19 //152
-#define MY_SS 20 //160
-#define MY_ARGOFFSET 0
-// arguments in x86_64 are saved in order from RDI to R8
-// orig_rax contains syscall number 
-// and rax (i think...) contains return value and errno
-// for stack pointer -> RSP
-// for instruction pointer -> RIP
-				
-#define getregs(PC) ({ long temp[FRAME_SIZE]; int i = ptrace(PTRACE_GETREGS,(PC)->pid,NULL,(void*) temp);\
-			(PC)->saved_regs[MY_RDI] = temp[RDI]; \
-			(PC)->saved_regs[MY_RSI] = temp[RSI]; \
-			(PC)->saved_regs[MY_RDX] = temp[RDX]; \
-			(PC)->saved_regs[MY_RCX] = temp[RCX]; \
-			(PC)->saved_regs[MY_RAX] = temp[RAX]; \
-			(PC)->saved_regs[MY_R8] = temp[R8]; \
-			(PC)->saved_regs[MY_R9] = temp[R9]; \
-			(PC)->saved_regs[MY_R10] = temp[R10]; \
-			(PC)->saved_regs[MY_R11] = temp[R11]; \
-			(PC)->saved_regs[MY_RBX] = temp[RBX]; \
-			(PC)->saved_regs[MY_RBP] = temp[RBP]; \
-			(PC)->saved_regs[MY_R12] = temp[R12]; \
-			(PC)->saved_regs[MY_R13] = temp[R13]; \
-			(PC)->saved_regs[MY_R14] = temp[R14]; \
-			(PC)->saved_regs[MY_R15] = temp[R15]; \
-			(PC)->saved_regs[MY_ORIG_RAX] = temp[ORIG_RAX]; \
-			(PC)->saved_regs[MY_RIP] = temp[RIP]; \
-			(PC)->saved_regs[MY_CS] = temp[CS]; \
-			(PC)->saved_regs[MY_EFLAGS] = temp[EFLAGS]; \
-			(PC)->saved_regs[MY_RSP] = temp[RSP]; \
-			(PC)->saved_regs[MY_SS] = temp[SS]; \
-			i; \
-			})
-#define setregs(PC,CALL,OP) ({ long temp[FRAME_SIZE]; \
-			temp[RDI] = (PC)->saved_regs[MY_RDI]; \
-			temp[RSI] = (PC)->saved_regs[MY_RSI]; \
-			temp[RDX] = (PC)->saved_regs[MY_RDX]; \
-			temp[RCX] = (PC)->saved_regs[MY_RCX]; \
-			temp[RAX] = (PC)->saved_regs[MY_RAX]; \
-			temp[R8] = (PC)->saved_regs[MY_R8]; \
-			temp[R9] = (PC)->saved_regs[MY_R9]; \
-			temp[R10] = (PC)->saved_regs[MY_R10]; \
-			temp[R11] = (PC)->saved_regs[MY_R11]; \
-			temp[RBX] = (PC)->saved_regs[MY_RBX]; \
-			temp[RBP] = (PC)->saved_regs[MY_RBP]; \
-			temp[R12] = (PC)->saved_regs[MY_R12]; \
-			temp[R13] = (PC)->saved_regs[MY_R13]; \
-			temp[R14] = (PC)->saved_regs[MY_R14]; \
-			temp[R15] = (PC)->saved_regs[MY_R15]; \
-			temp[ORIG_RAX] = (PC)->saved_regs[MY_ORIG_RAX]; \
-			temp[RIP] = (PC)->saved_regs[MY_RIP]; \
-			temp[CS] = (PC)->saved_regs[MY_CS]; \
-			temp[EFLAGS] = (PC)->saved_regs[MY_EFLAGS]; \
-			temp[RSP] = (PC)->saved_regs[MY_RSP]; \
-			temp[SS] = (PC)->saved_regs[MY_SS]; \
-	(has_ptrace_multi ? ({\
-			     struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, (void *) temp},\
-			     {(CALL), (OP), 0}};\
-			     ptrace(PTRACE_MULTI,(PC)->pid,req,2); }\
-			    ) : (\
-				    {int rv;\
-				    rv=ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) temp);\
-					    if(rv== 0) rv=ptrace((CALL),(PC)->pid,(OP),0);\
-					    rv;}\
-													) )\
-	})
-#define getargp(PC) ((PC)->saved_regs[MY_RDI])
-#define printregs(PC)  // empty for a while... :P
-#define getscno(PC) ( (PC)->saved_regs[MY_ORIG_RAX] )											 
-#define putscno(X,PC) ( (PC)->saved_regs[MY_ORIG_RAX]=(X) )
-#define getargn(N,PC) ( (PC)->saved_regs[(N)] )
-#define putargn(N,X,PC) ( (PC)->saved_regs[(N)]=(X) )
-#define getarg0orig(PC) ( (PC)->saved_regs[MY_RDI] )
-#define putarg0orig(N,PC) ( (PC)->saved_regs[MY_RDI]=(N) )
-#define getrv(PC) ({ long rax; \
-		rax = (PC)->saved_regs[RAX];\
-		(rax<0 && -rax < MAXERR)? -1 : rax; })
-#define putrv(RV,PC) ( (PC)->saved_regs[MY_RAX]=(RV), 0 )
-#define puterrno(ERR,PC) ( ((ERR)!=0 && (PC)->retval==-1)?(PC)->saved_regs[MY_RAX]=-(ERR) : 0 )
-#define getsp(PC) (PC)->saved_regs[MY_RSP]
-#define getpc(PC) (PC)->saved_regs[MY_RIP]
-#define putsp(RV,PC) ( (PC)->saved_regs[MY_RSP]=(RV) )
-#define putpc(RV,PC) ( (PC)->saved_regs[MY_RIP]=(RV) )
-
-
-#endif
-
-
-/*                                  I386 *********************************/
-#if defined (__i386__) || defined(__x86_64__)
-
-#define LITTLEENDIAN
-#define LONG_LONG(_l,_h) \
-    ((long long)((unsigned long long)(unsigned)(_l) | ((unsigned long long)(_h)<<32)))
-
-#define MAXSC (NR_syscalls)
-#define MAXERR 4096
-
-//#define MAXSC 256 // already defined in line 98
-#define BASEUSC		4096
-#define MAXUSC		0
-#define SCREMAP(I)	(I)
-
-extern short _i386_sc_remap[];
-#define cdtab(X) (((X) < BASEUSC) ? scdtab[(X)] : scdtab[_i386_sc_remap[(X)-BASEUSC]])
-#define setcdtab(X,Y) (((X) < BASEUSC) ? (scdtab[(X)] = (Y)) : (scdtab[_i386_sc_remap[(X)-BASEUSC]] = (Y)))
-
-#ifdef PIVOTING_ENABLED
-/**
- * %0 = num syscall
- * %1..%6 = up to 6 arguments of syscall (doesn't matter about unused ones)
- */
-#define ASM_SYSCALL \
-	"mov  %0,    %%eax\n\t" \
-	"mov  %1,    %%ebx\n\t" \
-	"mov  %2,    %%ecx\n\t" \
-	"mov  %3,    %%edx\n\t" \
-	"mov  %4,    %%esi\n\t" \
-	"mov  %5,    %%edi\n\t" \
-	"mov  %6,    %%ebp\n\t" \
-	"int  $0x80\n\t"
-#endif
-
-/*                                  POWERPC *********************************/
-#elif defined (__powerpc__) && !defined(__powerpc64__)
-#define BIGENDIAN
-#define LONG_LONG(_l,_h) \
-    ((long long)((unsigned long long)(unsigned)(_h) | ((unsigned long long)(_l)<<32)))
-
-#ifndef PT_ORIG_R3
-#define PT_ORIG_R3 34
-#endif
-
-#define MAXSC (__NR_syscalls + 1)
-#define BASEUSC		4096
-#define MAXUSC		8
-#define cdtab(X) (((X) < BASEUSC) ? scdtab[(X)] : scdutab[(X)-BASEUSC])
-#define setcdtab(X,Y) (((X) < BASEUSC) ? (scdtab[(X)] = (Y)) : (scdutab[(X)-BASEUSC] = (Y)))
-
-#ifdef PIVOTING_ENABLED
-#error "Still to take the ASM_SYSCALL definition for i386 and adapt it to PowerPC"
-#endif
-
+// part of defs that's strictly architecture dependent
+#if defined(__i386__) //getregs/setregs and so on, for ia32
+#include "defs_i386.h"
+#elif defined(__powerpc__) //setregs/getresg and so on, for ppc
+#include "defs_ppc.h"
+#elif defined(__x86_64__) //setregs/getresg and so on, for ppc
+#include "defs_x86_64.h"
 #else
 #error Unsupported HW Architecure
 #endif /* architecture */
@@ -445,4 +179,4 @@ extern divfun scdutab[MAXUSC];
 extern t_pcb_constr pcb_constr;
 extern t_pcb_destr pcb_destr;
 
-#endif /* _SCTAB_H */
+#endif // _DEFS_H
