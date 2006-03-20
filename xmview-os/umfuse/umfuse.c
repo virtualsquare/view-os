@@ -1833,7 +1833,9 @@ init (void)
 	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
 	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
 	s.syscall[uscno(__NR_mount)]=umfuse_mount;
+#if ! defined(__x86_64__)
 	s.syscall[uscno(__NR_umount)]=umfuse_umount2; /* umount must be mapped onto umount2 */
+#endif
 	s.syscall[uscno(__NR_umount2)]=umfuse_umount2;
 	s.syscall[uscno(__NR_open)]=umfuse_open;
 	s.syscall[uscno(__NR_creat)]=umfuse_open; /*creat is an open with (O_CREAT|O_WRONLY|O_TRUNC)*/
@@ -1847,19 +1849,23 @@ init (void)
 	s.syscall[uscno(__NR_stat)]=umfuse_stat;
 	s.syscall[uscno(__NR_lstat)]=umfuse_lstat;
 	s.syscall[uscno(__NR_fstat)]=umfuse_fstat;
+#if !defined(__x86_64__)
 	s.syscall[uscno(__NR_stat64)]=umfuse_stat64;
 	s.syscall[uscno(__NR_lstat64)]=umfuse_lstat64;
 	s.syscall[uscno(__NR_fstat64)]=umfuse_fstat64;
+#endif
 	s.syscall[uscno(__NR_readlink)]=umfuse_readlink;
 	s.syscall[uscno(__NR_getdents)]=umfuse_getdents;
 	s.syscall[uscno(__NR_getdents64)]=umfuse_getdents64;
 	s.syscall[uscno(__NR_access)]=umfuse_access;
 	s.syscall[uscno(__NR_fcntl)]=umfuse_fcntl32;
+#if ! defined(__x86_64__)
 	s.syscall[uscno(__NR_fcntl64)]=umfuse_fcntl64;
+	s.syscall[uscno(__NR__llseek)]=umfuse__llseek;
+#endif
+	s.syscall[uscno(__NR_lseek)]=umfuse_lseek;
 	//s.syscall[uscno(__NR_mknod)]=umfuse_mknod;
 #ifdef __UMFUSE_EXPERIMENTAL__
-	s.syscall[uscno(__NR_lseek)]=umfuse_lseek;
-	s.syscall[uscno(__NR__llseek)]=umfuse__llseek;
 	s.syscall[uscno(__NR_mkdir)]=umfuse_mkdir;
 	s.syscall[uscno(__NR_rmdir)]=umfuse_rmdir;
 	s.syscall[uscno(__NR_chown)]=umfuse_chown;

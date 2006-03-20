@@ -1985,9 +1985,11 @@ static int is_path_interesting(char *path, void *umph)
 			break;
 		
 		case __NR_stat:
+#if ! defined(__x86_64__)
 		case __NR_stat64:
-		case __NR_lstat:
 		case __NR_lstat64:
+#endif
+		case __NR_lstat:
 		case __NR_readlink:
 		case __NR_access:
 		case __NR_chmod:
@@ -2082,16 +2084,20 @@ init (void)
 	s.syscall[uscno(__NR_stat)]=viewfs_stat;
 	s.syscall[uscno(__NR_lstat)]=viewfs_lstat;
 	s.syscall[uscno(__NR_fstat)]=fstat;
+#if !defined(__x86_64__)
 	s.syscall[uscno(__NR_stat64)]=viewfs_stat64;
 	s.syscall[uscno(__NR_lstat64)]=viewfs_lstat64;
 	s.syscall[uscno(__NR_fstat64)]=viewfs_fstat64;
+#endif
 	s.syscall[uscno(__NR_readlink)]=viewfs_readlink;
 	s.syscall[uscno(__NR_getdents)]=viewfs_getdents;
 	s.syscall[uscno(__NR_getdents64)]=viewfs_getdents64;
 	s.syscall[uscno(__NR_access)]=viewfs_access;
 	s.syscall[uscno(__NR_fcntl)]=fcntl32;
+#if ! defined(__x86_64__)
 	s.syscall[uscno(__NR_fcntl64)]=fcntl64;
 	s.syscall[uscno(__NR__llseek)]=_llseek;
+#endif
 	s.syscall[uscno(__NR_lseek)]= (intfun) lseek;
 	s.syscall[uscno(__NR_mkdir)]=viewfs_mkdir;
 	s.syscall[uscno(__NR_rmdir)]=viewfs_rmdir;
