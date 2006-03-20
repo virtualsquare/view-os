@@ -427,7 +427,7 @@ int fuse_main_real(int argc, char *argv[], const struct fuse_operations *op,
 /* fuse_mount and fuse_unmount are dummy functions, 
  * the real mount operation has been done in umfuse_mount */
 #if ( FUSE_MINOR_VERSION <= 5 )
-#if ( FUSE_MINOR_VERSION <= 3 )
+#if ( FUSE_MINOR_VERSION <= 4 )
 int fuse_mount(const char *mountpoint, const char *opts)
 #else
 int fuse_mount(const char *mountpoint, struct fuse_args *args)
@@ -473,7 +473,7 @@ static void fopsfill (struct fuse_operations *fops,size_t size)
 }
 
 #if ( FUSE_MINOR_VERSION <= 5 )
-#if ( FUSE_MINOR_VERSION <= 3 ) 
+#if ( FUSE_MINOR_VERSION <= 4 ) 
 struct fuse *fuse_new(int fd, const char *opts,
 		const struct fuse_operations *op, size_t op_size)
 #else
