@@ -36,6 +36,7 @@ typedef unsigned char service_t;
 #define CHECKPATH 0
 #define CHECKSOCKET 1
 #define CHECKFSTYPE 2
+#define CHECKDEVICE 3
 
 struct service {
 	char *name;
