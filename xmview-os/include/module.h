@@ -28,9 +28,11 @@
 typedef int (*intfun)();
 typedef unsigned char service_t;
 
-#define CHECKPATH 0
-#define CHECKSOCKET 1
-#define CHECKFSTYPE 2
+#define CHECKNOCHECK	0
+#define CHECKPATH 		1
+#define CHECKSOCKET 	2
+#define CHECKFSTYPE 	3
+#define FLAG_WANTREGISTER	0x80000000
 
 struct service {
 	char *name;

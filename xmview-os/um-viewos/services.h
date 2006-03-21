@@ -33,10 +33,13 @@ typedef unsigned char service_t;
  * This argument can be used to retrieve information about the calling process
  */
 
-#define CHECKPATH 0
-#define CHECKSOCKET 1
-#define CHECKFSTYPE 2
-#define CHECKDEVICE 3
+#define CHECKNOCHECK 0 //to bee or not to bee!! :-D
+#define CHECKPATH 1
+#define CHECKSOCKET 2
+#define CHECKFSTYPE 3
+#define CHECKDEVICE 4
+// flag that specifies register requests...
+#define FLAG_WANTREGISTER	0x80000000
 
 struct service {
 	char *name;
