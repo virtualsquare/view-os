@@ -1014,13 +1014,13 @@ static int umfuse_open(char *path, int flags, mode_t mode,void *umph)
 	filetab[fi]->context = fc;
 	filetab[fi]->count = 0;
 	filetab[fi]->pos = 0;
-	filetab[fi]->size = buf.st_size;
 	filetab[fi]->ffi.flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
 	filetab[fi]->ffi.writepage = 0; //XXX do we need writepage != 0?
 	filetab[fi]->dirinfo = NULL;
 	filetab[fi]->dirpos = NULL;
 	filetab[fi]->path = strdup(unwrap(fc, path));
 	exists_err = fc->fuse->fops.getattr(filetab[fi]->path, &buf);
+	filetab[fi]->size = buf.st_size;
 
 	if ((flags & (O_CREAT | O_TRUNC | O_WRONLY | O_RDWR)) && (fc->fuse->flags & MS_RDONLY)) {
 		free(filetab[fi]->path);
