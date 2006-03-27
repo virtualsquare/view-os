@@ -51,7 +51,7 @@ static struct service **services=NULL;
 static char registered_services[255];
 static int registered_no = 0;
 
-int gas_register_service(struct service *s){
+int new_register_service(struct service *s){
 	printf("new_register_service: %d\n",s->code);
 	registered_services[registered_no]=s->code;
 	registered_no++;
@@ -61,7 +61,7 @@ int gas_register_service(struct service *s){
 // deregister tells if a module can be deleted from list of active modules
 // dumb management: when serv_no is the last service registerd, it 
 // can be deregistered, otherwise it can't...
-int gas_deregister_service(int serv_no){
+int new_deregister_service(int serv_no){
 	printf("new_deregister_service: %d\n",serv_no);
 	if( serv_no == registered_no ){
 		printf("\tderegister ok\n");
@@ -84,8 +84,8 @@ service_t registered_service_check(int type, void *arg,void *umph)
 		return(UM_NONE);
 	if ( registered_no != 0 ){
 		for (i = registered_no-1 ; i>=0 ; i--) {
-			unsigned char check_code = registered_services[i];
 			struct service *s;
+			unsigned char check_code = registered_services[i];
 /*            printf("checking code:%u\n",check_code);*/
 			for( j = 0; j<noserv ; j++)
 				if( services[j]->code == check_code )
@@ -98,16 +98,23 @@ service_t registered_service_check(int type, void *arg,void *umph)
 	}
 	// if no services were found then we request if some module want 
 	// to be registered.
-	for (i=0 ; i<noserv ; i++) {
-/*       for (i = noserv-1 ; i>=0 ; i--) {*/
-/*        printf("checking inner code:%u\n",i);*/
+
+/* NB: DEVELOPMENT PHASE !! */
+	for (i=0 ; i<noserv ; i++) { //forse meglio: for (i = noserv-1 ; i>=0 ; i--)
 		struct service *s=services[i];
+/*
 		if (s->checkfun != NULL && s->checkfun(type,arg,umph)){
-/*            printf("\tregister choice inner: %d\n",s->code);*/
-			//TODO: this should only register a service: so it should return 
-			// um_none(sure??), but register a service...
-			return(s->code);
+			return s->code;
+		}*/
+		if (s->checkfun != NULL && s->checkfun(type | FLAG_WANTREGISTER,arg,umph)){
+/*            new_register_service(s);*/
+			fprintf(stderr,"passato di qua... :-P \n");
+			if( s->checkfun(type,arg,umph) )
+				return s->code;
+			else
+				return UM_NONE;
 		}
+/**/
 	}
 	return(UM_NONE);
 }

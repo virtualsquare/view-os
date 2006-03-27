@@ -91,6 +91,11 @@ struct fuse {
 #endif
 };
 
+#ifdef NEW_SERVICE_LIST
+// mmm... it should be a char...
+static int temp_service_no=-1;
+#endif
+
 /* values for INUSE and thread synchro */
 #define WAITING_FOR_LOOP -1
 #define EXITING -2
@@ -659,6 +664,21 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 		smo.pmountflags = &(new->fuse->flags);
 		smo.source = source;
 		smo.data = data;
+		
+#ifdef NEW_SERVICE_LIST
+		//NB: DEVELOPMENT!!
+		// better position?
+		if( temp_service_no != -1 ){
+			new->fuse->service_no = temp_service_no;
+			temp_service_no = -1;
+		}
+		else{
+			new->fuse->inuse= FUSE_ABORT;
+		}
+
+/*        new->fuse->service_no = new_register_service(&s);*/
+#endif
+		
 		pthread_cond_init(&(new->fuse->startloop),NULL);
 		pthread_cond_init(&(new->fuse->endloop),NULL);
 		pthread_mutex_init(&(new->fuse->endmutex),NULL);
@@ -691,9 +711,6 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 		  fc->private_data=new->fuse->fops.init(&conn);
 #endif
 		}
-#ifdef NEW_SERVICE_LIST
-		new->fuse->service_no = gas_register_service(&s);
-#endif
 		return 0;
 	}
 }
@@ -721,7 +738,7 @@ static int umfuse_umount2(char *target, int flags,void *umph)
 			fflush(stderr);
 		}
 #ifdef NEW_SERVICE_LIST
-		if( gas_deregister_service(fc_norace->fuse->service_no) == 0 ){
+		if( new_deregister_service(fc_norace->fuse->service_no) == 0 ){
 			errno=EBUSY;
 			return -1;
 		}
@@ -934,6 +951,24 @@ static int umfuse_access(char *path, int mode, void *umph);
 
 static int fuse_path(int type, void *arg)
 {
+/* NB: development fase */
+#ifdef NEW_SERVICE_LIST
+	if( type & FLAG_WANTREGISTER ){
+		fprintf(stderr,"asked for registering\n");
+		type = type & (~FLAG_WANTREGISTER);
+		if( type == CHECKFSTYPE ){
+			char *path=arg;
+			if( strncmp(path,"umfuse",6) == 0 ){
+				temp_service_no = new_register_service(&s);
+				return TRUE;
+			}
+			else 
+				return FALSE;
+		}
+		return FALSE;
+	}
+#endif 
+/**/
 	if (type == CHECKPATH) {
 		char *path=arg;
 		struct fuse_context *fc=searchcontext(path,SUBSTR);
@@ -946,7 +981,6 @@ static int fuse_path(int type, void *arg)
 	} else if (type == CHECKFSTYPE) {
 		char *path=arg;
 		return (strncmp(path,"umfuse",6) == 0);/* a path with no leading / is a filesystemtype */
-		return TRUE;
 	} else {
 		return FALSE;
 	}

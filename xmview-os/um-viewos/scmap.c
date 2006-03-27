@@ -59,8 +59,10 @@ wrapinfun wrap_in_getpid;
 wrapoutfun wrap_out_getpid;
 #endif
 
+// for x86_64 perhaps we should define another sc_map structure.
 struct sc_map scmap[]={
-	{__NR_execve,	choice_path,	wrap_in_execve,	NULL,	0,	3},
+	{__NR_execve,	always_umnone,	wrap_in_execve,	NULL,	0,	3},
+/*    {__NR_execve,	choice_path,	wrap_in_execve,	NULL,	0,	3},*/
 	{__NR_chdir,	choice_path,	wrap_in_chdir,	wrap_out_chdir, ALWAYS,	1},
 	{__NR_fchdir,	choice_fd,	wrap_in_fchdir,	wrap_out_chdir, ALWAYS,	1},
 	{__NR_getcwd,	always_umnone, wrap_in_getcwd,	wrap_out_std,	ALWAYS,	2},
