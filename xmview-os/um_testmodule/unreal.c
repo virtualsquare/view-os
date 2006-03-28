@@ -54,8 +54,10 @@ static int unrealpath(int type,void *arg,void *umph)
 /* NB: DEVELOPMENT PHASE !! */
 #ifdef NEW_SERVICE_LIST
 	if ( type & FLAG_WANTREGISTER ){
-		if( service_no == -1 ) // unregistered
+		if( service_no == -1 ){ // unregistered
+			fprintf(stderr,"asked for registering\n");
 			service_no = new_register_service(&s);
+		}
 	}
 #endif
 	if (type== CHECKPATH) {
