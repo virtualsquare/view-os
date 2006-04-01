@@ -135,9 +135,8 @@ int wrap_in_close(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			} else
 				pc->retval = pc ->erno = 0;
 		} 
-		return SC_FAKE;
-	} else
-		return SC_CALLONXIT;
+	} 
+	return SC_CALLONXIT;
 }
 
 int wrap_out_close(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) 

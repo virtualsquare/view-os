@@ -82,8 +82,12 @@ int wrap_in_getcwd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 int wrap_in_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		service_t sercode, intfun um_syscall)
 {
-	if (!S_ISDIR(pcdata->pathstat.st_mode))
-		pc->erno=ENOTDIR;
+	if (!S_ISDIR(pcdata->pathstat.st_mode)) {
+		if (pcdata->pathstat.st_mode == 0)
+			pc->erno=ENOENT;
+		else
+			pc->erno=ENOTDIR;
+	}
 	if (pc->erno == 0 && S_ISDIR(pcdata->pathstat.st_mode)) {
 		long sp=getsp(pc);
 		int pathlen;

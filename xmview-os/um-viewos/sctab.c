@@ -102,11 +102,12 @@ char *um_getpath(long laddr,struct pcb *pc)
 		return um_patherror;
 }
 
-char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int link)
+char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink)
 {
 	char path[PATH_MAX];
 	char newpath[PATH_MAX];
 	if (umovestr(pc->pid,laddr,PATH_MAX,path) == 0) {
+#if 0
 		if (link) {
 			char tmppath[PATH_MAX];
 			strcpy(tmppath,path);
@@ -115,7 +116,8 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int link)
 			strncat(newpath,basename(path),PATH_MAX);
 			/*printf("um_abslpath %s %s %s %s\n",path,dirname(path),basename(path),newpath);*/
 		} else
-			um_realpath(pc,path,newpath,pst);
+#endif
+			um_realpath(pc,path,newpath,pst,dontfollowlink);
 		/*printf("um_abspath %d %s %s\n",pc->erno,path,newpath);*/
 		/*return strdup(newpath);*/
 		if (pc->erno)

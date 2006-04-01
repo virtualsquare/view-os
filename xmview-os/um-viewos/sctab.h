@@ -66,7 +66,7 @@ extern char um_patherror[];
 void scdtab_init();
 
 char *um_getpath(long laddr,struct pcb *pc);
-char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int link);
+char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink);
 
 void um_set_errno(struct pcb *pc,int i);
 char *um_getcwd(struct pcb *pc,char *buf,int size);

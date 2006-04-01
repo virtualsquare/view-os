@@ -23,7 +23,7 @@ all:
 	make -C umfuse $(RELEASE_FLAGS)
 	make -C fuse_modules $(RELEASE_FLAGS)
 	make -C doc $(RELEASE_FLAGS)
-#     make -C um_lwip  $(RELEASE_FLAGS)
+	make -C um_lwip $(RELEASE_FLAGS)
 
 clean:
 	make -C gdebug clean $(RELEASE_FLAGS)
@@ -34,7 +34,7 @@ clean:
 	make -C umfuse clean $(RELEASE_FLAGS)
 	make -C fuse_modules clean $(RELEASE_FLAGS)
 	make -C doc clean $(RELEASE_FLAGS)
-#     make -C um_lwip clean $(RELEASE_FLAGS)
+	make -C um_lwip clean $(RELEASE_FLAGS)
 
 ${bindir}:
 	mkdir -p ${bindir}
@@ -54,4 +54,4 @@ install: ${bindir} ${libdir} ${mandir}
 	make -C umfuse install $(RELEASE_FLAGS)
 	make -C fuse_modules install $(RELEASE_FLAGS)
 	make -C doc install $(RELEASE_FLAGS)
-#     make -C um_lwip install $(RELEASE_FLAGS)
+	make -C um_lwip install $(RELEASE_FLAGS)

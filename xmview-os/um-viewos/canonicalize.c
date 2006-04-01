@@ -40,11 +40,12 @@
 	 holds the same value as the value returned.  */
 
 char *
-um_realpath (struct pcb *umph, const char *name, char *resolved, struct stat64 *pst)
+um_realpath (void *umph, const char *name, char *resolved, struct stat64 *pst, int dontfollowlink)
 {
 	char *dest, extra_buf[PATH_MAX];
 	const char *start, *end, *resolved_limit;
 	int num_links = 0;
+	int validstat = 0;
 
 	if (!resolved)
 		return NULL;
@@ -111,6 +112,7 @@ um_realpath (struct pcb *umph, const char *name, char *resolved, struct stat64 *
 		else if (end - start == 2 && start[0] == '.' && start[1] == '.')
 		{
 			/* Back up to previous component, ignore if at root already.  */
+			validstat = 0;
 			if (dest > resolved + 1)
 				while ((--dest)[-1] != '/');
 		}
@@ -132,13 +134,16 @@ um_realpath (struct pcb *umph, const char *name, char *resolved, struct stat64 *
 			*dest = '\0';
 
 			/*check the dir along the path */
+			validstat = 1;
 			if (um_x_lstat64 (resolved, pst, umph) < 0) {
+				pst->st_mode=0;
 				if (errno != ENOENT || *end == '/') {
 					um_set_errno (umph,errno);
 					goto error;
 				}
 			} else {
-				if (S_ISLNK (pst->st_mode))
+				if (S_ISLNK (pst->st_mode) &&
+						((*end == '/') || !dontfollowlink))
 				{
 					char buf[PATH_MAX];
 					size_t len;
@@ -150,6 +155,7 @@ um_realpath (struct pcb *umph, const char *name, char *resolved, struct stat64 *
 					}
 
 					/* symlink! */
+					validstat=0;
 					n = um_x_readlink (resolved, buf, PATH_MAX, umph);
 					if (n < 0) {
 						um_set_errno (umph,errno);
@@ -186,10 +192,14 @@ um_realpath (struct pcb *umph, const char *name, char *resolved, struct stat64 *
 		--dest;
 	*dest = '\0';
 
+	if (!validstat && um_x_lstat64 (resolved, pst, umph) < 0) 
+		pst->st_mode=0;
+
 	um_set_errno (umph,0);
 	return resolved;
 
 error:
+	pst->st_mode=0;
 	*resolved = 0;
 	return NULL;
 }
