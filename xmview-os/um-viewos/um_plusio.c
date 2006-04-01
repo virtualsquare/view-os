@@ -316,8 +316,8 @@ int wrap_in_utime(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		else
 			argsize=2*sizeof(struct timeval);
 		larg=alloca(argsize);
+		umoven(pc->pid,argaddr,argsize,larg);
 	}
-	umoven(pc->pid,argaddr,argsize,larg);
 	pc->retval = um_syscall(pcdata->path,larg,pc);
 	pc->erno=errno;
 	return SC_FAKE;

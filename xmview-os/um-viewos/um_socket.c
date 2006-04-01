@@ -383,10 +383,10 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		int flags=pcdata->sockregs[2];
 		struct msghdr msg;
 		struct msghdr lmsg;
-		umoven(pc->pid,pmsg,sizeof(struct msghdr),&msg);
-		lmsg=msg;
 		struct iovec liovec;
 		struct iovec *iovec;
+		umoven(pc->pid,pmsg,sizeof(struct msghdr),&msg);
+		lmsg=msg;
 		if (msg.msg_namelen > 0 && msg.msg_name != NULL) {
 			lmsg.msg_name=alloca(msg.msg_namelen);
 			umoven(pc->pid,(long)msg.msg_name,msg.msg_namelen,lmsg.msg_name);
@@ -394,43 +394,49 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		if (msg.msg_iovlen > 0 && msg.msg_iov != NULL) {
 			iovec=alloca(msg.msg_iovlen * sizeof(struct iovec));
 			umoven(pc->pid,(long)msg.msg_iov,msg.msg_iovlen * sizeof(struct iovec),iovec);
+		} else {
+			iovec=NULL;
+			msg.msg_iovlen = 0;
 		}
 		if (msg.msg_controllen > 0 && msg.msg_control != NULL) {
 			lmsg.msg_control=alloca(msg.msg_controllen);
 			umoven(pc->pid,(long)msg.msg_control,msg.msg_controllen,lmsg.msg_control);
 		}
-		unsigned int i,totalsize,size;
-		for (i=0,totalsize=0;i<msg.msg_iovlen;i++)
-			totalsize += iovec[i].iov_len;
-		char *lbuf=(char *)alloca(totalsize);
-		//printf("RECVMSG fd %d namesize %d msg_iovlen %d msg_controllen %d total %d\n",
-		//		pc->arg2,msg.msg_namelen, msg.msg_iovlen, msg.msg_controllen, totalsize);
-		liovec.iov_base=lbuf;
-		liovec.iov_len=totalsize;
-		lmsg.msg_iov=&liovec;
-		lmsg.msg_iovlen=1;
-		size=pc->retval = um_syscall(sfd,&lmsg,flags,pc);
-		//printf("%d size->%d\n",sfd,size);
+		{
+			unsigned int i,totalsize,size;
+			char *lbuf;
+			for (i=0,totalsize=0;i<msg.msg_iovlen;i++)
+				totalsize += iovec[i].iov_len;
+			lbuf=(char *)alloca(totalsize);
+			//printf("RECVMSG fd %d namesize %d msg_iovlen %d msg_controllen %d total %d\n",
+			//		pc->arg2,msg.msg_namelen, msg.msg_iovlen, msg.msg_controllen, totalsize);
+			liovec.iov_base=lbuf;
+			liovec.iov_len=totalsize;
+			lmsg.msg_iov=&liovec;
+			lmsg.msg_iovlen=1;
+			size=pc->retval = um_syscall(sfd,&lmsg,flags,pc);
+			//printf("%d size->%d\n",sfd,size);
 
-		pc->erno=errno;
-		if (size > 0) {
-			for (i=0;i<msg.msg_iovlen && size>0;i++) {
-				int qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
-				ustoren(pc->pid,(long)iovec[i].iov_base,qty,lbuf);
-				lbuf += qty;
-				size -= qty;
+			pc->erno=errno;
+			if (size > 0) {
+				for (i=0;i<msg.msg_iovlen && size>0;i++) {
+					int qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
+					ustoren(pc->pid,(long)iovec[i].iov_base,qty,lbuf);
+					lbuf += qty;
+					size -= qty;
+				}
 			}
+			if (msg.msg_namelen > 0 && msg.msg_name != NULL) {
+				msg.msg_namelen=lmsg.msg_namelen;
+				ustoren(pc->pid,(long)msg.msg_name,msg.msg_namelen,lmsg.msg_name);
+			}
+			if (msg.msg_controllen > 0 && msg.msg_control != NULL) {
+				msg.msg_controllen=lmsg.msg_controllen;
+				ustoren(pc->pid,(long)msg.msg_control,msg.msg_controllen,lmsg.msg_control);
+			}
+			msg.msg_flags=lmsg.msg_flags;
+			ustoren(pc->pid,pmsg,sizeof(struct msghdr),&msg);
 		}
-		if (msg.msg_namelen > 0 && msg.msg_name != NULL) {
-			msg.msg_namelen=lmsg.msg_namelen;
-			ustoren(pc->pid,(long)msg.msg_name,msg.msg_namelen,lmsg.msg_name);
-		}
-		if (msg.msg_controllen > 0 && msg.msg_control != NULL) {
-			msg.msg_controllen=lmsg.msg_controllen;
-			ustoren(pc->pid,(long)msg.msg_control,msg.msg_controllen,lmsg.msg_control);
-		}
-		msg.msg_flags=lmsg.msg_flags;
-		ustoren(pc->pid,pmsg,sizeof(struct msghdr),&msg);
 	}
 	return SC_FAKE;
 }
@@ -458,30 +464,36 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		if (msg.msg_iovlen > 0 && msg.msg_iov != NULL) {
 			iovec=alloca(msg.msg_iovlen * sizeof(struct iovec));
 			umoven(pc->pid,(long)msg.msg_iov,msg.msg_iovlen * sizeof(struct iovec),iovec);
+		} else {
+			iovec=NULL;
+			msg.msg_iovlen = 0;
 		}
 		if (msg.msg_controllen > 0 && msg.msg_control != NULL) {
 			lmsg.msg_control=alloca(msg.msg_controllen);
 			umoven(pc->pid,(long)msg.msg_control,msg.msg_controllen,lmsg.msg_control);
 		}
-		unsigned int i,totalsize,size;
-		for (i=0,totalsize=0;i<msg.msg_iovlen;i++)
-			totalsize += iovec[i].iov_len;
-		char *lbuf=(char *)alloca(totalsize);
-		liovec.iov_base=lbuf;
-		liovec.iov_len=totalsize;
-		lmsg.msg_iov=&liovec;
-		lmsg.msg_iovlen=1;
-		char *p=lbuf;
-		//printf("SNDMSG fd %d namesize %d msg_iovlen %d msg_controllen %d total %d\n",
-		//		pc->arg2, msg.msg_namelen, msg.msg_iovlen, msg.msg_controllen, totalsize);
-		for (i=0;i<msg.msg_iovlen;i++) {
-			int qty=iovec[i].iov_len;
-			umoven(pc->pid,(long)iovec[i].iov_base,qty,p);
-			p += qty;
+		{
+			unsigned int i,totalsize,size;
+			char *lbuf;
+			for (i=0,totalsize=0;i<msg.msg_iovlen;i++)
+				totalsize += iovec[i].iov_len;
+			lbuf=(char *)alloca(totalsize);
+			liovec.iov_base=lbuf;
+			liovec.iov_len=totalsize;
+			lmsg.msg_iov=&liovec;
+			lmsg.msg_iovlen=1;
+			char *p=lbuf;
+			//printf("SNDMSG fd %d namesize %d msg_iovlen %d msg_controllen %d total %d\n",
+			//		pc->arg2, msg.msg_namelen, msg.msg_iovlen, msg.msg_controllen, totalsize);
+			for (i=0;i<msg.msg_iovlen;i++) {
+				int qty=iovec[i].iov_len;
+				umoven(pc->pid,(long)iovec[i].iov_base,qty,p);
+				p += qty;
+			}
+			size=pc->retval = um_syscall(sfd,&lmsg,flags,pc);
+			//printf("%d size->%d\n",sfd,size);
+			pc->erno=errno;
 		}
-		size=pc->retval = um_syscall(sfd,&lmsg,flags,pc);
-		//printf("%d size->%d\n",sfd,size);
-		pc->erno=errno;
 	}
 	return SC_FAKE;
 }

@@ -270,7 +270,7 @@ int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how)
 				sd->wakemeup=WAKEONCB;
 				if (local_select_register(select_wakeup_cb, &(sd->wakemeup), sfd, how, pc) == 0)
 				{
-					sd->rfdmax=-1;
+					sd->rfdmax = -1;
 					sd->a_random_lfd=fd2lfd(pcdata->fds,fd);
 					for (i=0;i<3;i++) 
 						FD_ZERO(&sd->wrfds[i]); /* unuseful, can be omitted */
@@ -303,9 +303,10 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 {
 	register int n=pc->arg0;
 	struct seldata *sd=(struct seldata *)malloc(sizeof(struct seldata));
-	int i,fd,count,countcb,signaled,a_random_lfd;;
+	int i,fd,count,countcb,signaled;
+	int a_random_lfd = -1;
 	int pfds[3];
-	int rfdmax=-1;
+	int rfdmax = -1;
 	fd_set lfds[3]; /* local copy of the SC fds */
 	fd_set tfds[3]; /* test for virtual files (one by one)*/
 	fd_set wfds[3]; /* modified waiting fds virtual files are R-waiting on the FIFOs */ 
@@ -593,8 +594,9 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	struct seldata *sd=(struct seldata *)malloc(sizeof(struct seldata));
 	int *origevents;
 	fd_set wrfds[3];
-	int i,count,countcb,signaled,a_random_lfd;
-	int rfdmax=-1;
+	int i,count,countcb,signaled;
+	int a_random_lfd = -1;
+	int rfdmax = -1;
 	unsigned long pufds=pc->arg0;
 	unsigned int nfds=getargn(1,pc);
 	//int timeout=getargn(2,pc);

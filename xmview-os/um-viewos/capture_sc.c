@@ -205,7 +205,7 @@ static void allocatepcbtab()
 static int handle_new_proc(int pid, struct pcb *pp)
 {
 	struct pcb *oldpc,*pc;
-	if ((oldpc=pid2pcb(pid)) == NULL && (pc = newpcb(pid))== NULL) {
+	if ((oldpc=pc=pid2pcb(pid)) == NULL && (pc = newpcb(pid))== NULL) {
 		fprintf(stderr, "[pcb table full]\n");
 		if(ptrace(PTRACE_KILL, pid, 0, 0) < 0){
 			GPERROR(0, "KILL");
