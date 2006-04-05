@@ -53,23 +53,59 @@
 
 #define umNULL ((int) NULL)
 
-int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+static int filecopy(service_t sercode,const char *from, const char *to, void *umph)
 {
-	int mode;
-	int argv=getargn(2,pc);
-	int env=getargn(3,pc);
-	fprintf(stderr, "wrap_in_execve! %s\n",pcdata->path);
-#if 0
-	char *filename=lfd_getfilename(pc->retval);
-	int filenamelen=WORDALIGN(strlen(filename));
-
-	//printf("open exit b %d %d\n",pc->retval,pc->erno);
-	//      //printf("real filename: %s\n",filename);
-	ustorestr(pc->pid,sp-filenamelen,filenamelen,filename);
-	putargn(0,sp-filenamelen,pc);
-	putarg0orig(sp-filenamelen,pc);
-#endif
-	return STD_BEHAVIOR;
+	char buf[BUFSIZ];
+	int fdf,fdt;
+	int n;
+	if ((fdf=service_syscall(sercode,uscno(__NR_open))(from,O_RDONLY,0,umph)) < 0)
+		return -errno;
+	if ((fdt=open(to,O_CREAT|O_TRUNC|O_WRONLY,0600)) < 0)
+		return -errno;
+	while ((n=service_syscall(sercode,uscno(__NR_read))(fdf,buf,BUFSIZ,umph)) > 0)
+		write (fdt,buf,n);
+	service_syscall(sercode,uscno(__NR_close))(fdf,umph);
+	fchmod (fdt,0700); /* permissions? */
+	close (fdt);
+	return 0;
 }
 
+int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+		service_t sercode, intfun um_syscall)
+{
+	//int mode;
+	//int argv=getargn(2,pc);
+	//int env=getargn(3,pc);
+	char *filename=strdup(um_proc_tmpname());
+	//fprintf(stderr, "wrap_in_execve! %s\n",(char *)pcdata->path);
+
+	/* argv and env should be downloaded then
+	 * pc->retval = um_syscall(pcdata->path, argv, env); */
+	if ((pc->retval=filecopy(sercode,pcdata->path,filename,pc))>=0) {
+		long sp=getsp(pc);
+		int filenamelen=WORDALIGN(strlen(filename));
+		pc->retval=lfd_open(UM_NONE,-1,filename);
+		ustorestr(pc->pid,sp-filenamelen,filenamelen,filename);
+		putargn(0,sp-filenamelen,pc);
+		putarg0orig(sp-filenamelen,pc);
+		return SC_CALLONXIT;
+	} else {
+    pc->erno= -(pc->retval);
+		pc->retval= -1;
+		return SC_FAKE;
+	}
+}
+
+
+int wrap_out_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) 
+{
+	if (pc->retval >= 0) {
+		/* remove the temp file */
+		unlink(lfd_getpath(pc->retval));
+		lfd_close(pc->retval,pc);
+	} else {
+		putrv(pc->retval,pc);
+		puterrno(pc->erno,pc);
+	}
+	return STD_BEHAVIOR;
+}

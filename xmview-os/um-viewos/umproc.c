@@ -38,6 +38,7 @@
 static char *um_proc_root;
 static char *um_tmpfile;
 static char *um_tmpfile_tail;
+static int um_tmpfile_len;
 
 struct lfd_table {
 	short count; /*how many pcbs have opened this lfd - look at dup implementation */
@@ -78,6 +79,7 @@ void um_proc_open()
 	um_tmpfile=strdup(path);
 	strcpy(um_tmpfile,path);
 	um_tmpfile_tail=um_tmpfile+(strlen(path)-7);
+	um_tmpfile_len=strlen(um_tmpfile);
 }
 
 void um_proc_close()
@@ -90,8 +92,18 @@ void um_proc_close()
 
 static char *um_proc_tmpfile(service_t service, int lfd)
 {
-	sprintf(um_tmpfile_tail,"%02x%02d",service,lfd);
+	snprintf(um_tmpfile_tail,um_tmpfile_len,"%02x%02d",service,lfd);
 	//printf("um_proc_tmpfile %s\n",um_tmpfile);
+	return um_tmpfile;
+}
+
+#define NMAX 1000000
+char *um_proc_tmpname()
+{
+	static int n;
+	n = (n+1) % NMAX;
+	snprintf(um_tmpfile_tail,um_tmpfile_len,"%06d",n);
+	//printf("um_proc_tmpname %s\n",um_tmpfile);
 	return um_tmpfile;
 }
 

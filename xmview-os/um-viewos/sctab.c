@@ -175,12 +175,12 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		/* something went wrong during a path lookup - fake the
 		 * syscall, we do not want to make it run */
 		if (pcdata->path == um_patherror) {
-/*            fprintf(stderr,"execve dice um_path_error!!\n");*/
 			pc->retval = -1;
-			if(sc_number == __NR_execve)
+			/*if(sc_number == __NR_execve)
+				fprintf(stderr,"execve dice um_path_error!!\n"); 
 				return STD_BEHAVIOR;
-			else
-				return SC_FAKE;
+			else*/
+			return SC_FAKE;
 		}
 		/* if some service want to manage the syscall (or the ALWAYS
 		 * flag is set), we process it */
@@ -392,6 +392,13 @@ char choice_fd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	return service_fd(pcdata->fds,fd);
 }
 
+/* choice sd (just the system call number is the choice parameter) */
+char choice_sd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+{
+	int sc=sc_number;
+	return service_check(CHECKSC,&sc,pc);
+}
+
 /* choice mount (mount point must be defined + filesystemtype is used
  * instead of the pathname for service selection) */
 char choice_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
@@ -525,7 +532,8 @@ void scdtab_init()
 	init_scmap();
 	for (i=0; i<scmap_scmapsize; i++) {
 		int scno=scmap[i].scno;
-		setcdtab(scno,dsys_megawrap);
+		if (scno >= 0) 
+			setcdtab(scno,dsys_megawrap);
 	}
 	um_proc_open();
 	atexit(um_proc_close);

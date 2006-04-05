@@ -34,7 +34,7 @@ int scmap_scmapsize;
 int scmap_sockmapsize;
 
 serfunt choice_path, choice_link, choice_fd, choice_socket, choice_link2;
-serfunt always_umnone, choice_mount;
+serfunt always_umnone, choice_mount, choice_sc;
 wrapinfun wrap_in_getcwd, wrap_in_chdir, wrap_in_fchdir;
 wrapinfun wrap_in_open, wrap_in_read, wrap_in_write, wrap_in_close;
 wrapinfun wrap_in_select, wrap_in_poll, wrap_in_ioctl;
@@ -53,16 +53,33 @@ wrapinfun wrap_in_umask, wrap_in_execve;
 
 wrapoutfun wrap_out_open, wrap_out_std, wrap_out_close, wrap_out_chdir;
 wrapoutfun wrap_out_dup, wrap_out_select, wrap_out_poll, wrap_out_fcntl;
+wrapoutfun wrap_out_execve;
 
 #ifdef PIVOTING_TEST
 wrapinfun wrap_in_getpid;
 wrapoutfun wrap_out_getpid;
 #endif
 
-// for x86_64 perhaps we should define another sc_map structure.
+/* we should keep this structure unique. the indexes can be used to forward
+ * the call on a different computer.*/
+
+#define __NR_doesnotexist -1
+#if defined(__x86_64__)
+#define __NR__newselect __NR_doesnotexist
+#define __NR_umount __NR_doesnotexist
+#define __NR_stat64 __NR_doesnotexist
+#define __NR_lstat64 __NR_doesnotexist
+#define __NR_fstat64 __NR_doesnotexist
+#define __NR_chown32 __NR_doesnotexist
+#define __NR_lchown32 __NR_doesnotexist
+#define __NR_fchown32 __NR_doesnotexist
+#define __NR_fcntl64 __NR_doesnotexist
+#define __NR__llseek __NR_doesnotexist
+#endif
+
 struct sc_map scmap[]={
 	/*{__NR_execve,	always_umnone,	wrap_in_execve,	NULL,	0,	3},*/
-  	{__NR_execve,	choice_path,	wrap_in_execve,	NULL,	0,	3},
+  	{__NR_execve,	choice_path,	wrap_in_execve,	wrap_out_execve,	0,	3},
 	{__NR_chdir,	choice_path,	wrap_in_chdir,	wrap_out_chdir, ALWAYS,	1},
 	{__NR_fchdir,	choice_fd,	wrap_in_fchdir,	wrap_out_chdir, ALWAYS,	1},
 	{__NR_getcwd,	always_umnone, wrap_in_getcwd,	wrap_out_std,	ALWAYS,	2},
@@ -71,17 +88,13 @@ struct sc_map scmap[]={
 	{__NR_close,	choice_fd,	wrap_in_close,	wrap_out_close,	ALWAYS,	1},
 	{__NR_select,	always_umnone,	wrap_in_select,	wrap_out_select,ALWAYS,	5},
 	{__NR_poll,	always_umnone,	wrap_in_poll,	wrap_out_poll,  ALWAYS,	3},
-#if !defined(__x86_64__)
 	{__NR__newselect,always_umnone,	wrap_in_select,	wrap_out_select,ALWAYS,	5},
-#endif
 	{__NR_umask,	always_umnone,	wrap_in_umask,  wrap_out_std,	ALWAYS,	1},
 	{__NR_chroot,	always_umnone,	wrap_in_chroot, wrap_out_std,	ALWAYS,	1},
 	{__NR_dup,	choice_fd,	wrap_in_dup,	wrap_out_dup,	ALWAYS,	1},
 	{__NR_dup2,	choice_fd,	wrap_in_dup,	wrap_out_dup,	ALWAYS,	2},
 	{__NR_mount,	choice_mount,	wrap_in_mount,	wrap_out_std,	0,	5},
-#if !defined(__x86_64__)
 	{__NR_umount,	choice_path,	wrap_in_umount,	wrap_out_std,	0,	1},
-#endif
 	{__NR_umount2,	choice_path,	wrap_in_umount,	wrap_out_std,	0,	2},
 	{__NR_ioctl,	choice_fd,	wrap_in_ioctl,	wrap_out_std, 	0,	3},
 	{__NR_read,	choice_fd,	wrap_in_read,	wrap_out_std,	0,	3},
@@ -91,19 +104,15 @@ struct sc_map scmap[]={
 	{__NR_stat,	choice_path,	wrap_in_stat,	wrap_out_std,	0,	2},
 	{__NR_lstat,	choice_link,	wrap_in_stat,	wrap_out_std,	0,	2},
 	{__NR_fstat,	choice_fd,	wrap_in_fstat,	wrap_out_std,	0,	2},
-#if !defined(__x86_64__)
 	{__NR_stat64,	choice_path,	wrap_in_stat64,	wrap_out_std,	0,	2},
 	{__NR_lstat64,	choice_link,	wrap_in_stat64,	wrap_out_std,	0,	2},
 	{__NR_fstat64,	choice_fd,	wrap_in_fstat64,wrap_out_std,	0,	2},
-#endif
 	{__NR_chown,	choice_path,	wrap_in_chown, wrap_out_std,	0,	3},
 	{__NR_lchown,	choice_link,	wrap_in_chown, wrap_out_std,	0,	3},
 	{__NR_fchown,	choice_fd,	wrap_in_fchown, wrap_out_std,	0,	3},
-#if !defined(__x86_64__)
 	{__NR_chown32,	choice_path,	wrap_in_chown, wrap_out_std,	0,	3},
 	{__NR_lchown32,	choice_link,	wrap_in_chown, wrap_out_std,	0,	3},
 	{__NR_fchown32,	choice_fd,	wrap_in_fchown, wrap_out_std,	0,	3},
-#endif
 	{__NR_chmod,	choice_path,	wrap_in_chmod, wrap_out_std,	0,	2},
 	{__NR_fchmod,	choice_fd,	wrap_in_fchmod, wrap_out_std,	0,	2},
 	{__NR_getxattr,	choice_path,	wrap_in_getxattr, wrap_out_std,	0,	4},
@@ -114,13 +123,9 @@ struct sc_map scmap[]={
 	{__NR_getdents64,choice_fd,	wrap_in_getdents,wrap_out_std,	0,	3},
 	{__NR_access,	choice_path,	wrap_in_access, wrap_out_std,	0,	2},
 	{__NR_fcntl,	choice_fd,	wrap_in_fcntl, wrap_out_fcntl,	0,	3},
-#if !defined(__x86_64__)
 	{__NR_fcntl64,	choice_fd,	wrap_in_fcntl, wrap_out_fcntl,	0,	3},
-#endif
 	{__NR_lseek,	choice_fd,	wrap_in_lseek, wrap_out_std,	0,	3},
-#if !defined(__x86_64__)
 	{__NR__llseek,	choice_fd,	wrap_in_llseek, wrap_out_std,	0,	5},
-#endif
 	{__NR_mkdir,	choice_link,	wrap_in_mkdir, wrap_out_std,	0,	2},
 	{__NR_rmdir,	choice_path,	wrap_in_unlink, wrap_out_std,	0,	1},
 	{__NR_link,	choice_link2,	wrap_in_link, wrap_out_std,	0,	2},
@@ -142,6 +147,52 @@ struct sc_map scmap[]={
 	{__NR_pwrite64,	choice_fd,	wrap_in_pwrite, wrap_out_std,	0,	5},
 #else
 	{__NR_pwrite,	choice_fd,	wrap_in_pwrite, wrap_out_std,	0,	5},
+#endif
+#if 0
+	/* TO DO! */
+	/* time related calls */
+	{__NR_time,	choice_sc,	wrap_in_time, wrap_out_std,	0,	1},
+	{__NR_gettimeofday, choice_sc,	wrap_in_gettimeofday, wrap_out_std,	0,	2},
+	{__NR_settimeofday, choice_sc,	wrap_in_gettimeofday, wrap_out_std,	0,	2},
+
+	/* user mgmt calls */
+	{__NR_getuid,	choice_id,	wrap_in_id_g1, wrap_out_std, 	0,	1},
+	{__NR_setuid,	choice_id,	wrap_in_id_s1, wrap_out_std, 	0,	1},
+	{__NR_geteuid,	choice_id,	wrap_in_id_g1, wrap_out_std, 	0,	1},
+	{__NR_setfsuid,	choice_id,	wrap_in_id_s1, wrap_out_std, 	0,	1},
+	{__NR_setreuid,	choice_id,	wrap_in_id_s2, wrap_out_std, 	0,	2},
+	{__NR_getresuid, choice_id,	wrap_in_id_g3, wrap_out_std, 	0,	3},
+	{__NR_setresuid, choice_id,	wrap_in_id_s3, wrap_out_std, 	0,	3},
+	{__NR_getgid,	choice_id,	wrap_in_id_g1, wrap_out_std, 	0,	1},
+	{__NR_setgid,	choice_id,	wrap_in_id_s1, wrap_out_std, 	0,	1},
+	{__NR_getegid,	choice_id,	wrap_in_id_g1, wrap_out_std, 	0,	1},
+	{__NR_setfsgid,	choice_id,	wrap_in_id_s1, wrap_out_std, 	0,	1},
+	{__NR_setregid,	choice_id,	wrap_in_id_s2, wrap_out_std, 	0,	2},
+	{__NR_getresgid, choice_id,	wrap_in_id_g3, wrap_out_std, 	0,	3},
+	{__NR_setresgid, choice_id,	wrap_in_id_s3, wrap_out_std, 	0,	3},
+	  
+	/* priority related calls */
+	{__NR_nice,	choice_sc,	wrap_in_nice,  wrap_out_std,	0,	1},
+	{__NR_getpriority, choice_sc,	wrap_in_getpriority, wrap_out_std, 0,	2},
+	{__NR_setpriority, choice_sc,	wrap_in_setpriority, wrap_out_std, 0,	3},
+
+	/* process id related */
+	{__NR_getpid,	choice_sc,	wrap_in_getpid,  wrap_out_std,	0,	0},
+	{__NR_getppid,	choice_sc,	wrap_in_getpid,  wrap_out_std,	0,	0},
+	{__NR_getpgrp,	choice_sc,	wrap_in_getpid,  wrap_out_std,	0,	0},
+	{__NR_setpgrp,	choice_sc,	wrap_in_setpid,  wrap_out_std,	0,	0},
+	{__NR_getpgid,	choice_pid,	wrap_in_getpid_1, wrap_out_std,	0,	1},
+	{__NR_setpgid,	choice_pid,	wrap_in_setpid_2, wrap_out_std,	0,	2},
+	{__NR_getsid,	choice_pid,	wrap_in_setpid_1, wrap_out_std,	0,	1},
+	{__NR_setsid,	choice_sc,	wrap_in_setpid,  wrap_out_std,	0,	0},
+
+	/* host id */
+	{__NR_uname,	choice_sc,	wrap_in_uname,  wrap_out_std,	0,	1},
+	{__NR_gethostname, choice_sc,	wrap_in_gethostname,  wrap_out_std,	0,	2},
+	{__NR_sethostname, choice_sc,	wrap_in_sethostname,  wrap_out_std,	0,	2},
+	{__NR_getdomainname, choice_sc,	wrap_in_gethostname,  wrap_out_std,	0,	2},
+	{__NR_setdomainname, choice_sc,	wrap_in_sethostname,  wrap_out_std,	0,	2},
+
 #endif
 #ifdef PIVOTING_TEST
 	{__NR_getpid,	always_umnone,	wrap_in_getpid, wrap_out_getpid,ALWAYS,	0},

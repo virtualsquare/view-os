@@ -38,6 +38,7 @@ typedef unsigned char service_t;
 #define CHECKSOCKET 2
 #define CHECKFSTYPE 3
 #define CHECKDEVICE 4
+#define CHECKSC 5
 // flag that specifies register requests...
 #define FLAG_WANTREGISTER	0x80000000
 

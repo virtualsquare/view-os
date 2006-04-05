@@ -50,6 +50,7 @@ struct pcb_file {
 
 void um_proc_open();
 void um_proc_close();
+char *um_proc_tmpname();
 void lfd_addproc (struct pcb_file **p,int flag);
 void lfd_delproc (struct pcb_file *p, void *umph);
 int lfd_open (service_t service, int sfd, char *path);
