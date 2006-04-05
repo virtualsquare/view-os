@@ -88,8 +88,10 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		ustorestr(pc->pid,sp-filenamelen,filenamelen,filename);
 		putargn(0,sp-filenamelen,pc);
 		putarg0orig(sp-filenamelen,pc);
+		free(filename);
 		return SC_CALLONXIT;
 	} else {
+		free(filename);
     pc->erno= -(pc->retval);
 		pc->retval= -1;
 		return SC_FAKE;
