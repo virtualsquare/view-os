@@ -164,6 +164,10 @@ struct ip_addr_list *ip_addr_list_alloc()
 	else {
 		el=ip_addr_freelist;
 		ip_addr_freelist=ip_addr_freelist->next;
+
+		/* Added by Diego Billi */
+		bzero(el, sizeof (struct ip_addr_list));
+
 		return el;
 	}
 }
@@ -185,6 +189,12 @@ void ip_addr_list_freelist(struct ip_addr_list *tail)
 	}
 }
 
+#define mask_wider(x,y) \
+	(((y)->addr[0] & ~((x)->addr[0])) | \
+	((y)->addr[1] & ~((x)->addr[1])) | \
+	((y)->addr[2] & ~((x)->addr[2])) | \
+	((y)->addr[3] & ~((x)->addr[3])))
+
 void ip_addr_list_add(struct ip_addr_list **ptail, struct ip_addr_list *el)
 {
 	LWIP_ASSERT("ip_addr_list_add NULL handle",ptail != NULL);
@@ -195,6 +205,10 @@ void ip_addr_list_add(struct ip_addr_list **ptail, struct ip_addr_list *el)
 		*ptail=(*ptail)->next=el;
 	}
 }
+
+
+
+
 
 void ip_addr_list_del(struct ip_addr_list **ptail, struct ip_addr_list *el)
 {
@@ -291,6 +305,34 @@ struct ip_addr_list *ip_addr_list_deliveryfind(struct ip_addr_list *tail, struct
 	} while (el != tail);
 	return NULL;
 }
+
+
+/* Added by Diego Billi */ 
+struct ip_addr_list *ip_addr_list_masquarade_addr(struct ip_addr_list *tail, u8_t ipv)
+{
+	struct ip_addr_list *el;
+	if (tail==NULL)
+		return NULL;
+
+	if (ipv != 4 && ipv != 6)
+		return NULL;
+
+	el=tail=tail->next;
+	do {
+		if (ipv == 4) {
+			if (ip_addr_is_v4comp(&el->ipaddr)) 
+				return el;
+		}
+                else
+			if (!(ip_addr_ismulticast(&el->ipaddr)) &&
+			    !(ip_addr_islinkscope(&el->ipaddr)))
+				return el;
+
+		el=el->next;
+	} while (el != tail);
+	return NULL;
+}
+
 
 #if 0
 void

@@ -57,6 +57,7 @@ CFLAGS:=$(CFLAGS) -DIPv6
 CFLAGS:=$(CFLAGS) -DIPv4_CHECK_CHECKSUM 
 CFLAGS:=$(CFLAGS) -DIPv4_FRAGMENTATION
 CFLAGS:=$(CFLAGS) -DIPv6_FRAGMENTATION
+#CFLAGS:=$(CFLAGS) -DIPv6_AUTO_CONFIGURATION
 #CFLAGS:=$(CFLAGS) -DIPv6_PMTU_DISCOVERY   not working yet
 CFLAGS:=$(CFLAGS) -DLWIP_NL    
 CFLAGS:=$(CFLAGS) -DLWIP_PACKET 
@@ -67,13 +68,17 @@ CFLAGS:=$(CFLAGS) -DLWIP_DEBUG
 
 # added by Diego Billi
 CFLAGS:=$(CFLAGS) -DLWIP_USERFILTER 
+#CFLAGS:=$(CFLAGS) -DLWIP_NAT 
 
 CFLAGS:=$(CFLAGS) \
-	-I$(LWIPDIR)/include -I$(LWIPARCH)/include -I$(LWIPDIR)/include/ipv6 \
+	-I$(LWIPDIR)/include \
+	-I$(LWIPARCH)/include \
+	-I$(LWIPDIR)/include/ipv6 \
 	-Iapps -I.
 
 # added by Diego Billi
-CFLAGS:=$(CFLAGS) -I$(LWIPDIR)/include/userfilter
+CFLAGS:=$(CFLAGS) \
+	-I$(LWIPDIR)/include/userfilter 
 
 # added by Diego Billi
 ARFLAGS=rs
@@ -85,21 +90,27 @@ ARFLAGS=rs
 # COREFILES, CORE4FILES: The minimum set of files needed for lwIP.
 # COREFILES= 
 #COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_malloc.c
-COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_dynmalloc.c \
+COREFILES=$(LWIPDIR)/core/mem_malloc.c \
+	$(LWIPDIR)/core/memp_dynmalloc.c \
 	$(LWIPDIR)/core/netif.c \
-	$(LWIPDIR)/core/pbufnopool.c $(LWIPDIR)/core/stats.c $(LWIPDIR)/core/sys.c \
-        $(LWIPDIR)/core/tcp.c $(LWIPDIR)/core/tcp_in.c \
-        $(LWIPDIR)/core/tcp_out.c $(LWIPDIR)/core/udp.c \
-				$(LWIPDIR)/core/raw.c $(LWIPDIR)/core/packet.c
+	$(LWIPDIR)/core/pbufnopool.c \
+	$(LWIPDIR)/core/stats.c \
+	$(LWIPDIR)/core/sys.c \
+        $(LWIPDIR)/core/tcp.c \
+	$(LWIPDIR)/core/tcp_in.c \
+        $(LWIPDIR)/core/tcp_out.c \
+	$(LWIPDIR)/core/udp.c \
+	$(LWIPDIR)/core/raw.c \
+	$(LWIPDIR)/core/packet.c
 
 CORE6FILES=$(wildcard $(LWIPDIR)/core/ipv6/*.c) $(LWIPDIR)/core/inet6.c
 
 # APIFILES: The files which implement the sequential and socket APIs.
 APIFILES=$(LWIPDIR)/api/api_lib.c \
-    $(LWIPDIR)/api/api_msg.c \
-    $(LWIPDIR)/api/tcpip.c \
+	$(LWIPDIR)/api/api_msg.c \
+	$(LWIPDIR)/api/tcpip.c \
 	$(LWIPDIR)/api/err.c \
-    $(LWIPDIR)/api/sockets.c\
+	$(LWIPDIR)/api/sockets.c\
 	$(LWIPDIR)/api/netlink.c
 
 # NETIFFILES: Files implementing various generic network interface functions.'
@@ -109,12 +120,22 @@ NETIFFILES=$(LWIPDIR)/netif/loopif.c \
 # ARCHFILES: Architecture specific files.
 #ARCHFILES=$(wildcard $(LWIPDIR)/arch/$(LWIPARCH)/*.c $(LWIPDIR)/arch/$(LWIPARCH)/netif/*.c)
 ARCHFILES=$(LWIPARCH)/sys_arch_pipe.c \
-    $(LWIPARCH)/netif/vdeif.c \
+	$(LWIPARCH)/netif/vdeif.c \
 	$(LWIPARCH)/netif/tapif.c \
 	$(LWIPARCH)/netif/tunif.c
 
-# added by Diego Billi
+# File of Userfilter syb-sytem (LWIP_USERFILTER)
 LWIPFILTERFILES=$(LWIPFILTERDIR)/userfilter.c 
+
+# Files of the NAT sub-system (LWIP_NAT)
+LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat.c 
+LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat_rules.c 
+LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat_tables.c 
+LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat_track_proto_tcp.c 
+LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat_track_proto_udp.c 
+LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat_track_proto_icmp4.c 
+LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat_track_proto_generic.c 
+
 
 #=============================================================================
 # Objects
@@ -158,10 +179,14 @@ $(LWIPLIB): $(LWIPOBJS) unixlib.o
 	$(CC) -g -nostartfiles -shared -o $@ $^
 
 # added by Diego Billi
-# NB: unixlib.o should not be included, it's used only by ViewOS project.
-# It's here only for debug.
+# NB: unixlib.o should not be included, it's used only by ViewOS 
+# project. It's here only for debug.
 $(STATICLWIPLIB): $(LWIPOBJS) unixlib.o
 	$(AR) $(ARFLAGS) $(STATICLWIPLIB) $?
 
 .depend: unixlib.c $(LWIPFILES)
 	$(CCDEP) $(CFLAGS) -MM $^ > .depend || rm -f .depend
+
+
+
+

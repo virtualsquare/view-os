@@ -145,8 +145,8 @@ static s8_t find_entry(struct ip_addr *ipaddr, u8_t flags);
 static err_t update_arp_entry(struct netif *netif, struct ip_addr *ipaddr, struct eth_addr *ethaddr, u8_t flags);
 
 /**
-	* Initializes ARP module.
-	*/
+ * Initializes ARP module.
+ */
 void
 etharp_init(void)
 {
@@ -178,14 +178,16 @@ etharp_tmr(struct netif *netif)
 	LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer\n"));
 	/* remove expired entries from the ARP table */
 	for (i = 0; i < ARP_TABLE_SIZE; ++i) {
-		if (arp_table[i].if_id==netif->id) {
+
+		if (arp_table[i].if_id == netif->id) {
+
 			arp_table[i].ctime++;
 			/* stable entry? */
 			if ((arp_table[i].state == ETHARP_STATE_STABLE) &&
 					/* entry has become old? */
 					(arp_table[i].ctime >= ARP_MAXAGE)) {
 				LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer: expired stable entry %u.\n", i));
-				arp_table[i].state = ETHARP_STATE_EXPIRED;
+					arp_table[i].state = ETHARP_STATE_EXPIRED;
 				/* pending entry? */
 			} else if (arp_table[i].state == ETHARP_STATE_PENDING) {
 				/* entry unresolved/pending for too long? */
@@ -194,8 +196,8 @@ etharp_tmr(struct netif *netif)
 					arp_table[i].state = ETHARP_STATE_EXPIRED;
 #if ARP_QUEUEING
 				} else if (arp_table[i].p != NULL) {
-						/* resend an ARP query here */
-#endif
+					/* resend an ARP query here */
+#endif           	
 				}
 			}
 			/* clean up entries that have just been expired */
@@ -209,11 +211,11 @@ etharp_tmr(struct netif *netif)
 					arp_table[i].p = NULL;
 				}
 #endif
-			/* recycle entry for re-use */      
-			arp_table[i].state = ETHARP_STATE_EMPTY;
+				/* recycle entry for re-use */      
+				arp_table[i].state = ETHARP_STATE_EMPTY;
+			}
 		}
-    }
-  }
+	}
 }
 
 /**
@@ -660,25 +662,25 @@ etharp_arp_input(struct netif *netif, struct eth_addr *ethaddr, struct pbuf *p)
 err_t
 etharp_output(struct netif *netif, struct ip_addr *ipaddr, struct pbuf *q)
 {
-  struct eth_addr *dest, *srcaddr, mcastaddr;
+	struct eth_addr *dest, *srcaddr, mcastaddr;
 	struct ip_addr_list *al;
-  struct eth_hdr *ethhdr;
-  u8_t i;
+	struct eth_hdr *ethhdr;
+	u8_t i;
+	
+	/* make room for Ethernet header - should not fail */
+	if (pbuf_header(q, sizeof(struct eth_hdr)) != 0) {
+		/* bail out */
+		LWIP_DEBUGF(ETHARP_DEBUG | DBG_TRACE | 2, ("etharp_output: could not allocate room for header.\n"));
+		LINK_STATS_INC(link.lenerr);
+		return ERR_BUF;
+	}
 
-  /* make room for Ethernet header - should not fail */
-  if (pbuf_header(q, sizeof(struct eth_hdr)) != 0) {
-    /* bail out */
-    LWIP_DEBUGF(ETHARP_DEBUG | DBG_TRACE | 2, ("etharp_output: could not allocate room for header.\n"));
-    LINK_STATS_INC(link.lenerr);
-    return ERR_BUF;
-  }
+	/* assume unresolved Ethernet address */
+	dest = NULL;
+	/* Determine on destination hardware address. Broadcasts and multicasts
+	 * are special, other IP addresses are looked up in the ARP table. */
 
-  /* assume unresolved Ethernet address */
-  dest = NULL;
-  /* Determine on destination hardware address. Broadcasts and multicasts
-   * are special, other IP addresses are looked up in the ARP table. */
-
-  /* broadcast destination IP address? */
+	/* broadcast destination IP address? */
 	if (ip_addr_is_v4comp(ipaddr)) {
 		/* destination IP address is an IP multicast address? */
 		if (ip_addr_is_v4multicast(ipaddr)) {
@@ -699,16 +701,14 @@ etharp_output(struct netif *netif, struct ip_addr *ipaddr, struct pbuf *q)
 				return -1;
 			}
 			/* destination IP address is an IP broadcast address? */
-			if (ip_addr_isany(ipaddr) ||
-					ip_addr_is_v4broadcast(ipaddr, &(al->ipaddr), &(al->netmask))) {
+			if (ip_addr_isany(ipaddr) || ip_addr_is_v4broadcast(ipaddr, &(al->ipaddr), &(al->netmask))) {
 				/* broadcast on Ethernet also */
 				dest = (struct eth_addr *)&ethbroadcast;
-      }
-    }
+			}
+		}
 	}
-  else {
-		if (ip_addr_isany(ipaddr) ||
-				ip_addr_ismulticast(ipaddr)) {
+	else {
+		if (ip_addr_isany(ipaddr) || ip_addr_ismulticast(ipaddr)) {
 			mcastaddr.addr[0] = 0x33;
 			mcastaddr.addr[1] = 0x33;
 			mcastaddr.addr[2] = 0xff;
@@ -718,19 +718,19 @@ etharp_output(struct netif *netif, struct ip_addr *ipaddr, struct pbuf *q)
 			dest = &mcastaddr;
 		}
 		/* destination IP network address not on local network?
-		 * IP layer wants us to forward to the default gateway */
+		* IP layer wants us to forward to the default gateway */
 		else if ((al=ip_addr_list_maskfind(netif->addrs, ipaddr)) == NULL) {
 			return ERR_RTE;
 		}
 	}
+
 	/* XXX XXX XXX */
 	
 	if (dest == NULL) {
 		/* Ethernet address for IP destination address is in ARP cache? */
 		for (i = 0; i < ARP_TABLE_SIZE; ++i) {
 			/* match found? */
-			if (arp_table[i].state == ETHARP_STATE_STABLE &&
-					ip_addr_cmp(ipaddr, &arp_table[i].ipaddr)) {
+			if (arp_table[i].state == ETHARP_STATE_STABLE && ip_addr_cmp(ipaddr, &arp_table[i].ipaddr)) {
 				dest = &arp_table[i].ethaddr;
 				break;
 			}
@@ -742,7 +742,7 @@ etharp_output(struct netif *netif, struct ip_addr *ipaddr, struct pbuf *q)
 			etharp_query(al, ipaddr, q);
 			/* { packet was queued (ERR_OK), or discarded } */
 			/* return nothing */
-
+	
 			/*printf("QUERY NULL!\n");*/
 			return ERR_RTE; /*???*/
 		}
@@ -756,23 +756,24 @@ etharp_output(struct netif *netif, struct ip_addr *ipaddr, struct pbuf *q)
 	if (dest != NULL) {
 		/* obtain source Ethernet address of the given interface */
 		srcaddr = (struct eth_addr *)netif->hwaddr;
-
+	
 		/* A valid IP->MAC address mapping was found, fill in the
 		 * Ethernet header for the outgoing packet */
 		ethhdr = q->payload;
 		if (ip_addr_is_v4comp(ipaddr))
 			ethhdr->type = htons(ETHTYPE_IP);
-		else
+		else    	
 			ethhdr->type = htons(ETHTYPE_IP6);
-
+	
 		for(i = 0; i < netif->hwaddr_len; i++) {
 			ethhdr->dest.addr[i] = dest->addr[i];
 			ethhdr->src.addr[i] = srcaddr->addr[i];
 		}
-
+	
 		/* return the outgoing packet */
 		return LINKOUTPUT(netif, q);;
 	}
+
 	/* never reached; here for safety */
 	return 0;
 }

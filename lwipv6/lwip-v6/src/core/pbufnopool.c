@@ -73,6 +73,7 @@
 #include "lwip/sys.h"
 #include "arch/perf.h"
 
+
 /**
  * Initializes the pbuf module.
  *
@@ -186,6 +187,13 @@ pbuf_alloc(pbuf_layer l, u16_t length, pbuf_flag flag)
     LWIP_ASSERT("pbuf_alloc: erroneous flag", 0);
     return NULL;
   }
+
+/* added by Diego Billi */
+#ifdef LWIP_NAT
+  nat_pbuf_init(p);
+#endif
+
+
   /* set reference count */
   p->ref = 1;
   LWIP_DEBUGF(PBUF_DEBUG | DBG_TRACE | 3, ("pbuf_alloc(length=%u) == %p\n", length, (void *)p));
@@ -428,6 +436,12 @@ pbuf_free(struct pbuf *p)
     if (p->ref == 0) {
       /* remember next pbuf in chain for next iteration */
       q = p->next;
+
+/* added by Diego Billi */
+#ifdef LWIP_NAT
+      nat_pbuf_put(p);
+#endif
+
       LWIP_DEBUGF( PBUF_DEBUG | 2, ("pbuf_free: deallocating %p\n", (void *)p));
       if (p->flags == PBUF_FLAG_ROM || p->flags == PBUF_FLAG_REF) {
         memp_free(MEMP_PBUF, p);
@@ -441,6 +455,7 @@ pbuf_free(struct pbuf *p)
     /* p->ref > 0, this pbuf is still referenced to */
     /* (and so the remaining pbufs in chain as well) */
     } else {
+
       LWIP_DEBUGF( PBUF_DEBUG | 2, ("pbuf_free: %p has ref %u, ending here.\n", (void *)p, (unsigned int)p->ref));
       /* stop walking through the chain */
       p = NULL;

@@ -41,6 +41,7 @@
  * you would like the stack to use.
  */
 /*-----------------------------------------------------------------------------------*/
+#include <stdio.h>
 #include <unistd.h>
 #include <time.h>
 
@@ -60,79 +61,83 @@
 
 #define IFF_RUNNING 0x40
 
-static void
-tcpip_init_done(void *arg)
-{
-  sys_sem_t *sem;
-  sem = arg;
-  sys_sem_signal(*sem);
-}
-
 struct netif *lwip_vdeif_add(void *arg)
 {
+#ifndef IPv6_AUTO_CONFIGURATION
 	struct ip_addr ipaddr, netmask;
+#endif
 	struct netif *pnetif;
-
 	pnetif=mem_malloc(sizeof (struct netif));
 
-	netif_add(pnetif, arg, vdeif_init, tcpip_input);
+	//netif_add(pnetif, arg, vdeif_init, tcpip_input);
+	tcpip_netif_add(pnetif, arg, vdeif_init, tcpip_input);
 
-	IP6_ADDR(&ipaddr, 0xfe80,0x0,0x0,0x0,
-			(pnetif->hwaddr[0]<<8 |pnetif->hwaddr[1]),
-			(pnetif->hwaddr[2]<<8 | 0xff),
-			(0xfe00 | pnetif->hwaddr[3]),
-			(pnetif->hwaddr[4]<<8 |pnetif->hwaddr[5]));
-	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
-	netif_add_addr(pnetif,&ipaddr, &netmask);
+#ifndef IPv6_AUTO_CONFIGURATION
+	//IP6_ADDR(&ipaddr, 0xfe80,0x0,0x0,0x0,
+	//		(pnetif->hwaddr[0]<<8 |pnetif->hwaddr[1]),
+	//		(pnetif->hwaddr[2]<<8 | 0xff),
+	//		(0xfe00 | pnetif->hwaddr[3]),
+	//		(pnetif->hwaddr[4]<<8 |pnetif->hwaddr[5]));
+	//IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
+	//netif_add_addr(pnetif,&ipaddr, &netmask);
+
 
 	/* Link-scope address */
 	IP6_ADDR_LINKSCOPE(&ipaddr, pnetif->hwaddr);
 	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
 	netif_add_addr(pnetif, &ipaddr, &netmask);
 
+#endif
 	return(pnetif);
 }
 
 struct netif *lwip_tapif_add(void *arg)
 {
+#ifndef IPv6_AUTO_CONFIGURATION
 	struct ip_addr ipaddr, netmask;
+#endif
 	struct netif *pnetif;
-
 	pnetif=mem_malloc(sizeof (struct netif));
 
-	netif_add(pnetif, arg, tapif_init, tcpip_input);
+	//netif_add(pnetif, arg, tapif_init, tcpip_input);
+	tcpip_netif_add(pnetif, arg, tapif_init, tcpip_input);
 
-	IP6_ADDR(&ipaddr, 0xfe80,0x0,0x0,0x0,
-			(pnetif->hwaddr[0]<<8 |pnetif->hwaddr[1]),
-			(pnetif->hwaddr[2]<<8 | 0xff),
-			(0xfe00 | pnetif->hwaddr[3]),
-			(pnetif->hwaddr[4]<<8 |pnetif->hwaddr[5]));
-	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
-	netif_add_addr(pnetif,&ipaddr, &netmask);
+#ifndef IPv6_AUTO_CONFIGURATION
+	//IP6_ADDR(&ipaddr, 0xfe80,0x0,0x0,0x0,
+	//		(pnetif->hwaddr[0]<<8 |pnetif->hwaddr[1]),
+	//		(pnetif->hwaddr[2]<<8 | 0xff),
+	//		(0xfe00 | pnetif->hwaddr[3]),
+	//		(pnetif->hwaddr[4]<<8 |pnetif->hwaddr[5]));
+	//IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
+	//netif_add_addr(pnetif,&ipaddr, &netmask);
 
 	/* Link-scope address */
 	IP6_ADDR_LINKSCOPE(&ipaddr, pnetif->hwaddr);
 	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
 	netif_add_addr(pnetif, &ipaddr, &netmask);
-
+#endif
 	return(pnetif);
 }
 
 struct netif *lwip_tunif_add(void *arg)
 {
-	struct netif *pnetif;
+#ifndef IPv6_AUTO_CONFIGURATION
 	struct ip_addr ipaddr, netmask;
-
+#endif	
+	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
 
-	netif_add(pnetif, arg, tunif_init, tcpip_input);
+	//netif_add(pnetif, arg, tunif_init, tcpip_input);
+	tcpip_netif_add(pnetif, arg, tunif_init, tcpip_input);
 
 	/* missing? */
 
 	/* Link-scope address */
+#ifndef IPv6_AUTO_CONFIGURATION
 	IP6_ADDR_LINKSCOPE(&ipaddr, pnetif->hwaddr);
 	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
 	netif_add_addr(pnetif, &ipaddr, &netmask);
+#endif
 
 	return(pnetif);
 }
@@ -142,7 +147,8 @@ static void lwip_loopif_add()
 	static struct netif loopif;
 	struct ip_addr ipaddr, netmask;
 
-	netif_add(&loopif,NULL, loopif_init, tcpip_input);
+	//netif_add(&loopif,NULL, loopif_init, tcpip_input);
+	tcpip_netif_add(&loopif,NULL, loopif_init, tcpip_input);
 
 	IP6_ADDR(&ipaddr, 0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x1);
 	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff);
@@ -195,8 +201,105 @@ int lwip_ifdown(struct netif *netif)
 	return 0;
 }
 
+
+static void
+init_done(void *arg)
+{
+	sys_sem_t *sem;
+	sem = arg;
+	
+	printf("unixlib: lwip init done\n");
+	
+	sys_sem_signal(*sem);
+}
+
+static void
+shutdown_done(void *arg)
+{
+	sys_sem_t *sem;
+	sem = arg;
+	
+	printf("unixlib: lwip shutdown done\n");
+	
+	sys_sem_signal(*sem);
+}
+
+
 extern int _nofdfake;
 void _init(void){
+	sys_sem_t sem;
+
+	if (getenv("_INSIDE_UMVIEW_MODULE") != NULL)
+		_nofdfake=1;
+	srand(getpid()+time(NULL));
+	
+	/* Init stack's structures */
+	stats_init();
+	sys_init();
+	mem_init();
+	memp_init();
+	pbuf_init();
+
+	netif_init();
+
+	sem = sys_sem_new(0);
+	tcpip_init(init_done, &sem);
+	sys_sem_wait(sem);
+	sys_sem_free(sem);
+	
+	//netif_init();
+	
+	lwip_loopif_add();
+}
+
+void _fini(void){
+	sys_sem_t sem;
+
+	sem = sys_sem_new(0);
+	tcpip_shutdown(shutdown_done, &sem);
+	sys_sem_wait(sem);
+	sys_sem_free(sem);
+
+	netif_cleanup();
+}
+
+
+#if 0
+/******************************************************************************/
+
+
+/*
+The idea is to run the stack code in a different thread and
+to comunicate with it (or shutdown it) by using messages.
+
+	main thread          unixlib_thread         tcpip_thread
+	  |
+	  |                        
+	*lib load*                 
+	  _init()..............> *new*
+          |                        | 
+	  |                   tcpip_init()............> *new *
+	  |                        |                      |
+	  |                      *block*                  |
+	  |                                               |
+	  |                                               ...
+	  |                                               |
+	  |                                               |
+          _finit()...........> *unblock*
+	  |                   tcpip_shutdown()....msg...> |       
+	  |                                               *
+	  |                                               
+	  |                                               
+	  |                                               
+	exit
+*/
+
+
+
+sys_sem_t lib_exit_sem;
+
+void unixlib_thread(void *argv)
+{
 	sys_sem_t sem;
 	
 	if (getenv("_INSIDE_UMVIEW_MODULE") != NULL)
@@ -217,8 +320,26 @@ void _init(void){
 	netif_init();
 	
 	lwip_loopif_add();
+
+	/* Block until library unload */
+	lib_exit_sem = sys_sem_new(0);
+}
+
+
+/******************************************************************************/
+
+extern int _nofdfake;
+void _init(void){
+
+	sys_thread_new(unixlib_thread, NULL, TCPIP_THREAD_PRIO);
+
 }
 
 void _fini(void){
+
+	sys_sem_signal(lib_exit_sem);
+
 	netif_cleanup();
 }
+
+#endif

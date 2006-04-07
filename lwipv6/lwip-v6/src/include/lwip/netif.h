@@ -47,6 +47,10 @@
 #endif
 
 
+#ifdef IPv6_AUTO_CONFIGURATION
+#include "lwip/ip_autoconf.h"
+#endif
+
 /** must be the maximum of all used hardware address lengths
     across all types of interfaces in use */
 #define NETIF_MAX_HWADDR_LEN 6U
@@ -101,10 +105,16 @@ struct netif {
 	err_t (* cleanup)(struct netif *netif);
 	/* garbage collection function */
   void *state;
+
 #if LWIP_DHCP
   /** the DHCP client state information for this netif */
   struct dhcp *dhcp;
 #endif
+
+#ifdef IPv6_AUTO_CONFIGURATION
+  struct autoconf autoconf;
+#endif
+
   /** number of bytes used in hwaddr */
   unsigned char hwaddr_len;
   /** link level hardware address of this interface */
@@ -127,6 +137,7 @@ struct netif {
 	u16_t type;
 	/* type */
 #endif
+
 };
 
 /** The list of network interfaces. */

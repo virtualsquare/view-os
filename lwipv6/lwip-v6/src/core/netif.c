@@ -99,6 +99,7 @@ netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
   /* netif not under DHCP control by default */
   netif->dhcp = NULL;
 #endif
+
   /* remember netif specific state information data */
   netif->state = state;
   netif->num = 0;
@@ -115,6 +116,11 @@ netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
     return NULL;
   }
 
+#ifdef IPv6_AUTO_CONFIGURATION  
+  ip_autoconf_netif_init(netif);
+#endif
+
+
   if (netif_list == NULL)
 	  netif_list = netif;
   else
@@ -128,28 +134,36 @@ netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
 int
 netif_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask)
 {
-/* XXX check if this address is compatible */
-  struct ip_addr_list *add;
+	/* XXX check if this address is compatible */
+	struct ip_addr_list *add;
+	
+	if (ip_addr_list_find(netif->addrs, ipaddr, netmask) != NULL) {
+		LWIP_DEBUGF( NETIF_DEBUG, ("netif_add_addr: Address already exists\n") );
+		return -EADDRINUSE;
+	} else {
+		add=ip_addr_list_alloc();
+		if (add==NULL) {
+			LWIP_DEBUGF( NETIF_DEBUG, ("netif_add_addr: NO more available addresses\n") );
+			return -ENOMEM;
+		}
+		else {
 
-  if (ip_addr_list_find(netif->addrs, ipaddr, netmask) != NULL) {
-	  LWIP_DEBUGF( NETIF_DEBUG, ("netif_add_addr: Address already exists\n") );
-	  return -EADDRINUSE;
-  } else {
-	  add=ip_addr_list_alloc();
-	  if (add==NULL) {
-		  LWIP_DEBUGF( NETIF_DEBUG, ("netif_add_addr: NO more available addresses\n") );
-	  	return -ENOMEM;
-	  }
-	  else {
-		  ip_addr_set(&(add->ipaddr),ipaddr);
-		  ip_addr_set(&(add->netmask),netmask);
-		  add->flags=IFA_F_PERMANENT;
-		  add->netif=netif;
-		  ip_addr_list_add(&(netif->addrs),add);
-		  ip_route_list_add(ipaddr,netmask,NULL,netif,0);
-		  return 0;
-	  }
-  }
+#ifdef IPv6_AUTO_CONFIGURATION  
+			/* FIX:	start Duplicate Address Detection on all IPv6 Addresss:
+			   - use netif->addrs_tentative
+			   - Implement a tcpip_start_dad() to set a timeout in the main thread 
+			*/
+#endif
+	
+			ip_addr_set(&(add->ipaddr),ipaddr);
+			ip_addr_set(&(add->netmask),netmask);
+			add->flags=IFA_F_PERMANENT;
+			add->netif=netif;
+			ip_addr_list_add(&(netif->addrs),add);
+			ip_route_list_add(ipaddr,netmask,NULL,netif,0);
+			return 0;
+		}
+	}
 }
 
 static void ip_addr_close(struct ip_addr *ipaddr)
@@ -187,22 +201,26 @@ static void ip_addr_close(struct ip_addr *ipaddr)
 int
 netif_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask)
 {
- struct ip_addr_list *el;
+	struct ip_addr_list *el;
+	
+	if ((el=ip_addr_list_find(netif->addrs, ipaddr, netmask)) == NULL) {
+		LWIP_DEBUGF( NETIF_DEBUG, ("netif_del_addr: Address does not exist\n") );
+		return -EADDRNOTAVAIL;
+	
+	} else
+	{
+#ifdef IPv6_AUTO_CONFIGURATION  
+		/* FIX: what about if i remove link-local address needed for Autoconfiguration? */
+#endif
 
- if ((el=ip_addr_list_find(netif->addrs, ipaddr, netmask)) == NULL) {
-	  LWIP_DEBUGF( NETIF_DEBUG, ("netif_del_addr: Address does not exist\n") );
-	  return -EADDRNOTAVAIL;
-
- } else
- {
-	 /*printf("netif_del_addr %p %x %x\n",netif,
-			 (ipaddr)?ipaddr->addr[3]:0,
-			 (netmask)?netmask->addr[3]:0);*/
-	 ip_addr_close(ipaddr);
-	 ip_route_list_del(ipaddr,netmask,NULL,netif,0);
-	 ip_addr_list_del(&(netif->addrs),el);	 
-	 return 0;
- }
+		/*printf("netif_del_addr %p %x %x\n",netif,
+				(ipaddr)?ipaddr->addr[3]:0,
+				(netmask)?netmask->addr[3]:0);*/
+		ip_addr_close(ipaddr);
+		ip_route_list_del(ipaddr,netmask,NULL,netif,0);
+		ip_addr_list_del(&(netif->addrs),el);	 
+		return 0;
+	}
 }
 
 void netif_remove(struct netif * netif)
@@ -240,47 +258,46 @@ void netif_remove(struct netif * netif)
 struct netif *
 netif_find(char *name)
 {
-  struct netif *netif;
-  u8_t num;
-
-  if (name == NULL) {
-    return NULL;
-  }
-
-  if (name[2] >= '0'  && name [2] <= '9')
+	struct netif *netif;
+	u8_t num;
+	
+	if (name == NULL) {
+		return NULL;
+	}
+	
+	if (name[2] >= '0'  && name [2] <= '9')
 		num = name[2] - '0';
 	else
 		num = 0;
-
-  for(netif = netif_list; netif != NULL; netif = netif->next) {
-    if (num == netif->num &&
-       name[0] == netif->name[0] &&
-       name[1] == netif->name[1]) {
-      LWIP_DEBUGF(NETIF_DEBUG, ("netif_find: found %c%c\n", name[0], name[1]));
-      return netif;
-    }
-  }
-  LWIP_DEBUGF(NETIF_DEBUG, ("netif_find: didn't find %c%c\n", name[0], name[1]));
-  return NULL;
+	
+	for(netif = netif_list; netif != NULL; netif = netif->next) {
+		if (num == netif->num && 
+		    name[0] == netif->name[0] && name[1] == netif->name[1]) {
+			LWIP_DEBUGF(NETIF_DEBUG, ("netif_find: found %c%c\n", name[0], name[1]));
+			return netif;
+		}
+	}
+	LWIP_DEBUGF(NETIF_DEBUG, ("netif_find: didn't find %c%c\n", name[0], name[1]));
+	return NULL;
 }
 
 struct netif *
 netif_find_id(int id)
 {
-  struct netif *nip;
-
-  for (nip=netif_list; nip!=NULL && nip->id != id; nip=nip->next)
-	  ;
-
-  return nip;
+	struct netif *nip;
+	
+	for (nip=netif_list; nip!=NULL && nip->id != id; nip=nip->next)
+		;
+	
+	return nip;
 }
 
 struct netif *
 netif_find_direct_destination(struct ip_addr *addr)
 {
 	struct netif *nip;
-	for (nip=netif_list;
-			nip!=NULL && ip_addr_list_maskfind(nip->addrs,addr) == NULL;
+	for (nip=netif_list; 
+		nip!=NULL && ip_addr_list_maskfind(nip->addrs,addr) == NULL;
 			nip=nip->next)
 		;
 	return nip;
@@ -289,17 +306,17 @@ netif_find_direct_destination(struct ip_addr *addr)
 void
 netif_init(void)
 {
-  ip_addr_list_init();
-  ip_route_list_init();
-  netif_list = NULL;
+	ip_addr_list_init();
+	ip_route_list_init();
+	netif_list = NULL;
 }
 
 void
 netif_cleanup(void)
 {
-  struct netif *nip;
-
-  for (nip=netif_list; nip!=NULL; nip=nip->next)
+	struct netif *nip;
+	
+	for (nip=netif_list; nip!=NULL; nip=nip->next)
 		if (nip->cleanup)
 			nip->cleanup(nip);
 }

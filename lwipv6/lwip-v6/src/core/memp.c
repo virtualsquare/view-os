@@ -45,6 +45,12 @@
 #include "lwip/sys.h"
 #include "lwip/stats.h"
 
+/* added by Diego Billi */
+#ifdef LWIP_NAT
+#include "lwip/nat/nat.h"
+#endif
+
+
 struct memp {
   struct memp *next;
 };
@@ -65,6 +71,14 @@ static const u16_t memp_sizes[MEMP_MAX] = {
   sizeof(struct api_msg),
   sizeof(struct tcpip_msg),
   sizeof(struct sys_timeout)
+
+/* added by Diego Billi */
+#ifdef LWIP_NAT
+  ,
+  sizeof(struct nat_pcb),
+  sizeof(struct nat_rule)
+#endif
+
 };
 
 static const u16_t memp_num[MEMP_MAX] = {
@@ -79,6 +93,14 @@ static const u16_t memp_num[MEMP_MAX] = {
   MEMP_NUM_API_MSG,
   MEMP_NUM_TCPIP_MSG,
   MEMP_NUM_SYS_TIMEOUT
+
+/* added by Diego Billi */
+#ifdef LWIP_NAT
+  ,
+  MEMP_NUM_NAT_PCB,
+  MEMP_NUM_NAT_RULE
+#endif
+
 };
 
 static u8_t memp_memory[(MEMP_NUM_PBUF *
@@ -113,7 +135,19 @@ static u8_t memp_memory[(MEMP_NUM_PBUF *
           sizeof(struct memp)) +
       MEMP_NUM_SYS_TIMEOUT *
        MEM_ALIGN_SIZE(sizeof(struct sys_timeout) +
-          sizeof(struct memp)))];
+          sizeof(struct memp))
+
+/* added by Diego Billi */
+#ifdef LWIP_NAT
+      +
+      MEMP_NUM_NAT_PCB *
+       MEM_ALIGN_SIZE(sizeof(struct nat_pcb) +
+          sizeof(struct memp)) +
+      MEMP_NUM_NAT_RULE *
+       MEM_ALIGN_SIZE(sizeof(struct nat_rule) +
+          sizeof(struct memp)) 
+#endif
+	)];
 
 
 #if !SYS_LIGHTWEIGHT_PROT

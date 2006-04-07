@@ -51,6 +51,11 @@
 
 #include "netif/etharp.h"
 
+#ifdef IPv6_AUTO_CONFIGURATION
+#include "lwip/ip_autoconf.h"
+#endif
+
+
 #if defined(LWIP_DEBUG) && defined(LWIP_TCPDUMP)
 #include "netif/tcpdump.h"
 #endif /* LWIP_DEBUG && LWIP_TCPDUMP */
@@ -82,8 +87,7 @@ struct tapif {
 
 /* Forward declarations. */
 static void  tapif_input(struct netif *netif);
-static err_t tapif_output(struct netif *netif, struct pbuf *p,
-			       struct ip_addr *ipaddr);
+static err_t tapif_output(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr);
 
 static void tapif_thread(void *data);
 
@@ -91,48 +95,60 @@ static void tapif_thread(void *data);
 static int
 low_level_init(struct netif *netif)
 {
-  struct tapif *tapif;
-
-  tapif = netif->state;
-  
-  /* Obtain MAC address from network interface. */
-
-  /* (We just fake an address...) */
-  tapif->ethaddr->addr[0] = 0x2;
-  tapif->ethaddr->addr[1] = 0x2;
-  tapif->ethaddr->addr[2] = 0x3;
-  tapif->ethaddr->addr[3] = 0x4;
-  tapif->ethaddr->addr[4] = 0x5;
-  tapif->ethaddr->addr[5] = 0x6;
-
-  /* Do whatever else is needed to initialize interface. */
-  
-  tapif->fd = open(DEVTAP, O_RDWR);
-  LWIP_DEBUGF(TAPIF_DEBUG, ("tapif_init: fd %d\n", tapif->fd));
-  if(tapif->fd == -1) {
+	struct tapif *tapif;
+	
+	tapif = netif->state;
+	
+	/* Obtain MAC address from network interface. */
+	
+	/* (We just fake an address...) */
+	tapif->ethaddr->addr[0] = 0x2;
+	tapif->ethaddr->addr[1] = 0x2;
+	tapif->ethaddr->addr[2] = 0x3;
+	tapif->ethaddr->addr[3] = 0x4;
+	tapif->ethaddr->addr[4] = 0x5;
+	tapif->ethaddr->addr[5] = 0x6;
+	
+	/* Do whatever else is needed to initialize interface. */
+	
+	tapif->fd = open(DEVTAP, O_RDWR);
+	LWIP_DEBUGF(TAPIF_DEBUG, ("tapif_init: fd %d\n", tapif->fd));
+	if(tapif->fd == -1) {
 #ifdef linux
-    perror("tapif_init: try running \"modprobe tun\" or rebuilding your kernel with CONFIG_TUN; cannot open "DEVTAP);
+		perror("tapif_init: try running \"modprobe tun\" or rebuilding your kernel with CONFIG_TUN; cannot open "DEVTAP);
 #else
-    perror("tapif_init: cannot open "DEVTAP);
+		perror("tapif_init: cannot open "DEVTAP);
 #endif
 		return ERR_IF;
-  }
+	}
 #ifdef linux
-  {
-    struct ifreq ifr;
-    memset(&ifr, 0, sizeof(ifr));
-    ifr.ifr_flags = IFF_TAP|IFF_NO_PI;
-    if (ioctl(tapif->fd, TUNSETIFF, (void *) &ifr) < 0) {
-      perror("tapif_init: DEVTAP ioctl TUNSETIFF");
+	{
+		struct ifreq ifr;
+		memset(&ifr, 0, sizeof(ifr));
+		ifr.ifr_flags = IFF_TAP|IFF_NO_PI;
+		if (ioctl(tapif->fd, TUNSETIFF, (void *) &ifr) < 0) {
+		perror("tapif_init: DEVTAP ioctl TUNSETIFF");
 			return ERR_IF;
-    }
-  }
+		}
+	}
 #endif /* Linux */
 
-  sys_thread_new(tapif_thread, netif, DEFAULT_THREAD_PRIO);
+	sys_thread_new(tapif_thread, netif, DEFAULT_THREAD_PRIO);
 	return ERR_OK;
-
 }
+
+/* cleanup: garbage collection */
+static err_t cleanup(struct netif *netif)
+{
+	struct tapif *tapif = netif->state;
+
+	if (tapif) {
+		close(tapif->fd);
+	}
+	return ERR_OK;
+}
+
+
 /*-----------------------------------------------------------------------------------*/
 /*
  * low_level_output():
@@ -147,37 +163,37 @@ low_level_init(struct netif *netif)
 static err_t
 low_level_output(struct netif *netif, struct pbuf *p)
 {
-  struct pbuf *q;
-  char buf[1514];
-  char *bufptr;
-  struct tapif *tapif;
-
-  tapif = netif->state;
+	struct pbuf *q;
+	char buf[1514];
+	char *bufptr;
+	struct tapif *tapif;
+	
+	tapif = netif->state;
 #if 0  
-    if(((double)rand()/(double)RAND_MAX) < 0.2) {
-    printf("drop output\n");
-    return ERR_OK;
-    }
+	if(((double)rand()/(double)RAND_MAX) < 0.2) {
+	printf("drop output\n");
+	return ERR_OK;
+	}
 #endif 
-  /* initiate transfer(); */
-  
-  bufptr = &buf[0];
-  
-  for(q = p; q != NULL; q = q->next) {
-	//printf("%s: q->len=%d   tot_len=%d\n", __func__, q->len, p->tot_len);
-    /* Send the data from the pbuf to the interface, one pbuf at a
-       time. The size of the data in each pbuf is kept in the ->len
-       variable. */    
-    /* send data from(q->payload, q->len); */
-    memcpy(bufptr, q->payload, q->len);
-    bufptr += q->len;
-  }
-
-  /* signal that packet should be sent(); */
-  if(write(tapif->fd, buf, p->tot_len) == -1) {
-    perror("tapif: write");
-  }
-  return ERR_OK;
+	/* initiate transfer(); */
+	
+	bufptr = &buf[0];
+	
+	for(q = p; q != NULL; q = q->next) {
+		//printf("%s: q->len=%d   tot_len=%d\n", __func__, q->len, p->tot_len);
+		/* Send the data from the pbuf to the interface, one pbuf at a
+		time. The size of the data in each pbuf is kept in the ->len
+		variable. */    
+		/* send data from(q->payload, q->len); */
+		memcpy(bufptr, q->payload, q->len);
+		bufptr += q->len;
+	}
+	
+	/* signal that packet should be sent(); */
+	if(write(tapif->fd, buf, p->tot_len) == -1) {
+		perror("tapif: write");
+	}
+	return ERR_OK;
 }
 /*-----------------------------------------------------------------------------------*/
 /*
@@ -191,83 +207,85 @@ low_level_output(struct netif *netif, struct pbuf *p)
 static struct pbuf *
 low_level_input(struct tapif *tapif,u16_t ifflags)
 {
-  struct pbuf *p, *q;
-  u16_t len;
-  char buf[1514];
-  char *bufptr;
-
-  /* Obtain the size of the packet and put it into the "len"
-     variable. */
-  len = read(tapif->fd, buf, sizeof(buf));
+	struct pbuf *p, *q;
+	u16_t len;
+	char buf[1514];
+	char *bufptr;
+	
+	/* Obtain the size of the packet and put it into the "len"
+	variable. */
+	len = read(tapif->fd, buf, sizeof(buf));
 #if 0
-    if(((double)rand()/(double)RAND_MAX) < 0.2) {
-    printf("drop\n");
-    return NULL;
-    }
+	if(((double)rand()/(double)RAND_MAX) < 0.2) {
+	printf("drop\n");
+	return NULL;
+	}
 #endif
-		if (!(ETH_RECEIVING_RULE(buf,tapif->ethaddr->addr,ifflags))) {
-			return NULL;
+	if (!(ETH_RECEIVING_RULE(buf,tapif->ethaddr->addr,ifflags))) {
+		return NULL;
+	}
+
+  
+	/* We allocate a pbuf chain of pbufs from the pool. */
+	p = pbuf_alloc(PBUF_RAW, len, PBUF_POOL);
+	
+	if(p != NULL) {
+		/* We iterate over the pbuf chain until we have read the entire
+		packet into the pbuf. */
+		bufptr = &buf[0];
+		for(q = p; q != NULL; q = q->next) {
+			/* Read enough bytes to fill this pbuf in the chain. The
+			available data in the pbuf is given by the q->len
+			variable. */
+			/* read data into(q->payload, q->len); */
+			memcpy(q->payload, bufptr, q->len);
+			bufptr += q->len;
 		}
+		/* acknowledge that packet has been read(); */
+	} else {
+		/* drop packet(); */
+	}
 
-  
-  /* We allocate a pbuf chain of pbufs from the pool. */
-  p = pbuf_alloc(PBUF_RAW, len, PBUF_POOL);
-  
-  if(p != NULL) {
-    /* We iterate over the pbuf chain until we have read the entire
-       packet into the pbuf. */
-    bufptr = &buf[0];
-    for(q = p; q != NULL; q = q->next) {
-      /* Read enough bytes to fill this pbuf in the chain. The
-         available data in the pbuf is given by the q->len
-         variable. */
-      /* read data into(q->payload, q->len); */
-      memcpy(q->payload, bufptr, q->len);
-      bufptr += q->len;
-    }
-    /* acknowledge that packet has been read(); */
-  } else {
-    /* drop packet(); */
-  }
-
-  return p;  
+	return p;  
 }
 /*-----------------------------------------------------------------------------------*/
 static void 
 tapif_thread(void *arg)
 {
-  struct netif *netif;
-  struct tapif *tapif;
-  fd_set fdset;
-  int ret;
-	struct timeval tv;
-  
-  netif = arg;
-  tapif = netif->state;
-
-	tv.tv_sec=ARP_TMR_INTERVAL/1000;
-	tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
-  
-  while(1) {
-    FD_ZERO(&fdset);
-    FD_SET(tapif->fd, &fdset);
-
-    /* Wait for a packet to arrive. */
-    ret = select(tapif->fd + 1, &fdset, NULL, NULL, NULL);
-
-		if (tv.tv_sec == 0 && tv.tv_usec==0) {
-			etharp_tmr(netif);
-			tv.tv_sec=ARP_TMR_INTERVAL/1000;
-			tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
+	struct netif *netif;
+	struct tapif *tapif;
+	fd_set fdset;
+	int ret;
+	//struct timeval tv;
+	
+	netif = arg;
+	tapif = netif->state;
+	
+	//tv.tv_sec=ARP_TMR_INTERVAL/1000;
+	//tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
+	
+	while(1) {
+	
+		FD_ZERO(&fdset);
+		FD_SET(tapif->fd, &fdset);
+	
+		/* Wait for a packet to arrive. */
+		//ret = select(tapif->fd + 1, &fdset, NULL, NULL, &tv);
+		ret = select(tapif->fd + 1, &fdset, NULL, NULL, NULL);
+	
+		//if (tv.tv_sec == 0 && tv.tv_usec==0) {
+		//	etharp_tmr(netif);
+		//	tv.tv_sec=ARP_TMR_INTERVAL/1000;
+		//	tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
+		//}
+	
+		if(ret == 1) {
+			/* Handle incoming packet. */
+			tapif_input(netif);
+		} else if(ret == -1) {
+			perror("tapif_thread: select");
 		}
-
-    if(ret == 1) {
-      /* Handle incoming packet. */
-      tapif_input(netif);
-    } else if(ret == -1) {
-      perror("tapif_thread: select");
-    }
-  }
+	}
 }
 /*-----------------------------------------------------------------------------------*/
 /*
@@ -280,8 +298,7 @@ tapif_thread(void *arg)
  */
 /*-----------------------------------------------------------------------------------*/
 static err_t
-tapif_output(struct netif *netif, struct pbuf *p,
-		  struct ip_addr *ipaddr)
+tapif_output(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr)
 {
 	if (! (netif->flags & NETIF_FLAG_UP)) {
 		LWIP_DEBUGF(TAPIF_DEBUG, ("tapif_output: interface DOWN, discarded\n"));
@@ -303,53 +320,65 @@ tapif_output(struct netif *netif, struct pbuf *p,
 static void
 tapif_input(struct netif *netif)
 {
-  struct tapif *tapif;
-  struct eth_hdr *ethhdr;
-  struct pbuf *p;
-
-
-  tapif = netif->state;
-  
-  p = low_level_input(tapif,netif->flags);
-
-  if(p == NULL) {
-    LWIP_DEBUGF(TAPIF_DEBUG, ("tapif_input: low_level_input returned NULL\n"));
-    return;
-  }
-  ethhdr = p->payload;
-
+	struct tapif *tapif;
+	struct eth_hdr *ethhdr;
+	struct pbuf *p;
+	
+	
+	tapif = netif->state;
+	
+	p = low_level_input(tapif,netif->flags);
+	
+	if(p == NULL) {
+		LWIP_DEBUGF(TAPIF_DEBUG, ("tapif_input: low_level_input returned NULL\n"));
+		return;
+	}
+	ethhdr = p->payload;
+	
 #ifdef LWIP_PACKET
-	  ETH_CHECK_PACKET_IN(netif,p);
+	ETH_CHECK_PACKET_IN(netif,p);
 #endif
-  switch(htons(ethhdr->type)) {
+	switch(htons(ethhdr->type)) {
 #ifdef IPv6
-  case ETHTYPE_IP6:
+		case ETHTYPE_IP6:
 #endif
-  case ETHTYPE_IP:
-    LWIP_DEBUGF(TAPIF_DEBUG, ("tapif_input: IP packet\n"));
-    etharp_ip_input(netif, p);
-    pbuf_header(p, -14);
+		case ETHTYPE_IP:
+			LWIP_DEBUGF(TAPIF_DEBUG, ("tapif_input: IP packet\n"));
+			etharp_ip_input(netif, p);
+			pbuf_header(p, -14);
 #if defined(LWIP_DEBUG) && defined(LWIP_TCPDUMP)
-    tcpdump(p);
+			tcpdump(p);
 #endif /* LWIP_DEBUG && LWIP_TCPDUMP */
-    netif->input(p, netif);
-    break;
-  case ETHTYPE_ARP:
-    LWIP_DEBUGF(TAPIF_DEBUG, ("tapif_input: ARP packet\n"));
-    etharp_arp_input(netif, tapif->ethaddr, p);
-    break;
-  default:
-    pbuf_free(p);
-    break;
-  }
+			netif->input(p, netif);
+			break;
+		case ETHTYPE_ARP:
+			LWIP_DEBUGF(TAPIF_DEBUG, ("tapif_input: ARP packet\n"));
+			etharp_arp_input(netif, tapif->ethaddr, p);
+			break;
+		default:
+			pbuf_free(p);
+			break;
+	}
 }
+
 /*-----------------------------------------------------------------------------------*/
-/*static void
+
+static void
 arp_timer(void *arg)
 {
-  etharp_tmr(arg);
-  sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, arg);
-}*/
+	etharp_tmr((struct netif *) arg );
+	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, arg);
+}
+
+#ifdef IPv6_AUTO_CONFIGURATION  
+static void
+ipv6_autoconf_timer(void *arg)
+{
+	ip_autoconf_tmr((struct netif *) arg);
+	sys_timeout(AUTOCONF_TMR_INTERVAL, (sys_timeout_handler)ipv6_autoconf_timer, arg);
+}
+#endif
+
 /*-----------------------------------------------------------------------------------*/
 /*
  * tapif_init():
@@ -363,32 +392,38 @@ arp_timer(void *arg)
 err_t
 tapif_init(struct netif *netif)
 {
-  struct tapif *tapif;
+	struct tapif *tapif;
 	static u8_t num=0;
-    
-  tapif = mem_malloc(sizeof(struct tapif));
-  if (!tapif)
-      return ERR_MEM;
-  netif->state = tapif;
-  netif->name[0] = IFNAME0;
-  netif->name[1] = IFNAME1;
+	
+	tapif = mem_malloc(sizeof(struct tapif));
+	if (!tapif)
+		return ERR_MEM;
+	netif->state = tapif;
+	netif->name[0] = IFNAME0;
+	netif->name[1] = IFNAME1;
 	netif->num=num++;
-  netif->output = tapif_output;
-  netif->linkoutput = low_level_output;
-  netif->mtu = 1500; 	 
-  /* hardware address length */
-  netif->hwaddr_len = 6;
+	netif->output = tapif_output;
+	netif->linkoutput = low_level_output;
+	netif->cleanup = cleanup;
+	netif->mtu = 1500; 	 
+	/* hardware address length */
+	netif->hwaddr_len = 6;
 	netif->flags|=NETIF_FLAG_BROADCAST;
-  
-  tapif->ethaddr = (struct eth_addr *)&(netif->hwaddr[0]);
+	
+	tapif->ethaddr = (struct eth_addr *)&(netif->hwaddr[0]);
 	if (low_level_init(netif) < 0) {
 		mem_free(tapif);
 		return ERR_IF;
 	}
+	
+	etharp_init();
+	
+	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, tapif);
 
-  etharp_init();
-  
-  /*sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, tapif);*/
-  return ERR_OK;
+#ifdef IPv6_AUTO_CONFIGURATION
+	sys_timeout(AUTOCONF_TMR_INTERVAL, (sys_timeout_handler)ipv6_autoconf_timer, netif);
+#endif
+
+	return ERR_OK;
 }
 /*-----------------------------------------------------------------------------------*/

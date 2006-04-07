@@ -286,7 +286,7 @@ struct pbuf *ip4_reass(struct pbuf *p)
 		/* If the offset or the offset + fragment length overflows the
 		   reassembly buffer, we discard the entire packet. */
 		if (offset > IP_REASS_BUFSIZE || offset + len > IP_REASS_BUFSIZE) {
-			LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: fragment outside of buffer (%d:%d/%d).\n", UINT offset, UINT offset + len, IP_REASS_BUFSIZE));
+			LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: fragment outside of buffer (%d:%d/%d).\n", UINT offset, UINT (offset + len), UINT IP_REASS_BUFSIZE));
 			/* Make this entry empty */
 			CLEAR_ENTRY( & ip_reassembly_pool[pos] );
 			LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: remove entry %d.\n", pos));
@@ -294,7 +294,7 @@ struct pbuf *ip4_reass(struct pbuf *p)
 		}
 
 		/* Copy the fragment into the reassembly buffer, at the right offset. */
-		LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: copying with offset %d into %d:%d\n", UINT offset, UINT IP4_HLEN + offset, UINT IP4_HLEN + offset + len));
+		LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: copying with offset %d into %d:%d\n", UINT offset, UINT (IP4_HLEN + offset), UINT (IP4_HLEN + offset + len)));
 		i = IPH4_HL(fragment_hdr) * 4;
 
 		copy_from_pbuf(p, &i, &ip_reassembly_pool[pos].buf[offset], len);
@@ -362,7 +362,10 @@ struct pbuf *ip4_reass(struct pbuf *p)
 					/* Copy enough bytes to fill this pbuf in the chain. The
 					   available data in the pbuf is given by the q->len
 					   variable. */
-					LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: memcpy from %p (%d) to %p, %d bytes\n", (void *) &ip_reassembly_pool[pos].buf[i], i, q->payload, q->len > ip_reassembly_pool[pos].len - i ? ip_reassembly_pool[pos].len - i : q->len));
+					LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: memcpy from %p (%d) to %p, %d bytes\n", 
+						(void *) &ip_reassembly_pool[pos].buf[i], i, 
+						q->payload, q->len > (ip_reassembly_pool[pos].len - i) ? 
+							ip_reassembly_pool[pos].len - i : q->len));
 					memcpy(q->payload, &ip_reassembly_pool[pos].buf[i], q->len > ip_reassembly_pool[pos].len - i ? ip_reassembly_pool[pos].len - i : q->len);
 					i += q->len;
 				}
@@ -572,7 +575,7 @@ struct pbuf *ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_ex
 		/* If the offset or the offset + fragment length overflows the
 		   reassembly buffer, we discard the entire packet. */
 		if (offset > IP_REASS_BUFSIZE || offset + len > IP_REASS_BUFSIZE) {
-			LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: fragment outside of buffer (%d:%d/%d).\n", UINT offset, UINT offset + len, UINT IP_REASS_BUFSIZE));
+			LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: fragment outside of buffer (%d:%d/%d).\n", UINT offset, UINT (offset + len), UINT IP_REASS_BUFSIZE));
 			/* Make this entry empty */
 			LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: remove entry %d.\n", pos));
 			CLEAR_ENTRY( & ip_reassembly_pool[pos] );
@@ -580,7 +583,7 @@ struct pbuf *ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_ex
 		}
 
 		/* Copy the fragment into the reassembly buffer, at the right offset. */
-		LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: copying with offset %d into %d:%d\n",UINT offset,  UINT unfragpart_len + offset,  UINT unfragpart_len + offset + len));
+		LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: copying with offset %d into %d:%d\n",UINT offset,  UINT (unfragpart_len + offset),  UINT (unfragpart_len + offset + len)));
 		i = unfragpart_len + sizeof(struct ip6_fraghdr);
 		copy_from_pbuf(p, &i, &ip_reassembly_pool[pos].buf[offset], len);
 

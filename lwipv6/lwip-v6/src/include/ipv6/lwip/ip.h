@@ -195,11 +195,11 @@ struct ip6_option {
     ??1? ???? - Option Data may change en-route.
 */
 #define IP6_OPT_SKIP(opt)             (((opt)->type & 0xC0) == 0) 
-#define IP6_OPT_DISCARD(opt)          ((opt)->type & 0x40 ) 
-#define IP6_OPT_INVALID(opt)          ((opt)->type & 0x80 ) 
-#define IP6_OPT_INVALID_NOTMULTI(opt) ((opt)->type & 0xC0 ) 
+#define IP6_OPT_DISCARD(opt)          ((opt)->type & 0x40) 
+#define IP6_OPT_INVALID(opt)          ((opt)->type & 0x80) 
+#define IP6_OPT_INVALID_NOTMULTI(opt) ((opt)->type & 0xC0) 
 #define IP6_OPT_DONTCHANGE(opt)       (((opt)->type & 0x20) == 0)
-#define IP6_OPT_CHANGE(opt)           ((opt)->type & 0x20 ) 
+#define IP6_OPT_CHANGE(opt)           ((opt)->type & 0x20) 
 
 #define IP6_OPT_LEN(opt)              ((opt)->len * 8)
 
@@ -303,6 +303,10 @@ err_t ip_output(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 err_t ip_output_if(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 		unsigned char ttl, unsigned char tos, unsigned char proto,
 		struct netif *netif, struct ip_addr *nexthop, int flags);
+
+
+err_t ip_output_raw(struct pbuf *p, struct netif *out, struct ip_addr *nexthop);
+
 
 #if IP_DEBUG
 void ip_debug_print(int how, struct pbuf *p);

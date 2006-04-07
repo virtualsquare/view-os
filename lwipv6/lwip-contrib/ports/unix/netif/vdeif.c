@@ -68,6 +68,10 @@
 
 #include "netif/etharp.h"
 
+#ifdef IPv6_AUTO_CONFIGURATION
+#include "lwip/ip_autoconf.h"
+#endif
+
 #if LWIP_NL
 #include "lwip/arphdr.h"
 #endif
@@ -272,6 +276,18 @@ static int low_level_init(struct netif *netif, char *path)
 	}
 }
 
+/* cleanup: garbage collection */
+static err_t cleanup(struct netif *netif)
+{
+	struct vdeif *vdeif = netif->state;
+
+	if (vdeif) {
+		unlink(vdeif->datain.sun_path);
+	}
+	return ERR_OK;
+}
+
+
 /*-----------------------------------------------------------------------------------*/
 /*
  * low_level_output():
@@ -374,13 +390,13 @@ static void vdeif_thread(void *arg)
 	struct vdeif *vdeif;
 	fd_set fdset;
 	int ret;
-	struct timeval tv;
+	//struct timeval tv;
 
 	netif = arg;
 	vdeif = netif->state;
 
-	tv.tv_sec = ARP_TMR_INTERVAL / 1000;
-	tv.tv_usec = (ARP_TMR_INTERVAL % 1000) * 1000;
+	//tv.tv_sec = ARP_TMR_INTERVAL / 1000;
+	//tv.tv_usec = (ARP_TMR_INTERVAL % 1000) * 1000;
 
 	while (1) {
 		FD_ZERO(&fdset);
@@ -388,13 +404,15 @@ static void vdeif_thread(void *arg)
 
 		LWIP_DEBUGF(VDEIF_DEBUG, ("vde_thread: waiting4packet\n"));
 		/* Wait for a packet to arrive. */
-		ret = select(vdeif->fddata + 1, &fdset, NULL, NULL, &tv);
+		//ret = select(vdeif->fddata + 1, &fdset, NULL, NULL, &tv);
+		ret = select(vdeif->fddata + 1, &fdset, NULL, NULL, NULL);
 
-		if (tv.tv_sec == 0 && tv.tv_usec == 0) {
-			etharp_tmr(netif);
-			tv.tv_sec = ARP_TMR_INTERVAL / 1000;
-			tv.tv_usec = (ARP_TMR_INTERVAL % 1000) * 1000;
-		}
+		//if (tv.tv_sec == 0 && tv.tv_usec == 0) {
+		//	etharp_tmr(netif);
+		//	tv.tv_sec = ARP_TMR_INTERVAL / 1000;
+		//	tv.tv_usec = (ARP_TMR_INTERVAL % 1000) * 1000;
+		//}
+
 		if (ret == 1) {
 			/* Handle incoming packet. */
 			vdeif_input(netif);
@@ -488,16 +506,23 @@ static void vdeif_input(struct netif *netif)
 	}
 }
 
-/* cleanup: garbage collection */
-static err_t cleanup(struct netif *netif)
-{
-	struct vdeif *vdeif = netif->state;
+/*-----------------------------------------------------------------------------------*/
 
-	if (vdeif) {
-		unlink(vdeif->datain.sun_path);
-	}
-	return ERR_OK;
+static void
+arp_timer(void *arg)
+{
+	etharp_tmr((struct netif *) arg );
+	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, arg);
 }
+
+#ifdef IPv6_AUTO_CONFIGURATION  
+static void
+ipv6_autoconf_timer(void *arg)
+{
+	ip_autoconf_tmr((struct netif *) arg);
+	sys_timeout(AUTOCONF_TMR_INTERVAL, (sys_timeout_handler)ipv6_autoconf_timer, arg);
+}
+#endif
 
 /*-----------------------------------------------------------------------------------*/
 /*
@@ -520,7 +545,7 @@ err_t vdeif_init(struct netif * netif)
 	if (!vdeif)
 		return ERR_MEM;
 
-	path = netif->state;					/*state is temporarily used to store the VDE path */
+	path = netif->state; /*state is temporarily used to store the VDE path */
 	netif->state = vdeif;
 	netif->name[0] = IFNAME0;
 	netif->name[1] = IFNAME1;
@@ -544,7 +569,12 @@ err_t vdeif_init(struct netif * netif)
 
 	etharp_init();
 
-/*  sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, netif);*/
+	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, netif);
+
+#ifdef IPv6_AUTO_CONFIGURATION
+	sys_timeout(AUTOCONF_TMR_INTERVAL, (sys_timeout_handler)ipv6_autoconf_timer, netif);
+#endif
+
 	return ERR_OK;
 }
 

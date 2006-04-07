@@ -46,6 +46,11 @@
 #include "lwip/sys.h"
 #include "lwip/stats.h"
 
+/* added by Diego Billi */
+#ifdef LWIP_NAT
+#include "lwip/nat/nat.h"
+#endif
+
 static const u16_t memp_sizes[MEMP_MAX] = {
   sizeof(struct pbuf),
   sizeof(struct raw_pcb),
@@ -58,6 +63,13 @@ static const u16_t memp_sizes[MEMP_MAX] = {
   sizeof(struct api_msg),
   sizeof(struct tcpip_msg),
   sizeof(struct sys_timeout)
+
+/* added by Diego Billi */
+#ifdef LWIP_NAT
+  ,
+  sizeof(struct nat_pcb),
+  sizeof(struct nat_rule)
+#endif
 };
 
 void

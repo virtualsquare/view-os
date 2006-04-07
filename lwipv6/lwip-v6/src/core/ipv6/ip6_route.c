@@ -86,6 +86,21 @@ err_t ip_route_list_add(struct ip_addr *addr, struct ip_addr *netmask, struct ip
 	else {
 		struct ip_route_list **dp=(&ip_route_head);
 		struct ip_route_list *el=ip_route_freelist;
+
+
+		/* Find duplicate */
+		while (*dp != NULL && 
+			((!ip_addr_cmp(&((*dp)->addr),addr)) || 
+				(!ip_addr_cmp(&((*dp)->netmask),netmask)) ||
+				(!ip_addr_cmp(&((*dp)->nexthop),nexthop) && (*dp)->netif != netif)) )
+			dp = &((*dp)->next);
+	
+		if (*dp != NULL)
+			return ERR_CONN;
+
+		
+		dp=(&ip_route_head);
+
 		ip_route_freelist=ip_route_freelist->next;
 		ip_addr_set_mask(&(el->addr),addr,netmask);
 		ip_addr_set(&(el->netmask),netmask);

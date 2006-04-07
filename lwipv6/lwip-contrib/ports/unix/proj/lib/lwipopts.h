@@ -241,47 +241,57 @@ a lot of data that needs to be copied, this should be set high. */
 #define DBG_TYPES_ON    (DBG_ON|DBG_TRACE|DBG_STATE|DBG_FRESH|DBG_HALT)
 
 /* Memory Debug */
-//#define MEMP_DEBUG DBG_ON
-//#define PBUF_DEBUG DBG_ON
+#define MEMP_DEBUG                  DBG_OFF
+#define PBUF_DEBUG                  DBG_OFF
 
 /* Ethernet layer debug */
-//#define ETHARP_DEBUG    DBG_ON
+#define ETHARP_DEBUG                DBG_OFF
 
 	/* VDE interface debug */
-	//#define VDEIF_DEBUG    DBG_ON
+	#define VDEIF_DEBUG         DBG_OFF
 
 	/* TUN interface debug */
-	//#define TUNIF_DEBUG    DBG_ON
+	#define TUNIF_DEBUG         DBG_OFF
 
 	/* TAP interface debug */
-	//#define TAPIF_DEBUG    DBG_ON
+	#define TAPIF_DEBUG         DBG_OFF
 
 /* IP Layer debug */
-//#define IP_DEBUG DBG_ON
+#define IP_DEBUG                    DBG_ON
 
+/* De/Fragmentation code (IPv4, IPv6) debug */
 #if defined(IPv4_FRAGMENTATION) || defined (IPv6_FRAGMENTATION)
-	/* De/Fragmentation code (IPv4, IPv6) debug */
-	//#define IP_REASS_DEBUG    DBG_ON
+	#define IP_REASS_DEBUG      DBG_OFF
 #endif
 
+/* PathMTU Discovery Protocol debug. Code not working yet */
 #ifdef IPv6_PMTU_DISCOVERY
-	/* PathMTU Discovery Protocol debug. Code not working yet */
-	//#define PMTU_DEBUG    DBG_ON
+	#define PMTU_DEBUG          DBG_OFF
 #endif
 
-#ifdef USERFILTER
-	/* UserFilter sub-system debug  */
-	//#define USERFILTER_DEBUG    DBG_ON
+#ifdef IPv6_AUTO_CONFIGURATION
+	#define IP_AUTOCONF_DEBUG   DBG_ON
+#endif
+
+/* UserFilter sub-system debug  */
+#ifdef LWIP_USERFILTER
+	#define USERFILTER_DEBUG    DBG_OFF
+
+/* NAT sub-system debug */
+#ifdef LWIP_NAT
+	#define NAT_DEBUG           DBG_OFF
+#endif
+
 #endif
 
 /* ICMPv4/v6 protocol debug */
-//#define ICMP_DEBUG    DBG_ON
+#define ICMP_DEBUG                  DBG_OFF
 
 /* TCP/UDP sub-system debug */
-//#define TCPIP_DEBUG    DBG_ON
+#define TCPIP_DEBUG                 DBG_OFF
 
 /* Sockets debug */
-//#define SOCKETS_DEBUG    DBG_ON
+#define SOCKETS_DEBUG               DBG_OFF
 
 
 

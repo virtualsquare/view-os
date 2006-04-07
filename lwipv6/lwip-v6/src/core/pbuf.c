@@ -116,6 +116,13 @@ pbuf_init(void)
     p->payload = MEM_ALIGN((void *)((u8_t *)p + sizeof(struct pbuf)));
     p->flags = PBUF_FLAG_POOL;
     q = p;
+
+/* added by Diego Billi */
+#ifdef LWIP_NAT
+  nat_pbuf_init(p);
+#endif
+
+
     p = p->next;
   }
 
@@ -337,6 +344,14 @@ pbuf_alloc(pbuf_layer l, u16_t length, pbuf_flag flag)
     LWIP_ASSERT("pbuf_alloc: erroneous flag", 0);
     return NULL;
   }
+
+/* added by Diego Billi */
+#ifdef LWIP_CONNTRACK
+	p->nfct = NULL;
+	p->nfctinfo = 0;	
+	nf_conntrack_get(p->nfct);
+#endif
+        
   /* set reference count */
   p->ref = 1;
   LWIP_DEBUGF(PBUF_DEBUG | DBG_TRACE | 3, ("pbuf_alloc(length=%u) == %p\n", length, (void *)p));
@@ -568,6 +583,12 @@ pbuf_free(struct pbuf *p)
   /* Since decrementing ref cannot be guaranteed to be a single machine operation
    * we must protect it. Also, the later test of ref must be protected.
    */
+
+/* added by Diego Billi */
+#ifdef LWIP_CONNTRACK
+   nf_conntrack_put(p->nfct);
+#endif
+
   SYS_ARCH_PROTECT(old_level);
   /* de-allocate all consecutive pbufs from the head of the chain that
    * obtain a zero reference count after decrementing*/
@@ -578,8 +599,16 @@ pbuf_free(struct pbuf *p)
     p->ref--;
     /* this pbuf is no longer referenced to? */
     if (p->ref == 0) {
+
       /* remember next pbuf in chain for next iteration */
       q = p->next;
+
+/* added by Diego Billi */
+#ifdef LWIP_NAT
+      nat_pbuf_put(p);
+#endif
+
+
       LWIP_DEBUGF( PBUF_DEBUG | 2, ("pbuf_free: deallocating %p\n", (void *)p));
       /* is this a pbuf from the pool? */
       if (p->flags == PBUF_FLAG_POOL) {
@@ -594,6 +623,7 @@ pbuf_free(struct pbuf *p)
         mem_free(p);
       }
       count++;
+
       /* proceed to next pbuf */
       p = q;
     /* p->ref > 0, this pbuf is still referenced to */
@@ -604,6 +634,7 @@ pbuf_free(struct pbuf *p)
       p = NULL;
     }
   }
+
   SYS_ARCH_UNPROTECT(old_level);
   PERF_STOP("pbuf_free");
   /* return number of de-allocated pbufs */

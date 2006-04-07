@@ -96,6 +96,10 @@ enum icmp_te_type {
 };
 
 void icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr);
+
+void icmp_send_dad(struct ip_addr_list *targetip, struct netif *srcnetif);
+
+
 void icmp_neighbor_solicitation(struct ip_addr *ipaddr, struct ip_addr_list *inad);
 void icmp_router_solicitation(struct ip_addr *ipaddr, struct ip_addr_list *inad);
 
@@ -112,6 +116,10 @@ void icmp4_time_exceeded(struct pbuf *p, enum icmp_te_type t);
  */
 
 #define ICMPH_TYPE_SET(hdr,typ) (hdr)->type=(typ)
+
+#define ICMPH_TYPE(hdr)   ((hdr)->type)
+#define ICMPH_CODE(hdr)   ((hdr)->icode)
+#define ICMPH_CHKSUM(hdr) ((hdr)->chksum)
 
 /* Echo Request, Echo Reply */
 struct icmp_echo_hdr {	
@@ -194,9 +202,9 @@ struct icmp_ra_hdr {
   u8_t m_o_flag;
 #define ICMP6_RA_M  0x80
 #define ICMP6_RA_O  0x40
-  u16_t life;
-  u32_t reach;
-  u32_t retran;
+  u16_t life;     /* (seconds) The lifetime associated with the default router */
+  u32_t reach;    /* (milliseconds) */
+  u32_t retran;   /* (milliseconds) between retransmitted Neighbor Solicitation messages. */
   //struct icmp_opt option;  /* for Source link-layer addres */
   //struct icmp_opt option;  /* MTU */
   //struct icmp_opt option;  /* Prefix Information */
@@ -213,16 +221,43 @@ struct icmp_ra_hdr {
 #define ICMP6_OPT_REDIRECT    4
 #define ICMP6_OPT_MTU         5
 
-/* ICMPv6 Address Options field */
+/* Generic ICMP option */
 struct icmp_opt {       
   u8_t type;
   u8_t len;        /* in units of 8 octets (including the type and length fields). */
-  u8_t addr[0];    /* FIX: 0 is not allowed with some compilers? */
+  u8_t data[0];    
+};
+
+/* ICMPv6 Address Options field */
+struct icmp_opt_addr {       
+  u8_t type;
+  u8_t len;        /* in units of 8 octets (including the type and length fields). */
+  u8_t addr[0];    /* 0 is not allowed with some compilers */
 };
 
 /* Length of ethernet address in 8-octects  */
 #define ICMP6_OPT_LEN_ETHER   1
 
+
+struct icmp_opt_prefix {       
+  u8_t type;       
+  u8_t len;        /* 4 */
+  u8_t preflen;    /* Prefix len */
+  u8_t flags;      
+#define ICMP6_OPT_PREF_L  0x80
+#define ICMP6_OPT_PREF_A  0x40
+  u32_t valid;     
+  u32_t prefered;  /* seconds */
+  u32_t reserved;  /* seconds */
+  u32_t prefix[4]; 
+};
+
+struct icmp_opt_mtu {       
+  u8_t type;
+  u8_t len;        /* 1 */
+  u16_t reserved;
+  u32_t mtu;    
+};
 
 
 #endif /* __LWIP_ICMP_H__ */

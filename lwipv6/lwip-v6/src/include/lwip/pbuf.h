@@ -36,6 +36,14 @@
 #include "arch/cc.h"
 
 
+
+/* added by Diego Billi */
+#ifdef LWIP_NAT
+#include "lwip/nat/nat.h"
+#endif
+
+
+
 #define PBUF_TRANSPORT_HLEN 20
 #define PBUF_IP_HLEN        IP_HLEN
 
@@ -91,7 +99,13 @@ struct pbuf {
    * the stack itself, or pbuf->next pointers from a chain.
    */
   u16_t ref;
-  
+
+
+/* added by Diego Billi */
+#ifdef LWIP_NAT
+  struct nat_info nat;
+#endif
+
 };
 
 void pbuf_init(void);
@@ -111,5 +125,7 @@ struct pbuf *pbuf_take(struct pbuf *f);
 struct pbuf *pbuf_dechain(struct pbuf *p);
 void pbuf_queue(struct pbuf *p, struct pbuf *n);
 struct pbuf * pbuf_dequeue(struct pbuf *p);
+
+
 
 #endif /* __LWIP_PBUF_H__ */

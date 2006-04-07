@@ -35,23 +35,24 @@
 #include "lwip/api_msg.h"
 #include "lwip/pbuf.h"
 
-void tcpip_init(void (* tcpip_init_done)(void *), void *arg);
-void tcpip_apimsg(struct api_msg *apimsg);
-err_t tcpip_input(struct pbuf *p, struct netif *inp);
-err_t tcpip_callback(void (*f)(void *ctx), void *ctx);
-
-void tcpip_tcp_timer_needed(void);
 
 enum tcpip_msg_type {
+
+  /* Core messages */
   TCPIP_MSG_API,
   TCPIP_MSG_INPUT,
-  TCPIP_MSG_CALLBACK
+  TCPIP_MSG_CALLBACK,
+
+
+  TCPIP_MSG_NETIFADD,
+  TCPIP_MSG_SHUTDOWN
 };
 
 struct tcpip_msg {
   enum tcpip_msg_type type;
-  sys_sem_t *sem;
+  sys_sem_t *sem;                  // FIX: for what?????????
   union {
+
     struct api_msg *apimsg;
     struct {
       struct pbuf *p;
@@ -61,8 +62,44 @@ struct tcpip_msg {
       void (*f)(void *ctx);
       void *ctx;
     } cb;
+
+
+    /* Signal to the main thread to add a new network interface */
+    struct {
+      sys_sem_t *sem;    // used for syncronous calls
+      struct netif *netif;
+      void *state;
+      err_t (* init)(struct netif *netif);
+      err_t (* input)(struct pbuf *p, struct netif *netif);
+    } netif;
+
+
   } msg;
+
 };
+
+
+void tcpip_init(void (* tcpip_init_done)(void *), void *arg);
+
+/* These functions send messages to the stack thread.
+   After tcpip_shutdown() they are unuseful. */
+void tcpip_apimsg(struct api_msg *apimsg);
+err_t tcpip_input(struct pbuf *p, struct netif *inp);
+err_t tcpip_callback(void (*f)(void *ctx), void *ctx);
+
+void tcpip_tcp_timer_needed(void);
+
+/* Tell to the stack to create a new interface. This function
+   should be used only when you can't create interfaces before
+   the launch of the stack thread. 
+   N.B: this functions has been created for the ViewOS project. */
+struct netif * tcpip_netif_add(struct netif *netif, 
+      void *state,
+      err_t (* init)(struct netif *netif),
+      err_t (* input)(struct pbuf *p, struct netif *netif));
+
+/* Signal to the stack to shutdown */
+void tcpip_shutdown(void (* tcpip_shutdown_done)(void *), void *arg);
 
 
 #endif /* __LWIP_TCPIP_H__ */

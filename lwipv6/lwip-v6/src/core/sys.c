@@ -75,11 +75,16 @@ sys_mbox_fetch(sys_mbox_t mbox, void **msg)
       timeouts->next = tmptimeout->next;
       h = tmptimeout->h;
       arg = tmptimeout->arg;
+
+      if (tmptimeout->XXX != 1)  /// Added by Diego Billi
       memp_free(MEMP_SYS_TIMEOUT, tmptimeout);
       if (h != NULL) {
         LWIP_DEBUGF(SYS_DEBUG, ("smf calling h=%p(%p)\n", (void *)h, (void *)arg));
       	h(arg);
       }
+
+      if (tmptimeout->XXX == 1)          /// Added by Diego Billi
+		tmptimeout->next = NULL; /// Added by Diego Billi
 
       /* We try again to fetch a message from the mbox. */
       goto again;
@@ -129,12 +134,17 @@ sys_sem_wait(sys_sem_t sem)
       timeouts->next = tmptimeout->next;
       h = tmptimeout->h;
       arg = tmptimeout->arg;
+
+      if (tmptimeout->XXX != 1)  /// Added by Diego Billi
       memp_free(MEMP_SYS_TIMEOUT, tmptimeout);
+
       if (h != NULL) {
         LWIP_DEBUGF(SYS_DEBUG, ("ssw h=%p(%p)\n", (void *)h, (void *)arg));
         h(arg);
       }
 
+      if (tmptimeout->XXX == 1)          /// Added by Diego Billi
+		tmptimeout->next = NULL; /// Added by Diego Billi
 
       /* We try again to fetch a message from the mbox. */
       goto again;
@@ -166,6 +176,8 @@ sys_timeout(u32_t msecs, sys_timeout_handler h, void *arg)
   timeout->h = h;
   timeout->arg = arg;
   timeout->time = msecs;
+
+  timeout->XXX = 0;  /// Added by Diego Billi
 
   timeouts = sys_arch_timeouts();
 
@@ -227,6 +239,8 @@ sys_untimeout(sys_timeout_handler h, void *arg)
             /* If not the last one, add time of this one back to next */
             if (t->next != NULL)
                 t->next->time += t->time;
+
+	    if (t->XXX != 1) /// ADDED XXX(should never happen)XXXXXXXXXXXXXXXXXXXX
             memp_free(MEMP_SYS_TIMEOUT, t);
             return;
         }
@@ -287,6 +301,121 @@ sys_msleep(u32_t ms)
   sys_sem_wait_timeout(delaysem, ms);
 
   sys_sem_free(delaysem);
+}
+
+
+/******************************************************************************/
+/******************************************************************************/
+/******************************************************************************/
+/******************************************************************************/
+/******************************************************************************/
+
+/* This functions and timers will be used in the porting of Radvd code on Lwip */
+
+/* Try to remove timeout 'h' with argument 'arg'. Return 1 if a timeout
+   is removed */
+int sys_untimeout_and_check(sys_timeout_handler h, void *arg)
+{
+    struct sys_timeouts *timeouts;
+    struct sys_timeout *prev_t, *t;
+
+    timeouts = sys_arch_timeouts();
+
+    if (timeouts->next == NULL)
+        return 0 ;
+
+    for (t = timeouts->next, prev_t = NULL; t != NULL; prev_t = t, t = t->next)
+    {
+        if ((t->h == h) && (t->arg == arg))
+        {
+            /* We have a match */
+            /* Unlink from previous in list */
+            if (prev_t == NULL)
+                timeouts->next = t->next;
+            else
+                prev_t->next = t->next;
+            /* If not the last one, add time of this one back to next */
+            if (t->next != NULL)
+                t->next->time += t->time;
+
+	    if (t->XXX != 1) 
+            memp_free(MEMP_SYS_TIMEOUT, t);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void sys_timeout_XXX(struct sys_timeout * timeout)
+{
+  struct sys_timeouts *timeouts;
+  struct sys_timeout *t;
+  u32_t msecs;
+
+  timeout->XXX = 1;
+
+  msecs = timeout->time;
+  //, sys_timeout_handler h, void *arg)
+
+  timeouts = sys_arch_timeouts();
+
+  if (timeouts->next == NULL) {
+    timeouts->next = timeout;
+    return;
+  }
+
+  if (timeouts->next->time > msecs) {
+    timeouts->next->time -= msecs;
+    timeout->next = timeouts->next;
+    timeouts->next = timeout;
+  } else {
+    for(t = timeouts->next; t != NULL; t = t->next) {
+      timeout->time -= t->time;
+      if (t->next == NULL || t->next->time > timeout->time) {
+        if (t->next != NULL) {
+          t->next->time -= timeout->time;
+        }
+        timeout->next = t->next;
+        t->next = timeout;
+        break;
+      }
+    }
+  }
+}
+
+
+int  sys_untimeout_XXX(struct sys_timeout *timeout)
+{
+    struct sys_timeouts *timeouts;
+    struct sys_timeout *prev_t, *t;
+
+    timeouts = sys_arch_timeouts();
+
+    /* If it's not pending */
+    if (timeout->next == NULL)
+	return 0;
+
+    if (timeouts->next == NULL) {
+        return 0;
+    }
+
+    for (t = timeouts->next, prev_t = NULL; t != NULL; prev_t = t, t = t->next)
+    {
+	if (t == timeout)
+        {
+            /* We have a match */
+            /* Unlink from previous in list */
+            if (prev_t == NULL)  timeouts->next = t->next;
+            else                 prev_t->next   = t->next;
+            /* If not the last one, add time of this one back to next */
+            if (t->next != NULL) t->next->time += t->time;
+
+	    t->next = NULL;
+
+            return 1;
+        }
+    }
+    return 0;
 }
 
 
