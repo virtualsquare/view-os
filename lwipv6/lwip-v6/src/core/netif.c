@@ -326,19 +326,25 @@ static int netif_ifconf(struct ifconf *ifc)
 {
 	struct netif *nip;
 	register int i;
+	register int maxlen=ifc->ifc_len;
 #define ifr_v (ifc->ifc_req)
 
 	/*printf("-netif_ifconf %d\n",ifc->ifc_len);*/
-  	for (nip=netif_list, i=0; nip!=NULL && i<ifc->ifc_len; 
+	ifc->ifc_len=0;
+	for (nip=netif_list, i=0; nip!=NULL && ifc->ifc_len < maxlen; 
 			nip=nip->next, i++) {
-		ifr_v[i].ifr_name[0]=nip->name[0];
-		ifr_v[i].ifr_name[1]=nip->name[1];
-		ifr_v[i].ifr_name[2]=(nip->num%10)+'0';
-		ifr_v[i].ifr_name[3]= 0;
-		ifr_v[i].ifr_name[4]= 0;
-		ifr_v[i].ifr_name[5]= 0;
+		ifc->ifc_len += sizeof(struct ifreq);
+		if (ifc->ifc_len > maxlen)
+			ifc->ifc_len =maxlen;
+		else {
+			ifr_v[i].ifr_name[0]=nip->name[0];
+			ifr_v[i].ifr_name[1]=nip->name[1];
+			ifr_v[i].ifr_name[2]=(nip->num%10)+'0';
+			ifr_v[i].ifr_name[3]= 0;
+			ifr_v[i].ifr_name[4]= 0;
+			ifr_v[i].ifr_name[5]= 0;
+		}
 	}
-	ifc->ifc_len=i*sizeof(struct ifreq);
 	/*{int i;
 		printf("len %d %d\n",ifc->ifc_len,sizeof(struct ifreq));
 		for (i=0;i<ifc->ifc_len;i++) {
