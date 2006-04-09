@@ -393,7 +393,7 @@ char choice_fd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 }
 
 /* choice sd (just the system call number is the choice parameter) */
-char choice_sd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+char choice_sc(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	int sc=sc_number;
 	return service_check(CHECKSC,&sc,pc);
@@ -500,6 +500,30 @@ int um_mod_getpid(void *umph)
 	return (pc?pc->pid:0);
 }
 
+int um_mod_umoven(void *umph, long addr, int len, void *_laddr)
+{
+	struct pcb *pc=umph;
+	return (pc?umoven(pc->pid,addr,len,_laddr):-1);
+}
+
+int um_mod_umovestr(void *umph, long addr, int len, void *_laddr)
+{
+	struct pcb *pc=umph;
+	return (pc?umovestr(pc->pid,addr,len,_laddr):-1);
+}
+
+int um_mod_ustoren(void *umph, long addr, int len, void *_laddr)
+{
+	struct pcb *pc=umph;
+	return (pc?ustoren(pc->pid,addr,len,_laddr):-1);
+}
+
+int um_mod_ustorestr(void *umph, long addr, int len, void *_laddr)
+{
+	struct pcb *pc=umph;
+	return (pc?ustorestr(pc->pid,addr,len,_laddr):-1);
+}
+
 int um_mod_getsyscallno(void *umph)
 {
 	struct pcb *pc=umph;
@@ -516,6 +540,33 @@ int um_mod_getumpid(void *umph)
 {
 	struct pcb *pc=umph;
 	return (pc?pc->umpid:0);
+}
+
+struct stat64 *um_mod_getpathstat(void *umph)
+{
+	struct pcb *pc=umph;
+	if (pc) {
+		struct pcb_ext *pcdata = (struct pcb_ext *) pc->data;
+		if (pcdata) {
+			if (pcdata->pathstat.st_mode == 0)
+				return NULL;
+			else
+				return &(pcdata->pathstat);
+		}
+		else
+			return NULL;
+	}
+	else
+		return NULL;
+}
+
+int um_mod_getsyscalltype(int scno)
+{
+	int usc=uscno(scno);
+	if (usc >= 0) 
+		return USC_TYPE(usc);
+	else
+		return -1;
 }
 
 #define __NR_UM_SERVICE BASEUSC+0

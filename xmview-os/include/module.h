@@ -32,6 +32,18 @@ typedef unsigned char service_t;
 #define CHECKPATH 		1
 #define CHECKSOCKET 	2
 #define CHECKFSTYPE 	3
+#define CHECKSC 5
+// for IOCTL mgmt
+#define CHECKIOCTLPARMS   0x40000000
+#define IOCTLLENMASK      0x07ffffff
+#define IOCTL_R           0x10000000
+#define IOCTL_W           0x20000000
+struct ioctl_len_req {
+	int fd;
+	int req;
+};
+
+//
 #define FLAG_WANTREGISTER	0x80000000
 
 struct service {
@@ -91,9 +103,15 @@ extern int scmap_scmapsize;
 extern int scmap_sockmapsize;
 
 extern int um_mod_getpid(void *umph);
+extern int um_mod_umoven(void *umph, long addr, int len, void *_laddr);
+extern int um_mod_umovestr(void *umph, long addr, int len, void *_laddr);
+extern int um_mod_ustoren(void *umph, long addr, int len, void *_laddr);
+extern int um_mod_ustorestr(void *umph, long addr, int len, void *_laddr);
 extern int um_mod_getsyscallno(void *umph);
-extern long* um_mod_getargs(void *umph);
 extern int um_mod_getumpid(void *umph);
+extern long* um_mod_getargs(void *umph);
+extern struct stat64 *um_mod_getpathstat(void *umph);
+extern int um_mod_getsyscalltype(int scno);
 
 extern int uscno(int scno);
 extern int add_service(struct service *);

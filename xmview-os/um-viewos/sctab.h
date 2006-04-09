@@ -75,8 +75,16 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *umph);
 
 /* modules callbacks for extra args */
 int um_mod_getpid(void *umph);
+int um_mod_umoven(void *umph, long addr, int len, void *_laddr);
+int um_mod_umovestr(void *umph, long addr, int len, void *_laddr);
+int um_mod_ustoren(void *umph, long addr, int len, void *_laddr);
+int um_mod_ustorestr(void *umph, long addr, int len, void *_laddr);
 int um_mod_getsyscallno(void *umph);
+int um_mod_getumpid(void *umph);
 long* um_mod_getargs(void *umph);
+struct stat64 *um_mod_getpathstat(void *umph);
+int um_mod_getsyscalltype(int scno);
+
 
 //struct pcb* pid2pcb(int pid);
 

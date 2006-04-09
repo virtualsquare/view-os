@@ -60,6 +60,8 @@ struct sc_map {
 	/* number of arguments of this system call - used for some
 	 * optimizations */
 	char nargs;
+	/* set of calls, for a better selection (choice fun)*/
+	char setofcall;
 };
 
 extern struct sc_map scmap[];
@@ -75,5 +77,15 @@ extern int scmap_sockmapsize;
  * process internally, e.g. to keep fd table updated, or mmap mappings,
  * etc... */
 #define ALWAYS 0x10
+
+#define USC_TYPE(X) (scmap[(X)].setofcall)
+#define SOC_NONE	0x00
+#define SOC_FILE	0x80
+#define SOC_NET	  0x40
+#define SOC_TIME  0x1
+#define SOC_UID   0x2
+#define SOC_PRIO  0x3
+#define SOC_PID   0x4
+#define SOC_HOSTID 0x5
 
 #endif

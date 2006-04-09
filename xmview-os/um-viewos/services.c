@@ -100,7 +100,7 @@ service_t registered_service_check(int type, void *arg,void *umph)
 	// to be registered.
 
 /* NB: DEVELOPMENT PHASE !! */
-	for (i=0 ; i<noserv ; i++) { //forse meglio: for (i = noserv-1 ; i>=0 ; i--)
+	for (i=0 ; i<noserv ; i++) { //maybe: for (i = noserv-1 ; i>=0 ; i--)
 		struct service *s=services[i];
 /*
 		if (s->checkfun != NULL && s->checkfun(type,arg,umph)){
@@ -108,7 +108,7 @@ service_t registered_service_check(int type, void *arg,void *umph)
 		}*/
 		if (s->checkfun != NULL && s->checkfun(type | FLAG_WANTREGISTER,arg,umph)){
 /*            new_register_service(s);*/
-			fprintf(stderr,"passato di qua... :-P \n");
+			fprintf(stderr,"passed through here... :-P \n");
 			if( s->checkfun(type,arg,umph) )
 				return s->code;
 			else
@@ -351,6 +351,12 @@ intfun service_socketcall(service_t code, int scno)
 	}
 }
 
+intfun service_checkfun(service_t code)
+{
+	int pos=servmap[code]-1;
+	struct service *s=services[pos];
+	return (s->checkfun);
+}
 
 intfun service_select_register(service_t code)
 {

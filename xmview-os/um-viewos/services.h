@@ -39,6 +39,16 @@ typedef unsigned char service_t;
 #define CHECKFSTYPE 3
 #define CHECKDEVICE 4
 #define CHECKSC 5
+// for IOCTL mgmt
+#define CHECKIOCTLPARMS   0x40000000
+#define IOCTLLENMASK      0x07ffffff
+#define IOCTL_R           0x10000000
+#define IOCTL_W           0x20000000
+struct ioctl_len_req {
+	int fd;
+	int req;
+};
+	
 // flag that specifies register requests...
 #define FLAG_WANTREGISTER	0x80000000
 
@@ -67,6 +77,9 @@ struct service {
 	 * 	(int type, void *arg) or
 	 * 	(int type, void *arg, void *umph)
 	 * 	type is defined by CHECK... constants above
+	 * if type == CHECKIOCTLPARMS
+	 *  *arg is the ioctl code
+	 *  returns: the length of the field bit_or IOCTL_R/IOCTL_W if the parameter is input/output
 	 */
 	intfun checkfun;
 
@@ -106,6 +119,7 @@ void service_delproc(service_t code,int id, void *arg);
 service_t service_check(int type,void *arg,void *umph);
 intfun service_syscall(service_t code, int scno);
 intfun service_socketcall(service_t code, int scno);
+intfun service_checkfun(service_t code);
 intfun service_select_register(service_t code);
 void _service_init(intfun register_service,intfun deregister_service);
 

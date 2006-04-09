@@ -33,9 +33,6 @@
 #include <sys/ioctl.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
-#include <asm/ioctls.h>
-#include <linux/net.h>
-#include <linux/sockios.h>
 #include <net/if.h>
 #include <errno.h>
 #include <limits.h>
@@ -54,74 +51,24 @@
 
 #define umNULL ((int) NULL)
 
-static void ioctl_getarg(pid_t pid, int request, unsigned long arg, void **larg)
+static void ioctl_getarg(pid_t pid, int ioctlparms, unsigned long arg, void **larg)
 {
-	switch (request) {
-		case FIONREAD:
-			*larg=malloc(sizeof(int));
-			break;
-		case SIOCGIFCONF:
-			*larg=malloc(sizeof(struct ifconf));
-			break;
-		case SIOCGSTAMP:
-			*larg=malloc(sizeof(struct timeval));
-			break;
-		case SIOCGIFFLAGS:
-		case SIOCGIFADDR:
-		case SIOCGIFDSTADDR:
-		case SIOCGIFBRDADDR:
-		case SIOCGIFNETMASK:
-		case SIOCGIFMETRIC:
-		case SIOCGIFMEM:
-		case SIOCGIFMTU:
-		case SIOCGIFHWADDR:
-		case SIOCSIFFLAGS:
-		case SIOCSIFADDR:
-		case SIOCSIFDSTADDR:
-		case SIOCSIFBRDADDR:
-		case SIOCSIFNETMASK:
-		case SIOCSIFMETRIC:
-		case SIOCSIFMEM:
-		case SIOCSIFMTU:
-		case SIOCSIFHWADDR:
-		case SIOCGIFINDEX:
-			*larg=malloc(sizeof(struct ifreq));
-			umoven(pid,arg,sizeof(struct ifreq),*larg);
-			break;
-		default:
-			*larg=NULL;
-			break;
-	}
+	int len=ioctlparms & IOCTLLENMASK;
+	if (len > 0) {
+		*larg=malloc(len);
+		if (ioctlparms & IOCTL_R)
+			umoven(pid,arg,len,*larg);
+	} else
+		*larg = (void *) arg;
 }
 
-/* arg can be scalar or address. In the latter case memory has been allocated
- * and must be freed. When arg is a scalar must be set to NULL into putarg.
- * otherwise is misunderstood and erroneously freed */
-
-static void ioctl_putarg(pid_t pid, int request, unsigned long arg, void *larg)
+static void ioctl_putarg(pid_t pid, int ioctlparms, unsigned long arg, void *larg)
 {
-	switch (request) {
-		case FIONREAD:
-			ustoren(pid,arg,sizeof(int),larg);
-			break;
-		case SIOCGIFCONF:
-			ustoren(pid,arg,sizeof(struct ifconf),larg);
-			break;
-		case SIOCGSTAMP:
-			ustoren(pid,arg,sizeof(struct timeval),larg);
-			break;
-		case SIOCGIFFLAGS:
-		case SIOCGIFADDR:
-		case SIOCGIFDSTADDR:
-		case SIOCGIFBRDADDR:
-		case SIOCGIFNETMASK:
-		case SIOCGIFMETRIC:
-		case SIOCGIFMEM:
-		case SIOCGIFMTU:
-		case SIOCGIFHWADDR:
-		case SIOCGIFINDEX:
-			ustoren(pid,arg,sizeof(struct ifreq),larg);
-			break;
+	int len=ioctlparms & IOCTLLENMASK;
+	if (len > 0) {
+		if (ioctlparms & IOCTL_W)
+			ustoren(pid,arg,len,larg);
+		free(larg);
 	}
 }
 
@@ -135,16 +82,23 @@ int wrap_in_ioctl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	} else {
 		unsigned long req=getargn(1,pc);
 		unsigned long arg=getargn(2,pc);
-		pc->arg1=req;
 		void *larg;
-		ioctl_getarg(pc->pid,req,arg,&larg);
-		/*printf("wrap_in_ioctl %d req %x arg %x\n",sfd,req,larg);*/
+		intfun checkarg;
+		int ioctlparms=0;
+		pc->arg1=req;
+		if ((checkarg=service_checkfun(sercode)) != NULL) {
+			struct ioctl_len_req ioreq={sfd,req};
+			ioctlparms=checkarg(CHECKIOCTLPARMS, &ioreq, pc);
+		}
+		ioctl_getarg(pc->pid,ioctlparms,arg,&larg);
 		pc->retval = um_syscall(sfd,req,larg,pc);
+		/* printf("wrap_in_ioctl %d req %x arg %x parms %x -> %d\n",sfd,req,larg,ioctlparms,pc->retval);*/
 		pc->erno=errno;
 		if (pc->retval >= 0)
-			ioctl_putarg(pc->pid,req,arg,larg);
-		if (larg != NULL)
-			free(larg);
+			ioctl_putarg(pc->pid,ioctlparms,arg,larg);
+		else
+			ioctl_putarg(pc->pid,ioctlparms & ~IOCTL_W,arg,larg);
+
 		/*printf("wrap_in_ioctl %d %d\n",pc->retval,pc->erno);*/
 	}
 	return SC_FAKE;

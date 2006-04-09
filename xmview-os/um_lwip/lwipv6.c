@@ -22,16 +22,24 @@
  *   $Id$
  *
  */   
-#include <unistd.h>
-#include <stdio.h>
 #include <dlfcn.h>
 #include "module.h"
 #include <lwipv6.h>
 #include <linux/net.h>
+#include <sys/socket.h>
+#include <linux/if.h>
 #include <limits.h>
 #include <string.h>
 #include "asm/unistd.h"
-#include "sockmsg.h"
+#include <sys/ioctl.h>
+#include <asm/ioctls.h>
+#include <linux/net.h>
+#include <linux/sockios.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <errno.h>
+
 
 static struct service s;
 
@@ -45,13 +53,88 @@ static int alwaystrue(char *path)
 	return 1;
 }
 
-static int checksock(int type, void *arg)
+static intfun real_lwip_ioctl;
+static int sockioctl(int d, int request, void *arg, void *umph)
+{
+	if (request == SIOCGIFCONF) {
+		int rv;
+		void *save;
+		struct ifconf *ifc=(struct ifconf *)arg;
+		save=ifc->ifc_buf;
+		ioctl(d,request,arg);
+		ifc->ifc_buf=malloc(ifc->ifc_len);
+		um_mod_umoven(umph,(long) save,ifc->ifc_len,ifc->ifc_buf);
+		rv=real_lwip_ioctl(d,request,arg);
+		if (rv>=0)
+			um_mod_ustoren(umph,(long) save,ifc->ifc_len,ifc->ifc_buf);
+		free(ifc->ifc_buf);
+		ifc->ifc_buf=save;
+		return rv;
+	}
+	return real_lwip_ioctl(d,request,arg);
+}
+
+static int ioctlparms(struct ioctl_len_req *arg,void *umph)
+{
+	switch (arg->req) {
+		case FIONREAD:
+			return sizeof(int) | IOCTL_W;
+		case FIONBIO:
+			return sizeof(int) | IOCTL_R;
+		case SIOCGIFCONF:
+			return sizeof(struct ifconf) | IOCTL_R | IOCTL_W;
+		case SIOCGSTAMP:
+			return sizeof(struct timeval) | IOCTL_W;
+		case SIOCGIFTXQLEN:
+		case SIOCGIFFLAGS:
+		case SIOCGIFADDR:
+		case SIOCGIFDSTADDR:
+		case SIOCGIFBRDADDR:
+		case SIOCGIFNETMASK:
+		case SIOCGIFMETRIC:
+		case SIOCGIFMEM:
+		case SIOCGIFMTU:
+		case SIOCGIFHWADDR:
+			return sizeof(struct ifreq) | IOCTL_R | IOCTL_W;
+		case SIOCSIFFLAGS:
+		case SIOCSIFADDR:
+		case SIOCSIFDSTADDR:
+		case SIOCSIFBRDADDR:
+		case SIOCSIFNETMASK:
+		case SIOCSIFMETRIC:
+		case SIOCSIFMEM:
+		case SIOCSIFMTU:
+		case SIOCSIFHWADDR:
+		case SIOCGIFINDEX:
+			return sizeof(struct ifreq) | IOCTL_R;
+		default:
+			return 0;
+	}
+}
+
+#define TRUE 1
+#define FALSE 0
+
+static int checksock(int type, void *arg,void *umph)
 {
 	if (type == CHECKSOCKET) {
 		int domain=*((int *) arg);
 		return(domain == AF_INET || domain == PF_INET6 || domain == PF_NETLINK || domain == PF_PACKET);
-	} else
-		return 0;
+	} else if (type == CHECKIOCTLPARMS) {
+		//printf("=========lwipv6 %x ioctlparms %x\n",*((int *)arg),ioctlparms(arg,umph));
+		return ioctlparms(arg,umph);
+	} else if (type == CHECKPATH) {
+		char *path=arg;
+		return (strncmp(path,"/proc/net",9) == 0);
+	}
+	else
+		return FALSE;
+}
+
+static int noprocnetdev()
+{
+	errno=ENOENT;
+	return -1;
 }
 
 struct libtab {
@@ -106,10 +189,15 @@ static void openlwiplib()
 					s.syscall[uscno(lwiplibtab[i].tag)]=fun;
 			}
 		}
+		s.select_register=dlsym(lwiphandle,"lwip_select_register");
+		real_lwip_ioctl=s.syscall[uscno(__NR_ioctl)];
+		s.syscall[uscno(__NR_ioctl)]=sockioctl;
+		s.syscall[uscno(__NR_open)]=noprocnetdev;
+		s.syscall[uscno(__NR_lstat64)]=noprocnetdev;
+		s.syscall[uscno(__NR_access)]=noprocnetdev;
 	}
-	s.select_register=dlsym(lwiphandle,"lwip_select_register");
 }
-		
+
 ssize_t lwip_recvmsg(int fd, struct msghdr *msg, int flags) {
 	int rv;
 	rv=(s.socket[SYS_RECVFROM])(fd,msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
@@ -231,13 +319,13 @@ static void lwipargtoenv(char *initargs)
 	for (i=0;i<INTTYPES;i++)
 		for (j=0;j<intnum[i];j++)
 			if (initfun[i] != NULL)
-			initfun[i](ifname(ifh,i,j));
+				initfun[i](ifname(ifh,i,j));
 	iffree(ifh);
 }
 
 static int initflag=0;
-static void
-__attribute__ ((constructor))
+	static void
+	__attribute__ ((constructor))
 init (void)
 {
 	initflag=1;
@@ -264,8 +352,8 @@ void _um_mod_init(char *initargs)
 	}
 }
 
-static void
-__attribute__ ((destructor))
+	static void
+	__attribute__ ((destructor))
 fini (void)
 {
 	if(lwiphandle != NULL)

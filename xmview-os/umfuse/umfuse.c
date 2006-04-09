@@ -632,6 +632,8 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 	if(dlhandle == NULL || dlsym(dlhandle,"main") == NULL) {
 		fprintf(stderr, "%s\n",dlerror());
 		fflush(stderr);
+		if (dlhandle != NULL)
+			dlclose(dlhandle);
 		errno=ENODEV;
 		return -1;
 	} else {
@@ -730,10 +732,10 @@ static int umfuse_umount2(char *target, int flags,void *umph)
 	} else {
 		struct fuse_context *fc_norace=fc;
 		if (umph == NULL) 
-			fc->pid=0;
+			fc_norace->pid=0;
 		else
-			fc->pid=um_mod_getpid(umph);
-		if (fc->fuse->flags & FUSE_DEBUG) {
+			fc_norace->pid=um_mod_getpid(umph);
+		if (fc_norace->fuse->flags & FUSE_DEBUG) {
 			fprintf(stderr, "UMOUNT => path:%s flag:%d\n",target, flags);
 			fflush(stderr);
 		}
@@ -758,6 +760,7 @@ static int umfuse_umount2(char *target, int flags,void *umph)
 		dlclose(fc_norace->fuse->dlhandle);
 		free(fc_norace->fuse->filesystemtype);
 		free(fc_norace->fuse->path);
+		dlclose(fc_norace->fuse->dlhandle);
 		free(fc_norace->fuse);
 		free(fc_norace);
 		return 0;
@@ -1058,6 +1061,7 @@ static int umfuse_open(char *path, int flags, mode_t mode,void *umph)
 
 	if ((flags & (O_CREAT | O_TRUNC | O_WRONLY | O_RDWR)) && (fc->fuse->flags & MS_RDONLY)) {
 		free(filetab[fi]->path);
+		delfiletab(fi);
 		errno = EROFS;
 		return -1;
 	}
@@ -1065,6 +1069,7 @@ static int umfuse_open(char *path, int flags, mode_t mode,void *umph)
 		rv=fc->fuse->fops.truncate(filetab[fi]->path, 0);
 		if (rv < 0) {
 			free(filetab[fi]->path);
+			delfiletab(fi);
 			errno = -rv;
 			return -1;
 		}
@@ -1079,6 +1084,7 @@ static int umfuse_open(char *path, int flags, mode_t mode,void *umph)
 			if (exists_err == 0) {
 				if (flags & O_EXCL) {
 					free(filetab[fi]->path);
+					delfiletab(fi);
 					errno= EEXIST;
 					return -1;
 				} 
@@ -1087,6 +1093,7 @@ static int umfuse_open(char *path, int flags, mode_t mode,void *umph)
 				rv = fc->fuse->fops.mknod(filetab[fi]->path, S_IFREG | mode, (dev_t) 0);
 				if (rv < 0) {
 					free(filetab[fi]->path);
+					delfiletab(fi);
 					errno = -rv;
 					return -1;
 				}
@@ -1162,8 +1169,8 @@ static int umfuse_close(int fd,void *umph)
 					fd, filetab[fd]->path, fc->fuse->flags);
 				fflush(stderr);					
 			}
-			//free(filetab[fd]->path);
 			umcleandirinfo(filetab[fd]->dirinfo);
+			free(filetab[fd]->path); /* // optimization bug here? */
 			delfiletab(fd);
 		}
 		if (rv<0) {
