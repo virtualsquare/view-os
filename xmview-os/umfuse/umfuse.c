@@ -1068,7 +1068,6 @@ static int umfuse_open(char *path, int flags, mode_t mode,void *umph)
 	if(exists_err == 0 && (flags & O_TRUNC) && (flags & (O_WRONLY | O_RDWR))) {
 		rv=fc->fuse->fops.truncate(filetab[fi]->path, 0);
 		if (rv < 0) {
-			free(filetab[fi]->path);
 			delfiletab(fi);
 			errno = -rv;
 			return -1;
@@ -1083,7 +1082,6 @@ static int umfuse_open(char *path, int flags, mode_t mode,void *umph)
 		if (flags & O_CREAT) { 
 			if (exists_err == 0) {
 				if (flags & O_EXCL) {
-					free(filetab[fi]->path);
 					delfiletab(fi);
 					errno= EEXIST;
 					return -1;
@@ -1092,7 +1090,6 @@ static int umfuse_open(char *path, int flags, mode_t mode,void *umph)
 				PRINTDEBUG(10, "umfuse open MKNOD call\n");
 				rv = fc->fuse->fops.mknod(filetab[fi]->path, S_IFREG | mode, (dev_t) 0);
 				if (rv < 0) {
-					free(filetab[fi]->path);
 					delfiletab(fi);
 					errno = -rv;
 					return -1;
@@ -1170,7 +1167,6 @@ static int umfuse_close(int fd,void *umph)
 				fflush(stderr);					
 			}
 			umcleandirinfo(filetab[fd]->dirinfo);
-			free(filetab[fd]->path); /* // optimization bug here? */
 			delfiletab(fd);
 		}
 		if (rv<0) {
