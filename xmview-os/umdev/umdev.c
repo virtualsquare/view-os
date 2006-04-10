@@ -60,6 +60,10 @@
 #define PRINTDEBUG(level,args...)
 #endif
 
+/* internal real system call insulated for nesting */
+#define syscall_stat64 stat64
+#define syscall_getuid getuid
+#define syscall_getgid getgid
 
 static struct service s;
 
@@ -156,7 +160,7 @@ static struct umdev *searchdevice(char *path, void *umph)
 		}
 	}
   /* Major/Minor Number select */	
-	if (result == NULL && stat64(path,&buf) >= 0)
+	if (result == NULL && syscall_stat64(path,&buf) >= 0)
 		for (i=0;i<devicetabmax && result==NULL;i++)
 		{
 			if ((devicetab[i] != NULL)) {
@@ -189,7 +193,7 @@ static int set_dev(dev_t *dev, struct umdev *umdev,char *path)
 	struct stat64 buf;
 	
 	*dev=0;
-	if (stat64(path,&buf) >= 0) {
+	if (syscall_stat64(path,&buf) >= 0) {
 		*dev=buf.st_rdev;
 	} else {
 		*dev= umdev->device;
@@ -436,8 +440,8 @@ static int umdev_mount(char *source, char *target, char *filesystemtype,
 		s64=um_mod_getpathstat(umph);
 		new->path = strdup(target);
 		new->mode = S_IFCHR | 0600;
-		new->uid = getuid();
-		new->gid = getgid();
+		new->uid = syscall_getuid();
+		new->gid = syscall_getgid();
 		if (s64) {
 			new->device = s64->st_rdev;
 			if (S_ISCHR(s64->st_mode) | S_ISBLK (s64->st_mode))
@@ -1060,15 +1064,15 @@ static int umdev_ioctl(int fd, int req, void *arg, void *umph)
 		return -1;
 	}
 	else {
-		struct dev_info di;
-		di.umph=umph;
-		di.fh = filetab[fd]->fh;
-		di.flags = 0;
-		if (filetab[fd]->umdev->devops->ioctl)
+		if (filetab[fd]->umdev->devops->ioctl) {
+			struct dev_info di;
+			di.umph=umph;
+			di.fh = filetab[fd]->fh;
+			di.flags = 0;
 			rv = filetab[fd]->umdev->devops->ioctl(
 					filetab[fd]->type, filetab[fd]->device,
 					req, arg, &di);
-		else
+		} else
 			rv= -EINVAL;
 		if (filetab[fd]->umdev->flags & UMDEV_DEBUG) {
 			fprintf(stderr, "IOCTL[%d %c(%d:%d)] => req:%x\n",
@@ -1078,17 +1082,40 @@ static int umdev_ioctl(int fd, int req, void *arg, void *umph)
 		if (rv<0) {
 			errno= -rv;
 			return -1;
-		} else {
+		} else 
 			return rv;
-		}
 	}
 }
 
-void contextclose(struct umdev *fc)
+static void contextclose(struct umdev *fc)
 {
-	//umdev_umount2(fc->path,MNT_FORCE,NULL);
+	umdev_umount2(fc->path,MNT_FORCE,NULL);
 }
 
+static int umdev_select_register(void (* cb)(), void *arg, int fd, int how,void *umph)
+{
+	int rv=1;
+	if (filetab[fd]==NULL) {
+		errno=EBADF;
+		return -1;
+	}
+	else {
+		if (filetab[fd]->umdev->devops->select_register) {
+			struct dev_info di;
+			di.umph=umph;
+			di.fh = filetab[fd]->fh;
+			di.flags = 0;
+			rv = filetab[fd]->umdev->devops->select_register(
+					          filetab[fd]->type, filetab[fd]->device,
+											cb, arg, how, &di);
+		}
+		if (rv<0) {
+			errno= -rv;
+			return -1;
+		} else 
+			return rv;
+	}
+}
 
 static void
 __attribute__ ((constructor))
@@ -1134,6 +1161,7 @@ init (void)
 	s.syscall[uscno(__NR_fsync)]=umdev_fsync; 
 	//s.syscall[uscno(__NR__newselect)]=umdev_select;
 	s.syscall[uscno(__NR_ioctl)]=umdev_ioctl; 
+	s.select_register=umdev_select_register;
 	add_service(&s);
 }
 
