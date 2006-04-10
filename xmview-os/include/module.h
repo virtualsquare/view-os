@@ -120,3 +120,17 @@ extern int add_service(struct service *);
 extern int gas_register_service(struct service *);
 extern int gas_deregister_service(int);
 #endif
+
+#define __NR_doesnotexist -1
+#if defined(__x86_64__)
+#define __NR__newselect __NR_doesnotexist
+#define __NR_umount __NR_doesnotexist
+#define __NR_stat64 __NR_doesnotexist
+#define __NR_lstat64 __NR_doesnotexist
+#define __NR_fstat64 __NR_doesnotexist
+#define __NR_chown32 __NR_doesnotexist
+#define __NR_lchown32 __NR_doesnotexist
+#define __NR_fchown32 __NR_doesnotexist
+#define __NR_fcntl64 __NR_doesnotexist
+#define __NR__llseek __NR_doesnotexist
+#endif

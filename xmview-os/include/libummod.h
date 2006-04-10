@@ -115,8 +115,9 @@ int _llseek(unsigned int fd, unsigned long offset_high,  unsigned  long
 #define __NR_setfsuid __NR_setfsuid32
 #endif
 
-#if defined(__x86_64__)
+/*#if defined(__x86_64__)
 #define __NR__newselect __NR_select
 #endif
+*/
 
 #endif
