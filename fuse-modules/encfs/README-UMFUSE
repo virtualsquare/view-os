@@ -1,0 +1,15 @@
+Gli unici sorgenti modificati sono:
+ - encfs.cpp
+ - main.cpp
+ 
+ per ottenere il modulo umfuseencfs:
+   ./configure
+   cd encfs
+   ./moduloumview.sh
+   
+
+howto:
+   mount -t umfuseencfs -o pre=" " path_completo_dir_cifrata path_completo_mountpoint
+
+  se la directory_cifrata non esiste verra' creata (su conferma)
+
