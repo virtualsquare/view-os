@@ -71,8 +71,11 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *umph)
 	umph->scno = __NR_lstat64;
 	if ((sercode=service_check(CHECKPATH,filename,umph)) == UM_NONE)
 		retval = lstat64(filename,buf);
-	else 
+	else{
+		enter_module(sercode);
 		retval = service_syscall(sercode,uscno(__NR_lstat64))(filename,buf,umph);
+		exit_module();
+	}
 	umph->scno = oldscno;
 	return retval;
 }
@@ -85,8 +88,11 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *umph)
 	umph->scno = __NR_readlink;
 	if ((sercode=service_check(CHECKPATH,path,umph)) == UM_NONE)
 		retval = readlink(path,buf,bufsiz);
-	else 
+	else{
+		enter_module(sercode);
 		retval = service_syscall(sercode,uscno(__NR_readlink))(path,buf,bufsiz,umph);
+		exit_module();
+	}
 	umph->scno = oldscno;
 	return retval;
 }

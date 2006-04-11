@@ -29,6 +29,8 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include "ptrace2.h"
+// nested_headers: stuff required if we compile with -DNESTING_TEST
+#include "nested_headers.h"
 
 extern unsigned int has_ptrace_multi;
 extern unsigned int ptrace_vm_mask;
@@ -121,6 +123,8 @@ void forallpcbdo(voidfun f,void *arg);
 int capture_main(char **argv);
 
 #ifdef NESTING_TEST
+
+// old stuff...
 #ifndef __LIBMODCOMP // in libmodcomp.c we define this as static.
 extern short int umview_inside_mod_flag;
 extern struct pcb* main_umview_pcb;
