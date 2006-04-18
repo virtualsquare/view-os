@@ -660,6 +660,9 @@ static int viewfs_open(char *pathname, int flags, mode_t mode, void *umph)
 	int retval;
 	int umpid = um_mod_getumpid(umph);
 
+	if (um_mod_getsyscallno(umph) == __NR_creat)
+		flags |= (O_CREAT|O_WRONLY|O_TRUNC);
+
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
 	
 	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
@@ -690,8 +693,11 @@ static int viewfs_open(char *pathname, int flags, mode_t mode, void *umph)
 	{
 		retval = DAR(open(defaultpers->add, flags, mode));
 		if (retval >= 0)
+		{
 			procinfo_fd_set(umpid, retval, VIEWFS_DEFAULT);
-		return retval;
+			return retval;
+		}
+		// return retval;
 	}
 
 	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
@@ -718,8 +724,10 @@ static int viewfs_open(char *pathname, int flags, mode_t mode, void *umph)
 		int retval2 = DAR(open(currentpers->add, flags, mode));
 		if (retval2 >= 0)
 			procinfo_fd_set(umpid, retval2, VIEWFS_CURRENT);
-		else
-			return retval2;
+		
+		return retval2;
+	//	else
+	//		return retval2;
 	}
 	
 	return retval;
@@ -1981,7 +1989,9 @@ static int is_path_interesting(char *path, void *umph)
 	{
 		case __NR_open:
 		case __NR_creat:
-			checkresult = check_open(path, (int)(um_mod_getargs(umph)[1]), umpid);
+			checkresult = check_open(path,
+					(int)(um_mod_getargs(umph)[1]) | ((scno==__NR_creat) ? 
+													  (O_CREAT|O_WRONLY|O_TRUNC) : 0), umpid);
 			break;
 		
 		case __NR_stat:
