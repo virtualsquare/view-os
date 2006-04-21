@@ -12,6 +12,8 @@ umdev.so: umdev.o ../um_lib/libumlib.a
 
 umdev.o: umdev.c ../include/umdev.h ../include/module.h ../include/libummod.h 
 
+distclean: clean
+
 cleanall:
 	rm -rf $(ALL) *.o
 

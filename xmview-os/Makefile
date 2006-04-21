@@ -44,18 +44,18 @@ clean:
 	make -C um_lwip clean $(RELEASE_FLAGS)
 
 distclean:
-	-make -C include distclean $(RELEASE_FLAGS)
-	-make -C gdebug distclean $(RELEASE_FLAGS)
-	-make -C um-viewos distclean $(RELEASE_FLAGS)
-	-make -C um_lib distclean $(RELEASE_FLAGS)
-	-make -C um_cmd distclean $(RELEASE_FLAGS)
-	-make -C um_testmodule distclean $(RELEASE_FLAGS)
-	-make -C um_viewfs distclean $(RELEASE_FLAGS)
-	-make -C umfuse distclean $(RELEASE_FLAGS)
-	-make -C umdev distclean $(RELEASE_FLAGS)
-	-make -C umdev_testmodules distclean $(RELEASE_FLAGS)
-	-make -C doc distclean $(RELEASE_FLAGS)
-	-make -C um_lwip distclean $(RELEASE_FLAGS)
+	make -C include distclean $(RELEASE_FLAGS)
+	make -C gdebug distclean $(RELEASE_FLAGS)
+	make -C um-viewos distclean $(RELEASE_FLAGS)
+	make -C um_lib distclean $(RELEASE_FLAGS)
+	make -C um_cmd distclean $(RELEASE_FLAGS)
+	make -C um_testmodule distclean $(RELEASE_FLAGS)
+	make -C um_viewfs distclean $(RELEASE_FLAGS)
+	make -C umfuse distclean $(RELEASE_FLAGS)
+	make -C umdev distclean $(RELEASE_FLAGS)
+	make -C umdev_testmodules distclean $(RELEASE_FLAGS)
+	make -C doc distclean $(RELEASE_FLAGS)
+	make -C um_lwip distclean $(RELEASE_FLAGS)
 
 ${bindir}:
 	mkdir -p ${bindir}

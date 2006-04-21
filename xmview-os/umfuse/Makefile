@@ -21,6 +21,8 @@ umfusestd.o: umfusestd.c
 
 umfuseargs.o: umfuseargs.c  umfusestd.h
 
+distclean: clean
+
 cleanall:
 	rm -rf $(ALL) *.o
 

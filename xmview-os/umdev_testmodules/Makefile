@@ -19,5 +19,7 @@ umdevtrivhd: umdevtrivhd.o
 #test umdev: not installed
 install: all
 
+distclean: clean
+
 clean:
 	rm -rf *.o $(ALL)

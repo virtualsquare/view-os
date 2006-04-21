@@ -5,7 +5,9 @@ syscallnames.h: syscallnames.sh
 
 install:
 
-.PHONY: all clean install
+.PHONY: all clean install distclean
+
+distclean: clean
 
 clean:
 	rm -f syscallnames.h

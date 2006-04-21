@@ -28,6 +28,8 @@ lwipv6.so: lwipv6.o
 
 lwipv6.o: lwipv6.c ../include/module.h 
 
+distclean: clean
+
 cleanall:
 	rm -rf $(ALL) *.o
 
@@ -36,4 +38,4 @@ clean: cleanall
 install: all
 	install $(ALL) ${libdir}
 
-.PHONY: all clean cleanall install
+.PHONY: all clean cleanall install distclean

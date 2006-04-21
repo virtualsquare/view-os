@@ -55,6 +55,8 @@ sockettest.o: sockettest.c ../include/module.h ../include/libummod.h
 
 sockip.o: sockip.c ../include/module.h ../include/libummod.h
 
+distclean: clean
+
 cleanall:
 	rm -rf $(ALL) *.o
 

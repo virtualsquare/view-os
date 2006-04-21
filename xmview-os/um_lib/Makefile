@@ -11,6 +11,8 @@ um_lib.o: um_lib.c
 
 libummod.o: libummod.c
 
+distclean: clean
+
 clean: 
 	rm -f libumlib.a um_lib.o libummod.o
 

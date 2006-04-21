@@ -30,6 +30,8 @@ viewfs.so: viewfs.o ../um_lib/libumlib.a
 
 viewfs.o: viewfs.c ../include/module.h ../include/libummod.h
 
+distclean: clean
+
 cleanall:
 	rm -rf $(ALL) *.o
 
