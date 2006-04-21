@@ -36,12 +36,16 @@
 #	ifndef GDEBUG_LEVEL
 #		error "Debug enabled but GDEBUG_LEVEL undefined."
 #	endif
+#	define GDEBUG_OFILE (gdebug_ofile?gdebug_ofile:stderr)
 #	define FGDEBUG(ofile, level, args...) fgdebug(ofile, GDEBUG_LEVEL, level, __FILE__, __LINE__, __func__, args)
-#	define GDEBUG(level, args...) FGDEBUG(stderr, level, args)
+#	define GDEBUG(level, args...) FGDEBUG(GDEBUG_OFILE, level, args)
 #	define GPERROR(level, prefix) GDEBUG(level, "%s: %s", prefix, strerror(errno))
 #	define FGHEXDUMP(ofile, level, text, len) fghexdump(ofile, GDEBUG_LEVEL, level, __FILE__, __LINE__, __func__, text, len)
-#	define GHEXDUMP(level, text, len) FGHEXDUMP(stderr, level, text, len)
+#	define GHEXDUMP(level, text, len) FGHEXDUMP(GDEBUG_OFILE, level, text, len)
 
+extern FILE* gdebug_ofile;
+
+void gdebug_set_ofile(FILE* new_ofile);
 void fgdebug(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, const char *fmt, ...);
 void fghexdump(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, char *text, int len);
 

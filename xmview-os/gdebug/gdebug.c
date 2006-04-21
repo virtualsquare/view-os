@@ -34,6 +34,12 @@
 #include <pthread.h>
 #endif
 
+FILE *gdebug_ofile = NULL;
+
+void gdebug_set_ofile(FILE* new_ofile)
+{
+	gdebug_ofile = new_ofile;
+}
 
 void fgdebug(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, const char *fmt, ...)
 {

@@ -1,8 +1,8 @@
 DEBUGLEVEL?=4
-CBASEFLAGS=-fPIC -I../include -I../gdebug -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -Wall -rdynamic
+CBASEFLAGS=-fPIC -I../include -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -Wall -rdynamic
 CDEBUGFLAGS=-g -ggdb -DGDEBUG_ENABLED -DGDEBUG_LEVEL=$(DEBUGLEVEL)
 
-ALL=testmodule.so testmodul2.so unreal.so real.so sockettest.so sockip.so viewfs.so
+ALL=testmodule.so testmodul2.so unreal.so real.so sockettest.so sockip.so
 
 ifeq ($(RELEASE),true)
 
@@ -43,10 +43,6 @@ sockettest.so: sockettest.o ../um_lib/libumlib.a
 sockip.so: sockip.o ../um_lib/libumlib.a
 	$(CC) -shared -o $@ $+
 
-#viewfs.so: viewfs.o ../um_lib/libumlib.a ../gdebug/gdebug.o
-viewfs.so: viewfs.o ../um_lib/libumlib.a
-	$(CC) -shared -o $@ $+
-
 testmodule.o: testmodule.c ../include/module.h
 
 testmodul2.o: testmodul2.c ../include/module.h
@@ -58,8 +54,6 @@ real.o: real.c ../include/module.h ../include/libummod.h
 sockettest.o: sockettest.c ../include/module.h ../include/libummod.h
 
 sockip.o: sockip.c ../include/module.h ../include/libummod.h
-
-viewfs.o: viewfs.c ../include/module.h ../include/libummod.h
 
 cleanall:
 	rm -rf $(ALL) *.o

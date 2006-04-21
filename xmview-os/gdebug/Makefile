@@ -1,5 +1,6 @@
 OBJS=gdebug.o
-CFLAGS=-g -ggdb
+CFLAGS=-g -ggdb -I../include
+CPPFLAGS=-I../include
 
 all: libgdebug.a
 
@@ -9,7 +10,6 @@ libgdebug.a: $(OBJS)
 	ranlib "$@"
 
 %.d: %.c
-	@[[ ! -e syscallnames.h ]] && touch -t 197001010100.00 syscallnames.h || true
 	@set -e; $(CC) -MM $(CPPFLAGS) $(@:.d=.c) | sed 's/\($*\)\.o[ :]*/\1.o $@ : /g' > $@; [ -s $@ ] || rm -f $@
 
 -include $(OBJS:.o=.d)

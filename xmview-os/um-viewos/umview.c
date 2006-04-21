@@ -33,6 +33,7 @@
 #include <sys/resource.h>
 #include <stdlib.h>
 #include <signal.h>
+#include "umview.h"
 #include "defs.h"
 #include "capture_sc.h"
 #include "sctab.h"
@@ -40,6 +41,7 @@
 #include "um_select.h"
 #include "um_services.h"
 #include "ptrace_multi_test.h"
+#include "gdebug.h"
 
 int _lwip_version = 1; /* modules interface version id.
 													modules can test to be compatible with
@@ -48,16 +50,42 @@ unsigned int has_ptrace_multi;
 unsigned int ptrace_vm_mask;
 unsigned int ptrace_viewos_mask;
 
+unsigned int want_ptrace_multi, want_ptrace_vm, want_ptrace_viewos;
+
 extern int nprocs;
 char *preload;
 
-static void usage(char *s) {
-	fprintf(stderr,"Usage: \n"
-			"\t%s -h\n"
-			"\t%s -help     : print this help message\n"
-			"\t%s [ -p -o -n ] command\n"
-			"\t%s [ -preload -output -nokernelpatch ] command\n",
-			s,s,s,s);
+
+static void version(int verbose)
+{
+	fprintf(stderr, "%s %s\n", UMVIEW_NAME, UMVIEW_VERSION);
+
+	if (verbose)
+		fprintf(stderr, "%s\n", UMVIEW_DESC);
+
+	fprintf(stderr, "Copyright (C) %s\n", UMVIEW_COPYRIGHT);
+	
+	if (verbose)
+		fprintf(stderr, "Development team:\n%s\n", UMVIEW_TEAM);
+
+	fprintf(stderr, "%s\n\n", UMVIEW_URL);
+	return;
+}
+
+static void usage(char *s)
+{
+	version(0);
+	
+	fprintf(stderr, "Usage: %s [OPTION] ... command [args]\n"
+			"  -h, --help                print this help message\n"
+			"  -v, --version             show version information\n"
+			"  -p file, --preload file   load plugin named `file' (must be a .so)\n"
+			"  -o file, --output file    send debug messages to file instead of stderr\n"
+			"  -n, --nokernelpatch       avoid using kernel patches\n"
+			"  --nokmulti                avoid using PTRACE_MULTI\n"
+			"  --nokvm                   avoid using PTRACE_SYSVM\n"
+			"  --nokviewos               avoid using PTRACE_VIEWOS\n\n",
+			s);
 	exit(0);
 }
 
@@ -73,6 +101,9 @@ int main(int argc,char *argv[])
 	sigaddset(&blockchild,SIGCHLD);
 	scdtab_init();
 	has_ptrace_multi=test_ptracemulti(&ptrace_vm_mask,&ptrace_viewos_mask);
+	want_ptrace_multi = has_ptrace_multi;
+	want_ptrace_vm = ptrace_vm_mask;
+	want_ptrace_viewos = ptrace_viewos_mask;
 	while (1) {
 		int option_index = 0;
 		static struct option long_options[] = {
@@ -85,11 +116,15 @@ int main(int argc,char *argv[])
 			{"nokviewos",0,0,0x102},
 			{0,0,0,0}
 		};
-		c=getopt_long(argc,argv,"+p:o:hn",long_options,&option_index);
+		c=getopt_long(argc,argv,"+p:o:hvn",long_options,&option_index);
 		if (c == -1) break;
 		switch (c) {
 			case 'h': 
 				usage(argv[0]);
+				break;
+			case 'v': 
+				version(1);
+				exit(0);
 				break;
 			case 'p': {
 					  void *handle=open_dllib(optarg);
@@ -100,45 +135,77 @@ int main(int argc,char *argv[])
 						  set_handle_new_service(handle,0);
 				  }
 				  break;
-			// write stdout to file specified by an argument
 			case 'o':{
-						if( optarg==NULL){
-							printf("%s: must specify an argument after -o\n",argv[0]);
+						 FILE* new_ofile;
+						if (optarg==NULL){
+							fprintf(stderr, "%s: must specify an argument after -o\n",argv[0]);
 							break;
 						}
+						new_ofile = fopen(optarg, "w");
+						if (!new_ofile)
+						{
+							perror(optarg);
+							exit(-1);
+						}
+						gdebug_set_ofile(new_ofile);
+						/*
 						close(STDOUT_FILENO);
 						if( open(optarg,O_WRONLY | O_CREAT | O_TRUNC,0666)<1 ){
 							perror(optarg);
 							exit(-1);
 						}
+						*/
+						
 					 }
 					 break;
 			case 'n':
-					 has_ptrace_multi=0;
-					 ptrace_vm_mask=0;
-					 ptrace_viewos_mask=0;
+					 want_ptrace_multi = 0;
+					 want_ptrace_vm = 0;
+					 want_ptrace_viewos = 0;
 					 break;
 			case 0x100:
-					 has_ptrace_multi=0;
+					 want_ptrace_multi = 0;
 					 break;
 			case 0x101:
-					 ptrace_vm_mask=0;
+					 want_ptrace_vm = 0;
 					 break;
 			case 0x102:
-					 ptrace_viewos_mask=0;
+					 want_ptrace_viewos = 0;
 					 break;
 		}
 	}
-	if (has_ptrace_multi > 0 || ptrace_vm_mask > 0 || ptrace_vm_mask > 0) {
-		fprintf(stderr,"Running with ");	
-		if (has_ptrace_multi > 0)
-			fprintf(stderr,"PTRACE_MULTI ");
-		if (ptrace_vm_mask > 0)
-			fprintf(stderr,"PTRACE_SYSVM ");
-		if (ptrace_viewos_mask > 0)
-			fprintf(stderr,"PTRACE_VIEWOS ");
-		fprintf(stderr,"enabled\n");
+	
+	if (has_ptrace_multi || ptrace_vm_mask || ptrace_viewos_mask)
+	{
+		fprintf(stderr, "This kernel supports: ");
+		if (has_ptrace_multi)
+			fprintf(stderr, "PTRACE_MULTI ");
+		if (ptrace_vm_mask)
+			fprintf(stderr, "PTRACE_SYSVM ");
+		if (ptrace_viewos_mask)
+			fprintf(stderr, "PTRACE_VIEWOS");
+		fprintf(stderr, "\n");
 	}
+	
+	if (has_ptrace_multi || ptrace_vm_mask || ptrace_viewos_mask ||
+			want_ptrace_multi || want_ptrace_vm || want_ptrace_viewos)
+	{
+		fprintf(stderr, "%s will use: ", UMVIEW_NAME);	
+		if (want_ptrace_multi)
+			fprintf(stderr,"PTRACE_MULTI ");
+		if (want_ptrace_vm)
+			fprintf(stderr,"PTRACE_SYSVM ");
+		if (want_ptrace_viewos)
+			fprintf(stderr,"PTRACE_VIEWOS");
+		if (!want_ptrace_multi && !want_ptrace_vm && !want_ptrace_viewos)
+			fprintf(stderr,"nothing");
+		fprintf(stderr,"\n\n");
+	}
+	
+	has_ptrace_multi = want_ptrace_multi;
+	ptrace_vm_mask = want_ptrace_vm;
+	ptrace_viewos_mask = want_ptrace_viewos;
+	
 	capture_main(argv+optind);
 	setenv("_INSIDE_UMVIEW_MODULE","",1);
 

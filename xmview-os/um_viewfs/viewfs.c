@@ -43,7 +43,7 @@
 #include "module.h"
 #include "libummod.h"
 #include "gdebug.h"
-#include "../um-viewos/syscallnames.h"
+#include "syscallnames.h"
 
 // #define VIEWFS_ENABLE_REMAP
 // #define VIEWFS_CHECK_CRITICAL
