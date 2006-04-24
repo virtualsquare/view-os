@@ -66,8 +66,6 @@
 #define getargn(N,PC) ( (PC)->saved_regs[PT_R3+(N)] )
 #define getargp(PC) (&((PC)->saved_regs[PT_R3]))
 #define putargn(N,X,PC) ( (PC)->saved_regs[PT_R3+(N)]=(X) )
-#define getarg0orig(PC) ( (PC)->saved_regs[11];)
-#define putarg0orig(N,PC) ( (PC)->saved_regs[11]=(N) )
 #define getrv(PC) ( (PC)->saved_regs[12] & 0x10000000 ? -1: (PC)->saved_regs[PT_R3] )
 #define putrv(RV,PC) ( (PC)->saved_regs[PT_R3]=(RV) , 0 )
 #define puterrno(ERR,PC) ({ if(ERR!=0){\

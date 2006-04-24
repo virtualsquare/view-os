@@ -147,8 +147,6 @@
 #define putscno(X,PC) ( (PC)->saved_regs[MY_ORIG_RAX]=(X) )
 #define getargn(N,PC) ( (PC)->saved_regs[(N)] )
 #define putargn(N,X,PC) ( (PC)->saved_regs[(N)]=(X) )
-#define getarg0orig(PC) ( (PC)->saved_regs[MY_RDI] )
-#define putarg0orig(N,PC) ( (PC)->saved_regs[MY_RDI]=(N) )
 #define getrv(PC) ({ long rax; \
 		rax = (PC)->saved_regs[MY_RAX];\
 		(rax<0 && -rax < MAXERR)? -1 : rax; })

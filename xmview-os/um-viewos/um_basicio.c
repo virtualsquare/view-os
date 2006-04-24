@@ -77,7 +77,6 @@ int wrap_in_open(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			ustorestr(pc->pid,sp-filenamelen,filenamelen,filename);
 			putscno(__NR_open,pc);
 			putargn(0,sp-filenamelen,pc);
-			putarg0orig(sp-filenamelen,pc);
 			putargn(1,O_RDONLY,pc);
 			return SC_CALLONXIT;
 		} else
@@ -99,7 +98,7 @@ int wrap_out_open(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) {
 			/* restore parms*/
 			if (lfd_getservice(pc->retval) != UM_NONE) {
 				putscno(pc->scno,pc);
-				putarg0orig(pc->arg0,pc);
+				putargn(0,pc->arg0,pc);
 				putargn(1,pc->arg1,pc);
 				putrv(fd,pc);
 			}

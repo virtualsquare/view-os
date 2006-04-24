@@ -77,7 +77,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	//int argv=getargn(2,pc);
 	//int env=getargn(3,pc);
 	char *filename=strdup(um_proc_tmpname());
-	//fprintf(stderr, "wrap_in_execve! %s\n",(char *)pcdata->path);
+	//fprintf(stderr, "wrap_in_execve! %s %p\n",(char *)pcdata->path,um_syscall);
 
 	/* argv and env should be downloaded then
 	 * pc->retval = um_syscall(pcdata->path, argv, env); */
@@ -87,7 +87,6 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval=lfd_open(UM_NONE,-1,filename);
 		ustorestr(pc->pid,sp-filenamelen,filenamelen,filename);
 		putargn(0,sp-filenamelen,pc);
-		putarg0orig(sp-filenamelen,pc);
 		free(filename);
 		return SC_CALLONXIT;
 	} else {

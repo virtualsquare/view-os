@@ -59,8 +59,6 @@
 #define getargn(N,PC) ( (PC)->saved_regs[(N)] )
 #define getargp(PC) ((PC)->saved_regs)
 #define putargn(N,X,PC) ( (PC)->saved_regs[N]=(X)  , (PC)->regs_modified=1 )
-#define getarg0orig(PC) ( (PC)->saved_regs[0] )
-#define putarg0orig(N,PC) ( (PC)->saved_regs[0]=(N)  , (PC)->regs_modified=1 )
 #define getrv(PC) ({ int eax; \
 		eax = (PC)->saved_regs[EAX];\
 		(eax<0 && -eax < MAXERR)? -1 : eax; })

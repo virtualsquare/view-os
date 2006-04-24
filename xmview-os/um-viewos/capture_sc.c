@@ -258,13 +258,11 @@ void offspring_enter(struct pcb *pc)
 	if (pc->scno == __NR_fork || pc->scno == __NR_vfork) {
 		putscno(__NR_clone,pc);
 		putargn(0,CLONE_PTRACE|SIGCHLD, pc);
-		putarg0orig(CLONE_PTRACE|SIGCHLD, pc);
 		putargn(1,0, pc);
 		pc->arg2=SIGCHLD;
 	}
 	else if (pc->scno == __NR_clone) {
 		putargn(0,pc->arg0 | CLONE_PTRACE, pc);
-		putarg0orig(pc->arg0 | CLONE_PTRACE, pc);
 		pc->arg2=pc->arg0;
 	}
 	pc->flags |= PCB_BPTSET;
@@ -272,9 +270,9 @@ void offspring_enter(struct pcb *pc)
 
 void offspring_exit(struct pcb *pc)
 {
-	putarg0orig(pc->arg0,pc);
+	putargn(0,pc->arg0,pc);
 	putargn(1,pc->arg1,pc);
-        pc->flags &= ~PCB_BPTSET;
+	pc->flags &= ~PCB_BPTSET;
 }
 
 void tracehand(int s)

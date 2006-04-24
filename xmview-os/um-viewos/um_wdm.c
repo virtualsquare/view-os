@@ -52,6 +52,7 @@
 // Could this be "/"?
 #define CHDIR_FAKE_DIR "/tmp"
 
+/* TODO mgmt of cwd buffer overflow */
 int wrap_in_getcwd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		service_t sercode, intfun um_syscall)
 {
@@ -101,7 +102,6 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			ustorestr(pc->pid, sp-pathlen, pathlen, pcdata->path);
 		}
 		putargn(0,sp-pathlen,pc);
-		putarg0orig(sp-pathlen,pc);
 		return SC_CALLONXIT;
 	} else {
 		pc->retval = -1;
@@ -119,7 +119,7 @@ int wrap_out_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	} else {
 		pc->retval=getrv(pc);
 		//printf("chdir returns %d\n",pc->retval);
-		putarg0orig(pc->arg0,pc);
+		putargn(0,pc->arg0,pc);
 		if (pc->retval >= 0) {
 			free(pcdata->fdfs->cwd);
 			pcdata->fdfs->cwd = pcdata->path;
@@ -152,7 +152,6 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			pathlen = WORDALIGN(strlen(pcdata->path));
 			ustorestr(pc->pid, sp - pathlen, pathlen, pcdata->path);
 			putargn(0, sp - pathlen, pc);
-			putarg0orig(sp - pathlen, pc);
 			putscno(__NR_chdir, pc);
 			GDEBUG(4, "FCHDIR making fake chdir to real %s", pcdata->path);
 			return SC_CALLONXIT;
@@ -172,7 +171,6 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 					ustorestr(pc->pid, sp-pathlen, pathlen, pcdata->path);
 				}
 				putargn(0,sp-pathlen,pc);
-				putarg0orig(sp-pathlen,pc);
 				putscno(__NR_chdir,pc);
 				return SC_CALLONXIT;
 			} else {

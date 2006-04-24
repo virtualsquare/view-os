@@ -66,7 +66,6 @@ int wrap_in_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		ustorestr(pc->pid,sp-filenamelen,filenamelen,filename); /*socket?*/
 		putscno(__NR_open,pc);
 		putargn(0,sp-filenamelen,pc);
-		putarg0orig(sp-filenamelen,pc);
 		putargn(1,O_RDONLY,pc);
 		return SC_CALLONXIT;
 	} else
@@ -104,7 +103,6 @@ int wrap_in_accept(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			ustorestr(pc->pid,sp-filenamelen,filenamelen,filename); /*socket?*/
 			putscno(__NR_open,pc);
 			putargn(0,sp-filenamelen,pc);
-			putarg0orig(sp-filenamelen,pc);
 			putargn(1,O_RDONLY,pc);
 			return SC_CALLONXIT;
 		} else
@@ -122,7 +120,7 @@ int wrap_out_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) {
 			lfd_register(pcdata->fds,fd,pc->retval);
 			/* restore parms*/
 			putscno(pc->scno,pc);
-			putarg0orig(pc->arg0,pc);
+			putargn(0,pc->arg0,pc);
 			putargn(1,pc->arg1,pc);
 			putrv(fd,pc);
 		} else {
