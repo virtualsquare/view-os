@@ -42,6 +42,7 @@
 #include "um_services.h"
 #include "ptrace_multi_test.h"
 #include "gdebug.h"
+#include "capture_nested.h"
 
 int _lwip_version = 1; /* modules interface version id.
 													modules can test to be compatible with
@@ -206,6 +207,7 @@ int main(int argc,char *argv[])
 	ptrace_vm_mask = want_ptrace_vm;
 	ptrace_viewos_mask = want_ptrace_viewos;
 	
+	capture_nested_init();
 	capture_main(argv+optind);
 	setenv("_INSIDE_UMVIEW_MODULE","",1);
 
