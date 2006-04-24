@@ -33,16 +33,17 @@
 #include <sys/resource.h>
 #include <stdlib.h>
 #include <signal.h>
-#include "umview.h"
 #include "defs.h"
+#include "umview.h"
 #include "capture_sc.h"
+#include "capture_nested.h"
 #include "sctab.h"
 #include "services.h"
 #include "um_select.h"
 #include "um_services.h"
 #include "ptrace_multi_test.h"
 #include "gdebug.h"
-#include "capture_nested.h"
+#include "real_syscalls.h"
 
 int _lwip_version = 1; /* modules interface version id.
 													modules can test to be compatible with

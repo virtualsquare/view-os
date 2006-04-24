@@ -51,6 +51,7 @@
 #include "scmap.h"
 #include "utils.h"
 #include "uid16to32.h"
+#include "real_syscalls.h"
 
 #define umNULL ((int) NULL)
 

@@ -49,6 +49,7 @@
 #include "scmap.h"
 #include "utils.h"
 #include "capture_sc.h"
+#include "real_syscalls.h"
 
 /* pipe to wake up main */
 static int wakeupmainfifo[2];

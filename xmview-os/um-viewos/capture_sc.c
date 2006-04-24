@@ -61,6 +61,7 @@
 #include "pivoting.h"
 #endif
 
+#include "real_syscalls.h"
 
 #define PCBSIZE 10
 
@@ -277,7 +278,7 @@ void offspring_exit(struct pcb *pc)
 
 void tracehand(int s)
 {
-	int pid, status, syscall=0;
+	int pid, status, tsyscall=0;
 	struct pcb *pc;
 
 	while(nprocs>0){
@@ -328,14 +329,14 @@ void tracehand(int s)
 				exit(1);
 			}
 			//printregs(pc);
-			syscall=getscno(pc);
+			tsyscall=getscno(pc);
 			/* execve does not return */
-			if (pc->scno == __NR_execve && syscall != __NR_execve){
+			if (pc->scno == __NR_execve && tsyscall != __NR_execve){
 				pc->scno = NOSC;
 			}
-			isreproducing=(syscall == __NR_fork ||
-					syscall == __NR_vfork ||
-					syscall == __NR_clone);
+			isreproducing=(tsyscall == __NR_fork ||
+					tsyscall == __NR_vfork ||
+					tsyscall == __NR_clone);
 			/* sigreturn and rt_sigreturn give random "OUT" values, maybe 0.
 			 * this is a workaroud */
 #if defined(__x86_64__) //sigreturn and signal aren't defineed in amd64
@@ -345,7 +346,7 @@ void tracehand(int s)
 #endif
 				pc->scno = NOSC;
 			}
-			else if (syscall == 0) {
+			else if (tsyscall == 0) {
 				if (pc->scno == __NR_execve)
 					pc->scno = NOSC;
 			}
@@ -357,14 +358,14 @@ void tracehand(int s)
 				{
 					GDEBUG(3, "pivoting, IN phase");
 					printregs(pc);
-					pc->scno = syscall;
-					pc->piv_callback(syscall, PHASE_IN, pc, pc->counter++);
-					/* we put by hand a fake syscall, with a big number; check if this is
+					pc->scno = tsyscall;
+					pc->piv_callback(tsyscall, PHASE_IN, pc, pc->counter++);
+					/* we put by hand a fake tsyscall, with a big number; check if this is
 					 * the case. if it is, pivoting has ended */
-					if(syscall == BIG_SYSCALL)
+					if(tsyscall == BIG_SYSCALL)
 					{
 						pivoting_eject(pc);
-						/* simulate a fake syscall */
+						/* simulate a fake tsyscall */
 						putscno(__NR_getpid, pc);
 						pc->behavior = SC_FAKE;
 					}
@@ -373,21 +374,21 @@ void tracehand(int s)
 				{
 #endif
 					divfun fun;
-					GDEBUG(3, "--> pid %d syscall %d (%s) @ %p", pid, syscall, SYSCALLNAME(syscall), getpc(pc));
+					GDEBUG(3, "--> pid %d syscall %d (%s) @ %p", pid, tsyscall, SYSCALLNAME(tsyscall), getpc(pc));
 					//printf("IN\n");
-					pc->scno = syscall;
-					fun=cdtab(syscall);
+					pc->scno = tsyscall;
+					fun=cdtab(tsyscall);
 					if (fun != NULL)
-						pc->behavior=fun(syscall,IN,pc);
+						pc->behavior=fun(tsyscall,IN,pc);
 					else
 						pc->behavior=STD_BEHAVIOR;
 #ifdef FAKESIGSTOP
-					if (syscall == __NR_kill && pc->behavior == STD_BEHAVIOR)
+					if (tsyscall == __NR_kill && pc->behavior == STD_BEHAVIOR)
 						pc->behavior=fakesigstopcont(pc);
 #endif
 					if (pc->behavior == SC_FAKE) {
 						if (PT_VM_OK) {
-							if ((fun(syscall,OUT,pc) & SC_SUSPENDED)==0)
+							if ((fun(tsyscall,OUT,pc) & SC_SUSPENDED)==0)
 								pc->scno=NOSC;
 						} else 
 						/* fake syscall with getpid if the kernel does not support
@@ -411,14 +412,14 @@ void tracehand(int s)
 				{
 					GDEBUG(3, "pivoting, OUT phase");
 					printregs(pc);
-					pc->piv_callback(syscall, PHASE_OUT, pc, pc->counter++);
+					pc->piv_callback(tsyscall, PHASE_OUT, pc, pc->counter++);
 					pc->scno = NOSC;
 				}
 				else
 				{
 #endif
 					divfun fun;
-					GDEBUG(3, "<-- pid %d syscall %d (%s) @ %p", pid, syscall, SYSCALLNAME(syscall), getpc(pc));
+					GDEBUG(3, "<-- pid %d syscall %d (%s) @ %p", pid, tsyscall, SYSCALLNAME(tsyscall), getpc(pc));
 					//printf("OUT\n");
 					if (isreproducing) {
 						long newpid;
@@ -430,9 +431,9 @@ void tracehand(int s)
 						offspring_exit(pc);
 						putrv(newpid,pc);
 					}
-					if ((pc->behavior == SC_FAKE && syscall != __NR_getpid) && 
-							syscall != pc->scno)
-						GDEBUG(0, "error FAKE != %d",syscall);
+					if ((pc->behavior == SC_FAKE && tsyscall != __NR_getpid) && 
+							tsyscall != pc->scno)
+						GDEBUG(0, "error FAKE != %d",tsyscall);
 					fun=cdtab(pc->scno);
 					if (fun != NULL &&
 							(pc->behavior == SC_FAKE ||
@@ -450,7 +451,7 @@ void tracehand(int s)
 			} // end if scno==NOSC (OUT)
 			if ((pc->behavior & SC_SUSPENDED) == 0) {
 				if (PT_VM_OK) {
-					/*printf("SC %s %d\n",SYSCALLNAME(syscall),pc->behavior);*/
+					/*printf("SC %s %d\n",SYSCALLNAME(tsyscall),pc->behavior);*/
 					if(setregs(pc,PTRACE_SYSVM, isreproducing ? 0 : pc->behavior) == -1)
 							GPERROR(0, "setregs");
 					if(!isreproducing && (pc->behavior & PTRACE_VM_SKIPEXIT))

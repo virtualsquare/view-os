@@ -52,6 +52,7 @@
 #include "canonicalize.h"
 #include "capture_sc.h"
 #include "gdebug.h"
+#include "real_syscalls.h"
 
 void um_set_errno(struct pcb *pc,int i) {
 	pc->erno=i;

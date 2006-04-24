@@ -28,6 +28,7 @@
 #include <stdarg.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include "real_syscalls.h"
 
 typedef long int (*sfun)(long int __sysno, ...);
 
@@ -37,11 +38,11 @@ static long int capture_nested_syscall(long int sysno, ...)
 	long int a1,a2,a3,a4,a5,a6;
 	va_start (ap, sysno);
 	/*debug of nested calls*/
-	/*{
+	{
 		static char buf[128];
 		snprintf(buf,128,"SC=%ld\n",sysno);
 		syscall(__NR_write,2,buf,strlen(buf));
-	}*/
+	}
 	a1=va_arg(ap,long int);
 	a2=va_arg(ap,long int);
 	a3=va_arg(ap,long int);

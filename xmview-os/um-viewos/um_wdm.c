@@ -46,6 +46,7 @@
 #include "scmap.h"
 #include "utils.h"
 #include "gdebug.h"
+#include "real_syscalls.h"
 
 #define umNULL ((int) NULL)
 
@@ -118,13 +119,12 @@ int wrap_out_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		err=puterrno(pc->erno,pc);
 	} else {
 		pc->retval=getrv(pc);
-		//printf("chdir returns %d\n",pc->retval);
-		putargn(0,pc->arg0,pc);
+		/*printf("chdir returns %d\n",pc->retval);*/
 		if (pc->retval >= 0) {
 			free(pcdata->fdfs->cwd);
 			pcdata->fdfs->cwd = pcdata->path;
-			//printf("new dir %d - %s\n",pc->pid,
-			//((struct pcb_ext *)(pc->data))->cwd);
+			/*printf("new dir %d - %s\n",pc->pid,
+			((struct pcb_ext *)(pc->data))->fdfs->cwd);*/
 		} else {
 			free((char *)pcdata->path);
 		}

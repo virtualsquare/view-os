@@ -34,6 +34,7 @@
 #include "umproc.h"
 #include "scmap.h"
 #include "defs.h"
+#include "real_syscalls.h"
 
 static char *um_proc_root;
 static char *um_tmpfile;
@@ -66,7 +67,7 @@ static struct lfd_top *lfd_tab=NULL;
 void um_proc_open()
 {
 	char path[PATH_MAX];
-	snprintf(path,PATH_MAX,"/tmp/.umproc%d",getpid());
+	snprintf(path,PATH_MAX,"/tmp/.umproc%ld",(long int)getpid());
 	//printf("um_proc_open %s\n",path);
 
 	if(mkdir(path,0700) < 0) {

@@ -1,7 +1,7 @@
 /*   This is part of um-ViewOS
  *   The user-mode implementation of OSVIEW -- A Process with a View
  *
- *   nested_headers: headers of all nesting code
+ *   real_syscalls: MACRO lib to avoid pure_libc mgmt of internal umview calls
  *   
  *   Copyright 2005 Andrea Gasparini University of Bologna - Italy
  *   
@@ -22,26 +22,21 @@
  *   $Id$
  *
  */
-#ifndef __NESTED_HEADERS_H
-#define  __NESTED_HEADERS_H
-#if 0
+#ifndef __REAL_SYSCALLS_H
+#define  __REAL_SYSCALLS_H
+
 #include<unistd.h>
 #include<sys/syscall.h>
 #define read(f,b,c) syscall(__NR_read,(f),(b),(c))
 #define write(f,b,c) syscall(__NR_write,(f),(b),(c))
 #define select(n,r,w,e,t) syscall(__NR__newselect,(n),(r),(w),(e),(t))
 #define waitpid(p,s,o) syscall(__NR_waitpid,(p),(s),(o))
-#endif
+#define lstat64(p,b) syscall(__NR_lstat64,(p),(b))
+#define readlink(p,b,sz) syscall(__NR_readlink,(p),(b),(sz))
+#define execve(f,a,e) syscall(__NR_execve,(f),(a),(e))
+#define fcntl(f,c,a) syscall(__NR_fcntl,(f),(c),(a))
+#define umask(m) syscall(__NR_umask,(m))
+#define pipe(v) syscall(__NR_pipe,(v))
+#define access(p,m) syscall(__NR_access,(p),(m))
 
-// nested_syscalls stuff...
-#ifdef NESTING_TEST
-extern unsigned char nested_inside_mod;
-extern unsigned char nested_service_code;
-#define enter_module(CODE) ({ nested_inside_mod=1; nested_service_code=(CODE); })
-#define exit_module() ({ nested_inside_mod=0; nested_service_code=UM_NONE; })
-#else
-#define enter_module(CODE) 
-#define exit_module() 
-#endif
-
-#endif //__NESTED_HEADERS_H
+#endif //__REAL_SYSCALLS_H

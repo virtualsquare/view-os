@@ -48,6 +48,7 @@
 #include "utils.h"
 #include <sys/time.h>
 #include <time.h>
+#include "real_syscalls.h"
 
 #define umNULL ((int) NULL)
 

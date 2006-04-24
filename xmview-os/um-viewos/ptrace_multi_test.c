@@ -34,6 +34,7 @@
 #include <asm/unistd.h>
 #include <errno.h>
 
+#include "real_syscalls.h"
 
 static int child(void *arg)
 {

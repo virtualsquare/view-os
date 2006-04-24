@@ -30,6 +30,7 @@
 #include <string.h>
 #include "services.h"
 #include "defs.h"
+#include "real_syscalls.h"
 
 /* servmap[service code] - 1 is the index of the service description into
  * 'services' */
