@@ -81,7 +81,7 @@ void capture_nested_init()
 		*_pure_syscall=capture_nested_syscall;
 	}
 	if ((_pure_socketcall=dlsym(NULL,"_pure_socketcall")) != NULL) {
-		*_pure_syscall=capture_nested_socketcall;
+		*_pure_socketcall=capture_nested_socketcall;
 	}
 }
 
