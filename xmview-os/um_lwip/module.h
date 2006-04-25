@@ -22,10 +22,22 @@
  *   $Id$
  *
  */
-#ifndef CANONICALIZE_H_
-#define CANONICALIZE_H_
+#include <unistd.h>
+#include <sys/syscall.h>
+//#include <sys/socket.h>
+typedef int (*intfun)();
 
-char *um_realpath (void *pc, const char *name, char *resolved);
+struct service {
+	char *name;
+	char code;
+	void *handle;
+	intfun checkpath;
+	intfun checksocket;
+	intfun select_register;
+	intfun *syscall;
+	intfun *socket;
+};
 
-#endif
 
+extern int scmap_scmapsize;
+extern int scmap_sockmapsize;

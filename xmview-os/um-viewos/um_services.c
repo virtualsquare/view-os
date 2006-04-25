@@ -46,46 +46,11 @@
 #define NAME_SERVICE 4
 #define LOCK_SERVICE 5
 
-void *open_dllib(char *name)
-{
-	char *args;
-	void *handle;
-	for (args=name;*args != 0 && *args != ',';args++)
-		;
-	if (*args == ',') {
-		*args = 0;
-		args++;
-	}
-	handle=dlopen(name,RTLD_LAZY|RTLD_GLOBAL);
-	if (handle != NULL) {
-		void (*pinit)() = dlsym(handle,"_um_mod_init");
-		if (pinit != NULL) {
-			pinit(args);
-		}
-	}
-	return handle;
-}
-
-// umview internal use only, not in syscall management.
-// because it doesn't update pc->errno
-// FIXME: should be moved from this file.
-int um_add_service(char* path,int position){
-	void *handle=open_dllib(path);
-	if (handle==NULL) {
-			return  -1;
-	} else {
-			if ( set_handle_new_service(handle,position) != 0) {
-					dlclose(handle);
-			}
-	}
-	return 0;
-}
-
 int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 {
 	//printf("dsys_um_service pid %d call %d\n",pc->pid,sc_number);
 	if (inout == IN) {
-		long arg1,arg2,arg3;
+		int arg1,arg2,arg3;
 		char buf[PATH_MAX];
 		pc->arg0=getargn(0,pc);
 		switch (pc->arg0) {
@@ -97,13 +62,12 @@ int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 					//	pc->retval=-1;
 					//	pc->erno=errno;
 					//} else {
-						void *handle=open_dllib(buf);
+						void *handle=dlopen(buf,RTLD_LAZY|RTLD_GLOBAL);
 						if (handle==NULL) {
 							pc->retval= -1;
 							pc->erno=EINVAL;
 						} else {
 							if ((pc->retval=set_handle_new_service(handle,arg1)) != 0) {
-								dlclose(handle);
 								pc->erno=errno;
 							}
 						}
@@ -115,12 +79,12 @@ int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 				break;
 			case DEL_SERVICE:
 				arg1=getargn(1,pc) & 0xff;
-				pc->retval=del_service(arg1);
 				{void * handle=get_handle_service(arg1);
 					if (handle!= NULL) {
 						dlclose(handle);
 					}
 				}
+				pc->retval=del_service(arg1);
 				pc->erno=errno;
 				break;
 			case MOV_SERVICE:
@@ -133,7 +97,7 @@ int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 				arg1=getargn(1,pc);
 				arg2=getargn(2,pc);
 				if (arg2>PATH_MAX) arg2=PATH_MAX;
-				pc->retval=list_services((unsigned char *)buf,arg2);
+				pc->retval=list_services(buf,arg2);
 				pc->erno=errno;
 				if (pc->retval > 0)
 					ustoren(pc->pid,arg1,pc->retval,buf);

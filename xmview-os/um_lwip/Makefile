@@ -2,13 +2,13 @@
 ifeq ($(RELEASE),true)
 LWIPDIR=
 else
-LWIPDIR=../../LWIPV6a
+LWIPDIR=../../LWIPV6
 endif
 
 LWIPSRCDIR=$(LWIPDIR)/lwip-v6/src
 LWIPCONTRIBDIR=$(LWIPDIR)/lwip-contrib/ports/unix
 
-CFLAGS=-D_GNU_SOURCE -ggdb -D_FILE_OFFSET_BITS=64 -rdynamic -I../include -I$(LWIPCONTRIBDIR)/include
+CFLAGS=-D_GNU_SOURCE -ggdb -D_FILE_OFFSET_BITS=64 -rdynamic -I$(LWIPSRCDIR)/include -I$(LWIPSRCDIR)/include/ipv6 -I$(LWIPCONTRIBDIR)/include
 
 ALL=lwipv6.so
 
@@ -26,9 +26,7 @@ endif
 lwipv6.so: lwipv6.o
 	$(CC) -shared -o $@ $<
 
-lwipv6.o: lwipv6.c ../include/module.h 
-
-distclean: clean
+lwipv6.o: lwipv6.c module.h 
 
 cleanall:
 	rm -rf $(ALL) *.o
@@ -38,4 +36,4 @@ clean: cleanall
 install: all
 	install $(ALL) ${libdir}
 
-.PHONY: all clean cleanall install distclean
+.PHONY: all clean cleanall install

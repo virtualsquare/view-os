@@ -1,61 +1,7 @@
-/*   This is part of um-ViewOS
- *   The user-mode implementation of OSVIEW -- A Process with a View
- *
- *   umfuse parameters management
- *   
- *   Copyright 2005 Renzo Davoli University of Bologna - Italy
- *   Modified 2005 Paolo Angelelli, Andrea Seraghiti
- *   
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
- *
- *   You should have received a copy of the GNU General Public License along
- *   with this program; if not, write to the Free Software Foundation, Inc.,
- *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
- *
- *   $Id$
- *
- */
-
-/*  UMFUSE ARGS!
-
-mount options for umfuse file systems can include the following:
-pre=....
-post=....
-format=.....
-nosource
-debug
-
-nosource means that the 'source' field (where fo mount the file system from)
-must not be specified when calling the library.
-
-The standard call for the library 'main' is the following:
-
-umfusexxx  -o options source mountpoint
-
-pre are extra parms to be put before -o
-post are extra trailing parms
-
-If the main needs a completely different structure format can be used:
-the format string is similar to that used in printf.
-%O %S %M descriptors are substituted in the call as follows:
-%O=-o options
-%S=source
-%M=mountpoint
-*/
-
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <fuse/fuse.h>
 #include "umfusestd.h"
 
 #define MAXARGS 256
@@ -67,8 +13,6 @@ the format string is similar to that used in printf.
 #define FUSEARGPOST 4 //"post"
 #define FUSEARGFMT 5 //"format"
 #define FUSEARGSHOWCALL 6 //"format"
-#define FUSEARGUID 7 //"format"
-#define FUSEARGGID 8 //"format"
 #define FUSEFLAGHASSTRING 1
 #define FUSEFLAGCOPY 2
 static struct fuseargitem {
@@ -81,9 +25,7 @@ static struct fuseargitem {
 	{"showcall",FUSEARGSHOWCALL, 0},
 	{"pre=", FUSEARGPRE, FUSEFLAGHASSTRING},
 	{"post=",FUSEARGPOST, FUSEFLAGHASSTRING},
-	{"format=",FUSEARGFMT, FUSEFLAGHASSTRING},
-	{"fuseuid=",FUSEARGUID, FUSEFLAGHASSTRING},
-	{"fusegid=",FUSEARGGID, FUSEFLAGHASSTRING}
+	{"format=",FUSEARGFMT, FUSEFLAGHASSTRING}
 };
 #define FUSEARGTABSIZE sizeof(fuseargtab)/sizeof(struct fuseargitem)
 
@@ -171,7 +113,7 @@ static int fuseaddargs(char *fmt, char *source, char *mountpoint, char *opts, ch
 	return nargc;
 }
 
-int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, char ***pargv,struct fuse_context *fc,int *pflags)
+int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, char ***pargv,int *pflags)
 {
 	char *sepopts[MAXARGS];
 	int nsepopts=0;
@@ -243,12 +185,6 @@ int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, ch
 				break;
 			case FUSEARGFMT:
 				fmt=sepopts[i]+strlen(fuseargtab[j].arg);
-				break;
-			case FUSEARGUID:
-				fc->uid=atoi(sepopts[i]+strlen(fuseargtab[j].arg));
-				break;
-			case FUSEARGGID:
-				fc->gid=atoi(sepopts[i]+strlen(fuseargtab[j].arg));
 				break;
 			default:
 				{

@@ -214,7 +214,6 @@ sys_mbox_post(struct sys_mbox *mbox, void *msg)
 {
   LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_post: mbox %p msg %p\n", (void *)mbox, (void *)msg));
   
-	//printf("sys_mbox_post %p %p %x\n",mbox,msg,(msg != NULL)?*((int *)msg):0);
 	write(mbox->pipe[1],&msg,sizeof(void *));
 }
 /*-----------------------------------------------------------------------------------*/
@@ -223,7 +222,6 @@ sys_arch_mbox_fetch(struct sys_mbox *mbox, void **msg, u32_t timeout)
 {
 	int fdn;
 	int time;
-	int n;
 
 	fd_set rds;
 	struct timeval tv;
@@ -231,33 +229,24 @@ sys_arch_mbox_fetch(struct sys_mbox *mbox, void **msg, u32_t timeout)
 	FD_SET(mbox->pipe[0],&rds);
 	//printf("TIMEOUT %p %p ->%d\n",(void *)mbox,(void *) msg,timeout);
 	
-	do {
-		if (timeout != 0) {
-			tv.tv_sec = timeout/1000;
-			tv.tv_usec = (timeout%1000) * 1000;
-			fdn=select(mbox->pipe[0]+1,&rds,NULL,NULL,&tv);
-		} else {
-			tv.tv_sec=tv.tv_usec=0;
-			fdn=select(mbox->pipe[0]+1,&rds,NULL,NULL,NULL);
-		}
-	} while (fdn < 0 && errno==EINTR);
-	//printf("FDN %p %d %s %d\n",(void *)mbox,fdn,strerror(errno),FD_ISSET(mbox->pipe[0],&rds));
+	if (timeout != 0) {
+		tv.tv_sec = timeout/1000;
+		tv.tv_usec = (timeout%1000) * 1000;
+		fdn=select(mbox->pipe[0]+1,&rds,NULL,NULL,&tv);
+	} else {
+		tv.tv_sec=tv.tv_usec=0;
+		fdn=select(mbox->pipe[0]+1,&rds,NULL,NULL,NULL);
+	}
+	//printf("FDN %d\n",fdn);
 
 	if (fdn > 0) {
 		if (msg != NULL)
-			n=read(mbox->pipe[0],msg,sizeof(void *));
+			read(mbox->pipe[0],msg,sizeof(void *));
 		else
-			n=read(mbox->pipe[0],&fdn,sizeof(void *));
-	//printf("sys_mbox_read %p %x\n",(msg==NULL)?NULL:(void *)*msg, (msg==NULL)?0:**(int **)msg);
+			read(mbox->pipe[0],&fdn,sizeof(void *));
 	if (timeout != 0)
 		time=timeout - (tv.tv_sec * 1000+tv.tv_usec / 1000);
 	else time=0;
-			/***************************/
-	/*tv.tv_sec=tv.tv_usec=0;
-	FD_ZERO(&rds);
-	FD_SET(mbox->pipe[0],&rds);
-	printf("empty? %d\n",select(mbox->pipe[0]+1,&rds,NULL,NULL,&tv));*/
-			/***************************/
   LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_fetch: mbox %p msg %p timeout %d\n", (void *)mbox, (msg==NULL)?NULL:(void *)*msg,time));
 	} else {
 		time=SYS_ARCH_TIMEOUT;

@@ -25,39 +25,24 @@
  */   
 #include <unistd.h>
 #include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/uio.h>
 #include <string.h>
 #include "module.h"
 #include "libummod.h"
 
-// int read(), write(), close();
+int read(), write(), close();
 
 static struct service s;
 
-static int real_path(int type, void *arg)
+static int alwaysfalse()
 {
-	if (type == CHECKPATH) {
-		char *path=arg;
-		return (strncmp(path,"/lib",4) != 0);
-	}
-	else
-		return 0;
-}
-
-static int addproc(int id, int max, void *umph)
-{
-	printf("new process id %d  pid %d   max %d\n",id,um_mod_getpid(umph),max);
 	return 0;
 }
 
-static int delproc(int id, void *umph)
+static int realpath(char *path)
 {
-	printf("terminated process id %d  pid %d\n",id,um_mod_getpid(umph));
-	return 0;
+	return (strncmp(path,"/lib",4) != 0);
 }
 
 static void
@@ -67,9 +52,8 @@ init (void)
 	printf("real init\n");
 	s.name="Identity (server side)";
 	s.code=0x00;
-	s.checkfun=real_path;
-	s.addproc=addproc;
-	s.delproc=delproc;
+	s.checkpath=realpath;
+	s.checksocket=alwaysfalse;
 	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
 	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
 	s.syscall[uscno(__NR_open)]=(intfun)open;
@@ -81,20 +65,16 @@ init (void)
 	s.syscall[uscno(__NR_stat)]=stat;
 	s.syscall[uscno(__NR_lstat)]=lstat;
 	s.syscall[uscno(__NR_fstat)]=fstat;
-#if !defined(__x86_64__)
 	s.syscall[uscno(__NR_stat64)]=stat64;
 	s.syscall[uscno(__NR_lstat64)]=lstat64;
 	s.syscall[uscno(__NR_fstat64)]=fstat64;
-#endif
 	s.syscall[uscno(__NR_readlink)]=readlink;
 	s.syscall[uscno(__NR_getdents)]=getdents;
 	s.syscall[uscno(__NR_getdents64)]=getdents64;
 	s.syscall[uscno(__NR_access)]=access;
 	s.syscall[uscno(__NR_fcntl)]=fcntl32;
-#if !defined(__x86_64__)
 	s.syscall[uscno(__NR_fcntl64)]=fcntl64;
 	s.syscall[uscno(__NR__llseek)]=_llseek;
-#endif
 	add_service(&s);
 }
 

@@ -423,18 +423,18 @@ a lot of data that needs to be copied, this should be set high. */
 
 #else
 
-#define LINK_STATS	        0
-#define IP_STATS	        0
-#define IPFRAG_STATS	    0
-#define ICMP_STATS	        0
-#define UDP_STATS	        0
-#define TCP_STATS	        0
-#define MEM_STATS	        0
-#define MEMP_STATS	        0
-#define PBUF_STATS	        0
-#define SYS_STATS	        0
-#define RAW_STATS	        0
-#define DEBUG_STATS	        0
+#define LINK_STATS	0
+#define IP_STATS	0
+#define IPFRAG_STATS	0
+#define ICMP_STATS	0
+#define UDP_STATS	0
+#define TCP_STATS	0
+#define MEM_STATS	0
+#define MEMP_STATS	0
+#define PBUF_STATS	0
+#define SYS_STATS	0
+#define RAW_STATS	0
+#define DEBUG_STATS	0
 #define LWIP_STATS_DISPLAY	0
 
 #endif /* LWIP_STATS */

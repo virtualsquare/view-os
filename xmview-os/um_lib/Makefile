@@ -1,4 +1,4 @@
-CFLAGS=-fPIC -I../include 
+CFLAGS=-I../include 
 
 all: libumlib.a
 
@@ -10,8 +10,6 @@ libumlib.a: um_lib.o libummod.o
 um_lib.o: um_lib.c
 
 libummod.o: libummod.c
-
-distclean: clean
 
 clean: 
 	rm -f libumlib.a um_lib.o libummod.o

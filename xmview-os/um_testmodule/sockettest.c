@@ -24,107 +24,38 @@
  */   
 #include <unistd.h>
 #include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/poll.h>
-#include <sys/socket.h>
 #include <linux/net.h>
 #include <string.h>
 #include "module.h"
 #include "libummod.h"
-#include <asm/ioctls.h>
-#include <linux/net.h>
-#include <linux/sockios.h>
-#include <linux/if.h>
 
-
-// int read(), write(), close();
+int read(), write(), close();
 
 static struct service s;
 
-static int ioctlparms(struct ioctl_len_req *arg,void *umph)
+static int alwaysfalse()
 {
-	switch (arg->req) {
-		case FIONREAD:
-			return sizeof(int) | IOCTL_W;
-		case FIONBIO:
-			return sizeof(int) | IOCTL_R;
-		case SIOCGIFCONF:
-			return sizeof(struct ifconf) | IOCTL_R | IOCTL_W;
-		case SIOCGSTAMP:
-			return sizeof(struct timeval) | IOCTL_W;
-		case SIOCGIFTXQLEN:
-			return sizeof(struct ifreq) | IOCTL_R | IOCTL_W;
-		case SIOCGIFFLAGS:
-		case SIOCGIFADDR:
-		case SIOCGIFDSTADDR:
-		case SIOCGIFBRDADDR:
-		case SIOCGIFNETMASK:
-		case SIOCGIFMETRIC:
-		case SIOCGIFMEM:
-		case SIOCGIFMTU:
-		case SIOCGIFHWADDR:
-			return sizeof(struct ifreq) | IOCTL_R | IOCTL_W;
-		case SIOCSIFFLAGS:
-		case SIOCSIFADDR:
-		case SIOCSIFDSTADDR:
-		case SIOCSIFBRDADDR:
-		case SIOCSIFNETMASK:
-		case SIOCSIFMETRIC:
-		case SIOCSIFMEM:
-		case SIOCSIFMTU:
-		case SIOCSIFHWADDR:
-		case SIOCGIFINDEX:
-			return sizeof(struct ifreq) | IOCTL_R;
-		default:
-			return 0;
-	}
+	return 0;
 }
 
-
-static int choiceissocket(int type,void *arg,void *umph)
+static int alwaystrue(char *path)
 {
-	if (type==CHECKSOCKET)
-		return 1;
-	else if (type == CHECKIOCTLPARMS) 
-		return ioctlparms(arg,umph);
-	else
-		return 0;
+	return 1;
 }
 
-static int sockioctl(int d, int request, void *arg, void *umph)
-{
-	if (request == SIOCGIFCONF) {
-		int rv;
-		void *save;
-		struct ifconf *ifc=(struct ifconf *)arg;
-		save=ifc->ifc_buf;
-		ioctl(d,request,arg);
-		ifc->ifc_buf=malloc(ifc->ifc_len);
-		um_mod_umoven(umph,(long) save,ifc->ifc_len,ifc->ifc_buf);
-		rv=ioctl(d,request,arg);
-		if (rv>=0)
-			um_mod_ustoren(umph,(long) save,ifc->ifc_len,ifc->ifc_buf);
-		free(ifc->ifc_buf);
-		ifc->ifc_buf=save;
-		return rv;
-	}
-	return ioctl(d,request,arg);
-}
-
-
-
-	static void
-	__attribute__ ((constructor))
+static void
+__attribute__ ((constructor))
 init (void)
 {
 	printf("sockettest init\n");
 	s.name="sockettest (syscall are executed server side)";
 	s.code=0xfa;
-	s.checkfun=choiceissocket;
+	s.checkpath=alwaysfalse;
+	s.checksocket=alwaystrue;
 	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
 	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
 	s.socket[SYS_SOCKET]=socket;
@@ -147,20 +78,18 @@ init (void)
 	s.syscall[uscno(__NR_write)]=write;
 	s.syscall[uscno(__NR_readv)]=readv;
 	s.syscall[uscno(__NR_writev)]=writev;
-	s.syscall[uscno(__NR_close)]=close;
+        s.syscall[uscno(__NR_close)]=close;
 	s.syscall[uscno(__NR_fcntl)]=fcntl32;
-#if !defined(__x86_64__)
 	s.syscall[uscno(__NR_fcntl64)]=fcntl64;
-#endif
-	s.syscall[uscno(__NR_ioctl)]=sockioctl;
+	s.syscall[uscno(__NR_ioctl)]=(intfun) ioctl;
 	s.syscall[uscno(__NR__newselect)]=select;
 	s.syscall[uscno(__NR_poll)]=poll;
 
 	add_service(&s);
 }
 
-	static void
-	__attribute__ ((destructor))
+static void
+__attribute__ ((destructor))
 fini (void)
 {
 	free(s.syscall);

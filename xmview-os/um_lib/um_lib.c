@@ -33,10 +33,6 @@ static short _i386_sc_remap[]={251,222,17,31,32,35,44,53,56,58,98,112,127,130,13
 #define UMSERVICE (_i386_sc_remap[0])
 #elif defined(__powerpc__) && !defined(__powerpc64)
 #define UMSERVICE  BASEUSB+0
-#elif defined(__x86_64__)
-// ATTENTION: this define is only for compile correctly, it will not work, if 
-// it's used in any of um_cmd
-#define UMSERVICE 0
 #endif
 
 #define ADD_SERVICE 0

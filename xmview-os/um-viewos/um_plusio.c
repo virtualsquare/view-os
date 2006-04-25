@@ -50,53 +50,40 @@
 #include "sctab.h"
 #include "scmap.h"
 #include "utils.h"
-#include "uid16to32.h"
 
 #define umNULL ((int) NULL)
 
 int wrap_in_mkdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, intfun syscall)
 {
 	int mode;
 	mode=getargn(1,pc);
-	enter_module(sercode);
-	pc->retval = um_syscall(pcdata->path,mode & ~ (pcdata->fdfs->mask),pc);
+	pc->retval = syscall(pcdata->path,mode & ~ (pcdata->fdfs->mask));
 	pc->erno=errno;
-	exit_module();
 	return SC_FAKE;
 }
 
 int wrap_in_unlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		                char sercode, intfun um_syscall)
+		                char sercode, intfun syscall)
 {
-	enter_module(sercode);
-	pc->retval = um_syscall(pcdata->path,pc);
+	pc->retval = syscall(pcdata->path);
 	pc->erno=errno;
-	exit_module();
 	return SC_FAKE;
 }
 
 int wrap_in_chown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, intfun syscall)
 {
-	unsigned int owner,group;
+	int owner,group;
 	owner=getargn(1,pc);
 	group=getargn(2,pc);
-#if __NR_chown != __NR_chown32
-	if (sc_number == __NR_chown || sc_number == __NR_lchown) {
-		owner=id16to32(owner);
-		group=id16to32(group);
-	}
-#endif
-	enter_module(sercode);
-	pc->retval = um_syscall(pcdata->path,owner,group,pc);
+	pc->retval = syscall(pcdata->path,owner,group);
 	pc->erno=errno;
-	exit_module();
 	return SC_FAKE;
 }
 
 int wrap_in_fchown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, intfun syscall)
 {
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	if (sfd < 0) {
@@ -104,37 +91,27 @@ int wrap_in_fchown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->erno= EBADF;
 		return SC_FAKE;
 	} else {
-		unsigned int owner,group;
+		int owner,group;
 		owner=getargn(1,pc);
 		group=getargn(2,pc);
-#if __NR_fchown != __NR_fchown32
-	if (sc_number == __NR_fchown) {
-		owner=id16to32(owner);
-		group=id16to32(group);
-	}
-#endif
-		enter_module(sercode);
-		pc->retval = um_syscall(sfd,owner,group,pc);
+		pc->retval = syscall(sfd,owner,group);
 		pc->erno=errno;
-		exit_module();
 		return SC_FAKE;
 	}
 }
 
 int wrap_in_chmod(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, intfun syscall)
 {
 	int mode;
 	mode=getargn(1,pc);
-	enter_module(sercode);
-	pc->retval = um_syscall(pcdata->path,mode,pc);
+	pc->retval = syscall(pcdata->path,mode);
 	pc->erno=errno;
-	exit_module();
 	return SC_FAKE;
 }
 
 int wrap_in_fchmod(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, intfun syscall)
 {
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	if (sfd < 0) {
@@ -144,10 +121,8 @@ int wrap_in_fchmod(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	} else {
 		int mode;
 		mode=getargn(1,pc);
-		enter_module(sercode);
-		pc->retval = um_syscall(sfd,mode,pc);
+		pc->retval = syscall(sfd,mode);
 		pc->erno=errno;
-		exit_module();
 		return SC_FAKE;
 	}
 }
@@ -159,14 +134,14 @@ int wrap_in_fchmod(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
  */
 
 int wrap_in_dup(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		service_t sercode, intfun um_syscall)
+		service_t sercode, intfun syscall)
 {
 	if (sc_number == __NR_dup2) {
 		pc->arg1=getargn(1,pc);
 	} else
 		pc->arg1= -1;
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
-	GDEBUG(4, "DUP %d %d sfd %d %s",pc->arg0,pc->arg1,sfd,fd_getpath(pcdata->fds,pc->arg0));
+	//GDEBUG(2, "DUP %d %d sfd %d %s",pc->arg0,pc->arg1,sfd,fd_getpath(pcdata->fds,pc->arg0));
 	if (sfd < 0 && sercode != UM_NONE) {
 		pc->retval= -1;
 		pc->erno= EBADF;
@@ -193,10 +168,10 @@ int wrap_out_dup(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		int fd=getrv(pc);
 		if (fd >= 0) {
 			if (pc->arg1 != -1)
-				lfd_deregister_n_close(pcdata->fds,pc->arg1,pc);
+				lfd_deregister_n_close(pcdata->fds,pc->arg1);
 			lfd_register(pcdata->fds,fd,pc->retval);
 		} else {
-			lfd_close(pc->retval,pc);
+			lfd_close(pc->retval);
 		}
 	} else {
 		putrv(pc->retval,pc);
@@ -206,7 +181,7 @@ int wrap_out_dup(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 }
 
 int wrap_in_fcntl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		service_t sercode, intfun um_syscall)
+		service_t sercode, intfun syscall)
 {
 	int cmd=getargn(1,pc);
 	unsigned long arg=getargn(2,pc);
@@ -229,11 +204,9 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			lfd_dup(pc->retval);
 			return SC_CALLONXIT;
 		} else {
-			enter_module(sercode);
-			pc->retval = um_syscall(sfd,cmd,arg,pc);
+			pc->retval = syscall(sfd,cmd,arg);
 			//pc->erno= pc->retval<0?errno:0;
 			pc->erno= errno;
-			exit_module();
 			return SC_FAKE;
 		}
 	}
@@ -250,7 +223,7 @@ int wrap_out_fcntl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 			if (fd>=0)
 				lfd_register(pcdata->fds,fd,pc->retval);
 			else
-				lfd_close(pc->retval,pc);
+				lfd_close(pc->retval);
 			break;
 		case F_SETFD:
 			/* take care of FD_CLOEXEC flag value XXX */
@@ -264,7 +237,7 @@ int wrap_out_fcntl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 }
 
 int wrap_in_fsync(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, intfun syscall)
 {
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	if (sfd < 0) {
@@ -272,33 +245,28 @@ int wrap_in_fsync(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->erno= EBADF;
 		return SC_FAKE;
 	} else {
-		enter_module(sercode);
-		pc->retval = um_syscall(sfd,pc);
+		pc->retval = syscall(sfd);
 		pc->erno=errno;
-		exit_module();
 	}
 	return SC_FAKE;
 }
 
 int wrap_in_link(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, intfun syscall)
 {
-	struct stat64 sourcest;
-	char *source=um_abspath(pc->arg0,pc,&sourcest,0);
+	char *source=um_abspath(pc->arg0,pc,0);
 
 	if (source==um_patherror) {
 		pc->retval= -1;
 		pc->erno= ENOENT;
 	} else {
-		int ser2=service_check(CHECKPATH,source,pc);
+		int ser2=service_path(source);
 		if (ser2 != sercode) {
 			pc->retval= -1;
 			pc->erno= EXDEV;
 		} else {
-			enter_module(sercode);
-			pc->retval=um_syscall(source,pcdata->path,pc);
+			pc->retval=syscall(source,pcdata->path);
 			pc->erno= errno;
-			exit_module();
 		}
 		free(source);
 	}
@@ -306,26 +274,23 @@ int wrap_in_link(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_symlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, intfun syscall)
 {
 	char *source=um_getpath(pc->arg0,pc);
 	if (source==um_patherror) {
 		pc->retval= -1;
 		pc->erno= ENOENT;
 	} else {
-		enter_module(sercode);
-		pc->retval=um_syscall(source,pcdata->path,pc);
-		pc->erno= errno;
-		exit_module();
+		pc->retval=syscall(source,pcdata->path);
 		free(source);
 	}
 	return SC_FAKE;
 }
 
 int wrap_in_utime(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, intfun syscall)
 {
-	unsigned long argaddr=getargn(1,pc);
+	unsigned int argaddr=getargn(1,pc);
 	int argsize;
 	char *larg;
 	if (argaddr == umNULL) 
@@ -336,55 +301,42 @@ int wrap_in_utime(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		else
 			argsize=2*sizeof(struct timeval);
 		larg=alloca(argsize);
-		umoven(pc->pid,argaddr,argsize,larg);
 	}
-	enter_module(sercode);
-	pc->retval = um_syscall(pcdata->path,larg,pc);
+	umoven(pc->pid,argaddr,argsize,larg);
+	pc->retval = syscall(pcdata->path,larg);
 	pc->erno=errno;
-	exit_module();
 	return SC_FAKE;
 }
 
 int wrap_in_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		                char sercode, intfun um_syscall)
+		                char sercode, intfun syscall)
 {
-	char *source;
+	char source[PATH_MAX];
 	char filesystemtype[PATH_MAX];
 	char data[PATH_MAX];
 	char *datax=data;
-	unsigned long argaddr=pc->arg0;
+	unsigned int argaddr=pc->arg0;
 	unsigned int fstype=getargn(2,pc);
 	unsigned int mountflags=getargn(3,pc);
-	unsigned long pdata=getargn(4,pc);
-	struct stat64 imagestat;
+	unsigned int pdata=getargn(4,pc);
 	umovestr(pc->pid,fstype,PATH_MAX,filesystemtype);
-	source = um_abspath(argaddr,pc,&imagestat,0);
-	if (source==um_patherror) {
-		source=malloc(PATH_MAX);
-		assert(source);
-		umovestr(pc->pid,argaddr,PATH_MAX,source);
-	} 
+	umovestr(pc->pid,argaddr,PATH_MAX,source);
 	if (pdata != umNULL)
 		umovestr(pc->pid,pdata,PATH_MAX,data);
 	else
 		datax=NULL;
-	enter_module(sercode);
-	pc->retval = um_syscall(source,pcdata->path,filesystemtype,mountflags,datax,pc);
+	pc->retval = syscall(source,pcdata->path,filesystemtype,mountflags,datax);
 	pc->erno=errno;
-	exit_module();
-	free(source);
 	return SC_FAKE;
 }
 
 int wrap_in_umount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		                char sercode, intfun um_syscall)
+		                char sercode, intfun syscall)
 {
 	unsigned int flags=0;
 	if (sc_number == __NR_umount2)
 		flags=getargn(1,pc);
-	enter_module(sercode);
-	pc->retval = um_syscall(pcdata->path,flags,pc);
+	pc->retval = syscall(pcdata->path,flags);
 	pc->erno=errno;
-	exit_module();
 	return SC_FAKE;
 }

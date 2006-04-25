@@ -57,13 +57,7 @@ typedef enum {
   MEMP_TCPIP_MSG,
 
   MEMP_SYS_TIMEOUT,
-
-/* added by Diego Billi */  
-#ifdef LWIP_NAT
-  MEMP_NAT_PCB,
-  MEMP_NAT_RULE,
-#endif
-
+  
   MEMP_MAX
 } memp_t;
 
@@ -72,9 +66,6 @@ void memp_init(void);
 void *memp_malloc(memp_t type);
 void *memp_realloc(memp_t fromtype, memp_t totype, void *mem);
 void memp_free(memp_t type, void *mem);
-
-#endif /* __LWIP_MEMP_H__  */
-
 
 /*
 #define memp_init() ({ ; })
@@ -116,4 +107,7 @@ void memp_free(memp_t type, void *mem);
 		printf("MEMP-REALLOC %x->%x (T=%d Size=%d) %s %d\n",old,x,T,memp_sizes[T],__FILE__,__LINE__); \
 		x; })
 */
+
+
+#endif /* __LWIP_MEMP_H__  */
     

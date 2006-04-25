@@ -38,7 +38,6 @@
 static char *um_proc_root;
 static char *um_tmpfile;
 static char *um_tmpfile_tail;
-static int um_tmpfile_len;
 
 struct lfd_table {
 	short count; /*how many pcbs have opened this lfd - look at dup implementation */
@@ -48,9 +47,7 @@ struct lfd_table {
 };
 
 struct lfd_vtable {
-	int signaled;   /* set when there some data on the fifo, telling that
-			   some blocking call have to be unblocked, not yet
-			   read - a flag */
+	int signaled;
 	char *filename; /* the fifo */
 	int ififo,ofifo;
 };
@@ -66,10 +63,10 @@ static struct lfd_top *lfd_tab=NULL;
 void um_proc_open()
 {
 	char path[PATH_MAX];
-	snprintf(path,PATH_MAX,"/tmp/.umproc%ld",(long int)r_getpid());
+	snprintf(path,PATH_MAX,"/tmp/.umproc%d",getpid());
 	//printf("um_proc_open %s\n",path);
 
-	if(r_mkdir(path,0700) < 0) {
+	if(mkdir(path,0700) < 0) {
 		perror("um_proc makefile");
 		exit (-1);
 	}
@@ -79,7 +76,6 @@ void um_proc_open()
 	um_tmpfile=strdup(path);
 	strcpy(um_tmpfile,path);
 	um_tmpfile_tail=um_tmpfile+(strlen(path)-7);
-	um_tmpfile_len=strlen(um_tmpfile);
 }
 
 void um_proc_close()
@@ -87,23 +83,13 @@ void um_proc_close()
 	//printf("um_proc_close %s\n",um_proc_root);
 	//rm all the remaining fifos and files XXX
 	lfd_closeall();
-	r_rmdir(um_proc_root);
+	rmdir(um_proc_root);
 }
 
 static char *um_proc_tmpfile(service_t service, int lfd)
 {
-	snprintf(um_tmpfile_tail,um_tmpfile_len,"%02x%02d",service,lfd);
+	sprintf(um_tmpfile_tail,"%02x%d",service,lfd);
 	//printf("um_proc_tmpfile %s\n",um_tmpfile);
-	return um_tmpfile;
-}
-
-#define NMAX 1000000
-char *um_proc_tmpname()
-{
-	static int n;
-	n = (n+1) % NMAX;
-	snprintf(um_tmpfile_tail,um_tmpfile_len,"%06d",n);
-	//printf("um_proc_tmpname %s\n",um_tmpfile);
 	return um_tmpfile;
 }
 
@@ -123,9 +109,10 @@ void lfd_addproc (struct pcb_file **pp,int flag)
 	}
 }
 
-void lfd_delproc (struct pcb_file *p, void *umph)
+void lfd_delproc (struct pcb_file **pp)
 {
 	int i;
+	struct pcb_file *p=*pp;
 	//printf("DELPROC count %d nolfd %d\n",p->count,p->nolfd);
 	p->count--;
 	if (p->count == 0) {
@@ -139,7 +126,7 @@ void lfd_delproc (struct pcb_file *p, void *umph)
 					}
 				} */
 				//printf("CLOSE LFD %d\n",lfd);
-				lfd_close(lfd,umph);
+				lfd_close(lfd);
 			}
 		}
 		if (p->lfdlist != NULL)
@@ -155,10 +142,8 @@ int lfd_open (service_t service, int sfd, char *path)
 {
 	int lfd,fifo;
 	//printf("lfd_open %x sfd %d %s",service,sfd,(path==NULL)?"<null>":path);
-	/* looks for a free local file descriptor */
 	for (lfd=0; lfd<um_maxlfd && lfd_tab[lfd].ptab != NULL ; lfd++)
 		;
-	/* if there are none, expands the lfd table */
 	if (lfd >= um_maxlfd) {
 		int i=um_maxlfd;
 		//printf("lfd_tab realloc oldndf %d\n",um_maxlfd);
@@ -166,13 +151,8 @@ int lfd_open (service_t service, int sfd, char *path)
 		//printf("lfd_tab realloc newnfd %d\n",um_maxlfd);
 		lfd_tab=(struct lfd_top *) realloc (lfd_tab, (um_maxlfd * sizeof (struct lfd_top)));
 		assert (lfd_tab);
-
-		/* Clean the new entries in lfd_tab or lfd_cleanall will not work properly */
-		for (;i < um_maxlfd;i++)
-		{
-			lfd_tab[i].pvtab=NULL;
+		for (;i < um_maxlfd;i++) 
 			lfd_tab[i].ptab=NULL;
-		}
 	}
 	assert(lfd_tab[lfd].ptab == NULL);
 	lfd_tab[lfd].ptab = (struct lfd_table *)malloc (sizeof(struct lfd_table));
@@ -198,11 +178,11 @@ int lfd_open (service_t service, int sfd, char *path)
 		//printf("add lfd %d file %s\n",lfd,lfd_tab[lfd].ptab->path);
 		lfd_tab[lfd].pvtab=NULL;
 	}
-	//printf("lfd_open: lfd %d sfd %d file %s\n",lfd,sfd,lfd_tab[lfd].ptab->path);
+	//printf("lfd_opne: lfd %d\n",lfd);
 	return lfd;
 }
 
-void lfd_close (int lfd,void *umph)
+void lfd_close (int lfd)
 {
 	int rv;
 	//printf("close %d %x\n",lfd,lfd_tab[lfd].ptab);
@@ -222,7 +202,7 @@ void lfd_close (int lfd,void *umph)
 			//printf("del lfd %d file %s\n",lfd,lfd_tab[lfd].ptab->path);
 		register int service=lfd_tab[lfd].ptab->service;
 		if (service != UM_NONE && lfd_tab[lfd].ptab->sfd >= 0) {
-			service_syscall(service,uscno(__NR_close))(lfd_tab[lfd].ptab->sfd,umph); 
+			service_syscall(service,uscno(__NR_close))(lfd_tab[lfd].ptab->sfd);
 		}
 		if (lfd_tab[lfd].ptab->path != NULL)
 			free(lfd_tab[lfd].ptab->path);
@@ -308,8 +288,6 @@ int fd2sfd(struct pcb_file *p, int fd)
 		return -1;
 }
 
-/* tell the identifier of the service which manages given fd, or UM_NONE if no
- * service handle it */
 service_t service_fd(struct pcb_file *p, int fd)
 {
 	//printf("service fd p=%x\n",p);
@@ -348,12 +326,12 @@ void lfd_register (struct pcb_file *p, int fd, int lfd)
 	//printf("lfd_register fd %d lfd %d path %s\n", fd, lfd, lfd_tab[lfd].ptab->path);
 }
 
-void lfd_deregister_n_close(struct pcb_file *p, int fd,void *umph)
+void lfd_deregister_n_close(struct pcb_file *p, int fd)
 {
 	//printf("lfd_deregister_n_close %d %d \n",fd,p->nolfd);
 	//assert(fd < p->nolfd && p->lfdlist[fd] != -1);
 	if (p->lfdlist != NULL && fd < p->nolfd && p->lfdlist[fd] != -1) {
-		lfd_close(p->lfdlist[fd],umph);
+		lfd_close(p->lfdlist[fd]);
 		p->lfdlist[fd] = -1;
 	}
 }
@@ -377,7 +355,7 @@ void lfd_signal(int lfd)
 	assert (lfd < um_maxlfd && lfd_tab[lfd].pvtab != NULL);
 	if (lfd_tab[lfd].pvtab->signaled == 0) {
 		lfd_tab[lfd].pvtab->signaled = 1;
-		r_write(lfd_tab[lfd].pvtab->ofifo,&ch,1);
+		write(lfd_tab[lfd].pvtab->ofifo,&ch,1);
 	}
 }
 
@@ -387,16 +365,6 @@ void lfd_delsignal(int lfd)
 	assert (lfd < um_maxlfd && lfd_tab[lfd].pvtab != NULL);
 	if (lfd_tab[lfd].pvtab->signaled == 1) {
 		lfd_tab[lfd].pvtab->signaled = 0;
-		r_read(lfd_tab[lfd].pvtab->ififo,buf,1024);
+		read(lfd_tab[lfd].pvtab->ififo,buf,1024);
 	}
-}
-
-char *sfd_getpath(service_t code, int sfd)
-{
-	int lfd;
-	for (lfd=0; lfd<um_maxlfd; lfd++)
-		if(lfd_tab[lfd].ptab && lfd_tab[lfd].ptab->service == code &&
-				lfd_tab[lfd].ptab->sfd == sfd)
-			return lfd_tab[lfd].ptab->path;
-	return NULL;
 }

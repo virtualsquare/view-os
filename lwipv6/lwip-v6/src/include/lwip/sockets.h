@@ -88,6 +88,8 @@ struct sockaddr {
  * Option flags per-socket.
  */
 
+#if defined(SELECT4ALE) || defined(SELECT4UMVIEW)
+
 #define SO_DEBUG        1
 #define SO_REUSEADDR    2
 #define SO_TYPE         3
@@ -120,7 +122,7 @@ struct sockaddr {
 #define SCM_TIMESTAMP           SO_TIMESTAMP
 #define SO_ACCEPTCONN           30
 
-#if 0
+#else
 #define  SO_DEBUG  0x0001    /* turn on debugging info recording */
 #define  SO_ACCEPTCONN  0x0002    /* socket has had listen() */
 #define  SO_REUSEADDR  0x0004    /* allow local address reuse */
@@ -419,6 +421,14 @@ int lwip_write(int s, void *dataptr, int size);
 int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
                 struct timeval *timeout);
 int lwip_ioctl(int s, long cmd, void *argp);
+#ifdef SELECT4ALE
+typedef int (*cb_rw)(int fd,void *arg1,void *arg2);
+int lwip_readready(int fd);
+int lwip_writeready(int fd);
+int lwip_call_when_readready(int fd,cb_rw cb,int fdarg,void *arg1,void *arg2);
+int lwip_call_when_writeready(int fd,cb_rw cb,int fdarg,void *arg1,void *arg2);
+#endif
+
 
 #if LWIP_COMPAT_SOCKETS
 #define accept(a,b,c)         lwip_accept(a,b,c)

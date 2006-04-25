@@ -332,9 +332,9 @@ accept_function(void *arg, struct tcp_pcb *newpcb, err_t err)
     newconn->callback = conn->callback;
     /* old version: count of lost messages into socket (negative)
      * it should not been needed with async accept */
-    /* printf("----marked socket -1\n"); */
-     newconn->socket = -1;
-     /* * newconn->socket =0; */
+    /* printf("----marked socket -1\n");
+     * newconn->socket = -1;
+     * newconn->socket =0; */
   }
   
   return ERR_OK;
@@ -903,7 +903,6 @@ static api_msg_decode decode[API_MSG_MAX] = {
   do_write,
   do_close
   };
-
 void
 api_msg_input(struct api_msg *msg)
 {  

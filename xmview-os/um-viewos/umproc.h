@@ -50,11 +50,10 @@ struct pcb_file {
 
 void um_proc_open();
 void um_proc_close();
-char *um_proc_tmpname();
 void lfd_addproc (struct pcb_file **p,int flag);
-void lfd_delproc (struct pcb_file *p, void *umph);
+void lfd_delproc (struct pcb_file **p);
 int lfd_open (service_t service, int sfd, char *path);
-void lfd_close (int lfd,void *umph);
+void lfd_close (int lfd);
 int lfd_dup(int lfd);
 int lfd_getcount(int lfd);
 void lfd_nullsfd(int lfd);
@@ -66,11 +65,10 @@ int fd2lfd (struct pcb_file *p, int fd);
 int fd2sfd (struct pcb_file *p, int fd);
 char *fd_getpath(struct pcb_file *p, int fd);
 void lfd_register (struct pcb_file *p, int fd, int lfd);
-void lfd_deregister_n_close(struct pcb_file *p, int fd, void *umph);
+void lfd_deregister_n_close(struct pcb_file *p, int fd);
 void lfd_closeall();
 void lfd_signal(int lfd);
 void lfd_delsignal(int lfd);
 service_t service_fd(struct pcb_file *p, int fd);
-char *sfd_getpath(service_t code, int sfd);
 
 #endif

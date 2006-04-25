@@ -5,7 +5,6 @@
  *   
  *   Copyright 2005 Renzo Davoli University of Bologna - Italy
  *   Modified 2005 Mattia Belletti, Ludovico Gardenghi, Andrea Gasparini
- *   Modified 2006 Renzo Davoli
  *
  *   Some code has been inherited from strace
  *   Copyright (c) 1991, 1992 Paul Kranenburg <pk@cs.few.eur.nl>
@@ -38,29 +37,20 @@
 #include <errno.h>
 #include <sys/wait.h>
 #include <sys/ptrace.h>
-#include <sys/time.h>
-#include <sys/resource.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
 #include <sched.h>
 #include <limits.h>
 #include <assert.h>
-#include "capture_nested.h"
 
 // #define FAKESIGSTOP
 
 #include "defs.h"
 #include "sctab.h"
 #include "utils.h"
-#if defined(__x86_64__)
-#include "syscallnames_x86_64.h"
-#else
 #include "syscallnames.h"
-#endif
 #include "gdebug.h"
-#ifdef PIVOTING_ENABLED
-#include "pivoting.h"
-#endif
+
 
 #define PCBSIZE 10
 
@@ -77,8 +67,6 @@ t_pcb_destr pcb_destr=NULL;
 /* i386 kernel does not accept out of range system calls, 
  * user system call remapped onto unused ones */
 short _i386_sc_remap[]={251,222,17,31,32,35,44,53,56,58,98,112,127,130,137,167};
-#else // workaround for amd64
-short _i386_sc_remap[]={};
 #endif
 
 /* When a SIGCHLD is received, the main select will be notified through this
@@ -90,11 +78,6 @@ int tracerpipecounter = 0;
  * what the first child was, and save its exit value */
 pid_t first_child_pid;
 int first_child_exit_status = -1;
-
-int pcbtablesize(void)
-{
-	return pcbtabsize;
-}
 
 struct pcb *newpcb (int pid)
 {
@@ -139,15 +122,10 @@ struct pcb *newpcb (int pid)
 		pcb=pcbtab[i];
 		if (! (pcb->flags & PCB_INUSE)) {
 			pcb->pid=pid;
-			pcb->umpid=i;
 			pcb->flags = PCB_INUSE;
 			pcb->scno = NOSC;
 			pcb->pp = NULL;
 			pcb->data = NULL;
-#ifdef PIVOTING_ENABLED
-			pcb->first_instruction_address = NULL;
-			pcb->saved_code = NULL;
-#endif
 			nprocs++;
 			return pcb;
 		}
@@ -205,7 +183,7 @@ static void allocatepcbtab()
 static int handle_new_proc(int pid, struct pcb *pp)
 {
 	struct pcb *oldpc,*pc;
-	if ((oldpc=pc=pid2pcb(pid)) == NULL && (pc = newpcb(pid))== NULL) {
+	if ((oldpc=pid2pcb(pid)) == NULL && (pc = newpcb(pid))== NULL) {
 		fprintf(stderr, "[pcb table full]\n");
 		if(ptrace(PTRACE_KILL, pid, 0, 0) < 0){
 			GPERROR(0, "KILL");
@@ -223,7 +201,7 @@ static int handle_new_proc(int pid, struct pcb *pp)
 		}
 		pc->pp = pp;
 		if (pcb_constr != NULL)
-			pcb_constr(pc,pp->arg2,pcbtabsize);
+			pcb_constr(pc,pp->arg2);
 	}
 	return 0;
 }
@@ -231,8 +209,8 @@ static int handle_new_proc(int pid, struct pcb *pp)
 #ifdef FAKESIGSTOP
 int fakesigstopcont(struct pcb *pc)
 {
-	long kpid=getargn(0,pc);
-	long ksig=getargn(1,pc);
+	int kpid=getargn(0,pc);
+	int ksig=getargn(1,pc);
 	struct pcb *kpc;
 	
 	if ((kpc=pid2pcb(kpid)) != NULL && ksig == SIGCONT &&
@@ -258,11 +236,13 @@ void offspring_enter(struct pcb *pc)
 	if (pc->scno == __NR_fork || pc->scno == __NR_vfork) {
 		putscno(__NR_clone,pc);
 		putargn(0,CLONE_PTRACE|SIGCHLD, pc);
+		putarg0orig(CLONE_PTRACE|SIGCHLD, pc);
 		putargn(1,0, pc);
 		pc->arg2=SIGCHLD;
 	}
 	else if (pc->scno == __NR_clone) {
 		putargn(0,pc->arg0 | CLONE_PTRACE, pc);
+		putarg0orig(pc->arg0 | CLONE_PTRACE, pc);
 		pc->arg2=pc->arg0;
 	}
 	pc->flags |= PCB_BPTSET;
@@ -270,24 +250,51 @@ void offspring_enter(struct pcb *pc)
 
 void offspring_exit(struct pcb *pc)
 {
-	putargn(0,pc->arg0,pc);
+	putarg0orig(pc->arg0,pc);
 	putargn(1,pc->arg1,pc);
-	pc->flags &= ~PCB_BPTSET;
+        pc->flags &= ~PCB_BPTSET;
 }
+
+void sc_soft_suspend(struct pcb *pc)
+{
+	unsigned int sp=getsp(pc);
+	GDEBUG(1, "sc_soft_suspend %d fd %d",pc->pid,pc->retval);
+	pc->arg0=getargn(0,pc);
+	pc->arg1=getargn(1,pc);
+	pc->arg2=getargn(2,pc);
+	putscno(__NR_read,pc);
+	putargn(0,pc->retval, pc);
+	putarg0orig(pc->retval, pc);
+	putargn(1,sp-4,pc);
+	putargn(2,1,pc);
+	pc->flags |= PCB_SOFTSUSP; /* unused ? */
+}
+
+void sc_soft_resume(struct pcb *pc)
+{
+	int syscall=pc->scno;
+	GDEBUG(1, "sc_soft_resume %d",pc->pid);
+	putscno(syscall,pc);
+	putargn(0,pc->arg0, pc);
+	putarg0orig(pc->arg0, pc);
+	putargn(1,pc->arg1,pc);
+	putargn(2,pc->arg2,pc);
+	pc->flags &= ~PCB_SOFTSUSP; /* unused ? */
+}
+
 
 void tracehand(int s)
 {
-	int pid, status, tsyscall=0;
+	int pid, status, syscall=0;
 	struct pcb *pc;
 
 	while(nprocs>0){
-		if((pid = r_waitpid(-1, &status, WUNTRACED | __WALL | WNOHANG)) < 0)
+		if((pid = waitpid(-1, &status, WUNTRACED | __WALL | WNOHANG)) < 0)
+		////if((pid = waitpid(-1, &status, WUNTRACED | __WALL)) <= 0)
 		{
 			GPERROR(0, "wait");
 			exit(1);
 		}
-
-		// FIXME: renzo: what does the following line mean?
 		////comment out the following line
 		if (pid==0) return;
 		if(WIFSTOPPED(status) && (WSTOPSIG(status) == SIGSTOP)) {
@@ -308,157 +315,116 @@ void tracehand(int s)
 			}
 		}
 
-#ifdef PIVOTING_TEST
-		if(pc->flags & PCB_INPIVOTING)
-		{
-			int _pc;
-			int data;
-			if(getregs(pc) < 0)
-				GPERROR(0, "saving register");
-			_pc = getpc(pc);
-			umoven(pc->pid, _pc, 4, &data);
-			GDEBUG(3, "pc=%x, instruction=%x", _pc, data);
-		}
-#endif
-
 		if(WIFSTOPPED(status) && (WSTOPSIG(status) == SIGTRAP)){
-			int isreproducing=0;
-			if ( getregs(pc) < 0 ){
+			if ( popper(pc) < 0 ){
 				GPERROR(0, "saving register");
 				exit(1);
 			}
 			//printregs(pc);
-			tsyscall=getscno(pc);
-			/* execve does not return */
-			if (pc->scno == __NR_execve && tsyscall != __NR_execve){
-				pc->scno = NOSC;
-			}
-			isreproducing=(tsyscall == __NR_fork ||
-					tsyscall == __NR_vfork ||
-					tsyscall == __NR_clone);
-			/* sigreturn and rt_sigreturn give random "OUT" values, maybe 0.
-			 * this is a workaroud */
-#if defined(__x86_64__) //sigreturn and signal aren't defineed in amd64
-			if (pc->scno == __NR_rt_sigreturn ){
-#else
-			if (pc->scno == __NR_rt_sigreturn || pc->scno == __NR_sigreturn) {
+			syscall=getscno(pc);
+#ifdef PIVOTING_ENABLED
+			/* save last syscall address */
+			pc->sys_address = (void*)getpc(pc);
 #endif
+			GDEBUG(3, "+++pid %d syscall %d (%s) --", pid, syscall, SYSCALLNAME(syscall));
+			/* execve does not return */
+			if (pc->scno == __NR_execve && syscall != __NR_execve){
 				pc->scno = NOSC;
 			}
-			else if (tsyscall == 0) {
+			if (syscall == 0) {
 				if (pc->scno == __NR_execve)
 					pc->scno = NOSC;
 			}
-			else if (pc->scno == NOSC)
+			else if (pc->scno == NOSC) 
 			{
-#ifdef PIVOTING_ENABLED
-				/* if we are in pivoting, calls are diverted to the callback function */
-				if(pc->flags & PCB_INPIVOTING)
-				{
-					GDEBUG(3, "pivoting, IN phase");
-					printregs(pc);
-					pc->scno = tsyscall;
-					pc->piv_callback(tsyscall, PHASE_IN, pc, pc->counter++);
-					/* we put by hand a fake tsyscall, with a big number; check if this is
-					 * the case. if it is, pivoting has ended */
-					if(tsyscall == BIG_SYSCALL)
-					{
-						pivoting_eject(pc);
-						/* simulate a fake tsyscall */
-						putscno(__NR_getpid, pc);
-						pc->behavior = SC_FAKE;
-					}
-				}
+				divfun fun;
+				//printf("IN\n");
+				pc->scno = syscall;
+				fun=cdtab(syscall);
+				if (fun != NULL)
+					pc->behavior=fun(syscall,IN,pc);
 				else
-				{
-#endif
-					divfun fun;
-					GDEBUG(3, "--> pid %d syscall %d (%s) @ %p", pid, tsyscall, SYSCALLNAME(tsyscall), getpc(pc));
-					//printf("IN\n");
-					pc->scno = tsyscall;
-					fun=cdtab(tsyscall);
-					if (fun != NULL)
-						pc->behavior=fun(tsyscall,IN,pc);
-					else
-						pc->behavior=STD_BEHAVIOR;
+					pc->behavior=STD_BEHAVIOR;
 #ifdef FAKESIGSTOP
-					if (tsyscall == __NR_kill && pc->behavior == STD_BEHAVIOR)
-						pc->behavior=fakesigstopcont(pc);
+				if (syscall == __NR_kill && pc->behavior == STD_BEHAVIOR)
+					pc->behavior=fakesigstopcont(pc);
 #endif
-					if (pc->behavior == SC_FAKE) {
-						if (PT_VM_OK) {
-							if ((fun(tsyscall,OUT,pc) & SC_SUSPENDED)==0)
-								pc->scno=NOSC;
-						} else 
-						/* fake syscall with getpid if the kernel does not support
-						 * syscall shortcuts */
-							putscno(__NR_getpid,pc);
-					} else
-					{
-						/* fork is translated into clone 
-						 * offspring management */
-						if (isreproducing) {
-							offspring_enter(pc);
-						}
-					}
-#ifdef PIVOTING_ENABLED
-				}
-#endif
-			} else {
-#ifdef PIVOTING_ENABLED
-				/* if we are in pivoting, calls are diverted to the callback function */
-				if(pc->flags & PCB_INPIVOTING)
-				{
-					GDEBUG(3, "pivoting, OUT phase");
-					printregs(pc);
-					pc->piv_callback(tsyscall, PHASE_OUT, pc, pc->counter++);
-					pc->scno = NOSC;
-				}
-				else
-				{
-#endif
-					divfun fun;
-					GDEBUG(3, "<-- pid %d syscall %d (%s) @ %p", pid, tsyscall, SYSCALLNAME(tsyscall), getpc(pc));
-					//printf("OUT\n");
-					if (isreproducing) {
-						long newpid;
-						newpid=getrv(pc);
-						handle_new_proc(newpid,pc);
-						GDEBUG(3, "FORK! %d->%d",pid,newpid);
-
-						/* restore original arguments */
-						offspring_exit(pc);
-						putrv(newpid,pc);
-					}
-					if ((pc->behavior == SC_FAKE && tsyscall != __NR_getpid) && 
-							tsyscall != pc->scno)
-						GDEBUG(0, "error FAKE != %d",tsyscall);
-					fun=cdtab(pc->scno);
-					if (fun != NULL &&
-							(pc->behavior == SC_FAKE ||
-							 pc->behavior == SC_CALLONXIT)) {
-						pc->behavior = fun(pc->scno,OUT,pc);
-						if ((pc->behavior & SC_SUSPENDED) == 0)
-							pc->scno=NOSC;
-					} else {
-						pc->behavior = STD_BEHAVIOR;
-						pc->scno=NOSC;
-					}
-#ifdef PIVOTING_ENABLED
-				}
-#endif
-			} // end if scno==NOSC (OUT)
-			if ((pc->behavior & SC_SUSPENDED) == 0) {
-				if (PT_VM_OK) {
-					/*printf("SC %s %d\n",SYSCALLNAME(tsyscall),pc->behavior);*/
-					if(setregs(pc,PTRACE_SYSVM, isreproducing ? 0 : pc->behavior) == -1)
-							GPERROR(0, "setregs");
-					if(!isreproducing && (pc->behavior & PTRACE_VM_SKIPEXIT))
-						pc->scno=NOSC; 
+				if (pc->behavior == SC_FAKE) {
+					//printf("syscall %d faked",pc->scno);
+					/* fake syscall with getpid */
+					putscno(__NR_getpid,pc);
+				} else if (pc->behavior == SC_SOFTSUSP) {
+					sc_soft_suspend(pc);
 				} else
-					if( setregs(pc,PTRACE_SYSCALL, 0) == -1)
-						GPERROR(0, "setregs");
+				{
+					/* fork is translated into clone 
+					 * offspring management */
+					if (syscall == __NR_fork ||
+							syscall == __NR_vfork ||
+							syscall == __NR_clone)
+						offspring_enter(pc);
+				}
+			} else {
+				divfun fun;
+				//printf("OUT\n");
+				if (pc->behavior == SC_SOFTSUSP) {
+					int n=getrv(pc);
+					if (n <= 0) {
+						puterrno(EAGAIN,pc);
+						putrv(-1,pc);
+						pc->behavior = STD_BEHAVIOR;
+					} else {
+						sc_soft_resume(pc);
+						syscall=pc->scno;
+						fun=cdtab(syscall);
+						//GDEBUG(2, "enter resumed fun");
+						pc->behavior=fun(syscall,IN,pc);
+						//GDEBUG(2, "exit resumed fun %d",pc->behavior);
+						if (pc->behavior == SC_FAKE)
+							syscall=__NR_getpid;
+					}
+				}
+				if (syscall == __NR_fork ||
+						syscall == __NR_vfork ||
+						syscall == __NR_clone) {
+					int newpid;
+					newpid=getrv(pc);
+					handle_new_proc(newpid,pc);
+					GDEBUG(3, "FORK! %d->%d",pid,newpid);
+					
+					/* restore original arguments */
+					offspring_exit(pc);
+					putrv(newpid,pc);
+				}
+				if ((pc->behavior == SC_FAKE && syscall != __NR_getpid) && 
+						syscall != pc->scno)
+					GDEBUG(0, "error FAKE != %d",syscall);
+				fun=cdtab(pc->scno);
+				if (fun != NULL &&
+						(pc->behavior == SC_FAKE ||
+						 pc->behavior == SC_CALLONXIT)) {
+					pc->behavior = fun(pc->scno,OUT,pc);
+					if ((pc->behavior & SC_SUSPENDED) == 0)
+						pc->scno=NOSC;
+				} else {
+					pc->behavior = STD_BEHAVIOR;
+					pc->scno=NOSC;
+				}
+			} // end if scno==NOSC (OUT)
+			if( pusher(pc) == -1 ){
+					//printf("errno - pusher: %d on process %d \n",errno,pc->pid);
+					GPERROR(0, "pusher");
+					// think if we have to decomment this line...
+					//exit(-1);
 			}
+			//debug string
+			//printf("+++pid %d syscall %d %d rv %d --\n",pid,pc->scno,syscall,getrv(pc));
+			if((pc->behavior & SC_SUSPENDED) == 0) {
+				if (ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0){
+					GPERROR(0, "continuing");
+					exit(1);
+				}
+			} // end if behavior & SC_SUSP
 		} // end if SIGTRAP
 		else if(WIFSIGNALED(status)) {
 			GDEBUG(3, "%d: signaled %d",pid,WTERMSIG(status));
@@ -467,13 +433,6 @@ void tracehand(int s)
 		}
 		else if(WIFSTOPPED(status)) {
 			GDEBUG(3, "%d: stopped sig=%d",pid,(WSTOPSIG(status)));
-			if(WSTOPSIG(status) == SIGSEGV)
-			{
-				if(getregs(pc) == -1)
-					GDEBUG(3, "[err]");
-				GDEBUG(3, "%d: stopped sig=SIGSEGV @ %p",
-						pc->pid, getpc(pc));
-			}
 			/*if (!sigishandled(pc,  WSTOPSIG(status))) {
 				// also progenie, but for now 
 				//ptrace(PTRACE_KILL,pid,0,0);
@@ -508,42 +467,34 @@ void tracehand(int s)
 
 void sc_resume(struct pcb *pc)
 {
-	/* int pid=pc->pid; */
+	int pid=pc->pid;
 	int syscall=pc->scno;
 	int inout=pc->behavior-SC_SUSPENDED;
-	int	isreproducing=(syscall == __NR_fork ||
-			syscall == __NR_vfork ||
-			syscall == __NR_clone);
 	divfun fun;
 	fun=cdtab(syscall);
+	//printf("SC_RESUME pid=%d %d %d %d \n",pid,pc->arg0,pc->arg1,pc->arg2);
 	if (fun != NULL)
 		pc->behavior=fun(syscall,inout,pc);
 	else
 		pc->behavior=STD_BEHAVIOR;
 	if (inout==IN) {
 		if (pc->behavior == SC_FAKE) {
-			if (PT_VM_OK) {
-				if (inout==IN && (fun(syscall,OUT,pc) & SC_SUSPENDED)==0)
-					pc->scno=NOSC;
-			} else
-				putscno(__NR_getpid,pc);
+			putscno(__NR_getpid,pc);
 		} else {
-			if (isreproducing)
+			if (syscall == __NR_fork ||
+					syscall == __NR_vfork ||
+					syscall == __NR_clone)
 				offspring_enter(pc);
 		}
 	} else { /* inout == OUT */
 		if ((pc->behavior & SC_SUSPENDED) == 0)
 			pc->scno=NOSC;
 	}
-	if ((pc->behavior & SC_SUSPENDED) == 0) {
-		if (PT_VM_OK) {
-			if(setregs(pc,PTRACE_SYSVM,isreproducing ? 0 : pc->behavior) == -1)
-			    GPERROR(0, "setregs");
-			if(!isreproducing && (pc->behavior & PTRACE_VM_SKIPEXIT))
-				pc->scno=NOSC;
-  } else
-		if( setregs(pc,PTRACE_SYSCALL,0) == -1)
-			GPERROR(0, "setregs");
+	if((pc->behavior & SC_SUSPENDED) == 0) {
+		if (ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0){
+			GPERROR(0, "continuing");
+			exit(1);
+		}
 	}
 }
 
@@ -553,8 +504,8 @@ void sc_resume(struct pcb *pc)
  */
 void wake_tracer_init()
 {
-	r_pipe(tracerpipe);
-	r_fcntl(tracerpipe[0],F_SETFL,O_NONBLOCK);
+	pipe(tracerpipe);	
+	fcntl(tracerpipe[0],F_SETFL,O_NONBLOCK);
 }
 
 /*
@@ -567,7 +518,7 @@ void wake_tracer(int s)
 	if (!tracerpipecounter) // No more than 1 message
 	{
 		tracerpipecounter = 1;
-		r_write(tracerpipe[1], &x, 1);
+		write(tracerpipe[1], &x, 1);
 	}
 }
 
@@ -594,7 +545,7 @@ int must_wake_tracer(fd_set *wset)
 	if (retval)
 	{
 		char buf[256];
-		r_read(tracerpipe[0], buf, 256);
+		read(tracerpipe[0], buf, 256);
 		tracerpipecounter = 0;
 	}
 	return retval;
@@ -620,7 +571,7 @@ static void setsigaction()
 	// fillset: syscall hadling is not interruptable
 	sigfillset(&sa.sa_mask);
 	/* 
-	 * The signal handler is no longer the whole tracehand()
+	 * The signal handler is no more the whole tracehand()
 	 * but a smaller function whose only duty is to
 	 * wake up the select() in main().
 	 */
@@ -640,8 +591,6 @@ int capture_main(char **argv)
 			exit(1);
 			break;
 		case 0:
-			unsetenv("LD_PRELOAD");
-			setpriority(PRIO_PROCESS,0,0);
 			if(ptrace(PTRACE_TRACEME, 0, 0, 0) < 0){
 				GPERROR(0, "ptrace");
 				exit(1);
@@ -651,15 +600,11 @@ int capture_main(char **argv)
 			GPERROR(0, "strace: exec");
 			_exit(1);
 		default:
-			capture_nested_init();
 			handle_new_proc(first_child_pid,pcbtab[0]);
-			if(r_waitpid(first_child_pid, &status, WUNTRACED) < 0){
+			if(waitpid(first_child_pid, &status, WUNTRACED) < 0){
 				GPERROR(0, "Waiting for stop");
 				exit(1);
 			}
-#ifdef PIVOTING_ENABLED
-			register_first_instruction(pcbtab[0]);
-#endif
 			setsigaction();
 			if(ptrace(PTRACE_SYSCALL, first_child_pid, 0, 0) < 0){
 				GPERROR(0, "continuing");
@@ -670,4 +615,4 @@ int capture_main(char **argv)
 	return 0;
 }
 
-/* vim: set ts=2 shiftwidth=2: */
+/* vim: set ts=2: */

@@ -22,7 +22,6 @@
  *   $Id$
  *
  */
-#include <stdio.h>
 #include "module.h"
 
 struct service s;
@@ -39,7 +38,8 @@ init (void)
 	printf("testmodul2 init\n");
 	s.name="Test Module 2";
 	s.code=0xfd;
-	s.checkfun=alwaysfalse;
+	s.checkpath=alwaysfalse;
+	s.checksocket=alwaysfalse;
 	s.syscall=NULL;
 	s.socket=NULL;
 	add_service(&s);

@@ -73,9 +73,6 @@ struct sys_timeout {
   u32_t time;
   sys_timeout_handler h;
   void *arg;
-
-  /* Added by Diego Billi */
-  u8_t XXX; /* = 1 if this timeout where created by _XXX functions */
 };
 
 struct sys_timeouts {
@@ -97,17 +94,6 @@ void sys_init(void);
 void sys_timeout(u32_t msecs, sys_timeout_handler h, void *arg);
 void sys_untimeout(sys_timeout_handler h, void *arg);
 struct sys_timeouts *sys_arch_timeouts(void);
-
-
-/* Added by Diego Billi: here for future Radvd porting */
-int  sys_untimeout_and_check(sys_timeout_handler h, void *arg);
-void sys_timeout_XXX(struct sys_timeout * timeout);
-int  sys_untimeout_XXX(struct sys_timeout *timeout);
-
-
-
-
-
 
 /* Semaphore functions. */
 sys_sem_t sys_sem_new(u8_t count);
@@ -195,5 +181,3 @@ void sys_arch_unprotect(sys_prot_t pval);
 #endif /* SYS_ARCH_PROTECT */
 
 #endif /* __LWIP_SYS_H__ */
-
-

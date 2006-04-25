@@ -794,7 +794,7 @@ com_udpb(struct command *com)
     return ESUCCESS;
   }
 
-  IP64_ADDR(&bcaddr, 255,255,255,255);
+  IP4_ADDR(&bcaddr, 255,255,255,255);
   err = netconn_bind(conns[i], &bcaddr, lport);
   if (err != ERR_OK) {
     netconn_delete(conns[i]);
@@ -1018,10 +1018,9 @@ shell_main(struct netconn *conn)
 	  }
 	} else {
 	  sendstr("\n\n"
-	          "LwIPv6 simple interactive shell.\n"
-	          "(c) Copyright 2005, Renzo Davoli -University of Bologna Italy\n"
+	          "lwIP simple interactive shell.\n"
 	          "(c) Copyright 2001, Swedish Institute of Computer Science.\n"
-	          "Originally Written by Adam Dunkels.\n"
+	          "Written by Adam Dunkels.\n"
 	          "For help, try the \"help\" command.\n", conn);
 	}
       }

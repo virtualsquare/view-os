@@ -30,42 +30,21 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <utime.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/time.h>
-#include <sys/uio.h>
 #include "module.h"
 #include "libummod.h"
 
-// int read(), write(), close();
-#ifdef NEW_SERVICE_LIST
-int service_no=-1;
-#endif
+int read(), write(), close();
 
-static struct service s;
 
-static int unrealpath(int type,void *arg,void *umph)
+static int alwaysfalse()
 {
-	/* This is an example that shows how to pick up extra info in the
-	 * calling process. */
-/*	printf("test umph info pid=%d, scno=%d, arg[0]=%d, argv[1]=%d\n",
-			um_mod_getpid(umph),um_mod_getsyscallno(umph),
-			um_mod_getargs(umph)[0],um_mod_getargs(umph)[1]); */
-/* NB: DEVELOPMENT PHASE !! */
-#ifdef NEW_SERVICE_LIST
-	if ( type & FLAG_WANTREGISTER ){
-		if( service_no == -1 ){ // unregistered
-			fprintf(stderr,"asked for registering\n");
-			service_no = new_register_service(&s);
-		}
-	}
-#endif
-	if (type== CHECKPATH) {
-		char *path=arg;
-		return(strncmp(path,"/unreal",7) == 0);
-	}
-	 else
-		 return 0;
+	return 0;
+}
+
+static int unrealpath(char *path)
+{
+	return(strncmp(path,"/unreal",7) == 0);
 }
 
 static char *unwrap(char *path)
@@ -173,6 +152,7 @@ ssize_t unreal_pwrite(int fd, const void *buf, size_t count, long long offset)
 	return pwrite(fd,buf,count,off);
 }
 
+static struct service s;
 
 static void
 __attribute__ ((constructor))
@@ -181,7 +161,8 @@ init (void)
 	printf("unreal init\n");
 	s.name="/unreal Mapping to FS (server side)";
 	s.code=0xfe;
-	s.checkfun=unrealpath;
+	s.checkpath=unrealpath;
+	s.checksocket=alwaysfalse;
 	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
 	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
 	s.syscall[uscno(__NR_open)]=unreal_open;
@@ -194,20 +175,16 @@ init (void)
 	s.syscall[uscno(__NR_stat)]=unreal_stat;
 	s.syscall[uscno(__NR_lstat)]=unreal_lstat;
 	s.syscall[uscno(__NR_fstat)]=fstat;
-#if !defined(__x86_64__)
 	s.syscall[uscno(__NR_stat64)]=unreal_stat64;
 	s.syscall[uscno(__NR_lstat64)]=unreal_lstat64;
 	s.syscall[uscno(__NR_fstat64)]=fstat64;
-#endif
 	s.syscall[uscno(__NR_readlink)]=unreal_readlink;
 	s.syscall[uscno(__NR_getdents)]=getdents;
 	s.syscall[uscno(__NR_getdents64)]=getdents64;
 	s.syscall[uscno(__NR_access)]=unreal_access;
 	s.syscall[uscno(__NR_fcntl)]=fcntl32;
-#if !defined(__x86_64__)
 	s.syscall[uscno(__NR_fcntl64)]=fcntl64;
 	s.syscall[uscno(__NR__llseek)]=_llseek;
-#endif
 	s.syscall[uscno(__NR_lseek)]= (intfun) lseek;
 	s.syscall[uscno(__NR_mkdir)]=unreal_mkdir;
 	s.syscall[uscno(__NR_rmdir)]=unreal_rmdir;
@@ -227,19 +204,12 @@ init (void)
 	s.syscall[uscno(__NR_utime)]=unreal_utime;
 	s.syscall[uscno(__NR_utimes)]=unreal_utimes;
 	add_service(&s);
-#ifdef NEW_SERVICE_LIST
-/*    service_no = new_register_service(&s);*/
-#endif
 }
 
 static void
 __attribute__ ((destructor))
 fini (void)
 {
-#ifdef NEW_SERVICE_LIST
-	if( new_deregister_service(service_no) )
-		printf("deregistration ok");
-#endif
 	free(s.syscall);
 	free(s.socket);
 	printf("unreal fini\n");

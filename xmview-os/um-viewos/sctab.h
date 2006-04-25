@@ -27,8 +27,6 @@
 #define __SCTAB_H
 #include <sys/select.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 #include "umproc.h"
 #include "defs.h"
@@ -48,8 +46,6 @@ struct pcb_fs {
 #define MAX_SOCKET_ARGS 6
 struct pcb_ext {
 	void *path;
-	struct stat64 pathstat;
-	/* struct seldata* */
 	void *selset;
 	/* keep track of file system informations - look at clone 2
 	 * (CLONE_FS) */
@@ -65,26 +61,13 @@ extern char um_patherror[];
 
 void scdtab_init();
 
-char *um_getpath(long laddr,struct pcb *pc);
-char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink);
+char *um_getpath(int laddr,struct pcb *pc);
+char *um_abspath(int laddr,struct pcb *pc,int link);
 
 void um_set_errno(struct pcb *pc,int i);
 char *um_getcwd(struct pcb *pc,char *buf,int size);
-int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *umph);
-int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *umph);
-
-/* modules callbacks for extra args */
-int um_mod_getpid(void *umph);
-int um_mod_umoven(void *umph, long addr, int len, void *_laddr);
-int um_mod_umovestr(void *umph, long addr, int len, void *_laddr);
-int um_mod_ustoren(void *umph, long addr, int len, void *_laddr);
-int um_mod_ustorestr(void *umph, long addr, int len, void *_laddr);
-int um_mod_getsyscallno(void *umph);
-int um_mod_getumpid(void *umph);
-long* um_mod_getargs(void *umph);
-struct stat64 *um_mod_getpathstat(void *umph);
-int um_mod_getsyscalltype(int scno);
-
+int um_lstat64(char *filename, struct stat64 *buf);
+int um_readlink(char *path, char *buf, size_t bufsiz);
 
 //struct pcb* pid2pcb(int pid);
 

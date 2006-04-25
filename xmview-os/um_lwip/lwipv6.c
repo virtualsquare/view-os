@@ -22,24 +22,19 @@
  *   $Id$
  *
  */   
+#include <unistd.h>
+//#include <fcntl.h>
+//#include <sys/types.h>
+//#include <sys/stat.h>
+//#include <sys/ioctl.h>
+//#include <sys/poll.h>
+//#include <string.h>
 #include <dlfcn.h>
 #include "module.h"
-#include <lwipv6.h>
+#include "lwip/sockets.h"
 #include <linux/net.h>
-#include <sys/socket.h>
-#include <linux/if.h>
-#include <limits.h>
-#include <string.h>
 #include "asm/unistd.h"
-#include <sys/ioctl.h>
-#include <asm/ioctls.h>
-#include <linux/net.h>
-#include <linux/sockios.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
-
+#include "sockmsg.h"
 
 static struct service s;
 
@@ -53,88 +48,9 @@ static int alwaystrue(char *path)
 	return 1;
 }
 
-static intfun real_lwip_ioctl;
-static int sockioctl(int d, int request, void *arg, void *umph)
+static int check(int domain)
 {
-	if (request == SIOCGIFCONF) {
-		int rv;
-		void *save;
-		struct ifconf *ifc=(struct ifconf *)arg;
-		save=ifc->ifc_buf;
-		ioctl(d,request,arg);
-		ifc->ifc_buf=malloc(ifc->ifc_len);
-		um_mod_umoven(umph,(long) save,ifc->ifc_len,ifc->ifc_buf);
-		rv=real_lwip_ioctl(d,request,arg);
-		if (rv>=0)
-			um_mod_ustoren(umph,(long) save,ifc->ifc_len,ifc->ifc_buf);
-		free(ifc->ifc_buf);
-		ifc->ifc_buf=save;
-		return rv;
-	}
-	return real_lwip_ioctl(d,request,arg);
-}
-
-static int ioctlparms(struct ioctl_len_req *arg,void *umph)
-{
-	switch (arg->req) {
-		case FIONREAD:
-			return sizeof(int) | IOCTL_W;
-		case FIONBIO:
-			return sizeof(int) | IOCTL_R;
-		case SIOCGIFCONF:
-			return sizeof(struct ifconf) | IOCTL_R | IOCTL_W;
-		case SIOCGSTAMP:
-			return sizeof(struct timeval) | IOCTL_W;
-		case SIOCGIFTXQLEN:
-		case SIOCGIFFLAGS:
-		case SIOCGIFADDR:
-		case SIOCGIFDSTADDR:
-		case SIOCGIFBRDADDR:
-		case SIOCGIFNETMASK:
-		case SIOCGIFMETRIC:
-		case SIOCGIFMEM:
-		case SIOCGIFMTU:
-		case SIOCGIFHWADDR:
-			return sizeof(struct ifreq) | IOCTL_R | IOCTL_W;
-		case SIOCSIFFLAGS:
-		case SIOCSIFADDR:
-		case SIOCSIFDSTADDR:
-		case SIOCSIFBRDADDR:
-		case SIOCSIFNETMASK:
-		case SIOCSIFMETRIC:
-		case SIOCSIFMEM:
-		case SIOCSIFMTU:
-		case SIOCSIFHWADDR:
-		case SIOCGIFINDEX:
-			return sizeof(struct ifreq) | IOCTL_R;
-		default:
-			return 0;
-	}
-}
-
-#define TRUE 1
-#define FALSE 0
-
-static int checksock(int type, void *arg,void *umph)
-{
-	if (type == CHECKSOCKET) {
-		int domain=*((int *) arg);
-		return(domain == AF_INET || domain == PF_INET6 || domain == PF_NETLINK || domain == PF_PACKET);
-	} else if (type == CHECKIOCTLPARMS) {
-		//printf("=========lwipv6 %x ioctlparms %x\n",*((int *)arg),ioctlparms(arg,umph));
-		return ioctlparms(arg,umph);
-	} else if (type == CHECKPATH) {
-		char *path=arg;
-		return (strncmp(path,"/proc/net",9) == 0);
-	}
-	else
-		return FALSE;
-}
-
-static int noprocnetdev()
-{
-	errno=ENOENT;
-	return -1;
+	return(domain == AF_INET || domain != PF_INET6 || domain != PF_NETLINK || domain != PF_PACKET);
 }
 
 struct libtab {
@@ -189,15 +105,10 @@ static void openlwiplib()
 					s.syscall[uscno(lwiplibtab[i].tag)]=fun;
 			}
 		}
-		s.select_register=dlsym(lwiphandle,"lwip_select_register");
-		real_lwip_ioctl=s.syscall[uscno(__NR_ioctl)];
-		s.syscall[uscno(__NR_ioctl)]=sockioctl;
-		s.syscall[uscno(__NR_open)]=noprocnetdev;
-		s.syscall[uscno(__NR_lstat64)]=noprocnetdev;
-		s.syscall[uscno(__NR_access)]=noprocnetdev;
 	}
+	s.select_register=dlsym(lwiphandle,"lwip_select_register");
 }
-
+		
 ssize_t lwip_recvmsg(int fd, struct msghdr *msg, int flags) {
 	int rv;
 	rv=(s.socket[SYS_RECVFROM])(fd,msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
@@ -213,147 +124,55 @@ ssize_t lwip_sendmsg(int fd, const struct msghdr *msg, int flags) {
 	return rv;
 }
 
-static char *intname[]={"vd","tp","tn"};
-#define INTTYPES (sizeof(intname)/sizeof(char *))
-typedef struct netif *((*netifstarfun)());
-char *initfunname[INTTYPES]={"lwip_vdeif_add","lwip_tapif_add","lwip_tunif_add"};
-static netifstarfun initfun[INTTYPES];
-static char intnum[INTTYPES];
-struct ifname {
-	unsigned char type;
-	unsigned char num;
-	char *name;
-	struct ifname *next;
-} *ifh;
-
-static void iffree(struct ifname *head)
-{
-	if (head==NULL)
-		return;
-	else {
-		iffree(head->next);
-		free(head->name);
-		free(head);
-	}
-}
-
-static char *ifname(struct ifname *head,unsigned char type,unsigned char num)
-{
-	if (head==NULL)
-		return NULL;
-	else if (head->type == type && head->num == num)
-		return head->name;
-	else return ifname(head->next,type,num);
-}
-
-static void ifaddname(char type,char num,char *name)
-{
-	struct ifname *thisif=malloc(sizeof (struct ifname));
-	if (thisif != NULL) {
-		thisif->type=type;
-		thisif->num=num;
-		thisif->name=strdup(name);
-		thisif->next=ifh;
-		ifh=thisif;
-	}
-}
-
-static void myputenv(char *arg)
-{
-	int i,j;
-	char env[PATH_MAX];
-	for (i=0;i<INTTYPES;i++) {
-		if (strncmp(arg,intname[i],2)==0 && arg[2] >= '0' && arg[2] <= '9') {
-			if (arg[3] == '=') {
-				ifaddname(i,arg[2]-'0',arg+4);
-				if (arg[2]-'0' > intnum[i]) intnum[i]=arg[2]-'0'+1;
-			}
-			else if (arg[3] == 0) {
-				if (arg[2]-'0' > intnum[i]) intnum[i]=arg[2]-'0';
-			}
-			break;
-		}
-	}	
-}
-
-static char stdargs[]="vd1";
-static void lwipargtoenv(char *initargs)
-{
-	char *next;
-	char *unquoted;
-	char quoted=0;
-	char totint=0;
-	register int i,j;
-
-	ifh=NULL;
-	for (i=0;i<INTTYPES;i++) {
-		intnum[i]=0;
-		initfun[i]=dlsym(lwiphandle,initfunname[i]);
-	}
-	if (*initargs == 0) initargs=stdargs;
-	while (*initargs != 0) {
-		next=initargs;
-		unquoted=initargs;
-		while ((*next != ',' || quoted) && *next != 0) {
-			*unquoted=*next;
-			if (*next == quoted)
-				quoted=0;
-			else if (*next == '\'' || *next == '\"')
-				quoted=*next; 
-			else
-				unquoted++;
-			next++;
-		}
-		if (*next == ',') {
-			*unquoted=*next=0;
-			next++;
-		}
-		if (*initargs != 0)
-			myputenv(initargs);
-		initargs=next;
-	}
-	for (i=0;i<INTTYPES;i++) 
-		totint+=intnum[i];
-	if (totint==0)
-		intnum[0]=1;
-	for (i=0;i<INTTYPES;i++)
-		for (j=0;j<intnum[i];j++)
-			if (initfun[i] != NULL)
-				initfun[i](ifname(ifh,i,j));
-	iffree(ifh);
-}
-
-static int initflag=0;
-	static void
-	__attribute__ ((constructor))
+static void
+__attribute__ ((constructor))
 init (void)
 {
-	initflag=1;
+	printf("lwipv6 init\n");
+	s.name="light weight ipv6 stack";
+	s.code=0x02;
+	s.checkpath=alwaysfalse;
+	s.checksocket=check;
+	s.syscall=(intfun *)calloc(1,scmap_scmapsize * sizeof(intfun));
+	s.socket=(intfun *)calloc(1,scmap_sockmapsize * sizeof(intfun));
+	openlwiplib();
+	s.syscall[uscno(__NR__newselect)]=alwaysfalse;
+	s.syscall[uscno(__NR_poll)]=alwaysfalse;
+	s.socket[SYS_SENDMSG]=lwip_sendmsg;
+	s.socket[SYS_RECVMSG]=lwip_recvmsg;
+
+#if 0
+	s.socket[SYS_SOCKET]=lwip_socket;
+	s.socket[SYS_BIND]=lwip_bind;
+	s.socket[SYS_CONNECT]=lwip_connect;
+	s.socket[SYS_LISTEN]=lwip_listen;
+	s.socket[SYS_ACCEPT]=lwip_accept;
+	s.socket[SYS_GETSOCKNAME]=lwip_getsockname;
+	s.socket[SYS_GETPEERNAME]=lwip_getpeername;
+	s.socket[SYS_SEND]=lwip_send;
+	s.socket[SYS_RECV]=lwip_recv;
+	s.socket[SYS_SENDTO]=lwip_sendto;
+	s.socket[SYS_RECVFROM]=lwip_recvfrom;
+	s.socket[SYS_SHUTDOWN]=lwip_shutdown;
+	s.socket[SYS_SETSOCKOPT]=lwip_setsockopt;
+	s.socket[SYS_GETSOCKOPT]=lwip_getsockopt;
+	//s.socket[SYS_SENDMSG]=lwip_sendmsg;
+	//s.socket[SYS_RECVMSG]=lwip_recvmsg;
+	s.syscall[uscno(__NR_read)]=lwip_read;
+	s.syscall[uscno(__NR_write)]=lwip_write;
+	//s.syscall[uscno(__NR_readv)]=lwip_readv;
+	//s.syscall[uscno(__NR_writev)]=lwip_writev;
+        s.syscall[uscno(__NR_close)]=lwip_close;
+	//s.syscall[uscno(__NR_fcntl)]=lwip_fcntl;
+	//s.syscall[uscno(__NR_fcntl64)]=lwip_fcntl64;
+	s.syscall[uscno(__NR_ioctl)]=(intfun) lwip_ioctl;
+#endif
+
+	add_service(&s);
 }
 
-void _um_mod_init(char *initargs)
-{
-	if (initflag) {
-		printf("lwipv6 init\n");
-		s.name="light weight ipv6 stack";
-		s.code=0x02;
-		s.checkfun=checksock;
-		s.syscall=(intfun *)calloc(1,scmap_scmapsize * sizeof(intfun));
-		s.socket=(intfun *)calloc(1,scmap_sockmapsize * sizeof(intfun));
-		openlwiplib();
-		lwipargtoenv(initargs);
-		s.syscall[uscno(__NR__newselect)]=alwaysfalse;
-		s.syscall[uscno(__NR_poll)]=alwaysfalse;
-		s.socket[SYS_SENDMSG]=lwip_sendmsg;
-		s.socket[SYS_RECVMSG]=lwip_recvmsg;
-
-		add_service(&s);
-		initflag=0;
-	}
-}
-
-	static void
-	__attribute__ ((destructor))
+static void
+__attribute__ ((destructor))
 fini (void)
 {
 	if(lwiphandle != NULL)

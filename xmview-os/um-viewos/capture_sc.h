@@ -26,11 +26,8 @@
 #ifndef CAPTURE_SC_H_
 #define CAPTURE_SC_H_
 
-extern int first_child_exit_status;
 int capture_main(char **argv);
 void sc_resume(void *pc);
-
-int pcbtablesize(void);
 
 void wake_tracer_init();
 void wake_tracer(int s);

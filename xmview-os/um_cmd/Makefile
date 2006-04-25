@@ -15,8 +15,6 @@ um_lock_service: um_lock_service.o ../um_lib/libumlib.a
 
 um_del_service: um_del_service.o ../um_lib/libumlib.a
 
-distclean: clean
-
 cleanall:
 	rm -f $(ALL)
 

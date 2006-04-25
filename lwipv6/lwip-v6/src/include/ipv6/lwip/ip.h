@@ -56,60 +56,55 @@
 #include "lwip/def.h"
 #include "lwip/pbuf.h"
 #include "lwip/ip_addr.h"
+/* This is the common part of all PCB types. It needs to be at the
+ *    beginning of a PCB type definition. It is located here so that
+ *       changes to this common part are made in one location instead of
+ *          having to change all PCB structs. */
+#define IP_PCB struct ip_addr local_ip; \
+struct ip_addr remote_ip; \
+	/* Socket options */  \
+	u16_t so_options;      \
+	/* Type Of Service */ \
+	u8_t tos;              \
+	/* Time To Live */     \
+	u8_t ttl
 
 #include "lwip/err.h"
 
-/* This is the common part of all PCB types. It needs to be at the
- * beginning of a PCB type definition. It is located here so that
- * changes to this common part are made in one location instead of
- * having to change all PCB structs. */
-#define IP_PCB \
-    struct ip_addr local_ip;  \
-    struct ip_addr remote_ip; \
-	/* Socket options */      \
-	u16_t so_options;         \
-	/* Type Of Service */     \
-	u8_t tos;                 \
-	/* Time To Live */        \
-	u8_t ttl
+#define IP_HLEN 40
 
+#define IP_PROTO_ICMP 58
+#define IP_PROTO_ICMP4 1
+#define IP_PROTO_UDP 17
+#define IP_PROTO_UDPLITE 170
+#define IP_PROTO_TCP 6
+#define IP_FRAG_TAG 44
 
 /* This is passed as the destination address to ip_output_if (not
- * to ip_output), meaning that an IP header already is constructed
- * in the pbuf. This is used when TCP retransmits. */
+   to ip_output), meaning that an IP header already is constructed
+   in the pbuf. This is used when TCP retransmits. */
 #ifdef IP_HDRINCL
 #undef IP_HDRINCL
 #endif /* IP_HDRINCL */
 #define IP_HDRINCL  NULL
 
-
-/*
- * Protocols numbers
- */
-#define IP_PROTO_ICMP4           1
-#define IP_PROTO_TCP             6      /* TCP segment. */
-#define IP_PROTO_UDP            17      /* UDP message. */
-#define IP_FRAG_TAG             44
-#define IP_PROTO_ICMP           58      /* ICMP for IPv6. */
-#define IP_PROTO_UDPLITE       170
-
-
-/*****************************************************************************/
-/* IPv6 structures and macroes */
-/*****************************************************************************/
-
-/* Extensions headers */
-#define IP6_NEXTHDR_HOP          0      /* Hop-by-hop option header. */
-#define IP6_NEXTHDR_DEST        60      /* Destination options header. */
-#define IP6_NEXTHDR_ROUTING     43      /* Routing header. */
-#define IP6_NEXTHDR_FRAGMENT    44      /* Fragmentation/reassembly header. */
-#define IP6_NEXTHDR_ESP         50      /* Encapsulating security payload. */
-#define IP6_NEXTHDR_AUTH        51      /* Authentication header. */
-#define IP6_NEXTHDR_NONE        59      /* No next header */
-#define IP6_NEXTHDR_IPV6        41      /* IPv6 in IPv6 */
-#define IP6_NEXTHDR_MAX        255      /* Max value */
-
 /* The IPv6 header. */
+#if 0
+struct ip_hdr {
+#if BYTE_ORDER == LITTLE_ENDIAN
+  u8_t tclass1:4, v:4;
+  u8_t flow1:4, tclass2:4;  
+#else
+  u8_t v:4, tclass1:4;
+  u8_t tclass2:4, flow1:4;
+#endif
+  u16_t flow2;
+  u16_t len;                /* payload length */
+  u8_t nexthdr;             /* next header */
+  u8_t hoplim;              /* hop limit (TTL) */
+  struct ip_addr src, dest;          /* source and destination IP addresses */
+};
+#endif
 #ifdef PACK_STRUCT_USE_INCLUDES
 #  include "arch/bpstruct.h"
 #endif
@@ -132,82 +127,95 @@ PACK_STRUCT_END
 #  include "arch/epstruct.h"
 #endif
 
-#define IP_HLEN 40
-
-#define IPH_V(hdr)         (ntohs((hdr)->_v_cl_fl) >> 12)
-#define IPH_CL(hdr)        ((ntohs((hdr)->_v_cl_fl) >> 4) & 0xff)
-#define IPH_FLOW(hdr)      ((ntohs((hdr)->_v_cl_fl) & 0xf) + ((hdr)->flow2))
-#define IPH_NEXTHDR(hdr)   (ntohs((hdr)->_next_hop) >> 8)
-#define IPH_HOPLIMIT(hdr)  (ntohs((hdr)->_next_hop) & 0xff)
-
-#define IPH_V_SET(hdr,vv)                   ((hdr)->_v_cl_fl)  = htons((ntohs((hdr)->_v_cl_fl) & 0xffffff) | ((vv) << 12))
-#define IPH_NEXTHDR_SET(hdr, nexthdr)       ((hdr)->_next_hop) = htons((nexthdr) << 8 | IPH_HOPLIMIT(hdr))
-#define IPH_HOPLIMIT_SET(hdr, hop)          ((hdr)->_next_hop) = htons(IPH_NEXTHDR(hdr) << 8 | (hop))
-#define IPH_NEXT_HOP_SET(hdr, nexthdr, hop) ((hdr)->_next_hop) = htons((nexthdr) << 8 | (hop))
-
-#define IPH_PAYLOADLEN(hdr)             ((hdr)->len)
-#define IPH_PAYLOADLEN_SET(hdr, newlen) ((hdr)->len = htons((newlen)))
+#define IPH_V(hdr) (ntohs((hdr)->_v_cl_fl) >> 12)
+#define IPH_CL(hdr) ((ntohs((hdr)->_v_cl_fl) >> 4) & 0xff)
+#define IPH_FLOW(hdr) ((ntohs((hdr)->_v_cl_fl) & 0xf) + ((hdr)->flow2))
+#define IPH_NEXTHDR(hdr) (ntohs((hdr)->_next_hop) >> 8)
+#define IPH_HOPLIMIT(hdr) (ntohs((hdr)->_next_hop) & 0xff)
+#define IPH_V_SET(hdr,vv) ((hdr)->_v_cl_fl)= \
+		htons((ntohs((hdr)->_v_cl_fl) & 0xffffff) | ((vv) << 12))
+#define IPH_NEXTHDR_SET(hdr, nexthdr) ((hdr)->_next_hop) = \
+		htons((nexthdr) << 8 | IPH_HOPLIMIT(hdr))
+#define IPH_HOPLIMIT_SET(hdr, hop) ((hdr)->_next_hop) = \
+		htons(IPH_NEXTHDR(hdr) << 8 | (hop))
+#define IPH_NEXT_HOP_SET(hdr, nexthdr, hop) ((hdr)->_next_hop) = \
+		htons((nexthdr) << 8 | (hop))
 
 
-/* Generic IPv6 Extension Header  */
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/bpstruct.h"
+void ip_init(void);
+
+/* no variable part */
+#define IPH_HL(x) (IP_HLEN >> 2) /*IPv4 compatibility*/
+#define IPH_PROTO(x) ((x)->nexthdr)
+
+#include "lwip/netif.h"
+
+struct netif *ip_route(struct ip_addr *dest);
+
+void ip_input(struct pbuf *p, struct netif *inp);
+
+/* source and destination addresses in network byte order, please */
+err_t ip_output(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
+         unsigned char ttl, unsigned char tos, unsigned char proto);
+
+err_t ip_output_if(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
+      unsigned char ttl, unsigned char tos, unsigned char proto,
+      struct netif *netif, struct ip_addr *nexthop, int flags);
+
+#if IP_DEBUG
+void ip_debug_print(int how, struct pbuf *p);
+#endif /* IP_DEBUG */
+
+
+/*
+ * 
+ * Option flags per-socket. These are the same like SO_XXX.
+ */
+#define	SOF_DEBUG	    (u16_t)0x0001U		/* turn on debugging info recording */
+#define	SOF_ACCEPTCONN	(u16_t)0x0002U		/* socket has had listen() */
+#define	SOF_REUSEADDR	(u16_t)0x0004U		/* allow local address reuse */
+#define	SOF_KEEPALIVE	(u16_t)0x0008U		/* keep connections alive */
+#define	SOF_DONTROUTE	(u16_t)0x0010U		/* just use interface addresses */
+#define	SOF_BROADCAST	(u16_t)0x0020U		/* permit sending of broadcast msgs */
+#define	SOF_USELOOPBACK	(u16_t)0x0040U		/* bypass hardware when possible */
+#define	SOF_LINGER	    (u16_t)0x0080U		/* linger on close if data present */
+#define	SOF_OOBINLINE	(u16_t)0x0100U		/* leave received OOB data in line */
+#define	SOF_REUSEPORT	(u16_t)0x0200U		/* allow local address & port reuse */
+#define	SOF_IPV6_CHECKSUM (u16_t)0x8000U	/* RAW socket IPv6 checksum */
+
+
+#define IP4_HLEN 20
+
+#if 0
+/* This is the common part of all PCB types. It needs to be at the
+   beginning of a PCB type definition. It is located here so that
+   changes to this common part are made in one location instead of
+   having to change all PCB structs. */
+#define IP_PCB struct ip_addr local_ip; \
+  struct ip_addr remote_ip; \
+   /* Socket options */  \
+  u16_t so_options;      \
+   /* Type Of Service */ \
+  u8_t tos;              \
+  /* Time To Live */     \
+  u8_t ttl
+
+/*
+ * Option flags per-socket. These are the same like SO_XXX.
+ */
+#define	SOF_DEBUG	    (u16_t)0x0001U		/* turn on debugging info recording */
+#define	SOF_ACCEPTCONN	(u16_t)0x0002U		/* socket has had listen() */
+#define	SOF_REUSEADDR	(u16_t)0x0004U		/* allow local address reuse */
+#define	SOF_KEEPALIVE	(u16_t)0x0008U		/* keep connections alive */
+#define	SOF_DONTROUTE	(u16_t)0x0010U		/* just use interface addresses */
+#define	SOF_BROADCAST	(u16_t)0x0020U		/* permit sending of broadcast msgs */
+#define	SOF_USELOOPBACK	(u16_t)0x0040U		/* bypass hardware when possible */
+#define	SOF_LINGER	    (u16_t)0x0080U		/* linger on close if data present */
+#define	SOF_OOBINLINE	(u16_t)0x0100U		/* leave received OOB data in line */
+#define	SOF_REUSEPORT	(u16_t)0x0200U		/* allow local address & port reuse */
 #endif
-PACK_STRUCT_BEGIN
-struct ip_exthdr {
-	  /* Next Header */
-	  PACK_STRUCT_FIELD(u8_t nexthdr);
-	  /* Hdr Ext Len */
-	  PACK_STRUCT_FIELD(u8_t len);
-} PACK_STRUCT_STRUCT;
-PACK_STRUCT_END
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/epstruct.h"
-#endif
-                                
-#define IPEXTH_NEXTHDR(hdr)               ((hdr)->nexthdr)
-#define IPEXTH_NEXTHDR_SET(hdr, nexthdr)  ((hdr)->nexthdr = (nexthdr))
-
-#define is_ipv6_exthdr(nexthdr) \
-	(((nexthdr)==IP6_NEXTHDR_HOP)      || \
-     ((nexthdr)==IP6_NEXTHDR_ROUTING)  || \
-	 ((nexthdr)==IP6_NEXTHDR_FRAGMENT) || \
-	 ((nexthdr)==IP6_NEXTHDR_AUTH)     || \
-	 ((nexthdr)==IP6_NEXTHDR_NONE)     || \
-	 ((nexthdr)==IP6_NEXTHDR_DEST))
 
 
-/* Generic IPv6 Option  */
-struct ip6_option {       
-  u8_t type;
-  u8_t len;        /* in units of 8 octets (including the type and length fields). */
-  u8_t data[0];    /* 0 is not allowed with some compilers */
-};
-
-/* Option Type field encoding :
-
-    00?? ???? - skip over and continue processing.
-    01?? ???? - discard.
-    10?? ???? - discard and send an ICMP Parameter Problem, Code 2.
-    11?? ???? - discard and, if Destination Address was not multicast address, send ICMP Parameter Problem.
-
-    ??0? ???? - Option Data does not change en-route.
-    ??1? ???? - Option Data may change en-route.
-*/
-#define IP6_OPT_SKIP(opt)             (((opt)->type & 0xC0) == 0) 
-#define IP6_OPT_DISCARD(opt)          ((opt)->type & 0x40) 
-#define IP6_OPT_INVALID(opt)          ((opt)->type & 0x80) 
-#define IP6_OPT_INVALID_NOTMULTI(opt) ((opt)->type & 0xC0) 
-#define IP6_OPT_DONTCHANGE(opt)       (((opt)->type & 0x20) == 0)
-#define IP6_OPT_CHANGE(opt)           ((opt)->type & 0x20) 
-
-#define IP6_OPT_LEN(opt)              ((opt)->len * 8)
-
-/*****************************************************************************/
-/* IPv4 structures and macroes */
-/*****************************************************************************/
-
-/* The IPv4 header. */
 #ifdef PACK_STRUCT_USE_INCLUDES
 #  include "arch/bpstruct.h"
 #endif
@@ -238,94 +246,41 @@ PACK_STRUCT_END
 #  include "arch/epstruct.h"
 #endif
 
-#define IP4_HLEN 20
-
-#define IPH4_V(hdr)      (ntohs((hdr)->_v_hl_tos) >> 12)
-#define IPH4_HL(hdr)     ((ntohs((hdr)->_v_hl_tos) >> 8) & 0x0f)
-#define IPH4_TOS(hdr)    (htons((ntohs((hdr)->_v_hl_tos) & 0xff)))
-#define IPH4_LEN(hdr)    ((hdr)->_len)
-#define IPH4_ID(hdr)     ((hdr)->_id)
+#define IPH4_V(hdr)  (ntohs((hdr)->_v_hl_tos) >> 12)
+#define IPH4_HL(hdr) ((ntohs((hdr)->_v_hl_tos) >> 8) & 0x0f)
+#define IPH4_TOS(hdr) (htons((ntohs((hdr)->_v_hl_tos) & 0xff)))
+#define IPH4_LEN(hdr) ((hdr)->_len)
+#define IPH4_ID(hdr) ((hdr)->_id)
 #define IPH4_OFFSET(hdr) ((hdr)->_offset)
-#define IPH4_TTL(hdr)    (ntohs((hdr)->_ttl_proto) >> 8)
-#define IPH4_PROTO(hdr)  (ntohs((hdr)->_ttl_proto) & 0xff)
+#define IPH4_TTL(hdr) (ntohs((hdr)->_ttl_proto) >> 8)
+#define IPH4_PROTO(hdr) (ntohs((hdr)->_ttl_proto) & 0xff)
 #define IPH4_CHKSUM(hdr) ((hdr)->_chksum)
 
 #define IPH4_VHLTOS_SET(hdr, v, hl, tos) (hdr)->_v_hl_tos = (htons(((v) << 12) | ((hl) << 8) | (tos)))
-#define IPH4_LEN_SET(hdr, len)           (hdr)->_len = (len)
-#define IPH4_ID_SET(hdr, id)             (hdr)->_id = (id)
-#define IPH4_OFFSET_SET(hdr, off)        (hdr)->_offset = (off)
-#define IPH4_TTL_SET(hdr, ttl)           (hdr)->_ttl_proto = (htons(IPH4_PROTO(hdr) | ((ttl) << 8)))
-#define IPH4_PROTO_SET(hdr, proto)       (hdr)->_ttl_proto = (htons((proto) | (IPH4_TTL(hdr) << 8)))
-#define IPH4_CHKSUM_SET(hdr, chksum)     (hdr)->_chksum = (chksum)
+#define IPH4_LEN_SET(hdr, len) (hdr)->_len = (len)
+#define IPH4_ID_SET(hdr, id) (hdr)->_id = (id)
+#define IPH4_OFFSET_SET(hdr, off) (hdr)->_offset = (off)
+#define IPH4_TTL_SET(hdr, ttl) (hdr)->_ttl_proto = (htons(IPH4_PROTO(hdr) | ((ttl) << 8)))
+#define IPH4_PROTO_SET(hdr, proto) (hdr)->_ttl_proto = (htons((proto) | (IPH4_TTL(hdr) << 8)))
+#define IPH4_CHKSUM_SET(hdr, chksum) (hdr)->_chksum = (chksum)
 
-/* no variable part */
-#define IPH_HL(x)      (IP_HLEN >> 2) /*IPv4 compatibility*/
-#define IPH_PROTO(x)   ((x)->nexthdr)
-
-#include "lwip/netif.h"
-
-
-/*
- * Option flags per-socket. These are the same like SO_XXX.
- */
-#define	SOF_DEBUG	    (u16_t)0x0001U		/* turn on debugging info recording */
-#define	SOF_ACCEPTCONN	(u16_t)0x0002U		/* socket has had listen() */
-#define	SOF_REUSEADDR	(u16_t)0x0004U		/* allow local address reuse */
-#define	SOF_KEEPALIVE	(u16_t)0x0008U		/* keep connections alive */
-#define	SOF_DONTROUTE	(u16_t)0x0010U		/* just use interface addresses */
-#define	SOF_BROADCAST	(u16_t)0x0020U		/* permit sending of broadcast msgs */
-#define	SOF_USELOOPBACK	(u16_t)0x0040U		/* bypass hardware when possible */
-#define	SOF_LINGER	    (u16_t)0x0080U		/* linger on close if data present */
-#define	SOF_OOBINLINE	(u16_t)0x0100U		/* leave received OOB data in line */
-#define	SOF_REUSEPORT	(u16_t)0x0200U		/* allow local address & port reuse */
-#define	SOF_IPV6_CHECKSUM (u16_t)0x8000U	/* RAW socket IPv6 checksum */
-
-
-
-/*****************************************************************************/
-/* IP Layer functions  */
-/*****************************************************************************/
-
-/* Fragmentation IDs */
-/* FIX: race condition between ipv4 and ipv6 fragmentation code */
-extern u16_t ip_id;
-
-
-void ip_init(void);
-
-/* Input functions for netif interfaces */
-void ip_input(struct pbuf *p, struct netif *inp);
-
-/* source and destination addresses in network byte order, please */
-err_t ip_output(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
-		unsigned char ttl, unsigned char tos, unsigned char proto);
-
-err_t ip_output_if(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
-		unsigned char ttl, unsigned char tos, unsigned char proto,
-		struct netif *netif, struct ip_addr *nexthop, int flags);
-
-
-err_t ip_output_raw(struct pbuf *p, struct netif *out, struct ip_addr *nexthop);
-
-
+#if 0
 #if IP_DEBUG
-void ip_debug_print(int how, struct pbuf *p);
+void ip_debug_print(struct pbuf *p);
 #else
-#define ip_debug_print(how,p) 
+#define ip_debug_print(p)
 #endif /* IP_DEBUG */
+#endif
 
-/* Used in ip6.c to handle ingoing packets from both IPv4 and IPv6 */
+
 struct pseudo_iphdr {
-	u8_t  version;         /* ip version */
-	u16_t iphdrlen;        /* header len (IPv4+options, IPv6 main header only) */
-	u16_t proto;           /* Next protocol (also IPv6 extension headers) */
+	u8_t version;
+	u16_t iphdrlen;
+	u16_t proto;
 	struct ip_addr *src;
 	struct ip_addr *dest;
 };
 
-int ip_build_piphdr(struct pseudo_iphdr *piphdr, struct pbuf *p, 
-		struct ip_addr *src4, struct ip_addr *dest4);
-
-
 #endif /* __LWIP_IP_H__ */
+
 

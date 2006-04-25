@@ -23,7 +23,6 @@
  *
  */
 #include <unistd.h>
-#include <stdio.h>
 #include "module.h"
 
 struct service s;
@@ -40,7 +39,8 @@ init (void)
 	printf("testmodule init\n");
 	s.name="Test Module";
 	s.code=0xfe;
-	s.checkfun=alwaysfalse;
+	s.checkpath=alwaysfalse;
+	s.checksocket=alwaysfalse;
 	s.syscall=NULL;
 	s.socket=NULL;
 	add_service(&s);

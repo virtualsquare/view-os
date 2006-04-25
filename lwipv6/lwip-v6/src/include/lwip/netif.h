@@ -47,10 +47,6 @@
 #endif
 
 
-#ifdef IPv6_AUTO_CONFIGURATION
-#include "lwip/ip_autoconf.h"
-#endif
-
 /** must be the maximum of all used hardware address lengths
     across all types of interfaces in use */
 #define NETIF_MAX_HWADDR_LEN 6U
@@ -102,19 +98,11 @@ struct netif {
   err_t (* linkoutput)(struct netif *netif, struct pbuf *p);
   /** This field can be set by the device driver and could point
    *  to state information for the device. */
-	err_t (* cleanup)(struct netif *netif);
-	/* garbage collection function */
   void *state;
-
 #if LWIP_DHCP
   /** the DHCP client state information for this netif */
   struct dhcp *dhcp;
 #endif
-
-#ifdef IPv6_AUTO_CONFIGURATION
-  struct autoconf autoconf;
-#endif
-
   /** number of bytes used in hwaddr */
   unsigned char hwaddr_len;
   /** link level hardware address of this interface */
@@ -130,14 +118,13 @@ struct netif {
 	/** NETIF_FLAG_* */
 	u16_t flags;
 	/** number of this interface */
-	u8_t id;
+	u16_t id;
 	/* unique id */
 
 #ifdef LWIP_NL
 	u16_t type;
 	/* type */
 #endif
-
 };
 
 /** The list of network interfaces. */
@@ -147,8 +134,6 @@ extern struct netif *netif_default;
 
 /* netif_init() must be called first. */
 void netif_init(void);
-/* netif_cleanup() must be called for a final garbage collection. */
-void netif_cleanup(void);
 
 struct netif *netif_add(struct netif *netif, 
       void *state,
@@ -173,12 +158,12 @@ struct netif *netif_find(char *name);
 struct netif *netif_find_id(int id);
 struct netif * netif_find_direct_destination(struct ip_addr *addr);
 
-/* void netif_set_default(struct netif *netif);
+void netif_set_default(struct netif *netif);
 void netif_set_ipaddr(struct netif *netif, struct ip_addr *ipaddr);
 void netif_set_netmask(struct netif *netif, struct ip_addr *netmast);
 void netif_set_gw(struct netif *netif, struct ip_addr *gw);
 void netif_set_up(struct netif *netif);
 void netif_set_down(struct netif *netif);
-u8_t netif_is_up(struct netif *netif); */
+u8_t netif_is_up(struct netif *netif);
 
 #endif /* __LWIP_NETIF_H__ */
