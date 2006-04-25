@@ -1,0 +1,68 @@
+This is PURE_LIBC: an overlay library for glibc that allows system call capturing.
+
+(C) 2006 Renzo Davoli University of Bologna (ITALY)
+(C) 2006 Andrea Gasparini University of Bologna (ITALY)
+ 
+This is FREE software: this work has been released under the GPLv2
+license (see the file COPYING and the header note in the source files).
+
+Pure_libc converts glibc from a libc+system interfacing library into a libc-only
+library.
+
+The process can (re)define the variable
+extern sfun _pure_syscall;
+
+being sfun as follows:
+typedef long int (*sfun)(long int __sysno, ...);
+
+All the system call of the programs are converted into calls of the
+_pure_syscall function.
+_pure_syscall is defined by default to be the glibc syscall function, thus
+_pure_libc has no effects (provided there are not bugs ;-) before _pure_syscall gets
+assigned.
+
+The following test program prints the number of the system call before actually calling it:
+--------------
+#include <stdio.h>
+#include <string.h>
+#include <stdarg.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#include <pure_libc.h>
+
+static char buf[128];
+static long int mysc(long int sysno, ...){
+	va_list ap;
+	long int a1,a2,a3,a4,a5,a6;
+	va_start (ap, sysno);
+	snprintf(buf,128,"SC=%d\n",sysno);
+	syscall(__NR_write,2,buf,strlen(buf));
+	a1=va_arg(ap,long int);
+	a2=va_arg(ap,long int);
+	a3=va_arg(ap,long int);
+	a4=va_arg(ap,long int);
+	a5=va_arg(ap,long int);
+	a6=va_arg(ap,long int);
+	va_end(ap);
+	syscall(sysno,a1,a2,a3,a4,a5,a6);
+}
+
+main() {
+	int c;
+	_pure_syscall=mysc;
+	while ((c=getchar()) != EOF)
+		putchar(c);
+	printf("hello world\n");
+}
+--------------
+
+
+There is also a var to redefine the socket calls:
+extern sfun _pure_socketcall;
+
+when not defined all the socket calls are managed by the __NR_socketcall
+system call (diverted or not depending on _pure_syscall).
+
+when defined all the socket calls are into _pure_socketcall function calls
+(no more __NR_socketcall system calls are subsequently invoked).
+
