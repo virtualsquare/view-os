@@ -38,7 +38,6 @@
 #include "defs.h"
 #include "services.h"
 #include "utils.h"
-#include "real_syscalls.h"
 
 #define ADD_SERVICE 0
 #define DEL_SERVICE 1

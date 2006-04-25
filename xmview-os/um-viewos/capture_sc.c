@@ -45,6 +45,7 @@
 #include <sched.h>
 #include <limits.h>
 #include <assert.h>
+#include "capture_nested.h"
 
 // #define FAKESIGSTOP
 
@@ -60,8 +61,6 @@
 #ifdef PIVOTING_ENABLED
 #include "pivoting.h"
 #endif
-
-#include "real_syscalls.h"
 
 #define PCBSIZE 10
 
@@ -282,7 +281,7 @@ void tracehand(int s)
 	struct pcb *pc;
 
 	while(nprocs>0){
-		if((pid = waitpid(-1, &status, WUNTRACED | __WALL | WNOHANG)) < 0)
+		if((pid = r_waitpid(-1, &status, WUNTRACED | __WALL | WNOHANG)) < 0)
 		{
 			GPERROR(0, "wait");
 			exit(1);
@@ -554,8 +553,8 @@ void sc_resume(struct pcb *pc)
  */
 void wake_tracer_init()
 {
-	pipe(tracerpipe);
-	fcntl(tracerpipe[0],F_SETFL,O_NONBLOCK);
+	r_pipe(tracerpipe);
+	r_fcntl(tracerpipe[0],F_SETFL,O_NONBLOCK);
 }
 
 /*
@@ -568,7 +567,7 @@ void wake_tracer(int s)
 	if (!tracerpipecounter) // No more than 1 message
 	{
 		tracerpipecounter = 1;
-		write(tracerpipe[1], &x, 1);
+		r_write(tracerpipe[1], &x, 1);
 	}
 }
 
@@ -595,7 +594,7 @@ int must_wake_tracer(fd_set *wset)
 	if (retval)
 	{
 		char buf[256];
-		read(tracerpipe[0], buf, 256);
+		r_read(tracerpipe[0], buf, 256);
 		tracerpipecounter = 0;
 	}
 	return retval;
@@ -651,8 +650,9 @@ int capture_main(char **argv)
 			GPERROR(0, "strace: exec");
 			_exit(1);
 		default:
+			capture_nested_init();
 			handle_new_proc(first_child_pid,pcbtab[0]);
-			if(waitpid(first_child_pid, &status, WUNTRACED) < 0){
+			if(r_waitpid(first_child_pid, &status, WUNTRACED) < 0){
 				GPERROR(0, "Waiting for stop");
 				exit(1);
 			}

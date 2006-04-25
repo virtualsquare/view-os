@@ -32,6 +32,32 @@
 // nested_headers: stuff required if we compile with -DNESTING_TEST
 #include "nested_headers.h"
 
+/* Real SysCalls ! r_ prefixed calls do not enter the nidification
+ * process and go straight to the kernel */
+#include<sys/syscall.h>
+#define r_read(f,b,c) (syscall(__NR_read,(f),(b),(c)))
+#define r_write(f,b,c) (syscall(__NR_write,(f),(b),(c)))
+#ifdef __NR__newselect
+#define r_select(n,r,w,e,t) (syscall(__NR__newselect,(n),(r),(w),(e),(t)))
+#else
+#define r_select(n,r,w,e,t) (syscall(__NR_select,(n),(r),(w),(e),(t)))
+#endif
+#define r_waitpid(p,s,o) (syscall(__NR_waitpid,(p),(s),(o)))
+#define r_lstat64(p,b) (syscall(__NR_lstat64,(p),(b)))
+#define r_readlink(p,b,sz) (syscall(__NR_readlink,(p),(b),(sz)))
+#define r_fcntl(f,c,a) (syscall(__NR_fcntl,(f),(c),(a)))
+#define r_umask(m) (syscall(__NR_umask,(m)))
+#define r_pipe(v) (syscall(__NR_pipe,(v)))
+#define r_access(p,m) (syscall(__NR_access,(p),(m)))
+#define r_setpriority(w,p,o) (syscall(__NR_setpriority,(w),(p),(o)))
+#define r_setuid(u) (syscall(__NR_setuid,(u)))
+#define r_getuid() (syscall(__NR_getuid))
+#define r_getpid() (syscall(__NR_getpid))
+/* be careful getcwd syscall does not allocate the string for path=NULL */
+#define r_getcwd(p,l) (syscall(__NR_getcwd,(p),(l)))
+#define r_mkdir(d,m) (syscall(__NR_mkdir,(d),(m)))
+#define r_rmdir(d) (syscall(__NR_rmdir,(d)))
+
 extern unsigned int has_ptrace_multi;
 extern unsigned int ptrace_vm_mask;
 #define PT_VM_OK ((ptrace_vm_mask & PTRACE_VM_SKIPOK) == PTRACE_VM_SKIPOK)

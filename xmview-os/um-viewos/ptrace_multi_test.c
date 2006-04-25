@@ -33,8 +33,7 @@
 #include "ptrace2.h"
 #include <asm/unistd.h>
 #include <errno.h>
-
-#include "real_syscalls.h"
+#define r_waitpid(p,s,o) (syscall(__NR_waitpid,(p),(s),(o)))
 
 static int child(void *arg)
 {
@@ -53,7 +52,7 @@ unsigned int test_ptracemulti(unsigned int *vm_mask, unsigned int *viewos_mask) 
     perror("clone");
     return 0;
   }
-  if((pid = waitpid(pid, &status, WUNTRACED)) < 0){
+  if((pid = r_waitpid(pid, &status, WUNTRACED)) < 0){
 	  perror("Waiting for stop");
 	  return 0;
   }
@@ -70,7 +69,7 @@ unsigned int test_ptracemulti(unsigned int *vm_mask, unsigned int *viewos_mask) 
   if (errno != 0)
 	  *viewos_mask=0;
   ptrace(PTRACE_KILL,pid,0,0);
-  if((pid = waitpid(pid, &status, WUNTRACED)) < 0){
+  if((pid = r_waitpid(pid, &status, WUNTRACED)) < 0){
 	  perror("Waiting for stop");
 	  return 0;
   }

@@ -52,7 +52,6 @@
 #include "canonicalize.h"
 #include "capture_sc.h"
 #include "gdebug.h"
-#include "real_syscalls.h"
 
 void um_set_errno(struct pcb *pc,int i) {
 	pc->erno=i;
@@ -71,7 +70,7 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *umph)
 	/*printf("-> um_lstat: %s\n",filename);*/
 	umph->scno = __NR_lstat64;
 	if ((sercode=service_check(CHECKPATH,filename,umph)) == UM_NONE)
-		retval = lstat64(filename,buf);
+		retval = r_lstat64(filename,buf);
 	else{
 		enter_module(sercode);
 		retval = service_syscall(sercode,uscno(__NR_lstat64))(filename,buf,umph);
@@ -88,7 +87,7 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *umph)
 	int retval;
 	umph->scno = __NR_readlink;
 	if ((sercode=service_check(CHECKPATH,path,umph)) == UM_NONE)
-		retval = readlink(path,buf,bufsiz);
+		retval = r_readlink(path,buf,bufsiz);
 	else{
 		enter_module(sercode);
 		retval = service_syscall(sercode,uscno(__NR_readlink))(path,buf,bufsiz,umph);
@@ -312,8 +311,8 @@ static void um_proc_del(struct pcb *pc)
 }
 
 static mode_t local_getumask(void) {
-	mode_t mask = umask(0);
-	umask(mask);
+	mode_t mask = r_umask(0);
+	r_umask(mask);
 	return mask;
 }
 
@@ -334,10 +333,12 @@ void pcb_plus(struct pcb *pc,int flags,int maxtablesize)
 		pcpe->fdfs->count=1;
 	}
 	if (pc->pp == pc) {
-		pcpe->fdfs->cwd=getcwd(NULL,0);
+		char *path=malloc(PATH_MAX);
+		r_getcwd(path,PATH_MAX);
+		pcpe->fdfs->cwd=realloc(path,strlen(path));
 		pcpe->fdfs->root=strdup("/");
 		pcpe->fdfs->mask=local_getumask();
-		umask(pcpe->fdfs->mask);
+		r_umask(pcpe->fdfs->mask);
 	} else {
 		pcpe->fdfs->cwd=strdup(((struct pcb_ext *)(pc->pp->data))->fdfs->cwd);
 		pcpe->fdfs->root=strdup(((struct pcb_ext *)(pc->pp->data))->fdfs->root);

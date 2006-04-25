@@ -34,7 +34,6 @@
 #include "umproc.h"
 #include "scmap.h"
 #include "defs.h"
-#include "real_syscalls.h"
 
 static char *um_proc_root;
 static char *um_tmpfile;
@@ -67,10 +66,10 @@ static struct lfd_top *lfd_tab=NULL;
 void um_proc_open()
 {
 	char path[PATH_MAX];
-	snprintf(path,PATH_MAX,"/tmp/.umproc%ld",(long int)getpid());
+	snprintf(path,PATH_MAX,"/tmp/.umproc%ld",(long int)r_getpid());
 	//printf("um_proc_open %s\n",path);
 
-	if(mkdir(path,0700) < 0) {
+	if(r_mkdir(path,0700) < 0) {
 		perror("um_proc makefile");
 		exit (-1);
 	}
@@ -88,7 +87,7 @@ void um_proc_close()
 	//printf("um_proc_close %s\n",um_proc_root);
 	//rm all the remaining fifos and files XXX
 	lfd_closeall();
-	rmdir(um_proc_root);
+	r_rmdir(um_proc_root);
 }
 
 static char *um_proc_tmpfile(service_t service, int lfd)
@@ -378,7 +377,7 @@ void lfd_signal(int lfd)
 	assert (lfd < um_maxlfd && lfd_tab[lfd].pvtab != NULL);
 	if (lfd_tab[lfd].pvtab->signaled == 0) {
 		lfd_tab[lfd].pvtab->signaled = 1;
-		write(lfd_tab[lfd].pvtab->ofifo,&ch,1);
+		r_write(lfd_tab[lfd].pvtab->ofifo,&ch,1);
 	}
 }
 
@@ -388,7 +387,7 @@ void lfd_delsignal(int lfd)
 	assert (lfd < um_maxlfd && lfd_tab[lfd].pvtab != NULL);
 	if (lfd_tab[lfd].pvtab->signaled == 1) {
 		lfd_tab[lfd].pvtab->signaled = 0;
-		read(lfd_tab[lfd].pvtab->ififo,buf,1024);
+		r_read(lfd_tab[lfd].pvtab->ififo,buf,1024);
 	}
 }
 

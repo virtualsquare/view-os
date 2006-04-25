@@ -50,7 +50,6 @@
 #include "sctab.h"
 #include "scmap.h"
 #include "utils.h"
-#include "real_syscalls.h"
 
 #define umNULL ((int) NULL)
 

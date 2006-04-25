@@ -40,7 +40,6 @@
 #include "defs.h"
 #include "utils.h"
 #include "ptrace2.h"
-#include "real_syscalls.h"
 
 int
 umoven(int pid, long addr, int len, void *_laddr)

@@ -36,14 +36,12 @@
 #include "defs.h"
 #include "umview.h"
 #include "capture_sc.h"
-#include "capture_nested.h"
 #include "sctab.h"
 #include "services.h"
 #include "um_select.h"
 #include "um_services.h"
 #include "ptrace_multi_test.h"
 #include "gdebug.h"
-#include "real_syscalls.h"
 
 int _lwip_version = 1; /* modules interface version id.
 													modules can test to be compatible with
@@ -97,8 +95,8 @@ int main(int argc,char *argv[])
 	fd_set wset[3];
 	sigset_t blockchild, oldset;
 	
-	setpriority(PRIO_PROCESS,0,-11);
-	setuid(getuid());
+	r_setpriority(PRIO_PROCESS,0,-11);
+	r_setuid(getuid());
 	sigemptyset(&blockchild);
 	sigaddset(&blockchild,SIGCHLD);
 	scdtab_init();
@@ -208,7 +206,6 @@ int main(int argc,char *argv[])
 	ptrace_vm_mask = want_ptrace_vm;
 	ptrace_viewos_mask = want_ptrace_viewos;
 	
-	capture_nested_init();
 	capture_main(argv+optind);
 	setenv("_INSIDE_UMVIEW_MODULE","",1);
 
@@ -229,7 +226,7 @@ int main(int argc,char *argv[])
 		max=add_tracerpipe_to_wset(max, &wset[0]);
 		
 		sigprocmask(SIG_SETMASK,&oldset,NULL);
-		n = select(max+1,&wset[0],&wset[1],&wset[2],NULL);
+		n = r_select(max+1,&wset[0],&wset[1],&wset[2],NULL);
 		if (n > 0)
 		{
 			if (must_wake_tracer(&wset[0]))

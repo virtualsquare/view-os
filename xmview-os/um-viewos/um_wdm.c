@@ -46,7 +46,6 @@
 #include "scmap.h"
 #include "utils.h"
 #include "gdebug.h"
-#include "real_syscalls.h"
 
 #define umNULL ((int) NULL)
 
@@ -143,7 +142,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	if ((path=fd_getpath(pcdata->fds,pc->arg0)) != NULL) {
 		//printf("fchdir to %s\n",pcdata->path);
 		pcdata->path=strdup(path);
-		lstat64(pcdata->path, &(pcdata->pathstat));
+		um_x_lstat64(pcdata->path, &(pcdata->pathstat), pc);
 		/* If there is a real directory with this name, and it is chdir-able,
 		 * we can chdir there instead of /tmp/ so the core and the process
 		 * will see the same cwd. */

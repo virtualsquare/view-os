@@ -28,9 +28,28 @@
 #include <stdarg.h>
 #include <sys/syscall.h>
 #include <unistd.h>
-#include "real_syscalls.h"
+#include <alloca.h>
+#include "scmap.h"
 
 typedef long int (*sfun)(long int __sysno, ...);
+
+static long int capture_nested_socketcall(long int sysno, ...){
+	va_list ap;
+	register int i;
+	register int narg=sockmap[sysno].nargs;
+	long int *args;
+	{
+		static char buf[128];
+		snprintf(buf,128,"SkC=%ld\n",sysno);
+		syscall(__NR_write,2,buf,strlen(buf));
+	}
+	args=alloca(narg*sizeof(long int));
+	va_start(ap, sysno);
+	for (i=0; i<narg;i++)
+		args[i]=va_arg(ap,long int);
+	va_end(ap);
+	return syscall(__NR_socketcall,sysno,args);
+}
 
 static long int capture_nested_syscall(long int sysno, ...)
 {
@@ -40,7 +59,7 @@ static long int capture_nested_syscall(long int sysno, ...)
 	/*debug of nested calls*/
 	{
 		static char buf[128];
-		snprintf(buf,128,"SC=%ld\n",sysno);
+		snprintf(buf,128,"SyC=%ld\n",sysno);
 		syscall(__NR_write,2,buf,strlen(buf));
 	}
 	a1=va_arg(ap,long int);
@@ -56,13 +75,13 @@ static long int capture_nested_syscall(long int sysno, ...)
 void capture_nested_init()
 {
 	sfun *_pure_syscall;
-	/*sfun _pure_socketcall;*/
+	sfun *_pure_socketcall;
 	if ((_pure_syscall=dlsym(RTLD_DEFAULT,"_pure_syscall")) != NULL) {
 		fprintf(stderr, "pure_libc library found: module nesting allowed\n\n");
 		*_pure_syscall=capture_nested_syscall;
 	}
-	/*if ((_pure_socketcall=dlsym(NULL,"_pure_socketcall")) != NULL) {
-		_pure_syscall=capture_nested_socketcall;
-	}*/
+	if ((_pure_socketcall=dlsym(NULL,"_pure_socketcall")) != NULL) {
+		*_pure_syscall=capture_nested_socketcall;
+	}
 }
 

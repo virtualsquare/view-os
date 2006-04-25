@@ -47,7 +47,6 @@
 #include "sctab.h"
 #include "scmap.h"
 #include "utils.h"
-#include "real_syscalls.h"
 
 int wrap_in_open(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		service_t sercode, intfun um_syscall)

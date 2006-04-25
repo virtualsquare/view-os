@@ -49,7 +49,6 @@
 #include "scmap.h"
 #include "utils.h"
 #include "capture_sc.h"
-#include "real_syscalls.h"
 
 /* pipe to wake up main */
 static int wakeupmainfifo[2];
@@ -188,7 +187,7 @@ static void inline wakeupmainfifo_signal()
 	char x=0;
 	if (wakeupmainfifocount==0) {
 		wakeupmainfifocount=1;
-		write(wakeupmainfifo[1],&x,1);
+		r_write(wakeupmainfifo[1],&x,1);
 	}
 }
 
@@ -203,7 +202,7 @@ void select_check_wset(int max,fd_set *wset)
 {
 	struct fillset workfs;
 	char buf[256];
-	read(wakeupmainfifo[0],buf,256); /* NON BLOCKING */
+	r_read(wakeupmainfifo[0],buf,256); /* NON BLOCKING */
 	wakeupmainfifocount=0;
 	workfs.max=&max;
 	workfs.wset=wset;
@@ -806,7 +805,7 @@ int wrap_out_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 
 void select_init()
 {
-	int p=pipe(wakeupmainfifo);
+	int p=r_pipe(wakeupmainfifo);
 	assert (p==0);
-	fcntl(wakeupmainfifo[0],F_SETFL,O_NONBLOCK);
+	r_fcntl(wakeupmainfifo[0],F_SETFL,O_NONBLOCK);
 }

@@ -34,8 +34,6 @@
 #include "syscall_code.h"
 #include "utils.h"
 
-#include "real_syscalls.h"
-
 int register_first_instruction(struct pcb *pcb)
 {
 	/* save the current address - that is, the address of the first
