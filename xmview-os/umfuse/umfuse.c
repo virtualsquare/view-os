@@ -623,7 +623,6 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 		       unsigned long mountflags, void *data, void *umph)
 {
 	/* TODO: ENOTDIR if it is not a directory */
-	//void *newdata;
 	void *dlhandle = dlopen(filesystemtype, RTLD_NOW);
 	
 	PRINTDEBUG(10, "MOUNT %s %s %s %x %s\n",source,target,filesystemtype,

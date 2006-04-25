@@ -81,6 +81,7 @@ static void usage(char *s)
 			"  -v, --version             show version information\n"
 			"  -p file, --preload file   load plugin named `file' (must be a .so)\n"
 			"  -o file, --output file    send debug messages to file instead of stderr\n"
+			"  -x, --nonesting           do not permit module nesting\n"
 			"  -n, --nokernelpatch       avoid using kernel patches\n"
 			"  --nokmulti                avoid using PTRACE_MULTI\n"
 			"  --nokvm                   avoid using PTRACE_SYSVM\n"
@@ -89,12 +90,57 @@ static void usage(char *s)
 	exit(0);
 }
 
+static struct option long_options[] = {
+	{"preload",1,0,'p'},
+	{"output",1,0,'o'},
+	{"help",0,0,'h'},
+	{"nonesting",0,0,'x'},
+	{"nokernelpatch",0,0,'n'},
+	{"nokmulti",0,0,0x100},
+	{"nokvm",0,0,0x101},
+	{"nokviewos",0,0,0x102},
+	{0,0,0,0}
+};
+
+static void load_it_again(int argc,char *argv[])
+{
+	int nesting=1;
+	while (1) {
+		int c;
+		int option_index = 0;
+		c=getopt_long(argc,argv,"+p:o:hvnx",long_options,&option_index);
+		if (c == -1) break;
+		switch (c) {
+			case 'h':
+				usage(argv[0]);
+				break;
+			case 'v':
+				version(1);
+				exit(0);
+				break;
+			case 'x':
+				nesting=0;
+				break;
+		}
+	}
+	if (nesting) {
+		char *path;
+		asprintf(&path,"/proc/%d/exe",getpid());
+		setenv("LD_PRELOAD","libpure_libc.so",1);
+		argv[0]="-umview";
+		execv(path,argv);
+		free(path);
+	}
+}
+
 int main(int argc,char *argv[])
 {
-	int c;
 	fd_set wset[3];
 	sigset_t blockchild, oldset;
 	
+	if (strcmp(argv[0],"-umview")!=0)
+		load_it_again(argc,argv);
+	argv[0]="umview";
 	r_setpriority(PRIO_PROCESS,0,-11);
 	r_setuid(getuid());
 	sigemptyset(&blockchild);
@@ -105,18 +151,9 @@ int main(int argc,char *argv[])
 	want_ptrace_vm = ptrace_vm_mask;
 	want_ptrace_viewos = ptrace_viewos_mask;
 	while (1) {
+		int c;
 		int option_index = 0;
-		static struct option long_options[] = {
-			{"preload",1,0,'p'},
-			{"output",1,0,'o'},
-			{"help",0,0,'h'},
-			{"nokernelpatch",0,0,'n'},
-			{"nokmulti",0,0,0x100},
-			{"nokvm",0,0,0x101},
-			{"nokviewos",0,0,0x102},
-			{0,0,0,0}
-		};
-		c=getopt_long(argc,argv,"+p:o:hvn",long_options,&option_index);
+		c=getopt_long(argc,argv,"+p:o:hvnx",long_options,&option_index);
 		if (c == -1) break;
 		switch (c) {
 			case 'h': 
@@ -241,15 +278,6 @@ int main(int argc,char *argv[])
 			sigprocmask(SIG_SETMASK,&oldset,NULL);
 		}
 	}
-	/*
-	{
-		int i;
-		void *hdl;
-		for (i=0;i<0xff;i++)
-			if ((hdl=get_handle_service(i)) != NULL)
-				dlclose(hdl);
-	}
-	*/
-	extern int first_child_exit_status;
+	_service_fini();
 	return first_child_exit_status;
 }

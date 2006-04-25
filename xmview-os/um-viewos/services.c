@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dlfcn.h>
 #include "services.h"
 #include "defs.h"
 
@@ -370,3 +371,13 @@ void _service_init(intfun register_service,intfun deregister_service)
 	reg_service=register_service;
 	dereg_service=deregister_service;
 }
+
+void _service_fini()
+{
+	int i;
+	void *hdl;
+	for (i=0;i<0xff;i++)
+		if ((hdl=get_handle_service(i)) != NULL)
+			dlclose(hdl);
+}
+

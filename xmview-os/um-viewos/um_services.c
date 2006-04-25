@@ -49,13 +49,14 @@
 void *open_dllib(char *name)
 {
 	char *args;
+	void *handle;
 	for (args=name;*args != 0 && *args != ',';args++)
 		;
 	if (*args == ',') {
 		*args = 0;
 		args++;
 	}
-	void *handle=dlopen(name,RTLD_LAZY|RTLD_GLOBAL);
+	handle=dlopen(name,RTLD_LAZY|RTLD_GLOBAL);
 	if (handle != NULL) {
 		void (*pinit)() = dlsym(handle,"_um_mod_init");
 		if (pinit != NULL) {

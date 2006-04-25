@@ -80,8 +80,7 @@ void capture_nested_init()
 		fprintf(stderr, "pure_libc library found: module nesting allowed\n\n");
 		*_pure_syscall=capture_nested_syscall;
 	}
-	if ((_pure_socketcall=dlsym(NULL,"_pure_socketcall")) != NULL) {
+	if ((_pure_socketcall=dlsym(RTLD_DEFAULT,"_pure_socketcall")) != NULL) {
 		*_pure_socketcall=capture_nested_socketcall;
 	}
 }
-

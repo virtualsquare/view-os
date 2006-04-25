@@ -640,6 +640,7 @@ int capture_main(char **argv)
 			exit(1);
 			break;
 		case 0:
+			unsetenv("LD_PRELOAD");
 			setpriority(PRIO_PROCESS,0,0);
 			if(ptrace(PTRACE_TRACEME, 0, 0, 0) < 0){
 				GPERROR(0, "ptrace");
