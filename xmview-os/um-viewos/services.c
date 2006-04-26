@@ -45,11 +45,9 @@ static int maxserv=0;
 static struct service **services=NULL;
 
 #ifdef USING_EPOCH
-#define EPOCH_MAX 25
-#define EPOCH_MAX 2555
-typedef long epoch_t;
-//static char epoch_services[EPOCH_MAX]
-epoch_t epoch_last=0;
+typedef long long epoch_t;
+// the last service is at epoch_last epoch
+static epoch_t epoch_last=0;
 
 epoch_t get_new_epoch(){
 	epoch_last++;
