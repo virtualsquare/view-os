@@ -45,6 +45,7 @@ static int maxserv=0;
 static struct service **services=NULL;
 
 #ifdef USING_EPOCH
+#define EPOCH_NOW -1
 typedef long long epoch_t;
 // the last service is at epoch_last epoch
 static epoch_t epoch_last=0;
@@ -69,9 +70,10 @@ service_t epoch_check(int type,void* arg,void* umph,epoch_t start_epoch)
 	epoch_t returned_epoch,max_epoch=0;
 	struct service* s;
 	unsigned char serv_code=UM_NONE;
-	if( start_epoch == 0 )
+	
+	if( start_epoch == EPOCH_NOW )
 		start_epoch = epoch_last;
-	// 
+	
 	if (arg == NULL || noserv == 0) 
 		return(UM_NONE);
 	else {
@@ -272,7 +274,6 @@ void service_delproc(service_t code,int id, void *arg)
 	}
 }
 
-#ifndef NEW_SERVICE_LIST
 service_t service_check(int type, void *arg,void *umph)
 {
 	int i;
@@ -280,7 +281,7 @@ service_t service_check(int type, void *arg,void *umph)
 		return(UM_NONE);
 	else {
 // beginning to make some nesting-related changes
-// in this case it make more sense in beginning from last inserted service.
+// in this case it make more sense beginning from last inserted service.
 		for (i=0 ; i<noserv ; i++) {
 /*        for (i = noserv-1 ; i>=0 ; i--) {*/
 			struct service *s=services[i];
@@ -290,7 +291,6 @@ service_t service_check(int type, void *arg,void *umph)
 		return(UM_NONE);
 	}
 }
-#endif
 
 static int errnosys()
 {
