@@ -225,6 +225,14 @@ static int handle_new_proc(int pid, struct pcb *pp)
 		if (pcb_constr != NULL)
 			pcb_constr(pc,pp->arg2,pcbtabsize);
 	}
+	//
+	{
+		pc->pop= malloc(sizeof( struct pcb_op) );
+		pc->pop->umoven = umoven;
+		pc->pop->umovestr = umovestr;
+		pc->pop->ustoren = ustoren;
+		pc->pop->ustorestr = ustorestr;
+	}
 	return 0;
 }
 	

@@ -85,7 +85,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		long sp=getsp(pc);
 		int filenamelen=WORDALIGN(strlen(filename));
 		pc->retval=lfd_open(UM_NONE,-1,filename);
-		ustorestr(pc->pid,sp-filenamelen,filenamelen,filename);
+		CALL_USTORESTR(pc,sp-filenamelen,filenamelen,filename);
 		putargn(0,sp-filenamelen,pc);
 		free(filename);
 		return SC_CALLONXIT;

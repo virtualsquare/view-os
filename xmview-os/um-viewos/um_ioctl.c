@@ -51,23 +51,23 @@
 
 #define umNULL ((int) NULL)
 
-static void ioctl_getarg(pid_t pid, int ioctlparms, unsigned long arg, void **larg)
+static void ioctl_getarg(struct pcb* pc, int ioctlparms, unsigned long arg, void **larg)
 {
 	int len=ioctlparms & IOCTLLENMASK;
 	if (len > 0) {
 		*larg=malloc(len);
 		if (ioctlparms & IOCTL_R)
-			umoven(pid,arg,len,*larg);
+			CALL_UMOVEN(pc,arg,len,*larg);
 	} else
 		*larg = (void *) arg;
 }
 
-static void ioctl_putarg(pid_t pid, int ioctlparms, unsigned long arg, void *larg)
+static void ioctl_putarg(struct pcb* pc, int ioctlparms, unsigned long arg, void *larg)
 {
 	int len=ioctlparms & IOCTLLENMASK;
 	if (len > 0) {
 		if (ioctlparms & IOCTL_W)
-			ustoren(pid,arg,len,larg);
+			CALL_USTOREN(pc,arg,len,larg);
 		free(larg);
 	}
 }
@@ -90,14 +90,14 @@ int wrap_in_ioctl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			struct ioctl_len_req ioreq={sfd,req};
 			ioctlparms=checkarg(CHECKIOCTLPARMS, &ioreq, pc);
 		}
-		ioctl_getarg(pc->pid,ioctlparms,arg,&larg);
+		ioctl_getarg(pc,ioctlparms,arg,&larg);
 		pc->retval = um_syscall(sfd,req,larg,pc);
 		/* printf("wrap_in_ioctl %d req %x arg %x parms %x -> %d\n",sfd,req,larg,ioctlparms,pc->retval);*/
 		pc->erno=errno;
 		if (pc->retval >= 0)
-			ioctl_putarg(pc->pid,ioctlparms,arg,larg);
+			ioctl_putarg(pc,ioctlparms,arg,larg);
 		else
-			ioctl_putarg(pc->pid,ioctlparms & ~IOCTL_W,arg,larg);
+			ioctl_putarg(pc,ioctlparms & ~IOCTL_W,arg,larg);
 
 		/*printf("wrap_in_ioctl %d %d\n",pc->retval,pc->erno);*/
 	}

@@ -32,6 +32,10 @@
 // nested_headers: stuff required if we compile with -DNESTING_TEST
 #include "nested_headers.h"
 
+#ifdef USING_EPOCH
+#define service_check(...) epoch_check(_VA_ARGS_,get_last_epoch())
+#endif
+
 /* Real SysCalls ! r_ prefixed calls do not enter the nidification
  * process and go straight to the kernel */
 #include<sys/syscall.h>
@@ -97,10 +101,30 @@ extern int _lwip_version;
 /**
  * The type of a callback function. Look pivoting.h.
  */
+
 struct pcb;
 enum phase { PHASE_IN, PHASE_OUT };
 typedef void pivoting_callback(int scno, enum phase p, struct pcb *pc,
 		int counter);
+
+// struct containing operation for pcb management
+typedef long (*pcbfun)();
+
+struct pcb_op {
+	pcbfun getregs;
+	pcbfun putregs;
+
+	pcbfun umoven; 
+	pcbfun umovestr;
+	pcbfun ustoren;
+	pcbfun ustorestr;
+};
+
+#define CALL_UMOVEN(PC,...)  ( (PC)->pop->umoven((PC)->pid,__VA_ARGS__) )
+#define CALL_UMOVESTR(PC,...)  ( (PC)->pop->umovestr((PC)->pid,__VA_ARGS__) )
+#define CALL_USTOREN(PC,...)  ( (PC)->pop->ustoren((PC)->pid,__VA_ARGS__) )
+#define CALL_USTORESTR(PC,...)  ( (PC)->pop->ustorestr((PC)->pid,__VA_ARGS__) )
+
 /* Process Control Block */
 struct pcb {
 	short flags;
@@ -136,39 +160,14 @@ struct pcb {
 	 * to propagate after pivoting, save them here */
 	long saved_regs_pivoting[FRAME_SIZE];
 #endif
-#ifdef NESTING_TEST
-	unsigned char	come_from_nest; //bool that tells if my syscall came from the nesting
-							//system or not
-	unsigned char	stop_nest;
-#endif
 	void *data;
+
+	struct pcb_op* pop; // pointer to pcb operations.
 };
 
 typedef void (*voidfun)();
 void forallpcbdo(voidfun f,void *arg);
 int capture_main(char **argv);
-
-#ifdef NESTING_TEST
-
-// old stuff...
-#ifndef __LIBMODCOMP // in libmodcomp.c we define this as static.
-extern short int umview_inside_mod_flag;
-extern struct pcb* main_umview_pcb;
-extern void cancel_ld_preload(void);
-#endif
-//extern int nesting_level;
-// come_from_nest tells if the last module has nested the last called syscall or not
-// is used into wrap_in and wrap_out functions
-// I think it's better use only in that scope (for comprehensibility)
-#define inside_nesting(PC) ( (PC)->pid == main_umview_pcb->pid )
-#define set_from_nesting() ( main_umview_pcb->come_from_nest = 1 )
-#define unset_from_nesting() ( main_umview_pcb->come_from_nest = 0 )
-#define get_from_nesting() (main_umview_pcb->come_from_nest)
-
-#define set_stop_nest()	( main_umview_pcb->stop_nest=1 )
-#define unset_stop_nest()	( main_umview_pcb->stop_nest=0 )
-#define get_stop_nest() ( main_umview_pcb->stop_nest )
-#endif
 
 #define NOSC -1
 #define PCB_INUSE 0x1

@@ -41,8 +41,6 @@
 // management function for choosing the right behavior
 unsigned char nested_inside_mod=0;
 unsigned char nested_service_code=0xFF; //UM_NONE
-/*#define enter_module(CODE) ({ nested_inside_mod=1; nested_service_code=(CODE); })*/
-/*#define exit_module() ({ nested_inside_mod=0; nested_service_code=(UM_NONE); })*/
 
 // fake, cancel this after ..
 long nested_syscall(int syscallno,...){

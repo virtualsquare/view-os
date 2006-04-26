@@ -92,7 +92,7 @@ int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 			case ADD_SERVICE:
 				arg1=getargn(1,pc);
 				arg2=getargn(2,pc);
-				if (umovestr(pc->pid,arg2,PATH_MAX,buf) == 0) {
+				if (CALL_UMOVESTR(pc,arg2,PATH_MAX,buf) == 0) {
 					//if (access(buf,R_OK) != 0) {
 					//	pc->retval=-1;
 					//	pc->erno=errno;
@@ -136,7 +136,7 @@ int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 				pc->retval=list_services((unsigned char *)buf,arg2);
 				pc->erno=errno;
 				if (pc->retval > 0)
-					ustoren(pc->pid,arg1,pc->retval,buf);
+					CALL_USTOREN(pc,arg1,pc->retval,buf);
 				break;
 			case NAME_SERVICE:
 				arg1=getargn(1,pc) & 0xff;
@@ -146,7 +146,7 @@ int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 				pc->retval=name_service(arg1,buf,arg3);
 				pc->erno=errno;
 				if (pc->retval == 0)
-					ustorestr(pc->pid,arg2,arg3,buf);
+					CALL_USTORESTR(pc,arg2,arg3,buf);
 				break;
 			case LOCK_SERVICE:
 				arg1=getargn(1,pc);

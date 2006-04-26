@@ -44,8 +44,8 @@
 #include "gdebug.h"
 
 int _lwip_version = 1; /* modules interface version id.
-													modules can test to be compatible with
-													um-viewos kernel*/
+										modules can test to be compatible with
+										um-viewos kernel*/
 unsigned int has_ptrace_multi;
 unsigned int ptrace_vm_mask;
 unsigned int ptrace_viewos_mask;
@@ -126,7 +126,7 @@ static void load_it_again(int argc,char *argv[])
 	if (nesting) {
 		char *path;
 		asprintf(&path,"/proc/%d/exe",getpid());
-		setenv("LD_PRELOAD","libpure_libc.so",1);
+	setenv("LD_PRELOAD","libpure_libc.so",1);
 		argv[0]="-umview";
 		execv(path,argv);
 		free(path);
@@ -244,7 +244,7 @@ int main(int argc,char *argv[])
 	ptrace_viewos_mask = want_ptrace_viewos;
 	
 	capture_main(argv+optind);
-	setenv("_INSIDE_UMVIEW_MODULE","",1);
+/*    setenv("_INSIDE_UMVIEW_MODULE","",1);*/
 
 	/* Creation of the pipe for the signal handler */
 	wake_tracer_init();

@@ -78,8 +78,8 @@ wrapoutfun wrap_out_getpid;
 #endif
 
 struct sc_map scmap[]={
-	/*{__NR_execve,	always_umnone,	wrap_in_execve,	NULL,	0,	3},*/
-  	{__NR_execve,	choice_path,	wrap_in_execve,	wrap_out_execve,	0,	3, SOC_NONE},
+/*          {__NR_execve,	 always_umnone,	wrap_in_execve,	wrap_out_execve,	0,	3, SOC_NONE},*/
+	  {__NR_execve,	choice_path,	wrap_in_execve,	wrap_out_execve,	0,	3, SOC_NONE},
 	{__NR_chdir,	choice_path,	wrap_in_chdir,	wrap_out_chdir, ALWAYS,	1, SOC_FILE},
 	{__NR_fchdir,	choice_fd,	wrap_in_fchdir,	wrap_out_chdir, ALWAYS,	1, SOC_FILE},
 	{__NR_getcwd,	always_umnone, wrap_in_getcwd,	wrap_out_std,	ALWAYS,	2, SOC_NONE},

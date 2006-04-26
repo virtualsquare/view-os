@@ -285,17 +285,17 @@ int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how)
 }
 
 /* optimization: copy only the useful part given the max fd */
-static void getfdset(long addr, int pid, int max, fd_set *lfds)
+static void getfdset(long addr,struct pcb* pc, int max, fd_set *lfds)
 {
 	FD_ZERO(lfds);
 	if (addr != umNULL)
-		umoven(pid,addr,(__FDELT(max)+1)*sizeof(__fd_mask),lfds);
+		CALL_UMOVEN(pc,addr,(__FDELT(max)+1)*sizeof(__fd_mask),lfds);
 }
 
-static void putfdset(long addr, int pid, int max, fd_set *lfds)
+static void putfdset(long addr, struct pcb* pc, int max, fd_set *lfds)
 {
 	if (addr != umNULL)
-		ustoren(pid,addr,(__FDELT(max)+1)*sizeof(__fd_mask),lfds);
+		CALL_USTOREN(pc,addr,(__FDELT(max)+1)*sizeof(__fd_mask),lfds);
 }
 
 int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
@@ -323,14 +323,14 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	for (i=0;i<3;i++) {
 		FD_ZERO(&wrfds[i]);
 		pfds[i]=getargn(i+1,pc);
-		getfdset(pfds[i],pc->pid,n,&lfds[i]);
+		getfdset(pfds[i],pc,n,&lfds[i]);
 		wfds[i]=lfds[i];
 		//dumpfdset(n,stype_str[i],&lfds[i]);
 	}
 
 	/* Copies the timeout parameter too */
 	if (ptimeout != umNULL) {
-		umoven(pc->pid,ptimeout,sizeof(struct timeval),&ltimeout);
+		CALL_UMOVEN(pc,ptimeout,sizeof(struct timeval),&ltimeout);
 		lptimeout=&ltimeout;
 		//printf("ltimeout=%d %d\n",ltimeout.tv_sec,ltimeout.tv_usec);
 	} else
@@ -447,7 +447,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		return STD_BEHAVIOR;
 	} else {
 		for (i=0;i<3;i++) { 
-			putfdset(pfds[i],pc->pid,n,&wfds[i]);
+			putfdset(pfds[i],pc,n,&wfds[i]);
 			//putfdset(pfds[i],pc->pid,&lfds[i]);
 		}
 		sd->wakemeup=WAKEONRFD;
@@ -500,7 +500,7 @@ int wrap_out_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		//printf("wrap_out_select loop\n");
 		for (i=0;i<3;i++) {
 			pfds[i]=getargn(i+1,pc);
-			getfdset(pfds[i],pc->pid,n,&lfds[i]);
+			getfdset(pfds[i],pc,n,&lfds[i]);
 		}
 		/* convert the return values of the real world select call
 		 * to the correct values. */
@@ -567,7 +567,7 @@ int wrap_out_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		}
 		for (i=0;i<3;i++) {
 			//putargn(i+1,pc,lfds[i]);
-			putfdset(pfds[i],pc->pid,n,&lfds[i]);
+			putfdset(pfds[i],pc,n,&lfds[i]);
 		}
 		putrv(pc->retval,pc);
 		/*		printf("wrap_out_select %d   ",pc->retval);
@@ -603,7 +603,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	//printf("POLL %x %d %d\n",pufds,nfds,timeout);
 	ufds=alloca(nfds*sizeof(struct pollfd));
 	origevents=alloca(nfds*sizeof(int));
-	umoven(pc->pid,pufds,nfds*sizeof(struct pollfd),ufds);
+	CALL_UMOVEN(pc,pufds,nfds*sizeof(struct pollfd),ufds);
 	for (i=0;i<3;i++)
 		FD_ZERO(&wrfds[i]);
 
@@ -679,7 +679,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		return STD_BEHAVIOR;
 	} else {
 		/*printf("POLL! add waitset for global select\n");*/
-		ustoren(pc->pid,pufds,nfds*sizeof(struct pollfd),ufds);
+		CALL_USTOREN(pc,pufds,nfds*sizeof(struct pollfd),ufds);
 		sd->wakemeup=WAKEONRFD;
 		sd->sop.origevents=(int *)malloc(nfds*sizeof(int));
 		memcpy(sd->sop.origevents,origevents,nfds*sizeof(int));
@@ -726,7 +726,7 @@ int wrap_out_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	pc->retval=getrv(pc);
 	if (pc->retval >= 0 && sd != NULL) {
 		ufds=alloca(nfds*sizeof(struct pollfd));
-		umoven(pc->pid,pufds,nfds*sizeof(struct pollfd),ufds);
+		CALL_UMOVEN(pc,pufds,nfds*sizeof(struct pollfd),ufds);
 		/*int i;
 		  printf("pollfdoutin ");
 		  for (i=0;i<nfds;i++) {
@@ -792,7 +792,7 @@ int wrap_out_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		  printf("%d %d %d -",ufds[i].fd,ufds[i].events,ufds[i].revents);
 		  }
 		  printf("\n"); */
-		ustoren(pc->pid,pufds,nfds*sizeof(struct pollfd),ufds);
+		CALL_USTOREN(pc,pufds,nfds*sizeof(struct pollfd),ufds);
 		putrv(pc->retval,pc);
 	}
 	if (sd != NULL) {

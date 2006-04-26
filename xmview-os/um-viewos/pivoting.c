@@ -155,7 +155,7 @@ int pivoting_inject(struct pcb *pc, struct pivoting_syscall_list *list,
 		GPERROR(0, "malloc() for allocating saved_code");
 		return 1;
 	}
-	if(umoven(pc->pid, (long)pc->first_instruction_address, code_to_save_len+8, pc->saved_code) != 0)
+	if(CALL_UMOVEN(pc, (long)pc->first_instruction_address, code_to_save_len+8, pc->saved_code) != 0)
 	{
 		GPERROR(0, "umoven()");
 		return 1;
@@ -215,7 +215,7 @@ int pivoting_inject(struct pcb *pc, struct pivoting_syscall_list *list,
 	}
 
 	/* write it in the process address space */
-	if(ustoren(pc->pid, (long)pc->first_instruction_address, code_to_save_len, code) != 0)
+	if(CALL_USTOREN(pc, (long)pc->first_instruction_address, code_to_save_len, code) != 0)
 	{
 		GPERROR(0, "ustoren()");
 		return 1;
@@ -239,7 +239,7 @@ int pivoting_inject(struct pcb *pc, struct pivoting_syscall_list *list,
 		/*if(popper(pc) < 0)
 			GPERROR(0, "saving register");*/
 		_pc = getpc(pc);
-		umoven(pc->pid, _pc, 4, &data);
+		CALL_UMOVEN(pc, _pc, 4, &data);
 		GDEBUG(3, "pc=%x, instruction=%x", _pc, data);
 	}
 
@@ -253,7 +253,7 @@ int pivoting_eject(struct pcb *pc)
 	assert(pc->saved_code != NULL);
 
 	/* puts the code back to its right place */
-	if(ustoren(pc->pid, (long)pc->first_instruction_address, pc->saved_code_length, pc->saved_code) != 0)
+	if(CALL_USTOREN(pc, (long)pc->first_instruction_address, pc->saved_code_length, pc->saved_code) != 0)
 	{
 		GPERROR(0, "ustoren");
 		return 1;
@@ -270,7 +270,7 @@ int pivoting_eject(struct pcb *pc)
 		char *code;
 
 		code = alloca(pc->saved_code_length);
-		if(umoven(pc->pid, (long)pc->first_instruction_address, pc->saved_code_length, code) != 0)
+		if(CALL_UMOVEN(pc, (long)pc->first_instruction_address, pc->saved_code_length, code) != 0)
 			GPERROR(0, "umoven debug");
 
 		for(i = 0; i < pc->saved_code_length; i++)
@@ -326,7 +326,7 @@ int wrap_out_getpid(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	if(dest == -1 && errno != 0)
 	{ GPERROR(2, "getsp"); exit(1); }
 	errno = 0;
-	if(ustoren(pc->pid, dest, 4, &data) != 0)
+	if(CALL_USTOREN(pc, dest, 4, &data) != 0)
 	{ GPERROR(2, "ustoren abcd"); exit(1); }
 
 	if(add_sc_to_list(l, __NR_write, 1, dest, 4, 0, 0, 0) == NULL ||

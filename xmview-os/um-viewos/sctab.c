@@ -28,8 +28,6 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <sys/ptrace.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <sys/select.h>
 #include <sched.h>
 #include <asm/ptrace.h>
@@ -102,7 +100,7 @@ char um_patherror[]="PE";
 char *um_getpath(long laddr,struct pcb *pc)
 {
 	char path[PATH_MAX];
-	if (umovestr(pc->pid,laddr,PATH_MAX,path) == 0)
+	if (CALL_UMOVESTR(pc,laddr,PATH_MAX,path) == 0)
 		return strdup(path);
 	else
 		return um_patherror;
@@ -112,7 +110,7 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink
 {
 	char path[PATH_MAX];
 	char newpath[PATH_MAX];
-	if (umovestr(pc->pid,laddr,PATH_MAX,path) == 0) {
+	if (CALL_UMOVESTR(pc,laddr,PATH_MAX,path) == 0) {
 #if 0
 		if (link) {
 			char tmppath[PATH_MAX];
@@ -417,7 +415,7 @@ char choice_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	if (pcdata->path!=um_patherror) {
 		char filesystemtype[PATH_MAX];
 		unsigned long fstype=getargn(2,pc);
-		if (umovestr(pc->pid,fstype,PATH_MAX,filesystemtype) == 0) {
+		if (CALL_UMOVESTR(pc,fstype,PATH_MAX,filesystemtype) == 0) {
 			return service_check(CHECKFSTYPE,filesystemtype,pc);
 		}
 		else
@@ -434,7 +432,7 @@ char choice_path(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	
 	if (pcdata->path==um_patherror){
 		char buff[PATH_MAX];
-		umovestr(pc->pid,pc->arg0,PATH_MAX,buff);
+		CALL_UMOVESTR(pc,pc->arg0,PATH_MAX,buff);
 /*        fprintf(stderr,"um_patherror: %s",buff);*/
 		return UM_NONE;
 	}
@@ -511,25 +509,25 @@ int um_mod_getpid(void *umph)
 int um_mod_umoven(void *umph, long addr, int len, void *_laddr)
 {
 	struct pcb *pc=umph;
-	return (pc?umoven(pc->pid,addr,len,_laddr):-1);
+	return (pc?CALL_UMOVEN(pc,addr,len,_laddr):-1);
 }
 
 int um_mod_umovestr(void *umph, long addr, int len, void *_laddr)
 {
 	struct pcb *pc=umph;
-	return (pc?umovestr(pc->pid,addr,len,_laddr):-1);
+	return (pc?CALL_UMOVESTR(pc,addr,len,_laddr):-1);
 }
 
 int um_mod_ustoren(void *umph, long addr, int len, void *_laddr)
 {
 	struct pcb *pc=umph;
-	return (pc?ustoren(pc->pid,addr,len,_laddr):-1);
+	return (pc?CALL_USTOREN(pc,addr,len,_laddr):-1);
 }
 
 int um_mod_ustorestr(void *umph, long addr, int len, void *_laddr)
 {
 	struct pcb *pc=umph;
-	return (pc?ustorestr(pc->pid,addr,len,_laddr):-1);
+	return (pc?CALL_USTORESTR(pc,addr,len,_laddr):-1);
 }
 
 int um_mod_getsyscallno(void *umph)

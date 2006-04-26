@@ -33,15 +33,20 @@
 #define waitpid(p,s,o) syscall(__NR_waitpid,(p),(s),(o))
 #endif
 
+// nested_core stuff
+long nested_syscall(int syscallno,...);
+//extern epoch_t saved_epoch;
+
 // nested_syscalls stuff...
 #ifdef NESTING_TEST
 extern unsigned char nested_inside_mod;
 extern unsigned char nested_service_code;
-#define enter_module(CODE) ({ nested_inside_mod=1; nested_service_code=(CODE); })
-#define exit_module() ({ nested_inside_mod=0; nested_service_code=UM_NONE; })
+#define enter_module(CODE) ({ nested_inside_mod=1; nested_service_code=(CODE);})
+#define exit_module() ({ nested_inside_mod=0; nested_service_code=UM_NONE;})
 #else
 #define enter_module(CODE) 
 #define exit_module() 
 #endif
+
 
 #endif //__NESTED_HEADERS_H

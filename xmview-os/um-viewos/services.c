@@ -44,80 +44,52 @@ static int maxserv=0;
 // services maintain list of all modules loaded.
 static struct service **services=NULL;
 
-#ifdef NEW_SERVICE_LIST
-#define registered_service_check service_check
-// registered services sorted by registration requests
-// FIX: 1) maybe better a dinamically allocated array?
-//  2) when should be initialized?
-static char registered_services[255];
-static int registered_no = 0;
+#ifdef USING_EPOCH
+#define EPOCH_MAX 25
+#define EPOCH_MAX 2555
+typedef long epoch_t;
+//static char epoch_services[EPOCH_MAX]
+epoch_t epoch_last=0;
 
-int new_register_service(struct service *s){
-	printf("new_register_service: %d\n",s->code);
-	registered_services[registered_no]=s->code;
-	registered_no++;
-	return registered_no;
+epoch_t get_new_epoch(){
+	epoch_last++;
+	return epoch_last;
 }
 
-// deregister tells if a module can be deleted from list of active modules
-// dumb management: when serv_no is the last service registerd, it 
-// can be deregistered, otherwise it can't...
-int new_deregister_service(int serv_no){
-	printf("new_deregister_service: %d\n",serv_no);
-	if( serv_no == registered_no ){
-		printf("\tderegister ok\n");
-		registered_services[serv_no]=UM_NONE;
-		registered_no--;
-		return 1;
-	}
-	else{
-		printf("\tdon't deregister \n");
-		return 0;
-	}
+epoch_t del_epoch(){
+	epoch_last--;
+	return epoch_last;
 }
 
-// retrieve service structure in sorted registered list of services
-service_t registered_service_check(int type, void *arg,void *umph)
+epoch_t get_last_epoch(){
+	return epoch_last;
+}
+
+service_t epoch_check(int type,void* arg,void* umph,epoch_t start_epoch)
 {
-	int i,j;
-/*    printf("new_registered_service_check: type: %d - %d \n",type, noserv);*/
+	int i,max_index=-1;
+	epoch_t returned_epoch,max_epoch=0;
+	struct service* s;
+	unsigned char serv_code=UM_NONE;
+	if( start_epoch == 0 )
+		start_epoch = epoch_last;
+	// 
 	if (arg == NULL || noserv == 0) 
 		return(UM_NONE);
-	if ( registered_no != 0 ){
-		for (i = registered_no-1 ; i>=0 ; i--) {
-			struct service *s;
-			unsigned char check_code = registered_services[i];
-/*            printf("checking code:%u\n",check_code);*/
-			for( j = 0; j<noserv ; j++)
-				if( services[j]->code == check_code )
-					s=services[j];
-			if (s->checkfun != NULL && s->checkfun(type,arg,umph)){
-/*                printf("\tregister choice: %d\n",s->code);*/
-				return(s->code);
-			}
+	else {
+		for (i=0 ; i<noserv ; i++) {
+			s=services[i];
+			if (s->checkfun != NULL && (returned_epoch=s->checkfun(type,arg,umph,start_epoch)) )
+				if( returned_epoch > max_epoch )
+					max_index=i;
+/*                return(s->code);*/
 		}
+		if( max_index==-1 )
+			return(UM_NONE);
+		else
+			return services[max_index]->code;
 	}
-	// if no services were found then we request if some module want 
-	// to be registered.
-
-/* NB: DEVELOPMENT PHASE !! */
-	for (i=0 ; i<noserv ; i++) { //maybe: for (i = noserv-1 ; i>=0 ; i--)
-		struct service *s=services[i];
-/*
-		if (s->checkfun != NULL && s->checkfun(type,arg,umph)){
-			return s->code;
-		}*/
-		if (s->checkfun != NULL && s->checkfun(type | FLAG_WANTREGISTER,arg,umph)){
-/*            new_register_service(s);*/
-			fprintf(stderr,"passed through here... :-P \n");
-			if( s->checkfun(type,arg,umph) )
-				return s->code;
-			else
-				return UM_NONE;
-		}
-/**/
-	}
-	return(UM_NONE);
+	
 }
 #endif
 
