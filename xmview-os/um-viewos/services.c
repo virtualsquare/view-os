@@ -280,10 +280,7 @@ service_t service_check(int type, void *arg,void *umph)
 	if (arg == NULL || noserv == 0) 
 		return(UM_NONE);
 	else {
-// beginning to make some nesting-related changes
-// in this case it make more sense beginning from last inserted service.
-		for (i=0 ; i<noserv ; i++) {
-/*        for (i = noserv-1 ; i>=0 ; i--) {*/
+		for (i = noserv-1 ; i>=0 ; i--) {
 			struct service *s=services[i];
 			if (s->checkfun != NULL && s->checkfun(type,arg,umph))
 				return(s->code);

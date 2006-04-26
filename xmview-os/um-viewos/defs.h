@@ -29,12 +29,13 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include "ptrace2.h"
-// nested_headers: stuff required if we compile with -DNESTING_TEST
-#include "nested_headers.h"
 
 #ifdef USING_EPOCH
 #define service_check(...) epoch_check(_VA_ARGS_,get_last_epoch())
 #endif
+
+#define enter_module(X) 
+#define exit_module(X) 
 
 /* Real SysCalls ! r_ prefixed calls do not enter the nidification
  * process and go straight to the kernel */
@@ -108,12 +109,9 @@ typedef void pivoting_callback(int scno, enum phase p, struct pcb *pc,
 		int counter);
 
 // struct containing operation for pcb management
-typedef long (*pcbfun)();
+typedef int (*pcbfun)();
 
 struct pcb_op {
-	pcbfun getregs;
-	pcbfun putregs;
-
 	pcbfun umoven; 
 	pcbfun umovestr;
 	pcbfun ustoren;

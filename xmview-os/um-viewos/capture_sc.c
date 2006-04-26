@@ -205,6 +205,13 @@ static void allocatepcbtab()
 static int handle_new_proc(int pid, struct pcb *pp)
 {
 	struct pcb *oldpc,*pc;
+	static struct pcb_op userproc_pcb_op = {
+		.umoven=umoven,
+		.umovestr=umovestr,
+		.ustoren=ustoren,
+		.ustorestr=ustorestr
+	};
+
 	if ((oldpc=pc=pid2pcb(pid)) == NULL && (pc = newpcb(pid))== NULL) {
 		fprintf(stderr, "[pcb table full]\n");
 		if(ptrace(PTRACE_KILL, pid, 0, 0) < 0){
@@ -226,13 +233,7 @@ static int handle_new_proc(int pid, struct pcb *pp)
 			pcb_constr(pc,pp->arg2,pcbtabsize);
 	}
 	//
-	{
-		pc->pop= malloc(sizeof( struct pcb_op) );
-		pc->pop->umoven = umoven;
-		pc->pop->umovestr = umovestr;
-		pc->pop->ustoren = ustoren;
-		pc->pop->ustorestr = ustorestr;
-	}
+	pc->pop= &userproc_pcb_op;
 	return 0;
 }
 	
