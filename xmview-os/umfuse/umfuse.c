@@ -86,15 +86,8 @@ struct fuse {
 	struct fuse_operations fops;	
 	int inuse;
 	unsigned long flags;
-#ifdef NEW_SERVICE_LIST
-	int service_no;
-#endif
 };
 
-#ifdef NEW_SERVICE_LIST
-// mmm... it should be a char...
-static int temp_service_no=-1;
-#endif
 
 /* values for INUSE and thread synchro */
 #define WAITING_FOR_LOOP -1
@@ -666,19 +659,6 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 		smo.source = source;
 		smo.data = data;
 		
-#ifdef NEW_SERVICE_LIST
-		//NB: DEVELOPMENT!!
-		// better position?
-		if( temp_service_no != -1 ){
-			new->fuse->service_no = temp_service_no;
-			temp_service_no = -1;
-		}
-		else{
-			new->fuse->inuse= FUSE_ABORT;
-		}
-
-/*        new->fuse->service_no = new_register_service(&s);*/
-#endif
 		
 		pthread_cond_init(&(new->fuse->startloop),NULL);
 		pthread_cond_init(&(new->fuse->endloop),NULL);
@@ -738,12 +718,6 @@ static int umfuse_umount2(char *target, int flags,void *umph)
 			fprintf(stderr, "UMOUNT => path:%s flag:%d\n",target, flags);
 			fflush(stderr);
 		}
-#ifdef NEW_SERVICE_LIST
-		if( new_deregister_service(fc_norace->fuse->service_no) == 0 ){
-			errno=EBUSY;
-			return -1;
-		}
-#endif
 		delmnttab(fc);
 		//printf("PID %d TID %d \n",getpid(),pthread_self());
 		pthread_mutex_lock( &fc_norace->fuse->endmutex );
@@ -954,22 +928,6 @@ static int umfuse_access(char *path, int mode, void *umph);
 static int fuse_path(int type, void *arg)
 {
 /* NB: development fase */
-#ifdef NEW_SERVICE_LIST
-	if( type & FLAG_WANTREGISTER ){
-		fprintf(stderr,"asked for registering\n");
-		type = type & (~FLAG_WANTREGISTER);
-		if( type == CHECKFSTYPE ){
-			char *path=arg;
-			if( strncmp(path,"umfuse",6) == 0 ){
-				temp_service_no = new_register_service(&s);
-				return TRUE;
-			}
-			else 
-				return FALSE;
-		}
-		return FALSE;
-	}
-#endif 
 /**/
 	if (type == CHECKPATH) {
 		char *path=arg;
