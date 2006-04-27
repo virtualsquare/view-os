@@ -50,7 +50,6 @@
 // #define FAKESIGSTOP
 
 #include "defs.h"
-#include "sctab.h"
 #include "utils.h"
 #if defined(__x86_64__)
 #include "syscallnames_x86_64.h"

@@ -46,17 +46,10 @@ static struct service **services=NULL;
 
 #ifdef USING_EPOCH
 #define EPOCH_NOW -1
-typedef long long epoch_t;
-// the last service is at epoch_last epoch
-static epoch_t epoch_last=0;
+static epoch_t epoch_last=1;
 
 epoch_t get_new_epoch(){
 	epoch_last++;
-	return epoch_last;
-}
-
-epoch_t del_epoch(){
-	epoch_last--;
 	return epoch_last;
 }
 
@@ -333,18 +326,21 @@ intfun service_select_register(service_t code)
 	return (s->select_register);
 }
 
-void _service_init(intfun register_service,intfun deregister_service)
+static void _service_fini()
 {
-	reg_service=register_service;
-	dereg_service=deregister_service;
-}
-
-void _service_fini()
-{
+	/*
 	int i;
 	void *hdl;
 	for (i=0;i<0xff;i++)
 		if ((hdl=get_handle_service(i)) != NULL)
 			dlclose(hdl);
+			*/
+}
+
+void _service_init(intfun register_service,intfun deregister_service)
+{
+	atexit(_service_fini);
+	reg_service=register_service;
+	dereg_service=deregister_service;
 }
 

@@ -43,7 +43,7 @@
 #include "ptrace_multi_test.h"
 #include "gdebug.h"
 
-int _lwip_version = 1; /* modules interface version id.
+int _umview_version = 1; /* modules interface version id.
 										modules can test to be compatible with
 										um-viewos kernel*/
 unsigned int has_ptrace_multi;
@@ -125,11 +125,16 @@ static void load_it_again(int argc,char *argv[])
 	}
 	if (nesting) {
 		char *path;
-		asprintf(&path,"/proc/%d/exe",getpid());
-	setenv("LD_PRELOAD","libpure_libc.so",1);
-		argv[0]="-umview";
-		execv(path,argv);
-		free(path);
+		void *handle;
+		if ((handle=dlopen("libpure_libc.so",RTLD_LAZY))!=NULL) {
+			dlclose(handle);
+			printf("Okay\n");
+			asprintf(&path,"/proc/%d/exe",getpid());
+			setenv("LD_PRELOAD","libpure_libc.so",1);
+			argv[0]="-umview";
+			execv(path,argv);
+			free(path);
+		}
 	}
 }
 
@@ -138,11 +143,11 @@ int main(int argc,char *argv[])
 	fd_set wset[3];
 	sigset_t blockchild, oldset;
 	
+	r_setpriority(PRIO_PROCESS,0,-11);
+	r_setuid(getuid());
 	if (strcmp(argv[0],"-umview")!=0)
 		load_it_again(argc,argv);
 	argv[0]="umview";
-	r_setpriority(PRIO_PROCESS,0,-11);
-	r_setuid(getuid());
 	sigemptyset(&blockchild);
 	sigaddset(&blockchild,SIGCHLD);
 	scdtab_init();
@@ -244,7 +249,7 @@ int main(int argc,char *argv[])
 	ptrace_viewos_mask = want_ptrace_viewos;
 	
 	capture_main(argv+optind);
-/*    setenv("_INSIDE_UMVIEW_MODULE","",1);*/
+  setenv("_INSIDE_UMVIEW_MODULE","",1);
 
 	/* Creation of the pipe for the signal handler */
 	wake_tracer_init();
@@ -278,6 +283,5 @@ int main(int argc,char *argv[])
 			sigprocmask(SIG_SETMASK,&oldset,NULL);
 		}
 	}
-	_service_fini();
 	return first_child_exit_status;
 }

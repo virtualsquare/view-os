@@ -30,13 +30,6 @@
 #include <unistd.h>
 #include "ptrace2.h"
 
-#ifdef USING_EPOCH
-#define service_check(...) epoch_check(_VA_ARGS_,get_last_epoch())
-#endif
-
-#define enter_module(X) 
-#define exit_module(X) 
-
 /* Real SysCalls ! r_ prefixed calls do not enter the nidification
  * process and go straight to the kernel */
 #include<sys/syscall.h>
@@ -67,7 +60,6 @@ extern unsigned int has_ptrace_multi;
 extern unsigned int ptrace_vm_mask;
 #define PT_VM_OK ((ptrace_vm_mask & PTRACE_VM_SKIPOK) == PTRACE_VM_SKIPOK)
 extern unsigned int ptrace_viewos_mask;
-extern int _lwip_version;
 #include <sys/ptrace.h>
 #include <asm/ptrace.h>
 

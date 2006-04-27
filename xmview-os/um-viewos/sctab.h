@@ -29,10 +29,22 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "umproc.h"
 #include "defs.h"
 
+#ifdef USING_EPOCH
+typedef long long epoch_t;
+#define service_check(...) epoch_check(_VA_ARGS_,get_last_epoch())
+#endif
+
+#define enter_module(X) 
+#define exit_module(X) 
+
+extern int _umview_version;
+
+extern pthread_key_t pcb_key; /* key to grab the current thread pcb */
 
 struct pcb_fs {
 	/* more than one process can share this structure - look at clone 2

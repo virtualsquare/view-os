@@ -122,6 +122,5 @@ intfun service_socketcall(service_t code, int scno);
 intfun service_checkfun(service_t code);
 intfun service_select_register(service_t code);
 void _service_init(intfun register_service,intfun deregister_service);
-void _service_fini();
 
 #endif

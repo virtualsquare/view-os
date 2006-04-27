@@ -34,8 +34,10 @@
 #include <linux/net.h>
 #include <limits.h>
 #include <dlfcn.h>
+#include <pthread.h>
 #include <errno.h>
 #include "defs.h"
+#include "sctab.h"
 #include "services.h"
 #include "utils.h"
 
@@ -83,6 +85,7 @@ int um_add_service(char* path,int position){
 
 int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 {
+	pthread_setspecific(pcb_key,pc);
 	//printf("dsys_um_service pid %d call %d\n",pc->pid,sc_number);
 	if (inout == IN) {
 		long arg1,arg2,arg3;

@@ -29,7 +29,35 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <alloca.h>
+#include "sctab.h"
 #include "scmap.h"
+#include "defs.h"
+
+static int nmoven(int pid, long addr, int len, void *_laddr) {
+	memcpy(_laddr,(void *)addr,len);
+	return 0;
+}
+
+static int nmovestr(int pid, long addr, int len, void *_laddr){
+	strncpy((char *)_laddr,(char *)addr, len);
+	return 0;
+}
+
+static int nstoren(int pid, long addr, int len, void *_laddr){
+	memcpy((void *)addr,_laddr,len);
+	return 0;
+}
+static int nstorestr(int pid, long addr, int len, void *_laddr) {
+	strncpy((char *)addr,(char *)_laddr,len);
+	return 0;
+}
+
+static struct pcb_op nested_pcb_op = {
+	.umoven=nmoven,
+	.umovestr=nmovestr,
+	.ustoren=nstoren,
+	.ustorestr=nstorestr
+};
 
 typedef long int (*sfun)(long int __sysno, ...);
 
@@ -59,7 +87,7 @@ static long int capture_nested_syscall(long int sysno, ...)
 	/*debug of nested calls*/
 	{
 		static char buf[128];
-		snprintf(buf,128,"SyC=%ld\n",sysno);
+		snprintf(buf,128,"SyC=%ld %p\n",sysno,pthread_getspecific(pcb_key));
 		syscall(__NR_write,2,buf,strlen(buf));
 	}
 	a1=va_arg(ap,long int);
@@ -72,10 +100,32 @@ static long int capture_nested_syscall(long int sysno, ...)
 	return syscall(sysno,a1,a2,a3,a4,a5,a6);
 }
 
+intfun libc__clone;
+intfun libc__clone2;
+
+int __clone (int (*fn) (void *arg), void *child_stack,
+		        int flags, void *arg, void *arg2) {
+	int rv;
+	fprintf(stderr,"CLONE\n");
+	rv= libc__clone(fn,child_stack,flags,arg,arg2);
+	return rv;
+}
+
+int __clone2 (int (*fn) (void *arg), void *child_stack_base,
+		size_t child_stack_size, int flags, void *arg,void *arg2)
+{
+	int rv;
+	fprintf(stderr,"CLONE2\n");
+	rv= libc__clone2(fn,child_stack_base,child_stack_size,flags,arg,arg2);
+	return rv;
+}
+
 void capture_nested_init()
 {
 	sfun *_pure_syscall;
 	sfun *_pure_socketcall;
+	libc__clone = dlsym (RTLD_NEXT, "__clone");
+	libc__clone2 = dlsym (RTLD_NEXT, "__clone2");
 	if ((_pure_syscall=dlsym(RTLD_DEFAULT,"_pure_syscall")) != NULL) {
 		fprintf(stderr, "pure_libc library found: module nesting allowed\n\n");
 		*_pure_syscall=capture_nested_syscall;
@@ -84,3 +134,5 @@ void capture_nested_init()
 		*_pure_socketcall=capture_nested_socketcall;
 	}
 }
+
+

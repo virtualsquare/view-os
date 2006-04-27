@@ -38,6 +38,7 @@
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 #include "defs.h"
 #include "umproc.h"
@@ -50,6 +51,8 @@
 #include "canonicalize.h"
 #include "capture_sc.h"
 #include "gdebug.h"
+
+pthread_key_t pcb_key=0; /* key to grab the current thread pcb */
 
 void um_set_errno(struct pcb *pc,int i) {
 	pc->erno=i;
@@ -111,19 +114,7 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink
 	char path[PATH_MAX];
 	char newpath[PATH_MAX];
 	if (CALL_UMOVESTR(pc,laddr,PATH_MAX,path) == 0) {
-#if 0
-		if (link) {
-			char tmppath[PATH_MAX];
-			strcpy(tmppath,path);
-			um_realpath(pc,dirname(tmppath),newpath,pst);
-			strncat(newpath,"/",PATH_MAX);
-			strncat(newpath,basename(path),PATH_MAX);
-			/*printf("um_abslpath %s %s %s %s\n",path,dirname(path),basename(path),newpath);*/
-		} else
-#endif
 			um_realpath(pc,path,newpath,pst,dontfollowlink);
-		/*printf("um_abspath %d %s %s\n",pc->erno,path,newpath);*/
-		/*return strdup(newpath);*/
 		if (pc->erno)
 			return um_patherror;	//error
 		else
@@ -268,6 +259,7 @@ int dsys_socketwrap_index_function(struct pcb *pc, int usc)
 
 int dsys_socketwrap(int sc_number,int inout,struct pcb *pc)
 {
+	pthread_setspecific(pcb_key,pc);
 	return dsys_commonwrap(sc_number, inout, pc,
 			dsys_socketwrap_parse_arguments,
 			dsys_socketwrap_index_function, service_socketcall,
@@ -317,6 +309,8 @@ static mode_t local_getumask(void) {
 void pcb_plus(struct pcb *pc,int flags,int maxtablesize)
 {
 	struct pcb_ext *pcpe;
+	if (pcb_key==0)
+		pthread_key_create(&pcb_key,NULL);
 	pc->data = (void *) (pcpe = (struct pcb_ext *) malloc(sizeof (struct pcb_ext)));
 	/* CLONE_PARENT = I'm not your child, I'm your brother. So, parent is
 	 * different from what we thought */
@@ -495,6 +489,7 @@ int dsys_megawrap_index_function(struct pcb *pc, int usc)
 
 int dsys_megawrap(int sc_number,int inout,struct pcb *pc)
 {
+	pthread_setspecific(pcb_key,pc);
 	return dsys_commonwrap(sc_number, inout, pc,
 			dsys_megawrap_parse_arguments,
 			dsys_megawrap_index_function, service_syscall, scmap);
