@@ -100,6 +100,7 @@ static long int capture_nested_syscall(long int sysno, ...)
 	return syscall(sysno,a1,a2,a3,a4,a5,a6);
 }
 
+#if 0
 intfun libc__clone;
 intfun libc__clone2;
 
@@ -119,13 +120,16 @@ int __clone2 (int (*fn) (void *arg), void *child_stack_base,
 	rv= libc__clone2(fn,child_stack_base,child_stack_size,flags,arg,arg2);
 	return rv;
 }
+#endif
 
 void capture_nested_init()
 {
 	sfun *_pure_syscall;
 	sfun *_pure_socketcall;
+#if 0
 	libc__clone = dlsym (RTLD_NEXT, "__clone");
 	libc__clone2 = dlsym (RTLD_NEXT, "__clone2");
+#endif
 	if ((_pure_syscall=dlsym(RTLD_DEFAULT,"_pure_syscall")) != NULL) {
 		fprintf(stderr, "pure_libc library found: module nesting allowed\n\n");
 		*_pure_syscall=capture_nested_syscall;
