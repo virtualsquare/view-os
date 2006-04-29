@@ -42,6 +42,7 @@ clean:
 	make -C umdev_testmodules clean $(RELEASE_FLAGS)
 	make -C doc clean $(RELEASE_FLAGS)
 	make -C um_lwip clean $(RELEASE_FLAGS)
+	rm -f ctags cscope.out
 
 distclean:
 	make -C include distclean $(RELEASE_FLAGS)
@@ -69,6 +70,14 @@ ${mandir}:
 ${includedir}:
 	mkdir -p ${includedir}
 
+tags:
+	ctags -R .
+
+cscope:
+	cscope -R -b
+
+vim: tags cscope
+
 install: ${bindir} ${libdir} ${mandir}
 	make -C include install $(RELEASE_FLAGS)
 	make -C gdebug install $(RELEASE_FLAGS)
@@ -83,4 +92,4 @@ install: ${bindir} ${libdir} ${mandir}
 	make -C doc install $(RELEASE_FLAGS)
 	make -C um_lwip install $(RELEASE_FLAGS)
 
-
+.PHONY: install vim tags cscope clean distclean

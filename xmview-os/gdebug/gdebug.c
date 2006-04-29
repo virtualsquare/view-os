@@ -26,6 +26,7 @@
 #include <stdarg.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <dlfcn.h>
 
 //#include "defs.h"
 #include "gdebug.h"
@@ -35,6 +36,10 @@
 #endif
 
 FILE *gdebug_ofile = NULL;
+
+static void* libc_handle;
+static int (*libc_fprintf)(FILE *stream, const char *format, ...);
+static int (*libc_vfprintf)(FILE *stream, const char *format, va_list ap);
 
 void gdebug_set_ofile(FILE* new_ofile)
 {
@@ -50,13 +55,13 @@ void fgdebug(FILE *ofile, int gdebug_level, int level, const char *file, const i
 		va_start(ap, fmt);
 
 #ifdef _PTHREAD_H
-		fprintf(ofile, "[%d:%lu] %s:%d %s(): ", getpid(), pthread_self(), file, line, func);
+		libc_fprintf(ofile, "[%d:%lu] %s:%d %s(): ", getpid(), pthread_self(), file, line, func);
 #else
-		fprintf(ofile, "[%d] %s:%d %s(): ", getpid(), file, line, func);
+		libc_fprintf(ofile, "[%d] %s:%d %s(): ", getpid(), file, line, func);
 #endif
 
-		vfprintf(ofile, fmt, ap);
-		fprintf(ofile, "\n");
+		libc_vfprintf(ofile, fmt, ap);
+		libc_fprintf(ofile, "\n");
 
 		va_end(ap);
 	}
@@ -68,19 +73,49 @@ void fghexdump(FILE *ofile, int gdebug_level, int level, const char *file, const
 	if (gdebug_level >= level)
 	{
 #ifdef _PTHREAD_H
-		fprintf(ofile, "[%d:%lu] %s:%d %s(): [%d] ", getpid(), pthread_self(), file, line, func, len);
+		libc_fprintf(ofile, "[%d:%lu] %s:%d %s(): [%d] ", getpid(), pthread_self(), file, line, func, len);
 #else
-		fprintf(ofile, "[%d] %s:%d %s(): [%d] ", getpid(), file, line, func, len);
+		libc_fprintf(ofile, "[%d] %s:%d %s(): [%d] ", getpid(), file, line, func, len);
 #endif
 
 		for (i = 0; i < len; i++)
 		{
 			if ((i != 0) && ((i % 4) == 0))
-				fprintf(ofile, " ");
-			fprintf(ofile, "%02x", (unsigned char)text[i]);
+				libc_fprintf(ofile, " ");
+			libc_fprintf(ofile, "%02x", (unsigned char)text[i]);
 		}
 
-		fprintf(ofile, "\n");
+		libc_fprintf(ofile, "\n");
 	}
 }	
+
+static void __attribute__ ((constructor)) init()
+{
+	libc_handle = dlopen("libc.so.6", RTLD_LAZY);
+	if (!libc_handle)
+	{
+		fprintf(stderr, "dlopen: %s", dlerror());
+		fprintf(stderr, "dlopen in gdebug failed, reverting to original fprintf\n");
+		libc_fprintf = fprintf;
+		libc_vfprintf = vfprintf;
+	}
+	else
+	{
+		libc_fprintf = dlsym(libc_handle, "fprintf");
+		libc_vfprintf = dlsym(libc_handle, "vfprintf");
+
+		if (!libc_fprintf || !libc_vfprintf)
+		{
+			fprintf(stderr, "dlsym: %s", dlerror());
+			fprintf(stderr, "dlsym in gdebug failed, reverting to original fprintf\n");
+			libc_fprintf = fprintf;
+			libc_vfprintf = vfprintf;
+		}
+	}
+}
+
+static void __attribute__ ((destructor)) fini()
+{
+	dlclose(libc_handle);
+}
 
