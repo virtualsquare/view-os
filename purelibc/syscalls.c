@@ -21,6 +21,7 @@
  */   
 
 #include <stdarg.h>
+#include <endian.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
@@ -373,13 +374,37 @@ int utimes(const char* pathname,const struct timeval tv[2]){
 	return _pure_syscall(__NR_utimes,pathname,tv);
 }
 
+#ifdef __NR_pread
 ssize_t pread(int fs,void* buf, size_t count, __off_t offset){
-	return _pure_syscall(__NR_pread64,fs,buf,count,offset);
+	return _pure_syscall(__NR_pread,fs,buf,count,offset);
 }
+#endif
 
+#ifdef __NR_pwrite
 ssize_t pwrite(int fs,const void* buf, size_t count, __off_t offset){
-	return _pure_syscall(__NR_pwrite64,fs,buf,count,offset);
+	return _pure_syscall(__NR_pwrite,fs,buf,count,offset);
 }
+#endif
+
+#ifdef __NR_pread64
+ssize_t pread64(int fs,void* buf, size_t count, __off64_t offset){
+	return _pure_syscall(__NR_pread64,fs,buf,count,
+			__LONG_LONG_PAIR( (__off_t)(offset>>32),(__off_t)(offset&0xffffffff)));
+}
+ssize_t pread(int fs,void* buf, size_t count, __off_t offset){
+	return pread64(fs,buf,count,(__off64_t)offset);
+}
+#endif
+
+#ifdef __NR_pwrite64 
+ssize_t pwrite64(int fs,const void* buf, size_t count, __off64_t offset){
+	return _pure_syscall(__NR_pwrite64,fs,buf,count,
+			__LONG_LONG_PAIR( (__off_t)(offset>>32),(__off_t)(offset&0xffffffff)));
+}
+ssize_t pwrite(int fs,const void* buf, size_t count, __off_t offset){
+	return pwrite64(fs,buf,count,(__off64_t)offset);
+}
+#endif
 
 int getdents(int fd, long dirp,unsigned int count){
 	return _pure_syscall(__NR_getdents,fd,dirp,count);
@@ -393,6 +418,7 @@ __off_t lseek(int fd,__off_t offset,int whence){
 	return _pure_syscall(__NR_lseek,fd,offset,whence);
 }
 
+#ifdef __NR__llseek
 __off64_t lseek64(int fd, __off64_t offset, int whence){
 	unsigned long offset_high=offset >> (sizeof(unsigned long) * 8);
 	unsigned long offset_low=offset;
@@ -408,6 +434,7 @@ int _llseek(unsigned int fd, unsigned long  offset_high,  unsigned  long  offset
 		       *result, unsigned int whence){
 	return _pure_syscall(__NR__llseek,fd,offset_high,offset_low,result,whence);
 }
+#endif
 
 int fsync(int fd){
 	return _pure_syscall(__NR_fsync,fd);
@@ -720,21 +747,27 @@ int poll(struct pollfd *ufds, nfds_t nfds, int timeout){
 	return _pure_syscall(__NR_poll,ufds,nfds,timeout);
 }
 
-int truncate(const char *path, off_t length){
+int truncate(const char *path, __off_t length){
 	return _pure_syscall(__NR_truncate,path,length);
 }
 
-int ftruncate(int fd, off_t length){
+int ftruncate(int fd, __off_t length){
 	return _pure_syscall(__NR_ftruncate,fd,length);
 }
 
+#ifdef __NR_truncate64
 int truncate64(const char *path, __off64_t length){
-	return _pure_syscall(__NR_truncate64,path,length);
+	return _pure_syscall(__NR_truncate64,path,
+			__LONG_LONG_PAIR( (__off_t)(length>>32),(__off_t)(length&0xffffffff)));
 }
+#endif
 
+#ifdef __NR_ftruncate64
 int ftruncate64(int fd, __off64_t length){
-	return _pure_syscall(__NR_ftruncate64,fd,length);
+	return _pure_syscall(__NR_ftruncate64,fd,
+			__LONG_LONG_PAIR( (__off_t)(length>>32),(__off_t)(length&0xffffffff)));
 }
+#endif
 
 int getpriority(__priority_which_t which, id_t who){
 	return _pure_syscall(__NR_getpriority,which,who);
