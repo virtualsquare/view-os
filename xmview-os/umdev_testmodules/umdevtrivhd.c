@@ -109,7 +109,7 @@ static int hd_ioctl(char type, dev_t device, int req, void * arg, struct dev_inf
 	return 0;
 }
 
-static int hd_ioctl_params(char type, dev_t device, int req, void *umph)
+static int hd_ioctl_params(char type, dev_t device, int req)
 {
 	switch (req) {
 		case BLKROSET: return (sizeof(int) | IOCTL_R);

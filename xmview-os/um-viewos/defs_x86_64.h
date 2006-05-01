@@ -177,9 +177,4 @@ extern short _i386_sc_remap[];
 #define __NR_lstat64	__NR_lstat
 #define __NR_socketcall	__NR_socket
 
-#ifdef PIVOTING_ENABLED
-#error "Still to take the ASM_SYSCALL definition for i386 and adapt it to 64bit"
-#endif
-
-
 #endif // _DEFS_X86_64

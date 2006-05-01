@@ -33,18 +33,11 @@
 
 #include "umproc.h"
 #include "defs.h"
-
-#ifdef USING_EPOCH
-typedef long long epoch_t;
-#define service_check(...) epoch_check(_VA_ARGS_,get_last_epoch())
-#endif
-
-#define enter_module(X) 
-#define exit_module(X) 
+#include "treepoch.h"
 
 extern int _umview_version;
 
-extern pthread_key_t pcb_key; /* key to grab the current thread pcb */
+//extern pthread_key_t pcb_key; /* key to grab the current thread pcb */
 
 struct pcb_fs {
 	/* more than one process can share this structure - look at clone 2
@@ -59,6 +52,8 @@ struct pcb_fs {
 
 #define MAX_SOCKET_ARGS 6
 struct pcb_ext {
+	struct timestamp tst;
+	epoch_t nestepoch;
 	void *path;
 	struct stat64 pathstat;
 	/* struct seldata* */
@@ -82,19 +77,22 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink
 
 void um_set_errno(struct pcb *pc,int i);
 char *um_getcwd(struct pcb *pc,char *buf,int size);
-int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *umph);
-int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *umph);
+int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc);
+int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc);
+
+struct timestamp *um_x_gettst();
 
 /* modules callbacks for extra args */
-int um_mod_getpid(void *umph);
-int um_mod_umoven(void *umph, long addr, int len, void *_laddr);
-int um_mod_umovestr(void *umph, long addr, int len, void *_laddr);
-int um_mod_ustoren(void *umph, long addr, int len, void *_laddr);
-int um_mod_ustorestr(void *umph, long addr, int len, void *_laddr);
-int um_mod_getsyscallno(void *umph);
-int um_mod_getumpid(void *umph);
-long* um_mod_getargs(void *umph);
-struct stat64 *um_mod_getpathstat(void *umph);
+int um_mod_getpid();
+int um_mod_umoven(long addr, int len, void *_laddr);
+int um_mod_umovestr(long addr, int len, void *_laddr);
+int um_mod_ustoren(long addr, int len, void *_laddr);
+int um_mod_ustorestr(long addr, int len, void *_laddr);
+int um_mod_getsyscallno(void);
+int um_mod_getumpid(void);
+long* um_mod_getargs(void);
+struct stat64 *um_mod_getpathstat(void);
+char *um_mod_getpath(void);
 int um_mod_getsyscalltype(int scno);
 
 

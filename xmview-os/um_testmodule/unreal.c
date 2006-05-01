@@ -40,21 +40,29 @@
 // int read(), write(), close();
 
 static struct service s;
+static struct timestamp t1;
+static struct timestamp t2;
 
-static int unrealpath(int type,void *arg,void *umph)
+static epoch_t unrealpath(int type,void *arg)
 {
 	/* This is an example that shows how to pick up extra info in the
 	 * calling process. */
 /*	printf("test umph info pid=%d, scno=%d, arg[0]=%d, argv[1]=%d\n",
-			um_mod_getpid(umph),um_mod_getsyscallno(umph),
-			um_mod_getargs(umph)[0],um_mod_getargs(umph)[1]); */
+			um_mod_getpid(),um_mod_getsyscallno(),
+			um_mod_getargs()[0],um_mod_getargs()[1]); */
 /* NB: DEVELOPMENT PHASE !! */
 	if (type== CHECKPATH) {
 		char *path=arg;
-		return(strncmp(path,"/unreal",7) == 0);
+		epoch_t e=0;
+		if(strncmp(path,"/unreal",7) == 0) {
+			if ((e=tst_matchingepoch(&t2)) == 0)
+				e=tst_matchingepoch(&t1);
+			//fprint2("MATCH e=%lld\n",e);
+		}
+		return e;
 	}
-	 else
-		 return 0;
+	else
+		return 0;
 }
 
 static char *unwrap(char *path)
@@ -150,18 +158,22 @@ static int unreal_utimes(char *filename, struct timeval tv[2])
 	return utimes(unwrap(filename),tv);
 }
 
-ssize_t unreal_pread(int fd, void *buf, size_t count, long long offset)
+static ssize_t unreal_pread(int fd, void *buf, size_t count, long long offset)
 {
 	off_t off=offset;
 	return pread(fd,buf,count,off);
 }
 
-ssize_t unreal_pwrite(int fd, const void *buf, size_t count, long long offset)
+static ssize_t unreal_pwrite(int fd, const void *buf, size_t count, long long offset)
 {
 	off_t off=offset;
 	return pwrite(fd,buf,count,off);
 }
 
+static int unreal_lseek(int fildes, int offset, int whence)
+{
+	return (int) lseek64(fildes, (off_t) offset, whence);
+}
 
 static void
 __attribute__ ((constructor))
@@ -197,7 +209,7 @@ init (void)
 	s.syscall[uscno(__NR_fcntl64)]=fcntl64;
 	s.syscall[uscno(__NR__llseek)]=_llseek;
 #endif
-	s.syscall[uscno(__NR_lseek)]= (intfun) lseek;
+	s.syscall[uscno(__NR_lseek)]= unreal_lseek;
 	s.syscall[uscno(__NR_mkdir)]=unreal_mkdir;
 	s.syscall[uscno(__NR_rmdir)]=unreal_rmdir;
 	s.syscall[uscno(__NR_chown)]=unreal_chown;
@@ -216,6 +228,8 @@ init (void)
 	s.syscall[uscno(__NR_utime)]=unreal_utime;
 	s.syscall[uscno(__NR_utimes)]=unreal_utimes;
 	add_service(&s);
+	t1=tst_timestamp();
+	t2=tst_timestamp();
 }
 
 static void

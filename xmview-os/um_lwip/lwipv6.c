@@ -54,7 +54,7 @@ static int alwaystrue(char *path)
 }
 
 static intfun real_lwip_ioctl;
-static int sockioctl(int d, int request, void *arg, void *umph)
+static int sockioctl(int d, int request, void *arg)
 {
 	if (request == SIOCGIFCONF) {
 		int rv;
@@ -63,10 +63,10 @@ static int sockioctl(int d, int request, void *arg, void *umph)
 		save=ifc->ifc_buf;
 		ioctl(d,request,arg);
 		ifc->ifc_buf=malloc(ifc->ifc_len);
-		um_mod_umoven(umph,(long) save,ifc->ifc_len,ifc->ifc_buf);
+		um_mod_umoven((long) save,ifc->ifc_len,ifc->ifc_buf);
 		rv=real_lwip_ioctl(d,request,arg);
 		if (rv>=0)
-			um_mod_ustoren(umph,(long) save,ifc->ifc_len,ifc->ifc_buf);
+			um_mod_ustoren((long) save,ifc->ifc_len,ifc->ifc_buf);
 		free(ifc->ifc_buf);
 		ifc->ifc_buf=save;
 		return rv;
@@ -74,7 +74,7 @@ static int sockioctl(int d, int request, void *arg, void *umph)
 	return real_lwip_ioctl(d,request,arg);
 }
 
-static int ioctlparms(struct ioctl_len_req *arg,void *umph)
+static int ioctlparms(struct ioctl_len_req *arg)
 {
 	switch (arg->req) {
 		case FIONREAD:
@@ -115,14 +115,14 @@ static int ioctlparms(struct ioctl_len_req *arg,void *umph)
 #define TRUE 1
 #define FALSE 0
 
-static int checksock(int type, void *arg,void *umph)
+static epoch_t checksock(int type, void *arg)
 {
 	if (type == CHECKSOCKET) {
 		int domain=*((int *) arg);
 		return(domain == AF_INET || domain == PF_INET6 || domain == PF_NETLINK || domain == PF_PACKET);
 	} else if (type == CHECKIOCTLPARMS) {
-		//printf("=========lwipv6 %x ioctlparms %x\n",*((int *)arg),ioctlparms(arg,umph));
-		return ioctlparms(arg,umph);
+		//printf("=========lwipv6 %x ioctlparms %x\n",*((int *)arg),ioctlparms(arg));
+		return ioctlparms(arg);
 	} else if (type == CHECKPATH) {
 		char *path=arg;
 		return (strncmp(path,"/proc/net",9) == 0);

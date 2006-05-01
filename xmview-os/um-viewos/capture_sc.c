@@ -36,6 +36,8 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <stdarg.h>
+#include <pthread.h>
 #include <sys/wait.h>
 #include <sys/ptrace.h>
 #include <sys/time.h>
@@ -57,11 +59,22 @@
 #include "syscallnames.h"
 #endif
 #include "gdebug.h"
-#ifdef PIVOTING_ENABLED
-#include "pivoting.h"
-#endif
 
 #define PCBSIZE 10
+
+pthread_key_t pcb_key=0; /* key to grab the current thread pcb */
+
+int fprint2(const char *fmt, ...) {
+	char *s;
+	int rv;
+	va_list ap;
+	va_start(ap,fmt);
+	rv=vasprintf(&s, fmt, ap);
+	va_end(ap);
+	if (rv>0)
+		rv=r_write(2,s,strlen(s));
+	return rv;
+}
 
 static struct pcb **pcbtab;
 int nprocs = 0;
@@ -95,7 +108,17 @@ int pcbtablesize(void)
 	return pcbtabsize;
 }
 
-struct pcb *newpcb (int pid)
+struct pcb *get_pcb()
+{
+	return pthread_getspecific(pcb_key);
+}
+
+void set_pcb(void *new)
+{
+	pthread_setspecific(pcb_key,new);
+}
+
+static struct pcb *newpcb (int pid)
 {
 	register int i,j;
 	struct pcb *pcb;
@@ -138,15 +161,11 @@ struct pcb *newpcb (int pid)
 		pcb=pcbtab[i];
 		if (! (pcb->flags & PCB_INUSE)) {
 			pcb->pid=pid;
-			pcb->umpid=i;
+			pcb->umpid=i+1; // umpid==0 is reserved for umview itself
 			pcb->flags = PCB_INUSE;
 			pcb->scno = NOSC;
 			pcb->pp = NULL;
 			pcb->data = NULL;
-#ifdef PIVOTING_ENABLED
-			pcb->first_instruction_address = NULL;
-			pcb->saved_code = NULL;
-#endif
 			nprocs++;
 			return pcb;
 		}
@@ -204,12 +223,6 @@ static void allocatepcbtab()
 static int handle_new_proc(int pid, struct pcb *pp)
 {
 	struct pcb *oldpc,*pc;
-	static struct pcb_op userproc_pcb_op = {
-		.umoven=umoven,
-		.umovestr=umovestr,
-		.ustoren=ustoren,
-		.ustorestr=ustorestr
-	};
 
 	if ((oldpc=pc=pid2pcb(pid)) == NULL && (pc = newpcb(pid))== NULL) {
 		fprintf(stderr, "[pcb table full]\n");
@@ -231,8 +244,6 @@ static int handle_new_proc(int pid, struct pcb *pp)
 		if (pcb_constr != NULL)
 			pcb_constr(pc,pp->arg2,pcbtabsize);
 	}
-	//
-	pc->pop= &userproc_pcb_op;
 	return 0;
 }
 	
@@ -273,19 +284,17 @@ void offspring_enter(struct pcb *pc)
 		putargn(0,pc->arg0 | CLONE_PTRACE, pc);
 		pc->arg2=pc->arg0;
 	}
-	pc->flags |= PCB_BPTSET;
 }
 
 void offspring_exit(struct pcb *pc)
 {
 	putargn(0,pc->arg0,pc);
 	putargn(1,pc->arg1,pc);
-	pc->flags &= ~PCB_BPTSET;
 }
 
 void tracehand(int s)
 {
-	int pid, status, tsyscall=0;
+	int pid, status, scno=0;
 	struct pcb *pc;
 
 	while(nprocs>0){
@@ -295,8 +304,7 @@ void tracehand(int s)
 			exit(1);
 		}
 
-		// FIXME: renzo: what does the following line mean?
-		////comment out the following line
+		// This is a safe exit if there are spurious chars in the pipe
 		if (pid==0) return;
 		if(WIFSTOPPED(status) && (WSTOPSIG(status) == SIGSTOP)) {
 			/* race condition, new procs can be faster than parents*/
@@ -316,18 +324,7 @@ void tracehand(int s)
 			}
 		}
 
-#ifdef PIVOTING_TEST
-		if(pc->flags & PCB_INPIVOTING)
-		{
-			int _pc;
-			int data;
-			if(getregs(pc) < 0)
-				GPERROR(0, "saving register");
-			_pc = getpc(pc);
-			umoven(pc->pid, _pc, 4, &data);
-			GDEBUG(3, "pc=%x, instruction=%x", _pc, data);
-		}
-#endif
+		pthread_setspecific(pcb_key,pc);
 
 		if(WIFSTOPPED(status) && (WSTOPSIG(status) == SIGTRAP)){
 			int isreproducing=0;
@@ -336,14 +333,14 @@ void tracehand(int s)
 				exit(1);
 			}
 			//printregs(pc);
-			tsyscall=getscno(pc);
+			scno=getscno(pc);
 			/* execve does not return */
-			if (pc->scno == __NR_execve && tsyscall != __NR_execve){
+			if (pc->scno == __NR_execve && scno != __NR_execve){
 				pc->scno = NOSC;
 			}
-			isreproducing=(tsyscall == __NR_fork ||
-					tsyscall == __NR_vfork ||
-					tsyscall == __NR_clone);
+			isreproducing=(scno == __NR_fork ||
+					scno == __NR_vfork ||
+					scno == __NR_clone);
 			/* sigreturn and rt_sigreturn give random "OUT" values, maybe 0.
 			 * this is a workaroud */
 #if defined(__x86_64__) //sigreturn and signal aren't defineed in amd64
@@ -353,49 +350,28 @@ void tracehand(int s)
 #endif
 				pc->scno = NOSC;
 			}
-			else if (tsyscall == 0) {
+			else if (scno == 0) {
 				if (pc->scno == __NR_execve)
 					pc->scno = NOSC;
 			}
 			else if (pc->scno == NOSC)
 			{
-#ifdef PIVOTING_ENABLED
-				/* if we are in pivoting, calls are diverted to the callback function */
-				if(pc->flags & PCB_INPIVOTING)
-				{
-					GDEBUG(3, "pivoting, IN phase");
-					printregs(pc);
-					pc->scno = tsyscall;
-					pc->piv_callback(tsyscall, PHASE_IN, pc, pc->counter++);
-					/* we put by hand a fake tsyscall, with a big number; check if this is
-					 * the case. if it is, pivoting has ended */
-					if(tsyscall == BIG_SYSCALL)
-					{
-						pivoting_eject(pc);
-						/* simulate a fake tsyscall */
-						putscno(__NR_getpid, pc);
-						pc->behavior = SC_FAKE;
-					}
-				}
-				else
-				{
-#endif
 					divfun fun;
-					GDEBUG(3, "--> pid %d syscall %d (%s) @ %p", pid, tsyscall, SYSCALLNAME(tsyscall), getpc(pc));
+					GDEBUG(3, "--> pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
 					//printf("IN\n");
-					pc->scno = tsyscall;
-					fun=cdtab(tsyscall);
+					pc->scno = scno;
+					fun=cdtab(scno);
 					if (fun != NULL)
-						pc->behavior=fun(tsyscall,IN,pc);
+						pc->behavior=fun(scno,IN,pc);
 					else
 						pc->behavior=STD_BEHAVIOR;
 #ifdef FAKESIGSTOP
-					if (tsyscall == __NR_kill && pc->behavior == STD_BEHAVIOR)
+					if (scno == __NR_kill && pc->behavior == STD_BEHAVIOR)
 						pc->behavior=fakesigstopcont(pc);
 #endif
 					if (pc->behavior == SC_FAKE) {
 						if (PT_VM_OK) {
-							if ((fun(tsyscall,OUT,pc) & SC_SUSPENDED)==0)
+							if ((fun(scno,OUT,pc) & SC_SUSPENDED)==0)
 								pc->scno=NOSC;
 						} else 
 						/* fake syscall with getpid if the kernel does not support
@@ -409,24 +385,9 @@ void tracehand(int s)
 							offspring_enter(pc);
 						}
 					}
-#ifdef PIVOTING_ENABLED
-				}
-#endif
 			} else {
-#ifdef PIVOTING_ENABLED
-				/* if we are in pivoting, calls are diverted to the callback function */
-				if(pc->flags & PCB_INPIVOTING)
-				{
-					GDEBUG(3, "pivoting, OUT phase");
-					printregs(pc);
-					pc->piv_callback(tsyscall, PHASE_OUT, pc, pc->counter++);
-					pc->scno = NOSC;
-				}
-				else
-				{
-#endif
 					divfun fun;
-					GDEBUG(3, "<-- pid %d syscall %d (%s) @ %p", pid, tsyscall, SYSCALLNAME(tsyscall), getpc(pc));
+					GDEBUG(3, "<-- pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
 					//printf("OUT\n");
 					if (isreproducing) {
 						long newpid;
@@ -438,9 +399,9 @@ void tracehand(int s)
 						offspring_exit(pc);
 						putrv(newpid,pc);
 					}
-					if ((pc->behavior == SC_FAKE && tsyscall != __NR_getpid) && 
-							tsyscall != pc->scno)
-						GDEBUG(0, "error FAKE != %d",tsyscall);
+					if ((pc->behavior == SC_FAKE && scno != __NR_getpid) && 
+							scno != pc->scno)
+						GDEBUG(0, "error FAKE != %d",scno);
 					fun=cdtab(pc->scno);
 					if (fun != NULL &&
 							(pc->behavior == SC_FAKE ||
@@ -452,13 +413,10 @@ void tracehand(int s)
 						pc->behavior = STD_BEHAVIOR;
 						pc->scno=NOSC;
 					}
-#ifdef PIVOTING_ENABLED
-				}
-#endif
 			} // end if scno==NOSC (OUT)
 			if ((pc->behavior & SC_SUSPENDED) == 0) {
 				if (PT_VM_OK) {
-					/*printf("SC %s %d\n",SYSCALLNAME(tsyscall),pc->behavior);*/
+					/*printf("SC %s %d\n",SYSCALLNAME(scno),pc->behavior);*/
 					if(setregs(pc,PTRACE_SYSVM, isreproducing ? 0 : pc->behavior) == -1)
 							GPERROR(0, "setregs");
 					if(!isreproducing && (pc->behavior & PTRACE_VM_SKIPEXIT))
@@ -517,21 +475,21 @@ void tracehand(int s)
 void sc_resume(struct pcb *pc)
 {
 	/* int pid=pc->pid; */
-	int syscall=pc->scno;
+	int scno=pc->scno;
 	int inout=pc->behavior-SC_SUSPENDED;
-	int	isreproducing=(syscall == __NR_fork ||
-			syscall == __NR_vfork ||
-			syscall == __NR_clone);
+	int	isreproducing=(scno == __NR_fork ||
+			scno == __NR_vfork ||
+			scno == __NR_clone);
 	divfun fun;
-	fun=cdtab(syscall);
+	fun=cdtab(scno);
 	if (fun != NULL)
-		pc->behavior=fun(syscall,inout,pc);
+		pc->behavior=fun(scno,inout,pc);
 	else
 		pc->behavior=STD_BEHAVIOR;
 	if (inout==IN) {
 		if (pc->behavior == SC_FAKE) {
 			if (PT_VM_OK) {
-				if (inout==IN && (fun(syscall,OUT,pc) & SC_SUSPENDED)==0)
+				if (inout==IN && (fun(scno,OUT,pc) & SC_SUSPENDED)==0)
 					pc->scno=NOSC;
 			} else
 				putscno(__NR_getpid,pc);
@@ -636,6 +594,13 @@ static void setsigaction()
 	sigaction(SIGCHLD, &sa, NULL);
 }
 
+static void vir_pcb_free(void *arg)
+{
+	struct pcb *pc=arg;
+	if (pc->flags & PCB_ALLOCATED) {
+		free(arg);
+	}
+}
 
 int capture_main(char **argv)
 {
@@ -659,22 +624,20 @@ int capture_main(char **argv)
 			GPERROR(0, "strace: exec");
 			_exit(1);
 		default:
+			pthread_key_create(&pcb_key,vir_pcb_free);
 			capture_nested_init();
 			handle_new_proc(first_child_pid,pcbtab[0]);
+			pthread_setspecific(pcb_key,pcbtab[0]);
 			if(r_waitpid(first_child_pid, &status, WUNTRACED) < 0){
 				GPERROR(0, "Waiting for stop");
 				exit(1);
 			}
-#ifdef PIVOTING_ENABLED
-			register_first_instruction(pcbtab[0]);
-#endif
 			setsigaction();
 			if(ptrace(PTRACE_SYSCALL, first_child_pid, 0, 0) < 0){
 				GPERROR(0, "continuing");
 				exit(1);
 			}
 	}
-
 	return 0;
 }
 

@@ -44,47 +44,6 @@ static int maxserv=0;
 // services maintain list of all modules loaded.
 static struct service **services=NULL;
 
-#ifdef USING_EPOCH
-#define EPOCH_NOW -1
-static epoch_t epoch_last=1;
-
-epoch_t get_new_epoch(){
-	epoch_last++;
-	return epoch_last;
-}
-
-epoch_t get_last_epoch(){
-	return epoch_last;
-}
-
-service_t epoch_check(int type,void* arg,void* umph,epoch_t start_epoch)
-{
-	int i,max_index=-1;
-	epoch_t returned_epoch,max_epoch=0;
-	struct service* s;
-	unsigned char serv_code=UM_NONE;
-	
-	if( start_epoch == EPOCH_NOW )
-		start_epoch = epoch_last;
-	
-	if (arg == NULL || noserv == 0) 
-		return(UM_NONE);
-	else {
-		for (i=0 ; i<noserv ; i++) {
-			s=services[i];
-			if (s->checkfun != NULL && (returned_epoch=s->checkfun(type,arg,umph,start_epoch)) )
-				if( returned_epoch > max_epoch )
-					max_index=i;
-/*                return(s->code);*/
-		}
-		if( max_index==-1 )
-			return(UM_NONE);
-		else
-			return services[max_index]->code;
-	}
-	
-}
-#endif
 
 static intfun reg_service,dereg_service;
 
@@ -267,7 +226,34 @@ void service_delproc(service_t code,int id, void *arg)
 	}
 }
 
-service_t service_check(int type, void *arg,void *umph)
+service_t service_check(int type,void* arg)
+{
+	int i,max_index=-1;
+	struct service* s;
+	epoch_t	matchepoch=0;
+	if (arg == NULL || noserv == 0) 
+		return(UM_NONE);
+	else {
+		for (i = noserv-1 ; i>=0 ; i--) {
+			epoch_t returned_epoch;
+			s=services[i];
+			if (s->checkfun != NULL && (returned_epoch=s->checkfun(type,arg)) &&
+					(returned_epoch>matchepoch)) {
+				matchepoch=returned_epoch;
+				max_index=i;
+			}
+		}
+		if(max_index<0)
+			return(UM_NONE);
+		else {
+			um_x_setepoch(matchepoch);
+			return services[max_index]->code;
+		}
+	}
+}
+
+/*
+service_t service_check(int type, void *arg)
 {
 	int i;
 	if (arg == NULL || noserv == 0) 
@@ -275,12 +261,13 @@ service_t service_check(int type, void *arg,void *umph)
 	else {
 		for (i = noserv-1 ; i>=0 ; i--) {
 			struct service *s=services[i];
-			if (s->checkfun != NULL && s->checkfun(type,arg,umph))
+			if (s->checkfun != NULL && s->checkfun(type,arg))
 				return(s->code);
 		}
 		return(UM_NONE);
 	}
 }
+*/
 
 static int errnosys()
 {
@@ -312,7 +299,7 @@ intfun service_socketcall(service_t code, int scno)
 	}
 }
 
-intfun service_checkfun(service_t code)
+epochfun service_checkfun(service_t code)
 {
 	int pos=servmap[code]-1;
 	struct service *s=services[pos];

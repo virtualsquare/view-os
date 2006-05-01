@@ -38,7 +38,7 @@
 
 static struct service s;
 
-static int real_path(int type, void *arg)
+static epoch_t real_path(int type, void *arg)
 {
 	if (type == CHECKPATH) {
 		char *path=arg;
@@ -48,15 +48,15 @@ static int real_path(int type, void *arg)
 		return 0;
 }
 
-static int addproc(int id, int max, void *umph)
+static int addproc(int id, int max)
 {
-	printf("new process id %d  pid %d   max %d\n",id,um_mod_getpid(umph),max);
+	printf("new process id %d  pid %d   max %d\n",id,um_mod_getpid(),max);
 	return 0;
 }
 
-static int delproc(int id, void *umph)
+static int delproc(int id)
 {
-	printf("terminated process id %d  pid %d\n",id,um_mod_getpid(umph));
+	printf("terminated process id %d  pid %d\n",id,um_mod_getpid());
 	return 0;
 }
 

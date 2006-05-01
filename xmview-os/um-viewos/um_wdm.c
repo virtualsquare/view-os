@@ -64,7 +64,7 @@ int wrap_in_getcwd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		//printf("dsys_getcwd %s\n",pcdata->fdfs->cwd);
 		if (arg1 > PATH_MAX)
 			arg1=PATH_MAX;
-		if (CALL_USTORESTR(pc,pc->arg0,arg1,pcdata->fdfs->cwd) < 0) {
+		if (ustorestr(pc->pid,pc->arg0,arg1,pcdata->fdfs->cwd) < 0) {
 			pc->retval= -1;
 			pc->erno=ERANGE;
 		} else {
@@ -96,10 +96,10 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			//printf("virtual path chdir to %s\n", CHDIR_FAKE_DIR);
 			//XXX: check length of parameter??? if arg0 was one byte long?
 			pathlen = WORDALIGN(strlen(CHDIR_FAKE_DIR));
-			CALL_USTOREN(pc, sp-pathlen, pathlen, CHDIR_FAKE_DIR);
+			ustoren(pc->pid, sp-pathlen, pathlen, CHDIR_FAKE_DIR);
 		} else {
 			pathlen = WORDALIGN(strlen(pcdata->path));
-			CALL_USTORESTR(pc, sp-pathlen, pathlen, pcdata->path);
+			ustorestr(pc->pid, sp-pathlen, pathlen, pcdata->path);
 		}
 		putargn(0,sp-pathlen,pc);
 		return SC_CALLONXIT;
@@ -149,7 +149,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		if (S_ISDIR(pcdata->pathstat.st_mode) && (access(pcdata->path, X_OK) == 0))
 		{
 			pathlen = WORDALIGN(strlen(pcdata->path));
-			CALL_USTORESTR(pc, sp - pathlen, pathlen, pcdata->path);
+			ustorestr(pc->pid, sp - pathlen, pathlen, pcdata->path);
 			putargn(0, sp - pathlen, pc);
 			putscno(__NR_chdir, pc);
 			GDEBUG(4, "FCHDIR making fake chdir to real %s", pcdata->path);
@@ -163,11 +163,11 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 					//printf("virtual path chdir to %s\n", CHDIR_FAKE_DIR);
 					GDEBUG(4, "FCHDIR making chdir to %s (instead of %s)", CHDIR_FAKE_DIR, pcdata->path);
 					pathlen = WORDALIGN(strlen(CHDIR_FAKE_DIR));
-					CALL_USTORESTR(pc, sp-pathlen, pathlen, CHDIR_FAKE_DIR);
+					ustorestr(pc->pid, sp-pathlen, pathlen, CHDIR_FAKE_DIR);
 				} else {
 					GDEBUG(4, "FCHDIR making chdir to unmanaged %s", pcdata->path);
 					pathlen = WORDALIGN(strlen(pcdata->path));
-					CALL_USTORESTR(pc, sp-pathlen, pathlen, pcdata->path);
+					ustorestr(pc->pid, sp-pathlen, pathlen, pcdata->path);
 				}
 				putargn(0,sp-pathlen,pc);
 				putscno(__NR_chdir,pc);

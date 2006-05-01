@@ -53,18 +53,18 @@
 
 #define umNULL ((int) NULL)
 
-static int filecopy(service_t sercode,const char *from, const char *to, void *umph)
+static int filecopy(service_t sercode,const char *from, const char *to)
 {
 	char buf[BUFSIZ];
 	int fdf,fdt;
 	int n;
-	if ((fdf=service_syscall(sercode,uscno(__NR_open))(from,O_RDONLY,0,umph)) < 0)
+	if ((fdf=service_syscall(sercode,uscno(__NR_open))(from,O_RDONLY,0)) < 0)
 		return -errno;
 	if ((fdt=open(to,O_CREAT|O_TRUNC|O_WRONLY,0600)) < 0)
 		return -errno;
-	while ((n=service_syscall(sercode,uscno(__NR_read))(fdf,buf,BUFSIZ,umph)) > 0)
+	while ((n=service_syscall(sercode,uscno(__NR_read))(fdf,buf,BUFSIZ)) > 0)
 		write (fdt,buf,n);
-	service_syscall(sercode,uscno(__NR_close))(fdf,umph);
+	service_syscall(sercode,uscno(__NR_close))(fdf);
 	fchmod (fdt,0700); /* permissions? */
 	close (fdt);
 	return 0;
@@ -81,11 +81,11 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 
 	/* argv and env should be downloaded then
 	 * pc->retval = um_syscall(pcdata->path, argv, env); */
-	if ((pc->retval=filecopy(sercode,pcdata->path,filename,pc))>=0) {
+	if ((pc->retval=filecopy(sercode,pcdata->path,filename))>=0) {
 		long sp=getsp(pc);
 		int filenamelen=WORDALIGN(strlen(filename));
-		pc->retval=lfd_open(UM_NONE,-1,filename);
-		CALL_USTORESTR(pc,sp-filenamelen,filenamelen,filename);
+		/*pc->retval=lfd_open(UM_NONE,-1,filename);  ??? */
+		ustorestr(pc->pid,sp-filenamelen,filenamelen,filename);
 		putargn(0,sp-filenamelen,pc);
 		free(filename);
 		return SC_CALLONXIT;
@@ -103,7 +103,7 @@ int wrap_out_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	if (pc->retval >= 0) {
 		/* remove the temp file */
 		unlink(lfd_getpath(pc->retval));
-		lfd_close(pc->retval,pc);
+		lfd_close(pc->retval);
 	} else {
 		putrv(pc->retval,pc);
 		puterrno(pc->erno,pc);

@@ -30,6 +30,8 @@ extern int first_child_exit_status;
 int capture_main(char **argv);
 void sc_resume(void *pc);
 
+struct pcb *get_pcb();
+void set_pcb(void *new);
 int pcbtablesize(void);
 
 void wake_tracer_init();

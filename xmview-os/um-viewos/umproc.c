@@ -123,7 +123,7 @@ void lfd_addproc (struct pcb_file **pp,int flag)
 	}
 }
 
-void lfd_delproc (struct pcb_file *p, void *umph)
+void lfd_delproc (struct pcb_file *p)
 {
 	int i;
 	//printf("DELPROC count %d nolfd %d\n",p->count,p->nolfd);
@@ -139,7 +139,7 @@ void lfd_delproc (struct pcb_file *p, void *umph)
 					}
 				} */
 				//printf("CLOSE LFD %d\n",lfd);
-				lfd_close(lfd,umph);
+				lfd_close(lfd);
 			}
 		}
 		if (p->lfdlist != NULL)
@@ -151,7 +151,7 @@ void lfd_delproc (struct pcb_file *p, void *umph)
 /* open file/socket has two phases: the real open and the register.
  * in the second phase registers the map between the fd as seen by the process and
  * our lfd */
-int lfd_open (service_t service, int sfd, char *path)
+int lfd_open (service_t service, int sfd, char *path, int nested)
 {
 	int lfd,fifo;
 	//printf("lfd_open %x sfd %d %s",service,sfd,(path==NULL)?"<null>":path);
@@ -182,16 +182,16 @@ int lfd_open (service_t service, int sfd, char *path)
 	lfd_tab[lfd].ptab->service=service;
 	lfd_tab[lfd].ptab->sfd=sfd;
 	lfd_tab[lfd].ptab->count=1;
-	if (service != UM_NONE) {
+	if (service != UM_NONE && !nested) {
 		char *filename;
 		lfd_tab[lfd].pvtab = (struct lfd_vtable *)malloc (sizeof(struct lfd_vtable));
 		assert(lfd_tab[lfd].pvtab != NULL);
 		filename=lfd_tab[lfd].pvtab->filename=strdup(um_proc_tmpfile(service,lfd));
 		fifo=mkfifo(filename,0600);
 		assert(fifo==0);
-		lfd_tab[lfd].pvtab->ififo=open(filename,O_RDONLY|O_NONBLOCK);
+		lfd_tab[lfd].pvtab->ififo=r_open(filename,O_RDONLY|O_NONBLOCK,0);
 		assert(lfd_tab[lfd].pvtab->ififo >= 0);
-		lfd_tab[lfd].pvtab->ofifo=open(filename,O_WRONLY);
+		lfd_tab[lfd].pvtab->ofifo=r_open(filename,O_WRONLY,0);
 		assert(lfd_tab[lfd].pvtab->ofifo >= 0);
 		lfd_tab[lfd].pvtab->signaled=0;
 	} else {
@@ -202,27 +202,28 @@ int lfd_open (service_t service, int sfd, char *path)
 	return lfd;
 }
 
-void lfd_close (int lfd,void *umph)
+void lfd_close (int lfd)
 {
 	int rv;
 	//printf("close %d %x\n",lfd,lfd_tab[lfd].ptab);
 	assert (lfd < 0 || (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL));
 	if (lfd >= 0 && --(lfd_tab[lfd].ptab->count) == 0) {
+		register int service;
 		if (lfd_tab[lfd].pvtab != NULL) {
-			rv=close(lfd_tab[lfd].pvtab->ififo);
+			rv=r_close(lfd_tab[lfd].pvtab->ififo);
 			assert(rv==0);
-			rv=close(lfd_tab[lfd].pvtab->ofifo);
+			rv=r_close(lfd_tab[lfd].pvtab->ofifo);
 			assert(rv==0);
-			rv=unlink(lfd_tab[lfd].pvtab->filename);
+			rv=r_unlink(lfd_tab[lfd].pvtab->filename);
 			assert(rv==0);
 			free(lfd_tab[lfd].pvtab->filename);
 			free(lfd_tab[lfd].pvtab);
 		} 
 		//else
 			//printf("del lfd %d file %s\n",lfd,lfd_tab[lfd].ptab->path);
-		register int service=lfd_tab[lfd].ptab->service;
+		service=lfd_tab[lfd].ptab->service;
 		if (service != UM_NONE && lfd_tab[lfd].ptab->sfd >= 0) {
-			service_syscall(service,uscno(__NR_close))(lfd_tab[lfd].ptab->sfd,umph); 
+			service_syscall(service,uscno(__NR_close))(lfd_tab[lfd].ptab->sfd); 
 		}
 		if (lfd_tab[lfd].ptab->path != NULL)
 			free(lfd_tab[lfd].ptab->path);
@@ -262,8 +263,10 @@ int lfd_getsfd(int lfd)
 	
 service_t lfd_getservice(int lfd)
 {
-	//printf("getservice %d -> %x\n",lfd,lfd_tab[lfd].ptab);
-	assert (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL);
+	//fprint2("getservice %d -> %x\n",lfd,lfd_tab[lfd].ptab);
+	//assert (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL);
+	if (lfd >= um_maxlfd || lfd_tab[lfd].ptab == NULL)
+		return (UM_NONE);
 	return lfd_tab[lfd].ptab->service;
 }
 	
@@ -348,12 +351,12 @@ void lfd_register (struct pcb_file *p, int fd, int lfd)
 	//printf("lfd_register fd %d lfd %d path %s\n", fd, lfd, lfd_tab[lfd].ptab->path);
 }
 
-void lfd_deregister_n_close(struct pcb_file *p, int fd,void *umph)
+void lfd_deregister_n_close(struct pcb_file *p, int fd)
 {
 	//printf("lfd_deregister_n_close %d %d \n",fd,p->nolfd);
 	//assert(fd < p->nolfd && p->lfdlist[fd] != -1);
 	if (p->lfdlist != NULL && fd < p->nolfd && p->lfdlist[fd] != -1) {
-		lfd_close(p->lfdlist[fd],umph);
+		lfd_close(p->lfdlist[fd]);
 		p->lfdlist[fd] = -1;
 	}
 }
@@ -363,9 +366,9 @@ void lfd_closeall()
 	register int lfd;
 	for (lfd=0; lfd<um_maxlfd; lfd++) {
 		if (lfd_tab[lfd].pvtab != NULL) {
-			close(lfd_tab[lfd].pvtab->ififo);
-			close(lfd_tab[lfd].pvtab->ofifo);
-			unlink(lfd_tab[lfd].pvtab->filename);
+			r_close(lfd_tab[lfd].pvtab->ififo);
+			r_close(lfd_tab[lfd].pvtab->ofifo);
+			r_unlink(lfd_tab[lfd].pvtab->filename);
 		}
 	}
 }

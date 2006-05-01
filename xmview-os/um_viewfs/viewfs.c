@@ -433,7 +433,7 @@ static void procinfo_fd_clear(int id, int fd, int pers)
 	GDEBUG(2, "procinfo_fd_clear end");
 }
 
-static int addproc(int id, int max, void *umph)
+static int addproc(int id, int max)
 {
 	// FIXME: is "max" the MAXIMUM value of the umpid or is it the size of
 	// the umpid table? umpids start from 0, so the value depends on this
@@ -454,7 +454,7 @@ static int addproc(int id, int max, void *umph)
 	return 0;
 }
 
-static int delproc(int id, void *umph)
+static int delproc(int id)
 {
 	FD_ZERO(&procinfo[id].cur);
 	FD_ZERO(&procinfo[id].def);
@@ -655,12 +655,12 @@ static int check_mkdir(char *path, int umpid)
 	return retval;
 }
 
-static int viewfs_open(char *pathname, int flags, mode_t mode, void *umph)
+static int viewfs_open(char *pathname, int flags, mode_t mode)
 {
 	int retval;
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 
-	if (um_mod_getsyscallno(umph) == __NR_creat)
+	if (um_mod_getsyscallno() == __NR_creat)
 		flags |= (O_CREAT|O_WRONLY|O_TRUNC);
 
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
@@ -757,7 +757,7 @@ static void clear_cachedata(struct d64array *data, int deep)
 	return;
 }
 
-static int viewfs_close(int fd, void *umph)
+static int viewfs_close(int fd)
 {
 	int retval = DAR(close(fd));
 	int umpid;
@@ -767,7 +767,7 @@ static int viewfs_close(int fd, void *umph)
 	// viewfs_close is called 2 times
 	if (retval == 0)
 	{
-		umpid = um_mod_getumpid(umph);
+		umpid = um_mod_getumpid();
 		if (FD_ISSET(fd, &procinfo[umpid].gd64))
 		{
 			FD_CLR(fd, &procinfo[umpid].gd64);
@@ -785,9 +785,9 @@ static int viewfs_close(int fd, void *umph)
 	return retval;
 }
 
-static int viewfs_stat(char *pathname, struct stat *buf, void *umph)
+static int viewfs_stat(char *pathname, struct stat *buf)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEPONLY);
 
@@ -812,9 +812,9 @@ static int viewfs_stat(char *pathname, struct stat *buf, void *umph)
 	return DAR(stat(currentpers->real, buf));
 }
 
-static int viewfs_lstat(char *pathname, struct stat *buf, void *umph)
+static int viewfs_lstat(char *pathname, struct stat *buf)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEPONLY);
 
@@ -839,9 +839,9 @@ static int viewfs_lstat(char *pathname, struct stat *buf, void *umph)
 	return DAR(lstat(currentpers->real, buf));
 }
 
-static int viewfs_stat64(char *pathname, struct stat64 *buf, void *umph)
+static int viewfs_stat64(char *pathname, struct stat64 *buf)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 	int retval;
 	
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEPONLY);
@@ -883,9 +883,9 @@ static int viewfs_stat64(char *pathname, struct stat64 *buf, void *umph)
 	return DAR(stat64(currentpers->real, buf));
 }
 
-static int viewfs_lstat64(char *pathname, struct stat64 *buf, void *umph)
+static int viewfs_lstat64(char *pathname, struct stat64 *buf)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 	int retval;
 	
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEPONLY);
@@ -927,7 +927,7 @@ static int viewfs_lstat64(char *pathname, struct stat64 *buf, void *umph)
 	return DAR(lstat64(currentpers->real, buf));
 }
 
-static int viewfs_fstat64(int fd, struct stat64 *buf, void *umph)
+static int viewfs_fstat64(int fd, struct stat64 *buf)
 {
 	int retval = DAR(fstat64(fd, buf));
 /*    if (retval == 0)*/
@@ -938,9 +938,9 @@ static int viewfs_fstat64(int fd, struct stat64 *buf, void *umph)
 	return retval;
 }
 
-static int viewfs_readlink(char *path, char *buf, size_t bufsiz, void *umph)
+static int viewfs_readlink(char *path, char *buf, size_t bufsiz)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 	
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
 
@@ -965,9 +965,9 @@ static int viewfs_readlink(char *path, char *buf, size_t bufsiz, void *umph)
 	return DAR(readlink(currentpers->real, buf, bufsiz));
 }
 
-static int viewfs_access(char *path, int mode, void *umph)
+static int viewfs_access(char *path, int mode)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 	
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
 
@@ -992,10 +992,10 @@ static int viewfs_access(char *path, int mode, void *umph)
 	return DAR(access(currentpers->real, mode));
 }
 
-static int viewfs_mkdir(char *path, int mode, void *umph)
+static int viewfs_mkdir(char *path, int mode)
 {
 	int retval;
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 	
 	
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
@@ -1032,9 +1032,9 @@ static int viewfs_mkdir(char *path, int mode, void *umph)
 	return DAR(mkdir(currentpers->real,mode));
 }
 
-static int viewfs_rmdir(char *path, void *umph)
+static int viewfs_rmdir(char *path)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 
 	
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
@@ -1115,9 +1115,9 @@ static int viewfs_rmdir(char *path, void *umph)
 	}
 }
 
-static int viewfs_chmod(char *path, int mode, void *umph)
+static int viewfs_chmod(char *path, int mode)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 	
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
 
@@ -1142,9 +1142,9 @@ static int viewfs_chmod(char *path, int mode, void *umph)
 	return DAR(chmod(currentpers->real, mode));
 }
 
-static int viewfs_chown(char *path, uid_t owner, gid_t group, void *umph)
+static int viewfs_chown(char *path, uid_t owner, gid_t group)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 	
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
 
@@ -1169,9 +1169,9 @@ static int viewfs_chown(char *path, uid_t owner, gid_t group, void *umph)
 	return DAR(chown(currentpers->real, owner, group));
 }
 
-static int viewfs_lchown(char *path, uid_t owner, gid_t group, void *umph)
+static int viewfs_lchown(char *path, uid_t owner, gid_t group)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 	
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
 
@@ -1204,9 +1204,9 @@ static int viewfs_lchown(char *path, uid_t owner, gid_t group, void *umph)
  * atomic, un-doing some of them if some of the following ones fail. However,
  * this should not happen during normal operations.
  */
-static int viewfs_unlink(char *path, void *umph)
+static int viewfs_unlink(char *path)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
 
@@ -1257,7 +1257,7 @@ static int viewfs_unlink(char *path, void *umph)
 		return DAR(unlink(currentpers->real));
 }
 
-static int viewfs_link(char *oldpath, char *newpath, void *umph)
+static int viewfs_link(char *oldpath, char *newpath)
 {
 	
 	VIEWFS_CRITCHECK(oldpath, -1, VIEWFS_DEEP);
@@ -1267,9 +1267,9 @@ static int viewfs_link(char *oldpath, char *newpath, void *umph)
 	return -1;
 }
 
-static int viewfs_symlink(char *oldpath, char *newpath, void *umph)
+static int viewfs_symlink(char *oldpath, char *newpath)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
 
@@ -1285,9 +1285,9 @@ static int viewfs_symlink(char *oldpath, char *newpath, void *umph)
 		return DAR(symlink(oldpath, currentpers->real));
 }
 
-static int viewfs_utime(char *filename, struct utimbuf *buf, void *umph)
+static int viewfs_utime(char *filename, struct utimbuf *buf)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
 
@@ -1312,9 +1312,9 @@ static int viewfs_utime(char *filename, struct utimbuf *buf, void *umph)
 	return DAR(utime(currentpers->real, buf));
 }
 
-static int viewfs_utimes(char *filename, struct timeval tv[2], void *umph)
+static int viewfs_utimes(char *filename, struct timeval tv[2])
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 
 	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
 
@@ -1358,10 +1358,10 @@ ssize_t viewfs_pwrite(int fd, const void *buf, size_t count, long long offset)
 	return DAR(pwrite(fd,buf,count,off));
 }
 
-static int viewfs_getdents(unsigned int fd, struct dirent *dirp, unsigned int count, void *umph)
+static int viewfs_getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
 {
 	GDEBUG(1,"getdents!");
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 	
 	if (FD_ISSET(fd, &procinfo[umpid].cur))
 		GDEBUG(1, "fd %d is open in current personality", fd);
@@ -1635,9 +1635,9 @@ static struct d64array *d64array_subtract(struct d64array *a1, struct d64array *
 
 }
 
-static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count, void *umph)
+static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
 {
-	int umpid = um_mod_getumpid(umph);
+	int umpid = um_mod_getumpid();
 	char *path = sfd_getpath(VIEWFS_SERVICE_CODE, fd);
 	int pd_status = 0;
 	int pd_total = 0;
@@ -1975,10 +1975,10 @@ static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned in
  * FIXME: check if the syscall parameters obtained via umph are the same that
  * are passed to the viewfs_* functions later.
  */
-static int is_path_interesting(char *path, void *umph)
+static int is_path_interesting(char *path)
 {
-	int scno = um_mod_getsyscallno(umph);
-	int umpid = um_mod_getumpid(umph);
+	int scno = um_mod_getsyscallno();
+	int umpid = um_mod_getumpid();
 	int checkresult = 0;
 
 	GDEBUG(5, "check for %s in syscall %s", path, SYSCALLNAME(scno));
@@ -1990,7 +1990,7 @@ static int is_path_interesting(char *path, void *umph)
 		case __NR_open:
 		case __NR_creat:
 			checkresult = check_open(path,
-					(int)(um_mod_getargs(umph)[1]) | ((scno==__NR_creat) ? 
+					(int)(um_mod_getargs()[1]) | ((scno==__NR_creat) ? 
 													  (O_CREAT|O_WRONLY|O_TRUNC) : 0), umpid);
 			break;
 		
@@ -2023,7 +2023,7 @@ static int is_path_interesting(char *path, void *umph)
 			break;
 
 		case __NR_fchdir:
-			GDEBUG(1, "*CHECK* fchdir %d", (int)(um_mod_getargs(umph)[1]));
+			GDEBUG(1, "*CHECK* fchdir %d", (int)(um_mod_getargs()[1]));
 			break;
 
 		default:
@@ -2040,7 +2040,7 @@ static int is_path_interesting(char *path, void *umph)
 }
 
 /* Choice function for viewfs */
-static int viewfscheck(int type, void *arg, void *umph)
+static epoch_t viewfscheck(int type, void *arg)
 {
 	char *path;
 	
@@ -2051,7 +2051,7 @@ static int viewfscheck(int type, void *arg, void *umph)
 
 	if (path[0] == '\0')
 	{
-		GDEBUG(5, "check path for empty path in syscall %s. Strange thing.", SYSCALLNAME(um_mod_getsyscallno(umph)));
+		GDEBUG(5, "check path for empty path in syscall %s. Strange thing.", SYSCALLNAME(um_mod_getsyscallno()));
 		return 0;
 	}
 	if (is_critical(path, VIEWFS_DEEP))
@@ -2060,9 +2060,9 @@ static int viewfscheck(int type, void *arg, void *umph)
 		return 1;
 	}
 
-	if (is_path_interesting(path, umph))
+	if (is_path_interesting(path))
 	{
-		GDEBUG(2, "%s: interested in %s", SYSCALLNAME(um_mod_getsyscallno(umph)), path);
+		GDEBUG(2, "%s: interested in %s", SYSCALLNAME(um_mod_getsyscallno()), path);
 		return 1;
 	}
 	else

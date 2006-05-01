@@ -589,7 +589,7 @@ static int alwaysfalse()
 	return FALSE;
 }
 
-static int fuse_path(char *path)
+static epoch_t fuse_path(char *path)
 {
 	if(strncmp(path,"umfuse",6) == 0) /* a path with no leading / is a filesystemtype */
 		return TRUE;

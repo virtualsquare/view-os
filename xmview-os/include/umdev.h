@@ -50,7 +50,7 @@ struct umdev_operations {
 
 	int (*select_register) (char, dev_t, voidfun cb, void *arg, int how, struct dev_info *);
 
-	int (*ioctlparms) (char, dev_t, int arg, void *umph);
+	int (*ioctlparms) (char, dev_t, int arg);
 
 	int (*init) (char, dev_t, char *path, unsigned long flags, char *args);
 	int (*fini) (char, dev_t);

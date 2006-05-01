@@ -92,9 +92,4 @@
 #define cdtab(X) (((X) < BASEUSC) ? scdtab[(X)] : scdutab[(X)-BASEUSC])
 #define setcdtab(X,Y) (((X) < BASEUSC) ? (scdtab[(X)] = (Y)) : (scdutab[(X)-BASEUSC] = (Y)))
 
-#ifdef PIVOTING_ENABLED
-#error "Still to take the ASM_SYSCALL definition for i386 and adapt it to PowerPC"
-#endif
-
-
 #endif // _DEFS_PPC 

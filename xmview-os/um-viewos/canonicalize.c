@@ -40,7 +40,7 @@
 	 holds the same value as the value returned.  */
 
 char *
-um_realpath (void *umph, const char *name, char *resolved, struct stat64 *pst, int dontfollowlink)
+um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollowlink,void *xpc)
 {
 	char *dest, extra_buf[PATH_MAX];
 	const char *start, *end, *resolved_limit;
@@ -55,7 +55,7 @@ um_realpath (void *umph, const char *name, char *resolved, struct stat64 *pst, i
 			 either parameter is a null pointer.  We extend this to allow
 			 the RESOLVED parameter to be NULL in case the we are expected to
 			 allocate the room for the return value.  */
-		um_set_errno (umph,EINVAL);
+		um_set_errno (xpc,EINVAL);
 		return NULL;
 	}
 
@@ -63,7 +63,7 @@ um_realpath (void *umph, const char *name, char *resolved, struct stat64 *pst, i
 	{
 		/* As per Single Unix Specification V2 we must return an error if
 			 the name argument points to an empty string.  */
-		um_set_errno (umph,ENOENT);
+		um_set_errno (xpc,ENOENT);
 		return NULL;
 	}
 
@@ -71,7 +71,7 @@ um_realpath (void *umph, const char *name, char *resolved, struct stat64 *pst, i
 
 	if (name[0] != '/')
 	{
-		if (!um_getcwd (umph,resolved, PATH_MAX))
+		if (!um_getcwd (xpc,resolved, PATH_MAX))
 		{
 			resolved[0] = '\0';
 			goto error;
@@ -85,10 +85,10 @@ um_realpath (void *umph, const char *name, char *resolved, struct stat64 *pst, i
 		/* special case "/" */
 		if (name[1] == 0) {
 			*dest='\0';
-			if (um_x_lstat64 (resolved, pst, umph) < 0)
-				um_set_errno (umph,errno);
+			if (um_x_lstat64 (resolved, pst, xpc) < 0)
+				um_set_errno (xpc,errno);
 			else
-				um_set_errno (umph,0);
+				um_set_errno (xpc,0);
 			return resolved;
 		}
 	}
@@ -123,7 +123,7 @@ um_realpath (void *umph, const char *name, char *resolved, struct stat64 *pst, i
 
 			if (dest + (end - start) >= resolved_limit)
 			{
-				um_set_errno (umph,ENAMETOOLONG);
+				um_set_errno (xpc,ENAMETOOLONG);
 				if (dest > resolved + 1)
 					dest--;
 				*dest = '\0';
@@ -135,10 +135,10 @@ um_realpath (void *umph, const char *name, char *resolved, struct stat64 *pst, i
 
 			/*check the dir along the path */
 			validstat = 1;
-			if (um_x_lstat64 (resolved, pst, umph) < 0) {
+			if (um_x_lstat64 (resolved, pst, xpc) < 0) {
 				pst->st_mode=0;
 				if (errno != ENOENT || *end == '/') {
-					um_set_errno (umph,errno);
+					um_set_errno (xpc,errno);
 					goto error;
 				}
 			} else {
@@ -150,15 +150,15 @@ um_realpath (void *umph, const char *name, char *resolved, struct stat64 *pst, i
 
 					if (++num_links > MAXSYMLINKS)
 					{
-						um_set_errno (umph,ELOOP);
+						um_set_errno (xpc,ELOOP);
 						goto error;
 					}
 
 					/* symlink! */
 					validstat=0;
-					n = um_x_readlink (resolved, buf, PATH_MAX, umph);
+					n = um_x_readlink (resolved, buf, PATH_MAX, xpc);
 					if (n < 0) {
-						um_set_errno (umph,errno);
+						um_set_errno (xpc,errno);
 						goto error;
 					}
 					buf[n] = '\0';
@@ -166,7 +166,7 @@ um_realpath (void *umph, const char *name, char *resolved, struct stat64 *pst, i
 					len = strlen (end);
 					if ((long int) (n + len) >= PATH_MAX)
 					{
-						um_set_errno (umph,ENAMETOOLONG);
+						um_set_errno (xpc,ENAMETOOLONG);
 						goto error;
 					}
 
@@ -182,7 +182,7 @@ um_realpath (void *umph, const char *name, char *resolved, struct stat64 *pst, i
 							while ((--dest)[-1] != '/');
 				}
 				else if (*end == '/' && !S_ISDIR(pst->st_mode)) {
-					um_set_errno (umph,ENOTDIR);
+					um_set_errno (xpc,ENOTDIR);
 					goto error;
 				}
 			}
@@ -192,10 +192,10 @@ um_realpath (void *umph, const char *name, char *resolved, struct stat64 *pst, i
 		--dest;
 	*dest = '\0';
 
-	if (!validstat && um_x_lstat64 (resolved, pst, umph) < 0) 
+	if (!validstat && um_x_lstat64 (resolved, pst, xpc) < 0) 
 		pst->st_mode=0;
 
-	um_set_errno (umph,0);
+	um_set_errno (xpc,0);
 	return resolved;
 
 error:

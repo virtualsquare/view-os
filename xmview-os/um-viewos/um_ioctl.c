@@ -57,7 +57,7 @@ static void ioctl_getarg(struct pcb* pc, int ioctlparms, unsigned long arg, void
 	if (len > 0) {
 		*larg=malloc(len);
 		if (ioctlparms & IOCTL_R)
-			CALL_UMOVEN(pc,arg,len,*larg);
+			umoven(pc->pid,arg,len,*larg);
 	} else
 		*larg = (void *) arg;
 }
@@ -67,7 +67,7 @@ static void ioctl_putarg(struct pcb* pc, int ioctlparms, unsigned long arg, void
 	int len=ioctlparms & IOCTLLENMASK;
 	if (len > 0) {
 		if (ioctlparms & IOCTL_W)
-			CALL_USTOREN(pc,arg,len,larg);
+			ustoren(pc->pid,arg,len,larg);
 		free(larg);
 	}
 }
@@ -83,15 +83,15 @@ int wrap_in_ioctl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		unsigned long req=getargn(1,pc);
 		unsigned long arg=getargn(2,pc);
 		void *larg;
-		intfun checkarg;
+		epochfun checkarg;
 		int ioctlparms=0;
 		pc->arg1=req;
 		if ((checkarg=service_checkfun(sercode)) != NULL) {
 			struct ioctl_len_req ioreq={sfd,req};
-			ioctlparms=checkarg(CHECKIOCTLPARMS, &ioreq, pc);
+			ioctlparms=checkarg(CHECKIOCTLPARMS, &ioreq);
 		}
 		ioctl_getarg(pc,ioctlparms,arg,&larg);
-		pc->retval = um_syscall(sfd,req,larg,pc);
+		pc->retval = um_syscall(sfd,req,larg);
 		/* printf("wrap_in_ioctl %d req %x arg %x parms %x -> %d\n",sfd,req,larg,ioctlparms,pc->retval);*/
 		pc->erno=errno;
 		if (pc->retval >= 0)

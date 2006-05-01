@@ -26,6 +26,17 @@
 #include <unistd.h>
 //#include <sys/socket.h>
 typedef int (*intfun)();
+typedef long long epoch_t;
+struct treepoch;
+struct timestamp {
+	epoch_t epoch;
+	struct treepoch *treepoch;
+};
+
+extern epoch_t tst_matchingepoch(struct timestamp *service_tst);
+extern struct timestamp tst_timestamp();
+
+typedef epoch_t (*epochfun)();
 typedef unsigned char service_t;
 
 #define CHECKNOCHECK	0
@@ -55,7 +66,7 @@ struct service {
 	void *dlhandle;
 
 	/*addproc is called when a new process is created
-	 * (int id, int max, void *umph)
+	 * (int id, int max)
 	 * max is the current max number of processes: service implementation can use it
 	 * to realloc their internal structures. ID is an internal id, *not*
 	 * the pid! id is in the range 0,...,max-1 it is never reassigned during
@@ -63,24 +74,25 @@ struct service {
 	intfun addproc;
 
 	/*delproc is called when a process terminates.
-	 * (int id, void *umph)
+	 * (int id)
 	 * is the garbage collection function for the data that addproc may have created
 	 */
 	intfun delproc;
 
 	/* choice function: returns TRUE if this path must be managed by this module
 	 * FALSE otherwise.
+	 * Nesting modules: returns the epoch of best match (0 if non found).
+	 *
 	 * checkfun functions has the following args:
 	 *  (int type, void *arg) or
-	 *  (int type, void *arg, void *umph)
 	 *  type is defined by CHECK... constants above
 	 */
-	intfun checkfun;
+	epochfun checkfun;
 
 	/* proactive management of select/poll system call. The module provides this function
 	 * to activate a callback when an event occurs.
 	 * it has the followin args:
-	 * (void (* cb)(), void *arg, int fd, int how)    (plus umph if needed)
+	 * (void (* cb)(), void *arg, int fd, int how)    
 	 * cb: the callback function (if NULL, it means that a previous registration for callback
 	 *     must be deleted).
 	 * arg: argument passed to the callback function
@@ -89,12 +101,10 @@ struct service {
 	 */
 	intfun select_register;
 
-	/* the syscall table, the arguments are the same of the "real world" syscalls,
-	 * plus umph if needed*/
+	/* the syscall table, the arguments are the same of the "real world" syscalls,*/
 	intfun *syscall;
 
-	/* the socket call table, the arguments are the same of the "real world" syscalls,
-	 * plus umph if needed*/
+	/* the socket call table, the arguments are the same of the "real world" syscalls,*/
 	intfun *socket;
 };
 
@@ -102,24 +112,20 @@ extern int _lwip_version;
 extern int scmap_scmapsize;
 extern int scmap_sockmapsize;
 
-extern int um_mod_getpid(void *umph);
-extern int um_mod_umoven(void *umph, long addr, int len, void *_laddr);
-extern int um_mod_umovestr(void *umph, long addr, int len, void *_laddr);
-extern int um_mod_ustoren(void *umph, long addr, int len, void *_laddr);
-extern int um_mod_ustorestr(void *umph, long addr, int len, void *_laddr);
-extern int um_mod_getsyscallno(void *umph);
-extern int um_mod_getumpid(void *umph);
-extern long* um_mod_getargs(void *umph);
-extern struct stat64 *um_mod_getpathstat(void *umph);
+extern int um_mod_getpid(void);
+extern int um_mod_umoven(long addr, int len, void *_laddr);
+extern int um_mod_umovestr(long addr, int len, void *_laddr);
+extern int um_mod_ustoren(long addr, int len, void *_laddr);
+extern int um_mod_ustorestr(long addr, int len, void *_laddr);
+extern int um_mod_getsyscallno(void);
+extern int um_mod_getumpid(void);
+extern long* um_mod_getargs(void);
+extern struct stat64 *um_mod_getpathstat(void);
+char *um_mod_getpath(void);
 extern int um_mod_getsyscalltype(int scno);
 
 extern int uscno(int scno);
 extern int add_service(struct service *);
-
-#ifdef NEW_SERVICE_LIST
-extern int gas_register_service(struct service *);
-extern int gas_deregister_service(int);
-#endif
 
 #define __NR_doesnotexist -1
 #if defined(__x86_64__)

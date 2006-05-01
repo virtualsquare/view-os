@@ -27,11 +27,12 @@
 #include "services.h"
 
 //typedef struct service *sss;
-typedef char (* serfun)();
-typedef char serfunt();
+typedef service_t (* serfun)();
+typedef service_t serfunt();
 typedef int intfunt();
 typedef int wrapinfun();
 typedef int wrapoutfun();
+typedef int wrapfun();
 /*
 typedef int wrapinfun(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                char sercode, intfun um_syscall);
@@ -54,6 +55,12 @@ struct sc_map {
 	intfun wrapin;
 	/* ...guess... */
 	intfun wrapout;
+	/* the choice function: this function tells the service which have to
+	 * manage the nested system call */
+	serfun nestchoice;
+	/* wrapin function: this function is called for wrapped syscalls.
+	 syscall */
+	intfun nestwrap;
 	/* flags: dependant on the table; contains stuff such that the ALWAYS
 	 * flag, the CB_R flag, etc... (look below) */
 	short flags;

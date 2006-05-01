@@ -25,7 +25,7 @@
 #ifndef CANONICALIZE_H_
 #define CANONICALIZE_H_
 
-char *um_realpath (void *pc, const char *name, char *resolved, struct stat64 *pst,int dontfollowlink);
+char *um_realpath (const char *name, char *resolved, struct stat64 *pst,int dontfollowlink, void *xpc);
 
 #endif
 

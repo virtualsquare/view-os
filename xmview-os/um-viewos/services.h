@@ -24,14 +24,10 @@
  */   
 #ifndef __SERVICES_H
 #define __SERVICES_H
+#include "treepoch.h"
 
 typedef int (*intfun)();
 typedef unsigned char service_t;
-
-/* all the control functions and system call implementations have an optional
- * "void *umph" (user-mode process handle) trailing argument.
- * This argument can be used to retrieve information about the calling process
- */
 
 #define CHECKNOCHECK 0 //to bee or not to bee!! :-D
 #define CHECKPATH 1
@@ -39,6 +35,7 @@ typedef unsigned char service_t;
 #define CHECKFSTYPE 3
 #define CHECKDEVICE 4
 #define CHECKSC 5
+#define CHECKBINMFT 6
 // for IOCTL mgmt
 #define CHECKIOCTLPARMS   0x40000000
 #define IOCTLLENMASK      0x07ffffff
@@ -61,7 +58,7 @@ struct service {
 	void *dlhandle;
 
 	/*addproc is called when a new process is created
-	 * (int id, int max, void *umph)
+	 * (int id, int max)
 	 * max is the current max number of processes: service implementation can use it
 	 * to realloc their internal structures*/
 	intfun addproc;
@@ -73,20 +70,20 @@ struct service {
 
 	/* choice function: returns TRUE if this path must be managed by this module
 	 * FALSE otherwise.
+	 * Nesting modules: returns the epoch of best match (0 if non found).
 	 * checkfun functions has the following args:
-	 * 	(int type, void *arg) or
-	 * 	(int type, void *arg, void *umph)
+	 * 	(int type, void *arg) 
 	 * 	type is defined by CHECK... constants above
 	 * if type == CHECKIOCTLPARMS
 	 *  *arg is the ioctl code
 	 *  returns: the length of the field bit_or IOCTL_R/IOCTL_W if the parameter is input/output
 	 */
-	intfun checkfun;
+	epochfun checkfun;
 
 	/* proactive management of select/poll system call. The module provides this function
 	 * to activate a callback when an event occurs.
 	 * it has the followin args:
-	 * (void (* cb)(), void *arg, int fd, int how)    (plus umph if needed)
+	 * (void (* cb)(), void *arg, int fd, int how)   
 	 * cb: the callback function (if NULL, it means that a previous registration for callback
 	 *     must be deleted).
 	 * arg: argument passed to the callback function
@@ -95,12 +92,10 @@ struct service {
 	 */
 	intfun select_register;
 
-	/* the syscall table, the arguments are the same of the "real world" syscalls,
-	 * plus umph if needed*/
+	/* the syscall table, the arguments are the same of the "real world" syscalls,*/
 	intfun *um_syscall;
 
-	/* the socket call table, the arguments are the same of the "real world" syscalls,
-	 * plus umph if needed*/
+	/* the socket call table, the arguments are the same of the "real world" syscalls,*/
 	intfun *socket;
 };
 
@@ -116,10 +111,10 @@ void lock_services();
 void invisible_services();
 void service_addproc(service_t code,int id,int max, void *arg);
 void service_delproc(service_t code,int id, void *arg);
-service_t service_check(int type,void *arg,void *umph);
+service_t service_check(int type,void *arg);
 intfun service_syscall(service_t code, int scno);
 intfun service_socketcall(service_t code, int scno);
-intfun service_checkfun(service_t code);
+epochfun service_checkfun(service_t code);
 intfun service_select_register(service_t code);
 void _service_init(intfun register_service,intfun deregister_service);
 

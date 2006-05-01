@@ -289,13 +289,13 @@ static void getfdset(long addr,struct pcb* pc, int max, fd_set *lfds)
 {
 	FD_ZERO(lfds);
 	if (addr != umNULL)
-		CALL_UMOVEN(pc,addr,(__FDELT(max)+1)*sizeof(__fd_mask),lfds);
+		umoven(pc->pid,addr,(__FDELT(max)+1)*sizeof(__fd_mask),lfds);
 }
 
 static void putfdset(long addr, struct pcb* pc, int max, fd_set *lfds)
 {
 	if (addr != umNULL)
-		CALL_USTOREN(pc,addr,(__FDELT(max)+1)*sizeof(__fd_mask),lfds);
+		ustoren(pc->pid,addr,(__FDELT(max)+1)*sizeof(__fd_mask),lfds);
 }
 
 int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
@@ -330,7 +330,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 
 	/* Copies the timeout parameter too */
 	if (ptimeout != umNULL) {
-		CALL_UMOVEN(pc,ptimeout,sizeof(struct timeval),&ltimeout);
+		umoven(pc->pid,ptimeout,sizeof(struct timeval),&ltimeout);
 		lptimeout=&ltimeout;
 		//printf("ltimeout=%d %d\n",ltimeout.tv_sec,ltimeout.tv_usec);
 	} else
@@ -603,7 +603,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	//printf("POLL %x %d %d\n",pufds,nfds,timeout);
 	ufds=alloca(nfds*sizeof(struct pollfd));
 	origevents=alloca(nfds*sizeof(int));
-	CALL_UMOVEN(pc,pufds,nfds*sizeof(struct pollfd),ufds);
+	umoven(pc->pid,pufds,nfds*sizeof(struct pollfd),ufds);
 	for (i=0;i<3;i++)
 		FD_ZERO(&wrfds[i]);
 
@@ -679,7 +679,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		return STD_BEHAVIOR;
 	} else {
 		/*printf("POLL! add waitset for global select\n");*/
-		CALL_USTOREN(pc,pufds,nfds*sizeof(struct pollfd),ufds);
+		ustoren(pc->pid,pufds,nfds*sizeof(struct pollfd),ufds);
 		sd->wakemeup=WAKEONRFD;
 		sd->sop.origevents=(int *)malloc(nfds*sizeof(int));
 		memcpy(sd->sop.origevents,origevents,nfds*sizeof(int));
@@ -726,7 +726,7 @@ int wrap_out_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	pc->retval=getrv(pc);
 	if (pc->retval >= 0 && sd != NULL) {
 		ufds=alloca(nfds*sizeof(struct pollfd));
-		CALL_UMOVEN(pc,pufds,nfds*sizeof(struct pollfd),ufds);
+		umoven(pc->pid,pufds,nfds*sizeof(struct pollfd),ufds);
 		/*int i;
 		  printf("pollfdoutin ");
 		  for (i=0;i<nfds;i++) {
@@ -792,7 +792,7 @@ int wrap_out_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		  printf("%d %d %d -",ufds[i].fd,ufds[i].events,ufds[i].revents);
 		  }
 		  printf("\n"); */
-		CALL_USTOREN(pc,pufds,nfds*sizeof(struct pollfd),ufds);
+		ustoren(pc->pid,pufds,nfds*sizeof(struct pollfd),ufds);
 		putrv(pc->retval,pc);
 	}
 	if (sd != NULL) {

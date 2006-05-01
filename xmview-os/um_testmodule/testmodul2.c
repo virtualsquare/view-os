@@ -27,7 +27,7 @@
 
 struct service s;
 
-static int alwaysfalse()
+static epoch_t alwaysfalse()
 {
 	return 0;
 }

@@ -45,7 +45,7 @@
 
 static struct service s;
 
-static int ioctlparms(struct ioctl_len_req *arg,void *umph)
+static int ioctlparms(struct ioctl_len_req *arg)
 {
 	switch (arg->req) {
 		case FIONREAD:
@@ -85,17 +85,17 @@ static int ioctlparms(struct ioctl_len_req *arg,void *umph)
 }
 
 
-static int choiceissocket(int type,void *arg,void *umph)
+static epoch_t choiceissocket(int type,void *arg)
 {
 	if (type==CHECKSOCKET)
 		return 1;
 	else if (type == CHECKIOCTLPARMS) 
-		return ioctlparms(arg,umph);
+		return ioctlparms(arg);
 	else
 		return 0;
 }
 
-static int sockioctl(int d, int request, void *arg, void *umph)
+static int sockioctl(int d, int request, void *arg)
 {
 	if (request == SIOCGIFCONF) {
 		int rv;
@@ -104,10 +104,10 @@ static int sockioctl(int d, int request, void *arg, void *umph)
 		save=ifc->ifc_buf;
 		ioctl(d,request,arg);
 		ifc->ifc_buf=malloc(ifc->ifc_len);
-		um_mod_umoven(umph,(long) save,ifc->ifc_len,ifc->ifc_buf);
+		um_mod_umoven((long) save,ifc->ifc_len,ifc->ifc_buf);
 		rv=ioctl(d,request,arg);
 		if (rv>=0)
-			um_mod_ustoren(umph,(long) save,ifc->ifc_len,ifc->ifc_buf);
+			um_mod_ustoren((long) save,ifc->ifc_len,ifc->ifc_buf);
 		free(ifc->ifc_buf);
 		ifc->ifc_buf=save;
 		return rv;

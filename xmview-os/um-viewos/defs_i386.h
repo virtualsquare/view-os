@@ -91,21 +91,3 @@
 extern short _i386_sc_remap[];
 #define cdtab(X) (((X) < BASEUSC) ? scdtab[(X)] : scdtab[_i386_sc_remap[(X)-BASEUSC]])
 #define setcdtab(X,Y) (((X) < BASEUSC) ? (scdtab[(X)] = (Y)) : (scdtab[_i386_sc_remap[(X)-BASEUSC]] = (Y)))
-
-#ifdef PIVOTING_ENABLED
-/**
- * %0 = num syscall
- * %1..%6 = up to 6 arguments of syscall (doesn't matter about unused ones)
- */
-#define ASM_SYSCALL \
-	"mov  %0,    %%eax\n\t" \
-	"mov  %1,    %%ebx\n\t" \
-	"mov  %2,    %%ecx\n\t" \
-	"mov  %3,    %%edx\n\t" \
-	"mov  %4,    %%esi\n\t" \
-	"mov  %5,    %%edi\n\t" \
-	"mov  %6,    %%ebp\n\t" \
-	"int  $0x80\n\t"
-#endif
-
-#endif // _DEFS_I386

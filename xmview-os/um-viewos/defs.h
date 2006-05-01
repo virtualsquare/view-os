@@ -33,8 +33,12 @@
 /* Real SysCalls ! r_ prefixed calls do not enter the nidification
  * process and go straight to the kernel */
 #include<sys/syscall.h>
+#define r_open(p,f,m) (syscall(__NR_open,(p),(f),(m)))
 #define r_read(f,b,c) (syscall(__NR_read,(f),(b),(c)))
 #define r_write(f,b,c) (syscall(__NR_write,(f),(b),(c)))
+#define r_close(f) (syscall(__NR_close,(f)))
+#define r_unlink(p) (syscall(__NR_unlink,(p)))
+#define r_dup(f) (syscall(__NR_dup,(f)))
 #ifdef __NR__newselect
 #define r_select(n,r,w,e,t) (syscall(__NR__newselect,(n),(r),(w),(e),(t)))
 #else
@@ -55,6 +59,7 @@
 #define r_getcwd(p,l) (syscall(__NR_getcwd,(p),(l)))
 #define r_mkdir(d,m) (syscall(__NR_mkdir,(d),(m)))
 #define r_rmdir(d) (syscall(__NR_rmdir,(d)))
+extern int fprint2(const char *fmt, ...);
 
 extern unsigned int has_ptrace_multi;
 extern unsigned int ptrace_vm_mask;
@@ -103,18 +108,6 @@ typedef void pivoting_callback(int scno, enum phase p, struct pcb *pc,
 // struct containing operation for pcb management
 typedef int (*pcbfun)();
 
-struct pcb_op {
-	pcbfun umoven; 
-	pcbfun umovestr;
-	pcbfun ustoren;
-	pcbfun ustorestr;
-};
-
-#define CALL_UMOVEN(PC,...)  ( (PC)->pop->umoven((PC)->pid,__VA_ARGS__) )
-#define CALL_UMOVESTR(PC,...)  ( (PC)->pop->umovestr((PC)->pid,__VA_ARGS__) )
-#define CALL_USTOREN(PC,...)  ( (PC)->pop->ustoren((PC)->pid,__VA_ARGS__) )
-#define CALL_USTORESTR(PC,...)  ( (PC)->pop->ustorestr((PC)->pid,__VA_ARGS__) )
-
 /* Process Control Block */
 struct pcb {
 	short flags;
@@ -133,38 +126,19 @@ struct pcb {
 	// if regs aren't modified (because of a real syscall...), we can 
 	// avoid calling PTRACE_SETREGS
 	char regs_modified;
-#ifdef PIVOTING_ENABLED
-	/* address of the first instruction executed by the process (needed to
-	 * know where to start for injecting code) - it's an address in the
-	 * ptraced process address space, not ours! */
-	void *first_instruction_address;
-	/* saved code: when we inject some syscall code, we save the
-	 * overwritten code in here */
-	size_t saved_code_length;
-	char *saved_code;
-	/* the pivoting counter: give a look at pivoting_inject */
-	int counter;
-	/* the callback function */
-	pivoting_callback *piv_callback;
-	/* saved registers before pivoting - if you want register modification
-	 * to propagate after pivoting, save them here */
-	long saved_regs_pivoting[FRAME_SIZE];
-#endif
 	void *data;
-
-	struct pcb_op* pop; // pointer to pcb operations.
 };
 
 typedef void (*voidfun)();
 void forallpcbdo(voidfun f,void *arg);
-int capture_main(char **argv);
 
 #define NOSC -1
-#define PCB_INUSE 0x1
-#define PCB_BPTSET 0x2
-#ifdef PIVOTING_ENABLED
-#define PCB_INPIVOTING 0x100
-#endif
+#define PCB_INUSE 0x1 /* INUSE=0: unused element ready for allocation. 
+												 never = 0 for running processes pcb,
+												 INUSE=0 is a flag for pcb managed outside capture_sc (capture_nested) */
+#define PCB_ALLOCATED 0x2
+											/* Dynamically allocated pcb, to be freed.
+											 * never used inside capture_sc */
 #define PCB_FAKEWAITSTOP 0x4000
 #define PCB_FAKESTOP 0x8000
 

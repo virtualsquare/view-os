@@ -56,14 +56,14 @@ int wrap_in_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	int protocol=pcdata->sockregs[2];
 
 	//printf("fake socket %d %d %d\n",domain,type,protocol);
-	pc->retval = um_syscall(domain,type,protocol,pc);
+	pc->retval = um_syscall(domain,type,protocol);
 	pc->erno = errno;
 	//printf("socket exit %d %d\n",pc->retval,pc->erno);
-	if (pc->retval >= 0 && (pc->retval=lfd_open(sercode,pc->retval,NULL)) >= 0) {
+	if (pc->retval >= 0 && (pc->retval=lfd_open(sercode,pc->retval,NULL,0)) >= 0) {
 		char *filename=lfd_getfilename(pc->retval);
 		int filenamelen=WORDALIGN(strlen(filename));
 		long sp=getsp(pc);
-		CALL_USTORESTR(pc,sp-filenamelen,filenamelen,filename); /*socket?*/
+		ustorestr(pc->pid,sp-filenamelen,filenamelen,filename); /*socket?*/
 		putscno(__NR_open,pc);
 		putargn(0,sp-filenamelen,pc);
 		putargn(1,O_RDONLY,pc);
@@ -85,22 +85,22 @@ int wrap_in_accept(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		long sock_plen=pcdata->sockregs[2];
 		int sock_len;
 		if (sock_plen != umNULL)
-			CALL_UMOVEN(pc,sock_plen,4,&sock_len);
+			umoven(pc->pid,sock_plen,4,&sock_len);
 		char *sock=(char *)alloca(sock_len);
-		CALL_UMOVEN(pc,sock_addr,sock_len,sock);
-		pc->retval = um_syscall(sfd,sock,&sock_len,pc);
+		umoven(pc->pid,sock_addr,sock_len,sock);
+		pc->retval = um_syscall(sfd,sock,&sock_len);
 		pc->erno=errno;
 		if (pc->erno == 0) {
 			if (sock_addr != umNULL)
-				CALL_USTOREN(pc,sock_addr,sock_len,sock);
+				ustoren(pc->pid,sock_addr,sock_len,sock);
 			if (sock_plen != umNULL)
-				CALL_UMOVEN(pc,sock_plen,4,&sock_len);
+				umoven(pc->pid,sock_plen,4,&sock_len);
 		}
-		if (pc->retval >= 0 && (pc->retval=lfd_open(sercode,pc->retval,NULL)) >= 0) {
+		if (pc->retval >= 0 && (pc->retval=lfd_open(sercode,pc->retval,NULL,0)) >= 0) {
 			char *filename=lfd_getfilename(pc->retval);
 			int filenamelen=WORDALIGN(strlen(filename));
 			int sp=getsp(pc);
-			CALL_UMOVESTR(pc,sp-filenamelen,filenamelen,filename); /*socket?*/
+			umovestr(pc->pid,sp-filenamelen,filenamelen,filename); /*socket?*/
 			putscno(__NR_open,pc);
 			putargn(0,sp-filenamelen,pc);
 			putargn(1,O_RDONLY,pc);
@@ -126,7 +126,7 @@ int wrap_out_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) {
 		} else {
 			putrv(pc->retval,pc);
 			puterrno(pc->erno,pc);
-			lfd_close(pc->retval,pc);
+			lfd_close(pc->retval);
 		}
 	} else {
 		putrv(pc->retval,pc);
@@ -146,8 +146,8 @@ int wrap_in_bind_connect(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		long sock_addr=pcdata->sockregs[1];
 		long sock_len=pcdata->sockregs[2];
 		char *sock=(char *)alloca(sock_len);
-		CALL_UMOVEN(pc,sock_addr,sock_len,sock);
-		pc->retval = um_syscall(sfd,sock,sock_len,pc);
+		umoven(pc->pid,sock_addr,sock_len,sock);
+		pc->retval = um_syscall(sfd,sock,sock_len);
 		pc->erno=errno;
 	}
 	return SC_FAKE;
@@ -162,7 +162,7 @@ int wrap_in_listen(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->erno= EBADF;
 	} else {
 		int backlog=pcdata->sockregs[1];
-		pc->retval=um_syscall(sfd,backlog,pc);
+		pc->retval=um_syscall(sfd,backlog);
 		pc->erno=errno;
 	}
 	return SC_FAKE;
@@ -180,16 +180,16 @@ int wrap_in_getsock(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		long sock_plen=pcdata->sockregs[2];
 		int sock_len;
 		if (sock_plen != umNULL)
-			CALL_UMOVEN(pc,sock_plen,4,&sock_len);
+			umoven(pc->pid,sock_plen,4,&sock_len);
 		char *sock=(char *)alloca(sock_len);
-		CALL_UMOVEN(pc,sock_addr,sock_len,sock);
-		pc->retval = um_syscall(sfd,sock,&sock_len,pc);
+		umoven(pc->pid,sock_addr,sock_len,sock);
+		pc->retval = um_syscall(sfd,sock,&sock_len);
 		pc->erno=errno;
 		if (pc->erno == 0) {
 			if (sock_addr != umNULL)
-				CALL_USTOREN(pc,sock_addr,sock_len,sock);
+				ustoren(pc->pid,sock_addr,sock_len,sock);
 			if (sock_plen != umNULL)
-				CALL_UMOVEN(pc,sock_plen,4,&sock_len);
+				umoven(pc->pid,sock_plen,4,&sock_len);
 		}
 	}
 	return SC_FAKE;
@@ -207,8 +207,8 @@ int wrap_in_send(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		int len=pcdata->sockregs[2];
 		int flags=pcdata->sockregs[3];
 		char *lbuf=(char *)alloca(len); 
-		CALL_UMOVEN(pc,buf,len,lbuf);
-		pc->retval=um_syscall(sfd,lbuf,len,flags,pc);
+		umoven(pc->pid,buf,len,lbuf);
+		pc->retval=um_syscall(sfd,lbuf,len,flags);
 		pc->erno=errno;
 	}
 	return SC_FAKE;
@@ -226,10 +226,10 @@ int wrap_in_recv(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		int len=pcdata->sockregs[2];
 		int flags=pcdata->sockregs[3];
 		char *lbuf=(char *)alloca(len);
-		pc->retval=um_syscall(sfd,lbuf,len,flags,pc);
+		pc->retval=um_syscall(sfd,lbuf,len,flags);
 		pc->erno=errno;
 		if (pc->retval > 0)
-			CALL_USTOREN(pc,buf,pc->retval,lbuf);
+			ustoren(pc->pid,buf,pc->retval,lbuf);
 	}
 	return SC_FAKE;
 }
@@ -249,12 +249,12 @@ int wrap_in_sendto(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		int tolen=pcdata->sockregs[5];
 		char *lbuf=(char *)alloca(len); 
 		char *tosock=NULL;
-		CALL_UMOVEN(pc,buf,len,lbuf);
+		umoven(pc->pid,buf,len,lbuf);
 		if (pto != umNULL) {
 			tosock=alloca(tolen);
-			CALL_UMOVEN(pc,pto,tolen,tosock);
+			umoven(pc->pid,pto,tolen,tosock);
 		}
-		pc->retval=um_syscall(sfd,lbuf,len,flags,tosock,tolen,pc);
+		pc->retval=um_syscall(sfd,lbuf,len,flags,tosock,tolen);
 		pc->erno=errno;
 	}
 	return SC_FAKE;
@@ -277,20 +277,20 @@ int wrap_in_recvfrom(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		char *lbuf=(char *)alloca(len);
 		char *fromsock=NULL;
 		if (pfromlen != umNULL) {
-			CALL_UMOVEN(pc,pfromlen,4,(char *)&fromlen);
+			umoven(pc->pid,pfromlen,4,(char *)&fromlen);
 			if (pfrom != umNULL && fromlen != 0) {
 				fromsock=alloca(fromlen);
-				CALL_UMOVEN(pc,pfrom,fromlen,fromsock);
+				umoven(pc->pid,pfrom,fromlen,fromsock);
 			}
 		}
-		pc->retval=um_syscall(sfd,lbuf,len,flags,fromsock,&fromlen,pc);
+		pc->retval=um_syscall(sfd,lbuf,len,flags,fromsock,&fromlen);
 		pc->erno=errno;
 		if (pc->retval > 0) {
-			CALL_USTOREN(pc,buf,pc->retval,lbuf);
+			ustoren(pc->pid,buf,pc->retval,lbuf);
 			if (pfrom != umNULL)
-				CALL_USTOREN(pc,pfrom,fromlen,fromsock);
+				ustoren(pc->pid,pfrom,fromlen,fromsock);
 			if (pfromlen != umNULL)
-				CALL_USTOREN(pc,pfromlen,4,&fromlen);
+				ustoren(pc->pid,pfromlen,4,&fromlen);
 		}
 	}
 	return SC_FAKE;
@@ -305,7 +305,7 @@ int wrap_in_shutdown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->erno= EBADF;
 	} else {
 		int how=pcdata->sockregs[1];
-		pc->retval=um_syscall(sfd,how,pc);
+		pc->retval=um_syscall(sfd,how);
 		pc->erno=errno;
 	}
 	return SC_FAKE;
@@ -326,18 +326,18 @@ int wrap_in_getsockopt(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		int optlen;
 		void *optval;
 		if (poptlen != umNULL) {
-			CALL_UMOVEN(pc,poptlen,4,(char *)&optlen);
+			umoven(pc->pid,poptlen,4,(char *)&optlen);
 			optval=(optlen > 0)?alloca(optlen):NULL;
 		} else {
 			optlen=0;
 			optval=NULL;
 		}
-		pc->retval=um_syscall(sfd,level,optname,optval,&optlen,pc);
+		pc->retval=um_syscall(sfd,level,optname,optval,&optlen);
 		pc->erno=errno;
 		if (poptlen != umNULL)
-			CALL_USTOREN(pc,poptlen,4,&optlen);
+			ustoren(pc->pid,poptlen,4,&optlen);
 		if (poptval != umNULL)
-			CALL_USTOREN(pc,poptval,optlen,optval);
+			ustoren(pc->pid,poptval,optlen,optval);
 	}
 	return SC_FAKE;
 }
@@ -358,10 +358,10 @@ int wrap_in_setsockopt(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		//printf("setsockopt fd %d level %d optname %d poptval %x optlen %d\n",pc->arg2,level,optname,poptval,optlen);
 		if (optlen > 0 && poptval != umNULL) { 
 			optval=alloca(optlen);
-			CALL_UMOVEN(pc,poptval,optlen,optval);
+			umoven(pc->pid,poptval,optlen,optval);
 		} else
 			optval=NULL;
-		pc->retval=um_syscall(sfd,level,optname,optval,optlen,pc);
+		pc->retval=um_syscall(sfd,level,optname,optval,optlen);
 		pc->erno=errno;
 		/*if (optval != NULL)
 			ustoren(pc->pid,poptval,optlen,optval);*/
@@ -383,22 +383,22 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		struct msghdr lmsg;
 		struct iovec liovec;
 		struct iovec *iovec;
-		CALL_UMOVEN(pc,pmsg,sizeof(struct msghdr),&msg);
+		umoven(pc->pid,pmsg,sizeof(struct msghdr),&msg);
 		lmsg=msg;
 		if (msg.msg_namelen > 0 && msg.msg_name != NULL) {
 			lmsg.msg_name=alloca(msg.msg_namelen);
-			CALL_UMOVEN(pc,(long)msg.msg_name,msg.msg_namelen,lmsg.msg_name);
+			umoven(pc->pid,(long)msg.msg_name,msg.msg_namelen,lmsg.msg_name);
 		}
 		if (msg.msg_iovlen > 0 && msg.msg_iov != NULL) {
 			iovec=alloca(msg.msg_iovlen * sizeof(struct iovec));
-			CALL_UMOVEN(pc,(long)msg.msg_iov,msg.msg_iovlen * sizeof(struct iovec),iovec);
+			umoven(pc->pid,(long)msg.msg_iov,msg.msg_iovlen * sizeof(struct iovec),iovec);
 		} else {
 			iovec=NULL;
 			msg.msg_iovlen = 0;
 		}
 		if (msg.msg_controllen > 0 && msg.msg_control != NULL) {
 			lmsg.msg_control=alloca(msg.msg_controllen);
-			CALL_UMOVEN(pc,(long)msg.msg_control,msg.msg_controllen,lmsg.msg_control);
+			umoven(pc->pid,(long)msg.msg_control,msg.msg_controllen,lmsg.msg_control);
 		}
 		{
 			unsigned int i,totalsize,size;
@@ -412,28 +412,28 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			liovec.iov_len=totalsize;
 			lmsg.msg_iov=&liovec;
 			lmsg.msg_iovlen=1;
-			size=pc->retval = um_syscall(sfd,&lmsg,flags,pc);
+			size=pc->retval = um_syscall(sfd,&lmsg,flags);
 			//printf("%d size->%d\n",sfd,size);
 
 			pc->erno=errno;
 			if (size > 0) {
 				for (i=0;i<msg.msg_iovlen && size>0;i++) {
 					int qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
-					CALL_USTOREN(pc,(long)iovec[i].iov_base,qty,lbuf);
+					ustoren(pc->pid,(long)iovec[i].iov_base,qty,lbuf);
 					lbuf += qty;
 					size -= qty;
 				}
 			}
 			if (msg.msg_namelen > 0 && msg.msg_name != NULL) {
 				msg.msg_namelen=lmsg.msg_namelen;
-				CALL_USTOREN(pc,(long)msg.msg_name,msg.msg_namelen,lmsg.msg_name);
+				ustoren(pc->pid,(long)msg.msg_name,msg.msg_namelen,lmsg.msg_name);
 			}
 			if (msg.msg_controllen > 0 && msg.msg_control != NULL) {
 				msg.msg_controllen=lmsg.msg_controllen;
-				CALL_USTOREN(pc,(long)msg.msg_control,msg.msg_controllen,lmsg.msg_control);
+				ustoren(pc->pid,(long)msg.msg_control,msg.msg_controllen,lmsg.msg_control);
 			}
 			msg.msg_flags=lmsg.msg_flags;
-			CALL_USTOREN(pc,pmsg,sizeof(struct msghdr),&msg);
+			ustoren(pc->pid,pmsg,sizeof(struct msghdr),&msg);
 		}
 	}
 	return SC_FAKE;
@@ -451,24 +451,24 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		int flags=pcdata->sockregs[2];
 		struct msghdr msg;
 		struct msghdr lmsg;
-		CALL_UMOVEN(pc,pmsg,sizeof(struct msghdr),&msg);
+		umoven(pc->pid,pmsg,sizeof(struct msghdr),&msg);
 		lmsg=msg;
 		struct iovec liovec;
 		struct iovec *iovec;
 		if (msg.msg_namelen > 0 && msg.msg_name != NULL) {
 			lmsg.msg_name=alloca(msg.msg_namelen);
-			CALL_UMOVEN(pc,(long)msg.msg_name,msg.msg_namelen,lmsg.msg_name);
+			umoven(pc->pid,(long)msg.msg_name,msg.msg_namelen,lmsg.msg_name);
 		}
 		if (msg.msg_iovlen > 0 && msg.msg_iov != NULL) {
 			iovec=alloca(msg.msg_iovlen * sizeof(struct iovec));
-			CALL_UMOVEN(pc,(long)msg.msg_iov,msg.msg_iovlen * sizeof(struct iovec),iovec);
+			umoven(pc->pid,(long)msg.msg_iov,msg.msg_iovlen * sizeof(struct iovec),iovec);
 		} else {
 			iovec=NULL;
 			msg.msg_iovlen = 0;
 		}
 		if (msg.msg_controllen > 0 && msg.msg_control != NULL) {
 			lmsg.msg_control=alloca(msg.msg_controllen);
-			CALL_UMOVEN(pc,(long)msg.msg_control,msg.msg_controllen,lmsg.msg_control);
+			umoven(pc->pid,(long)msg.msg_control,msg.msg_controllen,lmsg.msg_control);
 		}
 		{
 			unsigned int i,totalsize,size;
@@ -485,10 +485,10 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			//		pc->arg2, msg.msg_namelen, msg.msg_iovlen, msg.msg_controllen, totalsize);
 			for (i=0;i<msg.msg_iovlen;i++) {
 				int qty=iovec[i].iov_len;
-				CALL_UMOVEN(pc,(long)iovec[i].iov_base,qty,p);
+				umoven(pc->pid,(long)iovec[i].iov_base,qty,p);
 				p += qty;
 			}
-			size=pc->retval = um_syscall(sfd,&lmsg,flags,pc);
+			size=pc->retval = um_syscall(sfd,&lmsg,flags);
 			//printf("%d size->%d\n",sfd,size);
 			pc->erno=errno;
 		}

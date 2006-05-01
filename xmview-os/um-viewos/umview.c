@@ -32,6 +32,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <signal.h>
 #include "defs.h"
 #include "umview.h"
@@ -53,7 +54,40 @@ unsigned int ptrace_viewos_mask;
 unsigned int want_ptrace_multi, want_ptrace_vm, want_ptrace_viewos;
 
 extern int nprocs;
-char *preload;
+
+struct prelist {
+	char *module;
+	struct prelist *next;
+};
+static struct prelist *prehead=NULL;
+
+static void preadd(char *module)
+{
+	struct prelist *new=malloc(sizeof(struct prelist));
+	assert(new);
+	new->module=module;
+	new->next=prehead;
+	prehead=new;
+}
+
+static int do_preload(struct prelist *head)
+{
+	if (head != NULL) {
+		void *handle;
+		do_preload(head->next);
+		fprint2("LOAD %s\n",head->module);
+		handle=open_dllib(head->module);
+		if (handle==NULL) {
+			fprintf(stderr, "%s\n",dlerror());
+			return -1;
+		} else {
+			set_handle_new_service(handle,0);
+			return 0;
+		}
+		free(head);
+	} else
+		return 0;
+}
 
 
 static void version(int verbose)
@@ -128,7 +162,6 @@ static void load_it_again(int argc,char *argv[])
 		void *handle;
 		if ((handle=dlopen("libpure_libc.so",RTLD_LAZY))!=NULL) {
 			dlclose(handle);
-			printf("Okay\n");
 			asprintf(&path,"/proc/%d/exe",getpid());
 			setenv("LD_PRELOAD","libpure_libc.so",1);
 			argv[0]="-umview";
@@ -147,6 +180,7 @@ int main(int argc,char *argv[])
 	r_setuid(getuid());
 	if (strcmp(argv[0],"-umview")!=0)
 		load_it_again(argc,argv);
+	optind=0;
 	argv[0]="umview";
 	sigemptyset(&blockchild);
 	sigaddset(&blockchild,SIGCHLD);
@@ -169,12 +203,15 @@ int main(int argc,char *argv[])
 				exit(0);
 				break;
 			case 'p': {
+									preadd(optarg);
+#if 0
 					  void *handle=open_dllib(optarg);
 					  if (handle==NULL) {
 						  fprintf(stderr, "%s\n",dlerror());
 						  exit (-1);
 					  } else 
 						  set_handle_new_service(handle,0);
+#endif
 				  }
 				  break;
 			case 'o':{
@@ -249,6 +286,7 @@ int main(int argc,char *argv[])
 	ptrace_viewos_mask = want_ptrace_viewos;
 	
 	capture_main(argv+optind);
+	do_preload(prehead);
   setenv("_INSIDE_UMVIEW_MODULE","",1);
 
 	/* Creation of the pipe for the signal handler */
