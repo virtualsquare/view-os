@@ -373,11 +373,11 @@ int utimes(const char* pathname,const struct timeval tv[2]){
 	return _pure_syscall(__NR_utimes,pathname,tv);
 }
 
-ssize_t pread(int fs,void* buf, size_t count, off_t offset){
+ssize_t pread(int fs,void* buf, size_t count, __off_t offset){
 	return _pure_syscall(__NR_pread64,fs,buf,count,offset);
 }
 
-ssize_t pwrite(int fs,const void* buf, size_t count, off_t offset){
+ssize_t pwrite(int fs,const void* buf, size_t count, __off_t offset){
 	return _pure_syscall(__NR_pwrite64,fs,buf,count,offset);
 }
 
@@ -389,8 +389,24 @@ int getdents64(int fd, long dirp,unsigned int count){
 	return _pure_syscall(__NR_getdents64,fd,dirp,count);
 }
 
-off_t lseek(int fd,off_t offset,int whence){
+__off_t lseek(int fd,__off_t offset,int whence){
 	return _pure_syscall(__NR_lseek,fd,offset,whence);
+}
+
+__off64_t lseek64(int fd, __off64_t offset, int whence){
+	unsigned long offset_high=offset >> (sizeof(unsigned long) * 8);
+	unsigned long offset_low=offset;
+	__off64_t result;
+	int rv=_pure_syscall(__NR__llseek,fd,offset_high,offset_low,&result,whence);
+	if (rv<0)
+		return rv;
+	else
+		return result;
+}
+
+int _llseek(unsigned int fd, unsigned long  offset_high,  unsigned  long  offset_low,  loff_t
+		       *result, unsigned int whence){
+	return _pure_syscall(__NR__llseek,fd,offset_high,offset_low,result,whence);
 }
 
 int fsync(int fd){
@@ -828,12 +844,6 @@ int setfsuid(uid_t fsuid){
 
 int setfsgid(uid_t fsgid){
 	return _pure_syscall(__NR_setfsgid,fsgid);
-}
-
-int _llseek(unsigned int fd, unsigned long  offset_high,  unsigned  long  offset_low,  loff_t
-		       *result, unsigned int whence){
-	return _pure_syscall(__NR__llseek,fd,offset_high,offset_low,result,whence);
-
 }
 
 int flock(int fd, int operation){

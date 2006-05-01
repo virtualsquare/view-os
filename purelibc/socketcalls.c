@@ -30,7 +30,7 @@
 static long int pure_int_socketcall(long int sysno, ...);
 sfun _pure_socketcall=pure_int_socketcall;
 
-static int sockargc[]={0,3,3,3,2,3,3,3,4,4,4,6,6,2,5,5,3,3};
+static char sockargc[]={0,3,3,3,2,3,3,3,4,4,4,6,6,2,5,5,3,3};
 static long int pure_int_socketcall(long int sysno, ...){
 	va_list ap;
 	register int i;

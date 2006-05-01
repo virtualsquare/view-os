@@ -426,7 +426,7 @@ int printf (const char *format, ...){
 
 /* XXX Not yet implemented */
 int vfscanf(FILE *stream, const char *format, va_list ap) {
-	write(2,"vfscanf unimplemented\n",8);
+	write(2,"vfscanf unimplemented\n",22);
 	return 0;
 }
 
