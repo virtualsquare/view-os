@@ -203,13 +203,15 @@ int lwip_ifdown(struct netif *netif)
 }
 
 
+extern int _nofdfake;
 static void
 init_done(void *arg)
 {
 	sys_sem_t *sem;
 	sem = arg;
 	
-	printf("unixlib: lwip init done\n");
+	if (!_nofdfake) /* no extra messages for umview! */
+		printf("unixlib: lwip init done\n");
 	
 	sys_sem_signal(*sem);
 }
@@ -220,13 +222,13 @@ shutdown_done(void *arg)
 	sys_sem_t *sem;
 	sem = arg;
 	
-	printf("unixlib: lwip shutdown done\n");
+	if (!_nofdfake) /* no extra messages for umview! */
+		printf("unixlib: lwip shutdown done\n");
 	
 	sys_sem_signal(*sem);
 }
 
 
-extern int _nofdfake;
 void _init(void){
 	sys_sem_t sem;
 
