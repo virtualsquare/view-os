@@ -91,3 +91,5 @@
 extern short _i386_sc_remap[];
 #define cdtab(X) (((X) < BASEUSC) ? scdtab[(X)] : scdtab[_i386_sc_remap[(X)-BASEUSC]])
 #define setcdtab(X,Y) (((X) < BASEUSC) ? (scdtab[(X)] = (Y)) : (scdtab[_i386_sc_remap[(X)-BASEUSC]] = (Y)))
+
+#endif
