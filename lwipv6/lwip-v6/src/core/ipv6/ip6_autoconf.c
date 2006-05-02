@@ -18,10 +18,6 @@
  *   with this program; if not, write to the Free Software Foundation, Inc.,
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
-
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "lwip/debug.h"
 #include "lwip/sys.h"
 #include "lwip/netif.h"
@@ -100,6 +96,8 @@ int create_address_from_prefix(struct ip_addr *ip, struct ip_addr *netmask,
 	memcpy(ip, prefix, prefixlen / 8);
 
 	SET_ADDR_MASK((char*)netmask, prefixlen);
+
+	return 1;
 }
 
 
@@ -464,8 +462,8 @@ void start_router_solicitation(struct netif *netif)
 	   transmission for a random amount of time between 0 and
 	   MAX_RTR_SOLICITATION_DELAY */
 	delay = ( ((float)rand_r(&r)) / RAND_MAX ) * netif->autoconf.max_rtr_solicitation_delay  ;
-	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: start initial delay (%d/%d).\n", __func__, delay, 
-		netif->autoconf.max_rtr_solicitation_delay));
+	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: start initial delay (%d/%d).\n", __func__, (unsigned int) delay, 
+		(int) netif->autoconf.max_rtr_solicitation_delay));
 
 	netif->autoconf.rtr_sol_counter = 0;
 

@@ -10,7 +10,6 @@ all:
 	make -C lwip-contrib/ports/unix/proj/lib all
 	make -C lwip-contrib/ports/unix/proj/lib allstatic
 
-# added by Diego Billi
 allstatic:
 	make -C lwip-contrib/ports/unix/proj/lib allstatic
 

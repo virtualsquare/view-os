@@ -131,9 +131,6 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 
 
 			/* Reuse packet and set up echo response */
-#ifdef LWIP_NAT
-			nat_pbuf_reset(p);
-#endif
 
 			ip_addr_set(&tmpdest, piphdr->src);
 			iecho->type = ICMP6_ER;
@@ -190,9 +187,6 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 			}
 
 			/* Reuse packet and create response */
-#ifdef LWIP_NAT
-			nat_pbuf_reset(p);
-#endif
 
 			iphdr = (struct ip_hdr *)((char *)p->payload - IP_HLEN);
 			ina = p->payload;
@@ -321,9 +315,6 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 			}
 
 			/* Set up echo response */
-#ifdef LWIP_NAT
-			nat_pbuf_reset(p);
-#endif
 
 			iecho = p->payload;
 			ip4hdr = (struct ip4_hdr *)((char *)p->payload - piphdr->iphdrlen);
@@ -497,9 +488,6 @@ icmp_time_exceeded(struct pbuf *p, enum icmp_te_type t)
 	struct ip_hdr *iphdr;
 	struct icmp_te_hdr *tehdr;
 	
-	
-	LWIP_DEBUGF(ICMP_DEBUG, ("icmp_time_exceeded\n"));
-	
 	q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_te_hdr) + IP_HLEN + 8, PBUF_RAM);
 	
 	iphdr = p->payload;
@@ -528,8 +516,6 @@ icmp_packet_too_big(struct pbuf *p, u16_t mtu)
 	struct pbuf *q;
 	struct ip_hdr *iphdr;
 	struct icmp_ptb_hdr *ptbhdr;
-	
-	LWIP_DEBUGF(ICMP_DEBUG, ("icmp_packet_too_big\n"));
 	
 	q = pbuf_alloc(PBUF_IP, 8 + IP_HLEN + 8, PBUF_RAM);
 	
@@ -565,8 +551,7 @@ icmp4_dest_unreach(struct pbuf *p, enum icmp_dur_type t, u16_t nextmtu )
 	struct ip4_hdr *iphdr;
 	struct icmp_dur_hdr *idur;
 	struct ip_addr tmpdest;
-	
-	/* ICMP header + IP header + 8 bytes of data */
+
 	q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_dur_hdr) + IP4_HLEN + 8, PBUF_RAM);
 	
 	iphdr = p->payload;
@@ -595,7 +580,6 @@ icmp4_time_exceeded(struct pbuf *p, enum icmp_te_type t)
 	struct icmp_te_hdr *tehdr;
 	struct ip_addr tmpdest;
 	
-	//  q = pbuf_alloc(PBUF_IP, 8 + IP4_HLEN + 8, PBUF_RAM);
 	q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_te_hdr) + IP4_HLEN + 8, PBUF_RAM);
 	
 	iphdr = p->payload;

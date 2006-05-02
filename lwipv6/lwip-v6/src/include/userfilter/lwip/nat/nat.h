@@ -26,24 +26,40 @@
 
 #include "lwip/netif.h"
 #include "lwip/ip.h"
-
 #include "lwip/userfilter.h"
 
+
 /*--------------------------------------------------------------------------*/
-/* Some costatns */
+/* Costants for hook registration. */
 /*--------------------------------------------------------------------------*/
 
-// for functions 
-#define INLINE   __inline__
-#define HIDDEN   static
+#define UF_PRI_NAT_PREROUTING_TRACK			100
+#define UF_PRI_NAT_PREROUTING_DNAT			200
 
-// for structures 
-#define PRAGMA_PACKED  __attribute__ ((__packed__))
+#define UF_PRI_NAT_INPUT_CONFIRM                        100
 
-// Time costants
-#define SECOND   1000  
-#define MINUTE   (SECOND*60)
-#define HOUR     (MINUTE*60)
+#define UF_PRI_NAT_OUTPUT_TRACK                         100
+
+#define UF_PRI_NAT_POSTROUTING_SNAT			100
+#define UF_PRI_NAT_POSTROUTING_CONFIRM                  200
+
+
+/* NAT Hooks
+ *                        +----- APPS -----+
+ *                        |                |
+ *                 INPUT [C]              [T] OUTPUT
+ *                        |                |
+ *                        |                | 
+ *            PREROUTING  |    FORWARD     |  POSTROUTING
+ *   netif -+-->[T][N]-->-+--->--[ ]--->---+->--[N][C]--+-> netif
+ *          |                                           |
+ *          +-------------<--------------<--------------+
+ *
+ *   [T}rak     = New valid connection are tracked for possible NAT
+ *   [N]at      = Rules are checked and NAT is performed
+ *   [C]confirm = timeout is set or refreshed and if packet reach this 
+ *                hook the new connections is confirmed and expire .
+ */
 
 /*--------------------------------------------------------------------------*/
 /* IP packets (pbuf) directions */
@@ -56,24 +72,19 @@ typedef enum {
 	CONN_DIR_MAX
 } conn_dir_t;
 
-#define STR_DIRECTIONNAME(dir) ( \
-	(dir)==CONN_DIR_ORIGINAL ? "ORIGINAL": \
-	(dir)==CONN_DIR_REPLY    ? "REPLY"   : \
-	"***BUG***" )
-
 /*--------------------------------------------------------------------------*/
 /* Connection tuple data */
 /*--------------------------------------------------------------------------*/
 
 struct proto_info {
 	u8_t protonum;
-	// FIX: use a union
-	struct { u16_t port;          } tcp;
-	struct { u16_t port;          } udp;
-	struct { u8_t type, code, id; } icmp4;
-	struct { u8_t type, code, id; } icmp6;
-	// Add other protocols here. 
-	u_int32_t all;
+	union {
+		struct { u16_t port;                } tcp;
+		struct { u16_t port;                } udp;
+		struct { u8_t type, code; u16_t id; } icmp4;
+		struct { u8_t type, code; u16_t id; } icmp6;
+		u_int32_t all;
+	} upi;
 };
 
 struct ip_pair {
@@ -101,13 +112,6 @@ typedef enum {
 	NAT_MASQUERADE,
 } nat_type_t;
 
-#define STR_NATNAME(dir) ( \
-	(dir)==NAT_NONE       ? "(NONE)"     : \
-	(dir)==NAT_SNAT       ? "SNAT"       : \
-	(dir)==NAT_DNAT       ? "DNAT"       : \
-	(dir)==NAT_MASQUERADE ? "MASQUERADE" : \
-	"***BUG***" )
-
 /*--------------------------------------------------------------------------*/
 /* NAT process controll blocks */
 /*--------------------------------------------------------------------------*/
@@ -119,6 +123,8 @@ typedef enum {
 
 
 #include "lwip/nat/nat_track_tcp.h"
+#include "lwip/nat/nat_track_udp.h"
+#include "lwip/nat/nat_track_icmp.h"
 
 enum track_status {
 
@@ -134,18 +140,17 @@ enum track_status {
 	TS_DYING_BIT        = 3,
 	TS_DYING            = (1 << TS_DYING_BIT),
 
+	/* Which kind of NAT has been tryed so far */
 	TS_SNAT_TRY_BIT     = 4,
 	TS_SNAT_TRY         = (1 << TS_SNAT_TRY_BIT),
 	TS_DNAT_TRY_BIT     = 5,
 	TS_DNAT_TRY         = (1 << TS_DNAT_TRY_BIT),
-
 	TS_NAT_TRY_MASK     = (TS_SNAT_TRY | TS_DNAT_TRY),
-
 
 	TS_MASQUERADE_BIT   = 8,
 	TS_MASQUERADE       = (1 << TS_MASQUERADE_BIT ),
-
 };
+
 
 /*
  * NAT Process Control Block
@@ -155,32 +160,54 @@ struct nat_pcb
 	struct nat_pcb  *next; // For the linked list 
 
 	unsigned int id;
-	u32_t refcount;
+	u32_t        refcount;
 
-	struct netif *iface;   // Interface linked with NAT session
-
-	/* Connection's tuples in both directions. If connection is NATed, 
-	   CONN_DIR_REPLY tuple's fieald are modifed. CONN_DIR_REPLY 
-	   tuple is fixed. */
-	struct ip_tuple tuple[CONN_DIR_MAX];
+	/* Tracking data */
 
 	enum track_status status;
 
-	u32_t timeout;
+	/* Connection's tuples in both directions. For NATed connections, 
+	   CONN_DIR_REPLY tuple's fieald are modifed. CONN_DIR_ORIGINAL
+	   tuple is fixed and never changes */
+	struct ip_tuple tuple[CONN_DIR_MAX];
+
+	u32_t timeout;      /* mseconds */
 
 	union track_data  {
-		struct { tcpstate_t state; } tcp;
-		struct { u8_t  isstream; } udp;
-		struct { u32_t count; } icmp4;
-		struct { u32_t count; } icmp6;
 		struct ip_ct_tcp  TCP;
+		struct ip_ct_udp  udp;
+		struct ip_ct_icmp icmp4;
+		struct ip_ct_icmp icmp6;
 	} proto;
 
-	/* NAT DATA */
+	/* NAT info */
+
 	nat_type_t nat_type;   
+
+	struct netif *iface;   // Interface linked with NAT session
 };
 
 extern struct nat_pcb *nat_active_pcbs; // List of all active IPv4 NAT PCBs 
+
+/*--------------------------------------------------------------------------*/
+/* NAT Rules */
+/*--------------------------------------------------------------------------*/
+
+// NAT operations are performed in several points. 
+typedef enum {
+	NAT_PREROUTING,
+	NAT_POSTROUTING
+} nat_table_t;
+
+#include "lwip/nat/nat_rules.h"
+
+/*--------------------------------------------------------------------------*/
+/* Protocol handlers */
+/*--------------------------------------------------------------------------*/
+
+#include "lwip/nat/nat_track_protocol.h"
+
+extern struct track_protocol  default_track;
 
 /*--------------------------------------------------------------------------*/
 /* Pbuf data & functions */
@@ -197,46 +224,51 @@ void nat_pbuf_put(struct pbuf *p);
 void nat_pbuf_reset(struct pbuf *p);
 
 /*--------------------------------------------------------------------------*/
-/* NAT Rules */
-/*--------------------------------------------------------------------------*/
-
-// NAT operations are performed in several points. 
-typedef enum {
-	NAT_PREROUTING,
-	NAT_POSTROUTING
-} nat_table_t;
-
-
-#include "lwip/nat/nat_rules.h"
-
-/*--------------------------------------------------------------------------*/
-/* Protocol handlers */
-/*--------------------------------------------------------------------------*/
-
-#include "lwip/nat/nat_track_protocol.h"
-#include "lwip/nat/nat_track_tcp.h"
-#include "lwip/nat/nat_track_icmp.h"
-
-extern struct track_protocol  tcp_track;
-extern struct track_protocol  udp_track;
-extern struct track_protocol  icmp4_track;
-extern struct track_protocol  icmp6_track;
-extern struct track_protocol  default_track;
-
-/*--------------------------------------------------------------------------*/
 /* NAT functions */
 /*--------------------------------------------------------------------------*/
 
 int nat_init(void);
 
-/* Functions used by NAT modules */
-INLINE void nat_chksum_adjust(u8_t * chksum, u8_t * optr, s16_t olen, u8_t * nptr, s16_t nlen);
-
 int  conn_remove_timer(struct nat_pcb *pcb);
 void conn_refresh_timer(u32_t timeout, struct nat_pcb *pcb);
 void conn_force_timeout(struct nat_pcb *pcb);
 
+struct nat_pcb * conn_find_track(conn_dir_t *direction, struct ip_tuple * tuple );
+
+/* Functions used by NAT modules */
+void nat_chksum_adjust(u8_t * chksum, u8_t * optr, s16_t olen, u8_t * nptr, s16_t nlen);
+
+
+/*--------------------------------------------------------------------------*/
+/* Debug */
+/*--------------------------------------------------------------------------*/
+
+#ifdef LWIP_DEBUG
+
+#define STR_DIRECTIONNAME(dir) ( \
+	(dir)==CONN_DIR_ORIGINAL ? "ORIGINAL": \
+	(dir)==CONN_DIR_REPLY    ? "REPLY"   : \
+	"***BUG***" )
+
+#define STR_NATNAME(dir) ( \
+	(dir)==NAT_NONE       ? "(NONE)"     : \
+	(dir)==NAT_SNAT       ? "SNAT"       : \
+	(dir)==NAT_DNAT       ? "DNAT"       : \
+	(dir)==NAT_MASQUERADE ? "MASQUERADE" : \
+	"***BUG***" )
+
+#endif
+
+
 #endif  /* NAT_H */
 
 #endif  /* LWIP_UNAT */
+
+
+
+
+		//struct { tcpstate_t state; } tcp;
+		//struct { u8_t  isstream; } udp;
+		//struct { u32_t count; } icmp4;
+		//struct { u32_t count; } icmp6;
 

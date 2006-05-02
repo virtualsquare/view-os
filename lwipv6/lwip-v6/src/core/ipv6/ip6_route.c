@@ -29,6 +29,9 @@
 #include "lwip/inet.h"
 #include "lwip/netlink.h"
 
+#ifndef ROUTE_DEBUG
+#define ROUTE_DEBUG  DBG_ON
+#endif
 
 /* added by Diego Billi */
 #if 0
@@ -46,10 +49,70 @@ static void ip_pmtu_free_list(struct pmtu_info  *head);
 #endif
 
 
+
 static struct ip_route_list ip_route_pool[IP_ROUTE_POOL_SIZE];
 static struct ip_route_list *ip_route_freelist;
 /*static struct ip_route_list *ip_route_head;*/
 struct ip_route_list *ip_route_head;
+
+
+
+/*---------------------------------------------------------------------------*/
+
+#ifdef ROUTE_DEBUG
+
+static void sprintf_ip(char *str, struct ip_addr *addr)
+{
+	if (addr != NULL) {
+
+		sprintf(str, "%lx:%lx:%lx:%lx:%lx:%lx:",
+			ntohl(addr->addr[0]) >> 16 & 0xffff,
+			ntohl(addr->addr[0]) & 0xffff,
+			ntohl(addr->addr[1]) >> 16 & 0xffff,
+			ntohl(addr->addr[1]) & 0xffff,
+			ntohl(addr->addr[2]) >> 16 & 0xffff,
+			ntohl(addr->addr[2]) & 0xffff);
+
+		str += strlen(str);
+		
+		if(ip_addr_is_v4comp(addr)) 
+			sprintf(str, "%ld.%ld.%ld.%ld",
+				ntohl(addr->addr[3]) >> 24 & 0xff,
+				ntohl(addr->addr[3]) >> 16 & 0xff,
+				ntohl(addr->addr[3]) >> 8 & 0xff,
+				ntohl(addr->addr[3]) & 0xff);
+		else {
+			sprintf(str, "%lx:%lx",
+				ntohl(addr->addr[3]) >> 16 & 0xffff,
+				ntohl(addr->addr[3]) & 0xffff);
+		}
+	}
+}
+
+
+void ip_route_debug_list(void)
+{
+	char ip_tmp[40];
+	struct ip_route_list *r = ip_route_head;
+
+	if (r != NULL)
+		LWIP_DEBUGF(ROUTE_DEBUG, ("Destination                             Gateway                                 Genmask                                 Iface\n"));
+	while (r != NULL)	{
+		sprintf_ip(ip_tmp, &r->addr);
+		LWIP_DEBUGF(ROUTE_DEBUG, ("%-40s", ip_tmp)); sprintf_ip(ip_tmp, &r->nexthop);
+		LWIP_DEBUGF(ROUTE_DEBUG, ("%-40s", ip_tmp)); sprintf_ip(ip_tmp, &r->netmask);
+		LWIP_DEBUGF(ROUTE_DEBUG, ("%-40s", ip_tmp)); 
+		LWIP_DEBUGF(ROUTE_DEBUG, ("%d (%c%c%d)", r->netif->id, r->netif->name[0],r->netif->name[1],r->netif->num));
+		LWIP_DEBUGF(ROUTE_DEBUG, ("\n"));
+		r = r->next;	
+	}	
+}
+#else
+#define ip_route_debug_list() {}
+#endif
+
+/*---------------------------------------------------------------------------*/
+
 
 void ip_route_list_init(void)
 {
@@ -116,6 +179,9 @@ err_t ip_route_list_add(struct ip_addr *addr, struct ip_addr *netmask, struct ip
 		*dp=el;
 		/*printf("NEW ADDED!\n");
 		ip_route_list_debug();*/
+
+		ip_route_debug_list();
+
 		return ERR_OK;
 	}
 }
@@ -147,6 +213,9 @@ err_t ip_route_list_del(struct ip_addr *addr, struct ip_addr *netmask, struct ip
 
 		el->next=ip_route_freelist;
 		ip_route_freelist=el;
+
+		ip_route_debug_list();
+
 		return ERR_OK;
 	}
 }
@@ -174,6 +243,8 @@ err_t ip_route_list_delnetif(struct netif *netif)
 			} else
 				dp = &((*dp)->next);
 		}
+
+		ip_route_debug_list();
 	}
 	return ERR_OK;
 }

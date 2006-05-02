@@ -19,55 +19,71 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
 
+/* (C) 1999-2001 Paul `Rusty' Russell
+ * (C) 2002-2004 Netfilter Core Team <coreteam@netfilter.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * Jozsef Kadlecsik <kadlec@blackhole.kfki.hu>:
+ *      - Real stateful connection tracking
+ *      - Modified state transitions table
+ *      - Window scaling support added
+ *      - SACK support added
+ *
+ * Willy Tarreau:
+ *      - State table bugfixes
+ *      - More robust state changes
+ *      - Tuning timer parameters
+ *
+ * version 2.2
+ */
+
 #ifdef LWIP_NAT
 
 #include "lwip/debug.h"
-
 #include "lwip/memp.h" /* MEMP_NAT_RULE */
+#include "lwip/sys.h"
 
 #include "lwip/inet.h"
 #include "lwip/ip.h"
-#include "lwip/udp.h"
 #include "lwip/tcp.h"
-#include "lwip/icmp.h"
-#include "lwip/tcpip.h"
 #include "netif/etharp.h"
 
-#include "netif/vdeif.h"
-#include "netif/tunif.h"
-#include "netif/tapif.h"
-
-#include "lwip/sockets.h"
-#include "lwip/if.h"
-#include "lwip/sys.h"
-
+#include "lwip/nat/nat.h"
+#include "lwip/nat/nat_tables.h"
 
 #ifndef NAT_DEBUG
 #define NAT_DEBUG   DBG_OFF
 #endif
 
-
-
-#include "lwip/nat/nat.h"
-#include "lwip/nat/nat_tables.h"
-
-
+/*--------------------------------------------------------------------------*/
 
 int track_tcp_tuple(struct ip_tuple *tuple, void *hdr)
 { 
 	struct tcp_hdr       *tcphdr  = NULL;
 	tcphdr = (struct tcp_hdr *) hdr;
-	tuple->src.proto.tcp.port = tcphdr->src;
-	tuple->dst.proto.tcp.port = tcphdr->dest;
+	tuple->src.proto.upi.tcp.port = tcphdr->src;
+	tuple->dst.proto.upi.tcp.port = tcphdr->dest;
 	return 1;
 }
 
 int track_tcp_inverse(struct ip_tuple *reply, struct ip_tuple *tuple)  
 { 
-	reply->src.proto.tcp.port = tuple->dst.proto.tcp.port;
-	reply->dst.proto.tcp.port = tuple->src.proto.tcp.port;
+	reply->src.proto.upi.tcp.port = tuple->dst.proto.upi.tcp.port;
+	reply->dst.proto.upi.tcp.port = tuple->src.proto.upi.tcp.port;
 	return 1;
 }
+
+/*--------------------------------------------------------------------------*/
+
+int track_tcp_error (uf_verdict_t *verdict, struct pbuf *p)
+{
+	// FIX: check packet len and checksum
+	return 1;
+}
+
 
 int nat_tcp_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inverse, 
 		u8_t *iphdr_new_changed_buf, 
@@ -80,19 +96,19 @@ int nat_tcp_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inv
 	tcphdr = (struct tcp_hdr *) (iphdr+iplen);
 
 	// Adjust tcp checksum
-	if (inverse->ipv == 4)
+	//if (inverse->ipv == 4)
 		nat_chksum_adjust((u8_t *) & tcphdr->chksum, 
 			(u8_t *) iphdr_old_changed_buf, iphdr_changed_buflen, 
 			(u8_t *) iphdr_new_changed_buf, iphdr_changed_buflen);
 	// Set port
 	if (type == NAT_DNAT) {
 		old_value    = tcphdr->dest;
-		tcphdr->dest = inverse->src.proto.tcp.port;
+		tcphdr->dest = inverse->src.proto.upi.tcp.port;
 		nat_chksum_adjust((u8_t *) & tcphdr->chksum, (u8_t *) & old_value, 2, (u8_t *) & tcphdr->dest, 2);
 	}
 	else if (type == NAT_SNAT) {
 		old_value=     tcphdr->src;
-		tcphdr->src  = inverse->dst.proto.tcp.port;
+		tcphdr->src  = inverse->dst.proto.upi.tcp.port;
 		nat_chksum_adjust((u8_t *) & tcphdr->chksum, (u8_t *) & old_value, 2, (u8_t *) & tcphdr->src, 2);
 	}
 
@@ -101,13 +117,30 @@ int nat_tcp_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inv
 
 int nat_tcp_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
 {
+	u32_t port;
+	u32_t min, max;
+
 	if (type == NAT_SNAT) {
-		reply->dst.proto.tcp.port = htons(nat_ports_getnew()); 
+
+		if (nat_manip->flag & MANIP_RANGE_PROTO) {
+			min = nat_manip->protomin.value;
+			max = nat_manip->protomax.value;
+		}
+		else {
+			min = 0;
+			max = 0xFFFF;
+		}
+
+		if (nat_ports_getnew(IP_PROTO_TCP, &port, min, max) > 0) {
+			reply->dst.proto.upi.tcp.port = htons(port); 
+		}
+		else 
+			return -1;
 	} 
 	else if (type == NAT_DNAT) {
-		/* Change destination port only if specified */	
+
 		if (nat_manip->flag & MANIP_RANGE_PROTO) {
-			reply->src.proto.tcp.port = nat_manip->protomin.value;
+			reply->src.proto.upi.tcp.port = nat_manip->protomin.value;
 		}
 	}
 
@@ -118,16 +151,20 @@ int nat_tcp_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_t
 int nat_tcp_free (struct nat_pcb *pcb)
 {
 	if (pcb->nat_type == NAT_SNAT) {
-		nat_ports_free(ntohs(pcb->tuple[CONN_DIR_REPLY].dst.proto.tcp.port));	
+		//nat_ports_free(ntohs(pcb->tuple[CONN_DIR_REPLY].dst.proto.upi.tcp.port));	
+
+		nat_ports_free(IP_PROTO_TCP, ntohs(pcb->tuple[CONN_DIR_REPLY].dst.proto.upi.tcp.port));
+
 	} 
 
 	return 1;
 }
 
 
-/*
- *  Code from GNU/Linux Netfilter/IPtables code.
- */
+
+/*--------------------------------------------------------------------------*/
+/*  Code from GNU/Linux Netfilter/IPtables code. */
+/*--------------------------------------------------------------------------*/
 
 #define NF_ACCEPT    UF_ACCEPT
 #define NF_DROP      UF_DROP
@@ -510,7 +547,6 @@ static inline u32_t segment_seq_plus_len(u32_t seq,
 /*
  * Simplified tcp_parse_options routine from tcp_input.c
  */
-//static void tcp_options(const struct sk_buff *skb,
 static void tcp_options(const struct pbuf *skb,
 			void *iph,
 			struct tcp_hdr *tcph, 
@@ -528,11 +564,9 @@ static void tcp_options(const struct pbuf *skb,
 	if (IPH_V(ip6hdr) == 6)      iplen = IP_HLEN;
 	else if (IPH_V(ip6hdr) == 4) iplen = IPH4_HL(ip4hdr) * 4;
 
-
-	///LWIP_DEBUGF(NAT_DEBUG, ("%s: length=%d.\n", __func__, length));		
+	//LWIP_DEBUGF(NAT_DEBUG, ("%s: length=%d.\n", __func__, length));		
 	
 	if (!length) {
-		///LWIP_DEBUGF(NAT_DEBUG, ("%s: 2\n", __func__));		
 		return;
 	}
 
@@ -546,31 +580,24 @@ static void tcp_options(const struct pbuf *skb,
 		
 		switch (opcode) {
 		case TCPOPT_EOL: 
-			///LWIP_DEBUGF(NAT_DEBUG, ("\tEOL\n"));		
 			return;
 		case TCPOPT_NOP:	// Ref: RFC 793 section 3.1 
-			///LWIP_DEBUGF(NAT_DEBUG, ("\tNOP\n"));		
 			length--;
 			continue;
 		default:
 			opsize=*ptr++;
 			if (opsize < 2) { // "silly options" 
-				///LWIP_DEBUGF(NAT_DEBUG, ("\tSILLY\n"));		
 				return;
 			}
 
 			if (opsize > length) {
-				///LWIP_DEBUGF(NAT_DEBUG, ("\tPARTIAL\n"));		
 				break;	// don't parse partial options 
 			}
 
 			if (opcode == TCPOPT_SACK_PERM && opsize == TCPOLEN_SACK_PERM) {
-				///LWIP_DEBUGF(NAT_DEBUG, ("\tSACK\n"));		
 				state->flags |= IP_CT_TCP_FLAG_SACK_PERM;
 			} else if (opcode == TCPOPT_WINDOW && opsize == TCPOLEN_WINDOW) {
-				///LWIP_DEBUGF(NAT_DEBUG, ("\tWINDOW\n"));		
 				state->td_scale = *(u8_t *)ptr;
-				
 				if (state->td_scale > 14) {
 					// See RFC1323 
 					state->td_scale = 14;
@@ -600,14 +627,11 @@ static void tcp_sack(const struct pbuf *skb,
 	if (IPH_V(ip6hdr) == 6)      iplen = IP_HLEN;
 	else if (IPH_V(ip6hdr) == 4) iplen = IPH4_HL(ip4hdr) * 4;
 
-	///LWIP_DEBUGF(NAT_DEBUG, ("%s: length=%d. %d %d\n", __func__, length, ( TCPH_HDRLEN(tcph)*4), sizeof(struct tcp_hdr)));		
+	//LWIP_DEBUGF(NAT_DEBUG, ("%s: length=%d. %d %d\n", __func__, length, ( TCPH_HDRLEN(tcph)*4), sizeof(struct tcp_hdr)));		
 
 	if (!length) {
-		///LWIP_DEBUGF(NAT_DEBUG, ("%s: r\n", __func__));		
 		return;
 	}
-
-	///LWIP_DEBUGF(NAT_DEBUG, ("%s: 1\n", __func__));		
 
 	ptr = (unsigned char *) skb_header_pointer(skb,	 iplen + sizeof(struct tcp_hdr), length, buff);
 	//BUG_ON(ptr == NULL);
@@ -619,8 +643,9 @@ static void tcp_sack(const struct pbuf *skb,
 	        	ntohl((TCPOPT_NOP << 24) 
 	        		 | (TCPOPT_NOP << 16)
 	        		 | (TCPOPT_TIMESTAMP << 8)
-	        		 | TCPOLEN_TIMESTAMP))
+	        		 | TCPOLEN_TIMESTAMP)) {
 		return;
+	}
 	
 	while (length > 0) {
 		int opcode=*ptr++;
@@ -634,10 +659,12 @@ static void tcp_sack(const struct pbuf *skb,
 			continue;
 		default:
 			opsize=*ptr++;
-			if (opsize < 2) // "silly options" 
+			if (opsize < 2) { // "silly options"  
 				return;
-			if (opsize > length)
+			}
+			if (opsize > length) {
 				break;	// don't parse partial options 
+			}
 
 			if (opcode == TCPOPT_SACK && 
 			    opsize >= (TCPOLEN_SACK_BASE + TCPOLEN_SACK_PERBLOCK) && 
@@ -672,7 +699,8 @@ static int tcp_in_window(struct ip_ct_tcp *state,
 	struct ip_ct_tcp_state *receiver = &state->seen[!dir];
 	u32_t seq, ack, sack, end, win, swin;
 	int res;
-	
+
+
 	/*
 	 * Get the required data from the packet.
 	 */
@@ -681,19 +709,15 @@ static int tcp_in_window(struct ip_ct_tcp *state,
 	win = ntohs(tcph->wnd); /* ntohs(tcph->window); */
 	end = segment_seq_plus_len(seq, skb->tot_len, iph, tcph);
 
-	///LWIP_DEBUGF(NAT_DEBUG, ("%s: 1\n", __func__));		
 	
 	if (receiver->flags & IP_CT_TCP_FLAG_SACK_PERM)
 		tcp_sack(skb, iph, tcph, &sack);
 
-	///LWIP_DEBUGF(NAT_DEBUG, ("%s: 2\n", __func__));		
 	if (sender->td_end == 0) {
-		///LWIP_DEBUGF(NAT_DEBUG, ("%s: 2a\n", __func__));		
 		/*
 		 * Initialize sender data.
 		 */
 		if ((TCPH_FLAGS(tcph) & TCP_SYN) && (TCPH_FLAGS(tcph) & TCP_ACK)) {
-			///LWIP_DEBUGF(NAT_DEBUG, ("%s: 2b\n", __func__));		
 			/*
 			 * Outgoing SYN-ACK in reply to a SYN.
 			 */
@@ -711,7 +735,6 @@ static int tcp_in_window(struct ip_ct_tcp *state,
 				sender->td_scale = 
 				receiver->td_scale = 0;
 		} else {
-			///LWIP_DEBUGF(NAT_DEBUG, ("%s: 2c\n", __func__));		
 			/*
 			 * We are in the middle of a connection,
 			 * its history is lost for us.
@@ -736,7 +759,7 @@ static int tcp_in_window(struct ip_ct_tcp *state,
 		sender->td_end =
 		sender->td_maxend = end;
 		sender->td_maxwin = (win == 0 ? 1 : win);
-		///LWIP_DEBUGF(NAT_DEBUG, ("%s: 2d\n", __func__));		
+
 		tcp_options(skb, iph, tcph, sender);
 	}
 
@@ -746,7 +769,7 @@ static int tcp_in_window(struct ip_ct_tcp *state,
 		 * If there is no ACK, just pretend it was set and OK.
 		 */
 		ack = sack = receiver->td_end;
-		///LWIP_DEBUGF(NAT_DEBUG, ("%s: 2e\n", __func__));		
+		LWIP_DEBUGF(NAT_DEBUG, ("%s: 2e\n", __func__));		
 	} else if (((TCPH_FLAGS(tcph) & (TCP_ACK|TCP_RST)) == (TCP_ACK|TCP_RST)) 
 		   && (ack == 0)) {
 		/*
@@ -754,7 +777,6 @@ static int tcp_in_window(struct ip_ct_tcp *state,
 		 * with zero ack value.
 		 */
 		ack = sack = receiver->td_end;
-		///LWIP_DEBUGF(NAT_DEBUG, ("%s: 2f\n", __func__));		
 	}
 
 	if (seq == end
@@ -769,14 +791,12 @@ static int tcp_in_window(struct ip_ct_tcp *state,
 		 */
 		seq = end = sender->td_end;
 
-	///LWIP_DEBUGF(NAT_DEBUG, ("%s: 4\n", __func__));		
-	
+
 	if (sender->loose || receiver->loose ||
 	    (before(seq, sender->td_maxend + 1) &&
 	     after(end, sender->td_end - receiver->td_maxwin - 1) &&
 	     before(sack, receiver->td_end + 1) &&
 	     after(ack, receiver->td_end - MAXACKWINDOW(sender)))) {
-		///LWIP_DEBUGF(NAT_DEBUG, ("%s: 4a\n", __func__));		
 	    	/*
 		 * Take into account window scaling (RFC 1323).
 		 */
@@ -798,8 +818,6 @@ static int tcp_in_window(struct ip_ct_tcp *state,
 			receiver->td_maxwin += end - sender->td_maxend;
 		if (after(sack + win, receiver->td_maxend - 1)) {
 
-			////LWIP_DEBUGF(NAT_DEBUG, ("%s: 4b\n", __func__));		
-
 			receiver->td_maxend = sack + win;
 			if (win == 0)
 				receiver->td_maxend++;
@@ -809,7 +827,7 @@ static int tcp_in_window(struct ip_ct_tcp *state,
 		 * Check retransmissions.
 		 */
 		if (index == TCP_ACK_SET) { 
-			////LWIP_DEBUGF(NAT_DEBUG, ("%s: 4c\n", __func__));		
+
 			if (state->last_dir == dir
 			    && state->last_seq == seq
 			    && state->last_ack == ack
@@ -832,7 +850,6 @@ static int tcp_in_window(struct ip_ct_tcp *state,
 		res = 1;
 	} else {
 		res = ip_ct_tcp_be_liberal;
-		///LWIP_DEBUGF(NAT_DEBUG, ("%s: 5\n", __func__));		
   	}
 
 	return res;
@@ -872,7 +889,7 @@ static u8_t tcp_valid_flags[(TH_FIN|TH_SYN|TH_RST|TH_PUSH|TH_ACK|TH_URG) + 1] =
 
 /* Returns verdict for packet, or -1 for invalid. */
 
-static int track_tcp_handle2(uf_verdict_t *verdict, struct nat_pcb *pcb, struct pbuf *skb, conn_dir_t direction)
+static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t direction)
 {
 	enum tcp_conntrack new_state, old_state;
 	//enum ip_conntrack_dir dir;
@@ -880,6 +897,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct nat_pcb *pcb, struct 
 	unsigned long timeout;
 	unsigned int index;
 
+	struct nat_pcb *pcb = skb->nat.track;
 
 	/* added by Diego Billi */
 	int dataoff;
@@ -889,10 +907,8 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct nat_pcb *pcb, struct 
 	if (IPH_V(ip6hdr) == 6)      dataoff = IP_HLEN;
 	else if (IPH_V(ip6hdr) == 4) dataoff = IPH4_HL(iph) * 4;
 
-///	DEBUGP(("%s: start.\n", __func__));
 	
 	th = (struct tcp_hdr *) skb_header_pointer(skb, dataoff, sizeof(_tcph), &_tcph);
-///	BUG_ON(th == NULL);
 	
 	write_lock_bh(&tcp_lock);
 
@@ -929,9 +945,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct nat_pcb *pcb, struct 
 			 */
 
 		    	write_unlock_bh(&tcp_lock);
-//		    	if (del_timer(&conntrack->timeout))
-//		    		conntrack->timeout.function((unsigned long)
-//		    					    conntrack);
+
 			if (conn_remove_timer(pcb))
 				conn_force_timeout(pcb);
 
@@ -952,7 +966,6 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct nat_pcb *pcb, struct 
 
 	case TCP_CONNTRACK_MAX:
 		/* Invalid packet */
-///		DEBUGP(("ip_ct_tcp: Invalid dir=%i index=%u ostate=%u\n", dir, get_conntrack_index(th), old_state));
 		write_unlock_bh(&tcp_lock);
 //		return -NF_ACCEPT;
 		* verdict = UF_ACCEPT;
@@ -968,8 +981,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct nat_pcb *pcb, struct 
 		    	/* Attempt to reopen a closed connection.
 		    	* Delete this connection and look up again. */
 		    	write_unlock_bh(&tcp_lock);
-//		    	if (del_timer(&conntrack->timeout))
-//		    		conntrack->timeout.function((unsigned long) conntrack);
+
 			if (conn_remove_timer(pcb))
 				conn_force_timeout(pcb);
 
@@ -1041,11 +1053,11 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct nat_pcb *pcb, struct 
 		   problem case, so we can delete the conntrack
 		   immediately.  --RR */
 		if (TCPH_FLAGS(th) & TCP_RST) {
-//			if (del_timer(&conntrack->timeout))
-//				conntrack->timeout.function((unsigned long) conntrack);
+
 			if (conn_remove_timer(pcb))
 				conn_force_timeout(pcb);
-			//return NF_ACCEPT;
+
+//			return NF_ACCEPT;
 			* verdict = UF_ACCEPT;
 			return 1;
 
@@ -1157,14 +1169,14 @@ int track_tcp_new2(struct nat_pcb *pcb, struct pbuf *p, void *iph, int iplen)
 	return 1;
 }
 
-
-
-
+/*--------------------------------------------------------------------------*/
 
 struct track_protocol  tcp_track = {
-	.new     = track_tcp_new2,
 	.tuple   = track_tcp_tuple,
 	.inverse = track_tcp_inverse,
+
+	.error   = track_tcp_error,
+	.new     = track_tcp_new2,
 	.handle  = track_tcp_handle2, 
 
 	.manip   = nat_tcp_manip,
@@ -1182,134 +1194,3 @@ int ip_conntrack_protocol_tcp_lockinit(void)
 
 #endif 
 
-
-
-#if 0 
-
-
-// Number of seconds a TCP session should be closed after a RST or a second
-// FIN. For non-TCP session we use a dummy value
-//
-// from RFC 2663:  
-// 2.6. End of session for TCP, UDP and others
-//    [...cut...]
-//    Consequently, a session can be assumed to have been terminated 
-//    only after a period of 4 minutes subsequent to this detection. 
-//    The need for this extended wait period is described in RFC 793 
-//    [Ref 7], which suggests a TIME-WAIT duration of 2 * MSL 
-//    (Maximum Segment Lifetime) or 4 minutes.
-//    [...cut...]
-//    In the case of UDP-based sessions, there is no single way to determine 
-//    when a session ends, since UDP-based protocols are application specific.
-//
-#define NAT_SESSION_TCP_WAIT_PERIOD      (2 * MINUTE)
-
-//  Control how long a session can remain idle  before it is removed.
-//
-// from RFC 2663:  
-//
-// 2.6. End of session for TCP, UDP and others
-//   [...cut...]
-//   Many heuristic approaches are used to terminate sessions. You can
-//   make the assumption that TCP sessions that have not been used for
-//   say, 24 hours, and non-TCP sessions that have not been used for a
-//   couple of minutes, are terminated. Often this assumption works, but
-//   sometimes it doesn't. These idle period session timeouts vary a great
-//   deal both from application to application and for different sessions
-//   of the same application. Consequently, session timeouts must be
-//   configurable. Even so, there is no guarantee that a satisfactory
-//   value can be found. Further, as stated in section 2.3, there is no
-//   guarantee that NAT's view of session termination will coincide with
-//   that of the application.
-//
-#define NAT_IDLE_TCP_TIMEOUT        (24 * HOUR)  
-
-int track_tcp_new(struct nat_pcb *pcb, struct pbuf *p, void *iphdr, int iplen) 
-{ 
-	struct tcp_hdr       *tcphdr  = NULL;
-	struct ip_hdr *ip6hdr;
-	struct ip4_hdr *ip4hdr;
-	
-	ip4hdr = ip6hdr = p->payload;
-	if (IPH_V(ip6hdr) == 6)      tcphdr = p->payload + IP_HLEN;
-	else if (IPH_V(ip6hdr) == 4) tcphdr = p->payload + IPH4_HL(ip4hdr) * 4;
-
-	// Check SYN flag 
-	if ((TCPH_FLAGS(tcphdr) & TCP_SYN) && !(TCPH_FLAGS(tcphdr) & TCP_ACK)) {
-		pcb->proto.tcp.state = TCPS_NONE;
-		pcb->timeout         = NAT_IDLE_TCP_TIMEOUT;
-		return 1;
-	}
-	else {
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: Invalid flags for a new connection.\n", __func__));
-	}
-
-	return -1;
-}
-
-
-
-int track_tcp_handle(uf_verdict_t *verdict, struct nat_pcb *pcb, struct pbuf *p, conn_dir_t direction)
-{ 
-	struct tcp_hdr       *tcphdr  = NULL;
-	tcpstate_t old;
-
-	struct ip_hdr *iphdr;
-	struct ip4_hdr *ip4hdr;
-	
-	ip4hdr = iphdr = p->payload;
-	if (IPH_V(iphdr) == 6)      tcphdr = p->payload + IP_HLEN;
-	else if (IPH_V(iphdr) == 4) tcphdr = p->payload + IPH4_HL(ip4hdr) * 4;
-
-	old = pcb->proto.tcp.state;
-
-	/** FIX TRACKING ******************************/
-
-	// FIRST SYN
-	if ((TCPH_FLAGS(tcphdr) & TCP_SYN) && !(TCPH_FLAGS(tcphdr) & TCP_ACK)) {
-		pcb->proto.tcp.state = TCPS_OPEN;
-		pcb->timeout         = NAT_IDLE_TCP_TIMEOUT;
-	}
-	else
-	// Received RESET 
-	if (TCPH_FLAGS(tcphdr) & TCP_RST) {
-
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: received RST.\n", __func__));
-
-		/* Remove idle timeout and wait for end of connection */
-		pcb->proto.tcp.state = TCPS_CLOSE_MASK;
-
-		if (!(old & TCPS_CLOSE_MASK)) {
-			LWIP_DEBUGF(NAT_DEBUG, ("%s: CLOSED.\n", __func__));
-			conn_refresh_timer(NAT_SESSION_TCP_WAIT_PERIOD, pcb);
-		}
-
-	} else 
-	// Received FIN. If the session was open than wait a second FIN before close
-	if (TCPH_FLAGS(tcphdr) & TCP_FIN) {
-
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: FIN.\n", __func__));
-
-		if (direction == CONN_DIR_REPLY) 
-			pcb->proto.tcp.state |= TCPS_FIN_DST;
-		else
-			pcb->proto.tcp.state |= TCPS_FIN_SRC;
-
-		if ((pcb->proto.tcp.state != old) && 
-			(pcb->proto.tcp.state & TCPS_CLOSE_MASK) == TCPS_CLOSE_MASK) {
-
-			LWIP_DEBUGF(NAT_DEBUG, ("%s: Both FIN. CLOSED\n", __func__));
-
-			conn_refresh_timer(NAT_SESSION_TCP_WAIT_PERIOD, pcb);
-		}
-	}
-	else {
-		if (!(pcb->proto.tcp.state & TCPS_CLOSE_MASK))
-			conn_refresh_timer(pcb->timeout, pcb);
-	}
-
-	*verdict = UF_ACCEPT;
-	return 1;
-}
-
-#endif 

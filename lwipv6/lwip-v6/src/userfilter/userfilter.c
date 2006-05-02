@@ -22,29 +22,38 @@
 #ifdef LWIP_USERFILTER
 
 #include "lwip/debug.h"
+#include "lwip/sys.h"
 #include "lwip/netif.h"
+
 #include "lwip/userfilter.h"
 
 #ifndef USERFILTER_DEBUG
 #define USERFILTER_DEBUG     DBG_OFF
 #endif
 
-/****************************************************************************/
+/*--------------------------------------------------------------------------*/
 /* Variabiles */
-/****************************************************************************/
+/*--------------------------------------------------------------------------*/
 
 /* Table of registered hooks */
 struct uf_hook_handler  * uf_hooks_list[UF_IP_NUMHOOKS];
 
-/****************************************************************************/
+sys_sem_t uf_mutex;
+
+#define UF_LOCK()     sys_sem_wait_timeout(uf_mutex, 0)
+#define UF_UNLOCK()   sys_sem_signal(uf_mutex)
+
+/*--------------------------------------------------------------------------*/
 /* Functions */
-/****************************************************************************/
+/*--------------------------------------------------------------------------*/
 
 int 
 userfilter_init(void)
 {
 	int i;
 	
+	uf_mutex = sys_sem_new(1);
+
 	LWIP_DEBUGF(USERFILTER_DEBUG, ("%s: init hooks table\n", __func__));
 	for (i=0; i < UF_IP_NUMHOOKS; i++)
 		uf_hooks_list[i] = NULL;
@@ -58,6 +67,13 @@ int uf_register_hook(struct uf_hook_handler *h)
 	struct uf_hook_handler *current;
 	struct uf_hook_handler *last;
 	
+	UF_LOCK();
+
+	if (h->hooknum < UF_IP_PRE_ROUTING || h->hooknum > UF_IP_POST_ROUTING) {
+		LWIP_DEBUGF(USERFILTER_DEBUG, ("%s: wrong hook number %d...\n", __func__, h->hooknum));
+        	return -1 ;
+	}
+	    
 	/* Find the first registered hook with priority greater than 'h' */
 	last = NULL;
 	current = uf_hooks_list[h->hooknum] ;
@@ -81,6 +97,8 @@ int uf_register_hook(struct uf_hook_handler *h)
 	ret = 1;
 	LWIP_DEBUGF(USERFILTER_DEBUG, ("%s: registered hook %s, p=%p fun=%p\n", __func__, STR_HOOKNAME (h->hooknum), h, h->hook));
 
+	UF_UNLOCK();
+
 	return ret;
 }
 	
@@ -90,6 +108,13 @@ int uf_unregister_hook(struct uf_hook_handler *h)
 	struct uf_hook_handler *current;
 	struct uf_hook_handler *last;
 	
+	UF_LOCK();
+
+	if (h->hooknum < UF_IP_PRE_ROUTING || h->hooknum > UF_IP_POST_ROUTING) {
+		LWIP_DEBUGF(USERFILTER_DEBUG, ("%s: wrong hook number %d...\n", __func__, h->hooknum));
+        	return -1 ;
+	}
+
 	/* Find 'h' in the list of registered hooks */
 	last = NULL;
 	current = uf_hooks_list[h->hooknum] ;
@@ -115,6 +140,8 @@ int uf_unregister_hook(struct uf_hook_handler *h)
 	else
 		LWIP_DEBUGF(USERFILTER_DEBUG, ("%s: hook %s, not found handler p=%p fun=%p\n", __func__, STR_HOOKNAME(h->hooknum), h, h->hook));
 
+	UF_UNLOCK();
+
 	return ret;
 }
 
@@ -122,7 +149,7 @@ int uf_unregister_hook(struct uf_hook_handler *h)
 static inline uf_verdict_t uf_iterate(uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct netif *out)
 {
 	struct uf_hook_handler *currhook;
-	uf_verdict_t ret=UF_ACCEPT;
+	uf_verdict_t ret = UF_ACCEPT;
 
 	LWIP_DEBUGF(USERFILTER_DEBUG, ("\n%s: %s START (pbuf=%p)\n", __func__, STR_HOOKNAME(hooknum), *p));
 	
@@ -151,6 +178,8 @@ int uf_visit_hook(uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct 
 {
 	int ret = 0;
 
+	UF_LOCK();
+
 	ret = uf_iterate(hooknum, p, in, out);
 	if (ret == UF_ACCEPT)
 		ret = 1;
@@ -161,11 +190,15 @@ int uf_visit_hook(uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct 
 		ret = -1;
 	}	
 	else
-    /* I know, this is paranoic! */
+	/* I know, this is paranoic! */
 	if (ret == UF_STOLEN)
 		ret = 0;
+
+	UF_UNLOCK();
 
 	return ret;
 }
 
 #endif /* LWIP_USERFILTER */
+
+

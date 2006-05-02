@@ -19,7 +19,6 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
 
-
 #ifdef LWIP_NAT
 
 #ifndef __NAT_RULES_H__
@@ -27,7 +26,7 @@
 
 // Max number of rule the stack can handle
 #ifndef MEMP_NUM_NAT_RULE
-#define MEMP_NUM_NAT_RULE   10
+#define MEMP_NUM_NAT_RULE   100
 #endif
 
 /*
@@ -39,63 +38,63 @@ struct manip_range {
 #define MANIP_RANGE_IP    0x01
 #define MANIP_RANGE_PROTO 0x02
 
+	/* IP range */
 	struct ip_addr ipmin, ipmax;
 
+	/* TCP/UDP port range */
 	struct proto_range {
 		u16_t value;
 	} protomin, protomax;
 	
 };
 
-struct nat_rule 
-{
-	struct nat_rule  *next; // For the linked list
-		
-	//
-	// Matching options
-	//
+//
+// Matching options
+//
+struct rule_matches {
 	struct netif *iface;    // Interface 
 
-	//
-	// Match protocol
-	//
-	u16_t protocol; 
-
-#define IGNORE_PROTO  0xFFFF
-#define IS_IGNORE_PROTO(proto) ((proto) == IGNORE_PROTO)
-	
-	//
 	// Match IP
-	//
 	u8_t ipv;
 	struct ip_addr src_ip; 
 	struct ip_addr dst_ip; 
-		
 #define SET_IGNORE_IP(ipaddr)     IP6_ADDR((ipaddr), 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000)
 #define IS_IGNORE_IP(ipaddr)      ((ipaddr)->addr[3] == 0x0000 && (ipaddr)->addr[2] == 0x0000 && (ipaddr)->addr[0] == 0x0000 && (ipaddr)->addr[1] == 0x0000)
+
+	// Transport protocol (TCP/UDP)
+	u16_t protocol; 
+#define IGNORE_PROTO  0xFFFF
+#define IS_IGNORE_PROTO(proto) ((proto) == IGNORE_PROTO)
 	
-	//
-	// Match TCP/UDP
-	//
+	// Match port TCP/UDP
 	u16_t src_port;
 	u16_t dst_port;
-	
 #define IGNORE_PORT 0x0000
 #define IS_IGNORE_PORT(p) ((p) == IGNORE_PORT)
-	
-	// 
-	// NAT targets
-	//
+};
+
+struct nat_rule 
+{
+	struct nat_rule  *next; // For the linked list
+
+	struct rule_matches  matches;		
+
 	nat_type_t  type;       
 	struct manip_range manip;
 };
 
+/*--------------------------------------------------------------------------*/
+/* NAT TABLE */
+/*--------------------------------------------------------------------------*/
 
 // PREROUTING rules
 extern struct nat_rule *nat_in_rules;
 // POSTROUTING rules
 extern struct nat_rule *nat_out_rules;
 
+/*--------------------------------------------------------------------------*/
+/* Functions */
+/*--------------------------------------------------------------------------*/
 
 // Malloc a new nat_rule structure
 struct nat_rule * nat_new_rule(void);
@@ -103,15 +102,14 @@ struct nat_rule * nat_new_rule(void);
 void nat_free_rule(struct nat_rule *rule);
 
 int nat_add_rule(int ipv, nat_table_t where, struct nat_rule *new_rule);	
-struct nat_rule * nat_del_rule(struct nat_rule **list, int pos);
+struct nat_rule * nat_del_rule(nat_table_t where, int pos);
 	
-INLINE int nat_match_rule(struct nat_rule *rule, struct netif *iface, struct ip_tuple *tuple);
+/* Returns 1 if "rule" matches with the tuple "tuple" */
+//int nat_match_rule(struct nat_rule *rule, struct netif *iface, struct ip_tuple *tuple);
+int nat_match_rule(struct rule_matches *matches, struct netif *iface, struct ip_tuple *tuple);
 
 #endif 
 
-
-///extern struct nat_rule *nat6_in_rules;
-///extern struct nat_rule *nat6_out_rules;
-
 #endif
+
 

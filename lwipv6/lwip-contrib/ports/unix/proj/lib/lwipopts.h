@@ -257,7 +257,10 @@ a lot of data that needs to be copied, this should be set high. */
 	#define TAPIF_DEBUG         DBG_OFF
 
 /* IP Layer debug */
-#define IP_DEBUG                    DBG_ON
+#define IP_DEBUG                    DBG_OFF
+
+#define ROUTE_DEBUG                 DBG_OFF
+
 
 /* De/Fragmentation code (IPv4, IPv6) debug */
 #if defined(IPv4_FRAGMENTATION) || defined (IPv6_FRAGMENTATION)
@@ -270,7 +273,7 @@ a lot of data that needs to be copied, this should be set high. */
 #endif
 
 #ifdef IPv6_AUTO_CONFIGURATION
-	#define IP_AUTOCONF_DEBUG   DBG_ON
+	#define IP_AUTOCONF_DEBUG   DBG_OFF
 #endif
 
 /* UserFilter sub-system debug  */

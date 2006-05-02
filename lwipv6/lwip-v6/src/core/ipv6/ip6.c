@@ -150,10 +150,12 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
 
   PERF_START;
 
+#ifdef LWIP_USERFILTER
   /* pbuf_free() is called by Caller */
   if (UF_HOOK(UF_IP_FORWARD, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
     return;
   }
+#endif
 
   /* 
    * Check TimeToLive (Ipv4) or Hop-Limit Field (Ipv6)
@@ -319,6 +321,14 @@ ip_inpacket(struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piph
   raw_input(p, addr, piphdr);
 #endif /* LWIP_RAW */
 
+
+#ifdef LWIP_USERFILTER
+#ifdef LWIP_NAT
+  /* Reset NAT+track information before sending to the upper layer */
+  nat_pbuf_reset(p);
+#endif
+#endif
+
   switch (piphdr->proto + (piphdr->version << 8)) {
 
 #if LWIP_UDP
@@ -423,6 +433,7 @@ ip_input(struct pbuf *p, struct netif *inp) {
       pbuf_realloc(p, IP_HLEN + ntohs(iphdr->len)); 
     else
       pbuf_realloc(p, ntohs(IPH4_LEN(ip4hdr)));
+
     ip_inpacket(addrel, p, &piphdr);
   }
   /* FIX: handle IPv6 Multicast in this way? */
@@ -540,16 +551,13 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 #ifdef LWIP_USERFILTER
   /* FIX: LOCAL_OUT after routing decisions? It this the right place */
   if (UF_HOOK(UF_IP_LOCAL_OUT, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
-	LWIP_DEBUGF(IP_DEBUG, ("UF_IP_LOCAL_OUT----------------- <=0\n"));
     return ERR_OK;
   }
 #endif
 
   IP_STATS_INC(ip.xmit);
 
-
   PERF_STOP("ip_output_if");
-
 
   /* The packet is for us? */
   if (ip_addr_cmp(src,dest)) {
@@ -574,6 +582,7 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
         return ERR_OK;
       }
 #endif
+
       netif->input( r, netif );
     }
   
@@ -586,14 +595,13 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 	
 #ifdef LWIP_USERFILTER
     if (UF_HOOK(UF_IP_POST_ROUTING, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
-      LWIP_DEBUGF(IP_DEBUG, ("UF_IP_LOCAL_OUT <=0\n"));
       return ERR_OK;
     }
 #endif
 
     /* Handle fragmentation */
     if (netif->mtu && (p->tot_len > netif->mtu)) {
-	  LWIP_DEBUGF(IP_DEBUG, ("ip_output_if: packet need fragmentation (len=%d, mtu=%d)\n",p->tot_len,netif->mtu));
+      LWIP_DEBUGF(IP_DEBUG, ("ip_output_if: packet need fragmentation (len=%d, mtu=%d)\n",p->tot_len,netif->mtu));
 #ifdef IPv4_FRAGMENTATION 
       if (version == 4)
         return ip4_frag(p , netif, dest);
@@ -602,7 +610,7 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
       if (version == 6)
         return ip6_frag(p , netif, dest);
 #endif
-	  LWIP_DEBUGF(IP_DEBUG, ("ip_output_if: fragmentation not supported. Dropped!\n"));
+      LWIP_DEBUGF(IP_DEBUG, ("ip_output_if: fragmentation not supported. Dropped!\n"));
       return ERR_OK;
     }
     else {
@@ -632,8 +640,7 @@ ip_output(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest, u8_t ttl, u
   LWIP_DEBUGF(IP_DEBUG, ("  ttl=%d", ttl));
   LWIP_DEBUGF(IP_DEBUG, ("  proto=%d\n", proto));
 
-
-  if (ip_route_findpath(dest,&nexthop,&netif,&flags)!=ERR_OK) {
+  if (ip_route_findpath(dest, &nexthop, &netif, &flags) != ERR_OK) {
     LWIP_DEBUGF(IP_DEBUG, ("ip_output: No route to XXX \n" ));
     IP_STATS_INC(ip.rterr);
     return ERR_RTE;
@@ -663,15 +670,15 @@ ip4_debug_print(struct pbuf *p)
   LWIP_DEBUGF(IP_DEBUG, ("  dest="));
   ip_addr_debug_print(IP_DEBUG, &tempdest);
   LWIP_DEBUGF(IP_DEBUG, ("  proto=%u  ttl=%u  chksum=0x%04x",
-			IPH4_TTL(iphdr),
-			IPH4_PROTO(iphdr),
-			ntohs(IPH4_CHKSUM(iphdr))));
+                        IPH4_TTL(iphdr),
+                        IPH4_PROTO(iphdr),
+                        ntohs(IPH4_CHKSUM(iphdr))));
   LWIP_DEBUGF(IP_DEBUG, ("  id=%u  flags=%u%u%u  offset=%u\n",
-			ntohs(IPH4_ID(iphdr)),
-			ntohs(IPH4_OFFSET(iphdr)) >> 15 & 1,
-			ntohs(IPH4_OFFSET(iphdr)) >> 14 & 1,
-			ntohs(IPH4_OFFSET(iphdr)) >> 13 & 1,
-			ntohs(IPH4_OFFSET(iphdr)) & IP_OFFMASK));
+                        ntohs(IPH4_ID(iphdr)),
+                        ntohs(IPH4_OFFSET(iphdr)) >> 15 & 1,
+                        ntohs(IPH4_OFFSET(iphdr)) >> 14 & 1,
+                        ntohs(IPH4_OFFSET(iphdr)) >> 13 & 1,
+                        ntohs(IPH4_OFFSET(iphdr)) & IP_OFFMASK));
 }
 
 static void
@@ -693,8 +700,10 @@ void
 ip_debug_print(int how, struct pbuf *p)
 {
   struct ip_hdr *iphdr = p->payload;
-  if (IPH_V(iphdr) == 4) ip4_debug_print(p);
-  else                   ip6_debug_print(how,p);
+  if (IPH_V(iphdr) == 4) 
+    ip4_debug_print(p);
+  else                   
+    ip6_debug_print(how,p);
 }
 
 #endif /* IP_DEBUG */
@@ -761,7 +770,7 @@ static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pbuf **p,
   u8_t loop = 1;
   int r = -1;
 
-  LWIP_DEBUGF(IP_DEBUG, ("ip_process_exthdr: Start processing extension headers.\n"));
+  LWIP_DEBUGF(IP_DEBUG, ("%s: Start processing extension headers.\n", __func__));
 
   /* It loops while there are extension headers */
   prevhdr = NULL;

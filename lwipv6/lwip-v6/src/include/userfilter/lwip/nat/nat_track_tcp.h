@@ -18,28 +18,10 @@
  *   with this program; if not, write to the Free Software Foundation, Inc.,
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
-
+#ifdef LWIP_NAT
 
 #ifndef _NAT_TRACK_TCP_H
 #define _NAT_TRACK_TCP_H
-
-
-
-typedef enum {
-	TCPS_NONE       = 0x0000,
-	TCPS_OPEN       = 0x0001, 
-	TCPS_FIN_SRC    = 0x0010, 
-	TCPS_FIN_DST    = 0x0020, 
-	TCPS_CLOSE_MASK = (TCPS_FIN_SRC | TCPS_FIN_DST)
-} tcpstate_t;
-
-#define NAT_TCP_CLOSING(state) ( ((state) == TCPS_FIN_DST) ||  ((state) == TCPS_FIN_SRC))
-
-
-/**************************************************************************/
-/**************************************************************************/
-/**************************************************************************/
-/**************************************************************************/
 
 enum tcp_conntrack {
 	TCP_CONNTRACK_NONE,
@@ -55,22 +37,6 @@ enum tcp_conntrack {
 	TCP_CONNTRACK_MAX,
 	TCP_CONNTRACK_IGNORE
 };
-
-#define TCP_STRSTATE(x) ( \
-	(x)==TCP_CONNTRACK_NONE        ? "TCP_CONNTRACK_NONE" : \
-	(x)==TCP_CONNTRACK_SYN_SENT    ? "TCP_CONNTRACK_SYN_SENT" : \
-	(x)==TCP_CONNTRACK_SYN_RECV    ? "TCP_CONNTRACK_SYN_RECV" : \
-	(x)==TCP_CONNTRACK_ESTABLISHED ? "TCP_CONNTRACK_ESTABLISHED" : \
-	(x)==TCP_CONNTRACK_FIN_WAIT    ? "TCP_CONNTRACK_FIN_WAIT" : \
-	(x)==TCP_CONNTRACK_CLOSE_WAIT  ? "TCP_CONNTRACK_CLOSE_WAIT" : \
-	(x)==TCP_CONNTRACK_LAST_ACK    ? "TCP_CONNTRACK_LAST_ACK" : \
-	(x)==TCP_CONNTRACK_TIME_WAIT   ? "TCP_CONNTRACK_TIME_WAIT" : \
-	(x)==TCP_CONNTRACK_CLOSE       ? "TCP_CONNTRACK_CLOSE" : \
-	(x)==TCP_CONNTRACK_LISTEN      ? "TCP_CONNTRACK_LISTEN" : \
-	(x)==TCP_CONNTRACK_MAX         ? "TCP_CONNTRACK_MAX" : \
-	(x)==TCP_CONNTRACK_IGNORE      ? "TCP_CONNTRACK_IGNORE"  : \
-	"XXXXXXXXX BUG XXXXXXXXXXX" )
-
 
 /* Window scaling is advertised by the sender */
 #define IP_CT_TCP_FLAG_WINDOW_SCALE		0x01
@@ -107,8 +73,32 @@ struct ip_ct_tcp
 
 int ip_conntrack_protocol_tcp_lockinit(void);
 
+extern struct track_protocol  tcp_track;
+
+/*--------------------------------------------------------------------------*/
+/* Costants for hook registration. */
+/*--------------------------------------------------------------------------*/
+
+#ifdef LWIP_DEBUG
+
+#define TCP_STRSTATE(x) ( \
+	(x)==TCP_CONNTRACK_NONE        ? "TCP_CONNTRACK_NONE" :        \
+	(x)==TCP_CONNTRACK_SYN_SENT    ? "TCP_CONNTRACK_SYN_SENT" :    \
+	(x)==TCP_CONNTRACK_SYN_RECV    ? "TCP_CONNTRACK_SYN_RECV" :    \
+	(x)==TCP_CONNTRACK_ESTABLISHED ? "TCP_CONNTRACK_ESTABLISHED" : \
+	(x)==TCP_CONNTRACK_FIN_WAIT    ? "TCP_CONNTRACK_FIN_WAIT" :    \
+	(x)==TCP_CONNTRACK_CLOSE_WAIT  ? "TCP_CONNTRACK_CLOSE_WAIT" :  \
+	(x)==TCP_CONNTRACK_LAST_ACK    ? "TCP_CONNTRACK_LAST_ACK" :    \
+	(x)==TCP_CONNTRACK_TIME_WAIT   ? "TCP_CONNTRACK_TIME_WAIT" :   \
+	(x)==TCP_CONNTRACK_CLOSE       ? "TCP_CONNTRACK_CLOSE" :       \
+	(x)==TCP_CONNTRACK_LISTEN      ? "TCP_CONNTRACK_LISTEN" :      \
+	(x)==TCP_CONNTRACK_MAX         ? "TCP_CONNTRACK_MAX" :         \
+	(x)==TCP_CONNTRACK_IGNORE      ? "TCP_CONNTRACK_IGNORE"  :     \
+	"XXXXXXXXX BUG XXXXXXXXXXX" )
 
 #endif
 
 
+#endif /* _NAT_TRACK_TCP_H */
 
+#endif /* LWIP_NAT */

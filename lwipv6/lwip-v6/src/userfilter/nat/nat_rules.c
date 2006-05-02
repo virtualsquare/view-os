@@ -21,10 +21,10 @@
 
 #ifdef LWIP_NAT
 
-#include <stdio.h>
 #include <stdlib.h>
-//#include <unistd.h>
 
+#include "lwip/debug.h"
+#include "lwip/sys.h"
 #include "lwip/memp.h" /* MEMP_NAT_RULE */
 
 #include "lwip/inet.h"
@@ -32,18 +32,9 @@
 #include "lwip/udp.h"
 #include "lwip/tcp.h"
 #include "lwip/icmp.h"
-#include "lwip/tcpip.h"
-#include "netif/etharp.h"
-
-#include "netif/vdeif.h"
-#include "netif/tunif.h"
-#include "netif/tapif.h"
 
 #include "lwip/sockets.h"
-
 #include "lwip/if.h"
-#include "lwip/sys.h"
-#include "lwip/debug.h"
 
 #include "lwip/nat/nat.h"
 #include "lwip/nat/nat_rules.h"
@@ -59,11 +50,11 @@
 
 // rules in INPUT (PREROUTING)
 struct nat_rule *nat_in_rules;     
-struct nat_rule *nat6_in_rules;  
+//struct nat_rule *nat6_in_rules;  
 
 // rules in OUTPUT (POSTROUTING)
 struct nat_rule *nat_out_rules;    
-struct nat_rule *nat6_out_rules; 
+//struct nat_rule *nat6_out_rules; 
 
 struct nat_rule *nat_tmp_rule;
 
@@ -152,11 +143,9 @@ int  nat_add_rule(int ipv, nat_table_t where, struct nat_rule *new_rule)
 	return 0;
 }
 
-//
 // Remove from 'list' the rule at position 'pos'.
 // Returns the pointer to the removed rule.
-//
-struct nat_rule * nat_del_rule(struct nat_rule **list, int pos)
+struct nat_rule * nat_del_rule_raw(struct nat_rule **list, int pos)
 {
 	int i=0;
 	struct nat_rule *removed = NULL;
@@ -170,7 +159,6 @@ struct nat_rule * nat_del_rule(struct nat_rule **list, int pos)
 			*list = (*list)->next; 
 		} else 
 			for(p = *list; p != NULL; p = p->next, i++) { 
-				printf("i %d (%d)\n", i, pos);
 				if ((p->next != NULL) && ((i+1) == pos)) { 
 					removed = p->next;
 					p->next = removed->next; 
@@ -187,64 +175,76 @@ struct nat_rule * nat_del_rule(struct nat_rule **list, int pos)
 	return NULL;     
 }
 
-INLINE int nat_match_rule(struct nat_rule *rule, struct netif *iface, struct ip_tuple *tuple)
+struct nat_rule * nat_del_rule(nat_table_t where, int pos)
 {
-	if (rule->iface != NULL) {
-		if (rule->iface != iface) {
-			LWIP_DEBUGF(NATRULE_DEBUG, ("unatd_match_rule: wrong interface.\n"));
+	if (where == NAT_POSTROUTING)
+		return nat_del_rule_raw(&nat_out_rules, pos);
+	else 
+	if (where == NAT_PREROUTING)
+		return nat_del_rule_raw(&nat_in_rules, pos);
+	else
+		return NULL;
+}
+
+
+int nat_match_rule(struct rule_matches *matches, struct netif *iface, struct ip_tuple *tuple)
+{
+	if (matches->iface != NULL) {
+		if (matches->iface != iface) {
+			LWIP_DEBUGF(NATRULE_DEBUG, ("%s: wrong interface.\n", __func__));
 			return 0;
 		}
 	}
 
-	if (rule->ipv != tuple->ipv) {
-		LWIP_DEBUGF(NATRULE_DEBUG, ("unatd_match_rule: rule for Ipv%d, packet is IPv%d\n",rule->ipv, tuple->ipv));
+	if (matches->ipv != tuple->ipv) {
+		LWIP_DEBUGF(NATRULE_DEBUG, ("%s: wrong IP version (%d, %d)\n", __func__,matches->ipv, tuple->ipv));
 		return 0;
 	}
 
-	if (! IS_IGNORE_IP(&rule->src_ip)) 
-		if (ip_addr_cmp(&rule->src_ip, &tuple->src.ip) != 0) {
-			LWIP_DEBUGF(NATRULE_DEBUG, ("unatd_match_rule: wrong source IP\n"));
+	if (! IS_IGNORE_IP(&matches->src_ip)) 
+		if (ip_addr_cmp(&matches->src_ip, &tuple->src.ip) != 0) {
+			LWIP_DEBUGF(NATRULE_DEBUG, ("%s: wrong src IP\n", __func__));
 			return 0;
 		}
 
-	if (! IS_IGNORE_IP(&rule->dst_ip)) 
-		if (ip_addr_cmp(&rule->dst_ip, &tuple->dst.ip) != 0) {
-			LWIP_DEBUGF(NATRULE_DEBUG, ("unatd_match_rule: wrong dest IP\n"));
+	if (! IS_IGNORE_IP(&matches->dst_ip)) 
+		if (ip_addr_cmp(&matches->dst_ip, &tuple->dst.ip) != 0) {
+			LWIP_DEBUGF(NATRULE_DEBUG, ("%s: wrong dst IP\n", __func__));
 			return 0;
 		}
 
-	if (! IS_IGNORE_PROTO(rule->protocol)) 
-		if (rule->protocol != tuple->src.proto.protonum) {
-			LWIP_DEBUGF(NATRULE_DEBUG, ("unatd_match_rule: wrong protocol\n"));
+	if (! IS_IGNORE_PROTO(matches->protocol)) 
+		if (matches->protocol != tuple->src.proto.protonum) {
+			LWIP_DEBUGF(NATRULE_DEBUG, ("%s: wrong proto\n", __func__));
 			return 0;
 		}
 
 	if (tuple->src.proto.protonum == IP_PROTO_TCP) {
 		
-		if (! IS_IGNORE_PORT(rule->src_port))
-			if (rule->src_port != tuple->src.proto.tcp.port) {
-				LWIP_DEBUGF(NATRULE_DEBUG, ("unatd_match_rule: wrong source port\n"));
+		if (! IS_IGNORE_PORT(matches->src_port))
+			if (matches->src_port != tuple->src.proto.upi.tcp.port) {
+				LWIP_DEBUGF(NATRULE_DEBUG, ("%s: wrong src port\n", __func__));
 				return 0;
 			}
 			
-		if (! IS_IGNORE_PORT(rule->dst_port))
-			if (rule->dst_port != tuple->dst.proto.tcp.port) {
-				LWIP_DEBUGF(NATRULE_DEBUG, ("unatd_match_rule: wrong source port\n"));
+		if (! IS_IGNORE_PORT(matches->dst_port))
+			if (matches->dst_port != tuple->dst.proto.upi.tcp.port) {
+				LWIP_DEBUGF(NATRULE_DEBUG, ("%s: wrong dst port\n", __func__));
 				return 0;
 			}
 	}
 
 	if (tuple->src.proto.protonum == IP_PROTO_UDP) {
 
-		if (! IS_IGNORE_PORT(rule->src_port))
-			if (rule->src_port != tuple->src.proto.udp.port) {
-				LWIP_DEBUGF(NATRULE_DEBUG, ("unatd_match_rule: wrong source port\n"));
+		if (! IS_IGNORE_PORT(matches->src_port))
+			if (matches->src_port != tuple->src.proto.upi.udp.port) {
+				LWIP_DEBUGF(NATRULE_DEBUG, ("%s: wrong src port\n", __func__));
 				return 0;
 			}
 			
-		if (! IS_IGNORE_PORT(rule->dst_port))
-			if (rule->dst_port != tuple->dst.proto.udp.port) {
-				LWIP_DEBUGF(NATRULE_DEBUG, ("unatd_match_rule: wrong source port\n"));
+		if (! IS_IGNORE_PORT(matches->dst_port))
+			if (matches->dst_port != tuple->dst.proto.upi.udp.port) {
+				LWIP_DEBUGF(NATRULE_DEBUG, ("%s: wrong dst port\n", __func__));
 				return 0;
 			}
 	}

@@ -18,49 +18,28 @@
  *   with this program; if not, write to the Free Software Foundation, Inc.,
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
+#ifdef LWIP_NAT
+
 #ifndef __NAT_PORTS_H__
 #define __NAT_PORTS_H__
 
-#include "lwip/ip.h"
-#include "lwip/udp.h"
-#include "lwip/tcp.h"
-
-#include "lwip/tcpip.h"
-#include "netif/etharp.h"
-
-#include "netif/vdeif.h"
-#include "netif/tunif.h"
-#include "netif/tapif.h"
-
-#include "lwip/sockets.h"
-#include "lwip/if.h"
-
-#include "lwip/nat/nat.h"
-
-//****************************************************************************
-
-//
-// ATTENTION: all these function works with host byte alignment
-//
-#define NAT_MIN_PORT          49152
-#define NAT_MAX_PORT          65535
-
-#define NAT_MAX_PORTS         (NAT_MAX_PORT - NAT_MIN_PORT)     
-#define NAT_PORTS_TABLE_SIZE  (NAT_MAX_PORTS / 8)
-
-extern unsigned char nat_ports_table[NAT_PORTS_TABLE_SIZE];
 
 void nat_ports_init(void);
+
+int  nat_ports_getnew(int protocol, u32_t *port, u32_t min, u32_t max);
+
+u16_t nat_ports_free(int protocol, u32_t val);
+
+#endif /* NAT_PORTS */
+
+#endif
+
+
+
 
 /*
  * Return the first free port. Returns 0 if no one was found.
  */
-INLINE u16_t nat_ports_getnew(void);
-
-INLINE u16_t nat_ports_free(u16_t port);
-
-#define nat_ports_isset(n)   !((nat_ports_table[((n)-NAT_MIN_PORT)/8] >> (((n)-NAT_MIN_PORT)%8)) & 0x01)
-#define nat_ports_set(n)      ( nat_ports_table[((n)-NAT_MIN_PORT)/8] &= ~(1<<(((n)-NAT_MIN_PORT)%8))    )
-#define nat_ports_unset(n)    ( nat_ports_table[((n)-NAT_MIN_PORT)/8] |=  (1<<(((n)-NAT_MIN_PORT)%8))    )
-
-#endif
+//u16_t nat_ports_getnew(void);
+//u16_t nat_ports_free(u16_t port);
+//int  nat_ports_getnew(int protocol, u32_t *port);

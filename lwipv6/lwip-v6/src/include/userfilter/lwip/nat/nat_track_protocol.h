@@ -18,6 +18,7 @@
  *   with this program; if not, write to the Free Software Foundation, Inc.,
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
+#ifdef LWIP_NAT
 
 #ifndef _NAT_TRACK_PROTOCOL_H
 #define _NAT_TRACK_PROTOCOL_H
@@ -27,15 +28,22 @@ struct track_protocol
 {
 	u_int8_t proto;
 
-	int (*new)  (struct nat_pcb *pcb,  struct pbuf *p, void *iphdr, int iplen);
+	/* Tuple functions */
 
 	int (*tuple)(struct ip_tuple *tuple, void *hdr);
 
 	int (*inverse) (struct ip_tuple *reply, struct ip_tuple *tuple);
 
-	int (*handle) (uf_verdict_t *verdict, struct nat_pcb *pcb, struct pbuf *p, conn_dir_t direction);
+	/* Tracking functions */
 
-	// NAT functions
+	int (*error) (uf_verdict_t *verdict, struct pbuf *q);
+
+	int (*new)  (struct nat_pcb *pcb,  struct pbuf *p, void *iphdr, int iplen);
+
+	///int (*handle) (uf_verdict_t *verdict, struct nat_pcb *pcb, struct pbuf *p, conn_dir_t direction);
+	int (*handle) (uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction);
+
+	/* NAT functions */
 
 	int (*manip) (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inverse, 
 		u8_t *iphdr_new_changed_buf, 
@@ -52,5 +60,6 @@ extern struct track_protocol *ip_ct_protos[MAX_TRACK_PROTO];
 
 
 
-#endif /*_IP_CONNTRACK_PROTOCOL_H*/
+#endif /*_INAT_TRACK_PROTOCOL */
 
+#endif

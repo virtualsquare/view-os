@@ -22,54 +22,51 @@
 #ifdef LWIP_NAT
 
 #include "lwip/debug.h"
-
+#include "lwip/sys.h"
 #include "lwip/memp.h" /* MEMP_NAT_RULE */
 
 #include "lwip/inet.h"
 #include "lwip/ip.h"
 #include "lwip/udp.h"
-#include "lwip/tcp.h"
-#include "lwip/icmp.h"
-#include "lwip/tcpip.h"
-#include "netif/etharp.h"
 
-#include "netif/vdeif.h"
-#include "netif/tunif.h"
-#include "netif/tapif.h"
-
-#include "lwip/sockets.h"
-#include "lwip/if.h"
-#include "lwip/sys.h"
-
-
+#include "lwip/nat/nat.h"
+#include "lwip/nat/nat_tables.h"
 
 #ifndef NAT_DEBUG
 #define NAT_DEBUG   DBG_OFF
 #endif
 
-#include "lwip/nat/nat.h"
-#include "lwip/nat/nat_tables.h"
+/*--------------------------------------------------------------------------*/
 
-
+#define SECOND   1000  
 #define NAT_IDLE_UDP_TIMEOUT        (30  * SECOND)
 #define NAT_IDLE_UDP_STREAM_TIMEOUT (180 * SECOND)
 
+/*--------------------------------------------------------------------------*/
 
 int track_udp_tuple(struct ip_tuple *tuple, void *hdr)
 { 
 	struct udp_hdr       *udphdr  = NULL;
 	udphdr = (struct udp_hdr *) hdr;
-	tuple->src.proto.udp.port = udphdr->src;
-	tuple->dst.proto.udp.port = udphdr->dest;
+	tuple->src.proto.upi.udp.port = udphdr->src;
+	tuple->dst.proto.upi.udp.port = udphdr->dest;
 	return 1;
 }
 int track_udp_inverse(struct ip_tuple *reply, struct ip_tuple *tuple)  
 { 
-	reply->src.proto.udp.port = tuple->dst.proto.udp.port;
-	reply->dst.proto.udp.port = tuple->src.proto.udp.port;
+	reply->src.proto.upi.udp.port = tuple->dst.proto.upi.udp.port;
+	reply->dst.proto.upi.udp.port = tuple->src.proto.upi.udp.port;
 	return 1;
 }
 
+                
+/*--------------------------------------------------------------------------*/
+
+int track_udp_error (uf_verdict_t *verdict, struct pbuf *p)
+{
+	// FIX: check packet len and checksum
+	return 1;
+}
 
 int track_udp_new(struct nat_pcb *pcb, struct pbuf *p, void *iphdr, int iplen) 
 { 
@@ -79,13 +76,14 @@ int track_udp_new(struct nat_pcb *pcb, struct pbuf *p, void *iphdr, int iplen)
 	return 1;
 }
 
-
-int track_udp_handle(uf_verdict_t *verdict, struct nat_pcb *pcb, struct pbuf *p, conn_dir_t direction)
+int track_udp_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction)
 { 
 	struct udp_hdr       *udphdr  = NULL;
 	struct ip_hdr *iphdr;
 	struct ip4_hdr *ip4hdr;
 	//u16_t iphdrlen;
+
+	struct nat_pcb *pcb = p->nat.track;
 
 	ip4hdr = p->payload;
 	iphdr  = p->payload;
@@ -106,6 +104,7 @@ int track_udp_handle(uf_verdict_t *verdict, struct nat_pcb *pcb, struct pbuf *p,
 	return 1;
 }
 
+/*--------------------------------------------------------------------------*/
 
 int nat_udp_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inverse, 
 		u8_t *iphdr_new_changed_buf, 
@@ -119,21 +118,19 @@ int nat_udp_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inv
 	if (udphdr->chksum != 0) {
 
 		// adjust udp checksum
-		if (inverse->ipv == 4)
-			nat_chksum_adjust((u8_t *) & udphdr->chksum, 
-				(u8_t *) iphdr_old_changed_buf, iphdr_changed_buflen, 
-				(u8_t *) iphdr_new_changed_buf, iphdr_changed_buflen);
+		nat_chksum_adjust((u8_t *) & udphdr->chksum, 
+			(u8_t *) iphdr_old_changed_buf, iphdr_changed_buflen, 
+			(u8_t *) iphdr_new_changed_buf, iphdr_changed_buflen);
 
 		// Set port
 		if (type == NAT_DNAT) {
 			old_value    = udphdr->dest;
-			udphdr->dest = inverse->src.proto.udp.port;
-
+			udphdr->dest = inverse->src.proto.upi.udp.port;
 			nat_chksum_adjust((u8_t *) & udphdr->chksum, (u8_t *) & old_value, 2, (u8_t *) & udphdr->dest, 2);
 		}
 		else if (type == NAT_SNAT) {
 			old_value    = udphdr->src;
-			udphdr->src  = inverse->dst.proto.udp.port;
+			udphdr->src  = inverse->dst.proto.upi.udp.port;
 
 			nat_chksum_adjust((u8_t *) & udphdr->chksum, (u8_t *) & old_value, 2, (u8_t *) & udphdr->src, 2);
 		}
@@ -146,12 +143,30 @@ int nat_udp_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inv
 
 int nat_udp_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
 {
+	u32_t port;
+	u32_t min, max;
+
 	if (type == NAT_SNAT) {
-		reply->dst.proto.udp.port = htons(nat_ports_getnew()); 
-	} else if (type == NAT_DNAT) {
-		/* Change destination port only if specified */	
+
 		if (nat_manip->flag & MANIP_RANGE_PROTO) {
-			reply->src.proto.udp.port = nat_manip->protomin.value;
+			min = nat_manip->protomin.value;
+			max = nat_manip->protomax.value;
+		}
+		else {
+			min = 0;
+			max = 0xFFFF;
+		}
+
+		if (nat_ports_getnew(IP_PROTO_UDP, &port, min, max) > 0) {
+			reply->dst.proto.upi.udp.port = htons(port); 
+		}
+		else 
+			return -1;
+
+	} else if (type == NAT_DNAT) {
+
+		if (nat_manip->flag & MANIP_RANGE_PROTO) {
+			reply->src.proto.upi.udp.port = nat_manip->protomin.value;
 		}
 	}
 	return 1;
@@ -160,15 +175,18 @@ int nat_udp_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_t
 int nat_udp_free(struct nat_pcb *pcb)
 {
 	if (pcb->nat_type == NAT_SNAT) {
-		nat_ports_free(ntohs(pcb->tuple[CONN_DIR_REPLY].dst.proto.udp.port));	
+		nat_ports_free(IP_PROTO_UDP, ntohs(pcb->tuple[CONN_DIR_REPLY].dst.proto.upi.udp.port));
 	} 
+
 	return 1;
 }
 
 struct track_protocol  udp_track = {
-	.new     = track_udp_new,
 	.tuple   = track_udp_tuple,
 	.inverse = track_udp_inverse,
+
+	.error   = track_udp_error,
+	.new     = track_udp_new,
 	.handle  = track_udp_handle,
 
 	.manip   = nat_udp_manip,

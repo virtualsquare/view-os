@@ -63,7 +63,7 @@
  */
 
 typedef enum {
-	UF_IP_PRE_ROUTING,      
+	UF_IP_PRE_ROUTING = 0,      
 	UF_IP_LOCAL_IN,         
 	UF_IP_FORWARD,          
 	UF_IP_LOCAL_OUT,        
@@ -110,9 +110,9 @@ struct uf_hook_handler
 /* Stack Hooks table. you SHOULD NOT access it directy! Possible race conditions. */
 extern  struct uf_hook_handler  * uf_hooks_list[UF_IP_NUMHOOKS];
 
-/****************************************************************************/
+/*--------------------------------------------------------------------------*/
 /* Functions */
-/****************************************************************************/
+/*--------------------------------------------------------------------------*/
 
 /*
  * Initialize hooks. Call this first.
@@ -153,16 +153,18 @@ int uf_visit_hook(uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct 
  * Used inside ip6.c source. 
  */
 #define UF_HOOK(hook, pbuf, inif, outif, freebuf) \
-({ int ___r = 1;                                                       \
-   if (uf_hooks_list[(hook)] != NULL)                                  \
-     ___r = uf_visit_hook((hook), (pbuf), (inif), (outif), (freebuf)); \
-   ___r; /* return value */                                            \
-})
+	({ int ___r = 1;                                                       \
+	if (uf_hooks_list[(hook)] != NULL)                                  \
+	___r = uf_visit_hook((hook), (pbuf), (inif), (outif), (freebuf)); \
+	___r; /* return value */                                            \
+	})
+	
 
-
-/****************************************************************************/
+/*--------------------------------------------------------------------------*/
 /* Debug */
-/****************************************************************************/
+/*--------------------------------------------------------------------------*/
+
+#ifdef LWIP_DEBUG
 
 #define STR_VERDICT(v) ( \
 	(v)==UF_ACCEPT ? "ACCEPT" : \
@@ -178,6 +180,7 @@ int uf_visit_hook(uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct 
 	(hook)==UF_IP_LOCAL_OUT    ? "LOCAL_OUT"    : \
 	(hook)==UF_IP_POST_ROUTING ? "POST_ROUTING" : \
 	"***BUG***" )
+#endif
 
 #endif  /* USERFILTER */
 

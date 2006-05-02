@@ -109,9 +109,9 @@ inet6_chksum_pseudo(struct pbuf *p,
   struct pbuf *q;
   u8_t swapped, i;
 
-  ip_addr_debug_print(IP_DEBUG, src);
+  //ip_addr_debug_print(IP_DEBUG, src);
 
-  ip_addr_debug_print(IP_DEBUG, dest);
+  //ip_addr_debug_print(IP_DEBUG, dest);
 
   //printf("proto %d proto_len %d\n",proto,proto_len);
 

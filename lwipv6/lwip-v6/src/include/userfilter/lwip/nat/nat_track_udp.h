@@ -20,17 +20,14 @@
  */ 
 #ifdef LWIP_NAT
 
-#ifndef _NAT_TRACK_ICMP_H
-#define _NAT_TRACK_ICMP_H
+#ifndef _NAT_TRACK_UDP_H
+#define _NAT_TRACK_UDP_H
 
-struct ip_ct_icmp
-{
-	/* Optimization: when number in == number out, forget immediately. */
-	u32_t    count;
+struct ip_ct_udp { 
+	u8_t  isstream; 
 };
 
-extern struct track_protocol  icmp4_track;
-extern struct track_protocol  icmp6_track;
+extern struct track_protocol  udp_track;
 
 
 #endif 
