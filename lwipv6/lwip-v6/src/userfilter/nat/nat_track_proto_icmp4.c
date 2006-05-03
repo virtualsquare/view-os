@@ -347,7 +347,7 @@ int nat_icmp4_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *i
 
 	icmphdr = (struct icmp_echo_hdr *) (iphdr+iplen);
 
-	if (ICMPH_CODE(icmphdr) == ICMP4_ECHO || ICMPH_CODE(icmphdr) == ICMP4_ER) {
+	if (ICMPH_TYPE(icmphdr) == ICMP4_ECHO || ICMPH_TYPE(icmphdr) == ICMP4_ER) {
 		// Set icmp id
 		old_value = icmphdr->id;
 		if (type == NAT_DNAT)      
@@ -373,13 +373,12 @@ int nat_icmp6_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *i
 
 	icmphdr = (struct icmp_echo_hdr *) (iphdr+iplen);
 
-	if ((ICMPH_CODE(icmphdr) == ICMP6_ECHO || ICMPH_CODE(icmphdr) == ICMP6_ER)) {
+	if ((ICMPH_TYPE(icmphdr) == ICMP6_ECHO || ICMPH_TYPE(icmphdr) == ICMP6_ER)) {
 
 		// Adjust checksum because IP header (and pseudo header) is changed
 		nat_chksum_adjust((u8_t *) & ICMPH_CHKSUM(icmphdr), 
 				iphdr_old_changed_buf, iphdr_changed_buflen, 
 				iphdr_new_changed_buf, iphdr_changed_buflen);
-
 		// Set icmp id
 		old_value = icmphdr->id;
 		if (type == NAT_DNAT)      
@@ -398,7 +397,7 @@ int nat_icmp6_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *i
 
 int nat_icmp4_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
 {
-	u32_t id;
+	u16_t id;
 	u32_t min, max;
 
 	if (type == NAT_SNAT) {
@@ -413,7 +412,7 @@ int nat_icmp4_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat
 		}
 
 		if (nat_ports_getnew(IP_PROTO_ICMP4, &id, min, max) > 0) {
-			reply->dst.proto.upi.icmp4.id = htons(id); 
+			reply->src.proto.upi.icmp4.id = htons(id); 
 		}
 		else 
 			return -1;
@@ -427,10 +426,10 @@ int nat_icmp4_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat
 
 int nat_icmp6_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
 {
-	u32_t id;
+	u16_t id;
 	u32_t min, max;
 
-	if (type == NAT_SNAT) {
+	if (type == NAT_SNAT || type == NAT_MASQUERADE) {
 
 		if (nat_manip->flag & MANIP_RANGE_PROTO) {
 			min = nat_manip->protomin.value;
@@ -442,7 +441,7 @@ int nat_icmp6_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat
 		}
 
 		if (nat_ports_getnew(IP_PROTO_ICMP, &id, min, max) > 0) {
-			reply->dst.proto.upi.icmp6.id = htons(id); 
+			reply->src.proto.upi.icmp6.id = htons(id); 
 		}
 		else 
 			return -1;

@@ -385,7 +385,7 @@ int tuple_create_nat_inverse(struct ip_tuple *reply, struct ip_tuple *tuple,
 		LWIP_DEBUGF(NAT_DEBUG, ("%s: BUG 2 \n", __func__ ));
 		return -1;
 	}
-
+	
 	r = proto->nat_tuple_inverse(reply, tuple, type, nat_manip);
 
 	//UNLOCK(unique_mutex);
@@ -1041,7 +1041,7 @@ uf_verdict_t  nat_perform   (uf_hook_t hooknum, struct pbuf **q, struct netif *i
 	if (nat_manip != NAT_NONE) {
 
 		nat_modify_ip(nat_manip, p, tuple_inverse);
-	
+
 		LWIP_DEBUGF(NAT_DEBUG, ("%s: NATed packet !\n", __func__));
 		ip_debug_print(NAT_DEBUG, p);
 		LWIP_DEBUGF(NAT_DEBUG, ("%s: end.\n", __func__));

@@ -26,9 +26,9 @@
 
 void nat_ports_init(void);
 
-int  nat_ports_getnew(int protocol, u32_t *port, u32_t min, u32_t max);
+int  nat_ports_getnew(int protocol, u16_t *port, u32_t min, u32_t max);
 
-u16_t nat_ports_free(int protocol, u32_t val);
+u16_t nat_ports_free(int protocol, u16_t val);
 
 #endif /* NAT_PORTS */
 

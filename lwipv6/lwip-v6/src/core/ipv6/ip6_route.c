@@ -30,7 +30,7 @@
 #include "lwip/netlink.h"
 
 #ifndef ROUTE_DEBUG
-#define ROUTE_DEBUG  DBG_ON
+#define ROUTE_DEBUG  DBG_OFF
 #endif
 
 /* added by Diego Billi */
@@ -177,8 +177,9 @@ err_t ip_route_list_add(struct ip_addr *addr, struct ip_addr *netmask, struct ip
 		}
 		el->next= *dp;
 		*dp=el;
-		/*printf("NEW ADDED!\n");
-		ip_route_list_debug();*/
+		/*printf("NEW ADDED!\n"); 
+	
+		ip_route_list_debug();      */
 
 		ip_route_debug_list();
 

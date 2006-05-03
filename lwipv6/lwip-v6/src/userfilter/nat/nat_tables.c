@@ -71,27 +71,34 @@ void nat_ports_init(void)
 
 /*--------------------------------------------------------------------------*/
 
-int  getnew_range(u32_t *val, unsigned char *table, u32_t start, u32_t range_min, u32_t range_max)
+int  getnew_range(u16_t *val, unsigned char *table, u32_t start, u32_t range_min, u32_t range_max)
 {
 	int i;
 	unsigned int r = 0;
 
 	range_min -= start;
 	range_max -= start;
+	
+//	printf("%d %d %d\n", start, range_min, range_max);
 
 	for (i=range_min; i < range_max; i++)
 		if (table[ i/8 ]  &  (0x01 << (i % 8)))
 			break;
 
 	if (i < range_max) {
-		*val = r + start;
+	
+		table[i/8] &= ~(0x01 << (i%8));
+		*val = i + start;
+		
+//		printf("NEW PORT ID=%d (%d)\n", *val, htons(*val));
+		
 		return 1;
 	}
 
 	return 0;
 }
 
-int  nat_ports_getnew(int protocol, u32_t *port, u32_t min, u32_t max)
+int  nat_ports_getnew(int protocol, u16_t *port, u32_t min, u32_t max)
 {
 	u32_t r;
 
@@ -121,7 +128,7 @@ int  nat_ports_getnew(int protocol, u32_t *port, u32_t min, u32_t max)
 #define nat_ports_unset(table, min, n)    ( (table)[((n)-(min))/8] |=  (1<<(((n)-(min))%8))    )
 
 
-u16_t nat_ports_free(int protocol, u32_t port)
+u16_t nat_ports_free(int protocol, u16_t port)
 {
 	switch (protocol) {
         	case IP_PROTO_ICMP4:

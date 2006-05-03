@@ -167,6 +167,7 @@ tcpip_thread(void *arg)
 	while (loop) {                          /* MAIN Loop */
 
 		LWIP_DEBUGF(TCPIP_DEBUG, ("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"));
+		printf ("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
 		LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: waiting4message\n"));
 		sys_mbox_fetch(mbox, (void *)&msg);
@@ -218,6 +219,7 @@ tcpip_thread(void *arg)
 		}
 
 		LWIP_DEBUGF(TCPIP_DEBUG, ("----------------------------------------------------------------------------\n"));
+		printf("----------------------------------------------------------------------------\n");
 	}
 
 	// FIX: this is not enough, after this call netif threads are still alive
