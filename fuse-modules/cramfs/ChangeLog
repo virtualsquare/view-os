@@ -1,0 +1,6 @@
+2005-10-29  Dmitry Morozhnikov <dmiceman@mail.ru>
+
+    * Critical bug found -- there is some situations when compressed 
+    block size is bigger than PAGE_CACHE_SIZE because compression not always
+    sufficient. For now internal buffers set to PAGE_CACHE_SIZE * 2 for 
+    compressed blocks.
