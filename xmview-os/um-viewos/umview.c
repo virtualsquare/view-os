@@ -285,12 +285,13 @@ int main(int argc,char *argv[])
 	ptrace_vm_mask = want_ptrace_vm;
 	ptrace_viewos_mask = want_ptrace_viewos;
 	
+	/* Creation of the pipe for the signal handler */
+	wake_tracer_init();
+	
 	capture_main(argv+optind);
 	do_preload(prehead);
   setenv("_INSIDE_UMVIEW_MODULE","",1);
 
-	/* Creation of the pipe for the signal handler */
-	wake_tracer_init();
 	
 	/* select() management */
 	select_init();
