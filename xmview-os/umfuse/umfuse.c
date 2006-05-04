@@ -5,6 +5,7 @@
  *   
  *   Copyright 2005 Renzo Davoli University of Bologna - Italy
  *   Modified 2005 Paolo Angelelli, Andrea Seraghiti
+ *   Patched 2006 Paolo Beverini
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -216,12 +217,12 @@ static struct fuse_context *searchcontext(char *path,int exact)
 	struct fuse_context *result=NULL;
 	epoch_t maxepoch=0;
 	int maxi=-1;
-	PRINTDEBUG(0,"SearchContext:%s-%s\n",path, exact?"EXACT":"SUBSTR");
+	PRINTDEBUG(0,"SearchContext:%s-%s ENTER!\n",path, exact?"EXACT":"SUBSTR");
 	cutdots(path);
 	for (i=0;i<fusetabmax;i++)
 	{
 		epoch_t e;
-		if ((fusetab[i] != NULL) && (fusetab[i]->fuse != NULL)) {
+		if ((fusetab[i] != NULL) && (fusetab[i]->fuse != NULL) && (fusetab[i]->fuse->inuse >= 0)) {
 			if (exact) {
 				if ((strcmp(path,fusetab[i]->fuse->path) == 0) &&
 						((e=tst_matchingepoch(&(fusetab[i]->fuse->tst))) > maxepoch)) {
@@ -438,8 +439,7 @@ int fuse_main_real(int argc, char *argv[], const struct fuse_operations *op,
 #endif
 	//I cannot understand this comment. (renzo)
 	//"now opts are lib_opts;debug,hard_remove,use_ino"
-	fuse_loop(f);
-	return ;	
+	return fuse_loop(f);
 }
 
 /* fuse_mount and fuse_unmount are dummy functions, 
@@ -649,11 +649,13 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 		errno=ENODEV;
 		return -1;
 	} else {
+		struct fuse_context *mountpointfc = searchcontext(target,SUBSTR);
 		struct fuse_context *new = (struct fuse_context *)
 			malloc(sizeof(struct fuse_context));
 		struct startmainopt smo;
 		struct fuse_context *fc;
 		assert(new);
+		if (mountpointfc != NULL) mountpointfc->fuse->inuse++;
 		new->fuse = (struct fuse *)malloc(sizeof(struct fuse));
 		assert(new->fuse);
 		new->fuse->path = strdup(target);
@@ -745,6 +747,7 @@ static int umfuse_umount2(char *target, int flags)
 	} else {
 		struct fuse_context *fc_norace=fc;
 		fc_norace->pid=um_mod_getpid();
+		struct fuse_context *mountpointfc = searchcontext(target,SUBSTR);
 		if (fc_norace->fuse->flags & FUSE_DEBUG) {
 			fprintf(stderr, "UMOUNT => path:%s flag:%d\n",target, flags);
 			fflush(stderr);
@@ -756,6 +759,7 @@ static int umfuse_umount2(char *target, int flags)
 		}
 #endif
 		delmnttab(fc);
+		if (mountpointfc != NULL) mountpointfc->fuse->inuse--;
 		//printf("PID %d TID %d \n",getpid(),pthread_self());
 		pthread_mutex_lock( &fc_norace->fuse->endmutex );
 		//pthread_mutex_lock( &condition_mutex );
