@@ -215,18 +215,11 @@ int main(int argc,char *argv[])
 				  }
 				  break;
 			case 'o':{
-						 FILE* new_ofile;
 						if (optarg==NULL){
 							fprintf(stderr, "%s: must specify an argument after -o\n",argv[0]);
 							break;
 						}
-						new_ofile = fopen(optarg, "w");
-						if (!new_ofile)
-						{
-							perror(optarg);
-							exit(-1);
-						}
-						gdebug_set_ofile(new_ofile);
+						gdebug_set_ofile(optarg);
 						/*
 						close(STDOUT_FILENO);
 						if( open(optarg,O_WRONLY | O_CREAT | O_TRUNC,0666)<1 ){

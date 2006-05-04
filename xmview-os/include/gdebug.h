@@ -42,12 +42,15 @@
 #	define GPERROR(level, prefix) GDEBUG(level, "%s: %s", prefix, strerror(errno))
 #	define FGHEXDUMP(ofile, level, text, len) fghexdump(ofile, GDEBUG_LEVEL, level, __FILE__, __LINE__, __func__, text, len)
 #	define GHEXDUMP(level, text, len) FGHEXDUMP(GDEBUG_OFILE, level, text, len)
+#	define GBACKTRACE(level, maxdepth) FGBACKTRACE(gdebug_ofile?gdebug_ofile:stderr, level, maxdepth)
+#	define FGBACKTRACE(ofile, level, maxdepth) fgbacktrace(ofile, GDEBUG_LEVEL, level, __FILE__, __LINE__, __func__, maxdepth)
 
 extern FILE* gdebug_ofile;
 
-void gdebug_set_ofile(FILE* new_ofile);
+void gdebug_set_ofile(char* new_ofile);
 void fgdebug(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, const char *fmt, ...);
 void fghexdump(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, char *text, int len);
+void fgbacktrace(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, int maxdepth);
 
 #else
 #	define FGDEBUG(ofile, level, args...)
@@ -55,6 +58,7 @@ void fghexdump(FILE *ofile, int gdebug_level, int level, const char *file, const
 #	define GPERROR(level, prefix)
 #	define FGHEXDUMP(ofile, level, text, len)
 #	define GHEXDUMP(level, text, len)
+#	define GBACKTRACE(level, maxdepth)
 #endif
 
 #endif

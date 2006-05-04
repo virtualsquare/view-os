@@ -23,10 +23,13 @@
  *
  */   
 #include <stdio.h>
+#include <stdlib.h>
+#include <execinfo.h>
 #include <stdarg.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <dlfcn.h>
+#include <errno.h>
 
 //#include "defs.h"
 #include "gdebug.h"
@@ -37,13 +40,22 @@
 
 FILE *gdebug_ofile = NULL;
 
-static void* libc_handle;
+#define BACKTRACE_INITIAL_SIZE 10
+
+static void *libc_handle;
 static int (*libc_fprintf)(FILE *stream, const char *format, ...);
 static int (*libc_vfprintf)(FILE *stream, const char *format, va_list ap);
+static FILE *(*libc_fopen)(const char *path, const char *mode);
 
-void gdebug_set_ofile(FILE* new_ofile)
+static void **backtrace_array = NULL;
+static int backtrace_array_size = 0;
+
+void gdebug_set_ofile(char* new_ofile)
 {
-	gdebug_ofile = new_ofile;
+	gdebug_ofile = libc_fopen(new_ofile, "w");
+	if (!gdebug_ofile)
+		libc_fprintf(stderr, "gdebug: can't open log file %s: %s. Using stderr.\n",
+				new_ofile, strerror(errno));
 }
 
 void fgdebug(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, const char *fmt, ...)
@@ -89,33 +101,75 @@ void fghexdump(FILE *ofile, int gdebug_level, int level, const char *file, const
 	}
 }	
 
+void fgbacktrace(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, int maxdepth)
+{
+	int i;
+	int btdepth;
+	char **btstrings;
+
+	/* The first entry is always ignored (it's the call to fgbacktrace), the
+	 * user wants maxdepth entries so we must add 1 */
+	maxdepth++;
+	
+	if (gdebug_level >= level)
+	{
+		if (maxdepth > backtrace_array_size)
+		{
+			backtrace_array_size = maxdepth;
+			backtrace_array = realloc(backtrace_array, sizeof(void*) * backtrace_array_size);
+		}
+		btdepth = backtrace(backtrace_array, maxdepth);
+		btstrings = backtrace_symbols(backtrace_array, btdepth);
+
+		if (!btstrings)
+		{
+			fgdebug(ofile, gdebug_level, level, file, line, func, "can't obtain backtrace");
+			return;
+		}
+
+		/* 1 and not 0 (0 is fgbacktrace and it's not interesting) */
+		for (i = 1; i < btdepth; i++)
+			fgdebug(ofile, gdebug_level, level, file, line, func, "BT: #%d  %s", i-1, btstrings[i]);
+	}
+}
+
 static void __attribute__ ((constructor)) init()
 {
+
 	libc_handle = dlopen("libc.so.6", RTLD_LAZY);
 	if (!libc_handle)
 	{
 		fprintf(stderr, "dlopen: %s", dlerror());
-		fprintf(stderr, "dlopen in gdebug failed, reverting to original fprintf\n");
+		fprintf(stderr, "dlopen in gdebug failed, reverting to original fprintf/vfprintf/fopen\n");
 		libc_fprintf = fprintf;
 		libc_vfprintf = vfprintf;
+		libc_fopen = fopen;
 	}
 	else
 	{
 		libc_fprintf = dlsym(libc_handle, "fprintf");
 		libc_vfprintf = dlsym(libc_handle, "vfprintf");
+		libc_fopen = dlsym(libc_handle, "fopen");
 
-		if (!libc_fprintf || !libc_vfprintf)
+		if (!libc_fprintf || !libc_vfprintf || !libc_fopen)
 		{
 			fprintf(stderr, "dlsym: %s", dlerror());
-			fprintf(stderr, "dlsym in gdebug failed, reverting to original fprintf\n");
+			fprintf(stderr, "dlsym in gdebug failed, reverting to original fprintf/vfprintf/fopen\n");
 			libc_fprintf = fprintf;
 			libc_vfprintf = vfprintf;
+			libc_fopen = fopen;
 		}
 	}
+	backtrace_array = malloc(sizeof(void*) * BACKTRACE_INITIAL_SIZE);
+	backtrace_array_size = BACKTRACE_INITIAL_SIZE;
 }
 
 static void __attribute__ ((destructor)) fini()
 {
 	dlclose(libc_handle);
+	if (backtrace_array)
+		free(backtrace_array);
+	backtrace_array = NULL;
+	backtrace_array_size = 0;
 }
 
