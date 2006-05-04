@@ -602,6 +602,40 @@ static void vir_pcb_free(void *arg)
 	}
 }
 
+static int r_execvp(const char *file, char *const argv[]){
+	if(strchr(file,'/') != NULL)
+		return execve(file,argv,environ);
+	else {
+		char *path;
+		char *envpath;
+		char *pathelem;
+		char buf[PATH_MAX];
+		if ((envpath=getenv("PATH")) == NULL)
+			envpath="/bin:/usr/bin";
+		path=strdup(envpath);
+		while((pathelem=strsep(&path,":")) != NULL){
+			if (*pathelem != 0) {
+				register int i,j;
+				for (i=0; i<PATH_MAX && pathelem[i]; i++)
+					buf[i]=pathelem[i];
+				if(buf[i-1] != '/' && i<PATH_MAX)
+					buf[i++]='/';
+				for (j=0; i<PATH_MAX && file[j]; j++,i++)
+					buf[i]=file[j];
+				buf[i]=0;
+				if (r_execve(buf,argv,environ)<0 &&
+						((errno != ENOENT) && (errno != ENOTDIR) && (errno != EACCES))) {
+					free(path);
+					return -1;
+				}
+			}
+		}
+		free(path);
+		errno = ENOENT;
+		return -1;
+	}
+}
+
 int capture_main(char **argv)
 {
 	int status;
@@ -614,13 +648,13 @@ int capture_main(char **argv)
 			break;
 		case 0:
 			unsetenv("LD_PRELOAD");
-			setpriority(PRIO_PROCESS,0,0);
+			r_setpriority(PRIO_PROCESS,0,0);
 			if(ptrace(PTRACE_TRACEME, 0, 0, 0) < 0){
 				GPERROR(0, "ptrace");
 				exit(1);
 			}
-			kill(getpid(), SIGSTOP);
-			execvp(argv[0], argv);
+			r_kill(getpid(), SIGSTOP);
+			r_execvp(argv[0], argv);
 			GPERROR(0, "strace: exec");
 			_exit(1);
 		default:

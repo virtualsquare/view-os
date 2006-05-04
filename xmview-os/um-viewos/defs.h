@@ -59,6 +59,8 @@
 #define r_getcwd(p,l) (syscall(__NR_getcwd,(p),(l)))
 #define r_mkdir(d,m) (syscall(__NR_mkdir,(d),(m)))
 #define r_rmdir(d) (syscall(__NR_rmdir,(d)))
+#define r_kill(p,s) (syscall(__NR_kill,(p),(s)))
+#define r_execve(p,a,e) (syscall(__NR_execve,(p),(a),(e)))
 extern int fprint2(const char *fmt, ...);
 
 extern unsigned int has_ptrace_multi;
