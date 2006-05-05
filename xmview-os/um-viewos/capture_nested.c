@@ -348,8 +348,12 @@ static long int capture_nested_syscall(long int sysno, ...)
 		syscall(__NR_write,2,buf,strlen(buf));
 	}
 #endif
-	for (i=0;i<6;i++)
-		callee_pcb.args[i]=va_arg(ap,long int);
+	for (i=0;i<6;i++){
+		if( i < scmap[uscno(sysno)].nargs ) 
+			callee_pcb.args[i]=va_arg(ap,long int);
+		else
+			callee_pcb.args[i]=0;
+	}
 	va_end(ap);
 
 	rv=nested_commonwrap(sysno, &callee_pcb, nested_sysindex, nested_call_syscall, service_syscall, scmap);
