@@ -90,7 +90,7 @@ epoch_t tst_matchingepoch(struct timestamp *service_tst)
 	 * return service_tst->epoch */
 	/* if service_tst refers to a dead branch service_tst->epoch is updated*/
 	struct timestamp *process_tst=um_x_gettst();
-	//fprint2("SE = %lld - PE = %lld\n",service_tst->epoch,process_tst->epoch);
+	fprint2("SE = %lld - PE = %lld\n",service_tst->epoch,process_tst->epoch);
 	if (service_tst->epoch < process_tst->epoch)
 		return service_tst->epoch;
 	else

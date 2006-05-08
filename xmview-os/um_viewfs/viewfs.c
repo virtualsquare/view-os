@@ -175,6 +175,7 @@ static char *remapbuf;
 extern char* sfd_getpath(int, int);
 
 static struct service s;
+static struct timestamp t;
 
 #ifdef VIEWFS_ENABLE_REMAP
 static void prepare_names_remap(char *path, int which)
@@ -2043,6 +2044,12 @@ static int is_path_interesting(char *path)
 static epoch_t viewfscheck(int type, void *arg)
 {
 	char *path;
+	epoch_t e = tst_matchingepoch(&t);
+
+	GDEBUG(3, "e is %d, t.epoch is %d", e, t.epoch);
+
+	if (!e)
+		return 0;
 	
 	if (type != CHECKPATH)
 		return 0;
@@ -2057,13 +2064,13 @@ static epoch_t viewfscheck(int type, void *arg)
 	if (is_critical(path, VIEWFS_DEEP))
 	{
 		GDEBUG(1, "attempt to read inside the pers directory: %s", path);
-		return 1;
+		return e;
 	}
 
 	if (is_path_interesting(path))
 	{
 		GDEBUG(2, "%s: interested in %s", SYSCALLNAME(um_mod_getsyscallno()), path);
-		return 1;
+		return e;
 	}
 	else
 		return 0;
@@ -2128,6 +2135,7 @@ init (void)
 	s.syscall[uscno(__NR_utime)]=viewfs_utime;
 	s.syscall[uscno(__NR_utimes)]=viewfs_utimes;
 	add_service(&s);
+	t = tst_timestamp();
 }
 
 static void
