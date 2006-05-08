@@ -354,12 +354,12 @@ static long int capture_nested_syscall(long int sysno, ...)
 	{
 		static char buf[256];
 		snprintf(buf,256,"SyC=%ld - %s %p - parametri: %p %p %p %p %p %p\n",sysno,SYSCALLNAME(sysno),get_pcb(),
-					callee_pcb.args[0],
-					callee_pcb.args[1],
-					callee_pcb.args[2],
-					callee_pcb.args[3],
-					callee_pcb.args[4],
-					callee_pcb.args[5]);
+					(void*)callee_pcb.args[0],
+					(void*)callee_pcb.args[1],
+					(void*)callee_pcb.args[2],
+					(void*)callee_pcb.args[3],
+					(void*)callee_pcb.args[4],
+					(void*)callee_pcb.args[5]);
 		syscall(__NR_write,2,buf,strlen(buf));
 	}
 #endif
