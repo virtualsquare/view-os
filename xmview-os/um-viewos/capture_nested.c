@@ -384,6 +384,7 @@ static long int capture_nested_syscall(long int sysno, ...)
 static intfun libc__clone=clone;
 #elif defined(__x86_64)
 static intfun libc__clone=clone2;
+#endif
 
 struct clonearg {
 	int (*fn) (void *arg);
