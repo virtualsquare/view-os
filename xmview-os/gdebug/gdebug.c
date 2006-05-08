@@ -46,6 +46,7 @@ static void *libc_handle;
 static int (*libc_fprintf)(FILE *stream, const char *format, ...);
 static int (*libc_vfprintf)(FILE *stream, const char *format, va_list ap);
 static FILE *(*libc_fopen)(const char *path, const char *mode);
+static int (*libc_getpid)(void);
 
 static void **backtrace_array = NULL;
 static int backtrace_array_size = 0;
@@ -144,20 +145,23 @@ static void __attribute__ ((constructor)) init()
 		libc_fprintf = fprintf;
 		libc_vfprintf = vfprintf;
 		libc_fopen = fopen;
+		libc_getpid = getpid;
 	}
 	else
 	{
 		libc_fprintf = dlsym(libc_handle, "fprintf");
 		libc_vfprintf = dlsym(libc_handle, "vfprintf");
 		libc_fopen = dlsym(libc_handle, "fopen");
+		libc_getpid = dlsym(libc_handle,"getpid");
 
-		if (!libc_fprintf || !libc_vfprintf || !libc_fopen)
+		if (!libc_fprintf || !libc_vfprintf || !libc_fopen || !libc_getpid)
 		{
 			fprintf(stderr, "dlsym: %s", dlerror());
 			fprintf(stderr, "dlsym in gdebug failed, reverting to original fprintf/vfprintf/fopen\n");
 			libc_fprintf = fprintf;
 			libc_vfprintf = vfprintf;
 			libc_fopen = fopen;
+			libc_getpid = getpid;
 		}
 	}
 	backtrace_array = malloc(sizeof(void*) * BACKTRACE_INITIAL_SIZE);
