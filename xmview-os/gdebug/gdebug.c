@@ -68,9 +68,9 @@ void fgdebug(FILE *ofile, int gdebug_level, int level, const char *file, const i
 		va_start(ap, fmt);
 
 #ifdef _PTHREAD_H
-		libc_fprintf(ofile, "[%d:%lu] %s:%d %s(): ", getpid(), pthread_self(), file, line, func);
+		libc_fprintf(ofile, "[%d:%lu] %s:%d %s(): ", libc_getpid(), pthread_self(), file, line, func);
 #else
-		libc_fprintf(ofile, "[%d] %s:%d %s(): ", getpid(), file, line, func);
+		libc_fprintf(ofile, "[%d] %s:%d %s(): ", libc_getpid(), file, line, func);
 #endif
 
 		libc_vfprintf(ofile, fmt, ap);
@@ -86,9 +86,9 @@ void fghexdump(FILE *ofile, int gdebug_level, int level, const char *file, const
 	if (gdebug_level >= level)
 	{
 #ifdef _PTHREAD_H
-		libc_fprintf(ofile, "[%d:%lu] %s:%d %s(): [%d] ", getpid(), pthread_self(), file, line, func, len);
+		libc_fprintf(ofile, "[%d:%lu] %s:%d %s(): [%d] ", libc_getpid(), pthread_self(), file, line, func, len);
 #else
-		libc_fprintf(ofile, "[%d] %s:%d %s(): [%d] ", getpid(), file, line, func, len);
+		libc_fprintf(ofile, "[%d] %s:%d %s(): [%d] ", libc_getpid(), file, line, func, len);
 #endif
 
 		for (i = 0; i < len; i++)
