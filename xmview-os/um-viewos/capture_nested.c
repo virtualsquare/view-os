@@ -42,7 +42,9 @@
 #include "defs.h"
 #include "canonicalize.h"
 
-//#define _NESTED_CALL_DEBUG_
+#include "syscallnames.h"
+
+#define _NESTED_CALL_DEBUG_
 
 static struct pcb_file umview_file;
 
@@ -341,13 +343,6 @@ static long int capture_nested_syscall(long int sysno, ...)
 	register int i;
 	nsaveargs(caller_pcb, &callee_pcb,sysno);
 	set_pcb(&callee_pcb);
-#ifdef _NESTED_CALL_DEBUG_
-	{
-		static char buf[128];
-		snprintf(buf,128,"SyC=%ld %p\n",sysno,get_pcb());
-		syscall(__NR_write,2,buf,strlen(buf));
-	}
-#endif
 	for (i=0;i<6;i++){
 		if( i < scmap[uscno(sysno)].nargs ) 
 			callee_pcb.args[i]=va_arg(ap,long int);
@@ -355,17 +350,40 @@ static long int capture_nested_syscall(long int sysno, ...)
 			callee_pcb.args[i]=0;
 	}
 	va_end(ap);
+#ifdef _NESTED_CALL_DEBUG_
+	{
+		static char buf[256];
+		snprintf(buf,256,"SyC=%ld - %s %p - parametri: %p %p %p %p %p %p\n",sysno,SYSCALLNAME(sysno),get_pcb(),
+					callee_pcb.args[0],
+					callee_pcb.args[1],
+					callee_pcb.args[2],
+					callee_pcb.args[3],
+					callee_pcb.args[4],
+					callee_pcb.args[5]);
+		syscall(__NR_write,2,buf,strlen(buf));
+	}
+#endif
 
 	rv=nested_commonwrap(sysno, &callee_pcb, nested_sysindex, nested_call_syscall, service_syscall, scmap);
 	/*rv=syscall(sysno, callee_pcb.args[0], callee_pcb.args[1], callee_pcb.args[2],
 			callee_pcb.args[3], callee_pcb.args[4], callee_pcb.args[5]);*/
 	nrestoreargs(caller_pcb, &callee_pcb);
 	set_pcb(caller_pcb);
+#ifdef _NESTED_CALL_DEBUG_
+	{
+		static char buf[128];
+		snprintf(buf,128,"Nested: return value:%ld %p\n",rv,get_pcb());
+		syscall(__NR_write,2,buf,strlen(buf));
+	}
+#endif
 	return rv;
 }
 
 /* capture all umview+modules thread creations */
-static intfun libc__clone;
+#if defined(__i386__) || defined(__powerpc__)
+static intfun libc__clone=clone;
+#elif defined(__x86_64)
+static intfun libc__clone=clone2;
 
 struct clonearg {
 	int (*fn) (void *arg);
