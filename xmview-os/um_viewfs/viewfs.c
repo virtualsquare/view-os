@@ -4,7 +4,7 @@
  *   viewfs.
  *   It is possible to remap files and directories
  *   
- *   Copyright 2005 Ludovico Gardenghi
+ *   Copyright 2005, 2006 Ludovico Gardenghi
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -2046,7 +2046,7 @@ static epoch_t viewfscheck(int type, void *arg)
 	char *path;
 	epoch_t e = tst_matchingepoch(&t);
 
-	GDEBUG(3, "e is %d, t.epoch is %d", e, t.epoch);
+	GDEBUG(3, "e is %lld, t.epoch is %lld", e, t.epoch);
 
 	if (!e)
 		return 0;
@@ -2081,8 +2081,6 @@ __attribute__ ((constructor))
 init (void)
 {
 	GDEBUG(2, "viewfs init");
-	
-	prepare();
 	
 	s.name="viewfs Virtual FS";
 	s.code = VIEWFS_SERVICE_CODE;
@@ -2136,6 +2134,9 @@ init (void)
 	s.syscall[uscno(__NR_utimes)]=viewfs_utimes;
 	add_service(&s);
 	t = tst_timestamp();
+	
+	prepare();
+	GDEBUG(2, "viewfs ready and waiting");
 }
 
 static void
