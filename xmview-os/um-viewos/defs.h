@@ -170,6 +170,15 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #error Unsupported HW Architecure
 #endif /* architecture */
 
+#define __NR_UM_SERVICE BASEUSC+0
+#define ADD_SERVICE 0
+#define DEL_SERVICE 1
+#define MOV_SERVICE 2
+#define LIST_SERVICE 3
+#define NAME_SERVICE 4
+#define LOCK_SERVICE 5
+#define RECURSIVE_UMVIEW 0x100
+
 extern divfun scdtab[MAXSC];
 extern divfun scdutab[MAXUSC];
 extern t_pcb_constr pcb_constr;

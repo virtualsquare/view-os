@@ -61,34 +61,45 @@ struct prelist {
 };
 static struct prelist *prehead=NULL;
 
-static void preadd(char *module)
+static void preadd(struct prelist *head,char *module)
 {
 	struct prelist *new=malloc(sizeof(struct prelist));
 	assert(new);
 	new->module=module;
-	new->next=prehead;
-	prehead=new;
+	new->next=head;
+	head=new;
 }
 
 static int do_preload(struct prelist *head)
 {
 	if (head != NULL) {
 		void *handle;
-		do_preload(head->next);
-		fprint2("LOAD %s\n",head->module);
+		int rv=do_preload(head->next);
 		handle=open_dllib(head->module);
 		if (handle==NULL) {
 			fprintf(stderr, "%s\n",dlerror());
 			return -1;
 		} else {
 			set_handle_new_service(handle,0);
-			return 0;
+			return rv;
 		}
 		free(head);
 	} else
 		return 0;
 }
 
+static int do_preload_recursive(struct prelist *head)
+{
+	if (head != NULL) {
+		do_preload_recursive(head->next);
+		syscall(__NR_UM_SERVICE,ADD_SERVICE,head->module);
+		free(head);
+		return 0;
+	} else
+		return 0;
+}
+
+			
 
 static void version(int verbose)
 {
@@ -171,6 +182,32 @@ static void load_it_again(int argc,char *argv[])
 	}
 }
 
+static void umview_recursive(int argc,char *argv[])
+{
+	fprintf(stderr,"UMView: nested invocation\n\n");
+	while (1) {
+		int c;
+		int option_index = 0;
+		c=getopt_long(argc,argv,"+p:o:hvnx",long_options,&option_index);
+		if (c == -1) break;
+		switch (c) {
+			case 'h':
+				usage(argv[0]);
+				break;
+			case 'v':
+				version(1);
+				exit(0);
+				break;
+			case 'p': 
+				preadd(prehead,optarg);
+				break;
+		}
+	}
+	do_preload_recursive(prehead);
+	execvp(*(argv+optind),argv+optind);
+	exit(-1);
+}
+
 int main(int argc,char *argv[])
 {
 	fd_set wset[3];
@@ -178,8 +215,10 @@ int main(int argc,char *argv[])
 	
 	r_setpriority(PRIO_PROCESS,0,-11);
 	r_setuid(getuid());
+	if (syscall(__NR_UM_SERVICE,RECURSIVE_UMVIEW) >= 0)
+		umview_recursive(argc,argv);	/* do not return!*/
 	if (strcmp(argv[0],"-umview")!=0)
-		load_it_again(argc,argv);
+		load_it_again(argc,argv);	/* do not return!*/
 	optind=0;
 	argv[0]="umview";
 	sigemptyset(&blockchild);
@@ -202,18 +241,9 @@ int main(int argc,char *argv[])
 				version(1);
 				exit(0);
 				break;
-			case 'p': {
-									preadd(optarg);
-#if 0
-					  void *handle=open_dllib(optarg);
-					  if (handle==NULL) {
-						  fprintf(stderr, "%s\n",dlerror());
-						  exit (-1);
-					  } else 
-						  set_handle_new_service(handle,0);
-#endif
-				  }
-				  break;
+			case 'p': 
+				preadd(prehead,optarg);
+				break;
 			case 'o':{
 						if (optarg==NULL){
 							fprintf(stderr, "%s: must specify an argument after -o\n",argv[0]);

@@ -41,13 +41,6 @@
 #include "services.h"
 #include "utils.h"
 
-#define ADD_SERVICE 0
-#define DEL_SERVICE 1
-#define MOV_SERVICE 2
-#define LIST_SERVICE 3
-#define NAME_SERVICE 4
-#define LOCK_SERVICE 5
-
 void *open_dllib(char *name)
 {
 	char *args;
@@ -158,6 +151,15 @@ int dsys_um_service(int sc_number,int inout,struct pcb *pc)
 					lock_services();
 				pc->retval=0;
 				pc->erno=0;
+				break;
+			case RECURSIVE_UMVIEW:
+				if (pcb_newfork(pc) >= 0) {
+					pc->retval=0;
+					pc->erno = 0;
+				} else {
+					pc->retval= -1;
+					pc->erno = ENOMEM;
+				}
 				break;
 			default:
 				pc->retval = -1;

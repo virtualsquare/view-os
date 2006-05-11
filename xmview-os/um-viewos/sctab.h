@@ -78,6 +78,8 @@ void scdtab_init();
 char *um_getpath(long laddr,struct pcb *pc);
 char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink);
 
+int pcb_newfork(struct pcb *pc);
+
 void um_set_errno(struct pcb *pc,int i);
 char *um_getcwd(struct pcb *pc,char *buf,int size);
 int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc);

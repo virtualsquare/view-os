@@ -412,12 +412,13 @@ void pcb_plus(struct pcb *pc,int flags,int maxtablesize)
 		pcpe->fdfs->root=strdup("/");
 		pcpe->fdfs->mask=local_getumask();
 		r_umask(pcpe->fdfs->mask);
-		pcpe->tst=tst_newproc(NULL,1);
+		pcpe->tst=tst_newfork(NULL);
+		pcpe->tst=tst_newproc(&(pcpe->tst));
 	} else {
 		pcpe->fdfs->cwd=strdup(((struct pcb_ext *)(pc->pp->data))->fdfs->cwd);
 		pcpe->fdfs->root=strdup(((struct pcb_ext *)(pc->pp->data))->fdfs->root);
 		pcpe->fdfs->mask=((struct pcb_ext *)(pc->pp->data))->fdfs->mask;
-		pcpe->tst=tst_newproc(&(((struct pcb_ext *)(pc->pp->data))->tst),0);
+		pcpe->tst=tst_newproc(&(((struct pcb_ext *)(pc->pp->data))->tst));
 	}
 	pcpe->path=pcpe->selset=pcpe->tmpfile2unlink_n_free=NULL;
 	/* if CLONE_FILES, file descriptor table is shared */
@@ -446,6 +447,14 @@ void pcb_minus(struct pcb *pc)
 		free(((struct pcb_ext *)pc->data)->fdfs->cwd);
 		free(pc->data);
 	}*/
+}
+
+int pcb_newfork(struct pcb *pc)
+{
+	struct pcb_ext *pcpe=pc->data;
+	struct treepoch *te=pcpe->tst.treepoch;
+	pcpe->tst=tst_newfork(&(pcpe->tst));
+	return (te == pcpe->tst.treepoch)?-1:0;
 }
 
 int dsys_dummy(int sc_number,int inout,struct pcb *pc)
@@ -730,7 +739,6 @@ int um_mod_getsyscalltype(int scno)
 		return -1;
 }
 
-#define __NR_UM_SERVICE BASEUSC+0
 void scdtab_init()
 {
 	register int i;

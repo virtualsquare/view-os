@@ -133,7 +133,7 @@ struct umbinfmt_dirent {
 	__ino_t            d_ino;
 	__off_t            d_off;
 	unsigned short  d_reclen;
-	unsigned char   d_type;
+	//unsigned char   d_type; /* this field does not exist in getdents provided data */
 	char            d_name[0];
 };
 
@@ -771,15 +771,15 @@ static void convert_dents6432(void *buf, int count) {
 		d32->d_ino=d64->d_ino;
 		d32->d_off=d64->d_off;
 		d32->d_reclen=d64->d_reclen;
-		d32->d_type=d64->d_type;
-		bcopy(d64->d_name,d32->d_name,strlen(d64->d_name));
+		//d32->d_type=d64->d_type;
+		memmove(d32->d_name,d64->d_name,strlen(d64->d_name)+1);
 		convert_dents6432(next,nextcount);
 	}
 }
 
 static int umbinfmt_getdents(int fd, void *buf, size_t count){
 	int rv=umbinfmt_getdents64(fd, buf, count);
-	convert_dents6432(buf,count);
+	convert_dents6432(buf,rv);
 	return rv;
 }
 
