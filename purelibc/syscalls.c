@@ -41,6 +41,7 @@
 #include <sys/sendfile.h>
 #include <sys/xattr.h>
 #include <sys/timeb.h>
+#include <bits/wordsize.h>
 #include <utime.h>
 #include <stdarg.h>
 #include <errno.h>
@@ -220,72 +221,116 @@ int dup2(int oldfd, int newfd){
 	return _pure_syscall(__NR_dup2, oldfd, newfd);
 }
 
-int stat(const char* pathname,struct stat* buf){
-	struct kstat kbuf;
+/* When <sys/stat.h> is included, inline #defines for {,l,f}stat{,64} are
+ * inserted and they make calls to __{,l,f}xstat{,64}. So we don't need
+ * to define them.
+ */
+
+/* Since libc developers seem to be quite sadic in writing unreadable code,
+ * making me go crazy trying to understabd it, I decided to have some fun
+ * myself. The following not-so-readable stuff takes care of calling the
+ * correct 64-bit function on both 32 bit and 64 bit architectures.*/
+
+#if __WORDSIZE == 64
+#	define arch_stat64 stat
+#	define IFNOT64(x)
+#else
+#	define arch_stat64 stat64
+#	define IFNOT64(x) x
+#endif
+
+#define INTERNAL_MAKE_NAME(a, b) a ## b
+#define MAKE_NAME(a, b) INTERNAL_MAKE_NAME(a, b)
+
+void arch_stat64_2_stat(struct arch_stat64 *from, struct stat *to)
+{
+	if ((void*)from == (void*)to)
+		return;
+
+	to->st_dev = from->st_dev;
+	to->st_ino = from->st_ino;
+	to->st_mode = from->st_mode;
+	to->st_nlink = from->st_nlink;
+	to->st_uid = from->st_uid;
+	to->st_gid = from->st_gid;
+	to->st_rdev = from->st_rdev;
+	to->st_size = from->st_size;
+	to->st_blksize = from->st_blksize;
+	to->st_blocks = from->st_blocks;
+	to->st_atim = from->st_atim;
+	to->st_mtim = from->st_mtim;
+	to->st_ctim = from->st_ctim;
+
+	return;
+}
+
+int __xstat(int ver, const char* pathname, struct stat* buf_stat)
+{
+	IFNOT64(struct stat64 *buf_stat64 = alloca(sizeof(struct stat64));)
 	int rv;
-	rv=_pure_syscall(__NR_stat,pathname,&kbuf);
-	if (rv>=0)
-		kstat2stat(&kbuf,buf);
+	
+	switch(ver)
+	{
+		case _STAT_VER_LINUX:
+			rv = _pure_syscall(MAKE_NAME(__NR_, arch_stat64), pathname, MAKE_NAME(buf_, arch_stat64));
+			break;
+
+		default:
+			fprintf(stderr, "*** BUG! *** __xstat can't manage version %d!\n", ver);
+			abort();
+	}
+
+	if (rv >= 0)
+		arch_stat64_2_stat(MAKE_NAME(buf_, arch_stat64), buf_stat);
+
 	return rv;
 }
 
-int lstat(const char* pathname,struct stat* buf){
-	struct kstat kbuf;
+int __lxstat(int ver, const char* pathname, struct stat* buf_stat)
+{
+	IFNOT64(struct stat64 *buf_stat64 = alloca(sizeof(struct stat64));)
 	int rv;
-	rv=_pure_syscall(__NR_lstat,pathname,&kbuf);
-	if (rv>=0)
-		kstat2stat(&kbuf,buf);
+	
+	switch(ver)
+	{
+		case _STAT_VER_LINUX:
+			rv = _pure_syscall(MAKE_NAME(__NR_l, arch_stat64), pathname, MAKE_NAME(buf_, arch_stat64));
+			break;
+
+		default:
+			fprintf(stderr, "*** BUG! *** __lxstat can't manage version %d!\n", ver);
+			abort();
+	}
+
+	if (rv >= 0)
+		arch_stat64_2_stat(MAKE_NAME(buf_, arch_stat64), buf_stat);
+
 	return rv;
 }
 
-int fstat(int fildes,struct stat* buf){
-	struct kstat kbuf;
+int __fxstat(int ver, int fildes, struct stat* buf_stat)
+{
+	IFNOT64(struct stat64 *buf_stat64 = alloca(sizeof(struct stat64));)
 	int rv;
-	rv=_pure_syscall(__NR_fstat,fildes,&kbuf);
-	if (rv>=0)
-		kstat2stat(&kbuf,buf);
+	
+	switch(ver)
+	{
+		case _STAT_VER_LINUX:
+			rv = _pure_syscall(MAKE_NAME(__NR_f, arch_stat64), fildes, MAKE_NAME(buf_, arch_stat64));
+			break;
+
+		default:
+			fprintf(stderr, "*** BUG! *** __fxstat can't manage version %d!\n", ver);
+			abort();
+	}
+
+	if (rv >= 0)
+		arch_stat64_2_stat(MAKE_NAME(buf_, arch_stat64), buf_stat);
+
 	return rv;
 }
 
-int stat64(const char* pathname,struct stat64* buf){
-	return _pure_syscall(__NR_stat64,pathname,buf);
-}
-
-int lstat64(const char* pathname,struct stat64* buf){
-	return _pure_syscall(__NR_lstat64,pathname,buf);
-}
-
-int fstat64(int filedes,struct stat64* buf){
-	return _pure_syscall(__NR_fstat64,filedes,buf);
-}
-
-int __xstat(int ver,const char* pathname,struct stat* buf){
-	struct kstat kbuf;
-	int rv;
-	rv=_pure_syscall(__NR_stat,pathname,&kbuf);
-	if (rv>=0)
-		kstat2stat(&kbuf,buf);
-	return rv;
-}
-
-int __lxstat(int ver,const char* pathname,struct stat* buf){
-	struct kstat kbuf;
-	int rv;
-	rv=_pure_syscall(__NR_lstat,pathname,&kbuf);
-	if (rv>=0)
-		kstat2stat(&kbuf,buf);
-	return rv;
-}
-
-int __fxstat(int ver,int fildes,struct stat* buf){
-	struct kstat kbuf;
-	int rv;
-	rv=_pure_syscall(__NR_fstat,fildes,&kbuf);
-	if (rv>=0)
-		kstat2stat(&kbuf,buf);
-	return rv;
-}
-
+#if __WORDSIZE == 32
 int __xstat64(int ver,const char* pathname,struct stat64* buf){
 	return _pure_syscall(__NR_stat64,pathname,buf);
 }
@@ -297,6 +342,7 @@ int __lxstat64(int ver,const char* pathname,struct stat64* buf){
 int __fxstat64 (int ver, int fildes, struct stat64 *buf){
 	return _pure_syscall(__NR_fstat64,fildes,buf);
 }
+#endif
 
 int mknod(const char *pathname, mode_t mode, dev_t dev) {
 	return _pure_syscall(__NR_mknod,pathname,mode,dev);

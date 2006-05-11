@@ -2,6 +2,7 @@ ifeq ($(LIBDIR),)
 LIBDIR=/usr/local/lib
 endif
 
+# CFLAGS= -fPIC -g -ggdb -D_GNU_SOURCE -DGDEBUG_ENABLED -DGDEBUG_LEVEL=10 -I../UMVIEWOS/include
 CFLAGS= -fPIC -g -ggdb -D_GNU_SOURCE
 OBJS=syscalls.o socketcalls.o exec.o dir.o stdio.o
 VERSION=0.1

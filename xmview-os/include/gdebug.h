@@ -61,4 +61,7 @@ void fgbacktrace(FILE *ofile, int gdebug_level, int level, const char *file, con
 #	define GBACKTRACE(level, maxdepth)
 #endif
 
+#define FGERROR(ofile, args...) fgdebug(ofile, -1, -1, __FILE__, __LINE__, __func__, args)
+#define GERROR(args...) FGERROR(GDEBUG_OFILE, args)
+
 #endif
