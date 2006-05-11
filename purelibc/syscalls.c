@@ -60,97 +60,6 @@ sfun _pure_syscall=syscall;
 
 /* DAMNED! the kernel stat are different! so glibc converts the 
  *  * kernel structure. We have to make the reverse conversion! */
-#ifdef __powerpc__
-struct kstat {
-	unsigned        kst_dev;
-	ino_t           kst_ino;
-	mode_t          kst_mode;
-	nlink_t         kst_nlink;
-	uid_t           kst_uid;
-	gid_t           kst_gid;
-	unsigned        kst_rdev;
-	off_t           kst_size;
-	unsigned long   kst_blksize;
-	unsigned long   kst_blocks;
-	unsigned long   kst_atime;
-	unsigned long   kst_atime_nsec;
-	unsigned long   kst_mtime;
-	unsigned long   kst_mtime_nsec;
-	unsigned long   kst_ctime;
-	unsigned long   kst_ctime_nsec;
-	unsigned long   k__unused4;
-	unsigned long   k__unused5;
-};  
-#endif
-#ifdef __i386__
-struct kstat {
-	unsigned short kst_dev;
-	unsigned short k__pad1;
-	unsigned long  kst_ino;
-	unsigned short kst_mode;
-	unsigned short kst_nlink;
-	unsigned short kst_uid;
-	unsigned short kst_gid;
-	unsigned short kst_rdev;
-	unsigned short k__pad2;
-	unsigned long  kst_size;
-	unsigned long  kst_blksize;
-	unsigned long  kst_blocks;
-	unsigned long  kst_atime;
-	unsigned long  k__unused1;
-	unsigned long  kst_mtime;
-	unsigned long  k__unused2;
-	unsigned long  kst_ctime;
-	unsigned long  k__unused3;
-	unsigned long  k__unused4;
-	unsigned long  k__unused5;
-};
-#endif
-
-#ifdef __x86_64__
-struct kstat {
-	unsigned long kst_dev;
-	unsigned long   kst_ino;
-	unsigned long    kst_nlink;
-
-	unsigned int    kst_mode;
-	unsigned int  kst_uid;
-	unsigned int  kst_gid;
-	unsigned int  k__pad0;
-
-	unsigned long kst_rdev;
-
-	long      kst_size;
-	long      kst_blksize;
-	long      kst_blocks;  /* Number 512-byte blocks allocated. */
-
-	unsigned long   kst_atime;
-	unsigned long   kst_atime_nsec;
-	unsigned long   kst_mtime;
-	unsigned long   kst_mtime_nsec;
-	unsigned long   kst_ctime;
-	unsigned long   kst_ctime_nsec;
-
-	long  k__unused[3];
-};
-#endif
-
-static void kstat2stat(struct kstat *kbuf,struct stat *buf)
-{
-	buf->st_dev= kbuf->kst_dev;
-	buf->st_ino= kbuf->kst_ino;
-	buf->st_mode= kbuf->kst_mode;
-	buf->st_nlink= kbuf->kst_nlink;
-	buf->st_uid= kbuf->kst_uid;
-	buf->st_gid= kbuf->kst_gid;
-	buf->st_rdev= kbuf->kst_rdev;
-	buf->st_size= kbuf->kst_size;
-	buf->st_blksize= kbuf->kst_blksize;
-	buf->st_blocks= kbuf->kst_blocks;
-	buf->st_atime= kbuf->kst_atime;
-	buf->st_mtime= kbuf->kst_mtime;
-	buf->st_ctime= kbuf->kst_ctime;
-}
 
 // open must consider two mode of calling: with two or three arguments
 int open(const char* pathname,int flags,...){
@@ -312,7 +221,6 @@ int __fxstat(int ver, int fildes, struct stat* buf_stat)
 {
 	IFNOT64(struct stat64 *buf_stat64 = alloca(sizeof(struct stat64));)
 	int rv;
-	
 	switch(ver)
 	{
 		case _STAT_VER_LINUX:
@@ -323,7 +231,6 @@ int __fxstat(int ver, int fildes, struct stat* buf_stat)
 			fprintf(stderr, "*** BUG! *** __fxstat can't manage version %d!\n", ver);
 			abort();
 	}
-
 	if (rv >= 0)
 		arch_stat64_2_stat(MAKE_NAME(buf_, arch_stat64), buf_stat);
 
