@@ -383,6 +383,10 @@ __off64_t lseek64(int fd, __off64_t offset, int whence){
 		return result;
 }
 
+__off64_t llseek(int fd, __off64_t offset, int whence){
+	return lseek64(fd,offset,whence);
+}
+
 int _llseek(unsigned int fd, unsigned long  offset_high,  unsigned  long  offset_low,  loff_t
 		       *result, unsigned int whence){
 	return _pure_syscall(__NR__llseek,fd,offset_high,offset_low,result,whence);
