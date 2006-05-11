@@ -49,7 +49,7 @@ wrapinfun wrap_in_chmod, wrap_in_fchmod, wrap_in_dup, wrap_in_fsync;
 wrapinfun wrap_in_link, wrap_in_symlink, wrap_in_pread, wrap_in_pwrite;
 wrapinfun wrap_in_utime, wrap_in_mount, wrap_in_umount;
 wrapinfun wrap_in_umask, wrap_in_chroot;
-wrapinfun wrap_in_umask, wrap_in_execve;
+wrapinfun wrap_in_truncate, wrap_in_ftruncate, wrap_in_execve;
 
 wrapoutfun wrap_out_open, wrap_out_std, wrap_out_close, wrap_out_chdir;
 wrapoutfun wrap_out_dup, wrap_out_select, wrap_out_poll, wrap_out_fcntl;
@@ -78,7 +78,7 @@ wrapfun nw_sysdup,nw_sysclose;
 #endif
 
 struct sc_map scmap[]={
-	  {__NR_execve,	choice_path,	wrap_in_execve,	wrap_out_execve,	always_umnone,	NULL, 0,	3, SOC_NONE},
+        {__NR_execve,	choice_path,	wrap_in_execve,	wrap_out_execve,always_umnone,	NULL, ALWAYS,	3, SOC_NONE},
 	{__NR_chdir,	choice_path,	wrap_in_chdir,	wrap_out_chdir, always_umnone,	NULL, ALWAYS,	1, SOC_FILE},
 	{__NR_fchdir,	choice_fd,	wrap_in_fchdir,	wrap_out_chdir, always_umnone,	NULL, ALWAYS,	1, SOC_FILE},
 	{__NR_getcwd,	always_umnone, wrap_in_getcwd,	wrap_out_std,	always_umnone,	NULL, ALWAYS,	2, SOC_NONE},
@@ -137,13 +137,10 @@ struct sc_map scmap[]={
 	{__NR_utimes,	choice_path,	wrap_in_utime, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	2, SOC_FILE|SOC_TIME},
 	{__NR_fsync,	choice_fd,	wrap_in_fsync, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	1, SOC_FILE},
 	{__NR_fdatasync,choice_fd,	wrap_in_fsync, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	1, SOC_FILE},
-	/* MISSING */
-#if 0
 	{__NR_truncate, choice_path,	wrap_in_truncate, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	2, SOC_FILE},
 	{__NR_ftruncate, choice_fd,	wrap_in_ftruncate, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	2, SOC_FILE},
 	{__NR_truncate64, choice_path,	wrap_in_truncate, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	3, SOC_FILE},
 	{__NR_ftruncate64, choice_fd,	wrap_in_ftruncate, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
-#endif
 #ifdef __NR_pread64
 	{__NR_pread64,	choice_fd,	wrap_in_pread, 	wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	5, SOC_FILE},
 #else

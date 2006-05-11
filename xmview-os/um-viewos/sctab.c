@@ -89,17 +89,24 @@ struct timestamp *um_x_gettst()
 	}
 }
 
-void um_x_setepoch(epoch_t epoch)
+epoch_t um_x_setepoch(epoch_t epoch)
 {
 	struct pcb *pc=get_pcb();
+	epoch_t oldepoch=0;
 	if (pc->flags && PCB_INUSE) {
 		struct pcb_ext *pcdata = (struct pcb_ext *) pc->data;
-		if (pcdata)
-			pcdata->nestepoch=epoch;
+		if (pcdata) {
+			oldepoch=pcdata->nestepoch;
+			if (epoch > 0)
+				pcdata->nestepoch=epoch;
+		}
 	} else {
 		struct npcb *npc=(struct npcb *)pc;
-		npc->nestepoch=epoch;
+		oldepoch=npc->nestepoch;
+		if (epoch > 0)
+			npc->nestepoch=epoch;
 	}
+	return oldepoch;
 }
 										 
 int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
@@ -119,7 +126,7 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
 		npc->scno = __NR_lstat64;
 		epoch=npc->tst.epoch;
 	}
-	if ((sercode=service_check(CHECKPATH,filename)) == UM_NONE)
+	if ((sercode=service_check(CHECKPATH,filename,1)) == UM_NONE)
 		retval = r_lstat64(filename,buf);
 	else{
 		retval = service_syscall(sercode,uscno(__NR_lstat64))(filename,buf,pc);
@@ -150,7 +157,7 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
 		npc->scno = __NR_readlink;
 		epoch=npc->tst.epoch;
 	}
-	if ((sercode=service_check(CHECKPATH,path)) == UM_NONE)
+	if ((sercode=service_check(CHECKPATH,path,1)) == UM_NONE)
 		retval = r_readlink(path,buf,bufsiz);
 	else{
 		retval = service_syscall(sercode,uscno(__NR_readlink))(path,buf,bufsiz,pc);
@@ -223,6 +230,11 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 {
 	struct pcb_ext *pcdata=(struct pcb_ext *)(pc->data);
 	int usc=uscno(sc_number);
+	if (__builtin_expect(pcdata->tmpfile2unlink_n_free!=NULL,0)) {
+		r_unlink(pcdata->tmpfile2unlink_n_free);
+		free(pcdata->tmpfile2unlink_n_free);
+		pcdata->tmpfile2unlink_n_free=NULL;
+	}
 	/* -- IN phase -- */
 	if (inout == IN) {
 		service_t sercode;
@@ -407,7 +419,7 @@ void pcb_plus(struct pcb *pc,int flags,int maxtablesize)
 		pcpe->fdfs->mask=((struct pcb_ext *)(pc->pp->data))->fdfs->mask;
 		pcpe->tst=tst_newproc(&(((struct pcb_ext *)(pc->pp->data))->tst),0);
 	}
-	pcpe->path=pcpe->selset=NULL;
+	pcpe->path=pcpe->selset=pcpe->tmpfile2unlink_n_free=NULL;
 	/* if CLONE_FILES, file descriptor table is shared */
 	if (flags & CLONE_FILES)
 		pcpe->fds = ((struct pcb_ext *)(pc->pp->data))->fds;
@@ -464,7 +476,7 @@ service_t choice_fd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 service_t choice_sc(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	int sc=sc_number;
-	return service_check(CHECKSC,&sc);
+	return service_check(CHECKSC,&sc,1);
 }
 
 /* choice mount (mount point must be defined + filesystemtype is used
@@ -478,7 +490,7 @@ char choice_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		char filesystemtype[PATH_MAX];
 		unsigned long fstype=getargn(2,pc);
 		if (umovestr(pc->pid,fstype,PATH_MAX,filesystemtype) == 0) {
-			return service_check(CHECKFSTYPE,filesystemtype);
+			return service_check(CHECKFSTYPE,filesystemtype,1);
 		}
 		else
 			return UM_NONE;
@@ -499,7 +511,7 @@ service_t choice_path(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		return UM_NONE;
 	}
 	else
-		return service_check(CHECKPATH,pcdata->path);
+		return service_check(CHECKPATH,pcdata->path,1);
 }
 
 /* choice link (dirname must be defined, basename can be non-existent) */
@@ -510,7 +522,7 @@ char choice_link(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	if (pcdata->path==um_patherror)
 		return UM_NONE;
 	else
-		return service_check(CHECKPATH,pcdata->path);
+		return service_check(CHECKPATH,pcdata->path,1);
 }
 
 /* choice link (dirname must be defined, basename can be non-existent second arg)*/
@@ -522,12 +534,12 @@ char choice_link2(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	if (pcdata->path==um_patherror)
 		return UM_NONE;
 	else
-		return service_check(CHECKPATH,pcdata->path);
+		return service_check(CHECKPATH,pcdata->path,1);
 }
 
 char choice_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
-	return service_check(CHECKSOCKET, &(pc->arg2));
+	return service_check(CHECKSOCKET, &(pc->arg2),1);
 }
 
 /* choice device through major and minor number... it's a try, don't use it yet */
@@ -535,7 +547,7 @@ char choice_device(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	pcdata->path=um_abspath(pc->arg1,pc,&(pcdata->pathstat),1);
 	// CHECK is really st_rdev? it seems...
-	return service_check(CHECKDEVICE, &((pcdata->pathstat).st_rdev));
+	return service_check(CHECKDEVICE, &((pcdata->pathstat).st_rdev),1);
 }
 
 

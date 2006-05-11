@@ -42,9 +42,11 @@
 #include "defs.h"
 #include "canonicalize.h"
 
-#include "syscallnames.h"
 
-#define _NESTED_CALL_DEBUG_
+//#define _NESTED_CALL_DEBUG_
+#ifdef _NESTED_CALL_DEBUG_
+#include "syscallnames.h"
+#endif
 
 static struct pcb_file umview_file;
 
@@ -69,7 +71,7 @@ service_t nchoice_fd(int sc_number,struct npcb *npc)
 }
 
 service_t nchoice_sc(int sc_number,struct npcb *npc) {
-	  return service_check(CHECKSC,&sc_number);
+	  return service_check(CHECKSC,&sc_number,1);
 }
 
 service_t nchoice_mount(int sc_number,struct npcb *npc) {
@@ -77,7 +79,7 @@ service_t nchoice_mount(int sc_number,struct npcb *npc) {
 	if(npc->path==um_patherror) 
 		return UM_NONE;
 	else 
-		return service_check(CHECKFSTYPE,(char *)(npc->args[2]));
+		return service_check(CHECKFSTYPE,(char *)(npc->args[2]),1);
 }
 
 service_t nchoice_path(int sc_number,struct npcb *npc) {
@@ -87,7 +89,7 @@ service_t nchoice_path(int sc_number,struct npcb *npc) {
 	if(npc->path==um_patherror)
 		return UM_NONE;
 	else
-		return service_check(CHECKPATH,npc->path);
+		return service_check(CHECKPATH,npc->path,1);
 }
 
 service_t nchoice_link(int sc_number,struct npcb *npc) {
@@ -97,7 +99,7 @@ service_t nchoice_link(int sc_number,struct npcb *npc) {
 	if(npc->path==um_patherror)
 		return UM_NONE;
 	else
-		return service_check(CHECKPATH,npc->path);
+		return service_check(CHECKPATH,npc->path,1);
 }
 
 service_t nchoice_link2(int sc_number,struct npcb *npc) {
@@ -105,11 +107,11 @@ service_t nchoice_link2(int sc_number,struct npcb *npc) {
 	if(npc->path==um_patherror)
 		return UM_NONE;
 	else
-		return service_check(CHECKPATH,npc->path);
+		return service_check(CHECKPATH,npc->path,1);
 }
 
 service_t nchoice_socket(int sc_number,struct npcb *npc) {
-	return service_check(CHECKSOCKET, &(npc->args[2]));
+	return service_check(CHECKSOCKET, &(npc->args[2]),1);
 }
 
 int do_nested_call(intfun um_syscall,long *args,int n)

@@ -35,6 +35,7 @@ struct timestamp {
 
 extern epoch_t tst_matchingepoch(struct timestamp *service_tst);
 extern struct timestamp tst_timestamp();
+extern epoch_t get_epoch();
 
 typedef epoch_t (*epochfun)();
 typedef unsigned char service_t;
@@ -44,6 +45,8 @@ typedef unsigned char service_t;
 #define CHECKSOCKET 	2
 #define CHECKFSTYPE 	3
 #define CHECKSC 5
+#define CHECKBINFMT 6
+
 // for IOCTL mgmt
 #define CHECKIOCTLPARMS   0x40000000
 #define IOCTLLENMASK      0x07ffffff
@@ -54,8 +57,14 @@ struct ioctl_len_req {
 	int req;
 };
 
-//
-#define FLAG_WANTREGISTER	0x80000000
+#define BINFMT_MODULE_ALLOC 1
+#define BINFMT_KEEP_ARG0 2
+struct binfmt_req {
+	char *path;
+	char *interp;
+	int flags;
+};
+
 
 struct service {
 	char *name;

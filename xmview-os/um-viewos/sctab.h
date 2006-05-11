@@ -58,6 +58,9 @@ struct pcb_ext {
 	struct stat64 pathstat;
 	/* struct seldata* */
 	void *selset;
+	/* path for tmp files that must be deleted over the next syscall */
+	/* see execve mgmt */
+	void *tmpfile2unlink_n_free;
 	/* keep track of file system informations - look at clone 2
 	 * (CLONE_FS) */
 	struct pcb_fs *fdfs;
@@ -79,7 +82,7 @@ void um_set_errno(struct pcb *pc,int i);
 char *um_getcwd(struct pcb *pc,char *buf,int size);
 int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc);
 int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc);
-void um_x_setepoch(epoch_t epoch);
+epoch_t um_x_setepoch(epoch_t epoch);
 
 struct timestamp *um_x_gettst();
 

@@ -275,7 +275,7 @@ int wrap_in_link(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= ENOENT;
 	} else {
-		int ser2=service_check(CHECKPATH,source);
+		int ser2=service_check(CHECKPATH,source,0);
 		if (ser2 != sercode) {
 			pc->retval= -1;
 			pc->erno= EXDEV;
@@ -363,3 +363,38 @@ int wrap_in_umount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	pc->erno=errno;
 	return SC_FAKE;
 }
+
+#if (defined(__powerpc__) && !defined(__powerpc64__)) || (defined (MIPS) && !defined(__mips64))
+#define PALIGN 1
+#else
+#define PALIGN 0
+#endif
+
+int wrap_in_truncate(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+		                char sercode, intfun um_syscall)
+{
+	__off64_t off;
+	if (sc_number == __NR_truncate64) 
+		off=(((long long) getargn(1+PALIGN,pc)) << 32) + getargn(2+PALIGN,pc);
+	else
+		off=getargn(1,pc);
+	pc->retval=um_syscall(pcdata->path,off);
+	pc->erno=errno;
+	return SC_FAKE;
+}
+
+
+int wrap_in_ftruncate(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+		                char sercode, intfun um_syscall)
+{
+	__off64_t off;
+	int sfd=fd2sfd(pcdata->fds,pc->arg0);
+	if (sc_number == __NR_ftruncate64) 
+		off=(((long long) getargn(1+PALIGN,pc)) << 32) + getargn(2+PALIGN,pc);
+	else
+		off=getargn(1,pc);
+	pc->retval = um_syscall(sfd,off);
+	pc->erno=errno;
+	return SC_FAKE;
+}
+

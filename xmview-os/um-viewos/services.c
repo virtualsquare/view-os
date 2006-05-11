@@ -227,7 +227,7 @@ void service_delproc(service_t code,int id, void *arg)
 	}
 }
 
-service_t service_check(int type,void* arg)
+service_t service_check(int type,void* arg,int setepoch)
 {
 	int i,max_index=-1;
 	struct service* s;
@@ -247,7 +247,8 @@ service_t service_check(int type,void* arg)
 		if(max_index<0)
 			return(UM_NONE);
 		else {
-			um_x_setepoch(matchepoch);
+			if (setepoch)
+				um_x_setepoch(matchepoch);
 			return services[max_index]->code;
 		}
 	}
@@ -274,6 +275,11 @@ static int errnosys()
 {
 	errno=ENOSYS;
 	return -1;
+}
+
+int isnosys(intfun f)
+{
+	return (f==errnosys);
 }
 
 intfun service_syscall(service_t code, int scno)

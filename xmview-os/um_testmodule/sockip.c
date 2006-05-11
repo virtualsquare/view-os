@@ -152,8 +152,8 @@ init (void)
 	s.name="sockettest (syscall are executed server side)";
 	s.code=0xfb;
 	s.checkfun=checkip;
-	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
-	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
+	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
+	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
 	s.socket[SYS_SOCKET]=socket;
 	s.socket[SYS_BIND]=bind;
 	s.socket[SYS_CONNECT]=connect;

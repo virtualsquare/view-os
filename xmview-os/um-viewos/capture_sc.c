@@ -654,6 +654,8 @@ int capture_main(char **argv)
 				exit(1);
 			}
 			r_kill(getpid(), SIGSTOP);
+			/* maybe it is better to use execvp instead of r_execvp.
+			 * the former permits to use a (preloaded) module provided executable as startup process*/
 			r_execvp(argv[0], argv);
 			GPERROR(0, "strace: exec");
 			_exit(1);

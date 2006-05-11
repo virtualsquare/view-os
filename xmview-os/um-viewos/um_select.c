@@ -61,7 +61,8 @@ enum {RX, WX, XX} stype;
 struct seldata {
 	/* maximum number of fd present in wrfds[0], wrfds[1], wrfds[2] */
 	int rfdmax;
-	/* one of the lfd from the last select() */
+	/* one of the lfd from the last select(), the process is waiting
+	 * at the other end of this named pipe */
 	int a_random_lfd;
 	/* [0] = write, [1] = read, [2] = exception */
 	fd_set wrfds[3];

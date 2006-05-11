@@ -31,6 +31,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <dirent.h>
 #include "umproc.h"
 #include "scmap.h"
 #include "defs.h"
@@ -82,12 +83,39 @@ void um_proc_open()
 	um_tmpfile_len=strlen(um_tmpfile);
 }
 
+static void rec_rm_all(char *name)
+{
+	int fd;
+	fd = r_open(name,O_RDONLY | O_DIRECTORY,0);
+	if (fd > 0) {
+		char buf[1024];
+		int size=0;
+		int pos;
+		struct dirent64 *this;
+		while ((size=r_getdents64(fd,buf,1023))>0) {
+			for (pos=0, this=(struct dirent64 *)buf; pos<size;
+					pos+=this->d_reclen, this=(struct dirent64 *)(&(buf[pos]))) {
+				if (strcmp(this->d_name,".") != 0 && strcmp(this->d_name,"..") != 0) {
+					char *path;
+					asprintf(&path,"%s/%s",name,this->d_name);
+					if (this->d_type == DT_DIR) 
+						rec_rm_all(path);
+					else
+						r_unlink(path);
+					free(path);
+				}
+			}
+		}
+		r_close(fd);
+		r_rmdir(name);
+	}
+}
+
 void um_proc_close()
 {
 	//printf("um_proc_close %s\n",um_proc_root);
-	//rm all the remaining fifos and files XXX
 	lfd_closeall();
-	r_rmdir(um_proc_root);
+	rec_rm_all(um_proc_root);
 }
 
 static char *um_proc_tmpfile(service_t service, int lfd)

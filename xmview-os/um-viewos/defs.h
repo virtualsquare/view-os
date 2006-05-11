@@ -37,6 +37,7 @@
 #define r_read(f,b,c) (syscall(__NR_read,(f),(b),(c)))
 #define r_write(f,b,c) (syscall(__NR_write,(f),(b),(c)))
 #define r_close(f) (syscall(__NR_close,(f)))
+#define r_getdents64(f,b,c) (syscall(__NR_getdents64,(f),(b),(c)))
 #define r_unlink(p) (syscall(__NR_unlink,(p)))
 #define r_dup(f) (syscall(__NR_dup,(f)))
 #ifdef __NR__newselect

@@ -26,6 +26,7 @@ all:
 	make -C umfuse $(RELEASE_FLAGS)
 	make -C umdev $(RELEASE_FLAGS)
 	make -C umdev_testmodules $(RELEASE_FLAGS)
+	make -C umbinfmt $(RELEASE_FLAGS)
 	make -C doc $(RELEASE_FLAGS)
 	make -C um_lwip $(RELEASE_FLAGS)
 
@@ -40,6 +41,7 @@ clean:
 	make -C umfuse clean $(RELEASE_FLAGS)
 	make -C umdev clean $(RELEASE_FLAGS)
 	make -C umdev_testmodules clean $(RELEASE_FLAGS)
+	make -C umbinfmt clean $(RELEASE_FLAGS)
 	make -C doc clean $(RELEASE_FLAGS)
 	make -C um_lwip clean $(RELEASE_FLAGS)
 	rm -f ctags cscope.out
@@ -55,6 +57,7 @@ distclean:
 	make -C umfuse distclean $(RELEASE_FLAGS)
 	make -C umdev distclean $(RELEASE_FLAGS)
 	make -C umdev_testmodules distclean $(RELEASE_FLAGS)
+	make -C umbinfmt distclean $(RELEASE_FLAGS)
 	make -C doc distclean $(RELEASE_FLAGS)
 	make -C um_lwip distclean $(RELEASE_FLAGS)
 
@@ -89,6 +92,7 @@ install: ${bindir} ${libdir} ${mandir}
 	make -C umfuse install $(RELEASE_FLAGS)
 	make -C umdev install $(RELEASE_FLAGS)
 	make -C umdev_testmodules install $(RELEASE_FLAGS)
+	make -C umbinfmt install $(RELEASE_FLAGS)
 	make -C doc install $(RELEASE_FLAGS)
 	make -C um_lwip install $(RELEASE_FLAGS)
 

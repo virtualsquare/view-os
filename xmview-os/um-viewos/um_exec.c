@@ -70,41 +70,156 @@ static int filecopy(service_t sercode,const char *from, const char *to)
 	return 0;
 }
 
-int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		service_t sercode, intfun um_syscall)
-{
-	//int mode;
-	//int argv=getargn(2,pc);
-	//int env=getargn(3,pc);
-	char *filename=strdup(um_proc_tmpname());
-	//fprintf(stderr, "wrap_in_execve! %s %p\n",(char *)pcdata->path,um_syscall);
 
-	/* argv and env should be downloaded then
-	 * pc->retval = um_syscall(pcdata->path, argv, env); */
-	if ((pc->retval=filecopy(sercode,pcdata->path,filename))>=0) {
-		long sp=getsp(pc);
-		int filenamelen=WORDALIGN(strlen(filename));
-		/*pc->retval=lfd_open(UM_NONE,-1,filename);  ??? */
-		ustorestr(pc->pid,sp-filenamelen,filenamelen,filename);
-		putargn(0,sp-filenamelen,pc);
-		free(filename);
-		return SC_CALLONXIT;
-	} else {
-		free(filename);
-    pc->erno= -(pc->retval);
-		pc->retval= -1;
-		return SC_FAKE;
+#define CHUNKSIZE 16
+static char **getparms(int pid,long laddr) {
+	long *paddr=NULL;
+	char **parms;
+	int size=0;
+	int n=0;
+	int i;
+	do {
+		int rv;
+		if (n >= size) {
+			size+=CHUNKSIZE;
+			paddr=realloc(paddr,size*sizeof(long));
+			assert(paddr);
+		}
+		rv=umoven(pid,laddr,sizeof(char *),&(paddr[n]));
+		assert(rv=4);
+		laddr+= sizeof(char *);
+		n++;
+	} while (paddr[n-1] != 0);
+	parms=malloc(n*sizeof(char *));
+	assert(parms);
+	parms[n-1]=NULL;
+	for (i=0;i<n-1;i++) {
+		char tmparg[PATH_MAX+1];
+		tmparg[PATH_MAX]=0;
+		umovestr(pid,paddr[i],PATH_MAX,tmparg);
+		parms[i]=strdup(tmparg);
 	}
+	free(paddr);
+	return parms;
+}
+
+static void freeparms(char **parms)
+{
+	char **scan=parms;
+	while (*scan != 0) {
+		free(*scan);
+		scan++;
+	}
+	free(parms);
+}
+
+/*
+static void printparms(char *what,char **parms)
+{
+	fprint2("%s\n",what);
+	while (*parms != 0) {
+		fprint2("--> %s\n",*parms);
+		parms++;
+	}
+}
+*/
+
+#define UMBINWRAP (INSTALLDIR "/umbinwrap")
+int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+		service_t sercode,intfun um_syscall)
+{
+	struct binfmt_req req={(char *)pcdata->path,NULL,0};
+	epoch_t nestepoch=um_x_setepoch(0);
+	service_t binfmtser;
+	um_x_setepoch(nestepoch+1);
+	binfmtser=service_check(CHECKBINMFT,&req,0);
+	um_x_setepoch(nestepoch);
+	if (binfmtser != UM_NONE) {
+		char *umbinfmtarg0;
+		char sep;
+		long largv=getargn(1,pc);
+		long larg0;
+		char oldarg0[PATH_MAX+1];
+		int rv;
+		int filenamelen;
+		int arg0len;
+		long sp=getsp(pc);
+		rv=umoven(pc->pid,largv,sizeof(char *),&(larg0));
+		assert(rv);
+		if (req.flags & BINFMT_KEEP_ARG0) {
+			oldarg0[PATH_MAX]=0;
+			umovestr(pc->pid,larg0,PATH_MAX,oldarg0);
+		} else
+			oldarg0[0]=0;
+		for (sep=1;sep<255 && 
+				(strchr((char *)pcdata->path,sep)!=NULL ||
+				 strchr(req.interp,sep)!=NULL ||
+				 strchr(oldarg0,sep)!=NULL);
+				sep++)
+			;
+		if (req.flags & BINFMT_KEEP_ARG0) 
+			asprintf(&umbinfmtarg0,"%c%s%c%s%c%s",sep,req.interp,sep,oldarg0,sep,(char *)pcdata->path);
+		else 
+			asprintf(&umbinfmtarg0,"%c%s%c%s",sep,req.interp,sep,(char *)pcdata->path);
+		filenamelen=WORDALIGN(strlen(UMBINWRAP));
+		arg0len=WORDALIGN(strlen(umbinfmtarg0));
+		pc->retval=0;
+		ustorestr(pc->pid,sp-filenamelen,filenamelen,UMBINWRAP);
+		putargn(0,sp-filenamelen,pc);
+		ustorestr(pc->pid,sp-filenamelen-arg0len,arg0len,umbinfmtarg0);
+		larg0=sp-filenamelen-arg0len;
+		ustoren(pc->pid,largv,sizeof(char *),&larg0);
+		free(umbinfmtarg0);
+		if (req.flags & BINFMT_MODULE_ALLOC)
+			free(req.interp);
+		return SC_CALLONXIT;
+	}
+	else if (sercode != UM_NONE) {
+		pc->retval=ERESTARTSYS;
+		if (! isnosys(um_syscall)) {
+			long largv=getargn(1,pc);
+			long lenv=getargn(2,pc);
+			char **argv=getparms(pc->pid,largv);
+			char **env=getparms(pc->pid,lenv);
+			/*printparms("ARGV",argv);
+				printparms("ENV",env);*/
+			pc->retval=um_syscall(pcdata->path,argv,env);
+			pc->erno=errno;
+			freeparms(argv);
+			freeparms(env);
+		}
+		if (pc->retval==ERESTARTSYS){
+			char *filename=strdup(um_proc_tmpname());
+			//fprint2("wrap_in_execve! %s %p %d\n",(char *)pcdata->path,um_syscall,isnosys(um_syscall));
+
+			/* argv and env should be downloaded then
+			 * pc->retval = um_syscall(pcdata->path, argv, env); */
+			if ((pc->retval=filecopy(sercode,pcdata->path,filename))>=0) {
+				long sp=getsp(pc);
+				int filenamelen=WORDALIGN(strlen(filename));
+				pc->retval=0;
+				pcdata->tmpfile2unlink_n_free=filename;
+				ustorestr(pc->pid,sp-filenamelen,filenamelen,filename);
+				putargn(0,sp-filenamelen,pc);
+				return SC_CALLONXIT;
+			} else {
+				free(filename);
+				pc->erno= -(pc->retval);
+				pc->retval= -1;
+				return SC_FAKE;
+			}
+		} else 
+			return SC_FAKE;
+	} else 
+		return STD_BEHAVIOR;
 }
 
 
 int wrap_out_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) 
-{
-	if (pc->retval >= 0) {
-		/* remove the temp file */
-		unlink(lfd_getpath(pc->retval));
-		lfd_close(pc->retval);
-	} else {
+{ 
+	//fprint2("wrap_out_execve %d\n",pc->retval);
+	/* The tmp file gets automagically deleted (see sctab.c) */
+	if (pc->retval < 0) {
 		putrv(pc->retval,pc);
 		puterrno(pc->erno,pc);
 	}

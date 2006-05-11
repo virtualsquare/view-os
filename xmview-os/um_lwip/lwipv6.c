@@ -338,8 +338,8 @@ void _um_mod_init(char *initargs)
 		s.name="light weight ipv6 stack";
 		s.code=0x02;
 		s.checkfun=checksock;
-		s.syscall=(intfun *)calloc(1,scmap_scmapsize * sizeof(intfun));
-		s.socket=(intfun *)calloc(1,scmap_sockmapsize * sizeof(intfun));
+		s.syscall=(intfun *)calloc(scmap_scmapsize, sizeof(intfun));
+		s.socket=(intfun *)calloc(scmap_sockmapsize, sizeof(intfun));
 		openlwiplib();
 		lwipargtoenv(initargs);
 		s.syscall[uscno(__NR__newselect)]=alwaysfalse;

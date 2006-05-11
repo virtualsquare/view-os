@@ -1837,8 +1837,8 @@ init (void)
 	s.code=0x01;
 	s.checkfun=fuse_path;
 	pthread_key_create(&context_key,NULL);
-	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
-	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
+	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
+	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
 	s.syscall[uscno(__NR_mount)]=umfuse_mount;
 #if ! defined(__x86_64__)
 	s.syscall[uscno(__NR_umount)]=umfuse_umount2; /* umount must be mapped onto umount2 */

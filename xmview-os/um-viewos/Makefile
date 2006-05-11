@@ -1,5 +1,8 @@
+ifndef ($(bindir))
+bindir=/usr/local/bin
+endif
 DEBUGLEVEL=0
-CBASEFLAGS=-Wall -D_GNU_SOURCE -I../include
+CBASEFLAGS=-Wall -D_GNU_SOURCE -I../include -DINSTALLDIR=\"$(bindir)\"
 CDEBUGFLAGS=-g -O2 -ggdb -DGDEBUG_ENABLED -DGDEBUG_LEVEL=$(DEBUGLEVEL)
 CPPFLAGS+=-I../include
 
@@ -24,7 +27,7 @@ else
 
 # Development version (default is debug)
 CFLAGS=$(CBASEFLAGS) $(CDEBUGFLAGS)
-all: $(OBJS) umview
+all: $(OBJS) umview umbinwrap
 
 nodebug: clean
 	$(MAKE) CFLAGS="$(CBASEFLAGS)"
@@ -49,6 +52,7 @@ endif
 clean:	
 	rm -f *.o
 	rm -f umview
+	rm -f umbinwrap
 
 distclean: clean
 	rm -f *.d
@@ -56,5 +60,6 @@ distclean: clean
 
 install: all
 	install umview ${bindir}
+	install umbinwrap ${bindir}
 
 .PHONY: all clean install distclean 

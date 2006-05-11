@@ -70,8 +70,8 @@ init (void)
 	s.checkfun=real_path;
 	s.addproc=addproc;
 	s.delproc=delproc;
-	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
-	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
+	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
+	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
 	s.syscall[uscno(__NR_open)]=(intfun)open;
 	s.syscall[uscno(__NR_read)]=read;
 	s.syscall[uscno(__NR_write)]=write;

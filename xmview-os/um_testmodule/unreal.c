@@ -183,8 +183,8 @@ init (void)
 	s.name="/unreal Mapping to FS (server side)";
 	s.code=0xfe;
 	s.checkfun=unrealpath;
-	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
-	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
+	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
+	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
 	s.syscall[uscno(__NR_open)]=unreal_open;
 	s.syscall[uscno(__NR_creat)]=unreal_open; /*creat must me mapped onto open*/
 	s.syscall[uscno(__NR_read)]=read;

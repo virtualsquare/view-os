@@ -46,8 +46,15 @@ struct ioctl_len_req {
 	int req;
 };
 	
-// flag that specifies register requests...
-#define FLAG_WANTREGISTER	0x80000000
+#define BINFMT_MODULE_ALLOC 1
+#define BINFMT_KEEP_ARG0 2
+struct binfmt_req {
+	char *path;
+	char *interp;
+	int flags;
+};
+
+#define ERESTARTSYS 512
 
 struct service {
 	char *name;
@@ -100,6 +107,7 @@ struct service {
 };
 
 #define UM_NONE 0xff
+int isnosys(intfun f);
 int add_service(struct service *s);
 int set_handle_new_service(void *dlhandle,int position);
 void *get_handle_service(service_t code);
@@ -111,7 +119,7 @@ void lock_services();
 void invisible_services();
 void service_addproc(service_t code,int id,int max, void *arg);
 void service_delproc(service_t code,int id, void *arg);
-service_t service_check(int type,void *arg);
+service_t service_check(int type,void *arg,int setepoch);
 intfun service_syscall(service_t code, int scno);
 intfun service_socketcall(service_t code, int scno);
 epochfun service_checkfun(service_t code);

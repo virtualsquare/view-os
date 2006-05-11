@@ -60,16 +60,12 @@
 #define PRINTDEBUG(level,args...)
 #endif
 
-/* internal real system call insulated for nesting */
-#define syscall_stat64 stat64
-#define syscall_getuid getuid
-#define syscall_getgid getgid
-
 static struct service s;
 
 struct umdev {
 	char *path;
 	void *dlhandle;
+	struct timestamp tst;
 	dev_t device;
 	mode_t mode;
 	uid_t uid;
@@ -150,28 +146,41 @@ static struct umdev *searchdevice(char *path)
 	register int i;
 	struct umdev *result=NULL;
 	struct stat64 buf;
+	epoch_t maxepoch=0;
+	int maxi=-1;
+
 	PRINTDEBUG(0,"SearchContext:%s\n",path);
 	cutdots(path);
-	for (i=0;i<devicetabmax && result==NULL;i++)
+	for (i=0;i<devicetabmax;i++)
 	{
+		epoch_t e;
 		if ((devicetab[i] != NULL)) {
-			if (strcmp(path,devicetab[i]->path) == 0)
-				result=devicetab[i];
+			if ((strcmp(path,devicetab[i]->path) == 0) &&
+					((e=tst_matchingepoch(&(devicetab[i]->tst))) > maxepoch)) {
+				maxi=i;
+				maxepoch=e;
+			}
 		}
 	}
   /* Major/Minor Number select */	
-	if (result == NULL && syscall_stat64(path,&buf) >= 0)
+	if (maxi < 0 && stat64(path,&buf) >= 0)
 		for (i=0;i<devicetabmax && result==NULL;i++)
 		{
+			epoch_t e;
 			if ((devicetab[i] != NULL)) {
-				if ((((devicetab[i]->mode & S_IFMT) == 0) ||
+				if (((((devicetab[i]->mode & S_IFMT) == 0) ||
 							((buf.st_mode & S_IFMT) ==  (devicetab[i]->mode & S_IFMT))) &&
 						(major(devicetab[i]->device) == major(buf.st_rdev)) &&
 						((minor(devicetab[i]->device) == -1) || 
-						 (minor(devicetab[i]->device) == minor(buf.st_rdev))))
-					result=devicetab[i];
+						 (minor(devicetab[i]->device) == minor(buf.st_rdev)))) &&
+						((e=tst_matchingepoch(&(devicetab[i]->tst))) > maxepoch)) {
+					maxi=i;
+					maxepoch=e;
+				}
 			}
 		}
+	if (maxi >= 0)
+		result=devicetab[maxi];
 	return result;
 }
 
@@ -193,7 +202,7 @@ static int set_dev(dev_t *dev, struct umdev *umdev,char *path)
 	struct stat64 buf;
 	
 	*dev=0;
-	if (syscall_stat64(path,&buf) >= 0) {
+	if (stat64(path,&buf) >= 0) {
 		*dev=buf.st_rdev;
 	} else {
 		*dev= umdev->device;
@@ -439,9 +448,10 @@ static int umdev_mount(char *source, char *target, char *filesystemtype,
 		assert(new);
 		s64=um_mod_getpathstat();
 		new->path = strdup(target);
+		new->tst=tst_timestamp();
 		new->mode = S_IFCHR | 0600;
-		new->uid = syscall_getuid();
-		new->gid = syscall_getgid();
+		new->uid = getuid();
+		new->gid = getgid();
 		if (s64) {
 			new->device = s64->st_rdev;
 			if (S_ISCHR(s64->st_mode) | S_ISBLK (s64->st_mode))
@@ -515,7 +525,7 @@ static epoch_t umdev_check(int type, void *arg)
 		char *path=arg;
 		struct umdev *fc=searchdevice(path);
 		if ( fc != NULL) {
-			return TRUE; 
+			return fc->tst.epoch; 
 		}
 		else
 			return FALSE;
@@ -1116,8 +1126,8 @@ init (void)
 	s.code=UMDEV_SERVICE_CODE;
 	s.checkfun=umdev_check;
 	//pthread_key_create(&context_key,NULL);
-	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
-	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
+	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
+	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
 	s.syscall[uscno(__NR_mount)]=umdev_mount;
 #if ! defined(__x86_64__)
 	s.syscall[uscno(__NR_umount)]=umdev_umount2; /* umount must be mapped onto umount2 */
