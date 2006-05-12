@@ -61,13 +61,13 @@ struct prelist {
 };
 static struct prelist *prehead=NULL;
 
-static void preadd(struct prelist *head,char *module)
+static void preadd(struct prelist **head,char *module)
 {
 	struct prelist *new=malloc(sizeof(struct prelist));
 	assert(new);
 	new->module=module;
-	new->next=head;
-	head=new;
+	new->next=*head;
+	*head=new;
 }
 
 static int do_preload(struct prelist *head)
@@ -199,7 +199,7 @@ static void umview_recursive(int argc,char *argv[])
 				exit(0);
 				break;
 			case 'p': 
-				preadd(prehead,optarg);
+				preadd(&prehead,optarg);
 				break;
 		}
 	}
@@ -242,7 +242,7 @@ int main(int argc,char *argv[])
 				exit(0);
 				break;
 			case 'p': 
-				preadd(prehead,optarg);
+				preadd(&prehead,optarg);
 				break;
 			case 'o':{
 						if (optarg==NULL){
