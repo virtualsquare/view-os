@@ -177,4 +177,8 @@ extern short _i386_sc_remap[];
 #define __NR_lstat64	__NR_lstat
 #define __NR_socketcall	__NR_socket
 
+#ifndef __NR_pselect6
+#define __NR_pselect6	270
+#endif
+
 #endif // _DEFS_X86_64

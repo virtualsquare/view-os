@@ -92,4 +92,8 @@
 #define cdtab(X) (((X) < BASEUSC) ? scdtab[(X)] : scdutab[(X)-BASEUSC])
 #define setcdtab(X,Y) (((X) < BASEUSC) ? (scdtab[(X)] = (Y)) : (scdutab[(X)-BASEUSC] = (Y)))
 
+#ifndef __NR_pselect6
+#define __NR_pselect6	280
+#endif
+
 #endif // _DEFS_PPC 

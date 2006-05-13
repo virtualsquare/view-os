@@ -60,6 +60,7 @@
 #endif
 #include "gdebug.h"
 
+
 #define PCBSIZE 10
 
 pthread_key_t pcb_key=0; /* key to grab the current thread pcb */
@@ -292,7 +293,7 @@ void offspring_exit(struct pcb *pc)
 	putargn(1,pc->arg1,pc);
 }
 
-void tracehand(int s)
+void tracehand()
 {
 	int pid, status, scno=0;
 	struct pcb *pc;
@@ -566,7 +567,11 @@ int must_wake_tracer(fd_set *wset)
 	return retval;
 }
 
-static void setsigaction()
+void wake_null(int s)
+{
+}
+
+static void setsigaction(int has_pselect)
 {
 	struct sigaction sa;
 
@@ -589,8 +594,12 @@ static void setsigaction()
 	 * The signal handler is no longer the whole tracehand()
 	 * but a smaller function whose only duty is to
 	 * wake up the select() in main().
+	 * With pselect there is no need for pipe
 	 */
-	sa.sa_handler = wake_tracer;
+	if (has_pselect) 
+		sa.sa_handler = wake_null;
+	else
+		sa.sa_handler = wake_tracer;
 	sigaction(SIGCHLD, &sa, NULL);
 }
 
@@ -636,7 +645,7 @@ static int r_execvp(const char *file, char *const argv[]){
 	}
 }
 
-int capture_main(char **argv)
+int capture_main(char **argv,int has_pselect)
 {
 	int status;
 
@@ -668,7 +677,7 @@ int capture_main(char **argv)
 				GPERROR(0, "Waiting for stop");
 				exit(1);
 			}
-			setsigaction();
+			setsigaction(has_pselect);
 			if(ptrace(PTRACE_SYSCALL, first_child_pid, 0, 0) < 0){
 				GPERROR(0, "continuing");
 				exit(1);

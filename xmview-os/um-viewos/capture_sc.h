@@ -27,7 +27,7 @@
 #define CAPTURE_SC_H_
 
 extern int first_child_exit_status;
-int capture_main(char **argv);
+int capture_main(char **argv,int has_pselect);
 void sc_resume(void *pc);
 
 struct pcb *get_pcb();
@@ -38,6 +38,6 @@ void wake_tracer_init();
 void wake_tracer(int s);
 int add_tracerpipe_to_wset(int prevmax, fd_set *wset);
 int must_wake_tracer(fd_set *wset);
-void tracehand(int s);
+void tracehand();
 
 #endif

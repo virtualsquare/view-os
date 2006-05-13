@@ -206,10 +206,20 @@ static void umview_recursive(int argc,char *argv[])
 	exit(-1);
 }
 
+static int has_pselect_test()
+{
+	/*
+	static struct timespec to={0,0};
+	return (r_pselect(0,NULL,NULL,NULL,&to,NULL)<0)?0:1;
+	*/
+	return 0;
+}
+
 int main(int argc,char *argv[])
 {
 	fd_set wset[3];
 	sigset_t blockchild, oldset;
+	int has_pselect;
 	
 	r_setpriority(PRIO_PROCESS,0,-11);
 	r_setuid(getuid());
@@ -217,6 +227,7 @@ int main(int argc,char *argv[])
 		umview_recursive(argc,argv);	/* do not return!*/
 	if (strcmp(argv[0],"-umview")!=0)
 		load_it_again(argc,argv);	/* do not return!*/
+	has_pselect=has_pselect_test();
 	optind=0;
 	argv[0]="umview";
 	sigemptyset(&blockchild);
@@ -306,42 +317,61 @@ int main(int argc,char *argv[])
 	ptrace_vm_mask = want_ptrace_vm;
 	ptrace_viewos_mask = want_ptrace_viewos;
 	
-	/* Creation of the pipe for the signal handler */
-	wake_tracer_init();
-	
-	capture_main(argv+optind);
-	do_preload(prehead);
-  setenv("_INSIDE_UMVIEW_MODULE","",1);
-
-	
-	/* select() management */
-	select_init();
-	while (nprocs) {
-		int max,n;
-		FD_ZERO(&wset[0]);
-		FD_ZERO(&wset[1]);
-		FD_ZERO(&wset[2]);
+	if (has_pselect) {
 		sigprocmask(SIG_BLOCK,&blockchild,&oldset);
-		max=select_fill_wset(wset);
-		
-		/* Add the tracerpipe and update max */
-		max=add_tracerpipe_to_wset(max, &wset[0]);
-		
-		sigprocmask(SIG_SETMASK,&oldset,NULL);
-		n = r_select(max+1,&wset[0],&wset[1],&wset[2],NULL);
-		if (n > 0)
-		{
-			if (must_wake_tracer(&wset[0]))
-			{
-				// We received a message from the SIGCHLD handler, time to
-				// start the real handler
-				tracehand(0);
-				continue;
-			}
+		capture_main(argv+optind,1);
+		do_preload(prehead);
+		/* select() management */
+		select_init();
+		while (nprocs) {
+			int max,n;
+			FD_ZERO(&wset[0]);
+			FD_ZERO(&wset[1]);
+			FD_ZERO(&wset[2]);
+			max=select_fill_wset(wset);
+			n = r_pselect(max+1,&wset[0],&wset[1],&wset[2],NULL,oldset);
+			tracehand();
+			if (n > 0)
+				select_check_wset(max,wset);
+		}
+	} else {
+		/* Creation of the pipe for the signal handler */
+		wake_tracer_init();
+
+		capture_main(argv+optind,0);
+		setenv("_INSIDE_UMVIEW_MODULE","",1);
+		do_preload(prehead);
+
+		/* select() management */
+		select_init();
+		while (nprocs) {
+			int max,n;
+			FD_ZERO(&wset[0]);
+			FD_ZERO(&wset[1]);
+			FD_ZERO(&wset[2]);
 			sigprocmask(SIG_BLOCK,&blockchild,&oldset);
-			select_check_wset(max,wset);
+			max=select_fill_wset(wset);
+
+			/* Add the tracerpipe and update max */
+			max=add_tracerpipe_to_wset(max, &wset[0]);
+
 			sigprocmask(SIG_SETMASK,&oldset,NULL);
+			n = r_select(max+1,&wset[0],&wset[1],&wset[2],NULL);
+			if (n > 0)
+			{
+				if (must_wake_tracer(&wset[0]))
+				{
+					// We received a message from the SIGCHLD handler, time to
+					// start the real handler
+					tracehand();
+					continue;
+				}
+				sigprocmask(SIG_BLOCK,&blockchild,&oldset);
+				select_check_wset(max,wset);
+				sigprocmask(SIG_SETMASK,&oldset,NULL);
+			}
 		}
 	}
 	return first_child_exit_status;
 }
+
