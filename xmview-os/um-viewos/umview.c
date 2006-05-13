@@ -92,14 +92,12 @@ static int do_preload_recursive(struct prelist *head)
 {
 	if (head != NULL) {
 		do_preload_recursive(head->next);
-		syscall(__NR_UM_SERVICE,ADD_SERVICE,head->module);
+		syscall(__NR_UM_SERVICE,ADD_SERVICE,0,head->module);
 		free(head);
 		return 0;
 	} else
 		return 0;
 }
-
-			
 
 static void version(int verbose)
 {
