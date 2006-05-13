@@ -329,7 +329,7 @@ int main(int argc,char *argv[])
 			FD_ZERO(&wset[1]);
 			FD_ZERO(&wset[2]);
 			max=select_fill_wset(wset);
-			n = r_pselect(max+1,&wset[0],&wset[1],&wset[2],NULL,oldset);
+			n = r_pselect(max+1,&wset[0],&wset[1],&wset[2],NULL,&oldset);
 			tracehand();
 			if (n > 0)
 				select_check_wset(max,wset);
