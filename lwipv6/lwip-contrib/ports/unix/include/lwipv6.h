@@ -69,6 +69,7 @@ extern const struct ip_addr ip_addr_any;
 #define IP_ADDR_ANY ((struct ip_addr *)&ip_addr_any)
 
 struct netif;
+struct sockaddr;
 struct netif *lwip_vdeif_add(void *arg);
 struct netif *lwip_tapif_add(void *arg);
 struct netif *lwip_tunif_add(void *arg);
