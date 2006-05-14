@@ -594,11 +594,16 @@ static void setsigaction(int has_pselect)
 	 * The signal handler is no longer the whole tracehand()
 	 * but a smaller function whose only duty is to
 	 * wake up the select() in main().
-	 * With pselect there is no need for pipe
+	 * With pselect there is no need for pipe: in this latter
+	 * case SIGCHLD gets blocked. SIGCHLD will unblock pselect
 	 */
-	if (has_pselect) 
+	if (has_pselect) {
+		sigset_t blockchild; 
+		sigemptyset(&blockchild);
+		sigaddset(&blockchild,SIGCHLD);
+		sigprocmask(SIG_BLOCK,&blockchild,NULL);
 		sa.sa_handler = wake_null;
-	else
+	} else
 		sa.sa_handler = wake_tracer;
 	sigaction(SIGCHLD, &sa, NULL);
 }

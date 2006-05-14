@@ -45,7 +45,7 @@
 #else
 #define r_select(n,r,w,e,t) (syscall(__NR_select,(n),(r),(w),(e),(t)))
 #endif
-#define r_pselect(n,r,w,e,t,m) (syscall(__NR_pselect6,(n),(r),(w),(e),(t),(m)))
+#define r_pselect6(n,r,w,e,t,m) (syscall(__NR_pselect6,(n),(r),(w),(e),(t),(m)))
 #define r_waitpid(p,s,o) (syscall(__NR_waitpid,(p),(s),(o)))
 #define r_lstat64(p,b) (syscall(__NR_lstat64,(p),(b)))
 #define r_readlink(p,b,sz) (syscall(__NR_readlink,(p),(b),(sz)))

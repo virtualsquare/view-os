@@ -210,7 +210,7 @@ static int has_pselect_test()
 {
 	/*
 	static struct timespec to={0,0};
-	return (r_pselect(0,NULL,NULL,NULL,&to,NULL)<0)?0:1;
+	return (r_pselect6(0,NULL,NULL,NULL,&to,NULL)<0)?0:1;
 	*/
 	return 0;
 }
@@ -218,7 +218,6 @@ static int has_pselect_test()
 int main(int argc,char *argv[])
 {
 	fd_set wset[3];
-	sigset_t blockchild, oldset;
 	int has_pselect;
 	
 	r_setpriority(PRIO_PROCESS,0,-11);
@@ -230,8 +229,6 @@ int main(int argc,char *argv[])
 	has_pselect=has_pselect_test();
 	optind=0;
 	argv[0]="umview";
-	sigemptyset(&blockchild);
-	sigaddset(&blockchild,SIGCHLD);
 	scdtab_init();
 	has_ptrace_multi=test_ptracemulti(&ptrace_vm_mask,&ptrace_viewos_mask);
 	want_ptrace_multi = has_ptrace_multi;
@@ -318,7 +315,15 @@ int main(int argc,char *argv[])
 	ptrace_viewos_mask = want_ptrace_viewos;
 	
 	if (has_pselect) {
-		sigprocmask(SIG_BLOCK,&blockchild,&oldset);
+		sigset_t unblockchild, oldset;
+		/* pselect needs a strange sixth arg */
+		struct {
+			sigset_t *ss;
+			size_t sz;
+		}psel6={&unblockchild,8};
+		sigemptyset(&oldset);
+		sigprocmask(SIG_BLOCK,&oldset,&unblockchild);
+		sigdelset(&unblockchild,SIGCHLD);
 		capture_main(argv+optind,1);
 		do_preload(prehead);
 		/* select() management */
@@ -329,12 +334,15 @@ int main(int argc,char *argv[])
 			FD_ZERO(&wset[1]);
 			FD_ZERO(&wset[2]);
 			max=select_fill_wset(wset);
-			n = r_pselect(max+1,&wset[0],&wset[1],&wset[2],NULL,&oldset);
+			n = r_pselect6(max+1,&wset[0],&wset[1],&wset[2],NULL,&psel6);
 			tracehand();
 			if (n > 0)
 				select_check_wset(max,wset);
 		}
 	} else {
+		sigset_t blockchild, oldset;
+		sigemptyset(&blockchild);
+		sigaddset(&blockchild,SIGCHLD);
 		/* Creation of the pipe for the signal handler */
 		wake_tracer_init();
 
