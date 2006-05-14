@@ -208,11 +208,12 @@ static void umview_recursive(int argc,char *argv[])
 
 static int has_pselect_test()
 {
-	/*
+#ifdef _USE_PSELECT
 	static struct timespec to={0,0};
 	return (r_pselect6(0,NULL,NULL,NULL,&to,NULL)<0)?0:1;
-	*/
+#else
 	return 0;
+#endif
 }
 
 int main(int argc,char *argv[])
@@ -256,14 +257,6 @@ int main(int argc,char *argv[])
 							break;
 						}
 						gdebug_set_ofile(optarg);
-						/*
-						close(STDOUT_FILENO);
-						if( open(optarg,O_WRONLY | O_CREAT | O_TRUNC,0666)<1 ){
-							perror(optarg);
-							exit(-1);
-						}
-						*/
-						
 					 }
 					 break;
 			case 'n':
@@ -315,16 +308,17 @@ int main(int argc,char *argv[])
 	ptrace_viewos_mask = want_ptrace_viewos;
 	
 	if (has_pselect) {
-		sigset_t unblockchild, oldset;
+		sigset_t unblockchild;
 		/* pselect needs a strange sixth arg */
 		struct {
 			sigset_t *ss;
 			size_t sz;
 		}psel6={&unblockchild,8};
-		sigemptyset(&oldset);
-		sigprocmask(SIG_BLOCK,&oldset,&unblockchild);
-		sigdelset(&unblockchild,SIGCHLD);
+		/* save current mask */
+		sigprocmask(SIG_BLOCK,NULL,&unblockchild);
+		/* capture main will block SIGCHLD */
 		capture_main(argv+optind,1);
+		setenv("_INSIDE_UMVIEW_MODULE","",1);
 		do_preload(prehead);
 		/* select() management */
 		select_init();
@@ -334,7 +328,11 @@ int main(int argc,char *argv[])
 			FD_ZERO(&wset[1]);
 			FD_ZERO(&wset[2]);
 			max=select_fill_wset(wset);
+			/* pselect gets unblocked either by a file request or by
+			 * a signal (SIGCHLD) */
 			n = r_pselect6(max+1,&wset[0],&wset[1],&wset[2],NULL,&psel6);
+			/* call tracehand anyway, if waitpid fails it returns here
+			 * quite soon, it is useless to waste another syscall like sigpending*/
 			tracehand();
 			if (n > 0)
 				select_check_wset(max,wset);
