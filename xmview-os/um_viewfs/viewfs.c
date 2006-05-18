@@ -52,8 +52,11 @@
 
 #define EXISTS(x) ((access((x), F_OK)) == 0)
 
+#ifdef GDEBUG_ENABLED
 #define DAR(x) (GDEBUG(6, "DAR %s", #x),(x))
-//#define DAR(x) (x)
+#else
+#define DAR(x) (x)
+#endif
 
 #define MAXVAL(x) (~((__typeof__(x))1 << ((sizeof(x) * 8) - 1)))
 

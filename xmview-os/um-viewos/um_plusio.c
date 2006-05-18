@@ -357,8 +357,16 @@ int wrap_in_umount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                char sercode, intfun um_syscall)
 {
 	unsigned int flags=0;
-	if (sc_number == __NR_umount2)
-		flags=getargn(1,pc);
+	pc->retval = um_syscall(pcdata->path,flags);
+	pc->erno=errno;
+	return SC_FAKE;
+}
+
+int wrap_in_umount2(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+		                char sercode, intfun um_syscall)
+{
+	unsigned int flags=0;
+	flags=getargn(1,pc);
 	pc->retval = um_syscall(pcdata->path,flags);
 	pc->erno=errno;
 	return SC_FAKE;
@@ -375,7 +383,7 @@ int wrap_in_truncate(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 {
 	__off64_t off;
 	if (sc_number == __NR_truncate64) 
-		off=(((long long) getargn(1+PALIGN,pc)) << 32) + getargn(2+PALIGN,pc);
+		off=LONG_LONG(getargn(1+PALIGN,pc), getargn(2+PALIGN,pc));
 	else
 		off=getargn(1,pc);
 	pc->retval=um_syscall(pcdata->path,off);
@@ -383,14 +391,13 @@ int wrap_in_truncate(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	return SC_FAKE;
 }
 
-
 int wrap_in_ftruncate(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                char sercode, intfun um_syscall)
 {
 	__off64_t off;
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	if (sc_number == __NR_ftruncate64) 
-		off=(((long long) getargn(1+PALIGN,pc)) << 32) + getargn(2+PALIGN,pc);
+		off=LONG_LONG(getargn(1+PALIGN,pc), getargn(2+PALIGN,pc));
 	else
 		off=getargn(1,pc);
 	pc->retval = um_syscall(sfd,off);

@@ -32,11 +32,16 @@
 #	define GDEBUG_ENABLED
 #endif
 
+#define GDEBUG_OFILE (gdebug_ofile?gdebug_ofile:stderr)
+extern FILE* gdebug_ofile;
+
+void gdebug_set_ofile(char* new_ofile);
+void fgmsg(FILE *ofile, const char *fmt, ...);
+
 #ifdef GDEBUG_ENABLED
 #	ifndef GDEBUG_LEVEL
 #		error "Debug enabled but GDEBUG_LEVEL undefined."
 #	endif
-#	define GDEBUG_OFILE (gdebug_ofile?gdebug_ofile:stderr)
 #	define FGDEBUG(ofile, level, args...) fgdebug(ofile, GDEBUG_LEVEL, level, __FILE__, __LINE__, __func__, args)
 #	define GDEBUG(level, args...) FGDEBUG(GDEBUG_OFILE, level, args)
 #	define GPERROR(level, prefix) GDEBUG(level, "%s: %s", prefix, strerror(errno))
@@ -44,10 +49,9 @@
 #	define GHEXDUMP(level, text, len) FGHEXDUMP(GDEBUG_OFILE, level, text, len)
 #	define GBACKTRACE(level, maxdepth) FGBACKTRACE(gdebug_ofile?gdebug_ofile:stderr, level, maxdepth)
 #	define FGBACKTRACE(ofile, level, maxdepth) fgbacktrace(ofile, GDEBUG_LEVEL, level, __FILE__, __LINE__, __func__, maxdepth)
+#	define FGERROR(ofile, args...) fgdebug(ofile, -1, -1, __FILE__, __LINE__, __func__, args)
+#	define GERROR(args...) FGERROR(GDEBUG_OFILE, args)
 
-extern FILE* gdebug_ofile;
-
-void gdebug_set_ofile(char* new_ofile);
 void fgdebug(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, const char *fmt, ...);
 void fghexdump(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, char *text, int len);
 void fgbacktrace(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, int maxdepth);
@@ -59,9 +63,9 @@ void fgbacktrace(FILE *ofile, int gdebug_level, int level, const char *file, con
 #	define FGHEXDUMP(ofile, level, text, len)
 #	define GHEXDUMP(level, text, len)
 #	define GBACKTRACE(level, maxdepth)
+#	define FGERROR(ofile, args...) fgmsg(ofile, args)
+#	define GERROR(args...) FGERROR(GDEBUG_OFILE, args)
 #endif
 
-#define FGERROR(ofile, args...) fgdebug(ofile, -1, -1, __FILE__, __LINE__, __func__, args)
-#define GERROR(args...) FGERROR(GDEBUG_OFILE, args)
 
 #endif

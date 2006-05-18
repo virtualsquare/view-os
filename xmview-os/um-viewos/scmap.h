@@ -39,7 +39,9 @@ typedef int wrapinfun(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 typedef int wrapoutfun(int sc_number,struct pcb *pc,struct pcb_ext *pcdata);
 */
 
+// remap real syscall number to a nu
 int uscno(int scno);
+
 void init_scmap();
 
 /* An entry in the system call table. Every such structure tells how to process

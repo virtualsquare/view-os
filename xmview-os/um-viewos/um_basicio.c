@@ -40,6 +40,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <linux/types.h>
+#include <linux/dirent.h>
 #include "defs.h"
 #include "umproc.h"
 #include "services.h"
@@ -47,6 +49,8 @@
 #include "sctab.h"
 #include "scmap.h"
 #include "utils.h"
+
+#include "gdebug.h"
 
 int wrap_in_open(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		service_t sercode, intfun um_syscall)
@@ -304,7 +308,7 @@ struct kstat {
 };
 #endif
 
-#ifdef __x86_64__
+#if 0
 struct kstat {
 		unsigned long	kst_dev;
 		unsigned long   kst_ino;
@@ -330,8 +334,9 @@ struct kstat {
 
 		long  k__unused[3];
 };
-#endif
+#else
 
+/*
 static void stat2kstat(struct stat *buf,struct kstat *kbuf)
 {
 	kbuf->kst_dev= buf->st_dev;
@@ -348,17 +353,37 @@ static void stat2kstat(struct stat *buf,struct kstat *kbuf)
 	kbuf->kst_mtime= buf->st_mtime;
 	kbuf->kst_ctime= buf->st_ctime;
 }
+*/
+
+static void stat64_2kstat(struct stat64 *buf,struct kstat *kbuf)
+{
+	kbuf->kst_dev	= (unsigned short) buf->st_dev;
+	kbuf->kst_ino	= (unsigned long)  buf->st_ino;
+	kbuf->kst_mode	= (unsigned short) buf->st_mode;
+	kbuf->kst_nlink	= (unsigned short) buf->st_nlink;
+	kbuf->kst_uid	= (unsigned short) buf->st_uid;
+	kbuf->kst_gid	= (unsigned short) buf->st_gid;
+	kbuf->kst_rdev	= (unsigned short) buf->st_rdev;
+	kbuf->kst_size	= (unsigned long)  buf->st_size;
+	kbuf->kst_blksize	= (unsigned long) buf->st_blksize;
+	kbuf->kst_blocks	= (unsigned long) buf->st_blocks;
+	kbuf->kst_atime	= (unsigned long)  buf->st_atime;
+	kbuf->kst_mtime	= (unsigned long)  buf->st_mtime;
+	kbuf->kst_ctime	= (unsigned long)  buf->st_ctime;
+}
+#endif // if not defined _x86_64
 
 int wrap_in_stat(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		service_t sercode, intfun um_syscall)
 {
 	long pbuf=getargn(1,pc);
-	struct stat buf;
-	pc->retval = um_syscall(pcdata->path,&buf);
+	struct stat64 buf64;
+
+	pc->retval = um_syscall(pcdata->path,&buf64);
 	pc->erno=errno;
 	if (pc->retval >= 0) {
 		struct kstat kbuf;
-		stat2kstat(&buf,&kbuf);
+		stat64_2kstat(&buf64,&kbuf);
 		ustoren(pc->pid,pbuf,sizeof(struct kstat),(char *)&kbuf);
 	}
 	return SC_FAKE;
@@ -373,12 +398,12 @@ int wrap_in_fstat(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		struct stat buf;
-		pc->retval = um_syscall(sfd,&buf);
+		struct stat64 buf64;
+		pc->retval = um_syscall(sfd,&buf64);
 		pc->erno=errno;
 		if (pc->retval >= 0) {
 			struct kstat kbuf;
-			stat2kstat(&buf,&kbuf);
+			stat64_2kstat(&buf64,&kbuf);
 			ustoren(pc->pid,pbuf,sizeof(struct kstat),(char *)&kbuf);
 		}
 	}
@@ -447,7 +472,53 @@ int wrap_in_readlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	return SC_FAKE;
 }
 
+/******************************************************************/
+/* DIRENTS STRUCTS */
+
+void dents64_to_dents(void* buf,int count){
+	struct dirent *dirp=buf;
+	struct dirent64 *dirp64=buf;
+	int counter=0;
+	unsigned short int buf_len;
+	
+	for( counter=0; counter<count ; ){
+		GDEBUG(10,"dirent64: ino:%lld - off:%lld - reclen:%d - name:%s",dirp64->d_ino,dirp64->d_off,dirp64->d_reclen,&(dirp64->d_name));
+		dirp->d_ino = (unsigned long) dirp64->d_ino;
+		dirp->d_off = (unsigned long) dirp64->d_off;
+		buf_len = dirp->d_reclen = dirp64->d_reclen;
+		strcpy(dirp->d_name,dirp64->d_name);
+		counter= counter + dirp->d_reclen; //bad...
+		GDEBUG(10,"dirent: ino:%ld - off:%ld - reclen:%d - name:%s",dirp->d_ino,dirp->d_off,dirp->d_reclen,(dirp->d_name));
+		GDEBUG(10,"counter: %d count: %d ",counter,count);
+		dirp = (struct dirent*) ((char*)dirp + buf_len);
+		dirp64 = (struct dirent64*) ((char*)dirp64 + buf_len);
+	}
+}
+
 int wrap_in_getdents(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+		                service_t sercode, intfun um_syscall)
+{
+	long pbuf=getargn(1,pc);
+	unsigned long bufsiz=getargn(2,pc);
+	int sfd=fd2sfd(pcdata->fds,pc->arg0);
+	//printf("wrap_in_getdents(sc:%d ,pc,pcdata,sercode:%d,syscall);\n",sc_number,sercode);
+	if (sfd < 0) {
+		pc->retval= -1;
+		pc->erno= EBADF;
+	} else {
+		char *lbuf=(char *)alloca(bufsiz);
+		pc->retval = um_syscall(sfd,lbuf,bufsiz);
+		//pc->erno=(pc->retval<0)?errno:0;
+		pc->erno=errno;
+		if (pc->retval > 0){
+			dents64_to_dents(lbuf,pc->retval);
+			ustoren(pc->pid,pbuf,pc->retval,lbuf);
+		}
+	}
+	return SC_FAKE;
+}
+
+int wrap_in_getdents64(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                service_t sercode, intfun um_syscall)
 {
 	long pbuf=getargn(1,pc);

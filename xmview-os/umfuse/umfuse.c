@@ -50,7 +50,7 @@
 #include <stdarg.h>
 #include <math.h>
 #include <values.h>
-
+#include <bits/wordsize.h>
 
 /* Enable Experimental code */
 //#define __UMFUSE_EXPERIMENTAL__
@@ -1637,11 +1637,21 @@ static int umfuse_symlink(char *oldpath, char *newpath)
 		return rv;	
 }
 
-static int umfuse_truncate(char *path, off_t length)
+static int umfuse_truncate64(char *path, loff_t length)
 {
 
 	struct fuse_context *fc=searchcontext(path, SUBSTR);
 	int rv;
+
+	/* FUSE defines length as off_t, so we will not truncate a file
+	 * if the desired length can't be contained in an off_t.
+	 * Please ask FUSE developers to define length as loff_t. */
+	if (length != (loff_t)((off_t)length))
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	
 	assert(fc != NULL);
 	fuse_set_context(fc);
 	if (fc->fuse->flags & MS_RDONLY) {
@@ -1655,7 +1665,7 @@ static int umfuse_truncate(char *path, off_t length)
 		fflush(stderr);
 	}
 	rv = fc->fuse->fops.truncate(
-			unwrap(fc, path),length);
+			unwrap(fc, path),(off_t)length);
 	if (rv < 0) {
 		errno = -rv;
 		return -1;
@@ -1663,8 +1673,17 @@ static int umfuse_truncate(char *path, off_t length)
 		return rv;	
 }
 
-static int umfuse_ftruncate(int fd, off_t length)
+static int umfuse_ftruncate64(int fd, off_t length)
 {
+	/* FUSE defines length as off_t, so we will not truncate a file
+	 * if the desired length can't be contained in an off_t.
+	 * Please ask FUSE developers to define length as loff_t. */
+	if (length != (loff_t)((off_t)length))
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	
 	if (filetab[fd]==NULL) {
 		errno=EBADF;
 		return -1;
@@ -1678,12 +1697,12 @@ static int umfuse_ftruncate(int fd, off_t length)
 			return -1;
 		}
 		if (fc->fuse->fops.ftruncate == NULL)
-			return umfuse_truncate(filetab[fd]->path,length);
+			return umfuse_truncate64(filetab[fd]->path,length);
 		else {
 			int rv;
 			fc->pid=um_mod_getpid();
 			rv = fc->fuse->fops.ftruncate(
-					filetab[fd]->path,length,&filetab[fd]->ffi);
+					filetab[fd]->path,(off_t)length,&filetab[fd]->ffi);
 			if (fc->fuse->flags & FUSE_DEBUG) {
 				fprintf(stderr, "FTRUNCATE debug => path %s\n",filetab[fd]->path);		
 				fflush(stderr);
@@ -1695,7 +1714,7 @@ static int umfuse_ftruncate(int fd, off_t length)
 				return rv;	
 		}
 #else
-		return umfuse_truncate(filetab[fd]->path,length);
+		return umfuse_truncate64(filetab[fd]->path,length);
 #endif
 	}
 }
@@ -1840,12 +1859,12 @@ init (void)
 	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
 	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
 	s.syscall[uscno(__NR_mount)]=umfuse_mount;
-#if ! defined(__x86_64__)
+#if 0  //#if __WORDSIZE == 32
 	s.syscall[uscno(__NR_umount)]=umfuse_umount2; /* umount must be mapped onto umount2 */
+	s.syscall[uscno(__NR_creat)]=umfuse_open; /*creat is an open with (O_CREAT|O_WRONLY|O_TRUNC)*/
 #endif
 	s.syscall[uscno(__NR_umount2)]=umfuse_umount2;
 	s.syscall[uscno(__NR_open)]=umfuse_open;
-	s.syscall[uscno(__NR_creat)]=umfuse_open; /*creat is an open with (O_CREAT|O_WRONLY|O_TRUNC)*/
 	s.syscall[uscno(__NR_read)]=umfuse_read;
 #ifdef __UMFUSE_EXPERIMENTAL__
 	s.syscall[uscno(__NR_write)]=umfuse_write;
@@ -1853,20 +1872,22 @@ init (void)
 	//s.syscall[uscno(__NR_readv)]=readv;
 	//s.syscall[uscno(__NR_writev)]=writev;
 	s.syscall[uscno(__NR_close)]=umfuse_close;
+#if 0 
 	s.syscall[uscno(__NR_stat)]=umfuse_stat;
 	s.syscall[uscno(__NR_lstat)]=umfuse_lstat;
 	s.syscall[uscno(__NR_fstat)]=umfuse_fstat;
-#if !defined(__x86_64__)
+	s.syscall[uscno(__NR_getdents)]=umfuse_getdents;
+#endif
+#if __WORDSIZE == 32
 	s.syscall[uscno(__NR_stat64)]=umfuse_stat64;
 	s.syscall[uscno(__NR_lstat64)]=umfuse_lstat64;
 	s.syscall[uscno(__NR_fstat64)]=umfuse_fstat64;
 #endif
 	s.syscall[uscno(__NR_readlink)]=umfuse_readlink;
-	s.syscall[uscno(__NR_getdents)]=umfuse_getdents;
 	s.syscall[uscno(__NR_getdents64)]=umfuse_getdents64;
 	s.syscall[uscno(__NR_access)]=umfuse_access;
 	s.syscall[uscno(__NR_fcntl)]=umfuse_fcntl32;
-#if ! defined(__x86_64__)
+#if __WORDSIZE == 32
 	s.syscall[uscno(__NR_fcntl64)]=umfuse_fcntl64;
 	s.syscall[uscno(__NR__llseek)]=umfuse__llseek;
 #endif
@@ -1887,8 +1908,14 @@ init (void)
 	s.syscall[uscno(__NR_link)]=umfuse_link;
 	s.syscall[uscno(__NR_symlink)]=umfuse_symlink;
 	s.syscall[uscno(__NR_rename)]=umfuse_rename;
-	s.syscall[uscno(__NR_truncate)]=umfuse_truncate;
-	s.syscall[uscno(__NR_ftruncate)]=umfuse_ftruncate;
+#if __WORDSIZE == 32
+	s.syscall[uscno(__NR_truncate64)] = umfuse_truncate64;
+	s.syscall[uscno(__NR_ftruncate64)] = umfuse_ftruncate64;
+#endif // ! defined(__x86_64)
+#if 0 
+	s.syscall[uscno(__NR_truncate)]=umfuse_truncate64;
+	s.syscall[uscno(__NR_ftruncate)]=umfuse_ftruncate64;
+#endif
 #endif
 	//s.syscall[uscno(__NR_pread64)]=umfuse_pread;
 	//s.syscall[uscno(__NR_pwrite64)]=umfuse_pwrite;

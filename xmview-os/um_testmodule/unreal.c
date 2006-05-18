@@ -186,22 +186,29 @@ init (void)
 	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
 	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
 	s.syscall[uscno(__NR_open)]=unreal_open;
+#if 0 
 	s.syscall[uscno(__NR_creat)]=unreal_open; /*creat must me mapped onto open*/
+#endif
 	s.syscall[uscno(__NR_read)]=read;
 	s.syscall[uscno(__NR_write)]=write;
 	s.syscall[uscno(__NR_readv)]=readv;
 	s.syscall[uscno(__NR_writev)]=writev;
 	s.syscall[uscno(__NR_close)]=close;
-	s.syscall[uscno(__NR_stat)]=unreal_stat;
-	s.syscall[uscno(__NR_lstat)]=unreal_lstat;
-	s.syscall[uscno(__NR_fstat)]=fstat;
+#if 0
+	s.syscall[uscno(__NR_stat)]=unreal_stat64;
+	s.syscall[uscno(__NR_lstat)]=unreal_lstat64;
+	s.syscall[uscno(__NR_fstat)]=fstat64;
+#endif
 #if !defined(__x86_64__)
 	s.syscall[uscno(__NR_stat64)]=unreal_stat64;
 	s.syscall[uscno(__NR_lstat64)]=unreal_lstat64;
 	s.syscall[uscno(__NR_fstat64)]=fstat64;
+#else
 #endif
 	s.syscall[uscno(__NR_readlink)]=unreal_readlink;
-	s.syscall[uscno(__NR_getdents)]=getdents;
+#if 0 
+	s.syscall[uscno(__NR_getdents)]=getdents64;
+#endif
 	s.syscall[uscno(__NR_getdents64)]=getdents64;
 	s.syscall[uscno(__NR_access)]=unreal_access;
 	s.syscall[uscno(__NR_fcntl)]=fcntl32;

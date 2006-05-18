@@ -32,6 +32,10 @@
 #include "services.h"
 #include "defs.h"
 #include "sctab.h"
+#include "syscallnames.h"
+#include "gdebug.h"
+#include "scmap.h"
+#include "bits/wordsize.h"
 
 /* servmap[service code] - 1 is the index of the service description into
  * 'services' */
@@ -45,8 +49,26 @@ static int maxserv=0;
 // services maintain list of all modules loaded.
 static struct service **services=NULL;
 
-
 static intfun reg_service,dereg_service;
+
+static struct syscall_unifier
+{
+	long proc_sc; // System call nr. as called by the process
+	long mod_sc;  // System call nr. as seen by the module
+} scunify[] = {
+	{__NR_umount,	__NR_umount2},
+	{__NR_creat,	__NR_open},
+#if __WORDSIZE == 32
+	{__NR_stat,		__NR_stat64},
+	{__NR_lstat,	__NR_lstat64},
+	{__NR_fstat,	__NR_fstat64},
+	{__NR_getdents,	__NR_getdents64},
+	{__NR_truncate,	__NR_truncate64},
+	{__NR_ftruncate,__NR_ftruncate64},
+#endif 
+};
+
+#define SIZESCUNIFY (sizeof(scunify)/sizeof(struct syscall_unifier))
 
 #define OSER_STEP 8 /*only power of 2 values */
 #define OSER_STEP_1 (OSER_STEP - 1)
@@ -55,6 +77,32 @@ static int s_error(int err)
 {
 	errno=err;
 	return -1;
+}
+
+/* System call remapping (i.e. stat->stat64, creat->open) etc.
+ * This functions takes a struct service and, for each system call defined in
+ * scunify[] (field proc_sc), sets the corresponding entry in the um_syscall array to be
+ * the manager for syscall mod_sc. */
+void modify_um_syscall(struct service *s)
+{
+	int i;
+
+	for (i = 0; i < SIZESCUNIFY; i++)
+	{
+		/* The entry in um_syscall is not NULL, so someone has defined a
+		 * manager for this syscall. It won't be used, so print a warning.
+		 * XXX This can cause false positives if the um_syscall is allocated
+		 * with malloc (instead of calloc) and not memset'd to all NULLs. */
+		if (s->um_syscall[uscno(scunify[i].proc_sc)])
+		{
+			GERROR("WARNING: a module has defined syscall %s that will not be used:",
+					SYSCALLNAME(scunify[i].proc_sc));
+			GERROR("         %s will be managed by the module function for %s.", 
+					SYSCALLNAME(scunify[i].proc_sc), SYSCALLNAME(scunify[i].mod_sc));
+		}
+
+		s->um_syscall[uscno(scunify[i].proc_sc)] = s->um_syscall[uscno(scunify[i].mod_sc)];
+	}
 }
 
 int add_service(struct service *s)
@@ -79,6 +127,7 @@ int add_service(struct service *s)
 		s->dlhandle=NULL;
 		if (reg_service)
 			reg_service(s->code);
+		modify_um_syscall(s);
 		return 0;
 	}
 }

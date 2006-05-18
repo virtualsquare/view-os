@@ -80,6 +80,15 @@ void fgdebug(FILE *ofile, int gdebug_level, int level, const char *file, const i
 	}
 }
 
+void fgmsg(FILE *ofile, const char *fmt, ...)
+{
+	va_list ap;
+		va_start(ap, fmt);
+		libc_vfprintf(ofile, fmt, ap);
+		libc_fprintf(ofile, "\n");
+		va_end(ap);
+}
+
 void fghexdump(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, char* text, int len)
 {
 	int i;
