@@ -342,6 +342,9 @@ ssize_t pwrite(int fs,const void* buf, size_t count, __off_t offset){
 #ifdef __NR_pread64
 ssize_t pread64(int fs,void* buf, size_t count, __off64_t offset){
 	return _pure_syscall(__NR_pread64,fs,buf,count,
+#if defined(__powerpc__)
+			0,
+#endif
 			__LONG_LONG_PAIR( (__off_t)(offset>>32),(__off_t)(offset&0xffffffff)));
 }
 ssize_t pread(int fs,void* buf, size_t count, __off_t offset){
@@ -352,6 +355,9 @@ ssize_t pread(int fs,void* buf, size_t count, __off_t offset){
 #ifdef __NR_pwrite64 
 ssize_t pwrite64(int fs,const void* buf, size_t count, __off64_t offset){
 	return _pure_syscall(__NR_pwrite64,fs,buf,count,
+#if defined(__powerpc__)
+			0,
+#endif
 			__LONG_LONG_PAIR( (__off_t)(offset>>32),(__off_t)(offset&0xffffffff)));
 }
 ssize_t pwrite(int fs,const void* buf, size_t count, __off_t offset){
@@ -715,6 +721,9 @@ int ftruncate(int fd, __off_t length){
 #ifdef __NR_truncate64
 int truncate64(const char *path, __off64_t length){
 	return _pure_syscall(__NR_truncate64,path,
+#if defined(__powerpc__)
+			0,
+#endif
 			__LONG_LONG_PAIR( (__off_t)(length>>32),(__off_t)(length&0xffffffff)));
 }
 #endif
@@ -722,6 +731,9 @@ int truncate64(const char *path, __off64_t length){
 #ifdef __NR_ftruncate64
 int ftruncate64(int fd, __off64_t length){
 	return _pure_syscall(__NR_ftruncate64,fd,
+#if defined(__powerpc__)
+			0,
+#endif
 			__LONG_LONG_PAIR( (__off_t)(length>>32),(__off_t)(length&0xffffffff)));
 }
 #endif
