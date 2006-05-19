@@ -317,7 +317,7 @@ int wrap_in_utime(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		else
 			argsize=2*sizeof(struct timeval);
 		larg=alloca(argsize);
-		umoven(pc->pid,argaddr,argsize,larg);
+		umoven(pc,argaddr,argsize,larg);
 	}
 	pc->retval = um_syscall(pcdata->path,larg);
 	pc->erno=errno;
@@ -336,15 +336,15 @@ int wrap_in_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	unsigned int mountflags=getargn(3,pc);
 	unsigned long pdata=getargn(4,pc);
 	struct stat64 imagestat;
-	umovestr(pc->pid,fstype,PATH_MAX,filesystemtype);
+	umovestr(pc,fstype,PATH_MAX,filesystemtype);
 	source = um_abspath(argaddr,pc,&imagestat,0);
 	if (source==um_patherror) {
 		source=malloc(PATH_MAX);
 		assert(source);
-		umovestr(pc->pid,argaddr,PATH_MAX,source);
+		umovestr(pc,argaddr,PATH_MAX,source);
 	} 
 	if (pdata != umNULL)
-		umovestr(pc->pid,pdata,PATH_MAX,data);
+		umovestr(pc,pdata,PATH_MAX,data);
 	else
 		datax=NULL;
 	pc->retval = um_syscall(source,pcdata->path,filesystemtype,mountflags,datax);

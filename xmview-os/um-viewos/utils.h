@@ -27,17 +27,17 @@
 
 /* Moves len bytes from address 'addr' in the address space of the process
  * whose pid is 'pid' to local address '_laddr'. */
-int umoven(int pid, long addr, int len, void *_laddr);
+int umoven(struct pcb *pc, long addr, int len, void *_laddr);
 /* Moves bytes from address 'addr' in the address space of the process whose
  * pid is 'pid' to local address '_laddr', until it doesn't find a '\0' */
-int umovestr(int pid, long addr, int len, void *_laddr);
+int umovestr(struct pcb *pc, long addr, int len, void *_laddr);
 /* Moves len bytes from local address '_laddr' in our address space to address
  * 'addr' in the address space of the process whose pid is 'pid'. */
-int ustoren(int pid, long addr, int len, void *_laddr);
+int ustoren(struct pcb *pc, long addr, int len, void *_laddr);
 /* Moves bytes from local address '_laddr' in our address space to address
  * 'addr' in the address space of the process whose pid is 'pid', until it
  * doesn't find a '\0' */
-int ustorestr(int pid, long addr, int len, void *_laddr);
+int ustorestr(struct pcb *pc, long addr, int len, void *_laddr);
 
 #endif
 

@@ -57,7 +57,7 @@ static void ioctl_getarg(struct pcb* pc, int ioctlparms, unsigned long arg, void
 	if (len > 0) {
 		*larg=malloc(len);
 		if (ioctlparms & IOCTL_R)
-			umoven(pc->pid,arg,len,*larg);
+			umoven(pc,arg,len,*larg);
 	} else
 		*larg = (void *) arg;
 }
@@ -67,7 +67,7 @@ static void ioctl_putarg(struct pcb* pc, int ioctlparms, unsigned long arg, void
 	int len=ioctlparms & IOCTLLENMASK;
 	if (len > 0) {
 		if (ioctlparms & IOCTL_W)
-			ustoren(pc->pid,arg,len,larg);
+			ustoren(pc,arg,len,larg);
 		free(larg);
 	}
 }

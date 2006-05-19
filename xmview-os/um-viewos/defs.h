@@ -28,6 +28,7 @@
 #define _DEFS_H
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <endian.h>
 #include "ptrace2.h"
 
 /* Real SysCalls ! r_ prefixed calls do not enter the nidification
@@ -63,6 +64,15 @@
 #define r_rmdir(d) (syscall(__NR_rmdir,(d)))
 #define r_kill(p,s) (syscall(__NR_kill,(p),(s)))
 #define r_execve(p,a,e) (syscall(__NR_execve,(p),(a),(e)))
+#define r_lseek(f,o,w) (syscall(__NR_close,(f),(o),(w)))
+#if defined(__powerpc__)
+#define r_pread64(f,b,c,o1,o2) (syscall(__NR_pread64,(f),(b),(c),0,__LONG_LONG_PAIR((o1),(o2))))
+#define r_pwrite64(f,b,c,o1,o2) (syscall(__NR_pwrite64,(f),(b),(c),0,__LONG_LONG_PAIR((o1),(o2))))
+#else
+#define r_pread64(f,b,c,o1,o2) (syscall(__NR_pread64,(f),(b),(c),__LONG_LONG_PAIR((o1),(o2))))
+#define r_pwrite64(f,b,c,o1,o2) (syscall(__NR_pwrite64,(f),(b),(c),__LONG_LONG_PAIR((o1),(o2))))
+#endif
+
 extern int fprint2(const char *fmt, ...);
 
 extern unsigned int has_ptrace_multi;
@@ -117,6 +127,9 @@ struct pcb {
 	short flags;
 	unsigned short umpid;
 	int pid;                /* Process Id of this entry */
+#ifdef _PROC_MEM_TEST
+	int memfd; /* if !has_ptrace_multi, open /proc/PID/mem */
+#endif
 	struct pcb *pp;         /* Parent Process */
 	long scno;              /* System call number */
 	short behavior;

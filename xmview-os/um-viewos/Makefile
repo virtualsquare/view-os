@@ -2,7 +2,8 @@ ifndef ($(bindir))
 bindir=/usr/local/bin
 endif
 DEBUGLEVEL=0
-CBASEFLAGS=-Wall -D_GNU_SOURCE -I../include -DINSTALLDIR=\"$(bindir)\"
+#CBASEFLAGS=-Wall -D_GNU_SOURCE -I../include -DINSTALLDIR=\"$(bindir)\" -D_PROC_MEM_TEST
+CBASEFLAGS=-Wall -D_GNU_SOURCE -I../include -DINSTALLDIR=\"$(bindir)\" 
 CDEBUGFLAGS=-g -O2 -ggdb -DGDEBUG_ENABLED -DGDEBUG_LEVEL=$(DEBUGLEVEL)
 CPPFLAGS+=-I../include
 

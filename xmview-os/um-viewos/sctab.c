@@ -178,7 +178,7 @@ char um_patherror[]="PE";
 char *um_getpath(long laddr,struct pcb *pc)
 {
 	char path[PATH_MAX];
-	if (umovestr(pc->pid,laddr,PATH_MAX,path) == 0)
+	if (umovestr(pc,laddr,PATH_MAX,path) == 0)
 		return strdup(path);
 	else
 		return um_patherror;
@@ -188,7 +188,7 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink
 {
 	char path[PATH_MAX];
 	char newpath[PATH_MAX];
-	if (umovestr(pc->pid,laddr,PATH_MAX,path) == 0) {
+	if (umovestr(pc,laddr,PATH_MAX,path) == 0) {
 			um_realpath(path,newpath,pst,dontfollowlink,pc);
 		if (pc->erno)
 			return um_patherror;	//error
@@ -498,7 +498,7 @@ char choice_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	if (pcdata->path!=um_patherror) {
 		char filesystemtype[PATH_MAX];
 		unsigned long fstype=getargn(2,pc);
-		if (umovestr(pc->pid,fstype,PATH_MAX,filesystemtype) == 0) {
+		if (umovestr(pc,fstype,PATH_MAX,filesystemtype) == 0) {
 			return service_check(CHECKFSTYPE,filesystemtype,1);
 		}
 		else
@@ -515,7 +515,7 @@ service_t choice_path(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	
 	if (pcdata->path==um_patherror){
 /*		char buff[PATH_MAX];
-		umovestr(pc->pid,pc->arg0,PATH_MAX,buff);
+		umovestr(pc,pc->arg0,PATH_MAX,buff);
         fprintf(stderr,"um_patherror: %s",buff);*/
 		return UM_NONE;
 	}
@@ -594,7 +594,7 @@ int um_mod_umoven(long addr, int len, void *_laddr)
 	struct pcb *pc=get_pcb();
 	if (pc) {
 		if (pc->flags && PCB_INUSE)
-			return (umoven(pc->pid,addr,len,_laddr));
+			return (umoven(pc,addr,len,_laddr));
 		else {
 			memcpy(_laddr,(void *)addr,len);
 			return 0;
@@ -609,7 +609,7 @@ int um_mod_umovestr(long addr, int len, void *_laddr)
 	struct pcb *pc=get_pcb();
 	if (pc) {
 		if (pc->flags && PCB_INUSE)
-			return (umovestr(pc->pid,addr,len,_laddr));
+			return (umovestr(pc,addr,len,_laddr));
 		else {
 			strncpy((char *)_laddr,(char *)addr, len);
 			return 0;
@@ -624,7 +624,7 @@ int um_mod_ustoren(long addr, int len, void *_laddr)
 	struct pcb *pc=get_pcb();
 	if (pc) {
 		if (pc->flags && PCB_INUSE)
-			return (ustoren(pc->pid,addr,len,_laddr));
+			return (ustoren(pc,addr,len,_laddr));
 		else {
 			memcpy((void *)addr,_laddr,len);
 			return 0;
@@ -639,7 +639,7 @@ int um_mod_ustorestr(long addr, int len, void *_laddr)
 	struct pcb *pc=get_pcb();
 	if (pc) {
 		if (pc->flags && PCB_INUSE)
-			return (ustorestr(pc->pid,addr,len,_laddr));
+			return (ustorestr(pc,addr,len,_laddr));
 		else {
 			strncpy((char *)addr,(char *)_laddr,len);
 			return 0;

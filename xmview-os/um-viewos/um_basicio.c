@@ -76,7 +76,7 @@ int wrap_in_open(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			//printf("open exit b %d %d\n",pc->retval,pc->erno);
 			//printf("real filename: %s\n",filename);
 			
-			ustorestr(pc->pid,sp-filenamelen,filenamelen,filename);
+			ustorestr(pc,sp-filenamelen,filenamelen,filename);
 			putscno(__NR_open,pc);
 			putargn(0,sp-filenamelen,pc);
 			putargn(1,O_RDONLY,pc);
@@ -179,7 +179,7 @@ int wrap_in_read(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval = um_syscall(sfd,lbuf,count);
 		pc->erno=errno;
 		if (pc->retval > 0)
-			ustoren(pc->pid,pbuf,pc->retval,lbuf);
+			ustoren(pc,pbuf,pc->retval,lbuf);
 	}
 	return SC_FAKE;
 }
@@ -195,7 +195,7 @@ int wrap_in_write(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->erno= EBADF;
 	} else {
 		char *lbuf=(char *)alloca(count);
-		umoven(pc->pid,pbuf,count,lbuf);
+		umoven(pc,pbuf,count,lbuf);
 		pc->retval = um_syscall(sfd,lbuf,count);
 		pc->erno=errno;
 	}
@@ -229,7 +229,7 @@ int wrap_in_pread(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval = um_syscall(sfd,lbuf,count,offset);
 		pc->erno=errno;
 		if (pc->retval > 0)
-			ustoren(pc->pid,pbuf,pc->retval,lbuf);
+			ustoren(pc,pbuf,pc->retval,lbuf);
 	}
 	return SC_FAKE;
 }
@@ -251,7 +251,7 @@ int wrap_in_pwrite(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->erno= EBADF;
 	} else {
 		char *lbuf=(char *)alloca(count);
-		umoven(pc->pid,pbuf,count,lbuf);
+		umoven(pc,pbuf,count,lbuf);
 		pc->retval = um_syscall(sfd,lbuf,count,offset);
 		pc->erno=errno;
 	}
@@ -384,7 +384,7 @@ int wrap_in_stat(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	if (pc->retval >= 0) {
 		struct kstat kbuf;
 		stat64_2kstat(&buf64,&kbuf);
-		ustoren(pc->pid,pbuf,sizeof(struct kstat),(char *)&kbuf);
+		ustoren(pc,pbuf,sizeof(struct kstat),(char *)&kbuf);
 	}
 	return SC_FAKE;
 }
@@ -404,7 +404,7 @@ int wrap_in_fstat(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		if (pc->retval >= 0) {
 			struct kstat kbuf;
 			stat64_2kstat(&buf64,&kbuf);
-			ustoren(pc->pid,pbuf,sizeof(struct kstat),(char *)&kbuf);
+			ustoren(pc,pbuf,sizeof(struct kstat),(char *)&kbuf);
 		}
 	}
 	return SC_FAKE;
@@ -418,7 +418,7 @@ int wrap_in_stat64(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	pc->retval = um_syscall(pcdata->path,&buf);
 	pc->erno=errno;
 	if (pc->retval >= 0)
-		ustoren(pc->pid,pbuf,sizeof(struct stat64),&buf);
+		ustoren(pc,pbuf,sizeof(struct stat64),&buf);
 	return SC_FAKE;
 }
 
@@ -437,7 +437,7 @@ int wrap_in_fstat64(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->erno=(pc->retval<0)?errno:0;
 		//pc->erno=errno;
 		if (pc->retval >= 0)
-			ustoren(pc->pid,pbuf,sizeof(struct stat64),&buf);
+			ustoren(pc,pbuf,sizeof(struct stat64),&buf);
 	}
 	return SC_FAKE;
 }
@@ -454,7 +454,7 @@ int wrap_in_getxattr(int sc_number, struct pcb *pc, struct pcb_ext *pcdata,
 	pc->erno = errno;
 
 	if (pc->retval >= 0)
-		ustoren(pc->pid, pbuf, size, buf);
+		ustoren(pc, pbuf, size, buf);
 
 	return SC_FAKE;
 }
@@ -468,7 +468,7 @@ int wrap_in_readlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	pc->retval = um_syscall(pcdata->path,lbuf,bufsiz);
 	pc->erno=errno;
 	if (pc->retval > 0)
-		ustoren(pc->pid,pbuf,pc->retval,lbuf);
+		ustoren(pc,pbuf,pc->retval,lbuf);
 	return SC_FAKE;
 }
 
@@ -512,7 +512,7 @@ int wrap_in_getdents(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->erno=errno;
 		if (pc->retval > 0){
 			dents64_to_dents(lbuf,pc->retval);
-			ustoren(pc->pid,pbuf,pc->retval,lbuf);
+			ustoren(pc,pbuf,pc->retval,lbuf);
 		}
 	}
 	return SC_FAKE;
@@ -534,7 +534,7 @@ int wrap_in_getdents64(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		//pc->erno=(pc->retval<0)?errno:0;
 		pc->erno=errno;
 		if (pc->retval > 0)
-			ustoren(pc->pid,pbuf,pc->retval,lbuf);
+			ustoren(pc,pbuf,pc->retval,lbuf);
 	}
 	return SC_FAKE;
 }
@@ -581,7 +581,7 @@ int wrap_in_llseek(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval = um_syscall(sfd,offhi,offlo,&lresult,whence);
 		pc->erno=errno;
 		if (pc->retval >= 0) 
-			ustoren(pc->pid,result,sizeof(loff_t),(char *)&lresult);
+			ustoren(pc,result,sizeof(loff_t),(char *)&lresult);
 	}
 	return SC_FAKE;
 }
@@ -608,7 +608,7 @@ int wrap_in_readv(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		unsigned long i,totalsize,size;
 		struct iovec *iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
 		struct iovec liovec;
-		umoven(pc->pid,vecp,count * sizeof(struct iovec),(char *)iovec);
+		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
 		for (i=0,totalsize=0;i<count;i++)
 			totalsize += iovec[i].iov_len;
 		char *lbuf=(char *)alloca(totalsize);
@@ -619,7 +619,7 @@ int wrap_in_readv(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		if (size > 0) {
 			for (i=0;i<count && size>0;i++) {
 				long qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
-				ustoren(pc->pid,(long)iovec[i].iov_base,qty,lbuf);
+				ustoren(pc,(long)iovec[i].iov_base,qty,lbuf);
 				lbuf += qty;
 				size -= qty;
 			}
@@ -641,14 +641,14 @@ int wrap_in_writev(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		unsigned long i,totalsize;
 		struct iovec *iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
 		struct iovec liovec;
-		umoven(pc->pid,vecp,count * sizeof(struct iovec),(char *)iovec);
+		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
 		for (i=0,totalsize=0;i<count;i++)
 			totalsize += iovec[i].iov_len;
 		char *lbuf=(char *)alloca(totalsize);
 		char *p=lbuf;
 		for (i=0;i<count;i++) {
 			long qty=iovec[i].iov_len;
-			umoven(pc->pid,(long)iovec[i].iov_base,qty,p);
+			umoven(pc,(long)iovec[i].iov_base,qty,p);
 			p += qty;
 		}
 		liovec.iov_base=lbuf;

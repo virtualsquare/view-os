@@ -72,7 +72,7 @@ static int filecopy(service_t sercode,const char *from, const char *to)
 
 
 #define CHUNKSIZE 16
-static char **getparms(int pid,long laddr) {
+static char **getparms(struct pcb *pc,long laddr) {
 	long *paddr=NULL;
 	char **parms;
 	int size=0;
@@ -85,7 +85,7 @@ static char **getparms(int pid,long laddr) {
 			paddr=realloc(paddr,size*sizeof(long));
 			assert(paddr);
 		}
-		rv=umoven(pid,laddr,sizeof(char *),&(paddr[n]));
+		rv=umoven(pc,laddr,sizeof(char *),&(paddr[n]));
 		assert(rv=4);
 		laddr+= sizeof(char *);
 		n++;
@@ -96,7 +96,7 @@ static char **getparms(int pid,long laddr) {
 	for (i=0;i<n-1;i++) {
 		char tmparg[PATH_MAX+1];
 		tmparg[PATH_MAX]=0;
-		umovestr(pid,paddr[i],PATH_MAX,tmparg);
+		umovestr(pc,paddr[i],PATH_MAX,tmparg);
 		parms[i]=strdup(tmparg);
 	}
 	free(paddr);
@@ -144,11 +144,11 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		int filenamelen;
 		int arg0len;
 		long sp=getsp(pc);
-		rv=umoven(pc->pid,largv,sizeof(char *),&(larg0));
+		rv=umoven(pc,largv,sizeof(char *),&(larg0));
 		assert(rv);
 		if (req.flags & BINFMT_KEEP_ARG0) {
 			oldarg0[PATH_MAX]=0;
-			umovestr(pc->pid,larg0,PATH_MAX,oldarg0);
+			umovestr(pc,larg0,PATH_MAX,oldarg0);
 		} else
 			oldarg0[0]=0;
 		for (sep=1;sep<255 && 
@@ -164,11 +164,11 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		filenamelen=WORDALIGN(strlen(UMBINWRAP));
 		arg0len=WORDALIGN(strlen(umbinfmtarg0));
 		pc->retval=0;
-		ustorestr(pc->pid,sp-filenamelen,filenamelen,UMBINWRAP);
+		ustorestr(pc,sp-filenamelen,filenamelen,UMBINWRAP);
 		putargn(0,sp-filenamelen,pc);
-		ustorestr(pc->pid,sp-filenamelen-arg0len,arg0len,umbinfmtarg0);
+		ustorestr(pc,sp-filenamelen-arg0len,arg0len,umbinfmtarg0);
 		larg0=sp-filenamelen-arg0len;
-		ustoren(pc->pid,largv,sizeof(char *),&larg0);
+		ustoren(pc,largv,sizeof(char *),&larg0);
 		free(umbinfmtarg0);
 		if (req.flags & BINFMT_MODULE_ALLOC)
 			free(req.interp);
@@ -179,8 +179,8 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		if (! isnosys(um_syscall)) {
 			long largv=getargn(1,pc);
 			long lenv=getargn(2,pc);
-			char **argv=getparms(pc->pid,largv);
-			char **env=getparms(pc->pid,lenv);
+			char **argv=getparms(pc,largv);
+			char **env=getparms(pc,lenv);
 			/*printparms("ARGV",argv);
 				printparms("ENV",env);*/
 			pc->retval=um_syscall(pcdata->path,argv,env);
@@ -199,7 +199,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 				int filenamelen=WORDALIGN(strlen(filename));
 				pc->retval=0;
 				pcdata->tmpfile2unlink_n_free=filename;
-				ustorestr(pc->pid,sp-filenamelen,filenamelen,filename);
+				ustorestr(pc,sp-filenamelen,filenamelen,filename);
 				putargn(0,sp-filenamelen,pc);
 				return SC_CALLONXIT;
 			} else {

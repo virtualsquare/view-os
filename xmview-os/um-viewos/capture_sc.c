@@ -203,6 +203,10 @@ pid2pcb(int pid)
 static void droppcb(struct pcb *pc)
 {
 	pc->flags = 0; /*NOT PCB_INUSE */;
+#ifdef _PROC_MEM_TEST
+	if (pc->memfd >= 0)
+		close(pc->memfd);
+#endif
 	if (pcb_destr != NULL)
 		pcb_destr(pc);
 	nprocs--;
@@ -242,6 +246,15 @@ static int handle_new_proc(int pid, struct pcb *pp)
 			pc=oldpc;
 		}
 		pc->pp = pp;
+#ifdef _PROC_MEM_TEST
+		if (!has_ptrace_multi) {
+			char *memfile;
+			asprintf(&memfile,"/proc/%d/mem",pc->pid);
+			pc->memfd=r_open(memfile,O_RDWR,0);
+			free(memfile);
+		} else
+			pc->memfd= -1;
+#endif
 		if (pcb_constr != NULL)
 			pcb_constr(pc,pp->arg2,pcbtabsize);
 	}
