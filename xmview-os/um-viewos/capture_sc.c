@@ -74,6 +74,18 @@ int fprint2(const char *fmt, ...) {
 	va_end(ap);
 	if (rv>0)
 		rv=r_write(2,s,strlen(s));
+	free(s);
+	return rv;
+}
+
+int vfprint2(const char *fmt, va_list ap) {
+	char *s;
+	int rv;
+	rv=vasprintf(&s, fmt, ap);
+	va_end(ap);
+	if (rv>0)
+		rv=r_write(2,s,strlen(s));
+	free(s);
 	return rv;
 }
 

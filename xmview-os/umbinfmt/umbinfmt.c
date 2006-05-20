@@ -64,8 +64,6 @@
 #define syscall_getuid getuid
 #define syscall_getgid getgid
 
-#define MAX_OPEN_FILES 5
-
 static struct service s;
 
 struct binfileinfo {
@@ -76,8 +74,6 @@ struct binfileinfo {
 	int len;
 	char *contents;
 };
-
-struct binfileinfo *openfiles[MAX_OPEN_FILES];
 
 struct umregister {
 	char *name;
@@ -129,6 +125,7 @@ struct umbinfmt_dirent64 {
 	char            d_name[0];
 };
 
+#if 0
 struct umbinfmt_dirent {
 	__ino_t            d_ino;
 	__off_t            d_off;
@@ -136,6 +133,7 @@ struct umbinfmt_dirent {
 	//unsigned char   d_type; /* this field does not exist in getdents provided data */
 	char            d_name[0];
 };
+#endif
 
 #ifdef __UMBINFMT_DEBUG__
 static void printdebug(int level, const char *file, const int line, const char *func, const char *fmt, ...) {
@@ -144,13 +142,12 @@ static void printdebug(int level, const char *file, const int line, const char *
 	if (level >= __UMBINFMT_DEBUG_LEVEL__) {
 		va_start(ap, fmt);
 #ifdef _PTHREAD_H
-		fprintf(stderr, "[%d:%lu] dev %s:%d %s(): ", getpid(), pthread_self(), file, line, func);
+		fprint2("[%d:%lu] dev %s:%d %s(): ", getpid(), pthread_self(), file, line, func);
 #else
-		fprintf(stderr, "[%d] dev %s:%d %s(): ", getpid(), file, line, func);
+		fprint2("[%d] dev %s:%d %s(): ", getpid(), file, line, func);
 #endif
-		vfprintf(stderr, fmt, ap);
-		fprintf(stderr, "\n");
-		fflush(stderr);
+		vfprint2(fmt, ap);
+		fprint2("\n");
 		va_end(ap);
 	}
 }
@@ -236,10 +233,11 @@ static epoch_t searchbinfmt(struct binfmt_req *req)
 						} else if (scan->type == 'M') {
 							int i,j,diff;
 							/*for (i=scan->offset,j=0,diff=0;i<128 && j<scan->len && diff==0;i++,j++)
-								printf("%02x %02x %02x\n",buf[i],scan->magic[j],scan->mask[j]);*/
+								fprint2("%02x %02x %02x %2x\n",buf[i],scan->magic[j],scan->mask[j],
+										(buf[i] ^ scan->magic[j]) & scan->mask[j]);*/
 							for (i=scan->offset,j=0,diff=0;i<128 && j<scan->len && diff==0;i++,j++)
 								diff=(buf[i] ^ scan->magic[j]) & scan->mask[j];
-							if (j==scan->len) {
+							if (diff==0) {
 								req->interp=scan->interpreter;
 								req->flags=(strchr(scan->flags,'P') != NULL)?BINFMT_KEEP_ARG0:0;
 							}
@@ -298,7 +296,7 @@ static void delmnttab(struct umbinfmt *fc)
 	if (i<mnttabmax)
 		mnttab[i]=NULL;
 	else
-		fprintf(stderr,"delmnt inexistent entry\n");
+		fprint2("delmnt inexistent entry\n");
 	//pthread_mutex_unlock( &mnttab_mutex );
 }
 
@@ -458,10 +456,9 @@ static int umbinfmt_umount2(char *target, int flags)
 	} else
 	{
 		struct umbinfmt *fc_norace=fc;
-		if (fc_norace->flags & UMBINFMT_DEBUG) {
-			fprintf(stderr, "UMOUNT => path:%s flag:%d\n",target, flags);
-			fflush(stderr);
-		}
+		if (fc_norace->flags & UMBINFMT_DEBUG) 
+			fprint2("UMOUNT => path:%s flag:%d\n",target, flags);
+		delmnttab(fc);
 		delete_allreg(fc->head);
 		free(fc_norace->path);
 		free(fc_norace);
@@ -685,17 +682,13 @@ static int umbinfmt_open(char *path, int flags, mode_t mode)
 
 	if (rv < 0)
 	{
-		if (fc->flags & UMBINFMT_DEBUG) {
-			fprintf(stderr, "OPEN[%d] ERROR => path:%s flags:0x%x\n", fi, path, flags);	
-			fflush(stderr);
-		}		
+		if (fc->flags & UMBINFMT_DEBUG) 
+			fprint2("OPEN[%d] ERROR => path:%s flags:0x%x\n", fi, path, flags);	
 		errno = -rv;
 		return -1;
 	} else {
-		if (fc->flags & UMBINFMT_DEBUG) {
-			fprintf(stderr, "OPEN[%d] => path:%s flags:0x%x\n", fi, path, flags);
-			fflush(stderr);
-		}
+		if (fc->flags & UMBINFMT_DEBUG) 
+			fprint2("OPEN[%d] => path:%s flags:0x%x\n", fi, path, flags);
 		return fi;
 	}
 }
@@ -710,10 +703,8 @@ static int umbinfmt_close(int fd)
 		errno=EBADF;
 		return -1;
 	} else {
-		if (filetab[fd]->bfmount->flags & UMBINFMT_DEBUG) {
-			fprintf(stderr, "CLOSE[%d]\n",fd);
-			fflush(stderr);
-		}
+		if (filetab[fd]->bfmount->flags & UMBINFMT_DEBUG) 
+			fprint2("CLOSE[%d]\n",fd);
 		if (filetab[fd]->contents != NULL)
 			free(filetab[fd]->contents);
 		filetab[fd]->bfmount->inuse--;
@@ -750,7 +741,7 @@ static int umbinfmt_getdents64(int fd, void *buf, size_t count){
 	}
 	else {
 		char *tail=(filetab[fd]->contents)+filetab[fd]->pos;
-		int rv=count_dents64(tail,count,+filetab[fd]->len-+filetab[fd]->pos);
+		int rv=count_dents64(tail,count,filetab[fd]->len-filetab[fd]->pos);
 		memcpy(buf,(filetab[fd]->contents)+filetab[fd]->pos,rv);
 		if (rv<0) {
 			errno= -rv;
@@ -762,6 +753,7 @@ static int umbinfmt_getdents64(int fd, void *buf, size_t count){
 	}
 }
 
+#if 0
 static void convert_dents6432(void *buf, int count) {
 	if (count > 0) {
 		struct umbinfmt_dirent *d32=(struct umbinfmt_dirent *)buf;
@@ -782,6 +774,7 @@ static int umbinfmt_getdents(int fd, void *buf, size_t count){
 	convert_dents6432(buf,rv);
 	return rv;
 }
+#endif
 
 static int umbinfmt_read(int fd, void *buf, size_t count)
 {
@@ -932,6 +925,7 @@ static int umbinfmt_write(int fd, void *buf, size_t count)
 	}
 }
 
+/*
 static int stat2stat64(struct stat64 *s64, struct stat *s)
 {
 	s64->st_dev= s->st_dev;
@@ -949,33 +943,33 @@ static int stat2stat64(struct stat64 *s64, struct stat *s)
 	s64->st_ctim= s->st_ctim;
 	return 0;
 }
+*/
 
-static int common_stat(struct umbinfmt *fc,struct umregister *reg, struct stat *buf)
+static int common_stat64(struct umbinfmt *fc,struct umregister *reg, struct stat64 *buf64)
 {
 	int rv;
 	if (reg == NULL) {
 		errno=ENOENT;
 		return -1;
 	}
-	memset(buf, 0, sizeof(struct stat));
-	buf->st_nlink=1;
+	memset(buf64, 0, sizeof(struct stat64));
+	buf64->st_nlink=1;
 	if (UBM_IS_ROOT(reg)) 
-		buf->st_mode=S_IFDIR | 0755;
+		buf64->st_mode=S_IFDIR | 0755;
 	else if (UBM_IS_REGISTER(reg))
-		buf->st_mode=S_IFREG | 0200;
+		buf64->st_mode=S_IFREG | 0200;
 	else if (UBM_IS_STATUS(reg))
-		buf->st_mode=S_IFREG | 0644;
+		buf64->st_mode=S_IFREG | 0644;
 	else 
-		buf->st_mode=S_IFREG | 0644;
+		buf64->st_mode=S_IFREG | 0644;
 	rv=0;
-	if (fc->flags & UMBINFMT_DEBUG) {
-		fprintf(stderr, "stat->GETATTR => status: %s\n",
+	if (fc->flags & UMBINFMT_DEBUG) 
+		fprint2("stat->GETATTR => status: %s\n",
 				rv ? "Error" : "Success");
-		fflush(stderr);
-	}
 	return rv;
 }
 
+/*
 static int common_stat64(struct umbinfmt *fc,struct umregister *reg, struct stat64 *buf64)
 {
 	int rv;
@@ -984,17 +978,19 @@ static int common_stat64(struct umbinfmt *fc,struct umregister *reg, struct stat
 		stat2stat64(buf64,&buf);
 	return rv;
 }
+*/
 
-static int umbinfmt_fstat(int fd, struct stat *buf)
+static int umbinfmt_fstat64(int fd, struct stat64 *buf64)
 {
 	if (fd < 0 || filetab[fd] == NULL) {
 		errno=EBADF;
 		return -1;
 	} else {
-		return common_stat(filetab[fd]->bfmount, filetab[fd]->reg,buf);
+		return common_stat64(filetab[fd]->bfmount, filetab[fd]->reg,buf64);
 	}
 }
 
+/*
 static int umbinfmt_fstat64(int fd, struct stat64 *buf64)
 {
 	if (filetab[fd]==NULL) {
@@ -1008,7 +1004,9 @@ static int umbinfmt_fstat64(int fd, struct stat64 *buf64)
 		return rv;
 	}
 }
+*/
 
+#if 0
 static int umbinfmt_stat(char *path, struct stat *buf)
 {
 	struct umbinfmt *umbinfmt=searchbmfile(path);
@@ -1020,6 +1018,7 @@ static int umbinfmt_lstat(char *path, struct stat *buf)
 {
 	return umbinfmt_stat(path,buf);
 }
+#endif
 
 static int umbinfmt_stat64(char *path, struct stat64 *buf64)
 {
@@ -1039,15 +1038,13 @@ static int umbinfmt_access(char *path, int mode)
 	struct umregister *reg=searchfile(path,fc);
 	int rv;
 	assert(fc!=NULL);
-	if (fc->flags & UMBINFMT_DEBUG) {
-		fprintf(stderr, "ACCESS => path:%s mode:%s%s%s%s\n", 
+	if (fc->flags & UMBINFMT_DEBUG) 
+		fprint2("ACCESS => path:%s mode:%s%s%s%s\n", 
 				path,
 				(mode & R_OK) ? "R_OK": "",
 				(mode & W_OK) ? "W_OK": "",
 				(mode & X_OK) ? "X_OK": "",
 				(mode & F_OK) ? "F_OK": "");
-		fflush(stderr);
-	}
 	if (UBM_IS_ROOT(reg))
 		return(!(mode & W_OK));
 	else if (UBM_IS_REGISTER(reg))
@@ -1153,20 +1150,26 @@ init (void)
 	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
 	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
 	s.syscall[uscno(__NR_mount)]=umbinfmt_mount;
+#if 0
 #if ! defined(__x86_64__)
 	s.syscall[uscno(__NR_umount)]=umbinfmt_umount2; /* umount must be mapped onto umount2 */
 #endif
+#endif
 	s.syscall[uscno(__NR_umount2)]=umbinfmt_umount2;
 	s.syscall[uscno(__NR_open)]=umbinfmt_open;
+#if 0
 	s.syscall[uscno(__NR_creat)]=umbinfmt_open; /*creat is an open with (O_CREAT|O_WRONLY|O_TRUNC)*/
+#endif
 	s.syscall[uscno(__NR_read)]=umbinfmt_read;
 	s.syscall[uscno(__NR_write)]=umbinfmt_write;
 	//s.syscall[uscno(__NR_readv)]=readv;
 	//s.syscall[uscno(__NR_writev)]=writev;
 	s.syscall[uscno(__NR_close)]=umbinfmt_close;
+#if 0
 	s.syscall[uscno(__NR_stat)]=umbinfmt_stat;
 	s.syscall[uscno(__NR_lstat)]=umbinfmt_lstat;
 	s.syscall[uscno(__NR_fstat)]=umbinfmt_fstat;
+#endif
 #if !defined(__x86_64__)
 	s.syscall[uscno(__NR_stat64)]=umbinfmt_stat64;
 	s.syscall[uscno(__NR_lstat64)]=umbinfmt_lstat64;
@@ -1177,7 +1180,9 @@ init (void)
 #if ! defined(__x86_64__)
 	s.syscall[uscno(__NR__llseek)]=umbinfmt__llseek;
 #endif
+#if 0
 	s.syscall[uscno(__NR_getdents)]=umbinfmt_getdents;
+#endif
 	s.syscall[uscno(__NR_getdents64)]=umbinfmt_getdents64;
 	s.syscall[uscno(__NR_fcntl64)]=umbinfmt_fcntl64;
 	//s.syscall[uscno(__NR_chown)]=umbinfmt_chown;

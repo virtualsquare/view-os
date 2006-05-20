@@ -29,6 +29,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <endian.h>
+#include <stdarg.h>
 #include "ptrace2.h"
 
 /* Real SysCalls ! r_ prefixed calls do not enter the nidification
@@ -74,6 +75,7 @@
 #endif
 
 extern int fprint2(const char *fmt, ...);
+extern int vfprint2(const char *fmt, va_list ap);
 
 extern unsigned int has_ptrace_multi;
 extern unsigned int ptrace_vm_mask;

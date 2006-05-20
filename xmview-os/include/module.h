@@ -24,6 +24,7 @@
  */
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <stdarg.h>
 //#include <sys/socket.h>
 typedef int (*intfun)();
 typedef long long epoch_t;
@@ -135,6 +136,9 @@ extern int um_mod_getsyscalltype(int scno);
 
 extern int uscno(int scno);
 extern int add_service(struct service *);
+
+extern int fprint2(const char *fmt, ...);
+extern int vfprint2(const char *fmt, va_list ap);
 
 #define __NR_doesnotexist -1
 #if defined(__x86_64__)
