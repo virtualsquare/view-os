@@ -129,11 +129,11 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		service_t sercode,intfun um_syscall)
 {
 	struct binfmt_req req={(char *)pcdata->path,NULL,0};
-	epoch_t nestepoch=um_x_setepoch(0);
+	epoch_t nestepoch=um_setepoch(0);
 	service_t binfmtser;
-	um_x_setepoch(nestepoch+1);
+	um_setepoch(nestepoch+1);
 	binfmtser=service_check(CHECKBINMFT,&req,0);
-	um_x_setepoch(nestepoch);
+	um_setepoch(nestepoch);
 	if (binfmtser != UM_NONE) {
 		char *umbinfmtarg0;
 		char sep;

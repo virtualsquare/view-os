@@ -89,7 +89,7 @@ struct timestamp *um_x_gettst()
 	}
 }
 
-epoch_t um_x_setepoch(epoch_t epoch)
+epoch_t um_setepoch(epoch_t epoch)
 {
 	struct pcb *pc=get_pcb();
 	epoch_t oldepoch=0;

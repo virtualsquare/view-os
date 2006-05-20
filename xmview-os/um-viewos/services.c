@@ -297,7 +297,7 @@ service_t service_check(int type,void* arg,int setepoch)
 			return(UM_NONE);
 		else {
 			if (setepoch)
-				um_x_setepoch(matchepoch);
+				um_setepoch(matchepoch);
 			return services[max_index]->code;
 		}
 	}

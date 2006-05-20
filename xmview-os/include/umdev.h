@@ -35,8 +35,8 @@ struct dev_info {
 };
 
 struct umdev_operations {
-	int (*getattr) (char, dev_t, struct stat *);
-	int (*fgetattr) (char, dev_t, struct stat *, struct dev_info *);
+	int (*getattr) (char, dev_t, struct stat64 *);
+	int (*fgetattr) (char, dev_t, struct stat64 *, struct dev_info *);
 	int (*chmod) (char, dev_t, mode_t);
 	int (*chown) (char, dev_t, uid_t, gid_t);
   int (*open) (char, dev_t, struct dev_info *);

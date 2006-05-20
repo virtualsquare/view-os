@@ -38,6 +38,8 @@ extern epoch_t tst_matchingepoch(struct timestamp *service_tst);
 extern struct timestamp tst_timestamp();
 extern epoch_t get_epoch();
 
+extern epoch_t um_setepoch(epoch_t epoch);
+
 typedef epoch_t (*epochfun)();
 typedef unsigned char service_t;
 
