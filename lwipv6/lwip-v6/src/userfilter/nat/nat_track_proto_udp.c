@@ -29,6 +29,9 @@
 #include "lwip/ip.h"
 #include "lwip/udp.h"
 
+#include "lwip/netif.h"
+#include "lwip/userfilter.h"
+                           
 #include "lwip/nat/nat.h"
 #include "lwip/nat/nat_tables.h"
 
@@ -78,10 +81,9 @@ int track_udp_new(struct nat_pcb *pcb, struct pbuf *p, void *iphdr, int iplen)
 
 int track_udp_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction)
 { 
-	struct udp_hdr       *udphdr  = NULL;
-	struct ip_hdr *iphdr;
-	struct ip4_hdr *ip4hdr;
-	//u16_t iphdrlen;
+	struct udp_hdr  *udphdr  = NULL;
+	struct ip_hdr   *iphdr;
+	struct ip4_hdr  *ip4hdr;
 
 	struct nat_pcb *pcb = p->nat.track;
 
@@ -106,7 +108,7 @@ int track_udp_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction
 
 /*--------------------------------------------------------------------------*/
 
-int nat_udp_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inverse, 
+int nat_udp_manip (nat_manip_t type, void *iphdr, int iplen, struct ip_tuple *inverse, 
 		u8_t *iphdr_new_changed_buf, 
 		u8_t *iphdr_old_changed_buf, 
 		u32_t iphdr_changed_buflen)
@@ -123,12 +125,12 @@ int nat_udp_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inv
 			(u8_t *) iphdr_new_changed_buf, iphdr_changed_buflen);
 
 		// Set port
-		if (type == NAT_DNAT) {
+		if (type == MANIP_DST) {
 			old_value    = udphdr->dest;
 			udphdr->dest = inverse->src.proto.upi.udp.port;
 			nat_chksum_adjust((u8_t *) & udphdr->chksum, (u8_t *) & old_value, 2, (u8_t *) & udphdr->dest, 2);
 		}
-		else if (type == NAT_SNAT) {
+		else if (type == MANIP_SRC) {
 			old_value    = udphdr->src;
 			udphdr->src  = inverse->dst.proto.upi.udp.port;
 
@@ -143,7 +145,7 @@ int nat_udp_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inv
 
 int nat_udp_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
 {
-	u32_t port;
+	u16_t port;
 	u32_t min, max;
 
 	if (type == NAT_SNAT) {

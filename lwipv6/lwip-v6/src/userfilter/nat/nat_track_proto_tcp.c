@@ -51,6 +51,10 @@
 #include "lwip/tcp.h"
 #include "netif/etharp.h"
 
+#include "lwip/netif.h"
+#include "lwip/userfilter.h"
+
+
 #include "lwip/nat/nat.h"
 #include "lwip/nat/nat_tables.h"
 
@@ -85,7 +89,7 @@ int track_tcp_error (uf_verdict_t *verdict, struct pbuf *p)
 }
 
 
-int nat_tcp_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inverse, 
+int nat_tcp_manip (nat_manip_t type, void *iphdr, int iplen, struct ip_tuple *inverse, 
 		u8_t *iphdr_new_changed_buf, 
 		u8_t *iphdr_old_changed_buf, 
 		u32_t iphdr_changed_buflen)
@@ -96,17 +100,17 @@ int nat_tcp_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inv
 	tcphdr = (struct tcp_hdr *) (iphdr+iplen);
 
 	// Adjust tcp checksum
-	//if (inverse->ipv == 4)
-		nat_chksum_adjust((u8_t *) & tcphdr->chksum, 
-			(u8_t *) iphdr_old_changed_buf, iphdr_changed_buflen, 
-			(u8_t *) iphdr_new_changed_buf, iphdr_changed_buflen);
+	nat_chksum_adjust((u8_t *) & tcphdr->chksum, 
+		(u8_t *) iphdr_old_changed_buf, iphdr_changed_buflen, 
+		(u8_t *) iphdr_new_changed_buf, iphdr_changed_buflen);
+
 	// Set port
-	if (type == NAT_DNAT) {
+	if (type == MANIP_DST) {
 		old_value    = tcphdr->dest;
 		tcphdr->dest = inverse->src.proto.upi.tcp.port;
 		nat_chksum_adjust((u8_t *) & tcphdr->chksum, (u8_t *) & old_value, 2, (u8_t *) & tcphdr->dest, 2);
 	}
-	else if (type == NAT_SNAT) {
+	else if (type == MANIP_SRC) {
 		old_value=     tcphdr->src;
 		tcphdr->src  = inverse->dst.proto.upi.tcp.port;
 		nat_chksum_adjust((u8_t *) & tcphdr->chksum, (u8_t *) & old_value, 2, (u8_t *) & tcphdr->src, 2);
@@ -117,7 +121,7 @@ int nat_tcp_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inv
 
 int nat_tcp_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
 {
-	u32_t port;
+	u16_t port;
 	u32_t min, max;
 
 	if (type == NAT_SNAT) {
@@ -151,8 +155,6 @@ int nat_tcp_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_t
 int nat_tcp_free (struct nat_pcb *pcb)
 {
 	if (pcb->nat_type == NAT_SNAT) {
-		//nat_ports_free(ntohs(pcb->tuple[CONN_DIR_REPLY].dst.proto.upi.tcp.port));	
-
 		nat_ports_free(IP_PROTO_TCP, ntohs(pcb->tuple[CONN_DIR_REPLY].dst.proto.upi.tcp.port));
 
 	} 

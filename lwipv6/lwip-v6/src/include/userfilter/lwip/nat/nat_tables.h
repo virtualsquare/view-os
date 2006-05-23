@@ -34,12 +34,3 @@ u16_t nat_ports_free(int protocol, u16_t val);
 
 #endif
 
-
-
-
-/*
- * Return the first free port. Returns 0 if no one was found.
- */
-//u16_t nat_ports_getnew(void);
-//u16_t nat_ports_free(u16_t port);
-//int  nat_ports_getnew(int protocol, u32_t *port);

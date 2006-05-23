@@ -31,35 +31,30 @@ struct track_protocol
 	/* Tuple functions */
 
 	int (*tuple)(struct ip_tuple *tuple, void *hdr);
-
 	int (*inverse) (struct ip_tuple *reply, struct ip_tuple *tuple);
 
 	/* Tracking functions */
 
 	int (*error) (uf_verdict_t *verdict, struct pbuf *q);
-
 	int (*new)  (struct nat_pcb *pcb,  struct pbuf *p, void *iphdr, int iplen);
-
-	///int (*handle) (uf_verdict_t *verdict, struct nat_pcb *pcb, struct pbuf *p, conn_dir_t direction);
 	int (*handle) (uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction);
 
 	/* NAT functions */
 
-	int (*manip) (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inverse, 
+	int (*nat_tuple_inverse) (struct ip_tuple *reply, struct ip_tuple *tuple, 
+		nat_type_t type, struct manip_range *nat_manip);
+
+	int (*nat_free) (struct nat_pcb *pcb);
+
+	int (*manip) (nat_manip_t type, void *iphdr, int iplen, struct ip_tuple *inverse, 
 		u8_t *iphdr_new_changed_buf, 
 		u8_t *iphdr_old_changed_buf, 
 		u32_t iphdr_changed_buflen);
 
-	int (*nat_tuple_inverse) (struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip);
-
-	int (*nat_free) (struct nat_pcb *pcb);
 };
-
-#define MAX_TRACK_PROTO 256
-extern struct track_protocol *ip_ct_protos[MAX_TRACK_PROTO];
-
 
 
 #endif /*_INAT_TRACK_PROTOCOL */
 
 #endif
+

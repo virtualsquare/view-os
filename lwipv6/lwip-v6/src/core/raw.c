@@ -265,8 +265,12 @@ raw_sendto(struct raw_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr)
     q = p;
     pbuf_header(q, - ip_addr_is_v4comp(ipaddr)?IP4_HLEN:IP_HLEN);
   }
+
+  //printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>1\n");
   
-	if(ip_route_findpath(ipaddr,&nexthop,&netif,&flags) != ERR_OK) {
+  ip_addr_debug_print(IP_DEBUG, ipaddr);
+
+  if(ip_route_findpath(ipaddr,&nexthop,&netif,&flags) != ERR_OK) {
     LWIP_DEBUGF(RAW_DEBUG | 1, ("raw_sendto: No route to %p\n", ipaddr->addr));
 #if RAW_STATS
     /*    ++lwip_stats.raw.rterr;*/
@@ -278,13 +282,17 @@ raw_sendto(struct raw_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr)
     return ERR_RTE;
   }
 
+  //printf("nexthop: "); ip_addr_debug_print(IP_DEBUG, nexthop); printf("\n");
+
   if (ip_addr_isany(&(pcb->local_ip))) {
     /* use outgoing network interface IP address as source address */
     /*src_ip = &(netif->ip_addr);*/
 	  struct ip_addr_list *el;
-	  if ((el=ip_addr_list_maskfind(netif->addrs,nexthop)) != NULL)
+	  //if ((el=ip_addr_list_maskfind(netif->addrs,nexthop)) != NULL) {
+	  if ((el=ip_addr_list_maskfind(netif->addrs, nexthop)) != NULL) {
 		  src_ip= &(el->ipaddr);
-	  else
+		  //printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>2\n");
+	  } else
 		  src_ip = &(pcb->local_ip);
   /*printf("outping src was null now %x:%x:%x:%x\n",
 			  src_ip->addr[0],

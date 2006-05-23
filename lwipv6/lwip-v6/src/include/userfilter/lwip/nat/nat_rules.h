@@ -105,7 +105,6 @@ int nat_add_rule(int ipv, nat_table_t where, struct nat_rule *new_rule);
 struct nat_rule * nat_del_rule(nat_table_t where, int pos);
 	
 /* Returns 1 if "rule" matches with the tuple "tuple" */
-//int nat_match_rule(struct nat_rule *rule, struct netif *iface, struct ip_tuple *tuple);
 int nat_match_rule(struct rule_matches *matches, struct netif *iface, struct ip_tuple *tuple);
 
 #endif 

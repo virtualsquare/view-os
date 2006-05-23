@@ -88,14 +88,8 @@
 #include "lwip/nat/nat.h"
 #endif
 
-
-#ifdef LWIP_CONNTRACK
-#include "lwip/netfilter_ipv4/ip_conntrack.h"
-#endif
-
-
 #ifndef IP_DEBUG
-#define IP_DEBUG DBG_ON
+#define IP_DEBUG DBG_OFF
 #endif
 
 
@@ -324,7 +318,7 @@ ip_inpacket(struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piph
 
 #ifdef LWIP_USERFILTER
 #ifdef LWIP_NAT
-  /* Reset NAT+track information before sending to the upper layer */
+  /* Reset NAT+tracking information before sending to the upper layer */
   nat_pbuf_reset(p);
 #endif
 #endif
@@ -465,20 +459,6 @@ ip_input(struct pbuf *p, struct netif *inp) {
   PERF_STOP("ip_input");
 }
 
-
-#if 0
-/*
- * Send the IP "p" on a network interface.
- * FIX: use this inside ip_frag.c code.
- */
-err_t
-ip_output_raw (struct pbuf *p, struct netif *out, struct ip_addr *nexthop)
-{
-      return netif->output(netif, p, nexthop);
-}
-#endif
-
-
 /* ip_output_if:
  *
  * Sends an IP packet on a network interface. This function constructs the IP header
@@ -490,9 +470,13 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
        u8_t ttl, u8_t tos,
        u8_t proto, struct netif *netif, struct ip_addr *nexthop, int flags)
 {
+  err_t  ret = ERR_OK; /* default return value */
   struct ip_hdr *iphdr;
   struct ip4_hdr *ip4hdr;
   u8_t version;
+#ifdef LWIP_USERFILTER
+  struct pbuf *caller_p;
+#endif
 
   if (src == NULL) {
 	  return ERR_BUF;
@@ -549,9 +533,19 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 
 
 #ifdef LWIP_USERFILTER
+  /* The Caller of ip_output_if() will call pbuf_free() on buffer pointed by 'p' 
+     after return.
+     Hooks could call pbuf_free() on 'p' too, so we need to increase reference.
+     IF hooks replace buffer pointed by 'p' with an other, we have to free the new
+     buffer before return. */
+  caller_p = p;
+  pbuf_ref(p);
+#endif
+
+#ifdef LWIP_USERFILTER
   /* FIX: LOCAL_OUT after routing decisions? It this the right place */
   if (UF_HOOK(UF_IP_LOCAL_OUT, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
-    return ERR_OK;
+    goto end_ip_output_if;
   }
 #endif
 
@@ -561,41 +555,40 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 
   /* The packet is for us? */
   if (ip_addr_cmp(src,dest)) {
-    struct pbuf *q, *r;
-    u8_t *ptr;
+    struct pbuf *r;
 
-	LWIP_DEBUGF(IP_DEBUG, ("\t PACKET FOR US\n"));
+    LWIP_DEBUGF(IP_DEBUG, ("\t PACKET FOR US\n"));
 
     if (! (netif->flags & NETIF_FLAG_UP)) {
-      return ERR_OK;
+      goto end_ip_output_if;
     }
-    r = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
+
+    /* The caller will destroy 'p' after return. We need to create a clone! */
+    r = pbuf_clone(PBUF_RAW, p, PBUF_RAM);
     if (r != NULL) {
-      ptr = r->payload;
-      for(q = p; q != NULL; q = q->next) {
-        memcpy(ptr, q->payload, q->len);
-        ptr += q->len;
-      }
 
 #ifdef LWIP_USERFILTER
       if (UF_HOOK(UF_IP_POST_ROUTING, &r, NULL, netif, UF_DONTFREE_BUF) <= 0) {
-        return ERR_OK;
+        goto end_ip_output_if;
       }
+#ifdef LWIP_NAT
+      /* Reset NAT+tracking information before sending packet back to us */
+      nat_pbuf_reset(r);
 #endif
 
+#endif
       netif->input( r, netif );
     }
-  
-    return ERR_OK;
+
+    goto end_ip_output_if;
   }
   /* packet for remote host */ 
   else {
-	LWIP_DEBUGF(IP_DEBUG, ("OUT\n"));
-
+    LWIP_DEBUGF(IP_DEBUG, ("SENDING OUT\n"));
 	
 #ifdef LWIP_USERFILTER
     if (UF_HOOK(UF_IP_POST_ROUTING, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
-      return ERR_OK;
+      goto end_ip_output_if;
     }
 #endif
 
@@ -604,20 +597,35 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
       LWIP_DEBUGF(IP_DEBUG, ("ip_output_if: packet need fragmentation (len=%d, mtu=%d)\n",p->tot_len,netif->mtu));
 #ifdef IPv4_FRAGMENTATION 
       if (version == 4)
-        return ip4_frag(p , netif, dest);
+        ret = ip4_frag(p , netif, dest);
 #endif
 #ifdef IPv6_FRAGMENTATION 
       if (version == 6)
-        return ip6_frag(p , netif, dest);
+        ret = ip6_frag(p , netif, dest);
 #endif
       LWIP_DEBUGF(IP_DEBUG, ("ip_output_if: fragmentation not supported. Dropped!\n"));
-      return ERR_OK;
+      /* FIX: error code? */
     }
     else {
-      return netif->output(netif, p, nexthop);
+      ret = netif->output(netif, p, nexthop);
     }
   }
+
+
+end_ip_output_if:
+
+#ifdef LWIP_USERFILTER
+  if (caller_p != p) {
+    /* Somewhere, inside a hook, we've changed packet's buffer. In this case
+       we have to free it because Caller will call pbuf_free() only on 
+       caller_p */
+    pbuf_free(p);
+  }
+#endif
+
+  return ret;
 }
+
 
 /* ip_output:
  *
@@ -654,6 +662,44 @@ ip_output(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest, u8_t ttl, u
 
 #if IP_DEBUG
 
+static void ip_debug_print_transport(u8_t proto, void *hdr)
+{
+  u16_t prova;
+  struct icmp_echo_hdr *icmph = NULL;
+  struct tcp_hdr       *tcphdr  = NULL;
+  struct udp_hdr       *udphdr  = NULL;
+
+  switch (proto)
+  {
+    case IP_PROTO_TCP:
+      tcphdr = hdr;
+      LWIP_DEBUGF(IP_DEBUG, ("TCP [%d,%d]", ntohs(tcphdr->src), ntohs(tcphdr->dest))); 
+    break;
+    case IP_PROTO_UDP:
+      udphdr = hdr;
+      LWIP_DEBUGF(IP_DEBUG, ("UDP [%d,%d]", ntohs(udphdr->src), ntohs(udphdr->dest))); 
+    break;
+    case IP_PROTO_ICMP4:
+      icmph = hdr;
+      LWIP_DEBUGF(IP_DEBUG, ("Icmp4 id=%d type=%d code=%d", 
+      ntohs(icmph->id), 
+        (char)ICMPH_TYPE(icmph), 
+        (char)icmph->icode)); 
+    break;
+    case IP_PROTO_ICMP:
+      icmph = hdr;
+      LWIP_DEBUGF(IP_DEBUG, ("Icmp6 id=%d type=%d code=%d", 
+      ntohs(icmph->id), 
+        (char)ICMPH_TYPE(icmph), 
+        (char)icmph->icode)); 
+    break;
+    default:
+      LWIP_DEBUGF(IP_DEBUG, ("%s: strange protocol", __func__ ));
+      break;
+  }
+  LWIP_DEBUGF(IP_DEBUG, ("\n"));
+}
+
 static	void
 ip4_debug_print(struct pbuf *p)
 {
@@ -670,8 +716,8 @@ ip4_debug_print(struct pbuf *p)
   LWIP_DEBUGF(IP_DEBUG, ("  dest="));
   ip_addr_debug_print(IP_DEBUG, &tempdest);
   LWIP_DEBUGF(IP_DEBUG, ("  proto=%u  ttl=%u  chksum=0x%04x",
-                        IPH4_TTL(iphdr),
                         IPH4_PROTO(iphdr),
+                        IPH4_TTL(iphdr),
                         ntohs(IPH4_CHKSUM(iphdr))));
   LWIP_DEBUGF(IP_DEBUG, ("  id=%u  flags=%u%u%u  offset=%u\n",
                         ntohs(IPH4_ID(iphdr)),
@@ -679,6 +725,8 @@ ip4_debug_print(struct pbuf *p)
                         ntohs(IPH4_OFFSET(iphdr)) >> 14 & 1,
                         ntohs(IPH4_OFFSET(iphdr)) >> 13 & 1,
                         ntohs(IPH4_OFFSET(iphdr)) & IP_OFFMASK));
+
+  ip_debug_print_transport(IPH4_PROTO(iphdr), payload);
 }
 
 static void
@@ -694,6 +742,8 @@ ip6_debug_print(int how, struct pbuf *p)
   LWIP_DEBUGF(how, ("  dest="));
   ip_addr_debug_print(how, &iphdr->dest);
   LWIP_DEBUGF(how, ("  nexthdr=%2u  hoplim=%2u\n", IPH_NEXTHDR(iphdr), IPH_HOPLIMIT(iphdr)));
+
+  ip_debug_print_transport( IPH_NEXTHDR(iphdr), payload);
 }
 
 void
@@ -835,88 +885,3 @@ static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pbuf **p,
   return r;
 }
 
-
-
-
-
-#if 0
-	LWIP_DEBUGF(IP_DEBUG, ("IP header:\n"));
-	LWIP_DEBUGF(IP_DEBUG, ("+-------------------------------+\n"));
-	LWIP_DEBUGF(IP_DEBUG, ("|%2d |%2d |  0x%02x |     %5u     | (v, hl, tos, len)\n",
-				IPH4_V(iphdr),
-				IPH4_HL(iphdr),
-				IPH4_TOS(iphdr),
-				ntohs(IPH4_LEN(iphdr))));
-	LWIP_DEBUGF(IP_DEBUG, ("+-------------------------------+\n"));
-	LWIP_DEBUGF(IP_DEBUG, ("|    %5u      |%u%u%u|    %4u   | (id, flags, offset)\n",
-				ntohs(IPH4_ID(iphdr)),
-				ntohs(IPH4_OFFSET(iphdr)) >> 15 & 1,
-				ntohs(IPH4_OFFSET(iphdr)) >> 14 & 1,
-				ntohs(IPH4_OFFSET(iphdr)) >> 13 & 1,
-				ntohs(IPH4_OFFSET(iphdr)) & IP_OFFMASK));
-	LWIP_DEBUGF(IP_DEBUG, ("+-------------------------------+\n"));
-	LWIP_DEBUGF(IP_DEBUG, ("|  %3u  |  %3u  |    0x%04x     | (ttl, proto, chksum)\n",
-				IPH4_TTL(iphdr),
-				IPH4_PROTO(iphdr),
-				ntohs(IPH4_CHKSUM(iphdr))));
-	LWIP_DEBUGF(IP_DEBUG, ("+-------------------------------+\n"));
-	LWIP_DEBUGF(IP_DEBUG, ("|  %3ld  |  %3ld  |  %3ld  |  %3ld  | (src)\n",
-				ntohl(iphdr->src.addr) >> 24 & 0xff,
-				ntohl(iphdr->src.addr) >> 16 & 0xff,
-				ntohl(iphdr->src.addr) >> 8 & 0xff,
-				ntohl(iphdr->src.addr) & 0xff));
-	LWIP_DEBUGF(IP_DEBUG, ("+-------------------------------+\n"));
-	LWIP_DEBUGF(IP_DEBUG, ("|  %3ld  |  %3ld  |  %3ld  |  %3ld  | (dest)\n",
-				ntohl(iphdr->dest.addr) >> 24 & 0xff,
-				ntohl(iphdr->dest.addr) >> 16 & 0xff,
-				ntohl(iphdr->dest.addr) >> 8 & 0xff,
-				ntohl(iphdr->dest.addr) & 0xff));
-	LWIP_DEBUGF(IP_DEBUG, ("+-------------------------------+\n"));
-#endif
-
-
-
-#if 0
-	LWIP_DEBUGF(IP_DEBUG, ("IP header:\n"));
-	LWIP_DEBUGF(IP_DEBUG, ("+-------------------------------+\n"));
-	LWIP_DEBUGF(IP_DEBUG, ("|%2d |  %x  |      %x              | (v, traffic class, flow label)\n",
-				IPH_V(iphdr),
-				IPH_CL(iphdr),
-				IPH_FLOW(iphdr)));
-	LWIP_DEBUGF(IP_DEBUG, ("+-------------------------------+\n"));
-	LWIP_DEBUGF(IP_DEBUG, ("|    %5u      | %2u  |   %2u   | (len, nexthdr, hoplim)\n",
-				ntohs(iphdr->len),
-				IPH_NEXTHDR(iphdr),
-				IPH_HOPLIMIT(iphdr)));
-	LWIP_DEBUGF(IP_DEBUG, ("+-------------------------------+\n"));
-	LWIP_DEBUGF(IP_DEBUG, ("|      %4lx     |     %4lx      | (src)\n",
-				ntohl(iphdr->src.addr[0]) >> 16 & 0xffff,
-				ntohl(iphdr->src.addr[0]) & 0xffff));
-	LWIP_DEBUGF(IP_DEBUG, ("|      %4lx     |     %4lx      | (src)\n",
-				ntohl(iphdr->src.addr[1]) >> 16 & 0xffff,
-				ntohl(iphdr->src.addr[1]) & 0xffff));
-	LWIP_DEBUGF(IP_DEBUG, ("|      %4lx     |     %4lx      | (src)\n",
-				ntohl(iphdr->src.addr[2]) >> 16 & 0xffff,
-				ntohl(iphdr->src.addr[2]) & 0xffff));
-	LWIP_DEBUGF(IP_DEBUG, ("|      %4lx     |     %4lx      | (src)\n",
-				ntohl(iphdr->src.addr[3]) >> 16 & 0xffff,
-				ntohl(iphdr->src.addr[3]) & 0xffff));
-	LWIP_DEBUGF(IP_DEBUG, ("+-------------------------------+\n"));
-	LWIP_DEBUGF(IP_DEBUG, ("|      %4lx     |     %4lx      | (dest)\n",
-				ntohl(iphdr->dest.addr[0]) >> 16 & 0xffff,
-				ntohl(iphdr->dest.addr[0]) & 0xffff));
-	LWIP_DEBUGF(IP_DEBUG, ("|      %4lx     |     %4lx      | (dest)\n",
-				ntohl(iphdr->dest.addr[1]) >> 16 & 0xffff,
-				ntohl(iphdr->dest.addr[1]) & 0xffff));
-	LWIP_DEBUGF(IP_DEBUG, ("|      %4lx     |     %4lx      | (dest)\n",
-				ntohl(iphdr->dest.addr[2]) >> 16 & 0xffff,
-				ntohl(iphdr->dest.addr[2]) & 0xffff));
-	LWIP_DEBUGF(IP_DEBUG, ("|      %4lx     |     %4lx      | (dest)\n",
-				ntohl(iphdr->dest.addr[3]) >> 16 & 0xffff,
-				ntohl(iphdr->dest.addr[3]) & 0xffff));
-	LWIP_DEBUGF(IP_DEBUG, ("+-------------------------------+\n"));
-	LWIP_DEBUGF(IP_DEBUG, ("%1x %1x %1x %1x %1x %1x %1x %1x\n",
-				*(payload+0), *(payload+1), *(payload+2), *(payload+3),
-				*(payload+4), *(payload+5), *(payload+6), *(payload+7)));
-
-#endif

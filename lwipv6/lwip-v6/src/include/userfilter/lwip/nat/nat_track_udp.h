@@ -27,9 +27,6 @@ struct ip_ct_udp {
 	u8_t  isstream; 
 };
 
-extern struct track_protocol  udp_track;
-
-
 #endif 
 
 #endif

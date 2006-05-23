@@ -53,7 +53,7 @@
 #define __LWIP_ICMP_H__
 
 #include "lwip/arch.h"
-
+#include "lwip/def.h"
 #include "lwip/opt.h"
 #include "lwip/pbuf.h"
 
@@ -122,30 +122,58 @@ void icmp4_time_exceeded(struct pbuf *p, enum icmp_te_type t);
 #define ICMPH_CHKSUM(hdr) ((hdr)->chksum)
 
 /* Echo Request, Echo Reply */
+/* The IPv6 header. */
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/bpstruct.h"
+#endif
+PACK_STRUCT_BEGIN
 struct icmp_echo_hdr {	
-  u8_t type;
-  u8_t icode;
-  u16_t chksum;
-  u16_t id;
-  u16_t seqno;
-};
+  PACK_STRUCT_FIELD(u8_t type);
+  PACK_STRUCT_FIELD(u8_t icode);
+  PACK_STRUCT_FIELD(u16_t chksum);
+  PACK_STRUCT_FIELD(u16_t id);
+  PACK_STRUCT_FIELD(u16_t seqno);
+} PACK_STRUCT_STRUCT;
+PACK_STRUCT_END
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/epstruct.h"
+#endif
+
 
 /* Destination Unreachable */
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/bpstruct.h"
+#endif
+PACK_STRUCT_BEGIN
 struct icmp_dur_hdr { 	
-  u8_t type;
-  u8_t icode;
-  u16_t chksum;
-  u16_t unused;
-  u16_t nextmtu;    /* this is used only in ICMPv4 packets */
-};
+  PACK_STRUCT_FIELD(u8_t type);
+  PACK_STRUCT_FIELD(u8_t icode);
+  PACK_STRUCT_FIELD(u16_t chksum);
+  PACK_STRUCT_FIELD(u16_t unused);
+  PACK_STRUCT_FIELD(u16_t nextmtu);    /* this is used only in ICMPv4 packets */
+} PACK_STRUCT_STRUCT;
+PACK_STRUCT_END
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/epstruct.h"
+#endif
+
 
 /* Time Exceeded */
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/bpstruct.h"
+#endif
+PACK_STRUCT_BEGIN
 struct icmp_te_hdr {	
-  u8_t type;
-  u8_t icode;
-  u16_t chksum;
-  u32_t unused;
-};
+  PACK_STRUCT_FIELD(u8_t type);
+  PACK_STRUCT_FIELD(u8_t icode);
+  PACK_STRUCT_FIELD(u16_t chksum);
+  PACK_STRUCT_FIELD(u32_t unused);
+} PACK_STRUCT_STRUCT;
+PACK_STRUCT_END
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/epstruct.h"
+#endif
+
 
 
 /*
@@ -153,62 +181,107 @@ struct icmp_te_hdr {
  */
 
 /* Packet Too Big */
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/bpstruct.h"
+#endif
+PACK_STRUCT_BEGIN
 struct icmp_ptb_hdr { 	
-  u8_t type;
-  u8_t icode;
-  u16_t chksum;
-  u32_t mtu;
-};
+  PACK_STRUCT_FIELD(u8_t type);
+  PACK_STRUCT_FIELD(u8_t icode);
+  PACK_STRUCT_FIELD(u16_t chksum);
+  PACK_STRUCT_FIELD(u32_t mtu);
+} PACK_STRUCT_STRUCT;
+PACK_STRUCT_END
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/epstruct.h"
+#endif
+
 
 /* NS - Neighbor Solicitation */
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/bpstruct.h"
+#endif
+PACK_STRUCT_BEGIN
 struct icmp_ns_hdr {    
-  u8_t type; 
-  u8_t icode; 
-  u16_t chksum;
-  u32_t reserved;
-  u32_t targetip[4];
+  PACK_STRUCT_FIELD(u8_t type); 
+  PACK_STRUCT_FIELD(u8_t icode); 
+  PACK_STRUCT_FIELD(u16_t chksum);
+  PACK_STRUCT_FIELD(u32_t reserved);
+  PACK_STRUCT_FIELD(u32_t targetip[4]);
   //struct icmp_opt option;  /* for Source link-layer address */
-};
+} PACK_STRUCT_STRUCT;
+PACK_STRUCT_END
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/epstruct.h"
+#endif
+
 
 /* NA - Neighbor advertisement */
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/bpstruct.h"
+#endif
+PACK_STRUCT_BEGIN
 struct icmp_na_hdr {    
-  u8_t type; 
-  u8_t icode; 
-  u16_t chksum;
-  u8_t rso_flags;
+  PACK_STRUCT_FIELD(u8_t type); 
+  PACK_STRUCT_FIELD(u8_t icode); 
+  PACK_STRUCT_FIELD(u16_t chksum);
+  PACK_STRUCT_FIELD(u8_t rso_flags);
 #define ICMP6_NA_R  0x01
 #define ICMP6_NA_S  0x02
 #define ICMP6_NA_O  0x04
-  u8_t reserved[3];
-  u32_t targetip[4];
+  PACK_STRUCT_FIELD(u8_t reserved[3]);
+  PACK_STRUCT_FIELD(u32_t targetip[4]);
   //struct icmp_opt option;  /* for Target link-layer address */
-};
+} PACK_STRUCT_STRUCT;
+PACK_STRUCT_END
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/epstruct.h"
+#endif
+
 
 /* RS - Router Solicitation */
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/bpstruct.h"
+#endif
+PACK_STRUCT_BEGIN
 struct icmp_rs_hdr {    
-  u8_t type; 
-  u8_t icode; 
-  u16_t chksum;
-  u32_t reserved;
+  PACK_STRUCT_FIELD(u8_t type); 
+  PACK_STRUCT_FIELD(u8_t icode); 
+  PACK_STRUCT_FIELD(u16_t chksum);
+  PACK_STRUCT_FIELD(u32_t reserved);
   //struct icmp_opt option;  /* for Source link-layer addres */
-};
+} PACK_STRUCT_STRUCT;
+PACK_STRUCT_END
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/epstruct.h"
+#endif
+
 
 /* RA - Router Advertisement */
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/bpstruct.h"
+#endif
+PACK_STRUCT_BEGIN
 struct icmp_ra_hdr {    
-  u8_t type; 
-  u8_t icode; 
-  u16_t chksum;
-  u8_t hoplimit; 
-  u8_t m_o_flag;
+  PACK_STRUCT_FIELD(u8_t type); 
+  PACK_STRUCT_FIELD(u8_t icode); 
+  PACK_STRUCT_FIELD(u16_t chksum);
+  PACK_STRUCT_FIELD(u8_t hoplimit); 
+  PACK_STRUCT_FIELD(u8_t m_o_flag);
 #define ICMP6_RA_M  0x80
 #define ICMP6_RA_O  0x40
-  u16_t life;     /* (seconds) The lifetime associated with the default router */
-  u32_t reach;    /* (milliseconds) */
-  u32_t retran;   /* (milliseconds) between retransmitted Neighbor Solicitation messages. */
+  PACK_STRUCT_FIELD(u16_t life);     /* (seconds) The lifetime associated with the default router */
+  PACK_STRUCT_FIELD(u32_t reach);    /* (milliseconds) */
+  PACK_STRUCT_FIELD(u32_t retran);   /* (milliseconds) between retransmitted Neighbor Solicitation messages. */
   //struct icmp_opt option;  /* for Source link-layer addres */
   //struct icmp_opt option;  /* MTU */
   //struct icmp_opt option;  /* Prefix Information */
-};
+} PACK_STRUCT_STRUCT;
+PACK_STRUCT_END
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/epstruct.h"
+#endif
+
 
 
 /*

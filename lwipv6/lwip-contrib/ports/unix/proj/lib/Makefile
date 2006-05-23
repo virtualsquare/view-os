@@ -47,13 +47,13 @@ LWIPFILTERDIR=$(LWIPDIR)/userfilter
 # Defines
 #=============================================================================
 
-CCDEP=gcc
-CC=gcc
+CCDEP=gcc-3.3
+CC=gcc-3.3
 #CFLAGS=-g -Wall -fPIC -DIPv4 -DLWIP_DEBUG 
 #CFLAGS=-g -Wall -fPIC -DIPv6 -DLWIP_DEBUG -DLWIP_NL -DLWIP_PACKET -DRD235LIB -DLWIP_COMPAT_SOCKETS=0
 
 CFLAGS=-g -Wall -fPIC
-CFLAGS:=$(CFLAGS) -DLWIP_DEBUG 
+#CFLAGS:=$(CFLAGS) -DLWIP_DEBUG 
 CFLAGS:=$(CFLAGS) -DIPv6
 CFLAGS:=$(CFLAGS) -DIPv4_CHECK_CHECKSUM 
 CFLAGS:=$(CFLAGS) -DIPv4_FRAGMENTATION

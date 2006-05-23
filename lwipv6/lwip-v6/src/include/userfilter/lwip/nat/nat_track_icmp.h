@@ -29,9 +29,6 @@ struct ip_ct_icmp
 	u32_t    count;
 };
 
-extern struct track_protocol  icmp4_track;
-extern struct track_protocol  icmp6_track;
-
 
 #endif 
 

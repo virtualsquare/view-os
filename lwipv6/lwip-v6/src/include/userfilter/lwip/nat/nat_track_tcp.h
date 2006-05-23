@@ -73,8 +73,6 @@ struct ip_ct_tcp
 
 int ip_conntrack_protocol_tcp_lockinit(void);
 
-extern struct track_protocol  tcp_track;
-
 /*--------------------------------------------------------------------------*/
 /* Costants for hook registration. */
 /*--------------------------------------------------------------------------*/

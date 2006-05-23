@@ -33,37 +33,59 @@
 /* Costants for hook registration. */
 /*--------------------------------------------------------------------------*/
 
-#define UF_PRI_NAT_PREROUTING_TRACK			100
-#define UF_PRI_NAT_PREROUTING_DNAT			200
+#define UF_PRI_NAT_PREROUTING_DEFRAG       99
+#define UF_PRI_NAT_PREROUTING_TRACK       100
+#define UF_PRI_NAT_PREROUTING_DNAT        200
 
-#define UF_PRI_NAT_INPUT_CONFIRM                        100
+#define UF_PRI_NAT_INPUT_CONFIRM          100
 
-#define UF_PRI_NAT_OUTPUT_TRACK                         100
+#define UF_PRI_NAT_OUTPUT_TRACK           100
 
-#define UF_PRI_NAT_POSTROUTING_SNAT			100
-#define UF_PRI_NAT_POSTROUTING_CONFIRM                  200
+#define UF_PRI_NAT_POSTROUTING_SNAT       100
+#define UF_PRI_NAT_POSTROUTING_CONFIRM    200
 
 
 /* NAT Hooks
- *                        +----- APPS -----+
- *                        |                |
- *                 INPUT [C]              [T] OUTPUT
- *                        |                |
- *                        |                | 
- *            PREROUTING  |    FORWARD     |  POSTROUTING
- *   netif -+-->[T][N]-->-+--->--[ ]--->---+->--[N][C]--+-> netif
- *          |                                           |
- *          +-------------<--------------<--------------+
+ *                           +----- APPS -----+
+ *                           |                |
+ *                    INPUT [C]              [T] OUTPUT
+ *                           |                |
+ *                           |                | 
+ *              PREROUTING   |    FORWARD     |  POSTROUTING
+ *  netif --+-->[F][T][N]-->-+--->--[ ]--->---+->--[N][C]--+--> netif
+ *          |                                              |
+ *          +-------------<--------------<-----------------+
  *
+ *   [F}rag     = Fragmented packet are reassembled before everything (review this!)
  *   [T}rak     = New valid connection are tracked for possible NAT
- *   [N]at      = Rules are checked and NAT is performed
+ *   [N]at      = Rules are checked and DNAT or SNAT is performed
  *   [C]confirm = timeout is set or refreshed and if packet reach this 
  *                hook the new connections is confirmed and expire .
  */
 
 /*--------------------------------------------------------------------------*/
-/* IP packets (pbuf) directions */
+/* NAT costants */
 /*--------------------------------------------------------------------------*/
+
+/* Types of NAT  */
+typedef enum {
+	NAT_NONE = 0,
+	NAT_SNAT,
+	NAT_DNAT,
+	NAT_MASQUERADE,
+} nat_type_t;
+
+#define NAT2MANIP(t)      ( (t) == NAT_DNAT ? MANIP_DST : MANIP_SRC )
+
+
+/* Type of packet manipulation */
+typedef enum {
+	MANIP_DST = 0,
+	MANIP_SRC = 1
+} nat_manip_t;
+
+#define HOOK2MANIP(h)     ( (h) == UF_IP_PRE_ROUTING ? MANIP_DST : MANIP_SRC )
+
 
 /* Direction of a packet */
 typedef enum {
@@ -99,18 +121,6 @@ struct ip_tuple {
 	struct ip_pair dst;
 };
 
-
-/*--------------------------------------------------------------------------*/
-/* NAT costants */
-/*--------------------------------------------------------------------------*/
-
-// Type of supported NAT 
-typedef enum {
-	NAT_NONE = 0,
-	NAT_SNAT,
-	NAT_DNAT,
-	NAT_MASQUERADE,
-} nat_type_t;
 
 /*--------------------------------------------------------------------------*/
 /* NAT process controll blocks */
@@ -190,6 +200,43 @@ struct nat_pcb
 extern struct nat_pcb *nat_active_pcbs; // List of all active IPv4 NAT PCBs 
 
 /*--------------------------------------------------------------------------*/
+/* Pbuf data & functions */
+/*--------------------------------------------------------------------------*/
+
+enum conn_info
+{
+	/* Part of an established connection (either direction). */
+	CT_ESTABLISHED,
+
+	/* Like NEW, but related to an existing connection, or ICMP error
+	   (in either direction). */
+	CT_RELATED,
+
+	/* Started a new connection to track (only
+           IP_CT_DIR_ORIGINAL); may be a retransmission. */
+	CT_NEW,
+
+	/* >= this indicates reply direction */
+	CT_IS_REPLY,
+
+	/* Number of distinct IP_CT types (no NEW in reply dirn). */
+	CT_NUMBER = CT_IS_REPLY * 2 - 1
+};
+
+
+struct nat_info {
+	enum conn_info  info;
+	u32_t  dir;
+	struct nat_pcb *track;
+};
+
+void nat_pbuf_init(struct pbuf *p);
+void nat_pbuf_get(struct pbuf *p);
+void nat_pbuf_clone(struct pbuf *r, struct pbuf *p);
+void nat_pbuf_put(struct pbuf *p);
+void nat_pbuf_reset(struct pbuf *p);
+
+/*--------------------------------------------------------------------------*/
 /* NAT Rules */
 /*--------------------------------------------------------------------------*/
 
@@ -208,20 +255,12 @@ typedef enum {
 #include "lwip/nat/nat_track_protocol.h"
 
 extern struct track_protocol  default_track;
+extern struct track_protocol  tcp_track;
+extern struct track_protocol  icmp4_track;
+extern struct track_protocol  icmp6_track;
+extern struct track_protocol  udp_track;
 
-/*--------------------------------------------------------------------------*/
-/* Pbuf data & functions */
-/*--------------------------------------------------------------------------*/
-
-struct nat_info {
-	u32_t  dir;
-	struct nat_pcb *track;
-};
-
-void nat_pbuf_init(struct pbuf *p);
-void nat_pbuf_get(struct pbuf *p);
-void nat_pbuf_put(struct pbuf *p);
-void nat_pbuf_reset(struct pbuf *p);
+struct track_protocol * track_proto_find(u8_t protocol);
 
 /*--------------------------------------------------------------------------*/
 /* NAT functions */
@@ -232,6 +271,10 @@ int nat_init(void);
 int  conn_remove_timer(struct nat_pcb *pcb);
 void conn_refresh_timer(u32_t timeout, struct nat_pcb *pcb);
 void conn_force_timeout(struct nat_pcb *pcb);
+
+
+int tuple_create(struct ip_tuple *tuple, char *p, struct track_protocol *proto);
+int tuple_inverse(struct ip_tuple *reply, struct ip_tuple *tuple) ;
 
 struct nat_pcb * conn_find_track(conn_dir_t *direction, struct ip_tuple * tuple );
 
@@ -263,12 +306,3 @@ void nat_chksum_adjust(u8_t * chksum, u8_t * optr, s16_t olen, u8_t * nptr, s16_
 #endif  /* NAT_H */
 
 #endif  /* LWIP_UNAT */
-
-
-
-
-		//struct { tcpstate_t state; } tcp;
-		//struct { u8_t  isstream; } udp;
-		//struct { u32_t count; } icmp4;
-		//struct { u32_t count; } icmp6;
-

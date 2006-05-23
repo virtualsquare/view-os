@@ -27,6 +27,9 @@
 #include "lwip/inet.h"
 #include "lwip/ip.h"
 
+#include "lwip/netif.h"
+#include "lwip/userfilter.h"
+
 #include "lwip/nat/nat.h"
 #include "lwip/nat/nat_tables.h"
 
@@ -75,7 +78,7 @@ int nat_default_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, n
 	return -1;
 }
 
-int nat_default_manip (nat_type_t type, void *iphdr, int iplen, struct ip_tuple *inverse, 
+int nat_default_manip (nat_manip_t type, void *iphdr, int iplen, struct ip_tuple *inverse, 
 		u8_t *iphdr_new_changed_buf, 
 		u8_t *iphdr_old_changed_buf, 
 		u32_t iphdr_changed_buflen)

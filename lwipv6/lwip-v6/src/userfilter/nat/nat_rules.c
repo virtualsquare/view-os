@@ -36,6 +36,9 @@
 #include "lwip/sockets.h"
 #include "lwip/if.h"
 
+#include "lwip/netif.h"
+#include "lwip/userfilter.h"
+
 #include "lwip/nat/nat.h"
 #include "lwip/nat/nat_rules.h"
 
@@ -50,11 +53,9 @@
 
 // rules in INPUT (PREROUTING)
 struct nat_rule *nat_in_rules;     
-//struct nat_rule *nat6_in_rules;  
 
 // rules in OUTPUT (POSTROUTING)
 struct nat_rule *nat_out_rules;    
-//struct nat_rule *nat6_out_rules; 
 
 struct nat_rule *nat_tmp_rule;
 

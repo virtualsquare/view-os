@@ -23,16 +23,21 @@
 
 #include "lwip/debug.h"
 #include "lwip/sys.h"
+#include "lwip/stats.h"
 #include "lwip/memp.h" /* MEMP_NAT_RULE */
 
 #include "lwip/inet.h"
 #include "lwip/ip.h"
+#include "lwip/ip_frag.h"
 #include "lwip/udp.h"
 #include "lwip/tcp.h"
 #include "lwip/icmp.h"
 
 #include "lwip/sockets.h"
 #include "lwip/if.h"
+
+#include "lwip/netif.h"
+#include "lwip/userfilter.h"
 
 #include "lwip/nat/nat.h"
 #include "lwip/nat/nat_tables.h"
@@ -43,9 +48,21 @@
 
 /*--------------------------------------------------------------------------*/
 
+uf_verdict_t  nat_defrag  (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif);
+
 uf_verdict_t  nat_track   (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif);
 uf_verdict_t  nat_perform (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif);
 uf_verdict_t  nat_confirm (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif);
+
+#if 0
+struct uf_hook_handler   nat_prerouting_defrag =
+{
+	.next     = NULL,
+	.hooknum  = UF_IP_PRE_ROUTING,
+	.hook     = nat_defrag,
+	.priority = UF_PRI_NAT_PREROUTING_DEFRAG
+};
+#endif
 
 struct uf_hook_handler   nat_prerouting_track =
 {
@@ -101,16 +118,13 @@ struct uf_hook_handler   nat_postrouting_confirm =
 
 sys_sem_t unique_mutex;
 
-sys_sem_t nat_mutex; /* Semaphore for critical section */
+sys_sem_t nat_mutex;      /* Semaphore for critical section */
 
 #define LOCK(sem)         sys_sem_wait_timeout((sem), 0)
 #define UNLOCK(sem)       sys_sem_signal((sem))
 
-//#define NAT_LOCK()     sys_sem_wait_timeout(nat_mutex, 0)
-//#define NAT_UNLOCK()   sys_sem_signal(nat_mutex)
-
-#define NAT_LOCK()     LOCK(nat_mutex)
-#define NAT_UNLOCK()   UNLOCK(nat_mutex)
+#define NAT_LOCK()        LOCK(nat_mutex)
+#define NAT_UNLOCK()      UNLOCK(nat_mutex)
 
 struct nat_pcb *nat_tentative_pcbs;
 struct nat_pcb *nat_active_pcbs; 
@@ -142,9 +156,11 @@ struct nat_pcb *nat_active_pcbs;
 
 /*--------------------------------------------------------------------------*/
 
+#define MAX_TRACK_PROTO 256
+
 struct track_protocol *ip_ct_protos[MAX_TRACK_PROTO];
 
-struct track_protocol * track_proto_find(u_int8_t protocol)
+struct track_protocol * track_proto_find(u8_t protocol)
 {
 	return ip_ct_protos[protocol];
 }
@@ -181,12 +197,13 @@ int nat_init(void)
 	ip_ct_protos[IP_PROTO_ICMP]  = &icmp6_track;
 
 	/* Register hooks */
-	uf_register_hook(& nat_prerouting_track );
-	uf_register_hook(& nat_prerouting_dnat );
-	uf_register_hook(& nat_input_confirm );
-	uf_register_hook(& nat_output_track );
-	uf_register_hook(& nat_postrouting_snat );
-	uf_register_hook(& nat_postrouting_confirm );
+	//uf_register_hook( & nat_prerouting_defrag);
+	uf_register_hook( & nat_prerouting_track);
+	uf_register_hook( & nat_prerouting_dnat);
+	uf_register_hook( & nat_input_confirm);
+	uf_register_hook( & nat_output_track);
+	uf_register_hook( & nat_postrouting_snat);
+	uf_register_hook( & nat_postrouting_confirm);
 
 	LWIP_DEBUGF(NAT_DEBUG, ("%s: registered NAT hooks!\n", __func__));
 	
@@ -259,16 +276,30 @@ void nat_free_pcb(struct nat_pcb *pcb)
 
 /*--------------------------------------------------------------------------*/
 
+void nat_session_get(struct nat_pcb *pcb);
 void nat_session_put(struct nat_pcb *pcb);
 
 void nat_pbuf_init(struct pbuf *p)
 {
 	p->nat.track = NULL;
 	p->nat.dir   = 0;
+	p->nat.info  = 0;
 }
 
 void nat_pbuf_get(struct pbuf *p)
 {
+}
+
+void nat_pbuf_clone(struct pbuf *r, struct pbuf *p)
+{
+	if (p->nat.track == NULL) 
+		return;
+
+	nat_session_get(p->nat.track);
+
+	r->nat.track = p->nat.track;
+	r->nat.dir   = p->nat.dir;
+	r->nat.info  = p->nat.info;
 }
 
 void nat_pbuf_put(struct pbuf *p)
@@ -280,6 +311,7 @@ void nat_pbuf_put(struct pbuf *p)
 
 	p->nat.track = NULL;
 	p->nat.dir   = 0;
+	p->nat.info  = 0;
 }
 
 void nat_pbuf_reset(struct pbuf *p)
@@ -312,7 +344,8 @@ void dump_tuple (struct ip_tuple *tuple)
 		case IP_PROTO_ICMP4:
 			LWIP_DEBUGF(NAT_DEBUG, ("Icmp4 id=%d type=%d code=%d", 
 				ntohs(tuple->src.proto.upi.icmp4.id), 
-				tuple->src.proto.upi.icmp4.type, tuple->src.proto.upi.icmp4.code)); 
+				tuple->src.proto.upi.icmp4.type, 
+				tuple->src.proto.upi.icmp4.code)); 
 			break;
 		case IP_PROTO_ICMP:
 			LWIP_DEBUGF(NAT_DEBUG, ("Icmp6 id=%d (%x) type=%d code=%d", 
@@ -353,8 +386,6 @@ int tuple_create_nat_inverse(struct ip_tuple *reply, struct ip_tuple *tuple,
 	int r;
 	struct track_protocol *proto;
 
-	//LOCK(unique_mutex)
-
 	/* Set IP */
 
 	reply->ipv = tuple->ipv;
@@ -387,8 +418,6 @@ int tuple_create_nat_inverse(struct ip_tuple *reply, struct ip_tuple *tuple,
 	}
 	
 	r = proto->nat_tuple_inverse(reply, tuple, type, nat_manip);
-
-	//UNLOCK(unique_mutex);
 
 	return r;
 }
@@ -423,7 +452,7 @@ int tuple_inverse(struct ip_tuple *reply, struct ip_tuple *tuple)
 	return proto->inverse(reply, tuple);
 }
 
-int tuple_create(struct ip_tuple *tuple, struct pbuf *p, struct track_protocol *proto) 
+int tuple_create(struct ip_tuple *tuple, char  *iphdr, struct track_protocol *proto) 
 {
 	struct ip_hdr *ip6hdr;
 	struct ip4_hdr *ip4hdr;
@@ -431,10 +460,11 @@ int tuple_create(struct ip_tuple *tuple, struct pbuf *p, struct track_protocol *
 
 	bzero(tuple, sizeof(struct ip_tuple));
 
-	ip6hdr = (struct ip_hdr *) p->payload;
-	ip4hdr = (struct ip4_hdr *) p->payload;
+	ip6hdr = (struct ip_hdr *) iphdr;
+	ip4hdr = (struct ip4_hdr *) iphdr;
 	tuple->ipv = IPH_V(ip6hdr);
 	if (tuple->ipv == 6) {
+		LWIP_DEBUGF(NAT_DEBUG, ("%s: ipv6 \n", __func__ ));
 		ip_addr_set (&tuple->src.ip , &(ip6hdr->src)  );
 		ip_addr_set (&tuple->dst.ip , &(ip6hdr->dest) );
 
@@ -443,6 +473,7 @@ int tuple_create(struct ip_tuple *tuple, struct pbuf *p, struct track_protocol *
 		iphdrlen = IP_HLEN;
 	}
 	else if (tuple->ipv == 4) {
+		LWIP_DEBUGF(NAT_DEBUG, ("%s: ipv4 \n", __func__ ));
 		IP64_CONV (&tuple->src.ip , &(ip4hdr->src)  );
 		IP64_CONV (&tuple->dst.ip , &(ip4hdr->dest) );
 
@@ -454,7 +485,7 @@ int tuple_create(struct ip_tuple *tuple, struct pbuf *p, struct track_protocol *
 		return -1; /* error */
 	}
 
-	return proto->tuple(tuple, ((char*)p->payload) + iphdrlen);
+	return proto->tuple(tuple, iphdr + iphdrlen);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -485,6 +516,11 @@ struct nat_pcb * nat_create_session(nat_type_t nat_type,
 	LWIP_DEBUGF(NAT_DEBUG, ("\n"));
 
 	return pcb;
+}
+
+void nat_session_get(struct nat_pcb *pcb)
+{
+	pcb->refcount++;
 }
 
 void nat_session_put(struct nat_pcb *pcb)
@@ -594,6 +630,8 @@ int new_track(struct nat_pcb **newpcb, uf_hook_t hook, struct pbuf **q,
 		iphdrlen = IP_HLEN;
 	else if (tuple->ipv == 4) 
 		iphdrlen = IPH4_HL(ip4hdr) * 4;
+	else
+		return -1;
 
 	if (proto->new(pcb, p, p->payload, iphdrlen) < 0) {
 		LWIP_DEBUGF(NAT_DEBUG, ("%s: Unable to create new valid tracking.\n", __func__));
@@ -662,7 +700,8 @@ int conn_track(conn_dir_t *direction, uf_hook_t hook,
 	LWIP_DEBUGF(NAT_DEBUG, ("%s: start\n", __func__ ));
 
 	/* Get the tuple of the packet */
-	if (tuple_create(&tuple, p, proto) < 0) {
+///	if (tuple_create(&tuple, p, proto) < 0) {
+	if (tuple_create(&tuple, p->payload, proto) < 0) {
 		LWIP_DEBUGF(NAT_DEBUG, ("%s: unable to create tuple!\n", __func__ ));
 		return -1;
 	}
@@ -679,11 +718,24 @@ int conn_track(conn_dir_t *direction, uf_hook_t hook,
 		LWIP_DEBUGF(NAT_DEBUG, ("%s: NEW track %p id=%d!!\n", __func__, tmppcb, tmppcb->id));
 	}
 
-	if ((*direction) == CONN_DIR_REPLY)
-		tmppcb->status |= TS_SEEN_REPLY;
 
 	p->nat.track = tmppcb;
 	p->nat.dir   = *direction;
+
+	/* It exists; we have (non-exclusive) reference. */
+	if (*direction == CONN_DIR_REPLY) {
+		p->nat.info = CT_ESTABLISHED + CT_IS_REPLY;
+		LWIP_DEBUGF(NAT_DEBUG, ("%s: CT_ESTABLISHED + CT_IS_REPLY\n", __func__));
+	} else {
+		/* Once we've had two way comms, always ESTABLISHED. */
+		if (p->nat.track->status & TS_SEEN_REPLY) {
+			LWIP_DEBUGF(NAT_DEBUG, ("%s: CT_ESTABLISHED\n", __func__));
+			p->nat.info = CT_ESTABLISHED;
+		} else {
+			LWIP_DEBUGF(NAT_DEBUG, ("%s: CT_NEW\n", __func__));
+			p->nat.info = CT_NEW;
+		}
+	}
 
 	return 1;
 }
@@ -706,6 +758,11 @@ int conn_need_track(struct pbuf *p)
 			return 0;
 		if (ip_addr_ismulticast(&ip6hdr->src)) 
 			return 0;
+
+		if (ip_addr_islinkscope(&ip6hdr->dest))
+			return 0;
+		if (ip_addr_islinkscope(&ip6hdr->src))
+			return 0;
 	}
 	else if (IPH_V(ip6hdr) == 4) {
 		iphdrlen = IPH4_HL(ip4hdr) * 4;
@@ -719,21 +776,21 @@ int conn_need_track(struct pbuf *p)
 
 	return 1;
 }
+
 /*--------------------------------------------------------------------------*/
-// HOOKS
+/* HOOKS */
 /*--------------------------------------------------------------------------*/
 
-uf_verdict_t nat_track (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif)
+#if 0
+uf_verdict_t  nat_defrag  (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif)
 {
 	struct pbuf *p = *q;
 	struct ip4_hdr *ip4hdr;
 	struct ip_hdr  *ip6hdr;
+	u8_t proto;
+	uf_verdict_t ret = UF_ACCEPT;
 
-	struct track_protocol *proto;
-
-	///struct nat_pcb *pcb;
-	conn_dir_t direction;
-	uf_verdict_t verdict;
+	LWIP_DEBUGF(NAT_DEBUG, ("%s: start\n", __func__));
 
 	/* ASSERT! This is the first hook, no tracking info yet! */
 	if (p->nat.track != NULL) {
@@ -742,16 +799,110 @@ uf_verdict_t nat_track (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, 
 
 	nat_pbuf_reset(p);
 
+
+	/* Find transport protocol handler */
+	ip6hdr = (struct ip_hdr *) p->payload;
+	ip4hdr = (struct ip4_hdr *) p->payload;
+
+	if (IPH_V(ip6hdr) == 4) {
+	
+		if ((IPH4_OFFSET(ip4hdr) & htons(IP_OFFMASK | IP_MF)) != 0) 
+		{
+#ifdef IPv4_FRAGMENTATION 
+			LWIP_DEBUGF(NAT_DEBUG, ("%s: Packet is a fragment (id=0x%04x tot_len=%u len=%u MF=%u offset=%u)\n", __func__, 
+				ntohs(IPH4_ID(ip4hdr)), p->tot_len, ntohs(IPH4_LEN(ip4hdr)), !!(IPH4_OFFSET(ip4hdr) & htons(IP_MF)), (ntohs(IPH4_OFFSET(ip4hdr)) & IP_OFFMASK)*8));
+
+			p = ip4_reass(p);
+#else
+			ret = UF_DROP;
+#endif
+		} 
+	}
+	else 
+	if (IPH_V(ip6hdr) == 6) {
+
+		proto = IPH_NEXTHDR(ip6hdr);
+
+		if (proto == IP6_NEXTHDR_FRAGMENT) {
+#ifdef IPv6_FRAGMENTATION 
+		        LWIP_DEBUGF(NAT_DEBUG, ("%s: Fragment Header\n", __func__));
+
+		        struct ip6_fraghdr *fhdr = (struct ip6_fraghdr *) (p->payload + IP_HLEN);
+
+		        p = ip6_reass(p, fhdr, NULL); 
+#else
+			ret = UF_DROP;
+#endif
+		}
+	}
+	else
+		return UF_DROP;
+
+	if (ret == UF_DROP) {
+		LWIP_DEBUGF(NAT_DEBUG | 2, ("%s: IP packet dropped since it was fragmented\n",  __func__));
+		IP_STATS_INC(ip.opterr);
+		IP_STATS_INC(ip.drop);
+		return UF_DROP;
+	}
+
+	if (p == NULL) {
+		LWIP_DEBUGF(NAT_DEBUG,("%s: packet cached\n", __func__));
+		return UF_STOLEN;
+	}
+
+	*q = p;
+
+	return UF_ACCEPT;
+}
+#endif
+
+
+uf_verdict_t nat_track (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif)
+{
+	struct pbuf *p = *q;
+	struct pbuf *new_p;
+	struct ip4_hdr *ip4hdr;
+	struct ip_hdr  *ip6hdr;
+
+	struct track_protocol *proto;
+
+	conn_dir_t direction;
+	uf_verdict_t verdict;
+
+	LWIP_DEBUGF(NAT_DEBUG, ("%s: pbuf %d/%d\n", __func__, p->len, p->tot_len));
+
+	/* ASSERT! This is the first hook, no tracking info yet! */
+	if (p->nat.track != NULL) {
+		LWIP_DEBUGF(NAT_DEBUG, ("%s:  pcb not NULL!!!!!\n", __func__));
+	}
+
+	nat_pbuf_reset(p);
+
+	/*
+	 *  We need a not-memory-fragmented packet for NAT manipulation.
+	 */
+	new_p = pbuf_make_writable(p);
+	if (new_p == NULL) {
+		LWIP_DEBUGF(NAT_DEBUG, ("%s:  unable to realloc pbuf!!!!!\n", __func__));
+		return UF_ACCEPT;
+	}
+
+	LWIP_DEBUGF(NAT_DEBUG, ("%s: p now writable (old=%p new=%p)\n", __func__, p, new_p));
+
+	*q = p = new_p;
+
 	/* Find transport protocol handler */
 	ip6hdr = (struct ip_hdr *) p->payload;
 	ip4hdr = (struct ip4_hdr *) p->payload;
 	if (IPH_V(ip6hdr) == 6) 
-		// FIX: handle IPv6 extension headers 
+		// FIX: handle IPv6 extension headers ?
 		proto = track_proto_find( IPH_NEXTHDR(ip6hdr) );
 	else if (IPH_V(ip6hdr) == 4) 
 		proto = track_proto_find(  IPH4_PROTO(ip4hdr) );
 	else
 		return UF_DROP;
+
+	LWIP_DEBUGF(NAT_DEBUG, ("%s: proto = %d\n", __func__, IPH4_PROTO(ip4hdr) ));
 
 	if (proto->error != NULL) {
 		if (proto->error(&verdict, p) < 0) {
@@ -778,9 +929,12 @@ uf_verdict_t nat_track (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, 
 		 * the netfilter core what to do*/
 		nat_session_put(p->nat.track);
 		p->nat.track = NULL;
-		//return -verdict;
 		return verdict;
 	}
+
+	if (direction == CONN_DIR_REPLY)
+		p->nat.track->status |= TS_SEEN_REPLY;
+
 
 	LWIP_DEBUGF(NAT_DEBUG, ("%s: pcb %p, dir=%s -> %s!!\n", __func__, 
 		p->nat.track, STR_DIRECTIONNAME(direction), STR_VERDICT(verdict)));
@@ -837,6 +991,10 @@ int  nat_check_rule(struct nat_pcb *pcb, uf_hook_t hooknum, struct netif *inif,s
 		list  = nat_out_rules;
 		netif = outif;
 	}
+	else {
+		LWIP_DEBUGF(NAT_DEBUG, ("%s: wrong hooknum!\n",__func__));
+		return -1;
+	}
 
 	/* Search for rules */
 	for(rule = list; rule != NULL; rule = rule->next) {
@@ -865,7 +1023,7 @@ int  nat_check_rule(struct nat_pcb *pcb, uf_hook_t hooknum, struct netif *inif,s
 	return 1;
 }
 
-void nat_modify_ip(nat_type_t nat, struct pbuf *p, struct ip_tuple *inverse)
+void nat_modify_ip(nat_manip_t nat, char *p, struct ip_tuple *inverse, u8_t manip_innerproto)
 {
 	struct ip_hdr  *iphdr;
 	struct ip4_hdr *ip4hdr;
@@ -883,13 +1041,13 @@ void nat_modify_ip(nat_type_t nat, struct pbuf *p, struct ip_tuple *inverse)
 
 	/* Modify IP header */
 
-	iphdr = (struct ip_hdr *) p->payload;
-	ip4hdr = (struct ip4_hdr *) p->payload;
+	iphdr = (struct ip_hdr *) p;
+	ip4hdr = (struct ip4_hdr *) p;
 
 	if (inverse->ipv == 4) {
 		/* Need to convert tuple's IP used for manipulations 
 		   from 128 bit to 32 bit */
-		if (nat == NAT_DNAT) {
+		if (nat == MANIP_DST) {
 			// copy old address
 			old_ip4_addr = ip4hdr->dest.addr;
 			ip64_addr_set( &tmp_ip4, &inverse->src.ip);
@@ -904,7 +1062,7 @@ void nat_modify_ip(nat_type_t nat, struct pbuf *p, struct ip_tuple *inverse)
 			iphdr_old_changed_buf = (u8_t *) &old_ip4_addr;
 			iphdr_changed_buflen  = 4;
 		}
-		if (nat == NAT_SNAT) {
+		if (nat == MANIP_SRC) {
 			old_ip4_addr = ip4hdr->src.addr;
 			ip64_addr_set( &tmp_ip4, &inverse->dst.ip);
 			ip4_addr_set((struct ip4_addr *) &(ip4hdr->src), &tmp_ip4);
@@ -920,13 +1078,13 @@ void nat_modify_ip(nat_type_t nat, struct pbuf *p, struct ip_tuple *inverse)
 		}
 	} else 
 	if (inverse->ipv == 6) {
-		if (nat == NAT_DNAT) {
+		if (nat == MANIP_DST) {
 			ip_addr_set( &old_ip6_addr, &iphdr->dest);
 			ip_addr_set( &iphdr->dest, &inverse->src.ip);
 
 			iphdr_new_changed_buf = (u8_t *) &iphdr->dest;
 		}
-		if (nat == NAT_SNAT) {
+		if (nat == MANIP_SRC) {
 			ip_addr_set( &old_ip6_addr, &iphdr->src);
 			ip_addr_set( &iphdr->src, &inverse->dst.ip);
 
@@ -939,24 +1097,36 @@ void nat_modify_ip(nat_type_t nat, struct pbuf *p, struct ip_tuple *inverse)
 
 	/* Modify transport header */
 
-	proto = track_proto_find(inverse->src.proto.protonum);
+	if (manip_innerproto) {
 
-	if (inverse->ipv == 6)      iphdrlen = IP_HLEN;
-	else if (inverse->ipv == 4) iphdrlen = IPH4_HL(ip4hdr) * 4;
-
-	proto->manip(nat, p->payload, iphdrlen, inverse, 
-		iphdr_new_changed_buf, iphdr_old_changed_buf, iphdr_changed_buflen);
+		proto = track_proto_find(inverse->src.proto.protonum);
+	
+		if (inverse->ipv == 6)      iphdrlen = IP_HLEN;
+		else if (inverse->ipv == 4) iphdrlen = IPH4_HL(ip4hdr) * 4;
+	
+		proto->manip(nat, p, iphdrlen, inverse, 
+			iphdr_new_changed_buf, 
+			iphdr_old_changed_buf, 
+			iphdr_changed_buflen);
+	}
 }
 
+int icmp_reply_translation(struct pbuf *p, nat_manip_t nat_here);
 
 uf_verdict_t  nat_perform   (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif)
 {
-	struct pbuf *p = * q;
-	struct nat_pcb *pcb;
-	conn_dir_t direction;
-	struct ip_tuple *tuple_inverse;
-	nat_type_t      nat_original = NAT_NONE;
-	nat_type_t      nat_manip = NAT_NONE;
+	struct pbuf    *p = * q;
+	struct ip_hdr  *ip6hdr;
+	struct ip4_hdr *ip4hdr;
+	u16_t proto;
+
+	struct nat_pcb   *pcb;
+	conn_dir_t       direction;
+	struct ip_tuple  *tuple_inverse;
+
+	nat_manip_t      nat_here; /* NAT to do in this hook */
+	nat_manip_t      nat_todo; /* NAT to do on the connection */
+
 
 	LWIP_DEBUGF(NAT_DEBUG, ("%s: start %s!\n", __func__, STR_HOOKNAME(hooknum)));
 
@@ -965,12 +1135,63 @@ uf_verdict_t  nat_perform   (uf_hook_t hooknum, struct pbuf **q, struct netif *i
 		return UF_ACCEPT;
 	}
 
+
 	pcb = p->nat.track;
 	direction = p->nat.dir;
 
+        /* 
+	 * Check what to do...
+	 */
+
+	nat_here = HOOK2MANIP(hooknum);
+	
+	ip6hdr = (struct ip_hdr *) p->payload;
+	ip4hdr = (struct ip4_hdr *) p->payload;
+	if (IPH_V(ip6hdr) == 6)       proto = IPH_NEXTHDR(ip6hdr) ;
+	else if (IPH_V(ip6hdr) == 4)  proto = IPH4_PROTO(ip4hdr) ;
+	else
+		return UF_DROP;
+
+	switch (p->nat.info) {
+		case CT_RELATED:
+		case CT_RELATED + CT_IS_REPLY:
+			LWIP_DEBUGF(NAT_DEBUG, ("%s: is RELATED || RELATED+REPLY \n", __func__ ));
+			if (proto == IP_PROTO_ICMP || proto == IP_PROTO_ICMP4) {
+				if (icmp_reply_translation(p, nat_here) <= 0) 
+					return UF_DROP;
+				else
+					return UF_ACCEPT;
+			}
+			/* Fall thru... (Only ICMPs can be IP_CT_IS_REPLY) */
+		case CT_NEW:
+
+			LWIP_DEBUGF(NAT_DEBUG, ("%s: is NEW \n", __func__ ));
+
+			/* If no NAT has been done on this connection and one of SNAT or DNAT
+			   rules haven't been checked yet, try them */
+			if (pcb->nat_type == NAT_NONE)
+			if ((pcb->status & TS_NAT_TRY_MASK) != TS_NAT_TRY_MASK) {
+	
+				LWIP_DEBUGF(NAT_DEBUG, ("%s: Check for rules...\n", __func__ ));
+
+				if (nat_check_rule(pcb, hooknum, inif, outif ) < 0) {
+					LWIP_DEBUGF(NAT_DEBUG, ("%s: error, DROP\n", __func__ ));
+					return UF_DROP;
+				}
+			}
+
+			break;
+	
+		default:
+			LWIP_DEBUGF(NAT_DEBUG, ("%s: is ESTABLISHED or other... \n", __func__ ));
+			/* ESTABLISHED: do NAT */
+			break;
+
+	}
+
+#if 0
 	/* If no NAT has been done on this connection and one of SNAT or DNAT
 	   rules haven't been checked yet, try them */
-
 	if (pcb->nat_type == NAT_NONE)
 	if ((pcb->status & TS_NAT_TRY_MASK) != TS_NAT_TRY_MASK) {
 
@@ -981,22 +1202,25 @@ uf_verdict_t  nat_perform   (uf_hook_t hooknum, struct pbuf **q, struct netif *i
 			return UF_DROP;
 		}
 	}
+#endif
 
 	/* No NAT? No party */
-	if (pcb->nat_type == NAT_NONE)
+	if (pcb->nat_type == NAT_NONE) {
+		LWIP_DEBUGF(NAT_DEBUG, ("%s: no NAT to do.\n", __func__ ));
 		return UF_ACCEPT;
+	}
 
 	/* How tuples will be manipulated by Hooks
          *
-	 * NAT  | DIRECTION | PREROUTING    ----->   POSTROUTING
+	 * NAT  | DIRECTION | --> PREROUTING    ----->   POSTROUTING -->
 	 *------|-----------|------------------------------------------
-	 *      | ORIGINAL  | [x,y] -> x,N (D)            - 
+	 *      | ORIGINAL  |   [x,y] -> x,N (D)            - 
 	 * DNAT |           |
-	 *      | REPLY     |       -                [N,x] -> y,x (S)
+	 *      | REPLY     |         -                [N,x] -> y,x (S)
 	 *------|-----------|------------------------------------------
-	 *      | ORIGINAL  |       -                [x,y] -> N,y (S)
+	 *      | ORIGINAL  |         -                [x,y] -> N,y (S)
 	 * SNAT |           |
-	 *      | REPLY     | [y,N] -> y,x (D)            -
+	 *      | REPLY     |   [y,N] -> y,x (D)            -
 	 *------|-----------|------------------------------------------
 	 *
 	 *    x,y  tuple (IP.src,IP.dst,proto.src,proto.dst)
@@ -1005,97 +1229,130 @@ uf_verdict_t  nat_perform   (uf_hook_t hooknum, struct pbuf **q, struct netif *i
 	 *    (S)  new source      = destination in the inverse tuple
 	 */
 
+
         /* We use the tuple in the other direction for NAT. See above */
 	if (direction == CONN_DIR_ORIGINAL) 
 		tuple_inverse = &pcb->tuple[CONN_DIR_REPLY];
 	else
 		tuple_inverse = &pcb->tuple[CONN_DIR_ORIGINAL];
 
-	nat_original = pcb->nat_type;
 
-	/* Manipulation's type depends on packet direction and
-	   original manipulation */
+	/* Manipulation's type depends on hook and packet direction */
 
-	if (hooknum == UF_IP_PRE_ROUTING) {
-		if (direction == CONN_DIR_ORIGINAL) {
-			if (nat_original == NAT_DNAT)  
-				nat_manip = NAT_DNAT;
-		}
-		else
-		if (direction == CONN_DIR_REPLY)
-			if (nat_original == NAT_SNAT)  
-				nat_manip = NAT_DNAT;
-	}
-	else if (hooknum == UF_IP_POST_ROUTING) {
-		if (direction == CONN_DIR_ORIGINAL) {
-			if (nat_original == NAT_SNAT)  
-				nat_manip = NAT_SNAT;
-		}
-		else 
-		if (direction == CONN_DIR_REPLY)
-			if (nat_original == NAT_DNAT)  
-				nat_manip = NAT_SNAT;
+	nat_todo = NAT2MANIP(pcb->nat_type);
+
+	if (direction == CONN_DIR_REPLY) {
+        	nat_todo = ! nat_todo;
 	}
 
 	/* Manipulation on this packet is needed in this hook? */
-	if (nat_manip != NAT_NONE) {
+	if (nat_todo == nat_here) {
 
-		nat_modify_ip(nat_manip, p, tuple_inverse);
+		nat_modify_ip(nat_todo, p->payload, tuple_inverse, 1);
 
 		LWIP_DEBUGF(NAT_DEBUG, ("%s: NATed packet !\n", __func__));
 		ip_debug_print(NAT_DEBUG, p);
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: end.\n", __func__));
+		LWIP_DEBUGF(NAT_DEBUG, ("%s: END.\n", __func__));
+	}
+	else {
+		LWIP_DEBUGF(NAT_DEBUG, ("%s: no NAT to do in this hook\n", __func__ ));
+
 	}
 
 	return UF_ACCEPT;
 }
 
-#endif /* LWIP_NAT */
 
-
-
-
-
-#if 0
-/* Returns 1 if 'p' is a valid packet for tracking and NAT.
-   Some ICMP6 packet (NS,ND, RA,RD) don't need tracking or NAT */
-int conn_need_track(struct pbuf *p)
+int icmp_reply_translation(struct pbuf *p, nat_manip_t nat_here)
 {
-	struct ip_hdr *ip6hdr;
+	struct {
+		struct icmp_echo_hdr icmp;
+		union {
+			struct ip4_hdr ip4hdr;
+			struct ip_hdr  ip6hdr;
+		} uip;
+	} *inside;
+
+
+	conn_dir_t       direction;
 	struct ip4_hdr *ip4hdr;
-	u32_t  iphdrlen;
-	struct ip_addr src,dst;
+	struct ip_hdr *ip6hdr;
+	int hdrlen;
 
-	ip6hdr = (struct ip_hdr *) p->payload;
+	nat_manip_t      nat_todo; /* NAT to do on the connection */
+
+	struct ip_tuple *inverse;
+	struct ip_tuple  inner_inverse;
+
+	struct nat_pcb *pcb = p->nat.track;
+
+	direction = p->nat.dir;
+
+	ip6hdr = (struct ip_hdr *)  p->payload;
 	ip4hdr = (struct ip4_hdr *) p->payload;
-	if (IPH_V(ip6hdr) == 6) {
-		iphdrlen = IP_HLEN;
+	if (IPH4_V(ip4hdr) == 4)  hdrlen = IPH4_HL(ip4hdr) * 4;
+	else                      hdrlen = IP_HLEN;
 
-		if (ip_addr_islinkscope(&ip6hdr->dest)) 
-			return 0;
-		if (ip_addr_islinkscope(&ip6hdr->src)) 
-			return 0;
+	inside = (void *)(p->payload + hdrlen);
 
-		if (ip_addr_ismulticast(&ip6hdr->dest)) 
-			return 0;
-		if (ip_addr_ismulticast(&ip6hdr->src)) 
-			return 0;
 
+	if (p->nat.info == CT_RELATED || p->nat.info == CT_RELATED + CT_IS_REPLY) {
+		LWIP_DEBUGF(NAT_DEBUG, ("%s: Strange, not RELATED or RELATED+REPLY\n", __func__));
+		return -1;
 	}
-	else if (IPH_V(ip6hdr) == 4) {
-		iphdrlen = IPH4_HL(ip4hdr) * 4;
 
-		IP64_CONV (&src , &(ip4hdr->src)  );
-		IP64_CONV (&dst , &(ip4hdr->dest) );
+	/* 
+	 *  Get tuples for translations 
+	 */	
+        /* We use the tuple in the other direction for NAT. See above */
+	if (direction == CONN_DIR_ORIGINAL) 
+		inverse = &pcb->tuple[CONN_DIR_REPLY];
+	else
+		inverse = &pcb->tuple[CONN_DIR_ORIGINAL];
 
-		if (ip_addr_is_v4multicast(&dst)) 
-			return 0;
+	if (tuple_inverse( &inner_inverse, inverse ) < 0) {
+		LWIP_DEBUGF(NAT_DEBUG, ("%s: Strange, can't get tuple inverse!\n", __func__));
+		return -1;
 	}
+
+
+	/*
+	 *
+	 */
+	nat_todo = NAT2MANIP(pcb->nat_type);
+
+	if (direction == CONN_DIR_REPLY) {
+        	nat_todo = ! nat_todo;
+	}
+
+	if (nat_todo != nat_here)
+		return 1;
+
+	/*
+	 * Change Inner packet
+	 */
+	nat_modify_ip(!nat_todo, (char *) &inside->uip.ip4hdr, &inner_inverse, 1);
+
+
+	LWIP_DEBUGF(NAT_DEBUG, ("%s: NATed INNER PACKET !\n", __func__));
+	ip_debug_print(NAT_DEBUG, p);
+
+	/// CHECKSUM?
+
+	/*
+	 * Change Packet hearde
+	 */
+	nat_modify_ip(nat_todo, p->payload, inverse, 0);
+
+	LWIP_DEBUGF(NAT_DEBUG, ("%s: NATed PACKET !\n", __func__));
+	ip_debug_print(NAT_DEBUG, p);
+
+
+	LWIP_DEBUGF(NAT_DEBUG, ("%s: END !\n", __func__));
 
 	return 1;
 }
-#endif
 
-
+#endif /* LWIP_NAT */
 
 

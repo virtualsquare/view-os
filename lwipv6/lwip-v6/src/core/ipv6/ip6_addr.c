@@ -255,13 +255,16 @@ struct ip_addr_list *ip_addr_list_maskfind(struct ip_addr_list *tail, struct ip_
 	el=tail=tail->next;
 	do {
 		/*printf("ip_addr_list_maskfind ");
-		ip_addr_debug_printf(&(el->ipaddr));
+		ip_addr_debug_print(IP_DEBUG,&(el->ipaddr));
 		printf(" - ");
-		ip_addr_debug_printf(addr);
+		ip_addr_debug_print(IP_DEBUG,addr);
 		printf(" - ");
-		ip_addr_debug_printf(&(el->netmask));
+		ip_addr_debug_print(IP_DEBUG,&(el->netmask));
 		printf("\n"); */
+
 		if (ip_addr_maskcmp(&(el->ipaddr),addr,&(el->netmask)))
+			if ((ip_addr_islinkscope(&(el->ipaddr)) && ip_addr_islinkscope(addr)) ||
+			    (!ip_addr_islinkscope(&(el->ipaddr)) && !ip_addr_islinkscope(addr)))
 			return el;
 		el=el->next;
 	} while (el != tail);

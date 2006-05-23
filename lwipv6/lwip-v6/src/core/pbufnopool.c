@@ -73,6 +73,11 @@
 #include "lwip/sys.h"
 #include "arch/perf.h"
 
+#ifdef LWIP_NAT
+#include "lwip/netif.h"
+#include "lwip/ip.h"
+#include "lwip/nat/nat.h"
+#endif
 
 /**
  * Initializes the pbuf module.
@@ -801,3 +806,50 @@ pbuf_dechain(struct pbuf *p)
   LWIP_ASSERT("p->tot_len == p->len", p->tot_len == p->len);
   return (tail_gone > 0? NULL: q);
 }
+
+
+
+
+/* added by Diego Billi */
+struct pbuf * pbuf_clone(pbuf_layer l, struct pbuf *p, pbuf_flag flag)
+{
+	struct pbuf *q, *r;
+	u8_t *ptr;
+
+	r = pbuf_alloc(l, p->tot_len, PBUF_RAM);
+	if (r != NULL) {
+		ptr = r->payload;
+		for(q = p; q != NULL; q = q->next) {
+			memcpy(ptr, q->payload, q->len);
+			ptr += q->len;
+		}
+
+#ifdef LWIP_USERFILTER
+#ifdef LWIP_NAT
+		nat_pbuf_clone(r, p);
+#endif
+#endif
+
+		
+	}
+	return r ;
+}
+
+/* added by Diego Billi */
+struct pbuf * pbuf_make_writable(struct pbuf *p)
+{
+	struct pbuf *r = NULL;
+
+	if (p->len < p->tot_len) {
+		r = pbuf_clone(PBUF_LINK, p, PBUF_RAM);
+		if (r != NULL)
+			pbuf_free(p);
+	}
+	else
+		r = p;
+
+	return r;
+}
+	
+
+

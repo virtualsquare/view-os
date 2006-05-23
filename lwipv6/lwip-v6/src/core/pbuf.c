@@ -345,13 +345,7 @@ pbuf_alloc(pbuf_layer l, u16_t length, pbuf_flag flag)
     return NULL;
   }
 
-/* added by Diego Billi */
-#ifdef LWIP_CONNTRACK
-	p->nfct = NULL;
-	p->nfctinfo = 0;	
-	nf_conntrack_get(p->nfct);
-#endif
-        
+   
   /* set reference count */
   p->ref = 1;
   LWIP_DEBUGF(PBUF_DEBUG | DBG_TRACE | 3, ("pbuf_alloc(length=%u) == %p\n", length, (void *)p));
@@ -584,11 +578,6 @@ pbuf_free(struct pbuf *p)
    * we must protect it. Also, the later test of ref must be protected.
    */
 
-/* added by Diego Billi */
-#ifdef LWIP_CONNTRACK
-   nf_conntrack_put(p->nfct);
-#endif
-
   SYS_ARCH_PROTECT(old_level);
   /* de-allocate all consecutive pbufs from the head of the chain that
    * obtain a zero reference count after decrementing*/
@@ -602,12 +591,6 @@ pbuf_free(struct pbuf *p)
 
       /* remember next pbuf in chain for next iteration */
       q = p->next;
-
-/* added by Diego Billi */
-#ifdef LWIP_NAT
-      nat_pbuf_put(p);
-#endif
-
 
       LWIP_DEBUGF( PBUF_DEBUG | 2, ("pbuf_free: deallocating %p\n", (void *)p));
       /* is this a pbuf from the pool? */
@@ -988,4 +971,22 @@ pbuf_dechain(struct pbuf *p)
   /* assert tot_len invariant: (p->tot_len == p->len + (p->next? p->next->tot_len: 0) */
   LWIP_ASSERT("p->tot_len == p->len", p->tot_len == p->len);
   return (tail_gone > 0? NULL: q);
+}
+
+
+/* added by Diego Billi */
+struct pbuf * pbuf_clone(pbuf_layer l, struct pbuf *p, pbuf_flag flag)
+{
+	struct pbuf *q, *r;
+	u8_t *ptr;
+
+	r = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
+	if (r != NULL) {
+		ptr = r->payload;
+		for(q = p; q != NULL; q = q->next) {
+			memcpy(ptr, q->payload, q->len);
+			ptr += q->len;
+		}
+	}
+	return r ;
 }
