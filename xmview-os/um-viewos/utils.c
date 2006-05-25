@@ -194,17 +194,13 @@ ustoren(struct pcb *pc, long addr, int len, void *_laddr)
 	}
 	else {
 #ifdef _PROC_MEM_TEST
-		/* /proc/<pid>/mem does not support writing... */
-#if 0 
+		/* /proc/<pid>/mem does not support writing yet... */
 		if (pc->memfd >= 0) {
 			int sz;
-			//r_lseek(pc->memfd,addr,SEEK_SET);
-			//sz=r_write(pc->memfd,_laddr,len);
-			sz=pwrite(pc->memfd,_laddr,len,addr);
+			sz=r_pwrite64(pc->memfd,_laddr,len,0,addr);
 			if (sz>=0)
 				return 1;
 		} 
-#endif
 #endif
 		{
 			char *laddr=_laddr;
@@ -278,17 +274,13 @@ ustorestr(struct pcb *pc, long addr, int len, void *_laddr)
 	}
 	else {
 #ifdef _PROC_MEM_TEST
-		/* /proc/<pid>/mem does not support writing... */
-#if 0
+		/* /proc/<pid>/mem does not support writing... yet*/
 		if (pc->memfd >= 0) {
 			int sz;
-			//r_lseek(pc->memfd,addr,SEEK_SET);
-			//sz=r_write(pc->memfd,_laddr,len);
-			sz=pwrite(pc->memfd,_laddr,len,addr);
+			sz=r_pwrite64(pc->memfd,_laddr,len,0,addr);
 			if (sz >= 0)
 				return 1;
 		} 
-#endif
 #endif
 		{
 			char *laddr=_laddr;
