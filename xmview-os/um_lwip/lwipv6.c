@@ -226,6 +226,14 @@ struct ifname {
 	struct ifname *next;
 } *ifh;
 
+/* Other parameters */
+static char *paramname[]={"ra"};
+#define PARAMTYPES (sizeof(paramname)/sizeof(char *))
+char *paramfunname[PARAMTYPES]={"lwip_radv_load_configfile"};
+typedef int *((*paramstarfun)(char *opt));
+static paramstarfun paramfun[PARAMTYPES]; /* parameter handler */
+static char        *paramval[PARAMTYPES]; /* parameter value */
+
 static void iffree(struct ifname *head)
 {
 	if (head==NULL)
@@ -274,6 +282,15 @@ static void myputenv(char *arg)
 			break;
 		}
 	}	
+
+	for (i=0;i<PARAMTYPES;i++) {
+		if (strncmp(arg,paramname[i],2)==0) {
+			if (arg[2] == '=') {
+				paramval[i]=arg+3;
+			}
+		}
+	}
+
 }
 
 static char stdargs[]="vd1";
@@ -290,6 +307,12 @@ static void lwipargtoenv(char *initargs)
 		intnum[i]=0;
 		initfun[i]=dlsym(lwiphandle,initfunname[i]);
 	}
+
+	for (i=0;i<PARAMTYPES;i++) {
+		paramval[i]=NULL;
+		paramfun[i]=dlsym(lwiphandle,paramfunname[i]);
+	}
+
 	if (*initargs == 0) initargs=stdargs;
 	while (*initargs != 0) {
 		next=initargs;
@@ -312,6 +335,8 @@ static void lwipargtoenv(char *initargs)
 			myputenv(initargs);
 		initargs=next;
 	}
+
+	/* load interfaces */
 	for (i=0;i<INTTYPES;i++) 
 		totint+=intnum[i];
 	if (totint==0)
@@ -321,6 +346,14 @@ static void lwipargtoenv(char *initargs)
 			if (initfun[i] != NULL)
 				initfun[i](ifname(ifh,i,j));
 	iffree(ifh);
+
+	/* load other parameters */
+	for (i=0;i<PARAMTYPES;i++)
+		if (paramval[i] != NULL)
+			if (paramfun[i] != NULL) {
+			paramfun[i](paramval[i]);
+			}
+
 }
 
 static int initflag=0;
