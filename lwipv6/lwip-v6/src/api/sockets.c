@@ -741,8 +741,10 @@ lwip_send(int s, void *data, int size, unsigned int flags)
 			case NETCONN_RAW:
 			case NETCONN_UDP:
 			case NETCONN_UDPLITE:
+#ifdef LWIP_PACKET
 			case NETCONN_PACKET_RAW:
 			case NETCONN_PACKET_DGRAM:
+#endif
 				/* create a buffer */
 				buf = netbuf_new();
 

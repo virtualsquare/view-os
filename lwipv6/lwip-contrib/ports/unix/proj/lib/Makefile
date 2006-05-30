@@ -47,8 +47,8 @@ LWIPFILTERDIR=$(LWIPDIR)/userfilter
 # Defines
 #=============================================================================
 
-CCDEP=gcc-3.3
-CC=gcc-3.3
+CCDEP=gcc
+CC=gcc
 #CFLAGS=-g -Wall -fPIC -DIPv4 -DLWIP_DEBUG 
 #CFLAGS=-g -Wall -fPIC -DIPv6 -DLWIP_DEBUG -DLWIP_NL -DLWIP_PACKET -DRD235LIB -DLWIP_COMPAT_SOCKETS=0
 
@@ -58,12 +58,16 @@ CFLAGS:=$(CFLAGS) -DIPv6
 CFLAGS:=$(CFLAGS) -DIPv4_CHECK_CHECKSUM 
 CFLAGS:=$(CFLAGS) -DIPv4_FRAGMENTATION
 CFLAGS:=$(CFLAGS) -DIPv6_FRAGMENTATION
-CFLAGS:=$(CFLAGS) -DIPv6_AUTO_CONFIGURATION
-CFLAGS:=$(CFLAGS) -DLWIP_NL    
-CFLAGS:=$(CFLAGS) -DLWIP_PACKET 
+CFLAGS:=$(CFLAGS) -DLWIP_NL
+CFLAGS:=$(CFLAGS) -DLWIP_PACKET
 CFLAGS:=$(CFLAGS) -DRD235LIB 
 CFLAGS:=$(CFLAGS) -DLWIP_COMPAT_SOCKETS=0 
 #CFLAGS:=$(CFLAGS) -DIPv6_PMTU_DISCOVERY   not working yet
+
+# Stateless Autoconfiguration + Router Advertisement code
+CFLAGS:=$(CFLAGS) -DIPv6_AUTO_CONFIGURATION
+CFLAGS:=$(CFLAGS) -DIPv6_ROUTER_ADVERTISEMENT
+CFLAGS:=$(CFLAGS) -DIPv6_RADVCONF
 
 # added by Diego Billi (PAY ATTENTION: LWIP_NAT needs LWIP_USERFILTER)
 CFLAGS:=$(CFLAGS) -DLWIP_USERFILTER 
@@ -75,11 +79,12 @@ CFLAGS:=$(CFLAGS) \
 	-I$(LWIPDIR)/include/ipv6 \
 	-Iapps -I.
 
-# added by Diego Billi
 CFLAGS:=$(CFLAGS) \
 	-I$(LWIPDIR)/include/userfilter 
 
-# added by Diego Billi
+CFLAGS:=$(CFLAGS) \
+	-I$(LWIPDIR)/include/radv
+
 ARFLAGS=rs
 
 #=============================================================================
@@ -118,10 +123,14 @@ NETIFFILES=$(LWIPDIR)/netif/loopif.c \
 
 # ARCHFILES: Architecture specific files.
 #ARCHFILES=$(wildcard $(LWIPDIR)/arch/$(LWIPARCH)/*.c $(LWIPDIR)/arch/$(LWIPARCH)/netif/*.c)
+#ARCHFILES=$(LWIPARCH)/sys_arch.c 
 ARCHFILES=$(LWIPARCH)/sys_arch_pipe.c \
 	$(LWIPARCH)/netif/vdeif.c \
 	$(LWIPARCH)/netif/tapif.c \
 	$(LWIPARCH)/netif/tunif.c
+
+# RADVFILES: Router Advertisement configuration loader
+RADVFILES=$(LWIPDIR)/radv/radvconf.c
 
 # File of Userfilter syb-sytem (LWIP_USERFILTER)
 LWIPFILTERFILES=$(LWIPFILTERDIR)/userfilter.c 
@@ -140,18 +149,16 @@ LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat_track_proto_generic
 #=============================================================================
 
 # LWIPFILES: All the above.
-#LWIPFILES=$(COREFILES) $(CORE6FILES) $(APIFILES) $(NETIFFILES) $(ARCHFILES)
-LWIPFILES=$(COREFILES) $(CORE6FILES) $(APIFILES) $(NETIFFILES) $(ARCHFILES)  $(LWIPFILTERFILES)
+LWIPFILES=$(COREFILES) $(CORE6FILES) $(APIFILES) $(NETIFFILES) $(ARCHFILES)  $(LWIPFILTERFILES) $(RADVFILES)
 LWIPFILESW=$(wildcard $(LWIPFILES))
 LWIPOBJS=$(notdir $(LWIPFILESW:.c=.o))
 
 #=============================================================================
-# Targets
+# Targets 
 #=============================================================================
 
 LWIPLIB=liblwip.so
 
-# added by Diego Billi
 STATICLWIPLIB=liblwip.a
 
 
@@ -161,12 +168,10 @@ STATICLWIPLIB=liblwip.a
 all: $(LWIPLIB) 
 .PHONY: all
 
-# added by Diego Billi
 allstatic: $(STATICLWIPLIB)
 .PHONY: allstatic
 
 clean:
-#	rm -f *.o $(LWIPLIB) *.s .depend* *.core core
 	rm -f *.o $(LWIPLIB) *.s .depend* *.core core $(STATICLWIPLIB)
 
 depend dep: .depend

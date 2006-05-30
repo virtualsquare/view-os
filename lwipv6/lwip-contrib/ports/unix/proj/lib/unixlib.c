@@ -60,6 +60,10 @@
 #include "netif/tapif.h"
 #include "netif/loopif.h"
 
+#ifdef IPv6_RADVCONF
+#include "lwip/radvconf.h"
+#endif
+
 #define IFF_RUNNING 0x40
 
 
@@ -72,7 +76,8 @@ struct netif *lwip_vdeif_add(void *arg)
 	pnetif=mem_malloc(sizeof (struct netif));
 
 	//netif_add(pnetif, arg, vdeif_init, tcpip_input);
-	tcpip_netif_add(pnetif, arg, vdeif_init, tcpip_input);
+	//tcpip_netif_add(pnetif, arg, vdeif_init, tcpip_input);
+	tcpip_netif_add(pnetif, arg, vdeif_init, tcpip_input, tcpip_change);
 
 #ifndef IPv6_AUTO_CONFIGURATION
 	//IP6_ADDR(&ipaddr, 0xfe80,0x0,0x0,0x0,
@@ -101,7 +106,7 @@ struct netif *lwip_tapif_add(void *arg)
 	pnetif=mem_malloc(sizeof (struct netif));
 
 	//netif_add(pnetif, arg, tapif_init, tcpip_input);
-	tcpip_netif_add(pnetif, arg, tapif_init, tcpip_input);
+	tcpip_netif_add(pnetif, arg, tapif_init, tcpip_input, tcpip_change);
 
 #ifndef IPv6_AUTO_CONFIGURATION
 	//IP6_ADDR(&ipaddr, 0xfe80,0x0,0x0,0x0,
@@ -129,7 +134,8 @@ struct netif *lwip_tunif_add(void *arg)
 	pnetif=mem_malloc(sizeof (struct netif));
 
 	//netif_add(pnetif, arg, tunif_init, tcpip_input);
-	tcpip_netif_add(pnetif, arg, tunif_init, tcpip_input);
+	//tcpip_netif_add(pnetif, arg, tunif_init, tcpip_input);
+	tcpip_netif_add(pnetif, arg, tunif_init, tcpip_input, tcpip_change);
 
 	/* missing? */
 
@@ -149,7 +155,8 @@ static void lwip_loopif_add()
 	struct ip_addr ipaddr, netmask;
 
 	//netif_add(&loopif,NULL, loopif_init, tcpip_input);
-	tcpip_netif_add(&loopif,NULL, loopif_init, tcpip_input);
+	//tcpip_netif_add(&loopif,NULL, loopif_init, tcpip_input);
+	tcpip_netif_add(&loopif,NULL, loopif_init, tcpip_input, tcpip_change);
 
 	IP6_ADDR(&ipaddr, 0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x1);
 	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff);
@@ -192,15 +199,26 @@ int lwip_del_route(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr
 
 int lwip_ifup(struct netif *netif)
 {
-	netif->flags |= NETIF_FLAG_UP;
+	netif_set_up(netif);
 	return 0;
 }
 
 int lwip_ifdown(struct netif *netif)
 {
-	netif->flags &= ~NETIF_FLAG_UP;
+	netif_set_down(netif);
 	return 0;
 }
+
+int lwip_radv_load_configfile(void *arg)
+{
+#ifdef IPv6_RADVCONF
+	return radv_load_configfile((char*)arg);
+#endif
+	return -1;
+}
+
+
+
 
 
 extern int _nofdfake;

@@ -350,8 +350,10 @@ netconn_peer(struct netconn *conn, struct ip_addr *addr,
 {
   switch (conn->type) {
   case NETCONN_RAW:
+#ifdef LWIP_PACKET
   case NETCONN_PACKET_RAW:
   case NETCONN_PACKET_DGRAM:
+#endif
     /* return an error as connecting is only a helper for upper layers */
     return ERR_CONN;
   case NETCONN_UDPLITE:

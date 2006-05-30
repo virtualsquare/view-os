@@ -305,7 +305,9 @@ err_t ip_output_if(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 		struct netif *netif, struct ip_addr *nexthop, int flags);
 
 
-err_t ip_output_raw(struct pbuf *p, struct netif *out, struct ip_addr *nexthop);
+//err_t ip_output_raw(struct pbuf *p, struct netif *out, struct ip_addr *nexthop);
+
+void ip_change(struct netif *netif, u32_t type);
 
 
 #if IP_DEBUG

@@ -51,6 +51,10 @@
 #include "lwip/ip_autoconf.h"
 #endif
 
+#ifdef IPv6_ROUTER_ADVERTISEMENT
+#include "lwip/ip_radv.h"
+#endif
+
 /** must be the maximum of all used hardware address lengths
     across all types of interfaces in use */
 #define NETIF_MAX_HWADDR_LEN 6U
@@ -91,20 +95,30 @@ struct netif {
   /** This function is called by the network device driver
    *  to pass a packet up the TCP/IP stack. */
   err_t (* input)(struct pbuf *p, struct netif *inp);
+
   /** This function is called by the IP module when it wants
    *  to send a packet on the interface. This function typically
    *  first resolves the hardware address, then sends the packet. */
   err_t (* output)(struct netif *netif, struct pbuf *p,
        struct ip_addr *ipaddr);
+
   /** This function is called by the ARP module when it wants
    *  to send a packet on the interface. This function outputs
    *  the pbuf as-is on the link medium. */
   err_t (* linkoutput)(struct netif *netif, struct pbuf *p);
+
   /** This field can be set by the device driver and could point
    *  to state information for the device. */
-	err_t (* cleanup)(struct netif *netif);
+  err_t (* cleanup)(struct netif *netif);
 	/* garbage collection function */
   void *state;
+
+
+#define NETIF_CHANGE_UP    1
+#define NETIF_CHANGE_DOWN  2
+#define NETIF_CHANGE_MTU   3
+  void (* change)(struct netif *netif, u32_t type);
+
 
 #if LWIP_DHCP
   /** the DHCP client state information for this netif */
@@ -112,7 +126,13 @@ struct netif {
 #endif
 
 #ifdef IPv6_AUTO_CONFIGURATION
+  /* FIX: make this a pointer? */
   struct autoconf autoconf;
+#endif
+
+#ifdef IPv6_ROUTER_ADVERTISEMENT
+  /* FIX: make this a pointer? */
+  struct radv radv;
 #endif
 
   /** number of bytes used in hwaddr */
@@ -150,10 +170,18 @@ void netif_init(void);
 /* netif_cleanup() must be called for a final garbage collection. */
 void netif_cleanup(void);
 
-struct netif *netif_add(struct netif *netif, 
-      void *state,
-      err_t (* init)(struct netif *netif),
-      err_t (* input)(struct pbuf *p, struct netif *netif));
+//struct netif *netif_add(struct netif *netif, 
+//      void *state,
+//      err_t (* init)(struct netif *netif),
+//      err_t (* input)(struct pbuf *p, struct netif *netif));
+
+struct netif *
+netif_add(struct netif *netif, 
+	void *state, 
+	err_t (* init  )(struct netif *netif),
+	err_t (* input )(struct pbuf *p, struct netif *netif),
+	void  (* change)(struct netif *netif, u32_t type) );
+
 
 int
 netif_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
@@ -180,5 +208,15 @@ void netif_set_gw(struct netif *netif, struct ip_addr *gw);
 void netif_set_up(struct netif *netif);
 void netif_set_down(struct netif *netif);
 u8_t netif_is_up(struct netif *netif); */
+
+/* These functions change interface state and inform IP layer */
+void netif_set_up(struct netif *netif);
+u8_t netif_is_up(struct netif *netif);
+void netif_set_down(struct netif *netif);
+
+/* These functions change interface state BUT DO NOT inform IP layer */
+void netif_set_up_low(struct netif *netif);
+void netif_set_down_low(struct netif *netif);
+
 
 #endif /* __LWIP_NETIF_H__ */

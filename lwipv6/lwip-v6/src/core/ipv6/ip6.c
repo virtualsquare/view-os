@@ -80,6 +80,10 @@
 #include "lwip/ip_autoconf.h"
 #endif 
 
+#ifdef IPv6_ROUTER_ADVERTISEMENT
+#include "lwip/ip_radv.h"
+#endif 
+
 #ifdef LWIP_USERFILTER
 #include "lwip/userfilter.h"
 #endif
@@ -98,6 +102,7 @@
 u16_t ip_id = 0;
 
 
+/*--------------------------------------------------------------------------*/
                      
 /* ip_init:
  *
@@ -115,6 +120,10 @@ ip_init(void)
   ip_autoconf_init();
 #endif 
 
+#ifdef IPv6_ROUTER_ADVERTISEMENT
+  ip_radv_init();
+#endif 
+
 #ifdef LWIP_USERFILTER
   /* init UserFilter's internal tables */
   userfilter_init();
@@ -127,6 +136,10 @@ ip_init(void)
 }
 
 static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pbuf **p, struct pseudo_iphdr *piphdr);
+
+
+
+/*--------------------------------------------------------------------------*/
 
 
 /* ip_forward:
@@ -145,8 +158,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
   PERF_START;
 
 #ifdef LWIP_USERFILTER
-  /* pbuf_free() is called by Caller */
-  if (UF_HOOK(UF_IP_FORWARD, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
+  if (UF_HOOK(UF_IP_FORWARD, &p, NULL, netif, UF_FREE_BUF) <= 0) {
     return;
   }
 #endif
@@ -159,8 +171,9 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
     IPH4_TTL_SET(ip4hdr, IPH4_TTL(ip4hdr) - 1);
     if (IPH4_TTL(ip4hdr) <= 0) {
       LWIP_DEBUGF(IP_DEBUG, ("ip_forward: dropped packet! TTL <= 0 "));
-      /* TODO: check if there is a ICMP message inside */
-      icmp4_time_exceeded(p, ICMP_TE_TTL);
+      /* Don't send ICMP messages in response to ICMP messages */
+      if (piphdr->proto != IP_PROTO_ICMP4) 
+        icmp4_time_exceeded(p, ICMP_TE_TTL);
       pbuf_free(p);
       return;
     }
@@ -192,7 +205,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
 
 #ifdef LWIP_USERFILTER
   /* pbuf_free() is called by Caller */
-  if (UF_HOOK(UF_IP_POST_ROUTING, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
+  if (UF_HOOK(UF_IP_POST_ROUTING, &p, NULL, netif, UF_FREE_BUF) <= 0) {
     return;
   }
 #endif
@@ -243,6 +256,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
   pbuf_free(p);
 }
 
+/*--------------------------------------------------------------------------*/
 
 /* ip_input:
  *
@@ -355,7 +369,7 @@ ip_inpacket(struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piph
   }
 }
 
-
+/*--------------------------------------------------------------------------*/
 
 void
 ip_input(struct pbuf *p, struct netif *inp) {
@@ -459,6 +473,10 @@ ip_input(struct pbuf *p, struct netif *inp) {
   PERF_STOP("ip_input");
 }
 
+
+/*--------------------------------------------------------------------------*/
+
+
 /* ip_output_if:
  *
  * Sends an IP packet on a network interface. This function constructs the IP header
@@ -526,12 +544,6 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
     }
   }
 
-#if IP_DEBUG
-  LWIP_DEBUGF(IP_DEBUG, ("\nip_output_if: %c%c (len %u)\n", netif->name[0], netif->name[1], p->tot_len));
-  ip_debug_print(IP_DEBUG, p);
-#endif /* IP_DEBUG */
-
-
 #ifdef LWIP_USERFILTER
   /* The Caller of ip_output_if() will call pbuf_free() on buffer pointed by 'p' 
      after return.
@@ -548,6 +560,12 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
     goto end_ip_output_if;
   }
 #endif
+
+#if IP_DEBUG
+  LWIP_DEBUGF(IP_DEBUG, ("\nip_output_if: %c%c (len %u)\n", netif->name[0], netif->name[1], p->tot_len));
+  ip_debug_print(IP_DEBUG, p);
+#endif /* IP_DEBUG */
+
 
   IP_STATS_INC(ip.xmit);
 
@@ -618,13 +636,16 @@ end_ip_output_if:
   if (caller_p != p) {
     /* Somewhere, inside a hook, we've changed packet's buffer. In this case
        we have to free it because Caller will call pbuf_free() only on 
-       caller_p */
+       buffer pointed by caller_p */
     pbuf_free(p);
   }
 #endif
 
   return ret;
 }
+
+
+/*--------------------------------------------------------------------------*/
 
 
 /* ip_output:
@@ -659,12 +680,57 @@ ip_output(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest, u8_t ttl, u
 }
 
 
+/*--------------------------------------------------------------------------*/
+
+
+/* This function inform the IP Layer that interface's properties have been
+   changed. */
+void 
+ip_change(struct netif *netif, u32_t type)
+{
+  switch(type) {
+    case NETIF_CHANGE_UP:
+      LWIP_DEBUGF(IP_DEBUG, ("%s: netif %c%c%d now UP!\n", __func__,	
+        netif->name[0], netif->name[1], netif->num));
+#ifdef IPv6_AUTO_CONFIGURATION
+      ip_autoconf_start(netif);
+#endif
+#ifdef IPv6_ROUTER_ADVERTISEMENT
+      ip_radv_start(netif);
+#endif
+      break;
+
+    case NETIF_CHANGE_DOWN:
+      LWIP_DEBUGF(IP_DEBUG, ("%s: netif %c%c%d now DOWN!\n", __func__, 
+        netif->name[0], netif->name[1], netif->num));
+#ifdef IPv6_ROUTER_ADVERTISEMENT
+      ip_radv_stop(netif);
+#endif
+#ifdef IPv6_AUTO_CONFIGURATION
+      ip_autoconf_stop(netif);
+#endif
+      break;
+
+    case NETIF_CHANGE_MTU:
+      LWIP_DEBUGF(IP_DEBUG, ("%s: netif %c%c%d changed MTU, now %d!\n", __func__,
+        netif->name[0], netif->name[1], netif->num, netif->mtu));
+#ifdef IPv6_ROUTER_ADVERTISEMENT
+        /* todo? */
+#endif
+        break;
+    default:
+        LWIP_DEBUGF(IP_DEBUG, ("%s: unknown change *** BUG ***\n", __func__));
+        break;
+  }
+}
+
+
+/*--------------------------------------------------------------------------*/
 
 #if IP_DEBUG
 
 static void ip_debug_print_transport(u8_t proto, void *hdr)
 {
-  u16_t prova;
   struct icmp_echo_hdr *icmph = NULL;
   struct tcp_hdr       *tcphdr  = NULL;
   struct udp_hdr       *udphdr  = NULL;
@@ -690,8 +756,8 @@ static void ip_debug_print_transport(u8_t proto, void *hdr)
       icmph = hdr;
       LWIP_DEBUGF(IP_DEBUG, ("Icmp6 id=%d type=%d code=%d", 
       ntohs(icmph->id), 
-        (char)ICMPH_TYPE(icmph), 
-        (char)icmph->icode)); 
+        (unsigned char)ICMPH_TYPE(icmph), 
+        (unsigned char)icmph->icode)); 
     break;
     default:
       LWIP_DEBUGF(IP_DEBUG, ("%s: strange protocol", __func__ ));
@@ -759,6 +825,7 @@ ip_debug_print(int how, struct pbuf *p)
 #endif /* IP_DEBUG */
 
 
+/*--------------------------------------------------------------------------*/
 
 /**
  * Build the pseudo header.

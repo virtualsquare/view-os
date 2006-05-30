@@ -515,14 +515,14 @@ arp_timer(void *arg)
 	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, arg);
 }
 
-#ifdef IPv6_AUTO_CONFIGURATION  
-static void
-ipv6_autoconf_timer(void *arg)
-{
-	ip_autoconf_tmr((struct netif *) arg);
-	sys_timeout(AUTOCONF_TMR_INTERVAL, (sys_timeout_handler)ipv6_autoconf_timer, arg);
-}
-#endif
+//#ifdef IPv6_AUTO_CONFIGURATION  
+//static void
+//ipv6_autoconf_timer(void *arg)
+//{
+//	ip_autoconf_tmr((struct netif *) arg);
+//	sys_timeout(AUTOCONF_TMR_INTERVAL, (sys_timeout_handler)ipv6_autoconf_timer, arg);
+//}
+//#endif
 
 /*-----------------------------------------------------------------------------------*/
 /*
@@ -571,9 +571,9 @@ err_t vdeif_init(struct netif * netif)
 
 	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, netif);
 
-#ifdef IPv6_AUTO_CONFIGURATION
-	sys_timeout(AUTOCONF_TMR_INTERVAL, (sys_timeout_handler)ipv6_autoconf_timer, netif);
-#endif
+//#ifdef IPv6_AUTO_CONFIGURATION
+//	sys_timeout(AUTOCONF_TMR_INTERVAL, (sys_timeout_handler)ipv6_autoconf_timer, netif);
+//#endif
 
 	return ERR_OK;
 }

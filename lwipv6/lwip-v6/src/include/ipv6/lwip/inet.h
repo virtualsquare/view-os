@@ -68,6 +68,10 @@ u16_t inet6_chksum_pseudo(struct pbuf *p,
 u32_t inet_addr(const char *cp);
 int inet_aton(const char *cp, struct in_addr *addr);
 
+
+int inet_ptonn(int af, const char *src, void *dst);
+
+
 #ifndef _MACHINE_ENDIAN_H_
 #ifndef _NETINET_IN_H
 #ifndef _LINUX_BYTEORDER_GENERIC_H

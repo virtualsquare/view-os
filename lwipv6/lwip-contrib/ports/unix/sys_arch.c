@@ -156,7 +156,7 @@ sys_thread_new(void (*function)(void *arg), void *arg, int prio)
   int code;
   pthread_t tmp;
   struct sys_thread *st = NULL;
-  
+
   code = pthread_create(&tmp,
                         NULL, 
                         (void *(*)(void *)) 

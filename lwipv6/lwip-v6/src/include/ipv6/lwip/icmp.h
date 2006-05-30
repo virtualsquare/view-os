@@ -295,42 +295,74 @@ PACK_STRUCT_END
 #define ICMP6_OPT_MTU         5
 
 /* Generic ICMP option */
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/bpstruct.h"
+#endif
+PACK_STRUCT_BEGIN
 struct icmp_opt {       
-  u8_t type;
-  u8_t len;        /* in units of 8 octets (including the type and length fields). */
-  u8_t data[0];    
-};
+  PACK_STRUCT_FIELD(u8_t type);
+  PACK_STRUCT_FIELD(u8_t len);        /* in units of 8 octets (including the type and length fields). */
+  PACK_STRUCT_FIELD(u8_t data[0]);    
+}PACK_STRUCT_STRUCT;
+PACK_STRUCT_END
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/epstruct.h"
+#endif
 
 /* ICMPv6 Address Options field */
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/bpstruct.h"
+#endif
+PACK_STRUCT_BEGIN
 struct icmp_opt_addr {       
-  u8_t type;
-  u8_t len;        /* in units of 8 octets (including the type and length fields). */
-  u8_t addr[0];    /* 0 is not allowed with some compilers */
-};
+  PACK_STRUCT_FIELD(u8_t type);
+  PACK_STRUCT_FIELD(u8_t len);        /* in units of 8 octets (including the type and length fields). */
+  PACK_STRUCT_FIELD(u8_t addr[0]);    /* 0 is not allowed with some compilers */
+}PACK_STRUCT_STRUCT;
+PACK_STRUCT_END
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/epstruct.h"
+#endif
 
 /* Length of ethernet address in 8-octects  */
 #define ICMP6_OPT_LEN_ETHER   1
 
 
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/bpstruct.h"
+#endif
+PACK_STRUCT_BEGIN
 struct icmp_opt_prefix {       
-  u8_t type;       
-  u8_t len;        /* 4 */
-  u8_t preflen;    /* Prefix len */
-  u8_t flags;      
+  PACK_STRUCT_FIELD(u8_t type);       
+  PACK_STRUCT_FIELD(u8_t len);        /* 4 */
+  PACK_STRUCT_FIELD(u8_t preflen);    /* Prefix len */
+  PACK_STRUCT_FIELD(u8_t flags);      
 #define ICMP6_OPT_PREF_L  0x80
 #define ICMP6_OPT_PREF_A  0x40
-  u32_t valid;     
-  u32_t prefered;  /* seconds */
-  u32_t reserved;  /* seconds */
-  u32_t prefix[4]; 
-};
+  PACK_STRUCT_FIELD(u32_t valid);     
+  PACK_STRUCT_FIELD(u32_t prefered);  /* seconds */
+  PACK_STRUCT_FIELD(u32_t reserved);  /* seconds */
+  PACK_STRUCT_FIELD(u32_t prefix[4]); 
+}PACK_STRUCT_STRUCT;
+PACK_STRUCT_END
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/epstruct.h"
+#endif
 
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/bpstruct.h"
+#endif
+PACK_STRUCT_BEGIN
 struct icmp_opt_mtu {       
-  u8_t type;
-  u8_t len;        /* 1 */
-  u16_t reserved;
-  u32_t mtu;    
-};
+  PACK_STRUCT_FIELD(u8_t type);
+  PACK_STRUCT_FIELD(u8_t len);        /* 1 */
+  PACK_STRUCT_FIELD(u16_t reserved);
+  PACK_STRUCT_FIELD(u32_t mtu);    
+}PACK_STRUCT_STRUCT;
+PACK_STRUCT_END
+#ifdef PACK_STRUCT_USE_INCLUDES
+#  include "arch/epstruct.h"
+#endif
 
 
 #endif /* __LWIP_ICMP_H__ */

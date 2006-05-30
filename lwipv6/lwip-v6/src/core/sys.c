@@ -76,14 +76,14 @@ sys_mbox_fetch(sys_mbox_t mbox, void **msg)
       h = tmptimeout->h;
       arg = tmptimeout->arg;
 
-      if (tmptimeout->XXX != 1)  /// Added by Diego Billi
+      if (tmptimeout->raw != 1)  /// Added by Diego Billi
       memp_free(MEMP_SYS_TIMEOUT, tmptimeout);
       if (h != NULL) {
         LWIP_DEBUGF(SYS_DEBUG, ("smf calling h=%p(%p)\n", (void *)h, (void *)arg));
       	h(arg);
       }
 
-      if (tmptimeout->XXX == 1)          /// Added by Diego Billi
+      if (tmptimeout->raw == 1)          /// Added by Diego Billi
 		tmptimeout->next = NULL; /// Added by Diego Billi
 
       /* We try again to fetch a message from the mbox. */
@@ -135,7 +135,7 @@ sys_sem_wait(sys_sem_t sem)
       h = tmptimeout->h;
       arg = tmptimeout->arg;
 
-      if (tmptimeout->XXX != 1)  /// Added by Diego Billi
+      if (tmptimeout->raw != 1)  /// Added by Diego Billi
       memp_free(MEMP_SYS_TIMEOUT, tmptimeout);
 
       if (h != NULL) {
@@ -143,7 +143,7 @@ sys_sem_wait(sys_sem_t sem)
         h(arg);
       }
 
-      if (tmptimeout->XXX == 1)          /// Added by Diego Billi
+      if (tmptimeout->raw == 1)          /// Added by Diego Billi
 		tmptimeout->next = NULL; /// Added by Diego Billi
 
       /* We try again to fetch a message from the mbox. */
@@ -177,7 +177,7 @@ sys_timeout(u32_t msecs, sys_timeout_handler h, void *arg)
   timeout->arg = arg;
   timeout->time = msecs;
 
-  timeout->XXX = 0;  /// Added by Diego Billi
+  timeout->raw = 0;  /// Added by Diego Billi
 
   timeouts = sys_arch_timeouts();
 
@@ -240,7 +240,7 @@ sys_untimeout(sys_timeout_handler h, void *arg)
             if (t->next != NULL)
                 t->next->time += t->time;
 
-	    if (t->XXX != 1) /// ADDED XXX(should never happen)XXXXXXXXXXXXXXXXXXXX
+	    if (t->raw != 1) /// ADDED XXX(should never happen)XXXXXXXXXXXXXXXXXXXX
             memp_free(MEMP_SYS_TIMEOUT, t);
             return;
         }
@@ -338,7 +338,7 @@ int sys_untimeout_and_check(sys_timeout_handler h, void *arg)
             if (t->next != NULL)
                 t->next->time += t->time;
 
-	    if (t->XXX != 1) 
+	    if (t->raw != 1) 
             memp_free(MEMP_SYS_TIMEOUT, t);
             return 1;
         }
@@ -346,13 +346,13 @@ int sys_untimeout_and_check(sys_timeout_handler h, void *arg)
     return 0;
 }
 
-void sys_timeout_XXX(struct sys_timeout * timeout)
+void sys_timeout_raw(struct sys_timeout * timeout)
 {
   struct sys_timeouts *timeouts;
   struct sys_timeout *t;
   u32_t msecs;
 
-  timeout->XXX = 1;
+  timeout->raw = 1;
 
   msecs = timeout->time;
   //, sys_timeout_handler h, void *arg)
@@ -384,7 +384,7 @@ void sys_timeout_XXX(struct sys_timeout * timeout)
 }
 
 
-int  sys_untimeout_XXX(struct sys_timeout *timeout)
+int  sys_untimeout_raw(struct sys_timeout *timeout)
 {
     struct sys_timeouts *timeouts;
     struct sys_timeout *prev_t, *t;

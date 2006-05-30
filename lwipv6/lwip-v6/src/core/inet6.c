@@ -187,3 +187,171 @@ inet_chksum_pbuf(struct pbuf *p)
   }
   return ~(acc & 0xffff);
 }
+
+
+/******************************************************************************/
+
+/* FIX: review these */
+
+#include "lwip/ip_addr.h"
+#include "lwip/sockets.h"
+
+#define INT16_SZ    2
+#define IN4ADDR_SZ  4
+#define IN6ADDR_SZ 16
+
+static int
+inet_pton4(const char *src, unsigned char *dst)
+{
+  static const char digits[] = "0123456789";
+  unsigned char tmp[IN4ADDR_SZ], *tp;
+  int saw_digit, octets, ch;
+
+  saw_digit = 0;
+  octets = 0;
+  *(tp = tmp) = 0;
+  while ((ch = *src++) != '\0') {
+    const char *pch;
+
+    if ((pch = strchr(digits, ch)) != NULL) {
+      unsigned int new = *tp * 10 + (pch - digits);
+
+      if (new > 255)
+        return 0;
+      *tp = new;
+      if (! saw_digit) {
+        if (++octets > 4)
+          return 0;
+        saw_digit = 1;
+      }
+    } else if (ch == '.' && saw_digit) {
+      if (octets == 4)
+        return 0;
+      *++tp = 0;
+      saw_digit = 0;
+    } else
+      return 0;
+  }
+
+  if (octets < 4)
+    return 0;
+
+  memcpy(dst, tmp, IN4ADDR_SZ);
+  return 1;
+}
+
+static int
+inet_pton6(const char *src, unsigned char *dst)
+{
+  static const char xdigits_l[] = "0123456789abcdef", xdigits_u[] = "0123456789ABCDEF";
+  unsigned char tmp[IN6ADDR_SZ], *tp, *endp, *colonp;
+  const char *xdigits, *curtok;
+  int ch, saw_xdigit;
+  unsigned int val;
+  
+  tp = tmp;
+  memset((tp = tmp), '\0', IN6ADDR_SZ);
+  endp = tp + IN6ADDR_SZ;
+  colonp = NULL;
+  
+  /* Leading :: requires some special handling. */
+  if (*src == ':')
+    if (*++src != ':')
+      return 0;
+  
+  curtok = src;
+  saw_xdigit = 0;
+  val = 0;
+  while ((ch = *src++) != '\0') {
+    const char *pch;
+  
+    if ((pch = strchr((xdigits = xdigits_l), ch)) == NULL)
+      pch = strchr((xdigits = xdigits_u), ch);
+    if (pch != NULL) {
+      val <<= 4;
+      val |= (pch - xdigits);  
+      if  (val > 0xffff)
+        return 0;
+      saw_xdigit = 1;
+      continue;
+    }
+
+    if (ch == ':') {
+      curtok = src;
+      if (!saw_xdigit) {
+        if (colonp)
+          return 0;
+        colonp = tp;
+        continue;
+      }
+
+      if (tp + INT16_SZ > endp)
+        return 0;
+      *tp++ = (unsigned char) (val >> 8) & 0xff;
+      *tp++ = (unsigned char) val & 0xff;
+      saw_xdigit = 0;
+      val = 0;
+      continue;
+    }
+
+    if (ch == '.' && ((tp + IN4ADDR_SZ) <= endp) && inet_pton4(curtok, tp) > 0) {
+      tp += IN4ADDR_SZ;
+      saw_xdigit = 0;
+      break;	/* '\0' was seen by inet_pton4(). */
+    }
+    return 0;
+  }
+
+  if (saw_xdigit) {
+    if (tp + INT16_SZ > endp)
+      return 0;
+    *tp++ = (unsigned char) (val >> 8) & 0xff;
+    *tp++ = (unsigned char) val & 0xff;
+  }
+
+  if (colonp != NULL) {
+    const int n = tp - colonp;
+    int i;
+  
+    for (i = 1; i <= n; i++) {
+      endp[- i] = colonp[n - i];
+      colonp[n - i] = 0;
+    }
+    tp = endp;
+  }
+
+  if (tp != endp)
+    return 0;
+  
+  memcpy(dst, tmp, IN6ADDR_SZ);
+  
+  return 1;
+}
+
+int
+inet_ptonn(int af, const char *src, void *dst)
+{
+  int r;
+  struct ip4_addr ip4;
+
+  switch (af) {
+    case AF_INET:
+
+      r = inet_pton4(src, (void *)&ip4);
+      if (r != 1)
+        return r;
+
+      IP64_CONV((struct ip_addr *) dst, &ip4);
+      return r;
+
+    case AF_INET6:
+      return inet_pton6(src, dst);
+
+    default:
+#ifdef LWIP_PROVIDE_ERRNO
+      errno = EAFNOSUPPORT;
+#endif
+      return -1;
+  }
+}
+

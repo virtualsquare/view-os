@@ -166,21 +166,25 @@ tcpip_thread(void *arg)
 	loop = 1;
 	while (loop) {                          /* MAIN Loop */
 
-		LWIP_DEBUGF(TCPIP_DEBUG, ("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"));
-		//printf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-
 		LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: waiting4message\n"));
 		sys_mbox_fetch(mbox, (void *)&msg);
 
 		if (msg==NULL) {
 			//fprintf(stderr,"tcpip NULL MSG, this should not happen!\n");
 			printf("tcpip NULL MSG, this should not happen!\n");
-		} else {
+		} else {                    
 
 			switch (msg->type) {
 				case TCPIP_MSG_INPUT:
+					//LWIP_DEBUGF(TCPIP_DEBUG, ("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"));
+					//daprintf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+
 					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: IP packet %p\n", (void *)msg));
 					ip_input(msg->msg.inp.p, msg->msg.inp.netif);
+
+					//printf("----------------------------------------------------------------------------\n");
+					//LWIP_DEBUGF(TCPIP_DEBUG, ("----------------------------------------------------------------------------\n"));
+
 					break;
 
 				case TCPIP_MSG_API:
@@ -199,7 +203,8 @@ tcpip_thread(void *arg)
 					netif_add(msg->msg.netif.netif,
 						msg->msg.netif.state,
 						msg->msg.netif.init,
-						msg->msg.netif.input);
+						msg->msg.netif.input,
+						msg->msg.netif.change);
 
 					/* signal interface creation */
 					sys_sem_signal(* msg->msg.netif.sem);   
@@ -211,6 +216,16 @@ tcpip_thread(void *arg)
 					loop = 0;
 					break;
 
+				case TCPIP_MSG_NETIF_CHANGE:
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: NETIF state change! %p\n", (void *)msg));
+
+					ip_change(msg->msg.netif_change.netif, msg->msg.netif_change.type);
+
+					sys_sem_signal(* msg->msg.netif_change.sem);   
+
+					break;
+
+
 				default:
 					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: UNKNOWN MSGTYPE %d\n", msg->type));
 					break;
@@ -218,8 +233,7 @@ tcpip_thread(void *arg)
 			memp_free(MEMP_TCPIP_MSG, msg);
 		}
 
-		LWIP_DEBUGF(TCPIP_DEBUG, ("----------------------------------------------------------------------------\n"));
-		//printf("----------------------------------------------------------------------------\n");
+		
 	}
 
 	// FIX: this is not enough, after this call netif threads are still alive
@@ -377,7 +391,8 @@ tcpip_shutdown(void (* shutdown_fun)(void *), void *arg)
 struct netif * tcpip_netif_add(struct netif *netif, 
       void *state,
       err_t (* init)(struct netif *netif),
-      err_t (* input)(struct pbuf *p, struct netif *netif))
+      err_t (* input)(struct pbuf *p, struct netif *netif),
+      void (* change)(struct netif *netif, u32_t type))
 {
 	struct tcpip_msg *msg;
 	sys_sem_t         msg_wait;
@@ -398,6 +413,8 @@ struct netif * tcpip_netif_add(struct netif *netif,
 	msg->msg.netif.state = state;
 	msg->msg.netif.init  = init;
 	msg->msg.netif.input = input;
+	msg->msg.netif.change = change;
+
 	msg_wait = sys_sem_new(0);
 	msg->msg.netif.sem = &msg_wait;
 
@@ -413,5 +430,44 @@ struct netif * tcpip_netif_add(struct netif *netif,
 }
 
 
+void
+tcpip_change(struct netif *netif, u32_t type)
+{
+	struct tcpip_msg *msg;
+	sys_sem_t         msg_wait;
 
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_change %c%c%d type %d\n", 
+		netif->name[0],
+		netif->name[1],
+		netif->num,
+		(int)type));
 
+	// Exit if the main thread is shutting down
+	sys_sem_wait_timeout(tcpip_mutex, 0); 
+	if (tcpip_mainthread_run == 0) {
+		LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
+		sys_sem_signal(tcpip_mutex);   
+		return;
+	}
+	
+
+	msg = memp_malloc(MEMP_TCPIP_MSG);
+	if (msg == NULL) {
+		sys_sem_signal(tcpip_mutex);   
+		return;  
+	}
+	
+	msg->type = TCPIP_MSG_NETIF_CHANGE;;
+	msg_wait = sys_sem_new(0);
+	msg->msg.netif_change.sem = &msg_wait;
+	msg->msg.netif_change.netif = netif;
+	msg->msg.netif_change.type  = type;
+
+	sys_mbox_post(mbox, msg);
+
+	/* Make this function syncronous. Wait until interface creation */
+	sys_sem_wait_timeout(msg_wait, 0); 
+	sys_sem_free(msg_wait);
+
+	sys_sem_signal(tcpip_mutex);   
+}

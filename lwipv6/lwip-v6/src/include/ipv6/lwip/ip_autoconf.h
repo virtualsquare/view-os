@@ -24,20 +24,8 @@
 #ifndef __LWIP_IP_AUTOCONF_H__
 #define __LWIP_IP_AUTOCONF_H__
 
-/* Every interface (netif) has got its own autoconfiguration timeout which 
- * called every AUTOCONF_TMR_INTERVAL second. This timer creates link-scope 
- * addresses, update netif status and life-time of address, starts RA protocol.
- *
- * Up to now, only autoconfigurated addresses are checked with
- * DAD (Duplicate Address Detection)  protocol.
- */
-
-/*--------------------------------------------------------------------------*/
-
 struct netif;
 struct ip_addr;
-
-
 
 /*
  * Per-interface data used by stateless autoconfiguration protocol.
@@ -140,6 +128,13 @@ void ip_autoconf_netif_init(struct netif *netif);
 
 #define AUTOCONF_TMR_INTERVAL  1000 
 void ip_autoconf_tmr(struct netif *netif);
+
+
+
+void ip_autoconf_start(struct netif *netif);
+void ip_autoconf_stop(struct netif *netif);
+
+
 
 
 struct ip_hdr;

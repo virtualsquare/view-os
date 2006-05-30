@@ -75,7 +75,7 @@ struct sys_timeout {
   void *arg;
 
   /* Added by Diego Billi */
-  u8_t XXX; /* = 1 if this timeout where created by _XXX functions */
+  u8_t raw; /* = 1 if this timeout where created by _XXX functions */
 };
 
 struct sys_timeouts {
@@ -101,8 +101,8 @@ struct sys_timeouts *sys_arch_timeouts(void);
 
 /* Added by Diego Billi: here for future Radvd porting */
 int  sys_untimeout_and_check(sys_timeout_handler h, void *arg);
-void sys_timeout_XXX(struct sys_timeout * timeout);
-int  sys_untimeout_XXX(struct sys_timeout *timeout);
+void sys_timeout_raw(struct sys_timeout * timeout);
+int  sys_untimeout_raw(struct sys_timeout *timeout);
 
 
 

@@ -32,6 +32,8 @@
 
 #ifdef IPv6_AUTO_CONFIGURATION
 
+#define INLINE   __inline__
+
 #ifndef IP_AUTOCONF_DEBUG
 #define IP_AUTOCONF_DEBUG     DBG_OFF
 #endif
@@ -118,6 +120,17 @@ void ip_autoconf_handle_ra(struct netif *netif, struct pbuf *p, struct ip_hdr *i
 	struct ip_addr_list *confaddr;
 
 	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: Processing received RA \n", __func__) );
+
+	if (ira->icode != 0) {
+		LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: invalide ICMP code: %d",__func__, ira->icode));
+		return;
+	}
+
+	if (IPH_HOPLIMIT(iphdr) != 255) {
+		LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: invalide HOP LIMIT: %d", __func__, IPH_HOPLIMIT(iphdr)));
+		return;
+	}
+
 
 	/* Scan for options */
 	icmp_len = sizeof(struct icmp_ra_hdr);
@@ -222,9 +235,6 @@ void ip_autoconf_handle_ra(struct netif *netif, struct pbuf *p, struct ip_hdr *i
 				confaddr->info.prefered = ntohl(oprefix->prefered);
 				confaddr->info.valid    = ntohl(oprefix->valid);
 
-				//IP6_ADDR_LINKSCOPE(&confaddr->ipaddr, netif->hwaddr);
-				//memcpy(&confaddr->ipaddr, &prefix, oprefix->preflen / 8);
-				//SET_ADDR_MASK((char*)&confaddr->netmask, oprefix->preflen);
 				create_address_from_prefix(&confaddr->ipaddr, &confaddr->netmask, &prefix, oprefix->preflen, netif);
 
 				LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("\tNetif IP: ")); ip_addr_debug_print(IP_AUTOCONF_DEBUG, &confaddr->ipaddr); LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("\n"));
@@ -316,7 +326,8 @@ void ip_autoconf_handle_na(struct netif *netif, struct pbuf *p, struct ip_hdr *i
 					if (ip_addr_islinkscope(&ip->ipaddr)) {
 
 						netif->autoconf.status = AUTOCONF_FAIL;
-						netif->flags &= ~NETIF_FLAG_UP;
+						//netif->flags &= ~NETIF_FLAG_UP;
+						netif_set_down(netif);
 					}
 				}
 			}
@@ -476,7 +487,7 @@ void start_router_solicitation(struct netif *netif)
 
 /* Update lifetime and returns 1 if there is a valid (or tentative) link-scope 
    address in the list */
-static int addr_update_lifetime(struct ip_addr_list **addrs, u32_t time)
+INLINE static int addr_update_lifetime(struct ip_addr_list **addrs, u32_t time)
 {
 	struct ip_addr_list *cur, *next;
 	struct ip_addr_list *list, *new_list;
@@ -567,7 +578,7 @@ static struct ip_addr_list * create_link_scope_addr(struct netif *netif)
 }
 
 
-void remove_autoconf_data(struct netif *netif)
+static void remove_autoconf_data(struct netif *netif)
 {
 	struct ip_addr_list *cur, *next;
 	struct ip_addr_list *list, *new_list;
@@ -626,8 +637,90 @@ void remove_autoconf_data(struct netif *netif)
 	 */
 }
 
+/*--------------------------------------------------------------------------*/
+
+void ip_autoconf_timer(void *arg)
+{
+	int have_linkaddr = 0;
+
+	struct netif *netif = (struct netif *) arg;
+
+	//LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: start on %c%c%d \n", __func__,	
+	//	netif->name[0], netif->name[1], netif->num));
+
+	/* Update addresses status (and remove invalid addresses) */
+	have_linkaddr =  addr_update_lifetime(&netif->autoconf.addrs_tentative, (AUTOCONF_TMR_INTERVAL/1000));
+
+	/* FIX: LOCK netif->addrs */
+	have_linkaddr |= addr_update_lifetime(&netif->addrs, (AUTOCONF_TMR_INTERVAL/1000));
+	/* FIX: UNLOCK netif->addrs */
+
+	sys_timeout(AUTOCONF_TMR_INTERVAL, ip_autoconf_timer  , netif);
+}
+
+void ip_autoconf_start(struct netif *netif)
+{
+	struct ip_addr_list *linkadd;
+
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: start.\n", __func__) );
 
 
+	/* If autoconfiguration has not started yet */
+	if (netif->autoconf.status == AUTOCONF_INIT) {
+
+
+		LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: creating link-scope address.\n", __func__));                        
+
+		linkadd = create_link_scope_addr(netif);
+		if (linkadd != NULL) {
+			/* Add link-scope address as tentative */
+			ip_addr_list_add(&(netif->autoconf.addrs_tentative),linkadd);
+
+			/* Add routing entry for link-scope addresses */
+			ip_route_list_add(&(linkadd->ipaddr),&(linkadd->netmask), NULL, netif, 0);
+
+			/* Start DAD on link-scope address */
+			start_dad_on_addr(linkadd, netif);
+
+			sys_timeout(AUTOCONF_TMR_INTERVAL, ip_autoconf_timer  , netif);
+
+		}
+		else {
+			LWIP_DEBUGF( IP_AUTOCONF_DEBUG, ("%s: unable to create link-scop address. No more memory.\n", __func__) );
+
+			/* Disable interface */
+			//netif->flags &= ~NETIF_FLAG_UP;
+			ip_change(netif, NETIF_CHANGE_DOWN);
+			netif_set_down_low(netif);
+
+			netif->autoconf.status = AUTOCONF_FAIL;
+		}
+
+		/* Router solicitation starts concurrently with Autoconfiguration to save time. */
+		start_router_solicitation(netif);
+	} 
+}
+
+void ip_autoconf_stop(struct netif *netif)
+{
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: start.\n", __func__) );
+
+	if (netif->autoconf.status != AUTOCONF_INIT) {
+		LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: %c%c%d set down. reset data\n", __func__, netif->name[0],netif->name[1],netif->num));                        
+		remove_autoconf_data(netif);
+		netif->autoconf.status = AUTOCONF_INIT;
+	}
+
+	sys_untimeout(ip_autoconf_timer, netif);
+}
+
+/*--------------------------------------------------------------------------*/
+
+
+#endif
+
+
+#if 0
 /* Update interface status and check life-fime of every addresses.
  * Called every second
  */
@@ -683,10 +776,13 @@ void ip_autoconf_tmr(struct netif *netif)
 			else {
 				LWIP_DEBUGF( IP_AUTOCONF_DEBUG, ("%s: unable to create link-scop address. No more memory.\n", __func__) );
 
-				netif->autoconf.status = AUTOCONF_FAIL;
-
 				/* Disable interface */
-				netif->flags &= ~NETIF_FLAG_UP;
+				//netif->flags &= ~NETIF_FLAG_UP;
+
+				ip_change(netif, NETIF_CHANGE_DOWN);
+				netif_set_down_low(netif);
+
+				netif->autoconf.status = AUTOCONF_FAIL;
 			}
 
 			/* Router solicitation starts concurrently with 
@@ -695,7 +791,6 @@ void ip_autoconf_tmr(struct netif *netif)
 		}
 	} 
 }
-
 #endif
 
 

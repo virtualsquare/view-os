@@ -103,6 +103,10 @@ int lwip_write(int s, void *dataptr, int size);
 int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
 		                struct timeval *timeout);
 int lwip_ioctl(int s, long cmd, void *argp);
+
+
+int lwip_radv_load_configfile(void *arg);
+
 #else   /* Dynamic Loading */
 #include <dlfcn.h>
 
@@ -140,7 +144,12 @@ lwip_sendto,
 lwip_socket,
 lwip_write,
 lwip_select,
-lwip_ioctl;
+lwip_ioctl,
+lwip_radv_load_configfile;
+;
+
+/* Added by Diego Billi */
+lwipintfun lwip_radv_load_configfile;
 
 #define LOADLWIPV6DL ({ \
 struct lwipname2fun {\
@@ -172,9 +181,11 @@ struct lwipname2fun {\
 	{"lwip_write", &lwip_write},\
 	{"lwip_select", &lwip_select},\
 	{"lwip_ioctl", &lwip_ioctl},\
-  {"lwip_vdeif_add", (lwipintfun *)(&lwip_vdeif_add)},\
+	{"lwip_vdeif_add", (lwipintfun *)(&lwip_vdeif_add)},\
 	{"lwip_tapif_add", (lwipintfun *)(&lwip_tapif_add)},\
-	{"lwip_tunif_add", (lwipintfun *)(&lwip_tunif_add)}};\
+	{"lwip_tunif_add", (lwipintfun *)(&lwip_tunif_add)} \
+	{"lwip_radv_load_configfile", (lwipintfun *)(&lwip_radv_load_configfile)} \
+	};\
 		int i;\
 		void *lwiphandle=dlopen("liblwip.so",RTLD_NOW); \
 		if(lwiphandle==NULL) { \

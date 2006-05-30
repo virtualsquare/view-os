@@ -87,7 +87,6 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 	struct icmp_echo_hdr *iecho;
 	struct icmp_ns_hdr   *ins;
 	struct icmp_na_hdr   *ina;
-	struct icmp_ra_hdr   *ira;
 
 	struct icmp_opt_addr   *opt;
 
@@ -172,13 +171,6 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 			LWIP_DEBUGF(ICMP_DEBUG, ("TARGETIP ")); ip_addr_debug_print(ICMP_DEBUG, (struct ip_addr *) &ins->targetip );
 			LWIP_DEBUGF(ICMP_DEBUG, ("\n")); 
 
-//			if (ip_addr_issolicited(&(iphdr->dest), &(inad->ipaddr))) {
-//				/* If this solicited message is not for us, ignore it */
-//                        	if (ip_addr_list_deliveryfind(inad->netif->addrs, &ins->targetip, &(iphdr->src)) == NULL) {
-//					LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: not for us\n"));
-//					pbuf_free(p);
-//				}
-//			}
                        	if (ip_addr_list_deliveryfind(inad->netif->addrs, (struct ip_addr *) &ins->targetip, &(iphdr->src)) == NULL) {
 					LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: not for us\n"));
 					pbuf_free(p);
@@ -265,12 +257,40 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 		 * Router Advertisement Protocol 
 		 */
 		case ICMP6_RS | (6 << 8):
+#ifdef IPv6_ROUTER_ADVERTISEMENT
+			{
+			struct icmp_rs_hdr   *irs;
 
-			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: icmp6 router solicitation. Not supported!\n"));
+			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: icmp6 Route Solicitation \n"));
+			if (p->tot_len < sizeof(struct icmp_rs_hdr)) {
+				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: bad ICMP Router solicitation received\n"));
+				pbuf_free(p);
+				ICMP_STATS_INC(icmp.lenerr);
+				return;
+			}
+
+			iphdr = (struct ip_hdr *)((char *)p->payload - IP_HLEN);
+			irs = p->payload;
+			if (inet6_chksum_pseudo(p, &(iphdr->src), &(iphdr->dest), IP_PROTO_ICMP, p->tot_len) != 0) {
+				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: checksum failed for received ICMP RS (%x)\n", inet6_chksum_pseudo(p, &(iphdr->src), &(iphdr->dest), IP_PROTO_ICMP, p->tot_len)));
+				ICMP_STATS_INC(icmp.chkerr);
+				return;
+			}
+
+			ip_radv_handle_rs(inad->netif, p, iphdr, irs);
+			}
+#else
+			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: icmp6 router Solicitation. Not supported!\n"));
+#endif
+
 
 			break;
 
 		case ICMP6_RA | (6 << 8):
+#ifdef IPv6_AUTO_CONFIGURATION  
+			{
+			struct icmp_ra_hdr   *ira;
+
 			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: icmp6 Route Advertisement \n"));
 			if (p->tot_len < sizeof(struct icmp_ra_hdr)) {
 				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: bad ICMP Router advertisement received\n"));
@@ -287,9 +307,11 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 				return;
 			}
 
-#ifdef IPv6_AUTO_CONFIGURATION  
 			/* Try autoconfiguration */
 			ip_autoconf_handle_ra(inad->netif, p, iphdr, ira);
+			}
+#else
+			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: icmp6 Route Advertisement. Not supported \n"));
 #endif
 
 			break;
@@ -348,6 +370,8 @@ icmp_send_dad(struct ip_addr_list *targetip, struct netif *srcnetif)
 {
 	struct ip_addr_list src;
 
+	LWIP_DEBUGF(ICMP_DEBUG, ("icmp_send_dad: sending DAD\n"));
+
 	/* Setup source interface and address for this packet.*/
 	IP6_ADDR_UNSPECIFIED(&(src.ipaddr));
 	src.netif = srcnetif;
@@ -392,8 +416,9 @@ icmp_neighbor_solicitation(struct ip_addr *ipaddr, struct ip_addr_list *inad)
 	It MUST NOT be a multicast address. */
 	memcpy(&ins->targetip, ipaddr, sizeof(struct ip_addr));
 
-	LWIP_DEBUGF(ICMP_DEBUG, ("\ttargetip: ")); ip_addr_debug_print(ICMP_DEBUG, (struct ip_addr *) &ins->targetip);
-	LWIP_DEBUGF(ICMP_DEBUG, ("\n")); 
+	LWIP_DEBUGF(ICMP_DEBUG, ("\ttargetip: ")); 
+		ip_addr_debug_print(ICMP_DEBUG, (struct ip_addr *) &ins->targetip);
+		LWIP_DEBUGF(ICMP_DEBUG, ("\n")); 
 
 	/* Fill option header with interface's link-layer address */
 	iopt = q->payload + sizeof(struct icmp_ns_hdr);
@@ -602,3 +627,15 @@ icmp4_time_exceeded(struct pbuf *p, enum icmp_te_type t)
 	
 	pbuf_free(q);
 }
+
+
+#if 0
+			if (ip_addr_issolicited(&(iphdr->dest), &(inad->ipaddr))) {
+				/* If this solicited message is not for us, ignore it */
+	                      	if (ip_addr_list_deliveryfind(inad->netif->addrs, &ins->targetip, &(iphdr->src)) == NULL) {
+					LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: not for us\n"));
+					pbuf_free(p);
+				}
+			}
+#endif
+

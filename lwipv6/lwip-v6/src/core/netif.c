@@ -87,7 +87,8 @@ struct netif *netif_list = NULL;
  */
 struct netif *
 netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
-  err_t (* input)(struct pbuf *p, struct netif *netif))
+  err_t (* input)(struct pbuf *p, struct netif *netif),
+  void (* change)(struct netif *netif, u32_t type))
 {
   static u16_t uniqueid=0;
 	struct netif *nip;
@@ -103,10 +104,14 @@ netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
   /* remember netif specific state information data */
   netif->state = state;
   netif->num = 0;
-  netif->input = input;
   netif->addrs = NULL;
+
+  netif->input = input;
   netif->cleanup = NULL;
+  netif->change = change;
+
   netif->id = ++uniqueid;
+
   netif->flags = NETIF_RUNNING;
   /* printf("netif_add %x netif->input %x\n",netif,netif->input); */
 
@@ -120,6 +125,9 @@ netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
   ip_autoconf_netif_init(netif);
 #endif
 
+#ifdef IPv6_ROUTER_ADVERTISEMENT
+  ip_radv_netif_init(netif);
+#endif
 
   if (netif_list == NULL)
 	  netif_list = netif;
@@ -363,6 +371,7 @@ static int netif_ifconf(struct ifconf *ifc)
 
 int netif_ioctl(int cmd,struct ifreq *ifr)
 {
+	u16_t oldflags;
 	int retval;
 	struct netif *nip;
 	register int i;
@@ -388,8 +397,21 @@ int netif_ioctl(int cmd,struct ifreq *ifr)
 						/*printf("SIOCGIFFLAGS %x\n",nip->flags);*/
 						retval=ERR_OK; break;
 					case SIOCSIFFLAGS:
+						oldflags = nip->flags;
+
+						/* If interface is going down */
+						if ( (oldflags & IFF_UP) &&  !(ifr->ifr_flags & IFF_UP) )
+							if (nip->change)
+							nip->change(nip, NETIF_CHANGE_DOWN);
+
 						nip->flags = (nip->flags & IFF_RUNNING) | (ifr->ifr_flags & ~(IFF_RUNNING));
 						/*printf("SIOCSIFFLAGS %x %x\n",ifr->ifr_flags, nip->flags);*/
+
+						/* If interface is now up */
+						if ( !(oldflags & IFF_UP) &&  (ifr->ifr_flags & IFF_UP) )
+							if (nip->change)
+							nip->change(nip, NETIF_CHANGE_UP);
+						
 						retval=ERR_OK; break;
 
 					case SIOCGIFMTU:
@@ -397,6 +419,10 @@ int netif_ioctl(int cmd,struct ifreq *ifr)
 						retval=ERR_OK; break;
 					case SIOCSIFMTU:
 						nip->mtu=ifr->ifr_mtu;
+
+						if (nip->change)
+						nip->change(nip, NETIF_CHANGE_MTU);
+
 						retval=ERR_OK; break;
 
 					case SIOCGIFHWADDR:
@@ -417,6 +443,44 @@ int netif_ioctl(int cmd,struct ifreq *ifr)
 	}
 	return retval;
 }
+
+/*
+ * These function should be called only inside the Stack because
+ * netif->change() handler is not called.
+ */
+
+void netif_set_up(struct netif *netif)
+{
+  netif->flags |= NETIF_FLAG_UP;
+
+  if (netif->change)
+    netif->change(netif, NETIF_CHANGE_UP);
+}
+
+u8_t netif_is_up(struct netif *netif)
+{
+  return (netif->flags & NETIF_FLAG_UP)?1:0;
+}
+
+void netif_set_down(struct netif *netif)
+{
+  if (netif->change)
+    netif->change(netif, NETIF_CHANGE_DOWN);
+
+  netif->flags &= ~NETIF_FLAG_UP;
+}
+
+void netif_set_up_low(struct netif *netif)
+{
+  netif->flags |= NETIF_FLAG_UP;
+}
+
+void netif_set_down_low(struct netif *netif)
+{
+  netif->flags &= ~NETIF_FLAG_UP;
+}
+
+
 
 #ifdef LWIP_NL
 

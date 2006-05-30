@@ -45,7 +45,8 @@ enum tcpip_msg_type {
 
 
   TCPIP_MSG_NETIFADD,
-  TCPIP_MSG_SHUTDOWN
+  TCPIP_MSG_SHUTDOWN,
+  TCPIP_MSG_NETIF_CHANGE
 };
 
 struct tcpip_msg {
@@ -71,8 +72,15 @@ struct tcpip_msg {
       void *state;
       err_t (* init)(struct netif *netif);
       err_t (* input)(struct pbuf *p, struct netif *netif);
+      void (* change)(struct netif *netif, u32_t type);
     } netif;
 
+
+    struct {
+      sys_sem_t *sem;    // used for syncronous calls
+      struct netif *netif;
+      u32_t type;
+    } netif_change;
 
   } msg;
 
@@ -96,10 +104,16 @@ void tcpip_tcp_timer_needed(void);
 struct netif * tcpip_netif_add(struct netif *netif, 
       void *state,
       err_t (* init)(struct netif *netif),
-      err_t (* input)(struct pbuf *p, struct netif *netif));
+      err_t (* input)(struct pbuf *p, struct netif *netif),
+      void  (* change)(struct netif *netif, u32_t type));
+
 
 /* Signal to the stack to shutdown */
 void tcpip_shutdown(void (* tcpip_shutdown_done)(void *), void *arg);
+
+
+void
+tcpip_change(struct netif *netif, u32_t type);
 
 
 #endif /* __LWIP_TCPIP_H__ */

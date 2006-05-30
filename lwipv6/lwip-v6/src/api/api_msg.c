@@ -419,7 +419,8 @@ do_delconn(struct api_msg_msg *msg)
       raw_remove(msg->conn->pcb.raw);
       break;
 #endif
-#if LWIP_RAW
+//#if LWIP_RAW
+#ifdef LWIP_PACKET
 		case NETCONN_PACKET_RAW:
 		case NETCONN_PACKET_DGRAM:
       packet_remove(msg->conn->pcb.raw);
@@ -520,7 +521,7 @@ do_bind(struct api_msg_msg *msg)
     msg->conn->err = raw_bind(msg->conn->pcb.raw,msg->msg.bc.ipaddr,msg->msg.bc.port);
     break;
 #endif
-#if LWIP_PACKET
+#ifdef LWIP_PACKET
   case NETCONN_PACKET_RAW:
   case NETCONN_PACKET_DGRAM:
     msg->conn->err = packet_bind(msg->conn->pcb.raw,msg->msg.bc.ipaddr,msg->msg.bc.port);
@@ -630,7 +631,7 @@ do_connect(struct api_msg_msg *msg)
     sys_mbox_post(msg->conn->mbox, NULL);
     break;
 #endif
-#if LWIP_PACKET
+#ifdef LWIP_PACKET
   case NETCONN_PACKET_RAW:
   case NETCONN_PACKET_DGRAM:
     packet_connect(msg->conn->pcb.raw,msg->msg.bc.ipaddr,msg->msg.bc.port);
@@ -769,7 +770,7 @@ do_send(struct api_msg_msg *msg)
       raw_send(msg->conn->pcb.raw, msg->msg.p);
       break;
 #endif
-#if LWIP_PACKET
+#ifdef LWIP_PACKET
     case NETCONN_PACKET_RAW:
     case NETCONN_PACKET_DGRAM:
       packet_send(msg->conn->pcb.raw, msg->msg.p);
