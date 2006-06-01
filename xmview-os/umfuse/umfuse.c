@@ -51,6 +51,8 @@
 #include <math.h>
 #include <values.h>
 #include <bits/wordsize.h>
+#include <grp.h>
+#include <pwd.h>
 
 /* Enable Experimental code */
 //#define __UMFUSE_EXPERIMENTAL__
@@ -336,6 +338,143 @@ static void delfiletab(int i)
 	free(norace);
 }
 
+static char *unwrap(struct fuse_context *fc,char *path);
+/*HUMAN MODE MGMT*/
+#define MAY_EXEC 1
+#define MAY_WRITE 2
+#define MAY_READ 4
+#define MAY_APPEND 8
+
+static int check_group(gid_t gid){
+	static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+	int res;
+	struct fuse_context *fc;
+	int i, ng=1;
+	struct passwd pw;
+	gid_t *groups = NULL;
+	char *buf;
+	size_t buflen;
+	struct passwd *pwbufp;
+	uid_t myuid;
+	gid_t mygid;
+
+	fc=fuse_get_context();
+	if (fc!=NULL) {
+		myuid=fc->uid;
+		mygid=fc->gid;
+	} else {
+		myuid=getuid();
+		mygid=getgid();
+	}
+
+	pthread_mutex_lock( &m );
+		buflen=sysconf(_SC_GETPW_R_SIZE_MAX);
+		buf=malloc(buflen);
+		if (myuid!=0){
+			res=getpwuid_r(myuid, &pw,buf,buflen, &pwbufp);
+			if (res==0) {
+				res=-EACCES;
+				groups = (gid_t *) malloc(ng * sizeof (gid_t));
+				if (getgrouplist(pw.pw_name, pw.pw_gid, groups, &ng) < 0) {
+					free(groups);
+					groups = (gid_t *) malloc(ng * sizeof (gid_t));
+					if (groups!=NULL) {
+						getgrouplist(pw.pw_name, pw.pw_gid, groups, &ng);
+						for(i = 0; i < ng; i++) {							
+							if (groups[i]==gid) {res=0;break;}
+						}
+					}
+				}
+				free(groups); 
+			}
+		} else {res=0;}
+	pthread_mutex_unlock( &m );
+  return res;
+}
+
+static int check_permission(mode_t mode,uid_t uid,gid_t gid,int mask){
+ struct fuse_context *fc=fuse_get_context();
+ int res=-EACCES;
+ uid_t myuid;
+ gid_t mygid;
+
+	if (fc!=NULL) {
+		myuid=fc->uid;
+		mygid=fc->gid;
+	} else {
+		myuid=getuid();
+		mygid=getgid();
+	}
+
+	if (myuid!=0){
+		if (uid==myuid){
+				if (mode & (mask<<6)) {res=0;}
+			} else {
+		if (res!=0){
+			if (check_group(gid)==0){
+					if (mode & (mask<<3)) {res=0;}
+				} else  if (mode & mask) {res=0;}
+			}
+		}
+	} else {res=0;}
+	return res;
+}
+
+static int path_check_permission(char *path,int mask) {
+	struct fuse_context *fc=fuse_get_context();
+	struct stat buf;
+	int rv=fc->fuse->fops.getattr(path,&buf);
+	if (rv>=0) rv=check_permission(buf.st_mode,buf.st_uid,buf.st_gid,mask);
+	return rv;
+}
+
+static char *get_parent_path (char *path){
+	char *ppath=strdup (path);
+	int x=strlen (path)-1;
+	while ((ppath[x]!='/') && (x>0)) x--;
+	if (x==0) {
+	ppath[0]='/';
+	x++;
+	}
+	ppath[x]='\0';
+	return ppath;
+}
+
+static int check_parent(char *path,int mask) {
+	char *ppath=get_parent_path(path);
+	struct fuse_context *oldfc=fuse_get_context();
+	struct fuse_context *fc= searchcontext(ppath, SUBSTR);
+	fuse_set_context(fc);
+	int rv;
+	if (fc!=NULL) {
+		rv=path_check_permission(unwrap(fc,ppath),mask);
+	} else {
+		struct stat buf;
+		rv=stat(ppath,&buf);
+		if (rv>=0) rv=check_permission(buf.st_mode,buf.st_uid,buf.st_gid,mask);
+	}
+	fuse_set_context(oldfc);
+	free(ppath);
+	return rv;
+}
+
+int check_owner(char *path){
+	struct stat buf;
+	int rv;
+	struct fuse_context  *fc=fuse_get_context();
+
+	if (fc->fuse->fops.getattr) rv=fc->fuse->fops.getattr(path,&buf);
+	if (rv<0) {
+		PRINTDEBUG (10,"check_owner.Getattr failed:%s\n",path);
+		return rv;
+	}
+	
+	if ((fc->uid!=0) && (buf.st_uid != fc->uid)) {
+		return -EACCES;
+	}
+}
+/**/
+
 struct startmainopt {
 	struct fuse_context *new;
 	char *source;
@@ -393,7 +532,7 @@ static void *startmain(void *vsmo)
 	/* handle -o options and specific filesystem options */
 	opts = mountflag2options(*(psmo->pmountflags), psmo->data);
 	fuse_set_context(psmo->new);
-	newargc=fuseargs(psmo->new->fuse->filesystemtype,psmo->source, psmo->new->fuse->path,opts, &newargv, &(psmo->new), &(psmo->new->fuse->flags));
+	newargc=fuseargs(psmo->new->fuse->filesystemtype,psmo->source, psmo->new->fuse->path,opts, &newargv,psmo->new, &(psmo->new->fuse->flags));
 	free(opts);
 	if (psmo->new->fuse->flags & FUSE_DEBUG) {
 		fprintf(stderr, "UmFUSE Debug enabled\n");
@@ -401,6 +540,12 @@ static void *startmain(void *vsmo)
 				psmo->new->fuse->filesystemtype, psmo->source, psmo->new->fuse->path,opts);
 		fflush(stderr);		
 	}
+
+	if (psmo->new->fuse->flags & FUSE_HUMAN) {
+		fprintf(stderr, "UmFUSE Human mode\n");
+		fflush(stderr);		
+	}
+
 	if (pmain(newargc,newargv) != 0)
 		umfuse_abort(psmo->new->fuse);
 	int i;
@@ -713,6 +858,7 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 
 static int umfuse_umount2(char *target, int flags)
 {
+	char *ppath;
 	struct fuse_context *fc;
 	fc = searchcontext(target, EXACT);
 	fuse_set_context(fc);
@@ -726,7 +872,9 @@ static int umfuse_umount2(char *target, int flags)
 	} else {
 		struct fuse_context *fc_norace=fc;
 		fc_norace->pid=um_mod_getpid();
-		struct fuse_context *mountpointfc = searchcontext(target,SUBSTR);
+		ppath=get_parent_path (target);
+		struct fuse_context *mountpointfc = searchcontext(ppath,SUBSTR);
+		free(ppath);
 		if (fc_norace->fuse->flags & FUSE_DEBUG) {
 			fprintf(stderr, "UMOUNT => path:%s flag:%d\n",target, flags);
 			fflush(stderr);
@@ -1034,6 +1182,30 @@ static int umfuse_open(char *path, int flags, mode_t mode)
 		errno = EROFS;
 		return -1;
 	}
+
+	if ( (flags & (O_DIRECTORY)) && (!S_ISDIR(buf.st_mode))) {
+			errno=ENOTDIR;
+			return -1;
+		}
+
+	if ( !(flags & (O_DIRECTORY)) && (S_ISDIR(buf.st_mode))) {
+			errno=EISDIR;
+			return -1;
+		}
+ 
+	if ((fc->fuse->flags & FUSE_HUMAN) && (exists_err == 0))
+	{
+		int mask=MAY_READ | MAY_WRITE;
+		if (flags & (O_RDONLY)) mask=MAY_READ;
+		if (flags & (O_WRONLY)) mask=MAY_WRITE;
+		rv=check_permission (buf.st_mode,buf.st_uid,buf.st_gid,mask);
+		if (rv<0) {
+				delfiletab(fi);
+				errno = -rv;
+				return -1;
+		}
+	}
+
 	if(exists_err == 0 && (flags & O_TRUNC) && (flags & (O_WRONLY | O_RDWR))) {
 		rv=fc->fuse->fops.truncate(filetab[fi]->path, 0);
 		if (rv < 0) {
@@ -1150,7 +1322,7 @@ static int umfuse_close(int fd)
 static int umfuse_read(int fd, void *buf, size_t count)
 {
 	int rv;
-	if (filetab[fd]==NULL) {
+	if ( (filetab[fd]==NULL) || (filetab[fd]->ffi.flags & (O_WRONLY))) {
 		errno=EBADF;
 		return -1;
 	} else if (filetab[fd]->pos == filetab[fd]->size)
@@ -1186,7 +1358,7 @@ static int umfuse_write(int fd, void *buf, size_t count)
 //TODO write page?!
 	int rv;
 
-	if (filetab[fd]==NULL) {
+	if ( (filetab[fd]==NULL) || (filetab[fd]->ffi.flags & (O_RDONLY))  ) {
 		errno = EBADF;
 		/*
 		if (fc->fuse->flags & FUSE_DEBUG) {
@@ -1366,10 +1538,9 @@ static int umfuse_readlink(char *path, char *buf, size_t bufsiz)
 
 static int umfuse_access(char *path, int mode)
 {
-	/* TODO dummy stub for access */
 
 	struct fuse_context *fc=searchcontext(path, SUBSTR);
-	int rv;
+	int rv=0;
 	struct stat buf;
 	assert(fc!=NULL);
 	fuse_set_context(fc);
@@ -1382,6 +1553,23 @@ static int umfuse_access(char *path, int mode)
 				(mode & F_OK) ? "F_OK": "");
 		fflush(stderr);
 	}
+
+	if (fc->fuse->flags & FUSE_HUMAN) {
+		int mask=0;
+		switch (mode) {
+		case R_OK: mask=MAY_READ;break;
+		case W_OK: mask=MAY_WRITE;break;
+		case X_OK: mask=MAY_EXEC;break;
+		}
+
+		if (mask) rv=path_check_permission(unwrap(fc,path),mask);
+			if (rv<0) {
+				errno=-rv;
+				return -1;
+			}
+	}
+
+
 #if ( FUSE_MINOR_VERSION >= 5 )
 	/* "default permission" management */
 	if (fc->fuse->fops.access != NULL)
@@ -1421,13 +1609,24 @@ static int umfuse_mknod(const char *path, mode_t mode, dev_t dev)
 static int umfuse_mkdir(char *path, int mode)
 {
 	struct fuse_context *fc=searchcontext(path, SUBSTR);
-	int rv;
+	int rv=0;
 	assert(fc != NULL);
 	fuse_set_context(fc);
 	if (fc->fuse->flags & MS_RDONLY) {
 		errno = EROFS;
 		return -1;
 	}
+
+	if (fc->fuse->flags & FUSE_HUMAN) 
+	{
+		rv=check_parent(path,MAY_WRITE);
+		if (rv<0) {
+			PRINTDEBUG (10,"Not MAY_WRITE on %s\n",get_parent_path(path));
+			errno=-rv;
+			return -1;
+		}
+	}
+
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
         	fprintf(stderr, "MKDIR => path:%s\n",path);
@@ -1452,6 +1651,17 @@ static int umfuse_rmdir(char *path)
 		errno = EROFS;
 		return -1;
 	}
+
+	if (fc->fuse->flags & FUSE_HUMAN) 
+	{
+		rv=check_parent(path,MAY_WRITE);
+		if (rv>=0) rv=check_owner(unwrap(fc,path));
+		if (rv<0) {
+			errno=-rv;
+			return -1;
+		}
+	}
+
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
         	fprintf(stderr, "RMDIR => path:%s\n",path);
@@ -1476,6 +1686,12 @@ static int umfuse_chmod(char *path, int mode)
 		errno = EROFS;
 		return -1;
 	}
+
+	if (fc->fuse->flags & FUSE_HUMAN) {
+		rv=check_owner(unwrap(fc,path));
+		if (rv<0) {errno=-rv;return -1;}
+	}
+
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
         	fprintf(stderr, "CHMOD => path:%s\n",path);
@@ -1493,13 +1709,21 @@ static int umfuse_chmod(char *path, int mode)
 static int umfuse_chown(char *path, uid_t owner, gid_t group)
 {
 	struct fuse_context *fc = searchcontext(path, SUBSTR);
-	int rv;
+	int rv=0;
 	assert(fc != NULL);
 	fuse_set_context(fc);
 	if (fc->fuse->flags & MS_RDONLY) {
 		errno = EROFS;
 		return -1;
 	}
+
+	if (fc->fuse->flags & FUSE_HUMAN) {
+		if ( (fc->uid != 0) && (fc->uid != owner)) rv=-EPERM;
+		if (rv>=0) rv=check_owner(unwrap(fc,path));
+		if (rv>=0) rv=check_group(group);
+		if (rv<0) {errno=-rv;return -1;}
+	}
+
 	fc->pid=um_mod_getpid();
 	rv = fc->fuse->fops.chown(
 			unwrap(fc, path), owner, group);
@@ -1519,13 +1743,26 @@ static int umfuse_lchown(char *path, uid_t owner, gid_t group)
 static int umfuse_unlink(char *path)
 {
 	struct fuse_context *fc=searchcontext(path, SUBSTR);
-	int rv;
+	int rv=0;
 	assert(fc != NULL);
 	fuse_set_context(fc);
 	if (fc->fuse->flags & MS_RDONLY) {
 		errno = EROFS;
 		return -1;
 	}
+
+	if (fc->fuse->flags & FUSE_HUMAN) {
+		rv=check_owner(unwrap(fc,path));
+		if (rv<0) {errno=-rv;return -1;}
+
+		rv=check_parent(path,MAY_WRITE);
+		if (rv<0) {
+			PRINTDEBUG (10,"NO MAY_WRITE on %s\n",get_parent_path(path));
+			errno=-rv;
+			return -1;
+		}
+	}
+
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG)
         	fprintf(stderr, "UNLINK => path:%s\n",path);
@@ -1541,13 +1778,23 @@ static int umfuse_unlink(char *path)
 static int umfuse_link(char *oldpath, char *newpath)
 {
 	struct fuse_context *fc= searchcontext(newpath, SUBSTR);
-	int rv;
+	int rv=0;
 	assert(fc != NULL);
 	fuse_set_context(fc);
 	if (fc->fuse->flags & MS_RDONLY) {
 		errno = EROFS;
 		return -1;
 	}
+
+	if (fc->fuse->flags & FUSE_HUMAN) {
+		rv=check_parent(newpath,MAY_WRITE);
+		if (rv<0) {
+			PRINTDEBUG (10,"not MAY_WRITE on %s\n",get_parent_path(newpath));
+			errno=-rv;
+			return -1;
+		}
+	}
+
 	fc->pid=um_mod_getpid();
 
 	if (fc->fuse->flags & FUSE_DEBUG)
@@ -1591,7 +1838,7 @@ static int umfuse_fsync(int fd)
 static int umfuse_rename(char *oldpath, char *newpath)
 {
 	struct fuse_context *fc=searchcontext(newpath, SUBSTR);
-	int rv;
+	int rv=0;
 	assert(fc != NULL);
 	fc->pid=um_mod_getpid();
 	fuse_set_context(fc);
@@ -1599,6 +1846,16 @@ static int umfuse_rename(char *oldpath, char *newpath)
         	fprintf(stderr, "RENAME => %s ->%s\n",oldpath, newpath);
 		fflush(stderr);
 	}
+
+	if (fc->fuse->flags & FUSE_HUMAN) {
+		rv=check_parent(newpath,MAY_WRITE);
+		if (rv<0) {
+			PRINTDEBUG ("no MAY_WRITE on %s\n",get_parent_path(newpath));
+			errno=-rv;
+			return -1;
+		}
+	}
+
 	rv = fc->fuse->fops.rename(
 			unwrap(fc, oldpath),
 			unwrap(fc, newpath));
@@ -1613,7 +1870,7 @@ static int umfuse_symlink(char *oldpath, char *newpath)
 {
 	
 	struct fuse_context *fc=searchcontext(newpath, SUBSTR);
-	int rv;
+	int rv=0;
 
 	assert(fc != NULL);
 	fuse_set_context(fc);
@@ -1621,6 +1878,16 @@ static int umfuse_symlink(char *oldpath, char *newpath)
 		errno = EROFS;
 		return -1;
 	}
+
+	if (fc->fuse->flags & FUSE_HUMAN) {
+		rv=check_parent(newpath,MAY_WRITE);
+		if (rv<0) {
+			PRINTDEBUG ("no MAY_WRITE on %s\n",get_parent_path(newpath));
+			errno=-rv;
+			return -1;
+		}
+	}
+
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
         	fprintf(stderr, "SYMLINK => %s -> %s\n",
@@ -1658,6 +1925,16 @@ static int umfuse_truncate64(char *path, loff_t length)
 		errno = EROFS;
 		return -1;
 	}
+
+	if (fc->fuse->flags & FUSE_HUMAN) {
+		rv=path_check_permission (unwrap(fc,path),MAY_WRITE);
+		if (rv<0) {
+			PRINTDEBUG ("no MAY_WRITE on %s\n",get_parent_path(path));
+			errno=-rv;
+			return -1;
+		}
+	}
+
 	fc->pid=um_mod_getpid();
 
 	if (fc->fuse->flags & FUSE_DEBUG) {
@@ -1730,6 +2007,16 @@ static int umfuse_utime(char *path, struct utimbuf *buf)
 		errno = EROFS;
 		return -1;
 	}
+
+	if (fc->fuse->flags & FUSE_HUMAN) {
+		rv=path_check_permission(unwrap(fc,path),MAY_WRITE);
+		if (rv<0) {
+			PRINTDEBUG ("utime:no MAY_WRITE on %s\n",unwrap(fc,path));
+			errno=-rv;
+			return -1;
+		}
+	}
+
 	fc->pid=um_mod_getpid();
 	if (buf == NULL) {
 		struct utimbuf localbuf;

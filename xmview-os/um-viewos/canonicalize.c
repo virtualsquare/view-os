@@ -185,6 +185,12 @@ um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollo
 					um_set_errno (xpc,ENOTDIR);
 					goto error;
 				}
+				else if (*end == '/') {
+					if (um_x_access(resolved,X_OK,xpc)!=0) {
+						um_set_errno (xpc,EACCES);
+						goto error;
+					}
+				}
 			}
 		}
 	}

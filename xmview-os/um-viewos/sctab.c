@@ -108,6 +108,38 @@ epoch_t um_setepoch(epoch_t epoch)
 	}
 	return oldepoch;
 }
+
+int um_x_access(char *filename, int mode, struct pcb *pc)
+{
+	service_t sercode;
+	int retval;
+	/*printf("-> um_x_access: %s\n",filename);*/
+	long oldscno;
+	epoch_t epoch;
+	if (pc->flags && PCB_INUSE) {
+		oldscno = pc->scno;
+		pc->scno = __NR_access;
+		epoch=((struct pcb_ext *)pc->data)->tst.epoch;
+	} else {
+		struct npcb *npc=(struct npcb *)pc;
+		oldscno = npc->scno;
+		npc->scno = __NR_access;
+		epoch=npc->tst.epoch;
+	}
+	if ((sercode=service_check(CHECKPATH,filename,1)) == UM_NONE)
+		retval = r_access(filename,mode);
+	else{
+		retval = service_syscall(sercode,uscno(__NR_access))(filename,mode,pc);
+	}
+	if (pc->flags && PCB_INUSE) {
+		pc->scno = oldscno;
+		((struct pcb_ext *)pc->data)->tst.epoch=epoch;
+	} else  {
+		((struct npcb *)pc)->scno = oldscno;
+		((struct npcb *)pc)->tst.epoch = epoch;
+	}
+	return retval;
+}
 										 
 int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
 {

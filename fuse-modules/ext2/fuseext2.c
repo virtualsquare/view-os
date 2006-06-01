@@ -55,6 +55,9 @@
 #include <sys/xattr.h>
 #endif
 
+#define S_IRWXUGO  (S_IRWXU|S_IRWXG|S_IRWXO)
+#define S_IALLUGO  (S_ISUID|S_ISGID|S_ISVTX|S_IRWXUGO)
+
 //#define DEBUG
 
 struct ext2_file {
@@ -393,6 +396,8 @@ make_link:
 	inode.i_atime = inode.i_ctime = inode.i_mtime = time(NULL);
 	inode.i_links_count = 1;
 	inode.i_size = 0; //initial size of file
+	inode.i_uid=mycontext->uid;
+	inode.i_gid=mycontext->gid;
 	
 	retval = ext2fs_write_new_inode(e2fs, newfile, &inode);
 	if (retval) {
@@ -537,6 +542,8 @@ static int ext2_mkdir(const char *path, mode_t mode)
 	char	*name;
 	char	*cp;
 	char *path_parent = strdup(path);
+	ext2_ino_t ino_n;
+	struct ext2_inode  ino;
 
 	ext2_filsys e2fs;
 	struct fuse_context *mycontext=fuse_get_context();
@@ -589,6 +596,16 @@ try_again:
 		fprintf(stderr, "Mkdir error:%d\n",err);
 		return -ENOENT;
 	}
+
+	err = ext2fs_namei(e2fs, EXT2_ROOT_INO, EXT2_ROOT_INO, path, &ino_n);
+	if(err == 0 && ino_n != 0) {
+		if (ext2fs_read_inode (e2fs, ino_n, &ino) == 0) {
+			ino.i_uid=mycontext->uid;
+			ino.i_gid=mycontext->gid;
+			err = ext2fs_write_inode (e2fs, ino_n, &ino);
+		}
+	}
+
 	return 0;
 }
 struct rd_struct {
@@ -954,7 +971,7 @@ static int ext2_chmod(const char *path, mode_t mode)
 	if(err < 0)
 		return -ENOENT;
 	
-	ino.i_mode = mode;
+	ino.i_mode = (mode & S_IALLUGO) | (ino.i_mode & ~S_IALLUGO);
 	err = ext2fs_write_inode(e2fs, ino_n, &ino);
 	if (err) {
 		fprintf(stderr, "Error while writing inode %u\n", ino_n);
@@ -1001,7 +1018,7 @@ static int ext2_chown(const char *path, uid_t owner, gid_t group)
 	return 0;
 }
 
-static int ext2_truncate(const char *path, int length)
+static int ext2_truncate(const char *path, off_t length)
 {
 	ext2_ino_t ino_n;
 	struct ext2_inode  ino;

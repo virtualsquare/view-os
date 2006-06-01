@@ -69,6 +69,7 @@ the format string is similar to that used in printf.
 #define FUSEARGSHOWCALL 6 //"format"
 #define FUSEARGUID 7 //"format"
 #define FUSEARGGID 8 //"format"
+#define FUSEARGHUMAN 9  //"human"
 #define FUSEFLAGHASSTRING 1
 #define FUSEFLAGCOPY 2
 static struct fuseargitem {
@@ -83,7 +84,8 @@ static struct fuseargitem {
 	{"post=",FUSEARGPOST, FUSEFLAGHASSTRING},
 	{"format=",FUSEARGFMT, FUSEFLAGHASSTRING},
 	{"fuseuid=",FUSEARGUID, FUSEFLAGHASSTRING},
-	{"fusegid=",FUSEARGGID, FUSEFLAGHASSTRING}
+	{"fusegid=",FUSEARGGID, FUSEFLAGHASSTRING},
+	{"human", FUSEARGHUMAN, 0}
 };
 #define FUSEARGTABSIZE sizeof(fuseargtab)/sizeof(struct fuseargitem)
 
@@ -249,6 +251,9 @@ int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, ch
 				break;
 			case FUSEARGGID:
 				fc->gid=atoi(sepopts[i]+strlen(fuseargtab[j].arg));
+				break;
+			case FUSEARGHUMAN:
+				*pflags |= FUSE_HUMAN;
 				break;
 			default:
 				{

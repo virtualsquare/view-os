@@ -89,6 +89,9 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		else
 			pc->erno=ENOTDIR;
 	}
+	if ( (pc->erno==0) && (um_x_access(pcdata->path,X_OK,pc)!=0) ) {
+			pc->erno=EACCES;
+	}
 	if (pc->erno == 0 && S_ISDIR(pcdata->pathstat.st_mode)) {
 		long sp=getsp(pc);
 		int pathlen;
