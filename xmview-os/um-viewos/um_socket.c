@@ -100,7 +100,7 @@ int wrap_in_accept(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			char *filename=lfd_getfilename(pc->retval);
 			int filenamelen=WORDALIGN(strlen(filename));
 			int sp=getsp(pc);
-			umovestr(pc,sp-filenamelen,filenamelen,filename); /*socket?*/
+			ustorestr(pc,sp-filenamelen,filenamelen,filename); /*socket?*/
 			putscno(__NR_open,pc);
 			putargn(0,sp-filenamelen,pc);
 			putargn(1,O_RDONLY,pc);
