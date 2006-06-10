@@ -2,6 +2,7 @@ LDFLAGS= -L../um_lib
 LOADLIBES= -lumlib
 
 ALL= um_add_service um_mov_service um_ls_service um_lock_service um_del_service
+ALLMAN= um_add_service.1 um_mov_service.1 um_ls_service.1 um_lock_service.1 um_del_service.1
 
 all: $(ALL)
 
@@ -25,3 +26,4 @@ clean: cleanall
 
 install: all
 	install $(ALL) ${bindir}
+	install $(ALLMAN) ${mandir}/man1

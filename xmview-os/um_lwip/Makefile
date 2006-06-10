@@ -37,5 +37,6 @@ clean: cleanall
 
 install: all
 	install $(ALL) ${libdir}
+	install lwipv6.1viewos ${mandir}/man1
 
 .PHONY: all clean cleanall install distclean

@@ -1,6 +1,9 @@
 ifndef ($(bindir))
 bindir=/usr/local/bin
 endif
+ifndef ($(mandir))
+bindir=/usr/local/man
+endif
 DEBUGLEVEL=0
 #CBASEFLAGS=-Wall -D_GNU_SOURCE -I../include -DINSTALLDIR=\"$(bindir)\" -D_PROC_MEM_TEST
 CBASEFLAGS=-Wall -D_GNU_SOURCE -I../include -DINSTALLDIR=\"$(bindir)\" 
@@ -62,5 +65,6 @@ distclean: clean
 install: all
 	install umview ${bindir}
 	install umbinwrap ${bindir}
+	install umview.1 ${mandir}/man1
 
 .PHONY: all clean install distclean 

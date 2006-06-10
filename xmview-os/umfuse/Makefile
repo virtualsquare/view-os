@@ -30,3 +30,4 @@ clean: cleanall
 
 install: all
 	install $(ALL) ${libdir}
+	install umfuse.1viewos ${mandir}/man1
