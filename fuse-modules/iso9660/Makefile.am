@@ -1,7 +1,7 @@
 bin_PROGRAMS=fuseiso9660 
 noinst_PROGRAMS=umfuseiso9660
 
-AM_CFLAGS=-ggdb -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=26 -I/usr/local/include
+AM_CFLAGS=-fPIC -ggdb -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=26 -I/usr/local/include
 
 umfuseiso9660_LDFLAGS= -shared -nostartfiles -liso9660 -lfuse -lz
 umfuseiso9660_SOURCES=fuseiso9660.c

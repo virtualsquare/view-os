@@ -3,6 +3,7 @@
 
 AC_PREREQ(2.59)
 AC_INIT(fuseiso9660,0.0.1)
+AM_INIT_AUTOMAKE(fuseiso9660,0.0.1)
 AC_CONFIG_SRCDIR([fuseiso9660.c])
 
 # Checks for programs.
