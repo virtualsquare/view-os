@@ -39,7 +39,7 @@
 
 /* servmap[service code] - 1 is the index of the service description into
  * 'services' */
-static char servmap[255];
+static char servmap[256];
 
 static int locked=0;
 static int invisible=0;
@@ -49,16 +49,16 @@ static int maxserv=0;
 // services maintain list of all modules loaded.
 static struct service **services=NULL;
 
-static intfun reg_service,dereg_service;
+static sysfun reg_service,dereg_service;
 
 static struct syscall_unifier
 {
 	long proc_sc; // System call nr. as called by the process
 	long mod_sc;  // System call nr. as seen by the module
 } scunify[] = {
-	{__NR_umount,	__NR_umount2},
 	{__NR_creat,	__NR_open},
-#if __WORDSIZE == 32
+#if ! defined(__x86_64__)
+	{__NR_umount,	__NR_umount2},
 	{__NR_stat,		__NR_stat64},
 	{__NR_lstat,	__NR_lstat64},
 	{__NR_fstat,	__NR_fstat64},
@@ -320,18 +320,18 @@ service_t service_check(int type, void *arg)
 }
 */
 
-static int errnosys()
+static long errnosys()
 {
 	errno=ENOSYS;
 	return -1;
 }
 
-int isnosys(intfun f)
+int isnosys(sysfun f)
 {
 	return (f==errnosys);
 }
 
-intfun service_syscall(service_t code, int scno)
+sysfun service_syscall(service_t code, int scno)
 {
 	if (code == UM_NONE)
 		return NULL;
@@ -343,7 +343,7 @@ intfun service_syscall(service_t code, int scno)
 	}
 }
 
-intfun service_socketcall(service_t code, int scno)
+sysfun service_socketcall(service_t code, int scno)
 {
 	if(code == UM_NONE)
 		return NULL;
@@ -362,7 +362,7 @@ epochfun service_checkfun(service_t code)
 	return (s->checkfun);
 }
 
-intfun service_select_register(service_t code)
+sysfun service_select_register(service_t code)
 {
 	int pos=servmap[code]-1;
 	struct service *s=services[pos];
@@ -380,7 +380,7 @@ static void _service_fini()
 			*/
 }
 
-void _service_init(intfun register_service,intfun deregister_service)
+void _service_init(sysfun register_service,sysfun deregister_service)
 {
 	atexit(_service_fini);
 	reg_service=register_service;

@@ -33,6 +33,7 @@
 #include <string.h>
 #include "module.h"
 #include "libummod.h"
+#include "gdebug.h"
 
 // int read(), write(), close();
 
@@ -50,13 +51,13 @@ static epoch_t real_path(int type, void *arg)
 
 static int addproc(int id, int max)
 {
-	printf("new process id %d  pid %d   max %d\n",id,um_mod_getpid(),max);
+	GDEBUG(3, "new process id %d  pid %d   max %d",id,um_mod_getpid(),max);
 	return 0;
 }
 
 static int delproc(int id)
 {
-	printf("terminated process id %d  pid %d\n",id,um_mod_getpid());
+	GDEBUG(3, "terminated process id %d  pid %d",id,um_mod_getpid());
 	return 0;
 }
 
@@ -64,36 +65,36 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	printf("real init\n");
+	GMESSAGE("real init");
 	s.name="Identity (server side)";
 	s.code=0x00;
 	s.checkfun=real_path;
 	s.addproc=addproc;
 	s.delproc=delproc;
-	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
-	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
-	s.syscall[uscno(__NR_open)]=(intfun)open;
-	s.syscall[uscno(__NR_read)]=read;
-	s.syscall[uscno(__NR_write)]=write;
-	s.syscall[uscno(__NR_readv)]=readv;
-	s.syscall[uscno(__NR_writev)]=writev;
-	s.syscall[uscno(__NR_close)]=close;
-	s.syscall[uscno(__NR_stat)]=stat;
-	s.syscall[uscno(__NR_lstat)]=lstat;
-	s.syscall[uscno(__NR_fstat)]=fstat;
+	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
+	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
+	SERVICESYSCALL(s, open, (sysfun)open);
+	SERVICESYSCALL(s, read, read);
+	SERVICESYSCALL(s, write, write);
+	SERVICESYSCALL(s, readv, readv);
+	SERVICESYSCALL(s, writev, writev);
+	SERVICESYSCALL(s, close, close);
+	SERVICESYSCALL(s, stat, stat);
+	SERVICESYSCALL(s, lstat, lstat);
+	SERVICESYSCALL(s, fstat, fstat);
 #if !defined(__x86_64__)
-	s.syscall[uscno(__NR_stat64)]=stat64;
-	s.syscall[uscno(__NR_lstat64)]=lstat64;
-	s.syscall[uscno(__NR_fstat64)]=fstat64;
+	SERVICESYSCALL(s, stat64, stat64);
+	SERVICESYSCALL(s, lstat64, lstat64);
+	SERVICESYSCALL(s, fstat64, fstat64);
 #endif
-	s.syscall[uscno(__NR_readlink)]=readlink;
-	s.syscall[uscno(__NR_getdents)]=getdents;
-	s.syscall[uscno(__NR_getdents64)]=getdents64;
-	s.syscall[uscno(__NR_access)]=access;
-	s.syscall[uscno(__NR_fcntl)]=fcntl32;
+	SERVICESYSCALL(s, readlink, readlink);
+	SERVICESYSCALL(s, getdents, getdents);
+	SERVICESYSCALL(s, getdents64, getdents64);
+	SERVICESYSCALL(s, access, access);
+	SERVICESYSCALL(s, fcntl, fcntl32);
 #if !defined(__x86_64__)
-	s.syscall[uscno(__NR_fcntl64)]=fcntl64;
-	s.syscall[uscno(__NR__llseek)]=_llseek;
+	SERVICESYSCALL(s, fcntl64, fcntl64);
+	SERVICESYSCALL(s, _llseek, _llseek);
 #endif
 	add_service(&s);
 }
@@ -104,5 +105,5 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	printf("real fini\n");
+	GMESSAGE("real fini");
 }

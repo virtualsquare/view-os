@@ -57,7 +57,7 @@
 #define getscno(PC) ( (PC)->saved_regs[ORIG_EAX] )
 #define putscno(X,PC) ( (PC)->saved_regs[ORIG_EAX]=(X) , (PC)->regs_modified=1 )
 #define getargn(N,PC) ( (PC)->saved_regs[(N)] )
-#define getargp(PC) ((PC)->saved_regs)
+#define getargp(PC) ((long*)(PC)->saved_regs)
 #define putargn(N,X,PC) ( (PC)->saved_regs[N]=(X)  , (PC)->regs_modified=1 )
 #define getrv(PC) ({ int eax; \
 		eax = (PC)->saved_regs[EAX];\
@@ -73,8 +73,8 @@
 	*/
 #define getsp(PC) (PC)->saved_regs[UESP]
 #define getpc(PC) (PC)->saved_regs[EIP]
-#define putsp(RV,PC) ( (PC)->saved_regs[UESP]=(RV) )
-#define putpc(RV,PC) ( (PC)->saved_regs[EIP]=(RV) )
+#define putsp(RV,PC) ( (PC)->saved_regs[UESP]=(RV),(PC)->regs_modified=1 )
+#define putpc(RV,PC) ( (PC)->saved_regs[EIP]=(RV),(PC)->regs_modified=1 )
 
 #define LITTLEENDIAN
 #define LONG_LONG(_l,_h) \
@@ -82,15 +82,6 @@
 
 #define MAXSC (NR_syscalls)
 #define MAXERR 4096
-
-//#define MAXSC 256 // already defined in line 98
-#define BASEUSC		4096
-#define MAXUSC		0
-#define SCREMAP(I)	(I)
-
-extern short _i386_sc_remap[];
-#define cdtab(X) (((X) < BASEUSC) ? scdtab[(X)] : scdtab[_i386_sc_remap[(X)-BASEUSC]])
-#define setcdtab(X,Y) (((X) < BASEUSC) ? (scdtab[(X)] = (Y)) : (scdtab[_i386_sc_remap[(X)-BASEUSC]] = (Y)))
 
 #ifndef __NR_pselect6
 #define __NR_pselect6	308

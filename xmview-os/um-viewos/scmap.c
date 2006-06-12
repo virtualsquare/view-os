@@ -32,6 +32,7 @@
 
 int scmap_scmapsize;
 int scmap_sockmapsize;
+int scmap_virscmapsize;
 
 serfunt choice_path, choice_link, choice_fd, choice_socket, choice_link2;
 serfunt always_umnone, choice_mount, choice_sc;
@@ -58,29 +59,40 @@ wrapoutfun wrap_out_execve;
 serfunt nchoice_fd, nchoice_sc, nchoice_mount, nchoice_path, nchoice_link, nchoice_link2, nchoice_socket;
 wrapfun nw_syspath_std,nw_sysfd_std,nw_sockfd_std,nw_sysopen,nw_syslink,nw_syspath2_std, nw_notsupp;
 wrapfun nw_sysdup,nw_sysclose;
+
+wrapinfun wrap_in_socket, wrap_out_socket;
+wrapinfun wrap_in_bind_connect, wrap_in_listen, wrap_in_getsock, wrap_in_send;
+wrapinfun wrap_in_recv, wrap_in_shutdown, wrap_in_setsockopt, wrap_in_getsockopt;
+wrapinfun wrap_in_sendmsg, wrap_in_recvmsg, wrap_in_accept;
+wrapinfun wrap_in_sendto, wrap_in_recvfrom;
+wrapinfun wrap_in_umservice, wrap_out_umservice;
+
 /* we should keep this structure unique. the indexes can be used to forward
  * the call on a different computer.*/
 
-#define __NR_doesnotexist -1
-#if defined(__x86_64__)
-#define __NR__newselect __NR_doesnotexist
-#define __NR_umount __NR_doesnotexist
-#define __NR_stat64 __NR_doesnotexist
-#define __NR_lstat64 __NR_doesnotexist
-#define __NR_fstat64 __NR_doesnotexist
-#define __NR_chown32 __NR_doesnotexist
-#define __NR_lchown32 __NR_doesnotexist
-#define __NR_fchown32 __NR_doesnotexist
-#define __NR_fcntl64 __NR_doesnotexist
-#define __NR__llseek __NR_doesnotexist
-#define __NR_truncate64 __NR_doesnotexist
-#define __NR_ftruncate64 __NR_doesnotexist
-
-#define wrap_in_stat wrap_in_stat64
-#define wrap_in_fstat wrap_in_fstat64
+#if (__NR_socketcall != __NR_doesnotexist)
+#define __NR_socket	SYS_SOCKET
+#define	__NR_bind	SYS_BIND
+#define	__NR_connect	SYS_CONNECT
+#define	__NR_listen	SYS_LISTEN
+#define	__NR_accept	SYS_ACCEPT
+#define	__NR_getsockname	SYS_GETSOCKNAME 
+#define	__NR_getpeername	SYS_GETPEERNAME
+#define	__NR_socketpair	SYS_SOCKETPAIR
+#define	__NR_send	SYS_SEND
+#define	__NR_recv	SYS_RECV
+#define	__NR_sendto	SYS_SENDTO
+#define	__NR_recvfrom	SYS_RECVFROM
+#define	__NR_shutdown	SYS_SHUTDOWN
+#define	__NR_setsockopt	SYS_SETSOCKOPT
+#define	__NR_getsockopt	SYS_GETSOCKOPT
+#define	__NR_sendmsg	SYS_SENDMSG
+#define	__NR_recvmsg	SYS_RECVMSG
 #endif
 
 struct sc_map scmap[]={
+	{__NR_doesnotexist, always_umnone, NULL, NULL,always_umnone,NULL,0,6,0},
+
 	{__NR_execve,		choice_path,	wrap_in_execve,	wrap_out_execve,always_umnone,	NULL, ALWAYS,	3, SOC_NONE},
 	{__NR_chdir,		choice_path,	wrap_in_chdir,	wrap_out_chdir, always_umnone,	NULL, ALWAYS,	1, SOC_FILE},
 	{__NR_fchdir,		choice_fd,	wrap_in_fchdir,	wrap_out_chdir, always_umnone,	NULL, ALWAYS,	1, SOC_FILE},
@@ -207,40 +219,60 @@ struct sc_map scmap[]={
 	/* this is a trip */
 	{__NR_ptrace, always_umnone, wrap_in_ptrace, wrap_out_ptrace, always_umnone,	NULL, 0, 4, 0}
 #endif
+
+/* When socketcall doew not exist it means that all the socket system calls
+ * are normal syscall, thus the tables must be merged together */
+#if (__NR_socketcall != __NR_doesnotexist)
+};
+
+struct sc_map sockmap[]={
+	{__NR_doesnotexist,     always_umnone,          NULL,                   NULL,   always_umnone,  NULL, 0,        0, SOC_NET},
+#endif
+
+/* 1*/	{__NR_socket,    choice_socket, 	wrap_in_socket,		wrap_out_socket,nchoice_socket,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET}, 
+/* 2*/	{__NR_bind,      choice_fd,	wrap_in_bind_connect,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
+/* 3*/	{__NR_connect,   choice_fd,	wrap_in_bind_connect,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
+/* 4*/	{__NR_listen,    choice_fd,	wrap_in_listen,		wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	2, SOC_SOCKET|SOC_NET},
+/* 5*/	{__NR_accept,    choice_fd,	wrap_in_accept,		wrap_out_socket,nchoice_fd,	nw_sockfd_std,	CB_R,	3, SOC_SOCKET|SOC_NET},
+/* 6*/	{__NR_getsockname,choice_fd,	wrap_in_getsock,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
+/* 7*/	{__NR_getpeername,choice_fd,	wrap_in_getsock,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
+/* 8*/	{__NR_socketpair,always_umnone,		NULL, 			NULL,	always_umnone,	NULL, 0,	4, SOC_SOCKET|SOC_NET}, /* not used */
+/* 9*/	{__NR_send,      choice_fd,	wrap_in_send,		wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	4, SOC_SOCKET|SOC_NET},
+/*10*/	{__NR_recv,      choice_fd,	wrap_in_recv,		wrap_out_std,	nchoice_fd,	nw_sockfd_std, CB_R,	4, SOC_SOCKET|SOC_NET},
+/*11*/	{__NR_sendto,    choice_fd,	wrap_in_sendto,		wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	6, SOC_SOCKET|SOC_NET},
+/*12*/	{__NR_recvfrom,  choice_fd,	wrap_in_recvfrom,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, CB_R,	6, SOC_SOCKET|SOC_NET},
+/*13*/	{__NR_shutdown,  choice_fd,	wrap_in_shutdown,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	2, SOC_SOCKET|SOC_NET},
+/*14*/	{__NR_setsockopt,choice_fd,	wrap_in_setsockopt,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	5, SOC_SOCKET|SOC_NET},
+/*15*/	{__NR_getsockopt,choice_fd,	wrap_in_getsockopt,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	5, SOC_SOCKET|SOC_NET},
+/*16*/	{__NR_sendmsg,   choice_fd,	wrap_in_sendmsg,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
+/*17*/	{__NR_recvmsg,   choice_fd,	wrap_in_recvmsg,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, CB_R,	3, SOC_SOCKET|SOC_NET}
+};
+
+/* fake sockmap when socket system calls are normal syscalls */
+#if (__NR_socketcall == __NR_doesnotexist)
+struct sc_map sockmap[]={
+	{__NR_doesnotexist,     always_umnone,          NULL,                   NULL,   always_umnone,  NULL, 0,        0, SOC_NET},
+};
+#endif
+
+/* virtual system calls, emulated on sysctl with name==NULL,
+ * nlen is the number of call
+ * oldval, oldlenp unused
+ * newval is the args array
+ * newlen is the number of arguments (NOT bytes, number of "long" args)
+ * when name != NULL the entry 0 is used thus sysctl could be virtualized */
+struct sc_map virscmap[]={
+	{__NR_doesnotexist,     always_umnone,          NULL,                   NULL,   always_umnone,  NULL, 0,        0, 0},
+	{1,	always_umnone, wrap_in_umservice, wrap_out_umservice,   always_umnone,  NULL, ALWAYS, 1, SOC_NONE},
 };
 
 #define SIZESCMAP (sizeof(scmap)/sizeof(struct sc_map))
 
-intfunt wrap_in_socket, wrap_out_socket;
-intfunt wrap_in_bind_connect, wrap_in_listen, wrap_in_getsock, wrap_in_send;
-intfunt wrap_in_recv, wrap_in_shutdown, wrap_in_setsockopt, wrap_in_getsockopt;
-intfunt wrap_in_sendmsg, wrap_in_recvmsg, wrap_in_accept;
-intfunt wrap_in_sendto, wrap_in_recvfrom;
-
-struct sc_map sockmap[]={
-	{0,			NULL,		NULL,			NULL,	NULL,	NULL, 0,	0, SOC_NET},
-/* 1*/	{SYS_SOCKET,    choice_socket, 	wrap_in_socket,		wrap_out_socket,nchoice_socket,	nw_sockfd_std, 0,	3, SOC_NET}, 
-/* 2*/	{SYS_BIND,      choice_fd,	wrap_in_bind_connect,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_NET},
-/* 3*/	{SYS_CONNECT,   choice_fd,	wrap_in_bind_connect,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_NET},
-/* 4*/	{SYS_LISTEN,    choice_fd,	wrap_in_listen,		wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	2, SOC_NET},
-/* 5*/	{SYS_ACCEPT,    choice_fd,	wrap_in_accept,		wrap_out_socket,nchoice_fd,	nw_sockfd_std,	CB_R,	3, SOC_NET},
-/* 6*/	{SYS_GETSOCKNAME,choice_fd,	wrap_in_getsock,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_NET},
-/* 7*/	{SYS_GETPEERNAME,choice_fd,	wrap_in_getsock,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_NET},
-/* 8*/	{SYS_SOCKETPAIR,always_umnone,		NULL, 			NULL,	always_umnone,	NULL, 0,	4, SOC_NET}, /* not used */
-/* 9*/	{SYS_SEND,      choice_fd,	wrap_in_send,		wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	4, SOC_NET},
-/*10*/	{SYS_RECV,      choice_fd,	wrap_in_recv,		wrap_out_std,	nchoice_fd,	nw_sockfd_std, CB_R,	4, SOC_NET},
-/*11*/	{SYS_SENDTO,    choice_fd,	wrap_in_sendto,		wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	6, SOC_NET},
-/*12*/	{SYS_RECVFROM,  choice_fd,	wrap_in_recvfrom,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, CB_R,	6, SOC_NET},
-/*13*/	{SYS_SHUTDOWN,  choice_fd,	wrap_in_shutdown,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	2, SOC_NET},
-/*14*/	{SYS_SETSOCKOPT,choice_fd,	wrap_in_setsockopt,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	5, SOC_NET},
-/*15*/	{SYS_GETSOCKOPT,choice_fd,	wrap_in_getsockopt,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	5, SOC_NET},
-/*16*/	{SYS_SENDMSG,   choice_fd,	wrap_in_sendmsg,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_NET},
-/*17*/	{SYS_RECVMSG,   choice_fd,	wrap_in_recvmsg,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, CB_R,	3, SOC_NET}
-};
 #define SIZESOCKMAP (sizeof(sockmap)/sizeof(struct sc_map))
 
+#define SIZEVIRSCMAP (sizeof(virscmap)/sizeof(struct sc_map))
+
 static short scremap[MAXSC];
-static short scuremap[MAXUSC];
 
 void init_scmap()
 {
@@ -248,23 +280,20 @@ void init_scmap()
 
 	for (i=0; i<SIZESCMAP; i++) {
 		int scno=scmap[i].scno;
-		if (scno > 0 && scno < MAXSC)
+		if (scno>=0)
 			scremap[scno]=i;
-		else if (scno >= BASEUSC && scno < BASEUSC+MAXUSC)
-			scuremap[scno-BASEUSC]=i;
 	}
 	scmap_scmapsize = SIZESCMAP;
 	scmap_sockmapsize = SIZESOCKMAP;
+	scmap_virscmapsize = SIZEVIRSCMAP;
 }
 
 int uscno(int scno)
 {
-	if (scno > 0 && scno < MAXSC)
+	if (scno >= 0 && scno < MAXSC)
 		return scremap[scno];
-	else if (scno >= BASEUSC && scno < BASEUSC+MAXUSC)
-		return scuremap[scno-BASEUSC];
 	else
-		return -1;
+		return 0;
 }
 
 // vim: ts=8

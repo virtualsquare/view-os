@@ -76,102 +76,88 @@ int um_add_service(char* path,int position){
 	return 0;
 }
 
-int dsys_um_service(int sc_number,int inout,struct pcb *pc)
+int wrap_in_umservice(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+		    service_t sercode, sysfun um_syscall)
 {
-	//printf("dsys_um_service pid %d call %d\n",pc->pid,sc_number);
-	if (inout == IN) {
-		long arg1,arg2,arg3;
-		char buf[PATH_MAX];
-		pc->arg0=getargn(0,pc);
-		switch (pc->arg0) {
-			case ADD_SERVICE:
-				arg1=getargn(1,pc);
-				arg2=getargn(2,pc);
-				if (umovestr(pc,arg2,PATH_MAX,buf) == 0) {
-					//if (access(buf,R_OK) != 0) {
-					//	pc->retval=-1;
-					//	pc->erno=errno;
-					//} else {
-						void *handle=open_dllib(buf);
-						if (handle==NULL) {
-							pc->retval= -1;
-							pc->erno=EINVAL;
-						} else {
-							if ((pc->retval=set_handle_new_service(handle,arg1)) != 0) {
-								dlclose(handle);
-								pc->erno=errno;
-							}
-						}
-					//}
-				} else {
+	char buf[PATH_MAX];
+	switch (pcdata->sockregs[0]) {
+		case ADD_SERVICE:
+			if (umovestr(pc,pcdata->sockregs[2],PATH_MAX,buf) == 0) {
+				//if (access(buf,R_OK) != 0) {
+				//	pc->retval=-1;
+				//	pc->erno=errno;
+				//} else {
+				void *handle=open_dllib(buf);
+				if (handle==NULL) {
 					pc->retval= -1;
-					pc->erno=ENOSYS;
-				}
-				break;
-			case DEL_SERVICE:
-				arg1=getargn(1,pc) & 0xff;
-				pc->retval=del_service(arg1);
-				{void * handle=get_handle_service(arg1);
-					if (handle!= NULL) {
+					pc->erno=EINVAL;
+				} else {
+					if ((pc->retval=set_handle_new_service(handle,pcdata->sockregs[1])) != 0) {
 						dlclose(handle);
+						pc->erno=errno;
 					}
 				}
-				pc->erno=errno;
-				break;
-			case MOV_SERVICE:
-				arg1=getargn(1,pc) & 0xff;
-				arg2=getargn(2,pc);
-				pc->retval=mov_service(arg1,arg2);
-				pc->erno=errno;
-				break;
-			case LIST_SERVICE:
-				arg1=getargn(1,pc);
-				arg2=getargn(2,pc);
-				if (arg2>PATH_MAX) arg2=PATH_MAX;
-				pc->retval=list_services((unsigned char *)buf,arg2);
-				pc->erno=errno;
-				if (pc->retval > 0)
-					ustoren(pc,arg1,pc->retval,buf);
-				break;
-			case NAME_SERVICE:
-				arg1=getargn(1,pc) & 0xff;
-				arg2=getargn(2,pc);
-				arg3=getargn(3,pc);
-				if (arg3>PATH_MAX) arg3=PATH_MAX;
-				pc->retval=name_service(arg1,buf,arg3);
-				pc->erno=errno;
-				if (pc->retval == 0)
-					ustorestr(pc,arg2,arg3,buf);
-				break;
-			case LOCK_SERVICE:
-				arg1=getargn(1,pc);
-				if (arg1)
-					invisible_services();
-				else
-					lock_services();
-				pc->retval=0;
-				pc->erno=0;
-				break;
-			case RECURSIVE_UMVIEW:
-				if (pcb_newfork(pc) >= 0) {
-					pc->retval=0;
-					pc->erno = 0;
-				} else {
-					pc->retval= -1;
-					pc->erno = ENOMEM;
+				//}
+			} else {
+				pc->retval= -1;
+				pc->erno=ENOSYS;
+			}
+			break;
+		case DEL_SERVICE:
+			pc->retval=del_service(pcdata->sockregs[1] & 0xff);
+			{void * handle=get_handle_service(pcdata->sockregs[1] & 0xff);
+				if (handle!= NULL) {
+					dlclose(handle);
 				}
-				break;
-			default:
-				pc->retval = -1;
-				pc->erno = ENOSYS;
-		}
-		return SC_FAKE;
-	} else {
-		putrv(pc->retval,pc);
-		puterrno(pc->erno,pc);
-		return STD_BEHAVIOR;
+			}
+			pc->erno=errno;
+			break;
+		case MOV_SERVICE:
+			pc->retval=mov_service(pcdata->sockregs[1] & 0xff,pcdata->sockregs[2]);
+			pc->erno=errno;
+			break;
+		case LIST_SERVICE:
+			if (pcdata->sockregs[2]>PATH_MAX) pcdata->sockregs[2]=PATH_MAX;
+			pc->retval=list_services((unsigned char *)buf,pcdata->sockregs[2]);
+			pc->erno=errno;
+			if (pc->retval > 0)
+				ustoren(pc,pcdata->sockregs[1],pc->retval,buf);
+			break;
+		case NAME_SERVICE:
+			if (pcdata->sockregs[3]>PATH_MAX) pcdata->sockregs[3]=PATH_MAX;
+			pc->retval=name_service(pcdata->sockregs[1] & 0xff,buf,pcdata->sockregs[3]);
+			pc->erno=errno;
+			if (pc->retval == 0)
+				ustorestr(pc,pcdata->sockregs[2],pcdata->sockregs[3],buf);
+			break;
+		case LOCK_SERVICE:
+			if (pcdata->sockregs[1])
+				invisible_services();
+			else
+				lock_services();
+			pc->retval=0;
+			pc->erno=0;
+			break;
+		case RECURSIVE_UMVIEW:
+			if (pcb_newfork(pc) >= 0) {
+				pc->retval=0;
+				pc->erno = 0;
+			} else {
+				pc->retval= -1;
+				pc->erno = ENOMEM;
+			}
+			break;
+		default:
+			pc->retval = -1;
+			pc->erno = ENOSYS;
 	}
+	return SC_FAKE;
 }
 
-
+int wrap_out_umservice(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+{
+	putrv(pc->retval,pc);
+	puterrno(pc->erno,pc);
+	return STD_BEHAVIOR;
+}
 

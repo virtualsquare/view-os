@@ -659,7 +659,7 @@ static int check_mkdir(char *path, int umpid)
 	return retval;
 }
 
-static int viewfs_open(char *pathname, int flags, mode_t mode)
+static long viewfs_open(char *pathname, int flags, mode_t mode)
 {
 	int retval;
 	int umpid = um_mod_getumpid();
@@ -761,7 +761,7 @@ static void clear_cachedata(struct d64array *data, int deep)
 	return;
 }
 
-static int viewfs_close(int fd)
+static long viewfs_close(int fd)
 {
 	int retval = DAR(close(fd));
 	int umpid;
@@ -789,7 +789,7 @@ static int viewfs_close(int fd)
 	return retval;
 }
 
-static int viewfs_stat(char *pathname, struct stat *buf)
+static long viewfs_stat(char *pathname, struct stat *buf)
 {
 	int umpid = um_mod_getumpid();
 
@@ -816,7 +816,7 @@ static int viewfs_stat(char *pathname, struct stat *buf)
 	return DAR(stat(currentpers->real, buf));
 }
 
-static int viewfs_lstat(char *pathname, struct stat *buf)
+static long viewfs_lstat(char *pathname, struct stat *buf)
 {
 	int umpid = um_mod_getumpid();
 
@@ -843,7 +843,7 @@ static int viewfs_lstat(char *pathname, struct stat *buf)
 	return DAR(lstat(currentpers->real, buf));
 }
 
-static int viewfs_stat64(char *pathname, struct stat64 *buf)
+static long viewfs_stat64(char *pathname, struct stat64 *buf)
 {
 	int umpid = um_mod_getumpid();
 	int retval;
@@ -887,7 +887,7 @@ static int viewfs_stat64(char *pathname, struct stat64 *buf)
 	return DAR(stat64(currentpers->real, buf));
 }
 
-static int viewfs_lstat64(char *pathname, struct stat64 *buf)
+static long viewfs_lstat64(char *pathname, struct stat64 *buf)
 {
 	int umpid = um_mod_getumpid();
 	int retval;
@@ -931,7 +931,7 @@ static int viewfs_lstat64(char *pathname, struct stat64 *buf)
 	return DAR(lstat64(currentpers->real, buf));
 }
 
-static int viewfs_fstat64(int fd, struct stat64 *buf)
+static long viewfs_fstat64(int fd, struct stat64 *buf)
 {
 	int retval = DAR(fstat64(fd, buf));
 /*    if (retval == 0)*/
@@ -942,7 +942,7 @@ static int viewfs_fstat64(int fd, struct stat64 *buf)
 	return retval;
 }
 
-static int viewfs_readlink(char *path, char *buf, size_t bufsiz)
+static long viewfs_readlink(char *path, char *buf, size_t bufsiz)
 {
 	int umpid = um_mod_getumpid();
 	
@@ -969,7 +969,7 @@ static int viewfs_readlink(char *path, char *buf, size_t bufsiz)
 	return DAR(readlink(currentpers->real, buf, bufsiz));
 }
 
-static int viewfs_access(char *path, int mode)
+static long viewfs_access(char *path, int mode)
 {
 	int umpid = um_mod_getumpid();
 	
@@ -996,7 +996,7 @@ static int viewfs_access(char *path, int mode)
 	return DAR(access(currentpers->real, mode));
 }
 
-static int viewfs_mkdir(char *path, int mode)
+static long viewfs_mkdir(char *path, int mode)
 {
 	int retval;
 	int umpid = um_mod_getumpid();
@@ -1036,7 +1036,7 @@ static int viewfs_mkdir(char *path, int mode)
 	return DAR(mkdir(currentpers->real,mode));
 }
 
-static int viewfs_rmdir(char *path)
+static long viewfs_rmdir(char *path)
 {
 	int umpid = um_mod_getumpid();
 
@@ -1119,7 +1119,7 @@ static int viewfs_rmdir(char *path)
 	}
 }
 
-static int viewfs_chmod(char *path, int mode)
+static long viewfs_chmod(char *path, int mode)
 {
 	int umpid = um_mod_getumpid();
 	
@@ -1146,7 +1146,7 @@ static int viewfs_chmod(char *path, int mode)
 	return DAR(chmod(currentpers->real, mode));
 }
 
-static int viewfs_chown(char *path, uid_t owner, gid_t group)
+static long viewfs_chown(char *path, uid_t owner, gid_t group)
 {
 	int umpid = um_mod_getumpid();
 	
@@ -1173,7 +1173,7 @@ static int viewfs_chown(char *path, uid_t owner, gid_t group)
 	return DAR(chown(currentpers->real, owner, group));
 }
 
-static int viewfs_lchown(char *path, uid_t owner, gid_t group)
+static long viewfs_lchown(char *path, uid_t owner, gid_t group)
 {
 	int umpid = um_mod_getumpid();
 	
@@ -1208,7 +1208,7 @@ static int viewfs_lchown(char *path, uid_t owner, gid_t group)
  * atomic, un-doing some of them if some of the following ones fail. However,
  * this should not happen during normal operations.
  */
-static int viewfs_unlink(char *path)
+static long viewfs_unlink(char *path)
 {
 	int umpid = um_mod_getumpid();
 
@@ -1261,7 +1261,7 @@ static int viewfs_unlink(char *path)
 		return DAR(unlink(currentpers->real));
 }
 
-static int viewfs_link(char *oldpath, char *newpath)
+static long viewfs_link(char *oldpath, char *newpath)
 {
 	
 	VIEWFS_CRITCHECK(oldpath, -1, VIEWFS_DEEP);
@@ -1271,7 +1271,7 @@ static int viewfs_link(char *oldpath, char *newpath)
 	return -1;
 }
 
-static int viewfs_symlink(char *oldpath, char *newpath)
+static long viewfs_symlink(char *oldpath, char *newpath)
 {
 	int umpid = um_mod_getumpid();
 
@@ -1289,7 +1289,7 @@ static int viewfs_symlink(char *oldpath, char *newpath)
 		return DAR(symlink(oldpath, currentpers->real));
 }
 
-static int viewfs_utime(char *filename, struct utimbuf *buf)
+static long viewfs_utime(char *filename, struct utimbuf *buf)
 {
 	int umpid = um_mod_getumpid();
 
@@ -1316,7 +1316,7 @@ static int viewfs_utime(char *filename, struct utimbuf *buf)
 	return DAR(utime(currentpers->real, buf));
 }
 
-static int viewfs_utimes(char *filename, struct timeval tv[2])
+static long viewfs_utimes(char *filename, struct timeval tv[2])
 {
 	int umpid = um_mod_getumpid();
 
@@ -1362,7 +1362,7 @@ ssize_t viewfs_pwrite(int fd, const void *buf, size_t count, long long offset)
 	return DAR(pwrite(fd,buf,count,off));
 }
 
-static int viewfs_getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
+static long viewfs_getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
 {
 	GDEBUG(1,"getdents!");
 	int umpid = um_mod_getumpid();
@@ -1375,7 +1375,7 @@ static int viewfs_getdents(unsigned int fd, struct dirent *dirp, unsigned int co
 	return 0;
 }
 
-static int getdents64_whole_dir(char *path, struct dirent64 **buf, int bufsize)
+static long getdents64_whole_dir(char *path, struct dirent64 **buf, int bufsize)
 {
 	struct dirent64 *alldents;
 	int alldents_size;
@@ -1639,7 +1639,7 @@ static struct d64array *d64array_subtract(struct d64array *a1, struct d64array *
 
 }
 
-static int viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
+static long viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
 {
 	int umpid = um_mod_getumpid();
 	char *path = sfd_getpath(VIEWFS_SERVICE_CODE, fd);
@@ -2090,51 +2090,51 @@ init (void)
 	s.checkfun=viewfscheck;
 	s.addproc=addproc;
 	s.delproc=delproc;
-	s.syscall=(intfun *)malloc(scmap_scmapsize * sizeof(intfun));
-	s.socket=(intfun *)malloc(scmap_sockmapsize * sizeof(intfun));
-	s.syscall[uscno(__NR_open)]=viewfs_open;
-	s.syscall[uscno(__NR_creat)]=viewfs_open; // creat must me mapped onto open
-	s.syscall[uscno(__NR_read)]=read;
-	s.syscall[uscno(__NR_write)]=write;
-	s.syscall[uscno(__NR_readv)]=readv;
-	s.syscall[uscno(__NR_writev)]=writev;
-	s.syscall[uscno(__NR_close)]=viewfs_close;
-	s.syscall[uscno(__NR_stat)]=viewfs_stat;
-	s.syscall[uscno(__NR_lstat)]=viewfs_lstat;
-	s.syscall[uscno(__NR_fstat)]=fstat;
+	s.syscall=(sysfun *)malloc(scmap_scmapsize * sizeof(sysfun));
+	s.socket=(sysfun *)malloc(scmap_sockmapsize * sizeof(sysfun));
+	SERVICESYSCALL(s, open, viewfs_open);
+	SERVICESYSCALL(s, creat, viewfs_open); // creat must me mapped onto open
+	SERVICESYSCALL(s, read, read);
+	SERVICESYSCALL(s, write, write);
+	SERVICESYSCALL(s, readv, readv);
+	SERVICESYSCALL(s, writev, writev);
+	SERVICESYSCALL(s, close, viewfs_close);
+	SERVICESYSCALL(s, stat, viewfs_stat);
+	SERVICESYSCALL(s, lstat, viewfs_lstat);
+	SERVICESYSCALL(s, fstat, fstat);
 #if !defined(__x86_64__)
-	s.syscall[uscno(__NR_stat64)]=viewfs_stat64;
-	s.syscall[uscno(__NR_lstat64)]=viewfs_lstat64;
-	s.syscall[uscno(__NR_fstat64)]=viewfs_fstat64;
+	SERVICESYSCALL(s, stat64, viewfs_stat64);
+	SERVICESYSCALL(s, lstat64, viewfs_lstat64);
+	SERVICESYSCALL(s, fstat64, viewfs_fstat64);
 #endif
-	s.syscall[uscno(__NR_readlink)]=viewfs_readlink;
-	s.syscall[uscno(__NR_getdents)]=viewfs_getdents;
-	s.syscall[uscno(__NR_getdents64)]=viewfs_getdents64;
-	s.syscall[uscno(__NR_access)]=viewfs_access;
-	s.syscall[uscno(__NR_fcntl)]=fcntl32;
+	SERVICESYSCALL(s, readlink, viewfs_readlink);
+	SERVICESYSCALL(s, getdents, viewfs_getdents);
+	SERVICESYSCALL(s, getdents64, viewfs_getdents64);
+	SERVICESYSCALL(s, access, viewfs_access);
+	SERVICESYSCALL(s, fcntl, fcntl32);
 #if ! defined(__x86_64__)
-	s.syscall[uscno(__NR_fcntl64)]=fcntl64;
-	s.syscall[uscno(__NR__llseek)]=_llseek;
+	SERVICESYSCALL(s, fcntl64, fcntl64);
+	SERVICESYSCALL(s, _llseek, _llseek);
 #endif
-	s.syscall[uscno(__NR_lseek)]= (intfun) lseek;
-	s.syscall[uscno(__NR_mkdir)]=viewfs_mkdir;
-	s.syscall[uscno(__NR_rmdir)]=viewfs_rmdir;
-	s.syscall[uscno(__NR_chown)]=viewfs_chown;
-	s.syscall[uscno(__NR_lchown)]=viewfs_lchown;
-	s.syscall[uscno(__NR_fchown)]=fchown;
-	s.syscall[uscno(__NR_chmod)]=viewfs_chmod;
-	s.syscall[uscno(__NR_fchmod)]=fchmod;
-	s.syscall[uscno(__NR_getxattr)]=viewfs_getxattr;
-	s.syscall[uscno(__NR_unlink)]=viewfs_unlink;
-	s.syscall[uscno(__NR_fsync)]=fsync;
-	s.syscall[uscno(__NR_fdatasync)]=fdatasync;
-	s.syscall[uscno(__NR__newselect)]=select;
-	s.syscall[uscno(__NR_link)]=viewfs_link;
-	s.syscall[uscno(__NR_symlink)]=viewfs_symlink;
-	s.syscall[uscno(__NR_pread64)]=viewfs_pread;
-	s.syscall[uscno(__NR_pwrite64)]=viewfs_pwrite;
-	s.syscall[uscno(__NR_utime)]=viewfs_utime;
-	s.syscall[uscno(__NR_utimes)]=viewfs_utimes;
+	SERVICESYSCALL(s, lseek, (sysfun) lseek);
+	SERVICESYSCALL(s, mkdir, viewfs_mkdir);
+	SERVICESYSCALL(s, rmdir, viewfs_rmdir);
+	SERVICESYSCALL(s, chown, viewfs_chown);
+	SERVICESYSCALL(s, lchown, viewfs_lchown);
+	SERVICESYSCALL(s, fchown, fchown);
+	SERVICESYSCALL(s, chmod, viewfs_chmod);
+	SERVICESYSCALL(s, fchmod, fchmod);
+	SERVICESYSCALL(s, getxattr, viewfs_getxattr);
+	SERVICESYSCALL(s, unlink, viewfs_unlink);
+	SERVICESYSCALL(s, fsync, fsync);
+	SERVICESYSCALL(s, fdatasync, fdatasync);
+	SERVICESYSCALL(s, _newselect, select);
+	SERVICESYSCALL(s, link, viewfs_link);
+	SERVICESYSCALL(s, symlink, viewfs_symlink);
+	SERVICESYSCALL(s, pread64, viewfs_pread);
+	SERVICESYSCALL(s, pwrite64, viewfs_pwrite);
+	SERVICESYSCALL(s, utime, viewfs_utime);
+	SERVICESYSCALL(s, utimes, viewfs_utimes);
 	add_service(&s);
 	t = tst_timestamp();
 	

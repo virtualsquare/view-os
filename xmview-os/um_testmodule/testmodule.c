@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include "module.h"
+#include "gdebug.h"
 
 struct service s;
 
@@ -37,7 +38,7 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	printf("testmodule init\n");
+	GMESSAGE("testmodule init");
 	s.name="Test Module";
 	s.code=0xfe;
 	s.checkfun=alwaysfalse;
@@ -50,5 +51,5 @@ static void
 __attribute__ ((destructor))
 fini (void)
 {
-	printf("testmodule fini\n");
+	GMESSAGE("testmodule fini");
 }

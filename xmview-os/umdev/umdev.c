@@ -431,7 +431,7 @@ static struct devargitem umdevargtab[] = {
 };
 #define UMDEVARGTABSIZE sizeof(umdevargtab)/sizeof(struct devargitem)
 
-static int umdev_mount(char *source, char *target, char *filesystemtype,
+static long umdev_mount(char *source, char *target, char *filesystemtype,
 		       unsigned long mountflags, void *data)
 {
 	void *dlhandle = dlopen(filesystemtype, RTLD_NOW);
@@ -475,7 +475,7 @@ static int umdev_mount(char *source, char *target, char *filesystemtype,
 	}
 }
 
-static int umdev_umount2(char *target, int flags)
+static long umdev_umount2(char *target, int flags)
 {
 	struct umdev *fc;
 	fc = searchdevice(target);
@@ -508,7 +508,7 @@ static int alwaysfalse()
 	return FALSE;
 }
 
-static int umdev_ioctlargs(struct ioctl_len_req *arg)
+static long umdev_ioctlargs(struct ioctl_len_req *arg)
 {
 	int fd=arg->fd;
 	if (filetab[fd]->umdev->devops->ioctlparms) {
@@ -541,7 +541,7 @@ static epoch_t umdev_check(int type, void *arg)
 	}
 }
 
-static int umdev_open(char *path, int flags, mode_t mode)
+static long umdev_open(char *path, int flags, mode_t mode)
 {
 	struct umdev *fc = searchdevice(path);
 	struct dev_info di;
@@ -621,7 +621,7 @@ static int umdev_open(char *path, int flags, mode_t mode)
 	}
 }
 
-static int umdev_close(int fd)
+static long umdev_close(int fd)
 {
 	int rv;
 	
@@ -658,7 +658,7 @@ static int umdev_close(int fd)
 	} return 0;
 }
 
-static int umdev_read(int fd, void *buf, size_t count)
+static long umdev_read(int fd, void *buf, size_t count)
 {
 	int rv;
 	if (filetab[fd]==NULL) {
@@ -688,7 +688,7 @@ static int umdev_read(int fd, void *buf, size_t count)
 	}
 }
 
-static int umdev_write(int fd, void *buf, size_t count)
+static long umdev_write(int fd, void *buf, size_t count)
 {
 	int rv;
 
@@ -775,7 +775,7 @@ static int common_stat64(struct umdev *fc, char type, dev_t device, struct stat6
 }
 */
 
-static int umdev_fstat64(int fd, struct stat64 *buf64)
+static long umdev_fstat64(int fd, struct stat64 *buf64)
 {
 	if (fd < 0 || filetab[fd] == NULL) {
 		errno=EBADF;
@@ -804,7 +804,7 @@ static int umdev_fstat64(int fd, struct stat64 *buf64)
 }
 
 /*
-static int umdev_fstat64(int fd, struct stat64 *buf64)
+static long umdev_fstat64(int fd, struct stat64 *buf64)
 {
 	if (filetab[fd]==NULL) {
 		errno=EBADF;
@@ -818,7 +818,7 @@ static int umdev_fstat64(int fd, struct stat64 *buf64)
 	}
 }
 
-static int umdev_stat(char *path, struct stat *buf)
+static long umdev_stat(char *path, struct stat *buf)
 {
 	dev_t device;
 	int type;
@@ -827,7 +827,7 @@ static int umdev_stat(char *path, struct stat *buf)
 	return common_stat(umdev,type,device,buf);
 }
 
-static int umdev_lstat(char *path, struct stat *buf)
+static long umdev_lstat(char *path, struct stat *buf)
 {
 	dev_t device;
 	int type;
@@ -837,7 +837,7 @@ static int umdev_lstat(char *path, struct stat *buf)
 }
 */
 
-static int umdev_stat64(char *path, struct stat64 *buf64)
+static long umdev_stat64(char *path, struct stat64 *buf64)
 {
 	dev_t device;
 	int type;
@@ -846,7 +846,7 @@ static int umdev_stat64(char *path, struct stat64 *buf64)
 	return common_stat64(umdev,type,device,buf64);
 }
 
-static int umdev_lstat64(char *path, struct stat64 *buf64)
+static long umdev_lstat64(char *path, struct stat64 *buf64)
 {
 	dev_t device;
 	int type;
@@ -855,7 +855,7 @@ static int umdev_lstat64(char *path, struct stat64 *buf64)
 	return common_stat64(umdev,type,device,buf64);
 }
 
-static int umdev_access(char *path, int mode)
+static long umdev_access(char *path, int mode)
 {
 	struct umdev *fc=searchdevice(path);
 	int rv;
@@ -884,7 +884,7 @@ static int umdev_access(char *path, int mode)
 	}
 }
 /*
-static int umdev_mknod(const char *path, mode_t mode, dev_t dev)
+static long umdev_mknod(const char *path, mode_t mode, dev_t dev)
 {
 	struct device_context *fc = searchdevice(path);
 	int rv;
@@ -903,7 +903,7 @@ static int umdev_mknod(const char *path, mode_t mode, dev_t dev)
 */
 
 
-static int umdev_chmod(char *path, int mode)
+static long umdev_chmod(char *path, int mode)
 {
 	int rv;
 	struct umdev *umdev;
@@ -929,7 +929,7 @@ static int umdev_chmod(char *path, int mode)
 	return rv;
 }
 
-static int umdev_chown(char *path, uid_t owner, gid_t group)
+static long umdev_chown(char *path, uid_t owner, gid_t group)
 {
 	int rv;
 	struct umdev *umdev;
@@ -955,7 +955,7 @@ static int umdev_chown(char *path, uid_t owner, gid_t group)
 }
 
 //see device.h: it is has not the same meaning of syscall
-static int umdev_fsync(int fd)
+static long umdev_fsync(int fd)
 {
 	int rv;
 	if (filetab[fd]==NULL) {
@@ -1012,12 +1012,12 @@ static loff_t umdev_x_lseek(int fd, off_t offset, int whence)
 	}
 }
 
-static int umdev_lseek(int fd, int offset, int whence)
+static long umdev_lseek(int fd, int offset, int whence)
 {
 	return umdev_x_lseek(fd, offset, whence);
 }
 
-static int umdev__llseek(unsigned int fd, unsigned long offset_high,  unsigned  long offset_low, loff_t *result, unsigned int whence)
+static long umdev__llseek(unsigned int fd, unsigned long offset_high,  unsigned  long offset_low, loff_t *result, unsigned int whence)
 {
 	PRINTDEBUG(10,"umdev__llseek %d %d %d %d\n",fd,offset_high,offset_low,whence);
 	if (result == NULL) {
@@ -1037,7 +1037,7 @@ static int umdev__llseek(unsigned int fd, unsigned long offset_high,  unsigned  
 	}
 }
 
-static int umdev_ioctl(int fd, int req, void *arg)
+static long umdev_ioctl(int fd, int req, void *arg)
 {
 	int rv;
 	if (filetab[fd]==NULL) {
@@ -1070,7 +1070,7 @@ static void contextclose(struct umdev *fc)
 	umdev_umount2(fc->path,MNT_FORCE);
 }
 
-static int umdev_select_register(void (* cb)(), void *arg, int fd, int how)
+static long umdev_select_register(void (* cb)(), void *arg, int fd, int how)
 {
 	int rv=1;
 	if (filetab[fd]==NULL) {
@@ -1103,47 +1103,47 @@ init (void)
 	s.code=UMDEV_SERVICE_CODE;
 	s.checkfun=umdev_check;
 	//pthread_key_create(&context_key,NULL);
-	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
-	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
-	s.syscall[uscno(__NR_mount)]=umdev_mount;
+	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
+	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
+	SERVICESYSCALL(s, mount, umdev_mount);
 #if 0
 #if ! defined(__x86_64__)
-	s.syscall[uscno(__NR_umount)]=umdev_umount2; /* umount must be mapped onto umount2 */
+	SERVICESYSCALL(s, umount, umdev_umount2); /* umount must be mapped onto umount2 */
 #endif
 #endif
-	s.syscall[uscno(__NR_umount2)]=umdev_umount2;
-	s.syscall[uscno(__NR_open)]=umdev_open;
+	SERVICESYSCALL(s, umount2, umdev_umount2);
+	SERVICESYSCALL(s, open, umdev_open);
 #if 0
-	s.syscall[uscno(__NR_creat)]=umdev_open; /*creat is an open with (O_CREAT|O_WRONLY|O_TRUNC)*/
+	SERVICESYSCALL(s, creat, umdev_open); /*creat is an open with (O_CREAT|O_WRONLY|O_TRUNC)*/
 #endif
-	s.syscall[uscno(__NR_read)]=umdev_read;
-	s.syscall[uscno(__NR_write)]=umdev_write;
-	//s.syscall[uscno(__NR_readv)]=readv;
-	//s.syscall[uscno(__NR_writev)]=writev;
-	s.syscall[uscno(__NR_close)]=umdev_close;
+	SERVICESYSCALL(s, read, umdev_read);
+	SERVICESYSCALL(s, write, umdev_write);
+	//SERVICESYSCALL(s, readv, readv);
+	//SERVICESYSCALL(s, writev, writev);
+	SERVICESYSCALL(s, close, umdev_close);
 #if 0
-	s.syscall[uscno(__NR_stat)]=umdev_stat;
-	s.syscall[uscno(__NR_lstat)]=umdev_lstat;
-	s.syscall[uscno(__NR_fstat)]=umdev_fstat;
+	SERVICESYSCALL(s, stat, umdev_stat);
+	SERVICESYSCALL(s, lstat, umdev_lstat);
+	SERVICESYSCALL(s, fstat, umdev_fstat);
 #endif
 #if !defined(__x86_64__)
-	s.syscall[uscno(__NR_stat64)]=umdev_stat64;
-	s.syscall[uscno(__NR_lstat64)]=umdev_lstat64;
-	s.syscall[uscno(__NR_fstat64)]=umdev_fstat64;
+	SERVICESYSCALL(s, stat64, umdev_stat64);
+	SERVICESYSCALL(s, lstat64, umdev_lstat64);
+	SERVICESYSCALL(s, fstat64, umdev_fstat64);
 #endif
-	s.syscall[uscno(__NR_access)]=umdev_access;
-	s.syscall[uscno(__NR_lseek)]=umdev_lseek;
+	SERVICESYSCALL(s, access, umdev_access);
+	SERVICESYSCALL(s, lseek, umdev_lseek);
 #if ! defined(__x86_64__)
-	s.syscall[uscno(__NR__llseek)]=umdev__llseek;
+	SERVICESYSCALL(s, _llseek, umdev__llseek);
 #endif
-	//s.syscall[uscno(__NR_mknod)]=umdev_mknod;
-	s.syscall[uscno(__NR_chown)]=umdev_chown;
-	s.syscall[uscno(__NR_fchown)]=fchown;
-	s.syscall[uscno(__NR_chmod)]=umdev_chmod;
-	//s.syscall[uscno(__NR_fchmod)]=fchmod;
-	s.syscall[uscno(__NR_fsync)]=umdev_fsync; 
-	//s.syscall[uscno(__NR__newselect)]=umdev_select;
-	s.syscall[uscno(__NR_ioctl)]=umdev_ioctl; 
+	//SERVICESYSCALL(s, mknod, umdev_mknod);
+	SERVICESYSCALL(s, chown, umdev_chown);
+	SERVICESYSCALL(s, fchown, fchown);
+	SERVICESYSCALL(s, chmod, umdev_chmod);
+	//SERVICESYSCALL(s, fchmod, fchmod);
+	SERVICESYSCALL(s, fsync, umdev_fsync); 
+	//SERVICESYSCALL(s, _newselect, umdev_select);
+	SERVICESYSCALL(s, ioctl, umdev_ioctl); 
 	s.select_register=umdev_select_register;
 	add_service(&s);
 }

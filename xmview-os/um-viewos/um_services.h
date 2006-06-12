@@ -26,6 +26,5 @@
 #define _UM_SERVICES_H
 
 void *open_dllib(char *name);
-int dsys_um_service(int sc_number,int inout,struct pcb *pc);
 
 #endif

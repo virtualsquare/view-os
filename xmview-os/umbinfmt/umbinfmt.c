@@ -428,7 +428,7 @@ static struct umregister *delete_allreg(struct umregister *head)
 	}
 }
 		
-static int umbinfmt_mount(char *source, char *target, char *filesystemtype,
+static long umbinfmt_mount(char *source, char *target, char *filesystemtype,
 		unsigned long mountflags, void *data)
 {
 	struct umbinfmt *new = (struct umbinfmt *) malloc(sizeof(struct umbinfmt));
@@ -443,7 +443,7 @@ static int umbinfmt_mount(char *source, char *target, char *filesystemtype,
 	return 0;
 }
 
-static int umbinfmt_umount2(char *target, int flags)
+static long umbinfmt_umount2(char *target, int flags)
 {
 	struct umbinfmt *fc;
 	fc = searchbmfile(target);
@@ -611,7 +611,7 @@ static char *createcontents(int fd,struct umbinfmt *fc,int *len)
 	}
 }
 
-static int umbinfmt_open(char *path, int flags, mode_t mode)
+static long umbinfmt_open(char *path, int flags, mode_t mode)
 {
 	struct umbinfmt *fc = searchbmfile(path);
 	int fi;
@@ -695,7 +695,7 @@ static int umbinfmt_open(char *path, int flags, mode_t mode)
 
 
 
-static int umbinfmt_close(int fd)
+static long umbinfmt_close(int fd)
 {
 	int rv;
 
@@ -730,7 +730,7 @@ static int count_dents64(void *buf, int count, int max) {
 	}
 }
 
-static int umbinfmt_getdents64(int fd, void *buf, size_t count){
+static long umbinfmt_getdents64(int fd, void *buf, size_t count){
 	int rv;
 	if (filetab[fd]==NULL) {
 		errno=EBADF;
@@ -769,14 +769,14 @@ static void convert_dents6432(void *buf, int count) {
 	}
 }
 
-static int umbinfmt_getdents(int fd, void *buf, size_t count){
+static long umbinfmt_getdents(int fd, void *buf, size_t count){
 	int rv=umbinfmt_getdents64(fd, buf, count);
 	convert_dents6432(buf,rv);
 	return rv;
 }
 #endif
 
-static int umbinfmt_read(int fd, void *buf, size_t count)
+static long umbinfmt_read(int fd, void *buf, size_t count)
 {
 	int rv;
 	if (filetab[fd]==NULL) {
@@ -883,7 +883,7 @@ static void ubm_register(struct umbinfmt *fc,char *buf, size_t count)
 	}
 }
 
-static int umbinfmt_write(int fd, void *buf, size_t count)
+static long umbinfmt_write(int fd, void *buf, size_t count)
 {
 	int rv=count;
 	char *cbuf=buf;
@@ -980,7 +980,7 @@ static int common_stat64(struct umbinfmt *fc,struct umregister *reg, struct stat
 }
 */
 
-static int umbinfmt_fstat64(int fd, struct stat64 *buf64)
+static long umbinfmt_fstat64(int fd, struct stat64 *buf64)
 {
 	if (fd < 0 || filetab[fd] == NULL) {
 		errno=EBADF;
@@ -991,7 +991,7 @@ static int umbinfmt_fstat64(int fd, struct stat64 *buf64)
 }
 
 /*
-static int umbinfmt_fstat64(int fd, struct stat64 *buf64)
+static long umbinfmt_fstat64(int fd, struct stat64 *buf64)
 {
 	if (filetab[fd]==NULL) {
 		errno=EBADF;
@@ -1007,32 +1007,32 @@ static int umbinfmt_fstat64(int fd, struct stat64 *buf64)
 */
 
 #if 0
-static int umbinfmt_stat(char *path, struct stat *buf)
+static long umbinfmt_stat(char *path, struct stat *buf)
 {
 	struct umbinfmt *umbinfmt=searchbmfile(path);
 	struct umregister *reg=searchfile(path,umbinfmt);
 	return common_stat(umbinfmt,reg,buf);
 }
 
-static int umbinfmt_lstat(char *path, struct stat *buf)
+static long umbinfmt_lstat(char *path, struct stat *buf)
 {
 	return umbinfmt_stat(path,buf);
 }
 #endif
 
-static int umbinfmt_stat64(char *path, struct stat64 *buf64)
+static long umbinfmt_stat64(char *path, struct stat64 *buf64)
 {
 	struct umbinfmt *umbinfmt=searchbmfile(path);
 	struct umregister *reg=searchfile(path,umbinfmt);
 	return common_stat64(umbinfmt,reg,buf64);
 }
 
-static int umbinfmt_lstat64(char *path, struct stat64 *buf64)
+static long umbinfmt_lstat64(char *path, struct stat64 *buf64)
 {
 	return umbinfmt_stat64(path,buf64);
 }
 
-static int umbinfmt_access(char *path, int mode)
+static long umbinfmt_access(char *path, int mode)
 {
 	struct umbinfmt *fc=searchbmfile(path);
 	struct umregister *reg=searchfile(path,fc);
@@ -1076,12 +1076,12 @@ static loff_t umbinfmt_x_lseek(int fd, off_t offset, int whence)
 	}
 }
 
-static int umbinfmt_lseek(int fd, int offset, int whence)
+static long umbinfmt_lseek(int fd, int offset, int whence)
 {
 	return umbinfmt_x_lseek(fd, offset, whence);
 }
 
-static int umbinfmt__llseek(unsigned int fd, unsigned long offset_high,  unsigned  long offset_low, loff_t *result, unsigned int whence)
+static long umbinfmt__llseek(unsigned int fd, unsigned long offset_high,  unsigned  long offset_low, loff_t *result, unsigned int whence)
 {
 	PRINTDEBUG(10,"umbinfmt__llseek %d %d %d %d\n",fd,offset_high,offset_low,whence);
 	if (result == NULL) {
@@ -1106,7 +1106,7 @@ static void contextclose(struct umbinfmt *fc)
 	umbinfmt_umount2(fc->path,MNT_FORCE);
 }
 
-static int umbinfmt_select_register(void (* cb)(), void *arg, int fd, int how)
+static long umbinfmt_select_register(void (* cb)(), void *arg, int fd, int how)
 {
 	int rv=1;
 	if (filetab[fd]==NULL) {
@@ -1134,7 +1134,7 @@ static epoch_t umbinfmt_check(int type, void *arg)
 }
 #endif
 
-static int umbinfmt_fcntl64()
+static long umbinfmt_fcntl64()
 {
 	return 0;
 }
@@ -1147,51 +1147,51 @@ init (void)
 	s.name="umbinfmt";
 	s.code=UMBINFMT_SERVICE_CODE;
 	s.checkfun=umbinfmt_check;
-	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
-	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
-	s.syscall[uscno(__NR_mount)]=umbinfmt_mount;
+	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
+	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
+	SERVICESYSCALL(s, mount, umbinfmt_mount);
 #if 0
 #if ! defined(__x86_64__)
-	s.syscall[uscno(__NR_umount)]=umbinfmt_umount2; /* umount must be mapped onto umount2 */
+	SERVICESYSCALL(s, umount, umbinfmt_umount2); /* umount must be mapped onto umount2 */
 #endif
 #endif
-	s.syscall[uscno(__NR_umount2)]=umbinfmt_umount2;
-	s.syscall[uscno(__NR_open)]=umbinfmt_open;
+	SERVICESYSCALL(s, umount2, umbinfmt_umount2);
+	SERVICESYSCALL(s, open, umbinfmt_open);
 #if 0
-	s.syscall[uscno(__NR_creat)]=umbinfmt_open; /*creat is an open with (O_CREAT|O_WRONLY|O_TRUNC)*/
+	SERVICESYSCALL(s, creat, umbinfmt_open); /*creat is an open with (O_CREAT|O_WRONLY|O_TRUNC)*/
 #endif
-	s.syscall[uscno(__NR_read)]=umbinfmt_read;
-	s.syscall[uscno(__NR_write)]=umbinfmt_write;
-	//s.syscall[uscno(__NR_readv)]=readv;
-	//s.syscall[uscno(__NR_writev)]=writev;
-	s.syscall[uscno(__NR_close)]=umbinfmt_close;
+	SERVICESYSCALL(s, read, umbinfmt_read);
+	SERVICESYSCALL(s, write, umbinfmt_write);
+	//SERVICESYSCALL(s, readv, readv);
+	//SERVICESYSCALL(s, writev, writev);
+	SERVICESYSCALL(s, close, umbinfmt_close);
 #if 0
-	s.syscall[uscno(__NR_stat)]=umbinfmt_stat;
-	s.syscall[uscno(__NR_lstat)]=umbinfmt_lstat;
-	s.syscall[uscno(__NR_fstat)]=umbinfmt_fstat;
+	SERVICESYSCALL(s, stat, umbinfmt_stat);
+	SERVICESYSCALL(s, lstat, umbinfmt_lstat);
+	SERVICESYSCALL(s, fstat, umbinfmt_fstat);
 #endif
 #if !defined(__x86_64__)
-	s.syscall[uscno(__NR_stat64)]=umbinfmt_stat64;
-	s.syscall[uscno(__NR_lstat64)]=umbinfmt_lstat64;
-	s.syscall[uscno(__NR_fstat64)]=umbinfmt_fstat64;
+	SERVICESYSCALL(s, stat64, umbinfmt_stat64);
+	SERVICESYSCALL(s, lstat64, umbinfmt_lstat64);
+	SERVICESYSCALL(s, fstat64, umbinfmt_fstat64);
 #endif
-	s.syscall[uscno(__NR_access)]=umbinfmt_access;
-	s.syscall[uscno(__NR_lseek)]=umbinfmt_lseek;
+	SERVICESYSCALL(s, access, umbinfmt_access);
+	SERVICESYSCALL(s, lseek, umbinfmt_lseek);
 #if ! defined(__x86_64__)
-	s.syscall[uscno(__NR__llseek)]=umbinfmt__llseek;
+	SERVICESYSCALL(s, _llseek, umbinfmt__llseek);
 #endif
 #if 0
-	s.syscall[uscno(__NR_getdents)]=umbinfmt_getdents;
+	SERVICESYSCALL(s, getdents, umbinfmt_getdents);
 #endif
-	s.syscall[uscno(__NR_getdents64)]=umbinfmt_getdents64;
-	s.syscall[uscno(__NR_fcntl64)]=umbinfmt_fcntl64;
-	//s.syscall[uscno(__NR_chown)]=umbinfmt_chown;
-	//s.syscall[uscno(__NR_fchown)]=fchown;
-	//s.syscall[uscno(__NR_chmod)]=umbinfmt_chmod;
-	//s.syscall[uscno(__NR_fchmod)]=fchmod;
-	//s.syscall[uscno(__NR_fsync)]=umbinfmt_fsync; 
-	//s.syscall[uscno(__NR__newselect)]=umbinfmt_select;
-	//s.syscall[uscno(__NR_ioctl)]=umbinfmt_ioctl; 
+	SERVICESYSCALL(s, getdents64, umbinfmt_getdents64);
+	SERVICESYSCALL(s, fcntl64, umbinfmt_fcntl64);
+	//SERVICESYSCALL(s, chown, umbinfmt_chown);
+	//SERVICESYSCALL(s, fchown, fchown);
+	//SERVICESYSCALL(s, chmod, umbinfmt_chmod);
+	//SERVICESYSCALL(s, fchmod, fchmod);
+	//SERVICESYSCALL(s, fsync, umbinfmt_fsync); 
+	//SERVICESYSCALL(s, _newselect, umbinfmt_select);
+	//SERVICESYSCALL(s, ioctl, umbinfmt_ioctl); 
 	s.select_register=umbinfmt_select_register;
 	add_service(&s);
 }

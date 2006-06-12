@@ -29,13 +29,13 @@
 //typedef struct service *sss;
 typedef service_t (* serfun)();
 typedef service_t serfunt();
-typedef int intfunt();
-typedef int wrapinfun();
-typedef int wrapoutfun();
-typedef int wrapfun();
+typedef long sysfunt();
+typedef long wrapinfun();
+typedef long wrapoutfun();
+typedef long wrapfun();
 /*
 typedef int wrapinfun(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		                char sercode, intfun um_syscall);
+		                char sercode, sysfun um_syscall);
 typedef int wrapoutfun(int sc_number,struct pcb *pc,struct pcb_ext *pcdata);
 */
 
@@ -54,15 +54,15 @@ struct sc_map {
 	serfun scchoice;
 	/* wrapin function: this function is called in the IN phase of the
 	 * syscall */
-	intfun wrapin;
+	sysfun wrapin;
 	/* ...guess... */
-	intfun wrapout;
+	sysfun wrapout;
 	/* the choice function: this function tells the service which have to
 	 * manage the nested system call */
 	serfun nestchoice;
 	/* wrapin function: this function is called for wrapped syscalls.
 	 syscall */
-	intfun nestwrap;
+	sysfun nestwrap;
 	/* flags: dependant on the table; contains stuff such that the ALWAYS
 	 * flag, the CB_R flag, etc... (look below) */
 	short flags;
@@ -75,8 +75,10 @@ struct sc_map {
 
 extern struct sc_map scmap[];
 extern struct sc_map sockmap[];
+extern struct sc_map virscmap[];
 extern int scmap_scmapsize;
 extern int scmap_sockmapsize;
+extern int scmap_virscmapsize;
 
 #define CB_R 0x1
 #define CB_W 0x2
@@ -89,8 +91,9 @@ extern int scmap_sockmapsize;
 
 #define USC_TYPE(X) (scmap[(X)].setofcall)
 #define SOC_NONE	0x00
-#define SOC_FILE	0x80
-#define SOC_NET	  0x40
+#define SOC_SOCKET	0x80
+#define SOC_FILE	0x40
+#define SOC_NET	  0x20
 #define SOC_TIME  0x1
 #define SOC_UID   0x2
 #define SOC_PRIO  0x3

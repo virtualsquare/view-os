@@ -24,6 +24,7 @@
  */
 #include <stdio.h>
 #include "module.h"
+#include "gdebug.h"
 
 struct service s;
 
@@ -36,7 +37,7 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	printf("testmodul2 init\n");
+	GMESSAGE("testmodul2 init");
 	s.name="Test Module 2";
 	s.code=0xfd;
 	s.checkfun=alwaysfalse;
@@ -49,6 +50,6 @@ static void
 __attribute__ ((destructor))
 fini (void)
 {
-	printf("testmodul2 fini\n");
+	GMESSAGE("testmodul2 fini");
 }       
 

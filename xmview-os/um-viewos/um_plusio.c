@@ -55,7 +55,7 @@
 #define umNULL ((int) NULL)
 
 int wrap_in_mkdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, sysfun um_syscall)
 {
 	int mode;
 	mode=getargn(1,pc);
@@ -65,7 +65,7 @@ int wrap_in_mkdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_unlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		                char sercode, intfun um_syscall)
+		                char sercode, sysfun um_syscall)
 {
 	pc->retval = um_syscall(pcdata->path);
 	pc->erno=errno;
@@ -73,7 +73,7 @@ int wrap_in_unlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_chown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, sysfun um_syscall)
 {
 	unsigned int owner,group;
 	owner=getargn(1,pc);
@@ -90,7 +90,7 @@ int wrap_in_chown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_fchown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	if (sfd < 0) {
@@ -114,7 +114,7 @@ int wrap_in_fchown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_chmod(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, sysfun um_syscall)
 {
 	int mode;
 	mode=getargn(1,pc);
@@ -124,7 +124,7 @@ int wrap_in_chmod(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_fchmod(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	if (sfd < 0) {
@@ -147,7 +147,7 @@ int wrap_in_fchmod(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
  */
 
 int wrap_in_dup(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		service_t sercode, intfun um_syscall)
+		service_t sercode, sysfun um_syscall)
 {
 	int sfd;
 	if (sc_number == __NR_dup2) {
@@ -195,7 +195,7 @@ int wrap_out_dup(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 }
 
 int wrap_in_fcntl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		service_t sercode, intfun um_syscall)
+		service_t sercode, sysfun um_syscall)
 {
 	int cmd=getargn(1,pc);
 	unsigned long arg=getargn(2,pc);
@@ -251,7 +251,7 @@ int wrap_out_fcntl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 }
 
 int wrap_in_fsync(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	if (sfd < 0) {
@@ -266,7 +266,7 @@ int wrap_in_fsync(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_link(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, sysfun um_syscall)
 {
 	struct stat64 sourcest;
 	char *source=um_abspath(pc->arg0,pc,&sourcest,0);
@@ -289,7 +289,7 @@ int wrap_in_link(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_symlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, sysfun um_syscall)
 {
 	char *source=um_getpath(pc->arg0,pc);
 	if (source==um_patherror) {
@@ -304,7 +304,7 @@ int wrap_in_symlink(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_utime(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, sysfun um_syscall)
 {
 	unsigned long argaddr=getargn(1,pc);
 	int argsize;
@@ -325,7 +325,7 @@ int wrap_in_utime(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		                char sercode, intfun um_syscall)
+		                char sercode, sysfun um_syscall)
 {
 	char *source;
 	char filesystemtype[PATH_MAX];
@@ -354,7 +354,7 @@ int wrap_in_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_umount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		                char sercode, intfun um_syscall)
+		                char sercode, sysfun um_syscall)
 {
 	unsigned int flags=0;
 	pc->retval = um_syscall(pcdata->path,flags);
@@ -363,10 +363,11 @@ int wrap_in_umount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_umount2(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		                char sercode, intfun um_syscall)
+		                char sercode, sysfun um_syscall)
 {
 	unsigned int flags=0;
-	flags=getargn(1,pc);
+	// flags is defined as int in umount manpage.
+	flags= (int) getargn(1,pc);
 	pc->retval = um_syscall(pcdata->path,flags);
 	pc->erno=errno;
 	return SC_FAKE;
@@ -379,7 +380,7 @@ int wrap_in_umount2(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 #endif
 
 int wrap_in_truncate(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		                char sercode, intfun um_syscall)
+		                char sercode, sysfun um_syscall)
 {
 	__off64_t off;
 	if (sc_number == __NR_truncate64) 
@@ -392,7 +393,7 @@ int wrap_in_truncate(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 int wrap_in_ftruncate(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		                char sercode, intfun um_syscall)
+		                char sercode, sysfun um_syscall)
 {
 	__off64_t off;
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);

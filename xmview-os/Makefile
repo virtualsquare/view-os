@@ -5,14 +5,14 @@ libdir = ${prefix}/lib
 mandir = ${prefix}/man
 includedir = ${prefix}/include
 
-release = false
+release = true
 
 export bindir libdir mandir includedir DEBUGLEVEL
 
 ifeq ($(release),true)
 RELEASE_FLAGS="RELEASE=true"
 else
-RELEASE_FLAGS=
+RELEASE_FLAGS="RELEASE=false"
 endif
 
 all:
@@ -22,7 +22,7 @@ all:
 	$(MAKE) -C um_lib  $(RELEASE_FLAGS)
 	$(MAKE) -C um_cmd  $(RELEASE_FLAGS)
 	$(MAKE) -C um_testmodule  $(RELEASE_FLAGS)
-	$(MAKE) -C um_viewfs  $(RELEASE_FLAGS)
+#	$(MAKE) -C um_viewfs  $(RELEASE_FLAGS)
 	$(MAKE) -C umfuse $(RELEASE_FLAGS)
 	$(MAKE) -C umdev $(RELEASE_FLAGS)
 	$(MAKE) -C umdev_testmodules $(RELEASE_FLAGS)
@@ -32,6 +32,9 @@ all:
 
 release:
 	$(MAKE) release=true
+
+debug:
+	$(MAKE) release=false
 
 clean:
 	$(MAKE) -C include clean $(RELEASE_FLAGS)
@@ -91,7 +94,7 @@ install: ${bindir} ${libdir} ${mandir}
 	$(MAKE) -C um_lib install $(RELEASE_FLAGS)
 	$(MAKE) -C um_cmd install $(RELEASE_FLAGS)
 	$(MAKE) -C um_testmodule install $(RELEASE_FLAGS)
-	$(MAKE) -C um_viewfs install $(RELEASE_FLAGS)
+#	$(MAKE) -C um_viewfs install $(RELEASE_FLAGS)
 	$(MAKE) -C umfuse install $(RELEASE_FLAGS)
 	$(MAKE) -C umdev install $(RELEASE_FLAGS)
 	$(MAKE) -C umdev_testmodules install $(RELEASE_FLAGS)

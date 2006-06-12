@@ -53,11 +53,7 @@
 
 #include "defs.h"
 #include "utils.h"
-#if defined(__x86_64__)
-#include "syscallnames_x86_64.h"
-#else
 #include "syscallnames.h"
-#endif
 #include "gdebug.h"
 
 
@@ -94,17 +90,8 @@ int nprocs = 0;
 static int pcbtabsize;
 
 divfun scdtab[MAXSC];
-divfun scdutab[MAXUSC];
 t_pcb_constr pcb_constr=NULL;
 t_pcb_destr pcb_destr=NULL;
-
-#ifdef __i386__ 
-/* i386 kernel does not accept out of range system calls, 
- * user system call remapped onto unused ones */
-short _i386_sc_remap[]={251,222,17,31,32,35,44,53,56,58,98,112,127,130,137,167};
-#else // workaround for amd64
-short _i386_sc_remap[]={};
-#endif
 
 /* When a SIGCHLD is received, the main select will be notified through this
  * pipe; the counter is used to notify it no more than one time. */
@@ -212,16 +199,32 @@ pid2pcb(int pid)
 	return NULL;
 }
 
+/*static void droppcb(struct pcb *pc)*/
+/*{*/
+/*  pc->flags = 0; |+NOT PCB_INUSE +|;*/
+/*#ifdef _PROC_MEM_TEST*/
+/*  if (pc->memfd >= 0)*/
+/*    close(pc->memfd);*/
+/*#endif*/
+/*  if (pcb_destr != NULL)*/
+/*    pcb_destr(pc);*/
+/*  nprocs--;*/
+/*}*/
+
 static void droppcb(struct pcb *pc)
 {
+	/* the last process descriptor must stay "alive" for
+	 * the termination of all the modules */
 	pc->flags = 0; /*NOT PCB_INUSE */;
 #ifdef _PROC_MEM_TEST
 	if (pc->memfd >= 0)
 		close(pc->memfd);
 #endif
+	nprocs--;
 	if (pcb_destr != NULL)
 		pcb_destr(pc);
-	nprocs--;
+	if (nprocs == 0)
+		pthread_setspecific(pcb_key,NULL);
 }
 
 static void allocatepcbtab()
@@ -324,7 +327,7 @@ void tracehand()
 	struct pcb *pc;
 
 	while(nprocs>0){
-		if((pid = r_waitpid(-1, &status, WUNTRACED | __WALL | WNOHANG)) < 0)
+		if((pid =  r_waitpid(-1, &status, WUNTRACED | __WALL | WNOHANG)) < 0)
 		{
 			GPERROR(0, "wait");
 			exit(1);
@@ -376,17 +379,19 @@ void tracehand()
 #endif
 				pc->scno = NOSC;
 			}
+#if !defined(__x86_64__) //0 is READ for x86_84
 			else if (scno == 0) {
 				if (pc->scno == __NR_execve)
 					pc->scno = NOSC;
 			}
+#endif
 			else if (pc->scno == NOSC)
 			{
 					divfun fun;
 					GDEBUG(3, "--> pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
 					//printf("IN\n");
 					pc->scno = scno;
-					fun=cdtab(scno);
+					fun=scdtab[scno];
 					if (fun != NULL)
 						pc->behavior=fun(scno,IN,pc);
 					else
@@ -428,7 +433,7 @@ void tracehand()
 					if ((pc->behavior == SC_FAKE && scno != __NR_getpid) && 
 							scno != pc->scno)
 						GDEBUG(0, "error FAKE != %d",scno);
-					fun=cdtab(pc->scno);
+					fun=scdtab[pc->scno];
 					if (fun != NULL &&
 							(pc->behavior == SC_FAKE ||
 							 pc->behavior == SC_CALLONXIT)) {
@@ -443,7 +448,7 @@ void tracehand()
 			if ((pc->behavior & SC_SUSPENDED) == 0) {
 				if (PT_VM_OK) {
 					/*printf("SC %s %d\n",SYSCALLNAME(scno),pc->behavior);*/
-					if(setregs(pc,PTRACE_SYSVM, isreproducing ? 0 : pc->behavior) == -1)
+					if(setregs(pc,PTRACE_SYSVM, (isreproducing ? 0 : pc->behavior)) == -1)
 							GPERROR(0, "setregs");
 					if(!isreproducing && (pc->behavior & PTRACE_VM_SKIPEXIT))
 						pc->scno=NOSC; 
@@ -507,7 +512,7 @@ void sc_resume(struct pcb *pc)
 			scno == __NR_vfork ||
 			scno == __NR_clone);
 	divfun fun;
-	fun=cdtab(scno);
+	fun=scdtab[scno];
 	if (fun != NULL)
 		pc->behavior=fun(scno,inout,pc);
 	else

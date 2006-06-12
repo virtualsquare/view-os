@@ -1,7 +1,7 @@
 DEVELFLAGS=
 #DEVELFLAGS=-D__UMDEV_DEBUG__
 
-CFLAGS=-I../include -D_GNU_SOURCE -ggdb -rdynamic $(DEVELFLAGS)
+CFLAGS=-I../include -fPIC -D_GNU_SOURCE -ggdb -rdynamic $(DEVELFLAGS)
 
 ALL=umbinfmt.so
 

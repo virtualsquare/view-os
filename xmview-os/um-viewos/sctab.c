@@ -38,6 +38,7 @@
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <linux/sysctl.h>
 //#include <pthread.h>
 
 #include "defs.h"
@@ -75,18 +76,23 @@ char *um_getcwd(struct pcb *pc,char *buf,int size) {
 struct timestamp *um_x_gettst()
 {
 	struct pcb *pc=get_pcb();
-	if (pc->flags && PCB_INUSE) {
-		struct pcb_ext *pcdata = (struct pcb_ext *) pc->data;
-		//fprint2("USER PROCESS %p\n",pc);
-		if (pcdata) 
-			return &(pcdata->tst);
-		else
-			return NULL;
-	} else {
-		struct npcb *npc=(struct npcb *)pc;
-		//fprint2("NESTED PCB %p\n",npc);
-		return &(npc->tst);
+	if (pc)
+	{
+		if (pc->flags && PCB_INUSE) {
+			struct pcb_ext *pcdata = (struct pcb_ext *) pc->data;
+			//fprint2("USER PROCESS %p\n",pc);
+			if (pcdata) 
+				return &(pcdata->tst);
+			else
+				return NULL;
+		} else {
+			struct npcb *npc=(struct npcb *)pc;
+			//fprint2("NESTED PCB %p\n",npc);
+			return &(npc->tst);
+		}
 	}
+	else
+		return NULL;
 }
 
 epoch_t um_setepoch(epoch_t epoch)
@@ -150,18 +156,18 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
 	epoch_t epoch;
 	if (pc->flags && PCB_INUSE) {
 		oldscno = pc->scno;
-		pc->scno = __NR_lstat64;
+		pc->scno = NR64_stat;
 		epoch=((struct pcb_ext *)pc->data)->tst.epoch;
 	} else {
 		struct npcb *npc=(struct npcb *)pc;
 		oldscno = npc->scno;
-		npc->scno = __NR_lstat64;
+		npc->scno = NR64_lstat;
 		epoch=npc->tst.epoch;
 	}
 	if ((sercode=service_check(CHECKPATH,filename,1)) == UM_NONE)
 		retval = r_lstat64(filename,buf);
 	else{
-		retval = service_syscall(sercode,uscno(__NR_lstat64))(filename,buf,pc);
+		retval = service_syscall(sercode,uscno(NR64_stat))(filename,buf,pc);
 	}
 	if (pc->flags && PCB_INUSE) {
 		pc->scno = oldscno;
@@ -253,7 +259,7 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink
  */
 typedef void (*dsys_commonwrap_parse_arguments)(struct pcb *pc, struct pcb_ext *pcdata, int usc);
 typedef int (*dsys_commonwrap_index_function)(struct pcb *pc, int usc);
-typedef intfun (*service_call)(service_t code, int scno);
+typedef sysfun (*service_call)(service_t code, int scno);
 int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		dsys_commonwrap_parse_arguments dcpa,
 		dsys_commonwrap_index_function dcif,
@@ -295,7 +301,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		//fprint2("nested_commonwrap choice %d -> %lld %x\n",sc_number,pcdata->tst.epoch,sercode);
 		/* if some service want to manage the syscall (or the ALWAYS
 		 * flag is set), we process it */
-		if (sercode != UM_NONE || (sm[usc].flags & ALWAYS)) {
+		if (sercode != UM_NONE || (sm[index].flags & ALWAYS)) {
 			/* suspend management:
 			 * when howsusp has at least one bit set (CB_R, CB_W, CB_X) 
 			 * the system checks with a select if the call is blocking or not.
@@ -348,6 +354,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 	}
 }
 
+#if (__NR_socketcall != __NR_doesnotexist)
 void dsys_socketwrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int usc)
 {
 	pc->arg0=getargn(0,pc); // arg0 is the current socket call
@@ -379,6 +386,40 @@ int dsys_socketwrap(int sc_number,int inout,struct pcb *pc)
 			dsys_socketwrap_parse_arguments,
 			dsys_socketwrap_index_function, service_socketcall,
 			sockmap);
+}
+#endif
+
+void dsys_um_sysctl_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int usc)
+{
+	struct __sysctl_args sysctlargs;
+	sysctlargs.name=NULL;
+	sysctlargs.nlen=0;
+	pcdata->path = NULL;
+	pc->arg0 = getargn(0, pc);
+	umoven(pc,pc->arg0,sizeof(sysctlargs),&sysctlargs);
+	if (sysctlargs.name == NULL && sysctlargs.nlen != 0) {
+		/* virtual system call */
+		if (sysctlargs.newval != NULL && sysctlargs.newlen >0 &&
+				sysctlargs.newlen <= 6)
+			umoven(pc,(long)(sysctlargs.newval),sysctlargs.newlen * sizeof(long), &pcdata->sockregs[0]);
+		pc->arg1 = sysctlargs.nlen;
+	} else {
+		/* real sysctl, mapped on 0 */
+		pc->arg1 = 0;
+	}
+}
+
+int dsys_um_sysctl_index_function(struct pcb *pc, int usc)
+{
+	return pc->arg1;
+}
+
+int dsys_um_sysctl(int sc_number,int inout,struct pcb *pc)
+{
+	return dsys_commonwrap(sc_number, inout, pc,
+			dsys_um_sysctl_parse_arguments,
+			dsys_um_sysctl_index_function, service_syscall,
+			virscmap);
 }
 
 static void _reg_service(struct pcb *pc,service_t *pcode)
@@ -601,6 +642,22 @@ void dsys_megawrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int u
 {
 	pcdata->path = NULL;
 	pc->arg0 = getargn(0, pc);
+#if (__NR_socketcall == __NR_doesnotexist)
+	if (scmap[uscno(pc->scno)].setofcall & SOC_SOCKET)
+	{
+		int i;
+		pc->arg1 = getargn(1, pc);
+		pc->arg2 = pc->arg0;
+		/*
+		 * fprint2("=== %s %d (",SYSCALLNAME(pc->scno),scmap[uscno(pc->scno)].nargs);
+		 * for (i=0;i<scmap[uscno(pc->scno)].nargs;i++) 
+		 * fprint2 ("%x,",getargn(i,pc)); 
+		 * fprint2("\n");
+		 */
+		for (i=0;i<scmap[uscno(pc->scno)].nargs;i++)
+			pcdata->sockregs[i]=getargn(i, pc);
+	}
+#endif
 }
 
 int dsys_megawrap_index_function(struct pcb *pc, int usc)
@@ -776,16 +833,19 @@ void scdtab_init()
 	register int i;
 	pcb_constr=pcb_plus;
 	pcb_destr=pcb_minus;
-	_service_init((intfun)reg_service,(intfun)dereg_service);
+	_service_init((sysfun)reg_service,(sysfun)dereg_service);
 
-	setcdtab(__NR_socketcall,dsys_socketwrap);
+#if (__NR_socketcall != __NR_doesnotexist)
+	scdtab[__NR_socketcall]=dsys_socketwrap;
+#endif
 
-	setcdtab(__NR_UM_SERVICE,dsys_um_service);
+	scdtab[__NR__sysctl]=dsys_um_sysctl;
+
 	init_scmap();
 	for (i=0; i<scmap_scmapsize; i++) {
 		int scno=scmap[i].scno;
 		if (scno >= 0) 
-			setcdtab(scno,dsys_megawrap);
+			scdtab[scno]=dsys_megawrap;
 	}
 	um_proc_open();
 	atexit(um_proc_close);

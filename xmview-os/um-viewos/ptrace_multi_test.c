@@ -33,7 +33,7 @@
 #include "ptrace2.h"
 #include <asm/unistd.h>
 #include <errno.h>
-#define r_waitpid(p,s,o) (syscall(__NR_waitpid,(p),(s),(o)))
+#define r_waitpid(p,s,o) (syscall(__NR_wait4,(p),(s),(o),NULL))
 
 static int child(void *arg)
 {

@@ -53,7 +53,7 @@ static int alwaystrue(char *path)
 	return 1;
 }
 
-static intfun real_lwip_ioctl;
+static sysfun real_lwip_ioctl;
 static int sockioctl(int d, int request, void *arg)
 {
 	if (request == SIOCGIFCONF) {
@@ -180,7 +180,7 @@ static void openlwiplib()
 	} else {
 		int i;
 		for (i=0;i<SIZEOFLIBTAB;i++) {
-			intfun fun;
+			sysfun fun;
 			if ((fun=dlsym(lwiphandle,lwiplibtab[i].funcname)) != NULL)
 			{
 				if (lwiplibtab[i].choice==SOCK)
@@ -191,14 +191,14 @@ static void openlwiplib()
 		}
 		s.select_register=dlsym(lwiphandle,"lwip_select_register");
 		real_lwip_ioctl=s.syscall[uscno(__NR_ioctl)];
-		s.syscall[uscno(__NR_ioctl)]=sockioctl;
-		s.syscall[uscno(__NR_open)]=noprocnetdev;
-		s.syscall[uscno(__NR_lstat64)]=noprocnetdev;
-		s.syscall[uscno(__NR_access)]=noprocnetdev;
+		SERVICESYSCALL(s, ioctl, sockioctl);
+		SERVICESYSCALL(s, open, noprocnetdev);
+		SERVICESYSCALL(s, lstat64, noprocnetdev);
+		SERVICESYSCALL(s, access, noprocnetdev);
 	}
 }
 
-ssize_t lwip_recvmsg(int fd, struct msghdr *msg, int flags) {
+long lwip_recvmsg(int fd, struct msghdr *msg, int flags) {
 	int rv;
 	rv=(s.socket[SYS_RECVFROM])(fd,msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
 			msg->msg_name,&msg->msg_namelen);
@@ -206,7 +206,7 @@ ssize_t lwip_recvmsg(int fd, struct msghdr *msg, int flags) {
 	return rv;
 }
 
-ssize_t lwip_sendmsg(int fd, const struct msghdr *msg, int flags) {
+long lwip_sendmsg(int fd, const struct msghdr *msg, int flags) {
 	int rv;
 	rv=(s.socket[SYS_SENDTO])(fd,msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
 			msg->msg_name,msg->msg_namelen);
@@ -371,12 +371,12 @@ void _um_mod_init(char *initargs)
 		s.name="light weight ipv6 stack";
 		s.code=0x02;
 		s.checkfun=checksock;
-		s.syscall=(intfun *)calloc(scmap_scmapsize, sizeof(intfun));
-		s.socket=(intfun *)calloc(scmap_sockmapsize, sizeof(intfun));
+		s.syscall=(sysfun *)calloc(scmap_scmapsize, sizeof(sysfun));
+		s.socket=(sysfun *)calloc(scmap_sockmapsize, sizeof(sysfun));
 		openlwiplib();
 		lwipargtoenv(initargs);
-		s.syscall[uscno(__NR__newselect)]=alwaysfalse;
-		s.syscall[uscno(__NR_poll)]=alwaysfalse;
+		SERVICESYSCALL(s, _newselect, alwaysfalse);
+		SERVICESYSCALL(s, poll, alwaysfalse);
 		s.socket[SYS_SENDMSG]=lwip_sendmsg;
 		s.socket[SYS_RECVMSG]=lwip_recvmsg;
 

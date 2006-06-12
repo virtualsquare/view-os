@@ -51,6 +51,7 @@ void fgmsg(FILE *ofile, const char *fmt, ...);
 #	define FGBACKTRACE(ofile, level, maxdepth) fgbacktrace(ofile, GDEBUG_LEVEL, level, __FILE__, __LINE__, __func__, maxdepth)
 #	define FGERROR(ofile, args...) fgdebug(ofile, -1, -1, __FILE__, __LINE__, __func__, args)
 #	define GERROR(args...) FGERROR(GDEBUG_OFILE, args)
+#	define GMESSAGE(args...) FGERROR(GDEBUG_OFILE, args)
 
 void fgdebug(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, const char *fmt, ...);
 void fghexdump(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, char *text, int len);
@@ -65,6 +66,7 @@ void fgbacktrace(FILE *ofile, int gdebug_level, int level, const char *file, con
 #	define GBACKTRACE(level, maxdepth)
 #	define FGERROR(ofile, args...) fgmsg(ofile, args)
 #	define GERROR(args...) FGERROR(GDEBUG_OFILE, args)
+#	define GMESSAGE(args...) FGERROR(GDEBUG_OFILE, args)
 #endif
 
 

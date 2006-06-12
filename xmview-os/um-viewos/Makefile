@@ -2,12 +2,14 @@ ifndef ($(bindir))
 bindir=/usr/local/bin
 endif
 ifndef ($(mandir))
-bindir=/usr/local/man
+mandir=/usr/local/man
 endif
-DEBUGLEVEL=0
+
+RELEASE=true
+DEBUGLEVEL=3
 #CBASEFLAGS=-Wall -D_GNU_SOURCE -I../include -DINSTALLDIR=\"$(bindir)\" -D_PROC_MEM_TEST
 CBASEFLAGS=-Wall -D_GNU_SOURCE -I../include -DINSTALLDIR=\"$(bindir)\" 
-CDEBUGFLAGS=-g -O2 -ggdb -DGDEBUG_ENABLED -DGDEBUG_LEVEL=$(DEBUGLEVEL)
+CDEBUGFLAGS=-g3 -ggdb3 -DGDEBUG_ENABLED -DGDEBUG_LEVEL=$(DEBUGLEVEL)
 CPPFLAGS+=-I../include
 
 #OBJS=gdebug.o capture_sc.o canonicalize.o utils.o umproc.o services.o sctab.o umview.o um_services.o scmap.o um_basicio.o um_plusio.o um_socket.o um_wdm.o um_select.o um_ioctl.o ptrace_multi_test.o um_exec.o
@@ -22,7 +24,7 @@ ifeq ($(RELEASE),true)
 
 # Release version (default is nodebug)
 CFLAGS=$(CBASEFLAGS)
-all: $(OBJS) umview
+all: $(OBJS) umview umbinwrap
 
 debug: clean
 	$(MAKE) CFLAGS="$(CBASEFLAGS) $(CDEBUGFLAGS)"

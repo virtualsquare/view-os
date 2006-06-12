@@ -126,7 +126,7 @@ static void printparms(char *what,char **parms)
 
 #define UMBINWRAP (INSTALLDIR "/umbinwrap")
 int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		service_t sercode,intfun um_syscall)
+		service_t sercode,sysfun um_syscall)
 {
 	struct binfmt_req req={(char *)pcdata->path,NULL,0};
 	epoch_t nestepoch=um_setepoch(0);
@@ -136,7 +136,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	um_setepoch(nestepoch);
 	if (binfmtser != UM_NONE) {
 		char *umbinfmtarg0;
-		char sep;
+		int sep;
 		long largv=getargn(1,pc);
 		long larg0;
 		char oldarg0[PATH_MAX+1];

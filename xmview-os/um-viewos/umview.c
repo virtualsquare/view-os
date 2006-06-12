@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <signal.h>
+#include <linux/sysctl.h>
 #include "defs.h"
 #include "umview.h"
 #include "capture_sc.h"
@@ -70,6 +71,18 @@ static void preadd(struct prelist **head,char *module)
 	*head=new;
 }
 
+static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,long arg4,long arg5,long arg6) {
+	struct __sysctl_args scarg;
+	long args[6]={arg1,arg2,arg3,arg4,arg5,arg6};
+	scarg.name=NULL;
+	scarg.nlen=virscno;
+	scarg.oldval=NULL;
+	scarg.oldlenp=NULL;
+	scarg.newval=args;
+	scarg.newlen=n;
+	return syscall(__NR__sysctl,&scarg);
+}
+
 static int do_preload(struct prelist *head)
 {
 	if (head != NULL) {
@@ -92,7 +105,7 @@ static int do_preload_recursive(struct prelist *head)
 {
 	if (head != NULL) {
 		do_preload_recursive(head->next);
-		syscall(__NR_UM_SERVICE,ADD_SERVICE,0,head->module);
+		int_virnsyscall(__NR_UM_SERVICE,3,ADD_SERVICE,0,(long)head->module,0,0,0);
 		free(head);
 		return 0;
 	} else
@@ -223,7 +236,7 @@ int main(int argc,char *argv[])
 	
 	r_setpriority(PRIO_PROCESS,0,-11);
 	r_setuid(getuid());
-	if (syscall(__NR_UM_SERVICE,RECURSIVE_UMVIEW) >= 0)
+	if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_UMVIEW,0,0,0,0,0) >= 0)
 		umview_recursive(argc,argv);	/* do not return!*/
 	if (strcmp(argv[0],"-umview")!=0)
 		load_it_again(argc,argv);	/* do not return!*/

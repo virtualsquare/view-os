@@ -55,14 +55,31 @@
 #define SS 20 //160
 #define ARGOFFSET R11
 // remapped registers:
+/*
+ *      Register setup:
+ * system call number	rax
+ * +    arg 1		rdi
+ * +    arg 2		rsi
+ * +    arg 3		rdx
+ * +    arg 4		r10
+ * +    arg 5		r8
+ * +    arg 6		r9
+ */
 #define MY_RDI 0 //112
 #define MY_RSI 1 //104
 #define MY_RDX 2 //96
+/*
 #define MY_RCX 3 //88
 #define MY_RAX 4 //80
 #define MY_R8  5 //72
 #define MY_R9  6 //64
 #define MY_R10 7 // 56  
+*/
+#define MY_R10 3
+#define MY_R8  4
+#define MY_R9  5
+#define MY_RCX 6
+#define MY_RAX 7
 #define MY_R11 8 //48
 #define MY_RBX 9 //40
 #define MY_RBP 10//32
@@ -70,7 +87,6 @@
 #define MY_R13 12//16
 #define MY_R14 13//8
 #define MY_R15 14
-											 
 #define MY_ORIG_RAX 15 //120       /* = ERROR */ 
 #define MY_RIP 16 //128
 #define MY_CS 17 //136
@@ -78,13 +94,21 @@
 #define MY_RSP 19 //152
 #define MY_SS 20 //160
 #define MY_ARGOFFSET 0
+
+#define FS_BASE 21
+#define GS_BASE 22
+#define DS 23
+#define ES 25
+#define FS 26
+#define GS 27
+
 // arguments in x86_64 are saved in order from RDI to R8
 // orig_rax contains syscall number 
 // and rax (i think...) contains return value and errno
 // for stack pointer -> RSP
 // for instruction pointer -> RIP
 				
-#define getregs(PC) ({ long temp[FRAME_SIZE]; int i = ptrace(PTRACE_GETREGS,(PC)->pid,NULL,(void*) temp);\
+#define getregs(PC) ({ long temp[VIEWOS_FRAME_SIZE]; int i = ptrace(PTRACE_GETREGS,(PC)->pid,NULL,(void*) temp);\
 			(PC)->saved_regs[MY_RDI] = temp[RDI]; \
 			(PC)->saved_regs[MY_RSI] = temp[RSI]; \
 			(PC)->saved_regs[MY_RDX] = temp[RDX]; \
@@ -106,9 +130,18 @@
 			(PC)->saved_regs[MY_EFLAGS] = temp[EFLAGS]; \
 			(PC)->saved_regs[MY_RSP] = temp[RSP]; \
 			(PC)->saved_regs[MY_SS] = temp[SS]; \
+			(PC)->saved_regs[FS_BASE] = temp[FS_BASE]; \
+			(PC)->saved_regs[GS_BASE] = temp[GS_BASE]; \
+			(PC)->saved_regs[DS] = temp[DS]; \
+			(PC)->saved_regs[ES] = temp[ES]; \
+			(PC)->saved_regs[FS] = temp[FS]; \
+			(PC)->saved_regs[GS] = temp[GS]; \
+			(PC)->regs_modified = 0;\
 			i; \
 			})
-#define setregs(PC,CALL,OP) ({ long temp[FRAME_SIZE]; \
+	
+#define setregs(PC,CALL,OP) ({ (PC)->regs_modified==0? ptrace((CALL),(PC)->pid,(OP),0):({\
+			long temp[VIEWOS_FRAME_SIZE]; \
 			temp[RDI] = (PC)->saved_regs[MY_RDI]; \
 			temp[RSI] = (PC)->saved_regs[MY_RSI]; \
 			temp[RDX] = (PC)->saved_regs[MY_RDX]; \
@@ -130,6 +163,12 @@
 			temp[EFLAGS] = (PC)->saved_regs[MY_EFLAGS]; \
 			temp[RSP] = (PC)->saved_regs[MY_RSP]; \
 			temp[SS] = (PC)->saved_regs[MY_SS]; \
+			temp[FS_BASE] = (PC)->saved_regs[FS_BASE]; \
+			temp[GS_BASE] = (PC)->saved_regs[GS_BASE]; \
+			temp[DS] = (PC)->saved_regs[DS]; \
+			temp[ES] = (PC)->saved_regs[ES]; \
+			temp[FS] = (PC)->saved_regs[FS]; \
+			temp[GS] = (PC)->saved_regs[GS]; \
 	(has_ptrace_multi ? ({\
 			     struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, (void *) temp},\
 			     {(CALL), (OP), 0}};\
@@ -140,22 +179,24 @@
 					    if(rv== 0) rv=ptrace((CALL),(PC)->pid,(OP),0);\
 					    rv;}\
 													) );\
-	})
-#define getargp(PC) ((PC)->saved_regs[MY_RDI])
+	});})
+#define getargp(PC) ((long*)(PC)->saved_regs[MY_RDI])
 #define printregs(PC)  // empty for a while... :P
 #define getscno(PC) ( (PC)->saved_regs[MY_ORIG_RAX] )											 
-#define putscno(X,PC) ( (PC)->saved_regs[MY_ORIG_RAX]=(X) )
+#define putscno(X,PC) ( (PC)->regs_modified=1, (PC)->saved_regs[MY_ORIG_RAX]=(X) )
 #define getargn(N,PC) ( (PC)->saved_regs[(N)] )
-#define putargn(N,X,PC) ( (PC)->saved_regs[(N)]=(X) )
+#define putargn(N,X,PC) ( (PC)->regs_modified=1, (PC)->saved_regs[(N)]=(X) )
 #define getrv(PC) ({ long rax; \
 		rax = (PC)->saved_regs[MY_RAX];\
 		(rax<0 && -rax < MAXERR)? -1 : rax; })
-#define putrv(RV,PC) ( (PC)->saved_regs[MY_RAX]=(RV), 0 )
-#define puterrno(ERR,PC) ( ((ERR)!=0 && (PC)->retval==-1)?(PC)->saved_regs[MY_RAX]=-(ERR) : 0 )
+#define putrv(RV,PC) ( (PC)->regs_modified=1, (PC)->saved_regs[MY_RAX]=(RV), 0 )
+#define puterrno(ERR,PC) (((ERR)!=0 && (PC)->retval==-1)?\
+				( (PC)->regs_modified=1,(PC)->saved_regs[MY_RAX]=-((long)(ERR)) ): 0 )
+
 #define getsp(PC) ( (PC)->saved_regs[MY_RSP] )
 #define getpc(PC) ( (PC)->saved_regs[MY_RIP] )
-#define putsp(RV,PC) ( (PC)->saved_regs[MY_RSP]=(RV) )
-#define putpc(RV,PC) ( (PC)->saved_regs[MY_RIP]=(RV) )
+#define putsp(RV,PC) ( (PC)->regs_modified=1, (PC)->saved_regs[MY_RSP]=(RV) )
+#define putpc(RV,PC) ( (PC)->regs_modified=1, (PC)->saved_regs[MY_RIP]=(RV) )
 
 #define LITTLEENDIAN
 #define LONG_LONG(_l,_h) \
@@ -164,18 +205,33 @@
 #define MAXSC (NR_syscalls)
 #define MAXERR 4096
 
-//#define MAXSC 256 // already defined in line 98
-#define BASEUSC		4096
-#define MAXUSC		0
-#define SCREMAP(I)	(I)
+#if 0 // let's help vim autoindent  :-P
+}
+#endif
+// amd64 syscall stuff
+// TODO: think how i can solve this problem... :(
+#define __NR_socketcall	__NR_doesnotexist
 
-extern short _i386_sc_remap[];
-#define cdtab(X) (((X) < BASEUSC) ? scdtab[(X)] : scdtab[_i386_sc_remap[(X)-BASEUSC]])
-#define setcdtab(X,Y) (((X) < BASEUSC) ? (scdtab[(X)] = (Y)) : (scdtab[_i386_sc_remap[(X)-BASEUSC]] = (Y)))
+#define __NR__newselect __NR_doesnotexist
+#define __NR_umount __NR_doesnotexist
+#define __NR_stat64 __NR_doesnotexist
+#define __NR_lstat64 __NR_doesnotexist
+#define __NR_fstat64 __NR_doesnotexist
+#undef __NR_chown32
+#define __NR_chown32 __NR_doesnotexist
+#undef __NR_lchown32
+#define __NR_lchown32 __NR_doesnotexist
+#undef __NR_fchown32
+#define __NR_fchown32 __NR_doesnotexist
+#define __NR_fcntl64 __NR_doesnotexist
+#define __NR__llseek __NR_doesnotexist
+#define __NR_truncate64 __NR_doesnotexist
+#define __NR_ftruncate64 __NR_doesnotexist
+#define __NR_send __NR_doesnotexist
+#define __NR_recv __NR_doesnotexist
 
-// Many syscalls are redefined, renamed, or simply dismissed in x86_64
-#define __NR_lstat64	__NR_lstat
-#define __NR_socketcall	__NR_socket
+#define wrap_in_stat wrap_in_stat64
+#define wrap_in_fstat wrap_in_fstat64
 
 #ifndef __NR_pselect6
 #define __NR_pselect6	270

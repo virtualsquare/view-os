@@ -35,6 +35,7 @@
 #include <string.h>
 #include "module.h"
 #include "libummod.h"
+#include "gdebug.h"
 #include <linux/net.h>
 #include <linux/sockios.h>
 #include <linux/if.h>
@@ -148,42 +149,42 @@ static int sockioctl(int d, int request, void *arg)
 	__attribute__ ((constructor))
 init (void)
 {
-	printf("sockettest init\n");
+	GMESSAGE("sockettest init");
 	s.name="sockettest (syscall are executed server side)";
 	s.code=0xfb;
 	s.checkfun=checkip;
-	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
-	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
-	s.socket[SYS_SOCKET]=socket;
-	s.socket[SYS_BIND]=bind;
-	s.socket[SYS_CONNECT]=connect;
-	s.socket[SYS_LISTEN]=listen;
-	s.socket[SYS_ACCEPT]=accept;
-	s.socket[SYS_GETSOCKNAME]=getsockname;
-	s.socket[SYS_GETPEERNAME]=getpeername;
-	s.socket[SYS_SEND]=send;
-	s.socket[SYS_RECV]=recv;
-	s.socket[SYS_SENDTO]=sendto;
-	s.socket[SYS_RECVFROM]=recvfrom;
-	s.socket[SYS_SHUTDOWN]=shutdown;
-	s.socket[SYS_SETSOCKOPT]=setsockopt;
-	s.socket[SYS_GETSOCKOPT]=getsockopt;
-	s.socket[SYS_SENDMSG]=sendmsg;
-	s.socket[SYS_RECVMSG]=recvmsg;
-	//s.syscall[uscno(__NR_read)]=myread;
-	//s.syscall[uscno(__NR_write)]=mywrite;
-	s.syscall[uscno(__NR_read)]=read;
-	s.syscall[uscno(__NR_write)]=write;
-	s.syscall[uscno(__NR_readv)]=readv;
-	s.syscall[uscno(__NR_writev)]=writev;
-	s.syscall[uscno(__NR_close)]=close;
-	s.syscall[uscno(__NR_fcntl)]=fcntl32;
+	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
+	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
+	SERVICESOCKET(s, socket, socket);
+	SERVICESOCKET(s, bind, bind);
+	SERVICESOCKET(s, connect, connect);
+	SERVICESOCKET(s, listen, listen);
+	SERVICESOCKET(s, accept, accept);
+	SERVICESOCKET(s, getsockname, getsockname);
+	SERVICESOCKET(s, getpeername, getpeername);
+	SERVICESOCKET(s, send, send);
+	SERVICESOCKET(s, recv, recv);
+	SERVICESOCKET(s, sendto, sendto);
+	SERVICESOCKET(s, recvfrom, recvfrom);
+	SERVICESOCKET(s, shutdown, shutdown);
+	SERVICESOCKET(s, setsockopt, setsockopt);
+	SERVICESOCKET(s, getsockopt, getsockopt);
+	SERVICESOCKET(s, sendmsg, sendmsg);
+	SERVICESOCKET(s, recvmsg, recvmsg);
+	//SERVICESYSCALL(s, read, myread);
+	//SERVICESYSCALL(s, write, mywrite);
+	SERVICESYSCALL(s, read, read);
+	SERVICESYSCALL(s, write, write);
+	SERVICESYSCALL(s, readv, readv);
+	SERVICESYSCALL(s, writev, writev);
+	SERVICESYSCALL(s, close, close);
+	SERVICESYSCALL(s, fcntl, fcntl32);
 #if !defined(__x86_64__)
-	s.syscall[uscno(__NR_fcntl64)]=fcntl64;
+	SERVICESYSCALL(s, fcntl64, fcntl64);
 #endif
-	s.syscall[uscno(__NR_ioctl)]=sockioctl;
-	s.syscall[uscno(__NR__newselect)]=select;
-	s.syscall[uscno(__NR_poll)]=poll;
+	SERVICESYSCALL(s, ioctl, sockioctl);
+	SERVICESYSCALL(s, _newselect, select);
+	SERVICESYSCALL(s, poll, poll);
 
 	add_service(&s);
 }
@@ -194,5 +195,5 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	printf("sockettest fini\n");
+	GMESSAGE("sockettest fini");
 }

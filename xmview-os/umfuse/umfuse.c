@@ -43,6 +43,7 @@
 #include "module.h"
 #include "libummod.h"
 #include "umfusestd.h"
+#include "gdebug.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -161,22 +162,22 @@ static void fuse_set_context(struct fuse_context *fc)
 /* it accept a level of debug: higher level = more important messages only */
 
 #ifdef __UMFUSE_DEBUG__
-static void printdebug(int level, const char *file, const int line, const char *func, const char *fmt, ...) {
-	va_list ap;
-    
-	if (level >= __UMFUSE_DEBUG_LEVEL__) {
-		va_start(ap, fmt);
-#ifdef _PTHREAD_H
-		fprintf(stderr, "[%d:%lu] %s:%d %s(): ", getpid(), pthread_self(), file, line, func);
-#else
-		fprintf(stderr, "[%d] %s:%d %s(): ", getpid(), file, line, func);
-#endif
-		vfprintf(stderr, fmt, ap);
-		fprintf(stderr, "\n");
-		fflush(stderr);
-		va_end(ap);
-	}
-}
+/*static void printdebug(int level, const char *file, const int line, const char *func, const char *fmt, ...) {*/
+/*    va_list ap;*/
+/*    */
+/*    if (level >= __UMFUSE_DEBUG_LEVEL__) {*/
+/*        va_start(ap, fmt);*/
+/*#ifdef _PTHREAD_H*/
+/*        fprintf(stderr, "[%d:%lu] %s:%d %s(): ", getpid(), pthread_self(), file, line, func);*/
+/*#else*/
+/*        fprintf(stderr, "[%d] %s:%d %s(): ", getpid(), file, line, func);*/
+/*#endif*/
+/*        vfprintf(stderr, fmt, ap);*/
+/*        fprintf(stderr, "\n");*/
+/*        fflush(stderr);*/
+/*        va_end(ap);*/
+/*    }*/
+/*}*/
 #endif
 
 static cutdots(char *path)
@@ -211,7 +212,7 @@ static struct fuse_context *searchcontext(char *path,int exact)
 	struct fuse_context *result=NULL;
 	epoch_t maxepoch=0;
 	int maxi=-1;
-	PRINTDEBUG(0,"SearchContext:%s-%s ENTER!\n",path, exact?"EXACT":"SUBSTR");
+	GDEBUG(1,"SearchContext:%s-%s ENTER!",path, exact?"EXACT":"SUBSTR");
 	cutdots(path);
 	for (i=0;i<fusetabmax;i++)
 	{
@@ -283,7 +284,7 @@ static void delmnttab(struct fuse_context *fc)
 	if (i<fusetabmax)
 		 fusetab[i]=NULL;
 	else
-		fprintf(stderr,"delmnt inexistent entry\n");
+		GMESSAGE("delmnt inexistent entry");
 	pthread_mutex_unlock( &fusetab_mutex );
 }
  
@@ -488,8 +489,8 @@ static char *mountflag2options(unsigned long mountflags, void *data)
 	char *mountopts=data;
 	opts[0]=0;
 	
-	PRINTDEBUG(10,"mountflags: %x\n",mountflags);
-	PRINTDEBUG(10,"data: %s\n",data);
+	GDEBUG(10,"mountflags: %x",mountflags);
+	GDEBUG(10,"data: %s",data);
 
 	if (mountflags & MS_REMOUNT)
 		strncat(opts,"remount,",PATH_MAX);
@@ -514,7 +515,7 @@ static char *mountflag2options(unsigned long mountflags, void *data)
 		opts[strlen(opts)-1]=0;
 	     else 
 		strncpy(opts,"rw",PATH_MAX);
-	PRINTDEBUG(10,"opts: %s\n",opts);
+	GDEBUG(10,"opts: %s",opts);
 	return(strdup(opts));
 }
 
@@ -526,8 +527,7 @@ static void *startmain(void *vsmo)
 	int newargc;
 	char **newargv;
 	if (pmain == NULL) {
-		fprintf(stderr, "%s\n", dlerror());
-		fflush(stderr);
+		GMESSAGE("%s", dlerror());
 	}
 	/* handle -o options and specific filesystem options */
 	opts = mountflag2options(*(psmo->pmountflags), psmo->data);
@@ -535,10 +535,9 @@ static void *startmain(void *vsmo)
 	newargc=fuseargs(psmo->new->fuse->filesystemtype,psmo->source, psmo->new->fuse->path,opts, &newargv,psmo->new, &(psmo->new->fuse->flags));
 	free(opts);
 	if (psmo->new->fuse->flags & FUSE_DEBUG) {
-		fprintf(stderr, "UmFUSE Debug enabled\n");
-		fprintf(stderr, "MOUNT=>filesystem:%s image:%s path:%s args:%s\n",
+		GMESSAGE("UmFUSE Debug enabled");
+		GMESSAGE("MOUNT=>filesystem:%s image:%s path:%s args:%s",
 				psmo->new->fuse->filesystemtype, psmo->source, psmo->new->fuse->path,opts);
-		fflush(stderr);		
 	}
 
 	if (psmo->new->fuse->flags & FUSE_HUMAN) {
@@ -588,17 +587,13 @@ int fuse_mount(const char *mountpoint, const char *opts)
 int fuse_mount(const char *mountpoint, struct fuse_args *args)
 #endif
 {
-#ifdef __UMFUSE_DEBUG__
-	 PRINTDEBUG(10,"fuse_mount %s\n",mountpoint);
-#endif
+	 GDEBUG(10,"fuse_mount %s",mountpoint);
 	return searchmnttab(fuse_get_context());
 }
 #else
 struct fuse_chan *fuse_mount(const char *mountpoint, struct fuse_args *args)
 {
-#ifdef __UMFUSE_DEBUG__
-	 PRINTDEBUG(10,"fuse_mount %s\n",mountpoint);
-#endif
+	 GDEBUG(10,"fuse_mount %s",mountpoint);
 	return (struct fuse_chan *) fuse_get_context();
 }
 #endif
@@ -616,10 +611,10 @@ void fuse_unmount(const char *mountpoint, struct fuse_chan *ch)
  * fuse_operations structure */
 static void fopsfill (struct fuse_operations *fops,size_t size)
 {
-	intfun *f=(intfun *)fops;
-	intfun *std=(intfun *) &defaultservice;
+	sysfun *f=(sysfun *)fops;
+	sysfun *std=(sysfun *) &defaultservice;
 	int i;
-	int nfun=size/sizeof(intfun);
+	int nfun=size/sizeof(sysfun);
 	for (i=0; i<nfun; i++)
 		if (f[i] == NULL) {
 			//printf("%d->std\n",i);
@@ -637,9 +632,9 @@ struct fuse *fuse_new(int fd, struct fuse_args *args,
 #endif
 {
 	struct fuse_context *fc=fuse_get_context();
-	PRINTDEBUG(10,"%d %d %d %d\n",fd,umfuse_current_context,op_size,sizeof(struct fuse_operations));
+	GDEBUG(10,"%d %d %d %d",fd,fc,op_size,sizeof(struct fuse_operations));
 	if (op_size != sizeof(struct fuse_operations))
-		fprintf(stderr, "Fuse module vs umfuse support version mismatch\n");
+		GMESSAGE("Fuse module vs umfuse support version mismatch");
 	
 	if (fusetab[fd] != fc || op_size != sizeof(struct fuse_operations)){
 		fc->fuse->inuse=FUSE_ABORT;
@@ -657,9 +652,9 @@ struct fuse *fuse_new(struct fuse_chan *ch, struct fuse_args *args,
 													void *user_data)
 {
 	struct fuse_context *fc=(struct fuse_context *)ch;
-	PRINTDEBUG(10,"%p %p %d %d\n",fc,fuse_get_context(),op_size,sizeof(struct fuse_operations));
+	GDEBUG(10,"%p %p %d %d",fc,fuse_get_context(),op_size,sizeof(struct fuse_operations));
 	if (op_size != sizeof(struct fuse_operations))
-		fprintf(stderr, "Fuse module vs umfuse support version mismatch\n");
+		GMESSAGE("Fuse module vs umfuse support version mismatch");
 	if (fc != fuse_get_context() || op_size != sizeof(struct fuse_operations)){
 		fc->fuse->inuse=FUSE_ABORT;
 		return NULL;
@@ -769,18 +764,17 @@ int fuse_is_lib_option(const char *opt)
 	return 0;
 }
 
-static int umfuse_mount(char *source, char *target, char *filesystemtype,
+static long umfuse_mount(char *source, char *target, char *filesystemtype,
 		       unsigned long mountflags, void *data)
 {
 	/* TODO: ENOTDIR if it is not a directory */
 	void *dlhandle = dlopen(filesystemtype, RTLD_NOW);
 	
-	PRINTDEBUG(10, "MOUNT %s %s %s %x %s\n",source,target,filesystemtype,
+	GDEBUG(10, "MOUNT %s %s %s %x %s",source,target,filesystemtype,
 			mountflags, (data!=NULL)?data:"<NULL>");
 
 	if(dlhandle == NULL || dlsym(dlhandle,"main") == NULL) {
-		fprintf(stderr, "%s\n",dlerror());
-		fflush(stderr);
+		GMESSAGE("%s",dlerror());
 		if (dlhandle != NULL)
 			dlclose(dlhandle);
 		errno=ENODEV;
@@ -825,7 +819,7 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 		pthread_mutex_init(&(new->fuse->endmutex),NULL);
 		pthread_create(&(new->fuse->thread), NULL, startmain, (void *)&smo);
 		
-		PRINTDEBUG(10, "PID %d TID %d \n",getpid(),pthread_self());
+		GDEBUG(10, "PID %d TID %d",getpid(),pthread_self());
 		
 		pthread_mutex_lock( &condition_mutex );
 		if (new->fuse->inuse== WAITING_FOR_LOOP)
@@ -834,7 +828,7 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 		if (new->fuse->inuse == FUSE_ABORT)
 		{
 			struct fuse_context *fc_norace=new;
-			printf("UMOUNT ABORT\n");
+			GERROR("UMOUNT ABORT");
 			delmnttab(new);
 			pthread_join(fc_norace->fuse->thread, NULL);
 			dlclose(fc_norace->fuse->dlhandle);
@@ -856,7 +850,7 @@ static int umfuse_mount(char *source, char *target, char *filesystemtype,
 	}
 }
 
-static int umfuse_umount2(char *target, int flags)
+static long umfuse_umount2(char *target, int flags)
 {
 	char *ppath;
 	struct fuse_context *fc;
@@ -876,8 +870,7 @@ static int umfuse_umount2(char *target, int flags)
 		struct fuse_context *mountpointfc = searchcontext(ppath,SUBSTR);
 		free(ppath);
 		if (fc_norace->fuse->flags & FUSE_DEBUG) {
-			fprintf(stderr, "UMOUNT => path:%s flag:%d\n",target, flags);
-			fflush(stderr);
+			GMESSAGE("UMOUNT => path:%s flag:%d",target, flags);
 		}
 		delmnttab(fc);
 		if (mountpointfc != NULL) mountpointfc->fuse->inuse--;
@@ -989,7 +982,7 @@ static void umcleandirinfo(struct umdirent *tail)
 	}
 }
 
-static int umfuse_getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
+static long umfuse_getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
 {
 	if (filetab[fd]==NULL) {
 		errno=EBADF;
@@ -1029,7 +1022,7 @@ static int umfuse_getdents(unsigned int fd, struct dirent *dirp, unsigned int co
 	}
 }
 
-static int umfuse_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
+static long umfuse_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
 {
 	if (filetab[fd]==NULL) {
 		errno=EBADF;
@@ -1081,7 +1074,7 @@ static int alwaysfalse()
 	return FALSE;
 }
 
-static int umfuse_access(char *path, int mode);
+static long umfuse_access(char *path, int mode);
 
 /*search the currect context depending on path
  * return 1 succesfull o 0 if an error occur*/
@@ -1115,7 +1108,7 @@ static char *unwrap(struct fuse_context *fc,char *path)
 		return(reduced);
 }
 
-static int umfuse_open(char *path, int flags, mode_t mode)
+static long umfuse_open(char *path, int flags, mode_t mode)
 {
 	struct fuse_context *fc = searchcontext(path, SUBSTR);
 	int fi = addfiletab();
@@ -1127,42 +1120,42 @@ static int umfuse_open(char *path, int flags, mode_t mode)
 	fuse_set_context(fc);
 
 #ifdef __UMFUSE_DEBUG__
-	PRINTDEBUG(10,"FLAGOPEN path:%s unwrap:%s\nFLAGS:0x%x MODE:%d\n",path,unwrap(fc,path),flags,mode);
+	GDEBUG(10,"FLAGOPEN path:%s unwrap:%s\nFLAGS:0x%x MODE:%d\n",path,unwrap(fc,path),flags,mode);
 
 	if(flags &  O_CREAT)
-		PRINTDEBUG(10, "O_CREAT\n");
+		GDEBUG(10, "O_CREAT\n");
 	if(flags & O_TRUNC)
-		PRINTDEBUG(10, "O_TRUNC\n");
+		GDEBUG(10, "O_TRUNC\n");
 	if(flags &  O_RDONLY)
-		PRINTDEBUG(10, "O_RDONLY:\n");
+		GDEBUG(10, "O_RDONLY:\n");
 	if(flags &  O_APPEND)
-		PRINTDEBUG(10, "O_APPEND\n");
+		GDEBUG(10, "O_APPEND\n");
 	if(flags &  O_WRONLY)
-		PRINTDEBUG(10, "O_WRONLY\n");
+		GDEBUG(10, "O_WRONLY\n");
 	if(flags &  O_RDWR)
-		PRINTDEBUG(10, "O_RDWR\n");
+		GDEBUG(10, "O_RDWR\n");
 	if(flags &  O_ASYNC)
-		PRINTDEBUG(10, "O_ASYNC\n");
+		GDEBUG(10, "O_ASYNC\n");
 	if(flags &  O_DIRECT)
-		PRINTDEBUG(10, "O_DIRECT\n");
+		GDEBUG(10, "O_DIRECT\n");
 	if(flags &  O_DIRECTORY)
-		PRINTDEBUG(10, "O_DIRECTORY\n");
+		GDEBUG(10, "O_DIRECTORY\n");
 	if(flags &  O_EXCL)
-		PRINTDEBUG(10, "O_EXCL\n");
+		GDEBUG(10, "O_EXCL\n");
 	if(flags &  O_LARGEFILE)
-		PRINTDEBUG(10, "O_LARGEFILE\n");
+		GDEBUG(10, "O_LARGEFILE\n");
 	if(flags &  O_DIRECT)
-		PRINTDEBUG(10, "O_NOATIME\n");
+		GDEBUG(10, "O_NOATIME\n");
 	if(flags &  O_DIRECTORY)
-		PRINTDEBUG(10, "O_NOCTTY\n");
+		GDEBUG(10, "O_NOCTTY\n");
 	if(flags &  O_EXCL)
-		PRINTDEBUG(10, "O_NOCTTY\n");
+		GDEBUG(10, "O_NOCTTY\n");
 	if(flags &  O_NOFOLLOW)
-		PRINTDEBUG(10, "O_NOFOLLOW\n");
+		GDEBUG(10, "O_NOFOLLOW\n");
 	if(flags &  (O_NONBLOCK | O_NDELAY))
-		PRINTDEBUG(10, "O_NONBLOCK o O_NDELAY\n");
+		GDEBUG(10, "O_NONBLOCK o O_NDELAY\n");
 	if(flags &  O_SYNC)
-		PRINTDEBUG(10, "SYNC\n");
+		GDEBUG(10, "SYNC\n");
 #endif
 
 	filetab[fi]->context = fc;
@@ -1228,7 +1221,7 @@ static int umfuse_open(char *path, int flags, mode_t mode)
 					return -1;
 				} 
 			} else {
-				PRINTDEBUG(10, "umfuse open MKNOD call\n");
+				GDEBUG(10, "umfuse open MKNOD call\n");
 				rv = fc->fuse->fops.mknod(filetab[fi]->path, S_IFREG | mode, (dev_t) 0);
 				if (rv < 0) {
 					delfiletab(fi);
@@ -1237,7 +1230,7 @@ static int umfuse_open(char *path, int flags, mode_t mode)
 				}
 			}
 		}
-		PRINTDEBUG(10,"open_fuse_filesystem CALL!\n");
+		GDEBUG(10,"open_fuse_filesystem CALL!\n");
 		if ((flags & O_DIRECTORY) && fc->fuse->fops.readdir)
 			rv = fc->fuse->fops.opendir(filetab[fi]->path, &filetab[fi]->ffi);
 		else
@@ -1247,9 +1240,8 @@ static int umfuse_open(char *path, int flags, mode_t mode)
 	if (rv < 0)
 	{
 		if (fc->fuse->flags & FUSE_DEBUG) {
-        		fprintf(stderr, "OPEN[%d] ERROR => path:%s flags:0x%x\n",
-				fi, path, flags);	
-			fflush(stderr);
+        		GERROR("OPEN[%d] ERROR => path:%s flags:0x%x\n",
+					fi, path, flags);	
 		}		
 		delfiletab(fi);
 		errno = -rv;
@@ -1257,9 +1249,8 @@ static int umfuse_open(char *path, int flags, mode_t mode)
 	} else {
 		filetab[fi]->count += 1;
 		if (fc->fuse->flags & FUSE_DEBUG) {
-        		fprintf(stderr, "OPEN[%d] => path:%s flags:0x%x\n",
-				fi, path, flags);
-			fflush(stderr);
+        		GMESSAGE("OPEN[%d] => path:%s flags:0x%x\n",
+					fi, path, flags);
 		}
 
 		/* TODO update fuse->inuse++ */
@@ -1268,7 +1259,7 @@ static int umfuse_open(char *path, int flags, mode_t mode)
 	}
 }
 
-static int umfuse_close(int fd)
+static long umfuse_close(int fd)
 {
 	int rv;
 	
@@ -1281,21 +1272,19 @@ static int umfuse_close(int fd)
 		fc->pid=um_mod_getpid();
 
 		if (fc->fuse->flags & FUSE_DEBUG) {
-        	        fprintf(stderr, "CLOSE[%d] %s %p\n",fd,filetab[fd]->path,fc);
-                	fflush(stderr);
+        	        GMESSAGE("CLOSE[%d] %s %p\n",fd,filetab[fd]->path,fc);
 	        }
 	
 		if (!(filetab[fd]->ffi.flags & O_DIRECTORY))
 			rv=fc->fuse->fops.flush(filetab[fd]->path, &filetab[fd]->ffi);
 		
 		if (fc->fuse->flags & FUSE_DEBUG) {
-			fprintf(stderr, "FLUSH[%d] => path:%s\n",
+			GMESSAGE("FLUSH[%d] => path:%s\n",
 				fd, filetab[fd]->path);
-			fflush(stderr);
 		}
 	
 		filetab[fd]->count--;
-		PRINTDEBUG(10,"->CLOSE %s %d\n",filetab[fd]->path, filetab[fd]->count);
+		GDEBUG(10,"->CLOSE %s %d\n",filetab[fd]->path, filetab[fd]->count);
 		if (filetab[fd]->count == 0) {			 
 			fc->fuse->inuse--;
 			if ((filetab[fd]->ffi.flags & O_DIRECTORY) && fc->fuse->fops.readdir)
@@ -1303,9 +1292,8 @@ static int umfuse_close(int fd)
 			else
 				rv=fc->fuse->fops.release(filetab[fd]->path, &filetab[fd]->ffi);
 			if (fc->fuse->flags & FUSE_DEBUG) {
-        			fprintf(stderr, "RELEASE[%d] => path:%s flags:0x%x\n",
+        			GMESSAGE("RELEASE[%d] => path:%s flags:0x%x\n",
 					fd, filetab[fd]->path, fc->fuse->flags);
-				fflush(stderr);					
 			}
 			umcleandirinfo(filetab[fd]->dirinfo);
 			delfiletab(fd);
@@ -1319,7 +1307,7 @@ static int umfuse_close(int fd)
 	} return 0;
 }
 
-static int umfuse_read(int fd, void *buf, size_t count)
+static long umfuse_read(int fd, void *buf, size_t count)
 {
 	int rv;
 	if ( (filetab[fd]==NULL) || (filetab[fd]->ffi.flags & (O_WRONLY))) {
@@ -1338,9 +1326,8 @@ static int umfuse_read(int fd, void *buf, size_t count)
 				filetab[fd]->pos,
 				&filetab[fd]->ffi);
 		if (fc->fuse->flags & FUSE_DEBUG) {
-        		fprintf(stderr, "READ[%d] => path:%s count:%u\n",
+        		GMESSAGE("READ[%d] => path:%s count:%u\n",
 				fd, filetab[fd]->path, count);
-			fflush(stderr);
 		}
 		if (rv<0) {
 			errno= -rv;
@@ -1352,7 +1339,7 @@ static int umfuse_read(int fd, void *buf, size_t count)
 	}
 }
 
-static int umfuse_write(int fd, void *buf, size_t count)
+static long umfuse_write(int fd, void *buf, size_t count)
 {
 #ifdef __UMFUSE_EXPERIMENTAL__
 //TODO write page?!
@@ -1373,12 +1360,11 @@ static int umfuse_write(int fd, void *buf, size_t count)
 		rv = fc->fuse->fops.write(filetab[fd]->path,
 				buf, count, filetab[fd]->pos, &filetab[fd]->ffi);
 		if (fc->fuse->flags & FUSE_DEBUG) {
-			fprintf(stderr, "WRITE[%d] => path:%s count:0x%x\n",
+			GMESSAGE("WRITE[%d] => path:%s count:0x%x\n",
 				fd, filetab[fd]->path, count);
-			fflush(stderr);
 		}
 	
-		PRINTDEBUG(10,"WRITE rv:%d\n",rv); 
+		GDEBUG(10,"WRITE rv:%d\n",rv); 
 
 //		if (fc->fuse->flags & FUSE_DEBUG)
   //      		fprintf(stderr, "WRITE[%lu] => path:%s count:0x%x\n",
@@ -1429,9 +1415,8 @@ static int common_stat(struct fuse_context *fc, char *path,  struct stat *buf,in
 	rv = fc->fuse->fops.getattr(
 			(wrapped)?unwrap(fc,path):path,buf);
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		fprintf(stderr, "stat->GETATTR => path:%s status: %s\n",
+		GMESSAGE("stat->GETATTR => path:%s status: %s\n",
 				path, rv ? "Error" : "Success");
-		fflush(stderr);
 	}
 	if (rv<0) {
 		errno= -rv;
@@ -1449,7 +1434,7 @@ static int common_stat64(struct fuse_context *fc, char *path,  struct stat64 *bu
 	return rv;
 }
 
-static int umfuse_fstat(int fd, struct stat *buf)
+static long umfuse_fstat(int fd, struct stat *buf)
 {
 	if (fd < 0 || filetab[fd] == NULL) {
 		errno=EBADF;
@@ -1467,9 +1452,8 @@ static int umfuse_fstat(int fd, struct stat *buf)
 			rv = fc->fuse->fops.fgetattr(
 					      filetab[fd]->path,buf,&filetab[fd]->ffi);
 			if (fc->fuse->flags & FUSE_DEBUG) {
-				fprintf(stderr, "ftat->FETATTR => path:%s status: %s\n",
+				GMESSAGE("ftat->FETATTR => path:%s status: %s\n",
 						filetab[fd]->path, rv ? "Error" : "Success");
-				fflush(stderr);
 			}
 			if (rv < 0) {
 				errno = -rv;
@@ -1483,7 +1467,7 @@ static int umfuse_fstat(int fd, struct stat *buf)
 	}
 }
 
-static int umfuse_fstat64(int fd, struct stat64 *buf64)
+static long umfuse_fstat64(int fd, struct stat64 *buf64)
 {
 	if (filetab[fd]==NULL) {
 		errno=EBADF;
@@ -1497,27 +1481,27 @@ static int umfuse_fstat64(int fd, struct stat64 *buf64)
 	}
 }
 
-static int umfuse_stat(char *path, struct stat *buf)
+static long umfuse_stat(char *path, struct stat *buf)
 {
 	return common_stat(searchcontext(path,SUBSTR),path,buf,1);
 }
 
-static int umfuse_lstat(char *path, struct stat *buf)
+static long umfuse_lstat(char *path, struct stat *buf)
 {
 	return common_stat(searchcontext(path,SUBSTR),path,buf,1);
 }
 
-static int umfuse_stat64(char *path, struct stat64 *buf64)
+static long umfuse_stat64(char *path, struct stat64 *buf64)
 {
 	return common_stat64(searchcontext(path,SUBSTR),path,buf64,1);
 }
 
-static int umfuse_lstat64(char *path, struct stat64 *buf64)
+static long umfuse_lstat64(char *path, struct stat64 *buf64)
 {
 	return common_stat64(searchcontext(path,SUBSTR),path,buf64,1);
 }
 
-static int umfuse_readlink(char *path, char *buf, size_t bufsiz)
+static long umfuse_readlink(char *path, char *buf, size_t bufsiz)
 {
 	struct fuse_context *fc=fuse_get_context();
 	int rv;
@@ -1528,7 +1512,7 @@ static int umfuse_readlink(char *path, char *buf, size_t bufsiz)
 			unwrap(fc, path), buf, bufsiz);
 	if (rv == 0)
 		rv=strnlen(buf,bufsiz);
-	PRINTDEBUG(10,"umfuse_readlink %s %s %d\n",unwrap(fc,path),buf,rv);
+	GDEBUG(10,"umfuse_readlink %s %s %d\n",unwrap(fc,path),buf,rv);
 	if (rv < 0) {
 		errno = -rv;
 		return -1;
@@ -1536,7 +1520,7 @@ static int umfuse_readlink(char *path, char *buf, size_t bufsiz)
 		return rv;
 }
 
-static int umfuse_access(char *path, int mode)
+static long umfuse_access(char *path, int mode)
 {
 
 	struct fuse_context *fc=searchcontext(path, SUBSTR);
@@ -1546,12 +1530,11 @@ static int umfuse_access(char *path, int mode)
 	fuse_set_context(fc);
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
-        	fprintf(stderr, "ACCESS => path:%s mode:%s%s%s%s\n", path,
+        	GMESSAGE("ACCESS => path:%s mode:%s%s%s%s\n", path,
 				(mode & R_OK) ? "R_OK": "",
 				(mode & W_OK) ? "W_OK": "",
 				(mode & X_OK) ? "X_OK": "",
 				(mode & F_OK) ? "F_OK": "");
-		fflush(stderr);
 	}
 
 	if (fc->fuse->flags & FUSE_HUMAN) {
@@ -1589,7 +1572,7 @@ static int umfuse_access(char *path, int mode)
 	}
 }
 /*
-static int umfuse_mknod(const char *path, mode_t mode, dev_t dev)
+static long umfuse_mknod(const char *path, mode_t mode, dev_t dev)
 {
 	struct fuse_context *fc = searchcontext(path, SUBSTR);
 	int rv;
@@ -1606,7 +1589,7 @@ static int umfuse_mknod(const char *path, mode_t mode, dev_t dev)
 	return rv;
 }
 */
-static int umfuse_mkdir(char *path, int mode)
+static long umfuse_mkdir(char *path, int mode)
 {
 	struct fuse_context *fc=searchcontext(path, SUBSTR);
 	int rv=0;
@@ -1629,8 +1612,7 @@ static int umfuse_mkdir(char *path, int mode)
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
-        	fprintf(stderr, "MKDIR => path:%s\n",path);
-		fflush(stderr);
+        	GMESSAGE("MKDIR => path:%s\n",path);
 	}
 	rv = fc->fuse->fops.mkdir(
 			unwrap(fc, path), mode);
@@ -1641,7 +1623,7 @@ static int umfuse_mkdir(char *path, int mode)
 		return rv;
 }
 
-static int umfuse_rmdir(char *path)
+static long umfuse_rmdir(char *path)
 {
 	struct fuse_context *fc= searchcontext(path, SUBSTR);
 	int rv;
@@ -1664,8 +1646,7 @@ static int umfuse_rmdir(char *path)
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
-        	fprintf(stderr, "RMDIR => path:%s\n",path);
-		fflush(stderr);
+        	GMESSAGE("RMDIR => path:%s\n",path);
 	}
 	rv= fc->fuse->fops.rmdir(
 			unwrap(fc, path));
@@ -1676,7 +1657,7 @@ static int umfuse_rmdir(char *path)
 		return rv;
 }
 
-static int umfuse_chmod(char *path, int mode)
+static long umfuse_chmod(char *path, int mode)
 {
 	struct fuse_context *fc = searchcontext(path, SUBSTR);
 	int rv;
@@ -1694,8 +1675,7 @@ static int umfuse_chmod(char *path, int mode)
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
-        	fprintf(stderr, "CHMOD => path:%s\n",path);
-		fflush(stderr);
+        	GMESSAGE("CHMOD => path:%s\n",path);
 	}
 	rv= fc->fuse->fops.chmod(
 			unwrap(fc ,path), mode);
@@ -1706,7 +1686,7 @@ static int umfuse_chmod(char *path, int mode)
 	return rv;
 }
 
-static int umfuse_chown(char *path, uid_t owner, gid_t group)
+static long umfuse_chown(char *path, uid_t owner, gid_t group)
 {
 	struct fuse_context *fc = searchcontext(path, SUBSTR);
 	int rv=0;
@@ -1734,13 +1714,13 @@ static int umfuse_chown(char *path, uid_t owner, gid_t group)
 		return rv;
 }
 
-static int umfuse_lchown(char *path, uid_t owner, gid_t group)
+static long umfuse_lchown(char *path, uid_t owner, gid_t group)
 {
 //	Do not follow symlinks
 //		and call chown
 }
 
-static int umfuse_unlink(char *path)
+static long umfuse_unlink(char *path)
 {
 	struct fuse_context *fc=searchcontext(path, SUBSTR);
 	int rv=0;
@@ -1765,7 +1745,7 @@ static int umfuse_unlink(char *path)
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG)
-        	fprintf(stderr, "UNLINK => path:%s\n",path);
+        	GMESSAGE("UNLINK => path:%s\n",path);
 	rv = fc->fuse->fops.unlink(
 			unwrap(fc, path));
 	if (rv < 0) {
@@ -1775,7 +1755,7 @@ static int umfuse_unlink(char *path)
 		return rv;
 }
 
-static int umfuse_link(char *oldpath, char *newpath)
+static long umfuse_link(char *oldpath, char *newpath)
 {
 	struct fuse_context *fc= searchcontext(newpath, SUBSTR);
 	int rv=0;
@@ -1798,7 +1778,7 @@ static int umfuse_link(char *oldpath, char *newpath)
 	fc->pid=um_mod_getpid();
 
 	if (fc->fuse->flags & FUSE_DEBUG)
-        	fprintf(stderr, "LINK => oldpath:%s newpath:%s\n",oldpath, newpath);
+        	GMESSAGE("LINK => oldpath:%s newpath:%s\n",oldpath, newpath);
 	rv = fc->fuse->fops.link(
 			unwrap(fc, oldpath),
 			unwrap(fc, newpath));
@@ -1810,13 +1790,12 @@ static int umfuse_link(char *oldpath, char *newpath)
 }
 
 //see fuse.h: it is has not the same meaning of syscall
-static int umfuse_fsync(int fd)
+static long umfuse_fsync(int fd)
 {
 	struct fuse_context *fc=filetab[fd]->context;
 	fuse_set_context(fc);
 	if (fc->fuse->flags & FUSE_DEBUG) {
-        	fprintf(stderr, "kernel FSYNC. It has a different semantics in fuse\n");
-		fflush(stderr);
+        	GMESSAGE("kernel FSYNC. It has a different semantics in fuse\n");
 	}
 			
 	/*	//	rv = fc->fuse->fops.read
@@ -1835,7 +1814,7 @@ static int umfuse_fsync(int fd)
 	return 0;
 }
 
-static int umfuse_rename(char *oldpath, char *newpath)
+static long umfuse_rename(char *oldpath, char *newpath)
 {
 	struct fuse_context *fc=searchcontext(newpath, SUBSTR);
 	int rv=0;
@@ -1843,8 +1822,7 @@ static int umfuse_rename(char *oldpath, char *newpath)
 	fc->pid=um_mod_getpid();
 	fuse_set_context(fc);
 	if (fc->fuse->flags & FUSE_DEBUG) {
-        	fprintf(stderr, "RENAME => %s ->%s\n",oldpath, newpath);
-		fflush(stderr);
+        	GMESSAGE("RENAME => %s ->%s\n",oldpath, newpath);
 	}
 
 	if (fc->fuse->flags & FUSE_HUMAN) {
@@ -1866,7 +1844,7 @@ static int umfuse_rename(char *oldpath, char *newpath)
 		return rv;	
 }
 
-static int umfuse_symlink(char *oldpath, char *newpath)
+static long umfuse_symlink(char *oldpath, char *newpath)
 {
 	
 	struct fuse_context *fc=searchcontext(newpath, SUBSTR);
@@ -1890,9 +1868,8 @@ static int umfuse_symlink(char *oldpath, char *newpath)
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
-        	fprintf(stderr, "SYMLINK => %s -> %s\n",
+        	GMESSAGE("SYMLINK => %s -> %s\n",
 					newpath, oldpath);
-		fflush(stderr);
 	}
 	rv = fc->fuse->fops.symlink(
 			oldpath,
@@ -1904,7 +1881,7 @@ static int umfuse_symlink(char *oldpath, char *newpath)
 		return rv;	
 }
 
-static int umfuse_truncate64(char *path, loff_t length)
+static long umfuse_truncate64(char *path, loff_t length)
 {
 
 	struct fuse_context *fc=searchcontext(path, SUBSTR);
@@ -1938,8 +1915,7 @@ static int umfuse_truncate64(char *path, loff_t length)
 	fc->pid=um_mod_getpid();
 
 	if (fc->fuse->flags & FUSE_DEBUG) {
-        	fprintf(stderr, "TRUNCATE debug => path %s\n",path);		
-		fflush(stderr);
+        	GMESSAGE("TRUNCATE debug => path %s\n",path);		
 	}
 	rv = fc->fuse->fops.truncate(
 			unwrap(fc, path),(off_t)length);
@@ -1950,7 +1926,7 @@ static int umfuse_truncate64(char *path, loff_t length)
 		return rv;	
 }
 
-static int umfuse_ftruncate64(int fd, off_t length)
+static long umfuse_ftruncate64(int fd, off_t length)
 {
 	/* FUSE defines length as off_t, so we will not truncate a file
 	 * if the desired length can't be contained in an off_t.
@@ -1981,8 +1957,7 @@ static int umfuse_ftruncate64(int fd, off_t length)
 			rv = fc->fuse->fops.ftruncate(
 					filetab[fd]->path,(off_t)length,&filetab[fd]->ffi);
 			if (fc->fuse->flags & FUSE_DEBUG) {
-				fprintf(stderr, "FTRUNCATE debug => path %s\n",filetab[fd]->path);		
-				fflush(stderr);
+				GMESSAGE("FTRUNCATE debug => path %s\n",filetab[fd]->path);		
 			}
 			if (rv < 0) {
 				errno = -rv;
@@ -1997,7 +1972,7 @@ static int umfuse_ftruncate64(int fd, off_t length)
 }
 
 /** Change the access and/or modification times of a file */
-static int umfuse_utime(char *path, struct utimbuf *buf)
+static long umfuse_utime(char *path, struct utimbuf *buf)
 {
 	struct fuse_context *fc = searchcontext(path, SUBSTR);
 	int rv;
@@ -2031,7 +2006,7 @@ static int umfuse_utime(char *path, struct utimbuf *buf)
 	return rv;	
 }
 
-static int umfuse_utimes(char *path, struct timeval tv[2])
+static long umfuse_utimes(char *path, struct timeval tv[2])
 {
 	//approximate solution. drop microseconds
 	if (tv == NULL) {
@@ -2055,21 +2030,21 @@ static ssize_t umfuse_pwrite(int fd, const void *buf, size_t count, long long of
 }
 
 /* TODO management of fcntl */
-static int umfuse_fcntl32(int fd, int cmd, void *arg)
+static long umfuse_fcntl32(int fd, int cmd, void *arg)
 {
 	//printf("umfuse_fcntl32\n");
 	errno=0;
 	return 0;
 }
 
-static int umfuse_fcntl64(int fd, int cmd, void *arg)
+static long umfuse_fcntl64(int fd, int cmd, void *arg)
 {
 	//printf("umfuse_fcntl64\n");
 	errno=0;
 	return 0;
 }
 
-static int umfuse_lseek(int fd, int offset, int whence)
+static long umfuse_lseek(int fd, int offset, int whence)
 {
 	if (filetab[fd]==NULL) {
 		errno = EBADF; 
@@ -2106,9 +2081,9 @@ static int umfuse_lseek(int fd, int offset, int whence)
 	}
 }
 
-static int umfuse__llseek(unsigned int fd, unsigned long offset_high,  unsigned  long offset_low, loff_t *result, unsigned int whence)
+static long umfuse__llseek(unsigned int fd, unsigned long offset_high,  unsigned  long offset_low, loff_t *result, unsigned int whence)
 {
-	PRINTDEBUG(10,"umfuse__llseek %d %d %d %d\n",fd,offset_high,offset_low,whence);
+	GDEBUG(10,"umfuse__llseek %d %d %d %d\n",fd,offset_high,offset_low,whence);
 	if (result == NULL) {
 		errno = EFAULT;
 		return -1;
@@ -2138,76 +2113,73 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	printf("umfuse init\n");
+	GMESSAGE("umfuse init");
 	s.name="umfuse fuse ";
 	s.code=0x01;
 	s.checkfun=fuse_path;
 	pthread_key_create(&context_key,NULL);
-	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
-	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
-	s.syscall[uscno(__NR_mount)]=umfuse_mount;
+	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
+	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
+	SERVICESYSCALL(s, mount, umfuse_mount);
 #if 0  //#if __WORDSIZE == 32
-	s.syscall[uscno(__NR_umount)]=umfuse_umount2; /* umount must be mapped onto umount2 */
-	s.syscall[uscno(__NR_creat)]=umfuse_open; /*creat is an open with (O_CREAT|O_WRONLY|O_TRUNC)*/
+	SERVICESYSCALL(s, umount, umfuse_umount2); /* umount must be mapped onto umount2 */
+	SERVICESYSCALL(s, creat, umfuse_open); /*creat is an open with (O_CREAT|O_WRONLY|O_TRUNC)*/
 #endif
-	s.syscall[uscno(__NR_umount2)]=umfuse_umount2;
-	s.syscall[uscno(__NR_open)]=umfuse_open;
-	s.syscall[uscno(__NR_read)]=umfuse_read;
+	SERVICESYSCALL(s, umount2, umfuse_umount2);
+	SERVICESYSCALL(s, open, umfuse_open);
+	SERVICESYSCALL(s, read, umfuse_read);
 #ifdef __UMFUSE_EXPERIMENTAL__
-	s.syscall[uscno(__NR_write)]=umfuse_write;
+	SERVICESYSCALL(s, write, umfuse_write);
 #endif
-	//s.syscall[uscno(__NR_readv)]=readv;
-	//s.syscall[uscno(__NR_writev)]=writev;
-	s.syscall[uscno(__NR_close)]=umfuse_close;
-#if 0 
-	s.syscall[uscno(__NR_stat)]=umfuse_stat;
-	s.syscall[uscno(__NR_lstat)]=umfuse_lstat;
-	s.syscall[uscno(__NR_fstat)]=umfuse_fstat;
-	s.syscall[uscno(__NR_getdents)]=umfuse_getdents;
+	//SERVICESYSCALL(s, readv, readv);
+	//SERVICESYSCALL(s, writev, writev);
+	SERVICESYSCALL(s, close, umfuse_close);
+#if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have theese
+	SERVICESYSCALL(s, stat64, umfuse_stat64);
+	SERVICESYSCALL(s, lstat64, umfuse_lstat64);
+	SERVICESYSCALL(s, fstat64, umfuse_fstat64);
+#else 
+	SERVICESYSCALL(s, stat, umfuse_stat64);
+	SERVICESYSCALL(s, lstat, umfuse_lstat64);
+	SERVICESYSCALL(s, fstat, umfuse_fstat64);
 #endif
-#if __WORDSIZE == 32
-	s.syscall[uscno(__NR_stat64)]=umfuse_stat64;
-	s.syscall[uscno(__NR_lstat64)]=umfuse_lstat64;
-	s.syscall[uscno(__NR_fstat64)]=umfuse_fstat64;
+	SERVICESYSCALL(s, readlink, umfuse_readlink);
+	SERVICESYSCALL(s, getdents64, umfuse_getdents64);
+	SERVICESYSCALL(s, access, umfuse_access);
+	SERVICESYSCALL(s, fcntl, umfuse_fcntl32);
+#if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have theese
+	SERVICESYSCALL(s, fcntl64, umfuse_fcntl64);
+	SERVICESYSCALL(s, _llseek, umfuse__llseek);
 #endif
-	s.syscall[uscno(__NR_readlink)]=umfuse_readlink;
-	s.syscall[uscno(__NR_getdents64)]=umfuse_getdents64;
-	s.syscall[uscno(__NR_access)]=umfuse_access;
-	s.syscall[uscno(__NR_fcntl)]=umfuse_fcntl32;
-#if __WORDSIZE == 32
-	s.syscall[uscno(__NR_fcntl64)]=umfuse_fcntl64;
-	s.syscall[uscno(__NR__llseek)]=umfuse__llseek;
-#endif
-	s.syscall[uscno(__NR_lseek)]=umfuse_lseek;
-	//s.syscall[uscno(__NR_mknod)]=umfuse_mknod;
+	SERVICESYSCALL(s, lseek, umfuse_lseek);
+	//SERVICESYSCALL(s, mknod, umfuse_mknod);
 #ifdef __UMFUSE_EXPERIMENTAL__
-	s.syscall[uscno(__NR_mkdir)]=umfuse_mkdir;
-	s.syscall[uscno(__NR_rmdir)]=umfuse_rmdir;
-	s.syscall[uscno(__NR_chown)]=umfuse_chown;
-	//s.syscall[uscno(__NR_lchown)]=umfuse_lchown;
-	//s.syscall[uscno(__NR_fchown)]=fchown;
-	s.syscall[uscno(__NR_chmod)]=umfuse_chmod;
-	//s.syscall[uscno(__NR_fchmod)]=fchmod;
-	s.syscall[uscno(__NR_unlink)]=umfuse_unlink;
-	s.syscall[uscno(__NR_fsync)]=umfuse_fsync; //not the syscall meaning
-	//s.syscall[uscno(__NR_fdatasync)]=fdatasync;
-	//s.syscall[uscno(__NR__newselect)]=select;
-	s.syscall[uscno(__NR_link)]=umfuse_link;
-	s.syscall[uscno(__NR_symlink)]=umfuse_symlink;
-	s.syscall[uscno(__NR_rename)]=umfuse_rename;
+	SERVICESYSCALL(s, mkdir, umfuse_mkdir);
+	SERVICESYSCALL(s, rmdir, umfuse_rmdir);
+	SERVICESYSCALL(s, chown, umfuse_chown);
+	//SERVICESYSCALL(s, lchown, umfuse_lchown);
+	//SERVICESYSCALL(s, fchown, fchown);
+	SERVICESYSCALL(s, chmod, umfuse_chmod);
+	//SERVICESYSCALL(s, fchmod, fchmod);
+	SERVICESYSCALL(s, unlink, umfuse_unlink);
+	SERVICESYSCALL(s, fsync, umfuse_fsync); //not the syscall meaning
+	//SERVICESYSCALL(s, fdatasync, fdatasync);
+	//SERVICESYSCALL(s, _newselect, select);
+	SERVICESYSCALL(s, link, umfuse_link);
+	SERVICESYSCALL(s, symlink, umfuse_symlink);
+	SERVICESYSCALL(s, rename, umfuse_rename);
 #if __WORDSIZE == 32
-	s.syscall[uscno(__NR_truncate64)] = umfuse_truncate64;
-	s.syscall[uscno(__NR_ftruncate64)] = umfuse_ftruncate64;
-#endif // ! defined(__x86_64)
-#if 0 
-	s.syscall[uscno(__NR_truncate)]=umfuse_truncate64;
-	s.syscall[uscno(__NR_ftruncate)]=umfuse_ftruncate64;
+	SERVICESYSCALL(s, truncate64, umfuse_truncate64);
+	SERVICESYSCALL(s, ftruncate64, umfuse_ftruncate64);
+#else
+	SERVICESYSCALL(s, truncate, umfuse_truncate64);
+	SERVICESYSCALL(s, ftruncate, umfuse_ftruncate64);
 #endif
 #endif
-	//s.syscall[uscno(__NR_pread64)]=umfuse_pread;
-	//s.syscall[uscno(__NR_pwrite64)]=umfuse_pwrite;
-	s.syscall[uscno(__NR_utime)]=umfuse_utime;
-	s.syscall[uscno(__NR_utimes)]=umfuse_utimes;
+	//SERVICESYSCALL(s, pread64, umfuse_pread);
+	//SERVICESYSCALL(s, pwrite64, umfuse_pwrite);
+	SERVICESYSCALL(s, utime, umfuse_utime);
+	SERVICESYSCALL(s, utimes, umfuse_utimes);
 	add_service(&s);
 }
 
@@ -2218,6 +2190,6 @@ fini (void)
 	free(s.syscall);
 	free(s.socket);
 	forallfusetabdo(contextclose);
-	printf("umfuse fini\n");
+	GMESSAGE("umfuse fini");
 }
 

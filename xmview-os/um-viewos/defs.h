@@ -48,8 +48,8 @@
 #define r_select(n,r,w,e,t) (syscall(__NR_select,(n),(r),(w),(e),(t)))
 #endif
 #define r_pselect6(n,r,w,e,t,m) (syscall(__NR_pselect6,(n),(r),(w),(e),(t),(m)))
-#define r_waitpid(p,s,o) (syscall(__NR_waitpid,(p),(s),(o)))
-#define r_lstat64(p,b) (syscall(__NR_lstat64,(p),(b)))
+#define r_waitpid(p,s,o) (syscall(__NR_wait4,(p),(s),(o),NULL))
+#define r_lstat64(p,b) (syscall(NR64_lstat,(p),(b)))
 #define r_readlink(p,b,sz) (syscall(__NR_readlink,(p),(b),(sz)))
 #define r_fcntl(f,c,a) (syscall(__NR_fcntl,(f),(c),(a)))
 #define r_umask(m) (syscall(__NR_umask,(m)))
@@ -105,10 +105,13 @@ extern unsigned int ptrace_viewos_mask;
 
 #if defined(__powerpc__) //setregs/getresg for ppc
 #define FRAME_SIZE 13
-#elif defined(__x86_64__) // asm-x86_64 define it as 168 [offset in bytes] ! //#define VIEWOS_FRAME_SIZE 22
+#elif defined(__x86_64__) // asm-x86_64 define it as 168 [offset in bytes] ! 
+//#define VIEWOS_FRAME_SIZE 22
 #define VIEWOS_FRAME_SIZE 28
 #define NR_syscalls __NR_syscall_max
-#elif defined(__i386__)
+#endif
+
+#ifndef VIEWOS_FRAME_SIZE
 #define VIEWOS_FRAME_SIZE FRAME_SIZE
 #endif
 
@@ -141,7 +144,7 @@ struct pcb {
 	unsigned long arg1;
 	unsigned long arg2;
 
-	long saved_regs[FRAME_SIZE];
+	long saved_regs[VIEWOS_FRAME_SIZE];
 	// if regs aren't modified (because of a real syscall...), we can 
 	// avoid calling PTRACE_SETREGS
 	char regs_modified;
@@ -175,6 +178,24 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define SC_SUSPIN 4     /* SUSPENDED + IN  */
 #define SC_SUSPOUT 5    /* SUSPENDED + OUT */
 
+
+//#####################################
+// SYSCALL STRANGE STUFF
+#define __NR_doesnotexist -1
+#if defined(__x86_64__)
+#define NR64_stat	__NR_stat
+#define NR64_lstat	__NR_lstat
+#define NR64_fstat	__NR_fstat
+#else
+#define NR64_stat	__NR_stat64
+#define NR64_lstat	__NR_lstat64
+#define NR64_fstat	__NR_fstat64
+#endif
+
+
+//#####################################
+
+
 // part of defs that's strictly architecture dependent
 #if defined(__i386__) //getregs/setregs and so on, for ia32
 #include "defs_i386.h"
@@ -186,7 +207,7 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #error Unsupported HW Architecure
 #endif /* architecture */
 
-#define __NR_UM_SERVICE BASEUSC+0
+#define __NR_UM_SERVICE 1
 #define ADD_SERVICE 0
 #define DEL_SERVICE 1
 #define MOV_SERVICE 2
@@ -196,7 +217,6 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define RECURSIVE_UMVIEW 0x100
 
 extern divfun scdtab[MAXSC];
-extern divfun scdutab[MAXUSC];
 extern t_pcb_constr pcb_constr;
 extern t_pcb_destr pcb_destr;
 

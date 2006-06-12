@@ -26,7 +26,7 @@
 #define __SERVICES_H
 #include "treepoch.h"
 
-typedef int (*intfun)();
+typedef long (*sysfun)();
 typedef unsigned char service_t;
 
 #define CHECKNOCHECK 0 //to bee or not to bee!! :-D
@@ -68,12 +68,12 @@ struct service {
 	 * (int id, int max)
 	 * max is the current max number of processes: service implementation can use it
 	 * to realloc their internal structures*/
-	intfun addproc;
+	sysfun addproc;
 
   /*delproc is called when a process terminates.
 	 * is the garbage collection function for the data that addproc may have created
 	 */
-	intfun delproc;
+	sysfun delproc;
 
 	/* choice function: returns TRUE if this path must be managed by this module
 	 * FALSE otherwise.
@@ -97,17 +97,17 @@ struct service {
 	 * fd: fd (i.e. sfd, the fd as seen by the service module)
 	 * how: 0x1 READ_OK, 0x2 WRITE_OK, 0x4 EXTRA
 	 */
-	intfun select_register;
+	sysfun select_register;
 
 	/* the syscall table, the arguments are the same of the "real world" syscalls,*/
-	intfun *um_syscall;
+	sysfun *um_syscall;
 
 	/* the socket call table, the arguments are the same of the "real world" syscalls,*/
-	intfun *socket;
+	sysfun *socket;
 };
 
 #define UM_NONE 0xff
-int isnosys(intfun f);
+int isnosys(sysfun f);
 int add_service(struct service *s);
 int set_handle_new_service(void *dlhandle,int position);
 void *get_handle_service(service_t code);
@@ -120,10 +120,10 @@ void invisible_services();
 void service_addproc(service_t code,int id,int max, void *arg);
 void service_delproc(service_t code,int id, void *arg);
 service_t service_check(int type,void *arg,int setepoch);
-intfun service_syscall(service_t code, int scno);
-intfun service_socketcall(service_t code, int scno);
+sysfun service_syscall(service_t code, int scno);
+sysfun service_socketcall(service_t code, int scno);
 epochfun service_checkfun(service_t code);
-intfun service_select_register(service_t code);
-void _service_init(intfun register_service,intfun deregister_service);
+sysfun service_select_register(service_t code);
+void _service_init(sysfun register_service,sysfun deregister_service);
 
 #endif

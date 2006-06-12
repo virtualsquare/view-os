@@ -138,7 +138,8 @@ epoch_t tst_matchingepoch(struct timestamp *service_tst)
 	while (service_tst->epoch < service_tst->treepoch->rise) 
 		service_tst->treepoch = service_tst->treepoch->parent;
 	/* process_tst->treepoch is NULL only for garbage collection final calls. Always match! */
-	if (process_tst->treepoch) {
+	if (process_tst)
+	{
 		/* if service_tst->treepoch is a  subset of  process_tst->treepoch
 		 * return service_tst->epoch */
 		if (service_tst->treepoch->len > process_tst->treepoch->len ||

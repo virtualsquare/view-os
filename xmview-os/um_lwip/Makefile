@@ -8,7 +8,7 @@ endif
 LWIPSRCDIR=$(LWIPDIR)/lwip-v6/src
 LWIPCONTRIBDIR=$(LWIPDIR)/lwip-contrib/ports/unix
 
-CFLAGS=-D_GNU_SOURCE -ggdb -D_FILE_OFFSET_BITS=64 -rdynamic -I../include -I$(LWIPCONTRIBDIR)/include
+CFLAGS=-D_GNU_SOURCE -fPIC -ggdb -D_FILE_OFFSET_BITS=64 -rdynamic -I../include -I$(LWIPCONTRIBDIR)/include
 
 ALL=lwipv6.so
 

@@ -226,12 +226,12 @@ int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how)
 		assert (pcdata->selset == NULL);
 		/* check the fd is managed by some service and gets its service fd (sfd) */
 		if (sercode != UM_NONE && (sfd=fd2sfd(pcdata->fds,fd)) >= 0) {
-			intfun local_select_register;
+			sysfun local_select_register;
 			if ((local_select_register=service_select_register(sercode)) == NULL) {
 #if defined(__x86_64__)
-				intfun localselect=service_syscall(sercode,uscno(__NR_select));
+				sysfun localselect=service_syscall(sercode,uscno(__NR_select));
 #else
-				intfun localselect=service_syscall(sercode,uscno(__NR__newselect));
+				sysfun localselect=service_syscall(sercode,uscno(__NR__newselect));
 #endif
 				/* use the standard "select" provided by the service. */
 				if (localselect != NULL) {
@@ -300,7 +300,7 @@ static void putfdset(long addr, struct pcb* pc, int max, fd_set *lfds)
 }
 
 int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, sysfun um_syscall)
 {
 	register int n=pc->arg0;
 	struct seldata *sd=(struct seldata *)malloc(sizeof(struct seldata));
@@ -358,11 +358,11 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		 * descriptor is managed by us (that is, by a service) */
 		if (sercode != UM_NONE && (sfd=fd2sfd(pcdata->fds,fd)) >= 0) {
 #if defined(__x86_64__)
-			intfun localselect=service_syscall(sercode,uscno(__NR_select));
+			sysfun localselect=service_syscall(sercode,uscno(__NR_select));
 #else
-			intfun localselect=service_syscall(sercode,uscno(__NR__newselect));
+			sysfun localselect=service_syscall(sercode,uscno(__NR__newselect));
 #endif 
-			intfun local_select_register=service_select_register(sercode);
+			sysfun local_select_register=service_select_register(sercode);
 			/* do the management only is the service is interested
 			 * in the fact (that is, at least one of the two
 			 * management functions is present) */
@@ -511,11 +511,11 @@ int wrap_out_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 			int rfd;
 			if (sercode != UM_NONE && (sfd=fd2sfd(pcdata->fds,fd)) >= 0) {
 #if defined(__x86_64__)
-				intfun localselect=service_syscall(sercode,uscno(__NR_select));
+				sysfun localselect=service_syscall(sercode,uscno(__NR_select));
 #else
-				intfun localselect=service_syscall(sercode,uscno(__NR__newselect));
+				sysfun localselect=service_syscall(sercode,uscno(__NR__newselect));
 #endif
-				intfun local_select_register=service_select_register(sercode);
+				sysfun local_select_register=service_select_register(sercode);
 				if (localselect != NULL && local_select_register == NULL) {
 					rfd=sfd;
 					for (i=0,flag=0;i<3;i++) {
@@ -589,7 +589,7 @@ int wrap_out_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 
 
 int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, sysfun um_syscall)
 {
 	struct pollfd *ufds; /*local copy*/
 	struct seldata *sd=(struct seldata *)malloc(sizeof(struct seldata));
@@ -600,17 +600,19 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	int rfdmax = -1;
 	unsigned long pufds=pc->arg0;
 	unsigned int nfds=getargn(1,pc);
-	//int timeout=getargn(2,pc);
-	//printf("POLL %x %d %d\n",pufds,nfds,timeout);
+	/* {
+		int timeout=getargn(2,pc);
+		fprint2("POLL %x %d %d\n",pufds,nfds,timeout);
+	} */
 	ufds=alloca(nfds*sizeof(struct pollfd));
 	origevents=alloca(nfds*sizeof(int));
 	umoven(pc,pufds,nfds*sizeof(struct pollfd),ufds);
 	for (i=0;i<3;i++)
 		FD_ZERO(&wrfds[i]);
 
-	/*for (i=0;i<nfds;i++) {
-		printf("pollfdin %d %d %d\n",ufds[i].fd,ufds[i].events,ufds[i].revents);
-	}*/
+	/* for (i=0;i<nfds;i++) {
+		fprint2("pollfdin %d %d %d\n",ufds[i].fd,ufds[i].events,ufds[i].revents);
+	} */
 	/* preliminary check: can we pass through the poll without blocking? */
 	for(i=0,count=0,countcb=0,signaled=0;i<nfds;i++)
 	{
@@ -619,9 +621,9 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		int sercode=service_fd(pcdata->fds,fd);
 		origevents[i]=0;
 		if (sercode != UM_NONE && (sfd=fd2sfd(pcdata->fds,fd)) >= 0) {
-			intfun localpoll=service_syscall(sercode,uscno(__NR_poll));
-			intfun local_select_register=service_select_register(sercode);
-			/*printf("POLL fd %d sfd %d lfd %d service %d %x\n",
+			sysfun localpoll=service_syscall(sercode,uscno(__NR_poll));
+			sysfun local_select_register=service_select_register(sercode);
+			/* fprint2("POLL fd %d sfd %d lfd %d service %d %x\n",
 					fd,sfd,fd2lfd(pcdata->fds,fd),sercode,localpoll); */
 			if (localpoll != NULL || local_select_register != NULL) {
 				/* use service provided "poll"*/
@@ -645,7 +647,8 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 							ufds[i].fd=sfd;
 							if (localpoll(&ufds[i],1,0)) {
 								signaled++;
-								lfd_signal(fd2lfd(pcdata->fds,ufds[i].fd));
+								//lfd_signal(fd2lfd(pcdata->fds,ufds[i].fd));
+								lfd_signal(a_random_lfd);
 							}
 							ufds[i].fd=fd;
 						}
@@ -741,8 +744,8 @@ int wrap_out_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 			int sfd;
 			int sercode=service_fd(pcdata->fds,fd);
 			if (sercode != UM_NONE && (sfd=fd2sfd(pcdata->fds,fd)) >= 0) {
-				intfun localpoll=service_syscall(sercode,uscno(__NR_poll));
-				intfun local_select_register=service_select_register(sercode);
+				sysfun localpoll=service_syscall(sercode,uscno(__NR_poll));
+				sysfun local_select_register=service_select_register(sercode);
 				if (localpoll != NULL && local_select_register == NULL) {
 					int rfd;
 					rfd=sfd;

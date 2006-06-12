@@ -42,8 +42,8 @@
 #include "defs.h"
 #include "canonicalize.h"
 
-
-//#define _NESTED_CALL_DEBUG_
+#include "gdebug.h"
+/*#define _NESTED_CALL_DEBUG_*/
 #ifdef _NESTED_CALL_DEBUG_
 #include "syscallnames.h"
 #endif
@@ -114,24 +114,24 @@ service_t nchoice_socket(int sc_number,struct npcb *npc) {
 	return service_check(CHECKSOCKET, &(npc->args[2]),1);
 }
 
-int do_nested_call(intfun um_syscall,long *args,int n)
+int do_nested_call(sysfun um_syscall,long *args,int n)
 {
 		return um_syscall(args[0],args[1],args[2],args[3],args[4],args[5]);
 }
 
-int nw_syspath_std(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
+int nw_syspath_std(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
 	npc->args[0]=(long) npc->path;
 	return do_nested_call(um_syscall,&(npc->args[0]),scmap[uscno(scno)].nargs);
 }
 
-int nw_syspath2_std(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
+int nw_syspath2_std(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
 	npc->args[1]=(long) npc->path;
 	return do_nested_call(um_syscall,&(npc->args[0]),scmap[uscno(scno)].nargs);
 }
 
-int nw_syslink(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
+int nw_syslink(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
 	char *source=nest_abspath(npc->args[0],npc,&(npc->pathstat),0);
 	if (npc->path==um_patherror) {
@@ -144,7 +144,7 @@ int nw_syslink(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
 	}
 }
 
-int nw_sysopen(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
+int nw_sysopen(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
 	int sfd;
 	npc->args[0]=(long) npc->path;
@@ -164,7 +164,7 @@ int nw_sysopen(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
 		return -1;
 }
 
-int nw_sysclose(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
+int nw_sysclose(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
 	int rv;
 	int fd=npc->args[0];
@@ -182,7 +182,7 @@ int nw_sysclose(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
 		return -1;
 }
 
-int nw_sysdup(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
+int nw_sysdup(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
 	int fd=npc->args[0];
 	int sfd;
@@ -213,7 +213,7 @@ int nw_sysdup(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
 	}
 }
 
-int nw_sysfd_std(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
+int nw_sysfd_std(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
 	int fd=npc->args[0];
 	npc->args[0]=fd2sfd(&umview_file,fd);
@@ -222,14 +222,14 @@ int nw_sysfd_std(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
 	return rv;
 }
 
-int nw_sockfd_std(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
+int nw_sockfd_std(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
 	int fd=npc->args[2];
 	npc->args[2]=fd2sfd(&umview_file,fd);
 	return do_nested_call(um_syscall,&(npc->args[0]),sockmap[scno].nargs);
 }
 
-int nw_notsupp(int scno,struct npcb *npc,service_t sercode,intfun um_syscall)
+int nw_notsupp(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
 	npc->erno=EOPNOTSUPP;
 	return -1;
@@ -258,7 +258,7 @@ static int nested_call_sockcall (int sysno, struct npcb *npc)
 
 typedef int (*nested_commonwrap_index_function)(struct npcb *pc, int usc);
 typedef int (*nested_commonwrap_call_function)(int sysno,struct npcb *pc);
-typedef intfun (*service_call)(service_t code, int scno);
+typedef sysfun (*service_call)(service_t code, int scno);
 int nested_commonwrap(int sc_number,struct npcb *npc,
 		nested_commonwrap_index_function dcif,
 		nested_commonwrap_call_function do_kernel_call,
@@ -329,6 +329,7 @@ static long int capture_nested_socketcall(long int sysno, ...){
 		callee_pcb.args[2+i]=va_arg(ap,long int);
 	va_end(ap);
 	rv=nested_commonwrap(sysno, &callee_pcb, nested_sockindex, nested_call_sockcall, service_socketcall, sockmap);
+
 	/*rv=syscall(__NR_socketcall,sysno,&(callee_pcb.args[2]));*/
 	nrestoreargs(caller_pcb, &callee_pcb);
 	set_pcb(caller_pcb);
@@ -343,6 +344,10 @@ static long int capture_nested_syscall(long int sysno, ...)
 	struct pcb *caller_pcb=get_pcb();
 	struct npcb callee_pcb;
 	register int i;
+/*    if( caller_pcb == NULL ){*/
+/*        GERROR("ERROR: not finding a suitable thread");*/
+/*        exit(-1);*/
+/*    }*/
 	nsaveargs(caller_pcb, &callee_pcb,sysno);
 	set_pcb(&callee_pcb);
 	for (i=0;i<6;i++){
@@ -382,11 +387,7 @@ static long int capture_nested_syscall(long int sysno, ...)
 }
 
 /* capture all umview+modules thread creations */
-#if defined(__i386__) || defined(__powerpc__)
-static intfun libc__clone=clone;
-#elif defined(__x86_64)
-static intfun libc__clone=clone2;
-#endif
+static sysfun libc__clone=(sysfun)clone;
 
 struct clonearg {
 	int (*fn) (void *arg);
@@ -419,30 +420,18 @@ static int clonewrap(void *carg){
 	return fn(arg);
 }
 
-#if defined(__i386__) || defined(__powerpc__)
 int __clone (int (*fn) (void *arg), void *child_stack,
 		        int flags, void *arg, void *arg2, void *arg3, void *arg4) 
-#elif defined(__x86_64__)
-int __clone2 (int (*fn) (void *arg), void *child_stack_base,
-		size_t child_stack_size, int flags, void *arg, void *arg2, void *arg3, void *arg4)
-#else
-#error Unsupported HW Architecure
-#endif
 {
 	int rv;
 	struct clonearg *carg=malloc(sizeof(struct clonearg));
 #ifdef _NESTED_CALL_DEBUG_
-	fprint2("CLONE\n");
+	GMESSAGE("CLONE\n");
 #endif
 	carg->fn=fn;
 	carg->arg=arg;
 	carg->parentpcb=get_pcb();
-#if defined(__i386__) || defined(__powerpc__)
 	rv= libc__clone(clonewrap,child_stack,flags,carg,arg2,arg3,arg4);
-
-#elif defined(__x86_64__)
-	rv= libc__clone(fn,clonewrap,child_stack_size,flags,carg,arg2,arg3,arg4);
-#endif
 	return rv;
 }
 
@@ -450,11 +439,7 @@ void capture_nested_init()
 {
 	sfun *_pure_syscall;
 	sfun *_pure_socketcall;
-#if defined(__i386__) || defined(__powerpc__)
 	libc__clone = dlsym (RTLD_NEXT, "__clone");
-#elif defined(__x86_64__)
-	libc__clone = dlsym (RTLD_NEXT, "__clone2");
-#endif
 	umview_file.count=1;
 	umview_file.nolfd=0;
 	umview_file.lfdlist=NULL;

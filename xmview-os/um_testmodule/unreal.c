@@ -37,6 +37,8 @@
 #include "module.h"
 #include "libummod.h"
 
+#include "gdebug.h"
+
 // int read(), write(), close();
 
 static struct service s;
@@ -73,87 +75,87 @@ static char *unwrap(char *path)
 	return (s);
 }
 
-static int unreal_open(char *pathname, int flags, mode_t mode)
+static long unreal_open(char *pathname, int flags, mode_t mode)
 {
 	return open(unwrap(pathname),flags,mode);
 }
 
-static int unreal_stat(char *pathname, struct stat *buf)
+static long unreal_stat(char *pathname, struct stat *buf)
 {
 	return stat(unwrap(pathname),buf);
 }
 
-static int unreal_lstat(char *pathname, struct stat *buf)
+static long unreal_lstat(char *pathname, struct stat *buf)
 {
 	return lstat(unwrap(pathname),buf);
 }
 
-static int unreal_stat64(char *pathname, struct stat64 *buf)
+static long unreal_stat64(char *pathname, struct stat64 *buf)
 {
 	return stat64(unwrap(pathname),buf);
 }
 
-static int unreal_lstat64(char *pathname, struct stat64 *buf)
+static long unreal_lstat64(char *pathname, struct stat64 *buf)
 {
 	return lstat64(unwrap(pathname),buf);
 }
 
-static int unreal_readlink(char *path, char *buf, size_t bufsiz)
+static long unreal_readlink(char *path, char *buf, size_t bufsiz)
 {
 	return readlink(unwrap(path),buf,bufsiz);
 }
 
-static int unreal_access(char *path, int mode)
+static long unreal_access(char *path, int mode)
 {
 	return access(unwrap(path),mode);
 }
 
-static int unreal_mkdir(char *path, int mode)
+static long unreal_mkdir(char *path, int mode)
 {
 	return mkdir(unwrap(path),mode);
 }
 
-static int unreal_rmdir(char *path)
+static long unreal_rmdir(char *path)
 {
 	return rmdir(unwrap(path));
 }
 
-static int unreal_chmod(char *path, int mode)
+static long unreal_chmod(char *path, int mode)
 {
 	return chmod(unwrap(path),mode);
 }
 
-static int unreal_chown(char *path, uid_t owner, gid_t group)
+static long unreal_chown(char *path, uid_t owner, gid_t group)
 {
 	return chown(unwrap(path),owner,group);
 }
 
-static int unreal_lchown(char *path, uid_t owner, gid_t group)
+static long unreal_lchown(char *path, uid_t owner, gid_t group)
 {
 	return lchown(unwrap(path),owner,group);
 }
 
-static int unreal_unlink(char *path)
+static long unreal_unlink(char *path)
 {
 	return unlink(unwrap(path));
 }
 
-static int unreal_link(char *oldpath, char *newpath)
+static long unreal_link(char *oldpath, char *newpath)
 {
 	return link(unwrap(oldpath),unwrap(newpath));
 }
 
-static int unreal_symlink(char *oldpath, char *newpath)
+static long unreal_symlink(char *oldpath, char *newpath)
 {
 	return symlink(oldpath,unwrap(newpath));
 }
 
-static int unreal_utime(char *filename, struct utimbuf *buf)
+static long unreal_utime(char *filename, struct utimbuf *buf)
 {
 	return utime(unwrap(filename),buf);
 }
 
-static int unreal_utimes(char *filename, struct timeval tv[2])
+static long unreal_utimes(char *filename, struct timeval tv[2])
 {
 	return utimes(unwrap(filename),tv);
 }
@@ -170,7 +172,7 @@ static ssize_t unreal_pwrite(int fd, const void *buf, size_t count, long long of
 	return pwrite(fd,buf,count,off);
 }
 
-static int unreal_lseek(int fildes, int offset, int whence)
+static long unreal_lseek(int fildes, int offset, int whence)
 {
 	return (int) lseek64(fildes, (off_t) offset, whence);
 }
@@ -179,61 +181,67 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	printf("unreal init\n");
+	GMESSAGE("unreal init");
 	s.name="/unreal Mapping to FS (server side)";
 	s.code=0xfe;
 	s.checkfun=unrealpath;
-	s.syscall=(intfun *)calloc(scmap_scmapsize,sizeof(intfun));
-	s.socket=(intfun *)calloc(scmap_sockmapsize,sizeof(intfun));
-	s.syscall[uscno(__NR_open)]=unreal_open;
+	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
+	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
+
+	SERVICESYSCALL(s, open, unreal_open);
 #if 0 
-	s.syscall[uscno(__NR_creat)]=unreal_open; /*creat must me mapped onto open*/
+	SERVICESYSCALL(s, creat, unreal_open); /*creat must me mapped onto open*/
 #endif
-	s.syscall[uscno(__NR_read)]=read;
-	s.syscall[uscno(__NR_write)]=write;
-	s.syscall[uscno(__NR_readv)]=readv;
-	s.syscall[uscno(__NR_writev)]=writev;
-	s.syscall[uscno(__NR_close)]=close;
+	SERVICESYSCALL(s, read, read);
+	SERVICESYSCALL(s, write, write);
+	SERVICESYSCALL(s, readv, readv);
+	SERVICESYSCALL(s, writev, writev);
+	SERVICESYSCALL(s, close, close);
 #if 0
-	s.syscall[uscno(__NR_stat)]=unreal_stat64;
-	s.syscall[uscno(__NR_lstat)]=unreal_lstat64;
-	s.syscall[uscno(__NR_fstat)]=fstat64;
+	SERVICESYSCALL(s, stat, unreal_stat64);
+	SERVICESYSCALL(s, lstat, unreal_lstat64);
+	SERVICESYSCALL(s, fstat, fstat64);
 #endif
 #if !defined(__x86_64__)
-	s.syscall[uscno(__NR_stat64)]=unreal_stat64;
-	s.syscall[uscno(__NR_lstat64)]=unreal_lstat64;
-	s.syscall[uscno(__NR_fstat64)]=fstat64;
+	SERVICESYSCALL(s, stat64, unreal_stat64);
+	SERVICESYSCALL(s, lstat64, unreal_lstat64);
+	SERVICESYSCALL(s, fstat64, fstat64);
 #else
+	SERVICESYSCALL(s, stat, unreal_stat64);
+	SERVICESYSCALL(s, lstat, unreal_lstat64);
+	SERVICESYSCALL(s, fstat, fstat64);
 #endif
-	s.syscall[uscno(__NR_readlink)]=unreal_readlink;
+	SERVICESYSCALL(s, readlink, unreal_readlink);
 #if 0 
-	s.syscall[uscno(__NR_getdents)]=getdents64;
+	SERVICESYSCALL(s, getdents, getdents64);
 #endif
-	s.syscall[uscno(__NR_getdents64)]=getdents64;
-	s.syscall[uscno(__NR_access)]=unreal_access;
-	s.syscall[uscno(__NR_fcntl)]=fcntl32;
+	SERVICESYSCALL(s, getdents64, getdents64);
+	SERVICESYSCALL(s, access, unreal_access);
 #if !defined(__x86_64__)
-	s.syscall[uscno(__NR_fcntl64)]=fcntl64;
-	s.syscall[uscno(__NR__llseek)]=_llseek;
+	SERVICESYSCALL(s, fcntl, fcntl32);
+	SERVICESYSCALL(s, fcntl64, fcntl64);
+	SERVICESYSCALL(s, _llseek, _llseek);
+#else
+	SERVICESYSCALL(s, fcntl, fcntl);
 #endif
-	s.syscall[uscno(__NR_lseek)]= unreal_lseek;
-	s.syscall[uscno(__NR_mkdir)]=unreal_mkdir;
-	s.syscall[uscno(__NR_rmdir)]=unreal_rmdir;
-	s.syscall[uscno(__NR_chown)]=unreal_chown;
-	s.syscall[uscno(__NR_lchown)]=unreal_lchown;
-	s.syscall[uscno(__NR_fchown)]=fchown;
-	s.syscall[uscno(__NR_chmod)]=unreal_chmod;
-	s.syscall[uscno(__NR_fchmod)]=fchmod;
-	s.syscall[uscno(__NR_unlink)]=unreal_unlink;
-	s.syscall[uscno(__NR_fsync)]=fsync;
-	s.syscall[uscno(__NR_fdatasync)]=fdatasync;
-	s.syscall[uscno(__NR__newselect)]=select;
-	s.syscall[uscno(__NR_link)]=unreal_link;
-	s.syscall[uscno(__NR_symlink)]=unreal_symlink;
-	s.syscall[uscno(__NR_pread64)]=unreal_pread;
-	s.syscall[uscno(__NR_pwrite64)]=unreal_pwrite;
-	s.syscall[uscno(__NR_utime)]=unreal_utime;
-	s.syscall[uscno(__NR_utimes)]=unreal_utimes;
+	SERVICESYSCALL(s, lseek,  unreal_lseek);
+	SERVICESYSCALL(s, mkdir, unreal_mkdir);
+	SERVICESYSCALL(s, rmdir, unreal_rmdir);
+	SERVICESYSCALL(s, chown, unreal_chown);
+	SERVICESYSCALL(s, lchown, unreal_lchown);
+	SERVICESYSCALL(s, fchown, fchown);
+	SERVICESYSCALL(s, chmod, unreal_chmod);
+	SERVICESYSCALL(s, fchmod, fchmod);
+	SERVICESYSCALL(s, unlink, unreal_unlink);
+	SERVICESYSCALL(s, fsync, fsync);
+	SERVICESYSCALL(s, fdatasync, fdatasync);
+	SERVICESYSCALL(s, _newselect, select);
+	SERVICESYSCALL(s, link, unreal_link);
+	SERVICESYSCALL(s, symlink, unreal_symlink);
+	SERVICESYSCALL(s, pread64, unreal_pread);
+	SERVICESYSCALL(s, pwrite64, unreal_pwrite);
+	SERVICESYSCALL(s, utime, unreal_utime);
+	SERVICESYSCALL(s, utimes, unreal_utimes);
 	add_service(&s);
 	t1=tst_timestamp();
 	t2=tst_timestamp();
@@ -243,7 +251,8 @@ static void
 __attribute__ ((destructor))
 fini (void)
 {
+	GBACKTRACE(5,20);
 	free(s.syscall);
 	free(s.socket);
-	printf("unreal fini\n");
+	GMESSAGE("unreal fini");
 }

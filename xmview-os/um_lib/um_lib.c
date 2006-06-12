@@ -24,20 +24,9 @@
  */   
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <linux/sysctl.h>
 
-
-#define BASEUSB 4096
-
-#if defined(__i386__)
-static short _i386_sc_remap[]={251,222,17,31,32,35,44,53,56,58,98,112,127,130,137,167};
-#define UMSERVICE (_i386_sc_remap[0])
-#elif defined(__powerpc__) && !defined(__powerpc64)
-#define UMSERVICE  BASEUSB+0
-#elif defined(__x86_64__)
-// ATTENTION: this define is only for compile correctly, it will not work, if 
-// it's used in any of um_cmd
-#define UMSERVICE 0
-#endif
+#define VIRUMSERVICE 1
 
 #define ADD_SERVICE 0
 #define DEL_SERVICE 1
@@ -46,33 +35,51 @@ static short _i386_sc_remap[]={251,222,17,31,32,35,44,53,56,58,98,112,127,130,13
 #define NAME_SERVICE 4
 #define LOCK_SERVICE 5
 
+
+static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,long arg4,long arg5,long arg6) {
+	struct __sysctl_args scarg;
+	long args[6]={arg1,arg2,arg3,arg4,arg5,arg6};
+	scarg.name=NULL;
+	scarg.nlen=virscno;
+	scarg.oldval=NULL;
+	scarg.oldlenp=NULL;
+	scarg.newval=args;
+	scarg.newlen=n;
+	return syscall(__NR__sysctl,&scarg);
+}
+
+long (*virnsyscall)() = int_virnsyscall;
+#define virsyscall2(virscno,a1,a2) virnsyscall(virscno,2,(a1),(a2),0,0,0,0);
+#define virsyscall3(virscno,a1,a2,a3) virnsyscall(virscno,3,(a1),(a2),(a3),0,0,0);
+#define virsyscall4(virscno,a1,a2,a3,a4) virnsyscall(virscno,4,(a1),(a2),(a3),(a4),0,0);
+
+
 int um_add_service(int position,char *path)
 {
-	return syscall(UMSERVICE,ADD_SERVICE,position,path);
+	return virsyscall3(VIRUMSERVICE,ADD_SERVICE,position,path);
 }
 
 int um_del_service(int code)
 {
-	return syscall(UMSERVICE,DEL_SERVICE,code);
+	return virsyscall2(VIRUMSERVICE,DEL_SERVICE,code);
 }
 
 int um_mov_service(int code, int position)
 {
-	return syscall(UMSERVICE,MOV_SERVICE,code,position);
+	return virsyscall3(VIRUMSERVICE,MOV_SERVICE,code,position);
 }
 
 int um_list_service(char *buf, int len)
 {
-	return syscall(UMSERVICE,LIST_SERVICE,buf,len);
+	return virsyscall3(VIRUMSERVICE,LIST_SERVICE,buf,len);
 }
-
 
 int um_name_service(int code, char *buf, int len)
 {
-	return syscall(UMSERVICE,NAME_SERVICE,code,buf,len);
+	return virsyscall4(VIRUMSERVICE,NAME_SERVICE,code,buf,len);
 }
 
 int um_lock_service(int invisible)
 {
-	return syscall(UMSERVICE,LOCK_SERVICE,invisible);
+	return virsyscall2(VIRUMSERVICE,LOCK_SERVICE,invisible);
 }

@@ -73,7 +73,7 @@ static void ioctl_putarg(struct pcb* pc, int ioctlparms, unsigned long arg, void
 }
 
 int wrap_in_ioctl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
-		char sercode, intfun um_syscall)
+		char sercode, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
 	if (sfd < 0) {

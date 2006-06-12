@@ -87,10 +87,6 @@
 #endif
 
 #define MAXSC (__NR_syscalls + 1)
-#define BASEUSC		4096
-#define MAXUSC		8
-#define cdtab(X) (((X) < BASEUSC) ? scdtab[(X)] : scdutab[(X)-BASEUSC])
-#define setcdtab(X,Y) (((X) < BASEUSC) ? (scdtab[(X)] = (Y)) : (scdutab[(X)-BASEUSC] = (Y)))
 
 #ifndef __NR_pselect6
 #define __NR_pselect6	280

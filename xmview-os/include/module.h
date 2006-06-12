@@ -26,7 +26,8 @@
 #include <unistd.h>
 #include <stdarg.h>
 //#include <sys/socket.h>
-typedef int (*intfun)();
+
+typedef long (*sysfun)();
 typedef long long epoch_t;
 struct treepoch;
 struct timestamp {
@@ -83,13 +84,13 @@ struct service {
 	 * to realloc their internal structures. ID is an internal id, *not*
 	 * the pid! id is in the range 0,...,max-1 it is never reassigned during
 	 * the life of a process, can be used as an index for internal data*/
-	intfun addproc;
+	sysfun addproc;
 
 	/*delproc is called when a process terminates.
 	 * (int id)
 	 * is the garbage collection function for the data that addproc may have created
 	 */
-	intfun delproc;
+	sysfun delproc;
 
 	/* choice function: returns TRUE if this path must be managed by this module
 	 * FALSE otherwise.
@@ -111,13 +112,13 @@ struct service {
 	 * fd: fd (i.e. sfd, the fd as seen by the service module)
 	 * how: 0x1 READ_OK, 0x2 WRITE_OK, 0x4 EXTRA
 	 */
-	intfun select_register;
+	sysfun select_register;
 
 	/* the syscall table, the arguments are the same of the "real world" syscalls,*/
-	intfun *syscall;
+	sysfun *syscall;
 
 	/* the socket call table, the arguments are the same of the "real world" syscalls,*/
-	intfun *socket;
+	sysfun *socket;
 };
 
 extern int _lwip_version;
@@ -144,6 +145,7 @@ extern int vfprint2(const char *fmt, va_list ap);
 
 #define __NR_doesnotexist -1
 #if defined(__x86_64__)
+#define __NR_socketcall __NR_doesnotexist
 #define __NR__newselect __NR_doesnotexist
 #define __NR_umount __NR_doesnotexist
 #define __NR_stat64 __NR_doesnotexist
@@ -154,4 +156,36 @@ extern int vfprint2(const char *fmt, va_list ap);
 #define __NR_fchown32 __NR_doesnotexist
 #define __NR_fcntl64 __NR_doesnotexist
 #define __NR__llseek __NR_doesnotexist
+#define __NR_send __NR_doesnotexist
+#define __NR_recv __NR_doesnotexist
+#endif
+
+#if (__NR_socketcall != __NR_doesnotexist)
+#define __NR_socket     SYS_SOCKET
+#define __NR_bind       SYS_BIND
+#define __NR_connect    SYS_CONNECT
+#define __NR_listen     SYS_LISTEN
+#define __NR_accept     SYS_ACCEPT
+#define __NR_getsockname        SYS_GETSOCKNAME
+#define __NR_getpeername        SYS_GETPEERNAME
+#define __NR_socketpair SYS_SOCKETPAIR
+#define __NR_send       SYS_SEND
+#define __NR_recv       SYS_RECV
+#define __NR_sendto     SYS_SENDTO
+#define __NR_recvfrom   SYS_RECVFROM
+#define __NR_shutdown   SYS_SHUTDOWN
+#define __NR_setsockopt SYS_SETSOCKOPT
+#define __NR_getsockopt SYS_GETSOCKOPT
+#define __NR_sendmsg    SYS_SENDMSG
+#define __NR_recvmsg    SYS_RECVMSG
+#endif
+
+#define INTERNAL_MAKE_NAME(a, b) a ## b
+#define MAKE_NAME(a, b) INTERNAL_MAKE_NAME(a, b)
+
+#define SERVICESYSCALL(s, scno, sfun) (s.syscall[uscno(MAKE_NAME(__NR_, scno))] = (sysfun) sfun)
+#if (__NR_socketcall == __NR_doesnotexist)
+#define SERVICESOCKET(s, scno, sfun) (s.syscall[uscno(MAKE_NAME(__NR_, scno))] = (sysfun) sfun)
+#else
+#define SERVICESOCKET(s, scno, sfun) (s.socket[MAKE_NAME(__NR_, scno)] = (sysfun) sfun)
 #endif
