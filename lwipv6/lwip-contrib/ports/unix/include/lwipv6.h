@@ -116,11 +116,11 @@ struct ip_addr *pip_addr_any;
 struct netif;
 typedef struct netif *pnetif;
 typedef pnetif (*pnetiffun)();
-typedef int (*lwipintfun)();
+typedef int (*lwiplongfun)();
 
 pnetiffun lwip_vdeif_add, lwip_tapif_add, lwip_tunif_add;
 
-lwipintfun lwip_add_addr,
+lwiplongfun lwip_add_addr,
 lwip_del_addr,
 lwip_add_route,
 lwip_del_route,
@@ -154,7 +154,7 @@ lwipintfun lwip_radv_load_configfile;
 #define LOADLWIPV6DL ({ \
 struct lwipname2fun {\
 	char *funcname;\
-	lwipintfun *f;\
+	lwiplongfun *f;\
 } lwiplibtab[] = {\
 	{"lwip_add_addr", &lwip_add_addr},\
 	{"lwip_del_addr", &lwip_del_addr},\
@@ -181,9 +181,9 @@ struct lwipname2fun {\
 	{"lwip_write", &lwip_write},\
 	{"lwip_select", &lwip_select},\
 	{"lwip_ioctl", &lwip_ioctl},\
-	{"lwip_vdeif_add", (lwipintfun *)(&lwip_vdeif_add)},\
-	{"lwip_tapif_add", (lwipintfun *)(&lwip_tapif_add)},\
-	{"lwip_tunif_add", (lwipintfun *)(&lwip_tunif_add)} \
+	{"lwip_vdeif_add", (lwiplongfun *)(&lwip_vdeif_add)},\
+	{"lwip_tapif_add", (lwiplongfun *)(&lwip_tapif_add)},\
+	{"lwip_tunif_add", (lwiplongfun *)(&lwip_tunif_add)} \
 	{"lwip_radv_load_configfile", (lwipintfun *)(&lwip_radv_load_configfile)} \
 	};\
 		int i;\
