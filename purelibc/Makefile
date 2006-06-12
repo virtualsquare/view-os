@@ -2,14 +2,16 @@ ifeq ($(LIBDIR),)
 LIBDIR=/usr/local/lib
 endif
 
-# CFLAGS= -fPIC -g -ggdb -D_GNU_SOURCE -DGDEBUG_ENABLED -DGDEBUG_LEVEL=10 -I../UMVIEWOS/include
-CFLAGS= -fPIC -g -ggdb -D_GNU_SOURCE
+CFLAGS= -fPIC -g -ggdb -D_GNU_SOURCE -I../UMVIEWOS/include
 OBJS=syscalls.o socketcalls.o exec.o dir.o stdio.o
 VERSION=0.1
 LIBNAME=pure_libc
 
 $(LIBNAME).$(VERSION).so: $(OBJS)
 	gcc -shared -nostartfiles -o $@ $(OBJS)
+
+debug: clean
+	$(MAKE) CFLAGS="$(CFLAGS) -DGDEBUG_ENABLED -DGDEBUG_LEVEL=10"
 
 syscalls.o: syscalls.c pure_libc.h
 

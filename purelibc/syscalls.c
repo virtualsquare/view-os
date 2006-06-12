@@ -102,11 +102,11 @@ int close(int fd){
 	return _pure_syscall(__NR_close,fd);
 }
 
-int read(int fd,void* buf,size_t count){
+ssize_t read(int fd,void* buf,size_t count){
 	return _pure_syscall(__NR_read,fd,buf,count);
 }
 
-int write(int fd,const void* buf,size_t count){
+ssize_t write(int fd,const void* buf,size_t count){
 	return _pure_syscall(__NR_write,fd,buf,count);
 }
 
@@ -136,7 +136,7 @@ int dup2(int oldfd, int newfd){
  */
 
 /* Since libc developers seem to be quite sadic in writing unreadable code,
- * making me go crazy trying to understabd it, I decided to have some fun
+ * making me go crazy trying to understand it, I decided to have some fun
  * myself. The following not-so-readable stuff takes care of calling the
  * correct 64-bit function on both 32 bit and 64 bit architectures.*/
 
@@ -237,19 +237,17 @@ int __fxstat(int ver, int fildes, struct stat* buf_stat)
 	return rv;
 }
 
-#if __WORDSIZE == 32
 int __xstat64(int ver,const char* pathname,struct stat64* buf){
-	return _pure_syscall(__NR_stat64,pathname,buf);
+	return _pure_syscall(MAKE_NAME(__NR_, arch_stat64), pathname, buf);
 }
 
 int __lxstat64(int ver,const char* pathname,struct stat64* buf){
-	return _pure_syscall(__NR_lstat64,pathname,buf);
+	return _pure_syscall(MAKE_NAME(__NR_l, arch_stat64), pathname, buf);
 }
 
 int __fxstat64 (int ver, int fildes, struct stat64 *buf){
-	return _pure_syscall(__NR_fstat64,fildes,buf);
+	return _pure_syscall(MAKE_NAME(__NR_f, arch_stat64), fildes, buf);
 }
-#endif
 
 int mknod(const char *pathname, mode_t mode, dev_t dev) {
 	return _pure_syscall(__NR_mknod,pathname,mode,dev);
@@ -488,6 +486,7 @@ int fcntl(int fd, int cmd, ...){
 	return _pure_syscall(__NR_fcntl,fd,cmd,arg1,arg2);
 }
 
+#ifdef __NR_fcntl64
 int fcntl64(int fd, int cmd, ...){
 	va_list ap;
 	long int arg1;
@@ -498,13 +497,18 @@ int fcntl64(int fd, int cmd, ...){
 	va_end(ap);
 	return _pure_syscall(__NR_fcntl64,fd,cmd,arg1,arg2);
 }
+#endif
 
 int mount(const char *source, const char *target, const char *filesystemtype, unsigned  mountflags, const void *data){
 	return _pure_syscall(__NR_mount,source,target,filesystemtype,mountflags,data);
 }
 
+#ifndef __NR_umount
+#define __NR_umount __NR_umount2
+#endif
 int umount(const char *target){
-	return _pure_syscall(__NR_umount,target);
+		// umount ignore the last argument, is only for umount2
+	return _pure_syscall(__NR_umount,target,0);
 }
 
 int umount2(const char *target, int flags){
@@ -625,7 +629,8 @@ time_t time(time_t *t){
 }
 
 int stime(const time_t *t){
-	return _pure_syscall(__NR_stime,t);
+	struct timeval tivu = { *t,0};
+	return _pure_syscall(__NR_settimeofday,&tivu,NULL);
 }
 
 /* it does not work yet */
@@ -647,7 +652,12 @@ long int ptrace (enum __ptrace_request request, ...){
 #endif
 
 int nice(int inc){
+#if ! defined(__x86_64__)
 	return _pure_syscall(__NR_nice,inc);
+#else
+	int nice = _pure_syscall(__NR_getpriority,PRIO_PROCESS,0);
+	return _pure_syscall(__NR_setpriority,PRIO_PROCESS,0,nice + inc);
+#endif
 }
 
 void sync(void){
@@ -702,6 +712,9 @@ int setgroups(size_t size, const gid_t *list){
 	return _pure_syscall(__NR_setgroups,size,list);
 }
 
+#if defined(__x86_64__)
+#define __NR__newselect __NR_select
+#endif
 int select(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout){
 	return _pure_syscall(__NR__newselect,n,readfds,writefds,exceptfds,timeout);
 }
@@ -754,6 +767,7 @@ int fstatfs(int fd, struct statfs *buf){
 	return _pure_syscall(__NR_fstatfs,fd,buf);
 }
 
+#if __WORDSIZE == 32
 int statfs64(const char *path, struct statfs64 *buf){
 	return _pure_syscall(__NR_statfs64,path,buf);
 }
@@ -761,6 +775,7 @@ int statfs64(const char *path, struct statfs64 *buf){
 int fstatfs64(int fd, struct statfs64 *buf){
 	return _pure_syscall(__NR_fstatfs64,fd,buf);
 }
+#endif 
 
 int getitimer(__itimer_which_t which, struct itimerval *value){
 	return _pure_syscall(__NR_getitimer,which,value);
@@ -770,12 +785,8 @@ int setitimer(__itimer_which_t which, const struct itimerval *value, struct itim
 	return _pure_syscall(__NR_setitimer,which,value,ovalue);
 }
 
-pid_t wait(int *status){
-	return _pure_syscall(__NR_waitpid,-1,status,0);
-}
-
 pid_t waitpid(pid_t pid, int *status, int options){
-	return _pure_syscall(__NR_waitpid,pid,status,options);
+	return _pure_syscall(__NR_wait4,pid,status,options,NULL);
 }
 
 #ifdef __NR_waitid
@@ -796,9 +807,11 @@ int sysinfo(struct sysinfo *info){
 	return _pure_syscall(__NR_sysinfo,info);
 }
 
+#ifdef __NR_ipc
 int ipc(unsigned int call, int first, int second, int third, void *ptr, long fifth){
 	return _pure_syscall(__NR_ipc,first,second,third,ptr,fifth);
 }
+#endif
 
 int setdomainname(const char *name, size_t len){
 	return _pure_syscall(__NR_setdomainname,name,len);
@@ -954,7 +967,7 @@ int clock_gettime(clockid_t clk_id, struct timespec *tp){
 }
 
 int clock_settime(clockid_t clk_id, const struct timespec *tp){
-	return _pure_syscall(__NR_clock_gettime,clk_id,tp);
+	return _pure_syscall(__NR_clock_settime,clk_id,tp);
 }
 
 static void statfs2vfs(struct statfs *sfs,struct statvfs *vsfs)
