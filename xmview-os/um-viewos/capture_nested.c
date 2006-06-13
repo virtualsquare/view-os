@@ -339,15 +339,19 @@ static long int capture_nested_socketcall(long int sysno, ...){
 static long int capture_nested_syscall(long int sysno, ...)
 {
 	va_list ap;
-	va_start (ap, sysno);
 	long rv;
 	struct pcb *caller_pcb=get_pcb();
 	struct npcb callee_pcb;
 	register int i;
-/*    if( caller_pcb == NULL ){*/
-/*        GERROR("ERROR: not finding a suitable thread");*/
-/*        exit(-1);*/
-/*    }*/
+	va_start (ap, sysno);
+#if 1
+	if( caller_pcb == NULL ){
+		GERROR("ERROR: not finding a suitable thread syscall %d",sysno);
+		GBACKTRACE(0,20);
+		errno=ENOSYS;
+		return -1;
+	}
+#endif
 	nsaveargs(caller_pcb, &callee_pcb,sysno);
 	set_pcb(&callee_pcb);
 	for (i=0;i<6;i++){

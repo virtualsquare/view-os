@@ -176,7 +176,7 @@ static void openlwiplib()
 {
 	lwiphandle=dlopen("liblwip.so",RTLD_NOW);
 	if(lwiphandle==NULL) {
-		fprintf(stderr,"lwiplib not found\n");
+		fprint2("lwiplib not found\n");
 	} else {
 		int i;
 		for (i=0;i<SIZEOFLIBTAB;i++) {
@@ -367,7 +367,7 @@ init (void)
 void _um_mod_init(char *initargs)
 {
 	if (initflag) {
-		printf("lwipv6 init\n");
+		fprint2("lwipv6 init\n");
 		s.name="light weight ipv6 stack";
 		s.code=0x02;
 		s.checkfun=checksock;
@@ -393,5 +393,5 @@ fini (void)
 		dlclose(lwiphandle);
 	free(s.syscall);
 	free(s.socket);
-	printf("lwipv6 fini\n");
+	fprint2("lwipv6 fini\n");
 }

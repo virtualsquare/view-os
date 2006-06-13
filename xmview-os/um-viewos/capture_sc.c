@@ -223,8 +223,8 @@ static void droppcb(struct pcb *pc)
 	nprocs--;
 	if (pcb_destr != NULL)
 		pcb_destr(pc);
-	if (nprocs == 0)
-		pthread_setspecific(pcb_key,NULL);
+	/*if (nprocs == 0)
+		pthread_setspecific(pcb_key,NULL);*/
 }
 
 static void allocatepcbtab()
