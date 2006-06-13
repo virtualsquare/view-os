@@ -48,7 +48,7 @@ name vd0 connected to the default vde switch.
 It is possible with arrporiate options to define several interface connected 
 to vde switches, tun or tap.
 The options are a comma separated list of items of the follwing types:
-.IP "vd\fI#\fR=\fIvde_idfR" 4
+.IP "vd\fI#\fR=\fIvde_id\fR" 4
 (e.g. um_add_service lwipv6.so,vd1=/var/run/vd1.ctl ) 
 create a vde interface. Interfaces are numbered
 starting from 0 and allocated sequentially. If vd4 is defined, lwipv6 allocate

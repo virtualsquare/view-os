@@ -344,10 +344,9 @@ static long int capture_nested_syscall(long int sysno, ...)
 	struct npcb callee_pcb;
 	register int i;
 	va_start (ap, sysno);
-#if 1
+#if 0
 	if( caller_pcb == NULL ){
 		GERROR("ERROR: not finding a suitable thread syscall %d",sysno);
-		GBACKTRACE(0,20);
 		errno=ENOSYS;
 		return -1;
 	}
