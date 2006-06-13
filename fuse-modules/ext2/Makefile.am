@@ -5,7 +5,7 @@ noinst_PROGRAMS=umfuseext2
 
 AM_CFLAGS=-fPIC -ggdb -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=26 -I/usr/local/include
 
-umfuseext2_LDFLAGS= -shared -nostartfiles -lext2fs -lfuse
+umfuseext2_LDFLAGS= -shared -nostartfiles -lext2fs  
 umfuseext2_SOURCES=fuseext2.c bindir.h
 
 fuseext2_SOURCES=fuseext2.c
