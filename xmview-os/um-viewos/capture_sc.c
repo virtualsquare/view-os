@@ -213,9 +213,12 @@ pid2pcb(int pid)
 
 static void droppcb(struct pcb *pc)
 {
-	/* the last process descriptor must stay "alive" for
-	 * the termination of all the modules */
-	pc->flags = 0; /*NOT PCB_INUSE */;
+	/* the last process descriptor should stay "alive" for
+	 * the termination of all modules */
+	/* otherwise the "nesting" mechanism misunderstands
+	 * the pcb by a npcb */
+	if (nprocs > 1)
+		pc->flags = 0; /*NOT PCB_INUSE */;
 #ifdef _PROC_MEM_TEST
 	if (pc->memfd >= 0)
 		close(pc->memfd);
@@ -223,8 +226,6 @@ static void droppcb(struct pcb *pc)
 	nprocs--;
 	if (pcb_destr != NULL)
 		pcb_destr(pc);
-	/*if (nprocs == 0)
-		pthread_setspecific(pcb_key,NULL);*/
 }
 
 static void allocatepcbtab()
