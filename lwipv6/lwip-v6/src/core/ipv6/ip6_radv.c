@@ -40,6 +40,8 @@
 #define IP_RADV_DEBUG     DBG_OFF
 #endif
 
+#define U_INT  (unsigned int)
+
 /*--------------------------------------------------------------------------*/
 
 void ip_radv_prefix_dump(struct radv_prefix *prefix)
@@ -48,26 +50,26 @@ void ip_radv_prefix_dump(struct radv_prefix *prefix)
 	LWIP_DEBUGF(IP_RADV_DEBUG, (" / %d \n", prefix->PrefixLen));
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("\t\tAdvOnLinkFlag        = %d\n", prefix->AdvOnLinkFlag ));
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("\t\tAdvAutonomousFlag    = %d\n", prefix->AdvAutonomousFlag ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\t\tAdvValidLifetime     = %d\n", prefix->AdvValidLifetime ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\t\tAdvPreferredLifetime = %d\n", prefix->AdvPreferredLifetime ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\t\tAdvValidLifetime     = %d\n", U_INT prefix->AdvValidLifetime ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\t\tAdvPreferredLifetime = %d\n", U_INT prefix->AdvPreferredLifetime ));
 }
 void ip_radv_data_dump(struct radv *rinfo)
 {
 	struct radv_prefix *prefix;
 
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvSendAdvert      = %d\n", rinfo->AdvSendAdvert  ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tUnicastOnly        = %d\n",  rinfo->UnicastOnly  ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvManagedFlag     = %d\n",  rinfo->AdvManagedFlag  ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvOtherConfigFlag = %d\n",  rinfo->AdvOtherConfigFlag  ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tMaxRtrAdvInterval  = %d\n",  rinfo->MaxRtrAdvInterval  ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tMinRtrAdvInterval  = %d\n",  rinfo->MinRtrAdvInterval  ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tMinDelayBetweenRAs = %d\n",  rinfo->MinDelayBetweenRAs  ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvRetransTimer    = %d\n",  rinfo->AdvRetransTimer  ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvReachableTime   = %d\n",  rinfo->AdvReachableTime  ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvDefaultLifetime = %d\n",  rinfo->AdvDefaultLifetime  ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvCurHopLimit     = %d\n",  rinfo->AdvCurHopLimit  ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvLinkMTU         = %d\n",  rinfo->AdvLinkMTU  ));
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvSourceLLAddress = %d\n",  rinfo->AdvSourceLLAddress  ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tUnicastOnly        = %d\n", rinfo->UnicastOnly  ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvManagedFlag     = %d\n", U_INT rinfo->AdvManagedFlag  ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvOtherConfigFlag = %d\n", U_INT rinfo->AdvOtherConfigFlag  ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tMaxRtrAdvInterval  = %d\n", U_INT rinfo->MaxRtrAdvInterval  ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tMinRtrAdvInterval  = %d\n", U_INT rinfo->MinRtrAdvInterval  ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tMinDelayBetweenRAs = %d\n", U_INT rinfo->MinDelayBetweenRAs  ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvRetransTimer    = %d\n", U_INT rinfo->AdvRetransTimer  ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvReachableTime   = %d\n", U_INT rinfo->AdvReachableTime  ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvDefaultLifetime = %d\n", U_INT rinfo->AdvDefaultLifetime  ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvCurHopLimit     = %d\n", rinfo->AdvCurHopLimit  ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvLinkMTU         = %d\n", U_INT  rinfo->AdvLinkMTU  ));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvSourceLLAddress = %d\n", rinfo->AdvSourceLLAddress  ));
 
 	prefix = rinfo->prefix_list;
 	while (prefix) {
@@ -136,12 +138,9 @@ void ip_radv_data_init(struct radv *rinfo)
 {
 	bzero((char*)rinfo, sizeof(struct radv));
 
-	/* Set default values */
-	//rinfo->if_prefix_len = 64; ///XxxxxxxxxxxXXXXXXXXXXXXxXXxXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxx
-
 	rinfo->AdvSendAdvert	    = DFLT_AdvSendAdv;
-	rinfo->AdvManagedFlag        = DFLT_AdvManagedFlag;
-	rinfo->AdvOtherConfigFlag    = DFLT_AdvOtherConfigFlag;
+	rinfo->AdvManagedFlag       = DFLT_AdvManagedFlag;
+	rinfo->AdvOtherConfigFlag   = DFLT_AdvOtherConfigFlag;
 	rinfo->MaxRtrAdvInterval    = DFLT_MaxRtrAdvInterval;
 	rinfo->MinDelayBetweenRAs   = DFLT_MinDelayBetweenRAs;
 	rinfo->MinRtrAdvInterval    = DFLT_MinRtrAdvInterval(rinfo);
@@ -239,11 +238,9 @@ void send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
 	/*
 	 * Calculate ICMP packet size
 	 */
-
 	totlen = sizeof(struct icmp_ra_hdr);
 
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tLenght = RA(%d)", totlen) );
-
 
 	list = netif->radv.prefix_list;
 	while (list != NULL) {
@@ -267,9 +264,12 @@ void send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
 	 * Create ICMP packet 
 	 */
 	p = pbuf_alloc(PBUF_IP, totlen , PBUF_RAM);
+	if (p == NULL) {
+		LWIP_DEBUGF(IP_RADV_DEBUG, ("\t*** Unable to create new packet"));
+		return;
+	}
 
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tSetting: RA") );
-
 
 	bzero(p->payload, p->tot_len);
 
@@ -284,7 +284,6 @@ void send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
 	rahdr->retran    = htonl(netif->radv.AdvRetransTimer);
 	rahdr++;
 
-
 	/* Add MTU option */
 	opt_mtu = (struct icmp_opt_mtu *) (rahdr);
 	if (netif->radv.AdvLinkMTU != 0) {
@@ -296,8 +295,7 @@ void send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
 		opt_mtu++;
 	}
 
-	/* Add prefix  */
-
+	/* Add prefix options */
 	opt_prefix = (struct icmp_opt_prefix *) (opt_mtu);
 	list = netif->radv.prefix_list;
 	while (list != NULL) {
@@ -336,6 +334,7 @@ void send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
 		memcpy(&opt_addr->addr, netif->hwaddr, netif->hwaddr_len);
 	}
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("\n") );
+
 	/*
 	 * Send packet  
 	 */
@@ -358,11 +357,11 @@ void send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
  *         last RA     DT            Min       next RA       Max
  *            |--------|---------------|----------ST-----------|--------> TIME LINE
  *
- *    Case 1: |    |---|+++ST
- *            |    RS            
+ *    Case 1: |    |---|+++|
+ *            |    RS      ST      
  *            |
- *    Case 2: |               |+++ST
- *            |               RS    
+ *    Case 2: |               |+++|
+ *            |               RS  ST  
  *            |
  *    Case 3: |                                   ST
  *            |     
@@ -379,7 +378,7 @@ void send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
  *        - MinDelayBetweenRA reached -> RA will be sent after a random delay ( [0, MAX_RA_DELAY_TIME] )
  *        - RA sent
  *        
- *    (2) RS message received and RA sent plus a random delay [0, MAX_RA_DELAY_TIME]
+ *    (2) RS message received and RA sent after a random delay [0, MAX_RA_DELAY_TIME]
  * 
  *    (3) No RS -> Unsolicited multicast RA 
  */
@@ -399,7 +398,6 @@ void ip_radv_reset_timers(struct netif *netif, int waitmax)
 
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: reset RA timers for %c%c%d\n", __func__, netif->name[0], netif->name[1], netif->num));
 
-	//ip_radv_data_dump(&netif->radv);
 	netif->radv.solicited_received   = 0;
 	netif->radv.min_delay_RA_reached = 0;
 
@@ -412,10 +410,10 @@ void ip_radv_reset_timers(struct netif *netif, int waitmax)
 	else
 		next_send = rand_between(netif->radv.MinRtrAdvInterval, netif->radv.MaxRtrAdvInterval); 
 
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tNext Multicast RA at %d s (%d ms)\n", next_send, next_send * 1000));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tNext Multicast RA at %d s (%ld ms)\n", U_INT next_send, next_send * 1000));
 	sys_timeout(next_send                      * 1000, send_multicast_ra_timeout, netif);
 
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tMinDelayBetweenRAs = %d s (%d ms)\n", netif->radv.MinDelayBetweenRAs, netif->radv.MinDelayBetweenRAs * 1000));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tMinDelayBetweenRAs = %d s (%ld ms)\n", U_INT netif->radv.MinDelayBetweenRAs, netif->radv.MinDelayBetweenRAs * 1000));
 	sys_timeout(netif->radv.MinDelayBetweenRAs * 1000, min_delay_RA_timeout     , netif);
 }
 
@@ -448,7 +446,7 @@ void send_multicast_ra_with_delay(struct netif *netif)
 
 	delay = (u32_t) (MAX_RA_DELAY_TIME * rand() / (RAND_MAX + 1.0));
 
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: Send RA with delay %d s (%d ms).\n ", __func__, delay, delay * 1000));
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: Send RA with delay %d s (%ld ms).\n ", __func__, U_INT delay, delay * 1000));
 
 	sys_timeout(delay, send_multicast_ra_timeout, netif);
 }
@@ -468,8 +466,7 @@ void min_delay_RA_timeout(void *data)
 		send_multicast_ra_with_delay(netif);
 	}
 	else {
-		LWIP_DEBUGF(IP_RADV_DEBUG, ("\tNothing to do \n", __func__));
-
+		LWIP_DEBUGF(IP_RADV_DEBUG, ("\tNothing to do \n"));
 	}
 }
 
@@ -489,17 +486,17 @@ void ip_radv_handle_rs(struct netif *netif, struct pbuf *p, struct ip_hdr *iphdr
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: Processing received RS \n", __func__) );
 
 	if (irs->icode != 0) {
-		LWIP_DEBUGF(IP_RADV_DEBUG, ("\tinvalide ICMP code: %d\n",__func__, irs->icode));
+		LWIP_DEBUGF(IP_RADV_DEBUG, ("\tinvalide ICMP code: %d\n", (int) irs->icode));
 		return;
 	}
 
 	if (IPH_HOPLIMIT(iphdr) != 255) {
-		LWIP_DEBUGF(IP_RADV_DEBUG, ("\tinvalide HOP LIMIT: %d\n", __func__, IPH_HOPLIMIT(iphdr)));
+		LWIP_DEBUGF(IP_RADV_DEBUG, ("\tinvalide HOP LIMIT: %d\n", (int) IPH_HOPLIMIT(iphdr)));
 		return;
 	}
 
 	if (netif->radv.AdvSendAdvert == FALSE)	{
-		LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvSendAdvert is off.\n", __func__));
+		LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvSendAdvert is off.\n"));
 		return;
 	}
 
@@ -519,11 +516,11 @@ void ip_radv_handle_rs(struct netif *netif, struct pbuf *p, struct ip_hdr *iphdr
 	else {
 		/* Have we reached the Mininum RA interval? */
 		if (netif->radv.min_delay_RA_reached == 0) {
-			LWIP_DEBUGF(IP_RADV_DEBUG, ("\tRS received before Mininum RA . wait!\n", __func__));
+			LWIP_DEBUGF(IP_RADV_DEBUG, ("\tRS received before Mininum RA . wait!\n"));
 			remember_rs(netif);
 		}
 		else {
-			LWIP_DEBUGF(IP_RADV_DEBUG, ("\tWe can respond to the RS.\n", __func__));
+			LWIP_DEBUGF(IP_RADV_DEBUG, ("\tWe can respond to the RS.\n"));
 			send_multicast_ra_with_delay(netif);
 		}
 	}
@@ -624,8 +621,8 @@ int ip_radv_check_options(struct netif *netif)
 		res = -1;
 	}
 
-	if (netif->radv.AdvCurHopLimit > MAX_AdvCurHopLimit)
-	{
+	if (netif->radv.AdvCurHopLimit > MAX_AdvCurHopLimit)  /* FIX: always true due to limited range of data type */
+	{                                                                            
 		//LWIP_DEBUGF(IP_RADV_DEBUG, ("AdvCurHopLimit for %s (%u) must not be greater than %u",
 		//	netif->radv.AdvCurHopLimit, MAX_AdvCurHopLimit));
 		res = -1;

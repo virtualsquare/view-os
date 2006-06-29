@@ -426,6 +426,8 @@ tcp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr
 #endif /* SO_REUSE */
   LWIP_ASSERT("tcp_input: tcp_pcbs_sane()", tcp_pcbs_sane());
   PERF_STOP("tcp_input");
+
+
 }
 
 /* tcp_listen_input():

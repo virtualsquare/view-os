@@ -144,12 +144,10 @@ lwip_sendto,
 lwip_socket,
 lwip_write,
 lwip_select,
-lwip_ioctl,
-lwip_radv_load_configfile;
-;
+lwip_ioctl ;
 
 /* Added by Diego Billi */
-lwipintfun lwip_radv_load_configfile;
+lwiplongfun lwip_radv_load_configfile;
 
 #define LOADLWIPV6DL ({ \
 struct lwipname2fun {\
@@ -183,8 +181,8 @@ struct lwipname2fun {\
 	{"lwip_ioctl", &lwip_ioctl},\
 	{"lwip_vdeif_add", (lwiplongfun *)(&lwip_vdeif_add)},\
 	{"lwip_tapif_add", (lwiplongfun *)(&lwip_tapif_add)},\
-	{"lwip_tunif_add", (lwiplongfun *)(&lwip_tunif_add)} \
-	{"lwip_radv_load_configfile", (lwipintfun *)(&lwip_radv_load_configfile)} \
+	{"lwip_tunif_add", (lwiplongfun *)(&lwip_tunif_add)}, \
+	{"lwip_radv_load_configfile", (lwiplongfun *)(&lwip_radv_load_configfile)} \
 	};\
 		int i;\
 		void *lwiphandle=dlopen("liblwip.so",RTLD_NOW); \

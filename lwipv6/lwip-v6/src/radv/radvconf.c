@@ -545,6 +545,5 @@ int radv_load_configfile(char *path)
 	return 1 ;
 }
 
-
 #endif
 

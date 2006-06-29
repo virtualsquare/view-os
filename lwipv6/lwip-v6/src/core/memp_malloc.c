@@ -47,7 +47,8 @@
 #include "lwip/stats.h"
 
 /* added by Diego Billi */
-#ifdef LWIP_NAT
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
 #include "lwip/nat/nat.h"
 #endif
 
@@ -65,7 +66,8 @@ static const u16_t memp_sizes[MEMP_MAX] = {
   sizeof(struct sys_timeout)
 
 /* added by Diego Billi */
-#ifdef LWIP_NAT
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
   ,
   sizeof(struct nat_pcb),
   sizeof(struct nat_rule)

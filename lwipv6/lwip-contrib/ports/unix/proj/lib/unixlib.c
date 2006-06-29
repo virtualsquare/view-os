@@ -279,5 +279,5 @@ void _fini(void){
 	sys_sem_wait(sem);
 	sys_sem_free(sem);
 
-	netif_cleanup();
+	//netif_cleanup();
 }

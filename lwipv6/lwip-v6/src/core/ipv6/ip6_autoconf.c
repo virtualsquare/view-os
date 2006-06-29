@@ -324,10 +324,10 @@ void ip_autoconf_handle_na(struct netif *netif, struct pbuf *p, struct ip_hdr *i
 
 					/* If address was Link-local, disable interface */
 					if (ip_addr_islinkscope(&ip->ipaddr)) {
-
 						netif->autoconf.status = AUTOCONF_FAIL;
 						//netif->flags &= ~NETIF_FLAG_UP;
-						netif_set_down(netif);
+						ip_change(netif, NETIF_CHANGE_DOWN);
+						netif_set_down_low(netif);
 					}
 				}
 			}
@@ -645,8 +645,8 @@ void ip_autoconf_timer(void *arg)
 
 	struct netif *netif = (struct netif *) arg;
 
-	//LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: start on %c%c%d \n", __func__,	
-	//	netif->name[0], netif->name[1], netif->num));
+	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: start on %c%c%d \n", __func__,	
+		netif->name[0], netif->name[1], netif->num));
 
 	/* Update addresses status (and remove invalid addresses) */
 	have_linkaddr =  addr_update_lifetime(&netif->autoconf.addrs_tentative, (AUTOCONF_TMR_INTERVAL/1000));
@@ -656,13 +656,14 @@ void ip_autoconf_timer(void *arg)
 	/* FIX: UNLOCK netif->addrs */
 
 	sys_timeout(AUTOCONF_TMR_INTERVAL, ip_autoconf_timer  , netif);
+
 }
 
 void ip_autoconf_start(struct netif *netif)
 {
 	struct ip_addr_list *linkadd;
 
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: start.\n", __func__) );
+	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: start.\n", __func__) );
 
 
 	/* If autoconfiguration has not started yet */
@@ -703,7 +704,7 @@ void ip_autoconf_start(struct netif *netif)
 
 void ip_autoconf_stop(struct netif *netif)
 {
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: start.\n", __func__) );
+	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: start.\n", __func__) );
 
 	if (netif->autoconf.status != AUTOCONF_INIT) {
 		LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: %c%c%d set down. reset data\n", __func__, netif->name[0],netif->name[1],netif->num));                        

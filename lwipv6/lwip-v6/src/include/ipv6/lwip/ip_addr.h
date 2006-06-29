@@ -279,7 +279,7 @@ struct ip_addr_list {
 
 #ifdef IPv6_AUTO_CONFIGURATION
 	/* FIX: "flags" use NETLINK values (IFA_F_TENTATIVE), 
-	        "info.flag" doesn't. */
+	        but "info.flag" doesn't. */
 	struct addr_info info;
 #endif
 };

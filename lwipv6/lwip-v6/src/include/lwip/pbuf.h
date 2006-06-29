@@ -36,8 +36,10 @@
 #include "arch/cc.h"
 
 /* added by Diego Billi */
-#ifdef LWIP_NAT
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
 #include "lwip/nat/nat.h"
+//struct nat_info;
 #endif
 
 
@@ -98,7 +100,8 @@ struct pbuf {
   u16_t ref;
 
 /* added by Diego Billi */
-#ifdef LWIP_NAT
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
   struct nat_info nat;
 #endif
 
@@ -127,5 +130,7 @@ struct pbuf * pbuf_dequeue(struct pbuf *p);
 /* Added by Diego Billi */
 struct pbuf * pbuf_clone(pbuf_layer l, struct pbuf *p, pbuf_flag flag);
 struct pbuf * pbuf_make_writable(struct pbuf *p);
+
+
 
 #endif /* __LWIP_PBUF_H__ */

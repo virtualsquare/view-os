@@ -46,7 +46,8 @@
 #include "lwip/stats.h"
 
 /* added by Diego Billi */
-#ifdef LWIP_NAT
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
 #include "lwip/nat/nat.h"
 #endif
 
@@ -73,7 +74,8 @@ static const u16_t memp_sizes[MEMP_MAX] = {
   sizeof(struct sys_timeout)
 
 /* added by Diego Billi */
-#ifdef LWIP_NAT
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
   ,
   sizeof(struct nat_pcb),
   sizeof(struct nat_rule)
@@ -95,7 +97,8 @@ static const u16_t memp_num[MEMP_MAX] = {
   MEMP_NUM_SYS_TIMEOUT
 
 /* added by Diego Billi */
-#ifdef LWIP_NAT
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
   ,
   MEMP_NUM_NAT_PCB,
   MEMP_NUM_NAT_RULE
@@ -138,7 +141,8 @@ static u8_t memp_memory[(MEMP_NUM_PBUF *
           sizeof(struct memp))
 
 /* added by Diego Billi */
-#ifdef LWIP_NAT
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
       +
       MEMP_NUM_NAT_PCB *
        MEM_ALIGN_SIZE(sizeof(struct nat_pcb) +

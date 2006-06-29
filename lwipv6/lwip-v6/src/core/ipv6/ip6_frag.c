@@ -142,9 +142,12 @@ struct ip_reassbuf {
 
 #define CLEAR_ENTRY(e) \
 	do { \
-	(e)->ipv = 0; (e)->id    = 0; \
-	(e)->age = 0; (e)->flags = 0; \
-	(e)->len = 0; bzero((e)->bitmap, IP4_REASS_BITMAP_SIZE);  \
+		(e)->ipv = 0; \
+		(e)->id    = 0; \
+		(e)->age = 0; \
+		(e)->flags = 0; \
+		(e)->len = 0; \
+		bzero((e)->bitmap, IP4_REASS_BITMAP_SIZE);  \
 	} while (0)
 
 #define fill_bitmap(bit, off, len) \
@@ -362,10 +365,10 @@ struct pbuf *ip4_reass(struct pbuf *p)
 					/* Copy enough bytes to fill this pbuf in the chain. The
 					   available data in the pbuf is given by the q->len
 					   variable. */
-					LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: memcpy from %p (%d) to %p, %d bytes\n", 
+					LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: memcpy from %p (%d) to %p, %ld bytes\n", 
 						(void *) &ip_reassembly_pool[pos].buf[i], i, 
-						q->payload, q->len > (ip_reassembly_pool[pos].len - i) ? 
-							ip_reassembly_pool[pos].len - i : q->len));
+						q->payload, q->len > (ip_reassembly_pool[pos].len - i) ? ip_reassembly_pool[pos].len - i : q->len));
+
 					memcpy(q->payload, &ip_reassembly_pool[pos].buf[i], q->len > ip_reassembly_pool[pos].len - i ? ip_reassembly_pool[pos].len - i : q->len);
 					i += q->len;
 				}
@@ -492,7 +495,6 @@ struct pbuf *ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_ex
 	u16_t pos;
 
 	u16_t unfragpart_len; /* length of unfragmentable part */
-//	struct ip_exthdr *lastext;
 
 	IPFRAG_STATS_INC(ip_frag.recv);
 	LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: start\n"));
@@ -594,7 +596,7 @@ struct pbuf *ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_ex
 			ip_reassembly_pool[pos].bitmap[offset / (8 * 8)] |= bitmap_bits[(offset / 8) & 7] & ~bitmap_bits[((offset + len) / 8) & 7];
 		}
 		else {
-			LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: updating many bytes in bitmap (%d:%d).\n", 1 + offset / (8 * 8), (offset + len) / (8 * 8)));
+			LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: updating many bytes in bitmap (%ld:%ld).\n", 1 + offset / (8 * 8), (offset + len) / (8 * 8)));
 			/* If the two endpoints are in different bytes, we update the
 			   bytes in the endpoints and fill the stuff inbetween with
 			   0xff. */
@@ -623,7 +625,7 @@ struct pbuf *ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_ex
 			/* Check all bytes up to and including all but the last byte in the bitmap. */
 			for (i = 0; i < ip_reassembly_pool[pos].len / (8 * 8) - 1; ++i) {
 				if (ip_reassembly_pool[pos].bitmap[i] != 0xff) {
-					LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: last fragment seen, bitmap %d/%d failed (%x)\n", i, ip_reassembly_pool[pos].len / (8 * 8) - 1, ip_reassembly_pool[pos].bitmap[i]));
+					LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: last fragment seen, bitmap %d/%ld failed (%x)\n", i, ip_reassembly_pool[pos].len / (8 * 8) - 1, ip_reassembly_pool[pos].bitmap[i]));
 					goto nullreturn;
 				}
 			}
@@ -631,7 +633,7 @@ struct pbuf *ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_ex
 			/* Check the last byte in the bitmap. It should contain just the
 			   right amount of bits. */
 			if (ip_reassembly_pool[pos].bitmap[ip_reassembly_pool[pos].len / (8 * 8)] != (u8_t) ~ bitmap_bits[ip_reassembly_pool[pos].len / 8 & 7]) {
-				LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: last fragment seen, bitmap %d didn't contain %x (%x)\n", ip_reassembly_pool[pos].len / (8 * 8), ~bitmap_bits[ip_reassembly_pool[pos].len / 8 & 7], ip_reassembly_pool[pos].bitmap[ip_reassembly_pool[pos].len / (8 * 8)]));
+				LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: last fragment seen, bitmap %ld didn't contain %x (%x)\n", ip_reassembly_pool[pos].len / (8 * 8), ~bitmap_bits[ip_reassembly_pool[pos].len / 8 & 7], ip_reassembly_pool[pos].bitmap[ip_reassembly_pool[pos].len / (8 * 8)]));
 				goto nullreturn;
 			}
 
@@ -640,7 +642,7 @@ struct pbuf *ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_ex
 
 			//lastext = ip_last_exthdr_before_fraghdr(p);
 			if (lastext != NULL) {
-				LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: memcpy from %p (%d) to %p, %d bytes\n", (void *) &ip_reassembly_pool[pos].buf[i], i, q->payload, q->len > ip_reassembly_pool[pos].len - i ? ip_reassembly_pool[pos].len - i : q->len));
+				LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: memcpy from %p (%d) to %p, %ld bytes\n", (void *) &ip_reassembly_pool[pos].buf[i], i, q->payload, q->len > ip_reassembly_pool[pos].len - i ? ip_reassembly_pool[pos].len - i : q->len));
 				/* FIX FIX FIX */
 			} 
 			else {
@@ -661,7 +663,7 @@ struct pbuf *ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_ex
 					/* Copy enough bytes to fill this pbuf in the chain. The
 					   available data in the pbuf is given by the q->len
 					   variable. */
-					LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: memcpy from %p (%d) to %p, %d bytes\n", (void *) &ip_reassembly_pool[pos].buf[i], i, q->payload, q->len > ip_reassembly_pool[pos].len - i ? ip_reassembly_pool[pos].len - i : q->len));
+					LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: memcpy from %p (%d) to %p, %ld bytes\n", (void *) &ip_reassembly_pool[pos].buf[i], i, q->payload, q->len > ip_reassembly_pool[pos].len - i ? ip_reassembly_pool[pos].len - i : q->len));
 					memcpy(q->payload, &ip_reassembly_pool[pos].buf[i], q->len > ip_reassembly_pool[pos].len - i ? ip_reassembly_pool[pos].len - i : q->len);
 					i += q->len;
 				}
@@ -756,8 +758,9 @@ err_t ip6_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest)
 	LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: unfrag part len = %d\n", __func__, unfragpart_len));
 
 	/* The Fragmentable Part of the original packet is divided into
-      fragments, each, except possibly the last ("rightmost") one, 
-	  being an integer multiple of 8 octets long. */
+	 * fragments, each, except possibly the last ("rightmost") one, 
+	 * being an integer multiple of 8 octets long. 
+	 */
 	frag_maxlen =  ((mtu - unfragpart_len - IP_EXTFRAG_LEN) >> 3) << 3;
 
 	LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: frag maxlen = %d\n", __func__, frag_maxlen));
@@ -805,12 +808,12 @@ err_t ip6_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest)
 		ncopy = last ? left : frag_maxlen;
 
 		/* Payload Length of the original IPv6 header changed to contain
-          the length of this fragment packet only (excluding the length
-          of the IPv6 header itself), */
+		   the length of this fragment packet only (excluding the length
+		 * of the IPv6 header itself), */
 		IPH_PAYLOADLEN_SET(iphdr, (unfragpart_len - IP_HLEN) + IP_EXTFRAG_LEN + ncopy);
 
 
-		LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: offset = %d (%4lx) (last=%d) copy=%d\n", __func__, offset, offset_m, last, ncopy));
+		LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: offset = %d (%4x) (last=%d) copy=%d\n", __func__, offset, offset_m, last, ncopy));
 
 		p = copy_from_pbuf(p, &poffset, 
 			((u8_t *) iphdr) + unfragpart_len + IP_EXTFRAG_LEN, ncopy);

@@ -261,7 +261,6 @@ a lot of data that needs to be copied, this should be set high. */
 
 #define ROUTE_DEBUG                 DBG_OFF
 
-
 /* De/Fragmentation code (IPv4, IPv6) debug */
 #if defined(IPv4_FRAGMENTATION) || defined (IPv6_FRAGMENTATION)
 	#define IP_REASS_DEBUG      DBG_OFF
@@ -272,20 +271,17 @@ a lot of data that needs to be copied, this should be set high. */
 	#define PMTU_DEBUG          DBG_OFF
 #endif
 
-
 #ifdef IPv6_AUTO_CONFIGURATION
 	#define IP_AUTOCONF_DEBUG   DBG_OFF
 #endif
 
-
 #ifdef IPv6_ROUTER_ADVERTISEMENT
 	#define IP_RADV_DEBUG       DBG_OFF
 #endif
+
 #ifdef IPv6_RADVCONF
 	#define IP_RADVCONF_DEBUG   DBG_OFF
 #endif
-
-
 
 /* UserFilter sub-system debug  */
 #ifdef LWIP_USERFILTER

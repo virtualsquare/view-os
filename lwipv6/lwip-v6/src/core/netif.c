@@ -135,7 +135,6 @@ netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
 	  lastnip->next=netif;
   netif->next=NULL;
   LWIP_DEBUGF(NETIF_DEBUG, ("netif: added interface %c%c%d\n", netif->name[0], netif->name[1], netif->num));
-//  printf("added interface %c%c%d\n",netif->name[0],netif->name[1],netif->num);
   return netif;
 }
 
@@ -325,6 +324,7 @@ netif_cleanup(void)
 	struct netif *nip;
 	
 	for (nip=netif_list; nip!=NULL; nip=nip->next)
+		// FIX: shutdown interface? RA needs this.
 		if (nip->cleanup)
 			nip->cleanup(nip);
 }
@@ -449,35 +449,35 @@ int netif_ioctl(int cmd,struct ifreq *ifr)
  * netif->change() handler is not called.
  */
 
-void netif_set_up(struct netif *netif)
-{
-  netif->flags |= NETIF_FLAG_UP;
-
-  if (netif->change)
-    netif->change(netif, NETIF_CHANGE_UP);
-}
-
 u8_t netif_is_up(struct netif *netif)
 {
-  return (netif->flags & NETIF_FLAG_UP)?1:0;
+	return (netif->flags & NETIF_FLAG_UP)?1:0;
 }
 
-void netif_set_down(struct netif *netif)
+void netif_set_up(struct netif *netif)
 {
-  if (netif->change)
-    netif->change(netif, NETIF_CHANGE_DOWN);
-
-  netif->flags &= ~NETIF_FLAG_UP;
+	netif->flags |= NETIF_FLAG_UP;
+	
+	if (netif->change)
+		netif->change(netif, NETIF_CHANGE_UP);
 }
 
 void netif_set_up_low(struct netif *netif)
 {
-  netif->flags |= NETIF_FLAG_UP;
+	netif->flags |= NETIF_FLAG_UP;
+}
+
+void netif_set_down(struct netif *netif)
+{
+	if (netif->change)
+		netif->change(netif, NETIF_CHANGE_DOWN);
+	
+	netif->flags &= ~NETIF_FLAG_UP;
 }
 
 void netif_set_down_low(struct netif *netif)
 {
-  netif->flags &= ~NETIF_FLAG_UP;
+	netif->flags &= ~NETIF_FLAG_UP;
 }
 
 

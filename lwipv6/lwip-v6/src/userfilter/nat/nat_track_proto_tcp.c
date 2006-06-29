@@ -40,7 +40,8 @@
  * version 2.2
  */
 
-#ifdef LWIP_NAT
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
 
 #include "lwip/debug.h"
 #include "lwip/memp.h" /* MEMP_NAT_RULE */

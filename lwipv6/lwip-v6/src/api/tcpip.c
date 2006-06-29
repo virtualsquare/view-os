@@ -49,7 +49,7 @@
  * Author: Adam Dunkels <adam@sics.se>
  *
  */
-
+#include "lwip/debug.h"
 #include "lwip/opt.h"
 
 #include "lwip/sys.h"
@@ -139,6 +139,18 @@ tcp_timer_needed(void)
 #endif /* LWIP_TCP */
 
 
+static void tcpip_set_down_interfaces(void)
+{
+	struct netif *nip;
+		
+	for (nip=netif_list; nip!=NULL; nip=nip->next) {
+		ip_change(nip, NETIF_CHANGE_DOWN);
+		netif_set_down_low(nip);
+	}
+}
+
+/*--------------------------------------------------------------------------*/
+
 static void
 tcpip_thread(void *arg)
 {
@@ -177,7 +189,7 @@ tcpip_thread(void *arg)
 			switch (msg->type) {
 				case TCPIP_MSG_INPUT:
 					//LWIP_DEBUGF(TCPIP_DEBUG, ("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"));
-					//daprintf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+					//printf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
 					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: IP packet %p\n", (void *)msg));
 					ip_input(msg->msg.inp.p, msg->msg.inp.netif);
@@ -211,11 +223,6 @@ tcpip_thread(void *arg)
 
 					break;
 
-				case TCPIP_MSG_SHUTDOWN:
-					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: SHUTDOWN! %p\n", (void *)msg));
-					loop = 0;
-					break;
-
 				case TCPIP_MSG_NETIF_CHANGE:
 					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: NETIF state change! %p\n", (void *)msg));
 
@@ -225,6 +232,13 @@ tcpip_thread(void *arg)
 
 					break;
 
+				case TCPIP_MSG_SHUTDOWN:
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: SHUTDOWN! %p\n", (void *)msg));
+
+					tcpip_set_down_interfaces();
+
+					loop = 0;
+					break;
 
 				default:
 					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: UNKNOWN MSGTYPE %d\n", msg->type));
@@ -232,8 +246,6 @@ tcpip_thread(void *arg)
 			}
 			memp_free(MEMP_TCPIP_MSG, msg);
 		}
-
-		
 	}
 
 	// FIX: this is not enough, after this call netif threads are still alive
@@ -397,7 +409,7 @@ struct netif * tcpip_netif_add(struct netif *netif,
 	struct tcpip_msg *msg;
 	sys_sem_t         msg_wait;
 
-	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread shutdown!\n"));
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_netif_add!\n"));
 
 	sys_sem_wait_timeout(tcpip_mutex, 0); 
 
@@ -458,16 +470,18 @@ tcpip_change(struct netif *netif, u32_t type)
 	}
 	
 	msg->type = TCPIP_MSG_NETIF_CHANGE;;
-	msg_wait = sys_sem_new(0);
-	msg->msg.netif_change.sem = &msg_wait;
 	msg->msg.netif_change.netif = netif;
 	msg->msg.netif_change.type  = type;
+
+	msg_wait = sys_sem_new(0);
+	msg->msg.netif_change.sem = &msg_wait;
 
 	sys_mbox_post(mbox, msg);
 
 	/* Make this function syncronous. Wait until interface creation */
 	sys_sem_wait_timeout(msg_wait, 0); 
 	sys_sem_free(msg_wait);
+
 
 	sys_sem_signal(tcpip_mutex);   
 }

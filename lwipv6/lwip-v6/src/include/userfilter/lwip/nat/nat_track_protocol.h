@@ -18,7 +18,8 @@
  *   with this program; if not, write to the Free Software Foundation, Inc.,
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
-#ifdef LWIP_NAT
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
 
 #ifndef _NAT_TRACK_PROTOCOL_H
 #define _NAT_TRACK_PROTOCOL_H

@@ -689,6 +689,7 @@ void
 ip_change(struct netif *netif, u32_t type)
 {
   switch(type) {
+
     case NETIF_CHANGE_UP:
       LWIP_DEBUGF(IP_DEBUG, ("%s: netif %c%c%d now UP!\n", __func__,	
         netif->name[0], netif->name[1], netif->num));

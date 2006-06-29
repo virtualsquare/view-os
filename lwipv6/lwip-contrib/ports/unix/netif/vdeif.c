@@ -347,10 +347,21 @@ static struct pbuf *low_level_input(struct vdeif *vdeif, u16_t ifflags)
 	struct sockaddr_un datain;
 	socklen_t datainsize = sizeof(struct sockaddr_un);
 
+	LWIP_DEBUGF(VDEIF_DEBUG, ("%s: reading...\n", __func__));
+
 	/* Obtain the size of the packet and put it into the "len" variable. */
 	len = recvfrom(vdeif->fddata, buf, sizeof(buf), 0, (struct sockaddr *) &datain, &datainsize);
 
+	LWIP_DEBUGF(VDEIF_DEBUG, ("%s: read %d bytes (is UP? = %d)\n", __func__, len, ifflags & NETIF_FLAG_UP));
+
+	//printf("MACS: %x:%x:%x:%x:%x:%x   %x:%x:%x:%x:%x:%x %x\n",
+	//buf[0], buf[1], buf[2], buf[3], buf[4], buf[5],
+	//vdeif->ethaddr->addr[0], vdeif->ethaddr->addr[1], vdeif->ethaddr->addr[2],
+	//vdeif->ethaddr->addr[3], vdeif->ethaddr->addr[4], vdeif->ethaddr->addr[5],
+	//ifflags); 
+
 	if (!(ETH_RECEIVING_RULE(buf, vdeif->ethaddr->addr, ifflags))) {
+		LWIP_DEBUGF(VDEIF_DEBUG, ("%s: RECEIVING_RULE = false\n", __func__));
 		/*printf("PACKET DROPPED\n");
 		   printf("%x:%x:%x:%x:%x:%x %x:%x:%x:%x:%x:%x %x\n",
 		   buf[0], buf[1], buf[2], buf[3], buf[4], buf[5],
@@ -465,7 +476,6 @@ static void vdeif_input(struct netif *netif)
 	struct eth_hdr *ethhdr;
 	struct pbuf *p;
 
-
 	vdeif = netif->state;
 
 	p = low_level_input(vdeif, netif->flags);
@@ -515,15 +525,6 @@ arp_timer(void *arg)
 	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, arg);
 }
 
-//#ifdef IPv6_AUTO_CONFIGURATION  
-//static void
-//ipv6_autoconf_timer(void *arg)
-//{
-//	ip_autoconf_tmr((struct netif *) arg);
-//	sys_timeout(AUTOCONF_TMR_INTERVAL, (sys_timeout_handler)ipv6_autoconf_timer, arg);
-//}
-//#endif
-
 /*-----------------------------------------------------------------------------------*/
 /*
  * vdeif_init():
@@ -570,10 +571,6 @@ err_t vdeif_init(struct netif * netif)
 	etharp_init();
 
 	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, netif);
-
-//#ifdef IPv6_AUTO_CONFIGURATION
-//	sys_timeout(AUTOCONF_TMR_INTERVAL, (sys_timeout_handler)ipv6_autoconf_timer, netif);
-//#endif
 
 	return ERR_OK;
 }

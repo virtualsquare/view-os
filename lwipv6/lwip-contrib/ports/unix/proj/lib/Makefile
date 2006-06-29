@@ -49,72 +49,85 @@ LWIPFILTERDIR=$(LWIPDIR)/userfilter
 
 CCDEP=gcc
 CC=gcc
-#CFLAGS=-g -Wall -fPIC -DIPv4 -DLWIP_DEBUG 
-#CFLAGS=-g -Wall -fPIC -DIPv6 -DLWIP_DEBUG -DLWIP_NL -DLWIP_PACKET -DRD235LIB -DLWIP_COMPAT_SOCKETS=0
 
 CFLAGS=-g -Wall -fPIC
 #CFLAGS:=$(CFLAGS) -DLWIP_DEBUG 
-CFLAGS:=$(CFLAGS) -DIPv6
-CFLAGS:=$(CFLAGS) -DIPv4_CHECK_CHECKSUM 
-CFLAGS:=$(CFLAGS) -DIPv4_FRAGMENTATION
-CFLAGS:=$(CFLAGS) -DIPv6_FRAGMENTATION
 CFLAGS:=$(CFLAGS) -DLWIP_NL
 CFLAGS:=$(CFLAGS) -DLWIP_PACKET
 CFLAGS:=$(CFLAGS) -DRD235LIB 
 CFLAGS:=$(CFLAGS) -DLWIP_COMPAT_SOCKETS=0 
+CFLAGS:=$(CFLAGS) -DIPv6
+CFLAGS:=$(CFLAGS) -DIPv4_CHECK_CHECKSUM 
+CFLAGS:=$(CFLAGS) -DIPv4_FRAGMENTATION
+CFLAGS:=$(CFLAGS) -DIPv6_FRAGMENTATION
+
 #CFLAGS:=$(CFLAGS) -DIPv6_PMTU_DISCOVERY   not working yet
 
-# Stateless Autoconfiguration + Router Advertisement code
 CFLAGS:=$(CFLAGS) -DIPv6_AUTO_CONFIGURATION
-CFLAGS:=$(CFLAGS) -DIPv6_ROUTER_ADVERTISEMENT
-CFLAGS:=$(CFLAGS) -DIPv6_RADVCONF
+#CFLAGS:=$(CFLAGS) -DIPv6_ROUTER_ADVERTISEMENT
+#CFLAGS:=$(CFLAGS) -DIPv6_RADVCONF
 
-# added by Diego Billi (PAY ATTENTION: LWIP_NAT needs LWIP_USERFILTER)
-CFLAGS:=$(CFLAGS) -DLWIP_USERFILTER 
-CFLAGS:=$(CFLAGS) -DLWIP_NAT 
+# added by Diego Billi (ATTENTION: LWIP_NAT needs LWIP_USERFILTER)
+#CFLAGS:=$(CFLAGS) -DLWIP_USERFILTER 
+#CFLAGS:=$(CFLAGS) -DLWIP_NAT 
 
-CFLAGS:=$(CFLAGS) \
-	-I$(LWIPDIR)/include \
-	-I$(LWIPARCH)/include \
+ARFLAGS=rs
+
+#=============================================================================
+# Includes
+#=============================================================================
+
+CFLAGS:=$(CFLAGS)                 \
+	-I$(LWIPDIR)/include      \
+	-I$(LWIPARCH)/include     \
 	-I$(LWIPDIR)/include/ipv6 \
 	-Iapps -I.
 
-CFLAGS:=$(CFLAGS) \
-	-I$(LWIPDIR)/include/userfilter 
+# added by Diego Billi 
+CFLAGS:=$(CFLAGS) -I$(LWIPDIR)/include/userfilter 
 
-CFLAGS:=$(CFLAGS) \
-	-I$(LWIPDIR)/include/radv
+CFLAGS:=$(CFLAGS) -I$(LWIPDIR)/include/radv
 
-ARFLAGS=rs
 
 #=============================================================================
 # Files
 #=============================================================================
 
 # COREFILES, CORE4FILES: The minimum set of files needed for lwIP.
-# COREFILES= 
+
+#
+# Different implementations of memory manager
+#
+#COREFILES=$(LWIPDIR)/core/mem.c $(LWIPDIR)/core/memp.c
 #COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_malloc.c
-COREFILES=$(LWIPDIR)/core/mem_malloc.c \
-	$(LWIPDIR)/core/memp_dynmalloc.c \
-	$(LWIPDIR)/core/netif.c \
-	$(LWIPDIR)/core/pbufnopool.c \
-	$(LWIPDIR)/core/stats.c \
-	$(LWIPDIR)/core/sys.c \
-        $(LWIPDIR)/core/tcp.c \
-	$(LWIPDIR)/core/tcp_in.c \
-        $(LWIPDIR)/core/tcp_out.c \
-	$(LWIPDIR)/core/udp.c \
-	$(LWIPDIR)/core/raw.c \
+COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_dynmalloc.c 
+
+#
+# Different implementation of 'pbuf' manager
+#
+#COREFILES:=$(COREFILES) $(LWIPDIR)/core/pbuf.c 
+COREFILES:=$(COREFILES) $(LWIPDIR)/core/pbufnopool.c 
+
+
+COREFILES:=$(COREFILES)           \
+	$(LWIPDIR)/core/netif.c   \
+	$(LWIPDIR)/core/stats.c   \
+	$(LWIPDIR)/core/sys.c     \
+	$(LWIPDIR)/core/tcp.c     \
+	$(LWIPDIR)/core/tcp_in.c  \
+	$(LWIPDIR)/core/tcp_out.c \
+	$(LWIPDIR)/core/udp.c     \
+	$(LWIPDIR)/core/raw.c     \
 	$(LWIPDIR)/core/packet.c
 
 CORE6FILES=$(wildcard $(LWIPDIR)/core/ipv6/*.c) $(LWIPDIR)/core/inet6.c
 
 # APIFILES: The files which implement the sequential and socket APIs.
 APIFILES=$(LWIPDIR)/api/api_lib.c \
-	$(LWIPDIR)/api/api_msg.c \
-	$(LWIPDIR)/api/tcpip.c \
-	$(LWIPDIR)/api/err.c \
-	$(LWIPDIR)/api/sockets.c\
+	$(LWIPDIR)/api/api_msg.c  \
+	$(LWIPDIR)/api/tcpip.c    \
+	$(LWIPDIR)/api/err.c      \
+	$(LWIPDIR)/api/sockets.c  \
 	$(LWIPDIR)/api/netlink.c
 
 # NETIFFILES: Files implementing various generic network interface functions.'
@@ -123,26 +136,29 @@ NETIFFILES=$(LWIPDIR)/netif/loopif.c \
 
 # ARCHFILES: Architecture specific files.
 #ARCHFILES=$(wildcard $(LWIPDIR)/arch/$(LWIPARCH)/*.c $(LWIPDIR)/arch/$(LWIPARCH)/netif/*.c)
-#ARCHFILES=$(LWIPARCH)/sys_arch.c 
-ARCHFILES=$(LWIPARCH)/sys_arch_pipe.c \
-	$(LWIPARCH)/netif/vdeif.c \
-	$(LWIPARCH)/netif/tapif.c \
-	$(LWIPARCH)/netif/tunif.c
 
-# RADVFILES: Router Advertisement configuration loader
+#ARCHFILES=$(LWIPARCH)/sys_arch_pipe.c 
+ARCHFILES=$(LWIPARCH)/sys_arch.c 
+
+ARCHFILES:=$(ARCHFILES)	$(LWIPARCH)/netif/vdeif.c 
+ARCHFILES:=$(ARCHFILES)	$(LWIPARCH)/netif/tapif.c 
+ARCHFILES:=$(ARCHFILES)	$(LWIPARCH)/netif/tunif.c
+
+# RADVFILES: Router Advertisement configuration loader (IPv6_RADVCONF)
 RADVFILES=$(LWIPDIR)/radv/radvconf.c
 
 # File of Userfilter syb-sytem (LWIP_USERFILTER)
 LWIPFILTERFILES=$(LWIPFILTERDIR)/userfilter.c 
 
 # Files of the NAT sub-system (LWIP_NAT)
-LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat.c 
-LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat_rules.c 
-LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat_tables.c 
-LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat_track_proto_tcp.c 
-LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat_track_proto_udp.c 
-LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat_track_proto_icmp4.c 
-LWIPFILTERFILES:=$(LWIPFILTERFILES) $(LWIPFILTERDIR)/nat/nat_track_proto_generic.c 
+LWIPFILTERFILES:=$(LWIPFILTERFILES)                    \
+	$(LWIPFILTERDIR)/nat/nat.c                     \
+	$(LWIPFILTERDIR)/nat/nat_rules.c               \
+	$(LWIPFILTERDIR)/nat/nat_tables.c              \
+	$(LWIPFILTERDIR)/nat/nat_track_proto_tcp.c     \
+	$(LWIPFILTERDIR)/nat/nat_track_proto_udp.c     \
+	$(LWIPFILTERDIR)/nat/nat_track_proto_icmp4.c   \
+	$(LWIPFILTERDIR)/nat/nat_track_proto_generic.c 
 
 #=============================================================================
 # Objects
@@ -192,4 +208,9 @@ $(STATICLWIPLIB): $(LWIPOBJS) unixlib.o
 
 
 
+
+
+
+#CFLAGS=-g -Wall -fPIC -DIPv4 -DLWIP_DEBUG 
+#CFLAGS=-g -Wall -fPIC -DIPv6 -DLWIP_DEBUG -DLWIP_NL -DLWIP_PACKET -DRD235LIB -DLWIP_COMPAT_SOCKETS=0
 

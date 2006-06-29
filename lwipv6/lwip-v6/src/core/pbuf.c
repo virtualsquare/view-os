@@ -73,6 +73,14 @@
 #include "lwip/sys.h"
 #include "arch/perf.h"
 
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#include "lwip/netif.h"
+#include "lwip/ip.h"
+#include "lwip/nat/nat.h"
+#endif
+
+
 static u8_t pbuf_pool_memory[(PBUF_POOL_SIZE * MEM_ALIGN_SIZE(PBUF_POOL_BUFSIZE + sizeof(struct pbuf)))];
 
 #if !SYS_LIGHTWEIGHT_PROT
@@ -118,7 +126,8 @@ pbuf_init(void)
     q = p;
 
 /* added by Diego Billi */
-#ifdef LWIP_NAT
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
   nat_pbuf_init(p);
 #endif
 
@@ -345,6 +354,11 @@ pbuf_alloc(pbuf_layer l, u16_t length, pbuf_flag flag)
     return NULL;
   }
 
+/* added by Diego Billi */
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+  nat_pbuf_init(p);
+#endif
    
   /* set reference count */
   p->ref = 1;
@@ -588,9 +602,15 @@ pbuf_free(struct pbuf *p)
     p->ref--;
     /* this pbuf is no longer referenced to? */
     if (p->ref == 0) {
-
       /* remember next pbuf in chain for next iteration */
       q = p->next;
+
+/* added by Diego Billi */
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+      nat_pbuf_put(p);
+#endif
+
 
       LWIP_DEBUGF( PBUF_DEBUG | 2, ("pbuf_free: deallocating %p\n", (void *)p));
       /* is this a pbuf from the pool? */
@@ -980,6 +1000,49 @@ struct pbuf * pbuf_clone(pbuf_layer l, struct pbuf *p, pbuf_flag flag)
 	struct pbuf *q, *r;
 	u8_t *ptr;
 
+	r = pbuf_alloc(l, p->tot_len, PBUF_RAM);
+	if (r != NULL) {
+		ptr = r->payload;
+		for(q = p; q != NULL; q = q->next) {
+			memcpy(ptr, q->payload, q->len);
+			ptr += q->len;
+		}
+
+//#ifdef LWIP_USERFILTER
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+		nat_pbuf_clone(r, p);
+//#endif
+#endif
+
+		
+	}
+	return r ;
+}
+
+/* added by Diego Billi */
+struct pbuf * pbuf_make_writable(struct pbuf *p)
+{
+	struct pbuf *r = NULL;
+
+	if (p->len < p->tot_len) {
+		r = pbuf_clone(PBUF_LINK, p, PBUF_RAM);
+		if (r != NULL)
+			pbuf_free(p);
+	}
+	else
+		r = p;
+
+	return r;
+}
+	
+#if 0
+/* added by Diego Billi */
+struct pbuf * pbuf_clone(pbuf_layer l, struct pbuf *p, pbuf_flag flag)
+{
+	struct pbuf *q, *r;
+	u8_t *ptr;
+
 	r = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
 	if (r != NULL) {
 		ptr = r->payload;
@@ -990,3 +1053,4 @@ struct pbuf * pbuf_clone(pbuf_layer l, struct pbuf *p, pbuf_flag flag)
 	}
 	return r ;
 }
+#endif

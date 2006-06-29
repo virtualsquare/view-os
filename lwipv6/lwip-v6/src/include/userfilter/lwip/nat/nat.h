@@ -19,15 +19,24 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
 
-#ifdef LWIP_NAT
+//#ifdef LWIP_NAT
+#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
 
 #ifndef __NAT_H__
 #define __NAT_H__
 
-#include "lwip/netif.h"
-#include "lwip/ip.h"
-#include "lwip/userfilter.h"
+/* Don't remove these. */
+struct pbuf;
+struct netif;
 
+#include "lwip/userfilter.h"
+#include "lwip/pbuf.h"
+#include "lwip/netif.h"
+
+// Max number of session the module can handle
+#ifndef MEMP_NUM_NAT_PCB
+#define MEMP_NUM_NAT_PCB    32
+#endif
 
 /*--------------------------------------------------------------------------*/
 /* Costants for hook registration. */
@@ -62,6 +71,8 @@
  *   [C]confirm = timeout is set or refreshed and if packet reach this 
  *                hook the new connections is confirmed and expire .
  */
+
+
 
 /*--------------------------------------------------------------------------*/
 /* NAT costants */
@@ -126,16 +137,6 @@ struct ip_tuple {
 /* NAT process controll blocks */
 /*--------------------------------------------------------------------------*/
 
-// Max number of session the module can handle
-#ifndef MEMP_NUM_NAT_PCB
-#define MEMP_NUM_NAT_PCB    32
-#endif
-
-
-#include "lwip/nat/nat_track_tcp.h"
-#include "lwip/nat/nat_track_udp.h"
-#include "lwip/nat/nat_track_icmp.h"
-
 enum track_status {
 
 	/* We've seen packets both ways: bit 1 set.  Can be set, not unset. */
@@ -160,6 +161,10 @@ enum track_status {
 	TS_MASQUERADE_BIT   = 8,
 	TS_MASQUERADE       = (1 << TS_MASQUERADE_BIT ),
 };
+
+#include "lwip/nat/nat_track_tcp.h"
+#include "lwip/nat/nat_track_udp.h"
+#include "lwip/nat/nat_track_icmp.h"
 
 
 /*
