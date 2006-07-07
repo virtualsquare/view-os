@@ -1170,7 +1170,6 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 	filetab[fi]->size = buf.st_size;
 
 	if ((flags & (O_CREAT | O_TRUNC | O_WRONLY | O_RDWR)) && (fc->fuse->flags & MS_RDONLY)) {
-		free(filetab[fi]->path);
 		delfiletab(fi);
 		errno = EROFS;
 		return -1;
@@ -1310,7 +1309,7 @@ static long umfuse_close(int fd)
 static long umfuse_read(int fd, void *buf, size_t count)
 {
 	int rv;
-	if ( (filetab[fd]==NULL) || (filetab[fd]->ffi.flags & (O_WRONLY))) {
+	if ( (filetab[fd]==NULL) || ((filetab[fd]->ffi.flags & O_ACCMODE) != O_WRONLY)) {
 		errno=EBADF;
 		return -1;
 	} else if (filetab[fd]->pos == filetab[fd]->size)
@@ -1344,7 +1343,7 @@ static long umfuse_write(int fd, void *buf, size_t count)
 //TODO write page?!
 	int rv;
 
-	if ( (filetab[fd]==NULL) || (filetab[fd]->ffi.flags & (O_RDONLY))  ) {
+	if ( (filetab[fd]==NULL) || ((filetab[fd]->ffi.flags & O_ACCMODE) != O_RDONLY)) {
 		errno = EBADF;
 		/*
 		if (fc->fuse->flags & FUSE_DEBUG) {
