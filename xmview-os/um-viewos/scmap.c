@@ -90,6 +90,12 @@ wrapinfun wrap_in_umservice, wrap_out_umservice;
 #define	__NR_recvmsg	SYS_RECVMSG
 #endif
 
+#if defined(__powerpc__)
+#define AL64 1
+#else
+#define AL64 0
+#endif
+
 struct sc_map scmap[]={
 	{__NR_doesnotexist, always_umnone, NULL, NULL,always_umnone,NULL,0,6,0},
 
@@ -154,15 +160,15 @@ struct sc_map scmap[]={
 	{__NR_fdatasync,choice_fd,	wrap_in_fsync, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	1, SOC_FILE},
 	{__NR_truncate,	choice_path,	wrap_in_truncate, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	2, SOC_FILE},
 	{__NR_ftruncate,choice_fd,	wrap_in_ftruncate, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	2, SOC_FILE},
-	{__NR_truncate64,choice_path,	wrap_in_truncate, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	3, SOC_FILE},
-	{__NR_ftruncate64,choice_fd,	wrap_in_ftruncate, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
+	{__NR_truncate64,choice_path,	wrap_in_truncate, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	AL64+3, SOC_FILE},
+	{__NR_ftruncate64,choice_fd,	wrap_in_ftruncate, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	AL64+3, SOC_FILE},
 #ifdef __NR_pread64
-	{__NR_pread64,	choice_fd,	wrap_in_pread, 	wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	5, SOC_FILE},
+	{__NR_pread64,	choice_fd,	wrap_in_pread, 	wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	AL64+5, SOC_FILE},
 #else
 	{__NR_pread,	choice_fd,	wrap_in_pread, 	wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	4, SOC_FILE},
 #endif
 #ifdef __NR_pwrite64
-	{__NR_pwrite64,	choice_fd,	wrap_in_pwrite, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	5, SOC_FILE},
+	{__NR_pwrite64,	choice_fd,	wrap_in_pwrite, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	AL64+5, SOC_FILE},
 #else
 	{__NR_pwrite,	choice_fd,	wrap_in_pwrite, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	4, SOC_FILE},
 #endif
