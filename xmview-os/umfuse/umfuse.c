@@ -1341,7 +1341,6 @@ static long umfuse_read(int fd, void *buf, size_t count)
 
 static long umfuse_write(int fd, void *buf, size_t count)
 {
-#ifdef __UMFUSE_EXPERIMENTAL__
 //TODO write page?!
 	int rv;
 
@@ -1380,10 +1379,6 @@ static long umfuse_write(int fd, void *buf, size_t count)
 			return rv;
 		}
 	}
-#else
-	errno = EROFS;
-	return -1;
-#endif
 }
 
 static int stat2stat64(struct stat64 *s64, struct stat *s)
@@ -2128,9 +2123,7 @@ init (void)
 	SERVICESYSCALL(s, umount2, umfuse_umount2);
 	SERVICESYSCALL(s, open, umfuse_open);
 	SERVICESYSCALL(s, read, umfuse_read);
-#ifdef __UMFUSE_EXPERIMENTAL__
 	SERVICESYSCALL(s, write, umfuse_write);
-#endif
 	//SERVICESYSCALL(s, readv, readv);
 	//SERVICESYSCALL(s, writev, writev);
 	SERVICESYSCALL(s, close, umfuse_close);
@@ -2153,7 +2146,6 @@ init (void)
 #endif
 	SERVICESYSCALL(s, lseek, umfuse_lseek);
 	//SERVICESYSCALL(s, mknod, umfuse_mknod);
-#ifdef __UMFUSE_EXPERIMENTAL__
 	SERVICESYSCALL(s, mkdir, umfuse_mkdir);
 	SERVICESYSCALL(s, rmdir, umfuse_rmdir);
 	SERVICESYSCALL(s, chown, umfuse_chown);
@@ -2174,7 +2166,6 @@ init (void)
 #else
 	SERVICESYSCALL(s, truncate, umfuse_truncate64);
 	SERVICESYSCALL(s, ftruncate, umfuse_ftruncate64);
-#endif
 #endif
 	//SERVICESYSCALL(s, pread64, umfuse_pread);
 	//SERVICESYSCALL(s, pwrite64, umfuse_pwrite);
