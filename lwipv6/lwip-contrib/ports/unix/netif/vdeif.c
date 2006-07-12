@@ -109,6 +109,9 @@ struct vdeif {
 	struct sockaddr_un dataout;
 	struct sockaddr_un datain;
 	int intno;
+
+	u8_t       active;
+	sys_sem_t  cleanup_mutex;
 };
 
 /* Forward declarations. */
@@ -222,6 +225,7 @@ static int send_fd(char *name, int fddata, struct sockaddr_un *datasock, struct 
 	return fdctl;
 }
 
+#if 0
 static char *mem_strdup(const char *s)
 {
 	if (s == NULL)
@@ -237,6 +241,16 @@ static char *mem_strdup(const char *s)
 			return rv;
 		}
 	}
+}
+#endif
+
+/*-----------------------------------------------------------------------------------*/
+
+static void
+arp_timer(void *arg)
+{
+	etharp_tmr((struct netif *) arg );
+	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, arg);
 }
 
 /*-----------------------------------------------------------------------------------*/
@@ -268,6 +282,10 @@ static int low_level_init(struct netif *netif, char *path)
 	vdeif->connected_fd = send_fd(path, vdeif->fddata, &(vdeif->dataout), &(vdeif->datain), vdeif->intno, netif->num);
 
 	if (vdeif->connected_fd >= 0) {
+
+		vdeif->active = 1;
+		vdeif->cleanup_mutex = sys_sem_new(0);
+
 		sys_thread_new(vdeif_thread, netif, DEFAULT_THREAD_PRIO);
 		return ERR_OK;
 	}
@@ -283,6 +301,16 @@ static err_t cleanup(struct netif *netif)
 
 	if (vdeif) {
 		unlink(vdeif->datain.sun_path);
+		close(vdeif->fddata);
+
+		/* Unset ARP timeout on this interface */
+		sys_untimeout((sys_timeout_handler)arp_timer, netif);
+
+
+		/* Stop interface thread and wait until it exits */
+		vdeif->active = 0;
+		sys_sem_wait_timeout(vdeif->cleanup_mutex, 0); 
+		sys_sem_free(vdeif->cleanup_mutex);
 	}
 	return ERR_OK;
 }
@@ -401,29 +429,22 @@ static void vdeif_thread(void *arg)
 	struct vdeif *vdeif;
 	fd_set fdset;
 	int ret;
-	//struct timeval tv;
+	struct timeval tv;
 
 	netif = arg;
 	vdeif = netif->state;
 
-	//tv.tv_sec = ARP_TMR_INTERVAL / 1000;
-	//tv.tv_usec = (ARP_TMR_INTERVAL % 1000) * 1000;
+	/* Check if we have to exit and wait 100ms for new data */
+	while (vdeif->active) {
 
-	while (1) {
 		FD_ZERO(&fdset);
 		FD_SET(vdeif->fddata, &fdset);
 
-		LWIP_DEBUGF(VDEIF_DEBUG, ("vde_thread: waiting4packet\n"));
+		tv.tv_sec = 0;
+		tv.tv_usec = 100000;
+
 		/* Wait for a packet to arrive. */
-		//ret = select(vdeif->fddata + 1, &fdset, NULL, NULL, &tv);
-		ret = select(vdeif->fddata + 1, &fdset, NULL, NULL, NULL);
-
-		//if (tv.tv_sec == 0 && tv.tv_usec == 0) {
-		//	etharp_tmr(netif);
-		//	tv.tv_sec = ARP_TMR_INTERVAL / 1000;
-		//	tv.tv_usec = (ARP_TMR_INTERVAL % 1000) * 1000;
-		//}
-
+		ret = select(vdeif->fddata + 1, &fdset, NULL, NULL, &tv);
 		if (ret == 1) {
 			/* Handle incoming packet. */
 			vdeif_input(netif);
@@ -432,6 +453,8 @@ static void vdeif_thread(void *arg)
 			perror("vdeif_thread: select");
 		}
 	}
+
+	sys_sem_signal(vdeif->cleanup_mutex);   
 }
 
 /*-----------------------------------------------------------------------------------*/
@@ -517,15 +540,6 @@ static void vdeif_input(struct netif *netif)
 }
 
 /*-----------------------------------------------------------------------------------*/
-
-static void
-arp_timer(void *arg)
-{
-	etharp_tmr((struct netif *) arg );
-	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, arg);
-}
-
-/*-----------------------------------------------------------------------------------*/
 /*
  * vdeif_init():
  *
@@ -576,3 +590,14 @@ err_t vdeif_init(struct netif * netif)
 }
 
 /*-----------------------------------------------------------------------------------*/
+
+	//tv.tv_sec = ARP_TMR_INTERVAL / 1000;
+	//tv.tv_usec = (ARP_TMR_INTERVAL % 1000) * 1000;
+
+	//while (1) {
+		//ret = select(vdeif->fddata + 1, &fdset, NULL, NULL, NULL);
+		//if (tv.tv_sec == 0 && tv.tv_usec == 0) {
+		//	etharp_tmr(netif);
+		//	tv.tv_sec = ARP_TMR_INTERVAL / 1000;
+		//	tv.tv_usec = (ARP_TMR_INTERVAL % 1000) * 1000;
+		//}

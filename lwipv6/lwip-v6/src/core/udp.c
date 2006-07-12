@@ -486,10 +486,23 @@ udp_send(struct udp_pcb *pcb, struct pbuf *p)
     /*src_ip = &(netif->ip_addr);*/
     struct ip_addr_list *el;
    
-    if ((el=ip_addr_list_maskfind(netif->addrs,nexthop)) == NULL)
-	    return err;
+    ///if ((el=ip_addr_list_maskfind(netif->addrs,nexthop)) == NULL)
+	///    return err;
+    ///src_ip = &(el->ipaddr);
+
+    /* Added by Diego Billi */
+    /* Get source address */
+    if (ip_addr_is_v4comp(&pcb->remote_ip)) {
+       if ((el=ip_addr_list_maskfind(netif->addrs, nexthop)) == NULL)
+       return err;  
+    }
+    else {
+       if ((el=ip_route_ipv6_select_source(netif, &pcb->remote_ip)) == NULL) 
+   	   return err;  
+    }
 
     src_ip = &(el->ipaddr);
+
 
   } else {
     /* use UDP PCB local IP address as source address */

@@ -84,17 +84,17 @@
 * (6 * 5) seconds = 0.5 minutes.
 */
 #define ARP_MAXAGE 6
-	/** the time an ARP entry stays pending after first request,
-	 * (2 * 5) seconds = 10 seconds.
-	 * 
-	 * @internal Keep this number at least 2, otherwise it might
-	 * run out instantly if the timeout occurs directly after a request.
-	 */
+/** the time an ARP entry stays pending after first request,
+ * (2 * 5) seconds = 10 seconds.
+ * 
+ * @internal Keep this number at least 2, otherwise it might
+ * run out instantly if the timeout occurs directly after a request.
+ */
 #define ARP_MAXPENDING 2
 
 #define HWTYPE_ETHERNET 1
 
-	/** ARP message types */
+/** ARP message types */
 #define ARP_REQUEST 1
 #define ARP_REPLY 2
 
@@ -110,25 +110,25 @@
 			})
 			
 enum etharp_state {
-	ETHARP_STATE_EMPTY=0,
-	ETHARP_STATE_PENDING,
-	ETHARP_STATE_STABLE,
-	/** @internal transitional state used in etharp_tmr() for convenience*/
-	ETHARP_STATE_EXPIRED
+  ETHARP_STATE_EMPTY=0,
+  ETHARP_STATE_PENDING,
+  ETHARP_STATE_STABLE,
+  /** @internal transitional state used in etharp_tmr() for convenience*/
+  ETHARP_STATE_EXPIRED
 };
 
 struct etharp_entry {
 #if ARP_QUEUEING
-/** 
- * Pointer to queue of pending outgoing packets on this ARP entry.
- */
-struct pbuf *p;
+  /** 
+   * Pointer to queue of pending outgoing packets on this ARP entry.
+   */
+  struct pbuf *p;
 #endif
-	struct ip_addr ipaddr;
-	struct eth_addr ethaddr;
-	enum etharp_state state;
-	u8_t ctime;
-	u8_t if_id;
+  struct ip_addr ipaddr;
+  struct eth_addr ethaddr;
+  enum etharp_state state;
+  u8_t ctime;
+  u8_t if_id;
 };
 
 static const struct eth_addr ethbroadcast = {{0xff,0xff,0xff,0xff,0xff,0xff}};
@@ -150,17 +150,17 @@ static err_t update_arp_entry(struct netif *netif, struct ip_addr *ipaddr, struc
 void
 etharp_init(void)
 {
-	/* global vars are zeroed by definition */
+  /* global vars are zeroed by definition */
 #if 0
-	u8_t i;
-	/* clear ARP entries */
-	for(i = 0; i < ARP_TABLE_SIZE; ++i) {
-		arp_table[i].state = ETHARP_STATE_EMPTY;
+  u8_t i;
+  /* clear ARP entries */
+  for(i = 0; i < ARP_TABLE_SIZE; ++i) {
+    arp_table[i].state = ETHARP_STATE_EMPTY;
 #if ARP_QUEUEING
-		arp_table[i].p = NULL;
+    arp_table[i].p = NULL;
 #endif
-		arp_table[i].ctime = 0;
-	}
+    arp_table[i].ctime = 0;
+  }
 #endif
 }
 
@@ -173,49 +173,49 @@ etharp_init(void)
 void
 etharp_tmr(struct netif *netif)
 {
-	u8_t i;
+  u8_t i;
 
-	LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer\n"));
-	/* remove expired entries from the ARP table */
-	for (i = 0; i < ARP_TABLE_SIZE; ++i) {
+  LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer\n"));
+  /* remove expired entries from the ARP table */
+  for (i = 0; i < ARP_TABLE_SIZE; ++i) {
 
-		if (arp_table[i].if_id == netif->id) {
+    if (arp_table[i].if_id == netif->id) {
 
-			arp_table[i].ctime++;
-			/* stable entry? */
-			if ((arp_table[i].state == ETHARP_STATE_STABLE) &&
-					/* entry has become old? */
-					(arp_table[i].ctime >= ARP_MAXAGE)) {
-				LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer: expired stable entry %u.\n", i));
-					arp_table[i].state = ETHARP_STATE_EXPIRED;
-				/* pending entry? */
-			} else if (arp_table[i].state == ETHARP_STATE_PENDING) {
-				/* entry unresolved/pending for too long? */
-				if (arp_table[i].ctime >= ARP_MAXPENDING) {
-					LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer: expired pending entry %u.\n", i));
-					arp_table[i].state = ETHARP_STATE_EXPIRED;
+      arp_table[i].ctime++;
+      /* stable entry? */
+      if ((arp_table[i].state == ETHARP_STATE_STABLE) &&
+        /* entry has become old? */
+        (arp_table[i].ctime >= ARP_MAXAGE)) {
+        LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer: expired stable entry %u.\n", i)); 
+        arp_table[i].state = ETHARP_STATE_EXPIRED;
+        /* pending entry? */
+      } else if (arp_table[i].state == ETHARP_STATE_PENDING) {
+        /* entry unresolved/pending for too long? */
+        if (arp_table[i].ctime >= ARP_MAXPENDING) {
+          LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer: expired pending entry %u.\n", i));
+          arp_table[i].state = ETHARP_STATE_EXPIRED;
 #if ARP_QUEUEING
-				} else if (arp_table[i].p != NULL) {
-					/* resend an ARP query here */
+        } else if (arp_table[i].p != NULL) {
+        /* resend an ARP query here */
 #endif           	
-				}
-			}
-			/* clean up entries that have just been expired */
-			if (arp_table[i].state == ETHARP_STATE_EXPIRED) {
+        }
+      }
+      /* clean up entries that have just been expired */
+      if (arp_table[i].state == ETHARP_STATE_EXPIRED) {
 #if ARP_QUEUEING
-				/* and empty packet queue */
-				if (arp_table[i].p != NULL) {
-					/* remove all queued packets */
-					LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer: freeing entry %u, packet queue %p.\n", i, (void *)(arp_table[i].p)));
-					pbuf_free(arp_table[i].p);
-					arp_table[i].p = NULL;
-				}
+        /* and empty packet queue */
+        if (arp_table[i].p != NULL) {
+          /* remove all queued packets */
+          LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer: freeing entry %u, packet queue %p.\n", i, (void *)(arp_table[i].p)));
+          pbuf_free(arp_table[i].p);
+          arp_table[i].p = NULL;
+        }
 #endif
-				/* recycle entry for re-use */      
-				arp_table[i].state = ETHARP_STATE_EMPTY;
-			}
-		}
-	}
+        /* recycle entry for re-use */      
+        arp_table[i].state = ETHARP_STATE_EMPTY;
+      }
+    }
+  }
 }
 
 /**
@@ -445,8 +445,8 @@ update_arp_entry(struct netif *netif, struct ip_addr *ipaddr, struct eth_addr *e
       ethhdr->dest.addr[k] = ethaddr->addr[k];
       ethhdr->src.addr[k] = netif->hwaddr[k];
     }
-// Fix by Renzo Davoli
-//    ethhdr->type = htons(ETHTYPE_IP); 
+    // Fix by Renzo Davoli
+    //    ethhdr->type = htons(ETHTYPE_IP); 
     LWIP_DEBUGF(ETHARP_DEBUG | DBG_TRACE, ("update_arp_entry: sending queued IP packet %p.\n", (void *)p));
     /* send the queued IP packet */
     LINKOUTPUT(netif, p);
@@ -475,22 +475,22 @@ update_arp_entry(struct netif *netif, struct ip_addr *ipaddr, struct eth_addr *e
 static void
 etharp_ip4_input(struct netif *netif, struct pbuf *p)
 {
-	struct ethip4_hdr *hdr;
-	struct ip_addr src4;
+  struct ethip4_hdr *hdr;
+  struct ip_addr src4;
 
-	/* Only insert an entry if the source IP address of the
-		 incoming IP packet comes from a host on the local network. */
-	hdr = p->payload;
-	IP64_CONV(&src4,&(hdr->ip.src));
-	if (!ip_addr_list_maskfind(netif->addrs, &(src4))) {
-		/* do nothing */
-		return;
-	}
+  /* Only insert an entry if the source IP address of the
+     incoming IP packet comes from a host on the local network. */
+  hdr = p->payload;
+  IP64_CONV(&src4,&(hdr->ip.src));
+  if (!ip_addr_list_maskfind(netif->addrs, &(src4))) {
+    /* do nothing */
+    return;
+  }
 
-	LWIP_DEBUGF(ETHARP_DEBUG | DBG_TRACE, ("etharp_ip4_input: updating ETHARP table.\n"));
-	/* update ARP table, ask to insert entry */
-	update_arp_entry(netif, &(src4), &(hdr->eth.src), ARP_INSERT_FLAG);
-	return;
+  LWIP_DEBUGF(ETHARP_DEBUG | DBG_TRACE, ("etharp_ip4_input: updating ETHARP table.\n"));
+  /* update ARP table, ask to insert entry */
+  update_arp_entry(netif, &(src4), &(hdr->eth.src), ARP_INSERT_FLAG);
+  return;
 }
 
 void
@@ -501,19 +501,19 @@ etharp_ip_input(struct netif *netif, struct pbuf *p)
   /* Only insert an entry if the source IP address of the
      incoming IP packet comes from a host on the local network. */
   hdr = p->payload;
-	if (hdr->eth.type == ETHTYPE_IP)
-		 etharp_ip4_input(netif,p);
+  if (hdr->eth.type == ETHTYPE_IP)
+    etharp_ip4_input(netif,p);
 
-	if (!ip_addr_list_maskfind(netif->addrs, &(hdr->ip.src))) {
-		/* do nothing */
-		return;
-	}
+  if (!ip_addr_list_maskfind(netif->addrs, &(hdr->ip.src))) {
+    /* do nothing */
+    return;
+  }
 
-	LWIP_DEBUGF(ETHARP_DEBUG | DBG_TRACE, ("etharp_ip_input: updating ETHARP table.\n"));
+  LWIP_DEBUGF(ETHARP_DEBUG | DBG_TRACE, ("etharp_ip_input: updating ETHARP table.\n"));
   /* update ARP table */
   /* @todo We could use ETHARP_TRY_HARD if we think we are going to talk
    * back soon (for example, if the destination IP address is ours. */
-	update_arp_entry(netif, &(hdr->ip.src), &(hdr->eth.src), ARP_INSERT_FLAG);
+  update_arp_entry(netif, &(hdr->ip.src), &(hdr->eth.src), ARP_INSERT_FLAG);
 }
 
 

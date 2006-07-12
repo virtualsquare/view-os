@@ -68,24 +68,32 @@
 /*
  * The idea is to run the stack code in a different thread and
  * to comunicate with it (or shutdown it) by using messages.
+ * Remember that each interface has its own thread too.
+ * 
  * After tcpip_shutdown() any call has no effect.
  * 
- * 	main thread             tcpip_thread
+ * 	main thread               TCPIP_THREAD           netif thread(s)
  * 	  |
  * 	  |
- * 	tcpip_init()--------------> *new*
- * 	  |                           |
- * 	 ...                         ...
- * 	tcpip_input()......msg......> |
- * 	tcpip_input()......msg......> |
- * 	 ...                         ...
- * 	  |                           |
- * 	tcpip_shutdown().....msg....> |
- * 	  |                           *
- *      tcpip_input() 
+ * 	tcpip_init()---------------> *new*              
+ * 	  |                            |
+ *  tcpip_netif_add()....msg.....> |-------------------> *new*
+ * 	  |                            |                       |
+ * 	 ...                          ...                     ...
+ * 	  |                            | <.......msg...... tcpip_input()
+ * 	  |                            | <.......msg...... tcpip_input()
+ * 	 ...                          ...                     ...
+ * 	  |                            |                       |
+ * 	tcpip_shutdown().....msg.....> |                       |
+ * 	  |                         netif_cleanup().......> *exit*
+ * 	  |                            |
+ * 	  |                          *exit*
+ *  tcpip_input()
  * 	  |
  * 	exit()
  */
+
+/*---------------------------------------------------------------------------*/
 
 /* called after stack initialization */
 static void (* tcpip_init_done)(void *arg) = NULL;
@@ -138,13 +146,16 @@ tcp_timer_needed(void)
 #endif /* !NO_SYS */
 #endif /* LWIP_TCP */
 
+/*--------------------------------------------------------------------------*/
 
 static void tcpip_set_down_interfaces(void)
 {
 	struct netif *nip;
 		
 	for (nip=netif_list; nip!=NULL; nip=nip->next) {
+
 		ip_change(nip, NETIF_CHANGE_DOWN);
+
 		netif_set_down_low(nip);
 	}
 }
@@ -182,7 +193,6 @@ tcpip_thread(void *arg)
 		sys_mbox_fetch(mbox, (void *)&msg);
 
 		if (msg==NULL) {
-			//fprintf(stderr,"tcpip NULL MSG, this should not happen!\n");
 			printf("tcpip NULL MSG, this should not happen!\n");
 		} else {                    
 
@@ -196,7 +206,6 @@ tcpip_thread(void *arg)
 
 					//printf("----------------------------------------------------------------------------\n");
 					//LWIP_DEBUGF(TCPIP_DEBUG, ("----------------------------------------------------------------------------\n"));
-
 					break;
 
 				case TCPIP_MSG_API:
@@ -205,12 +214,12 @@ tcpip_thread(void *arg)
 					break;
 
 				case TCPIP_MSG_CALLBACK:
-					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: CALLBACK %p\n", (void *)msg));
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: callback %p\n", (void *)msg));
 					msg->msg.cb.f(msg->msg.cb.ctx);
 					break;
 
 				case TCPIP_MSG_NETIFADD:
-					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: ADD NETIF! %p\n", (void *)msg));
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: add netif %p\n", (void *)msg));
 
 					netif_add(msg->msg.netif.netif,
 						msg->msg.netif.state,
@@ -224,7 +233,7 @@ tcpip_thread(void *arg)
 					break;
 
 				case TCPIP_MSG_NETIF_CHANGE:
-					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: NETIF state change! %p\n", (void *)msg));
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: netif state change! %p\n", (void *)msg));
 
 					ip_change(msg->msg.netif_change.netif, msg->msg.netif_change.type);
 
@@ -267,13 +276,10 @@ tcpip_input(struct pbuf *p, struct netif *inp)
 	sys_sem_wait_timeout(tcpip_mutex, 0); 
 	if (tcpip_mainthread_run == 0) {
 		LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
-
 		pbuf_free(p);
-
 		sys_sem_signal(tcpip_mutex);   
 		return ERR_OK;
 	}
-	
 
 	msg = memp_malloc(MEMP_TCPIP_MSG);
 	if (msg == NULL) {
@@ -306,7 +312,6 @@ tcpip_callback(void (*f)(void *ctx), void *ctx)
 		sys_sem_signal(tcpip_mutex);   
 		return ERR_OK;
 	}
-
 	
 	msg = memp_malloc(MEMP_TCPIP_MSG);
 	if (msg == NULL) {
@@ -462,7 +467,6 @@ tcpip_change(struct netif *netif, u32_t type)
 		return;
 	}
 	
-
 	msg = memp_malloc(MEMP_TCPIP_MSG);
 	if (msg == NULL) {
 		sys_sem_signal(tcpip_mutex);   

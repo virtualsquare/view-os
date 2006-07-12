@@ -7,6 +7,29 @@ DHCP user level management).
 
 Copyright 2004 Renzo Davoli University of Bologna - Italy
 
+
+Features
+========
+
+ * "Phisical" Layer
+    o Virtual interfaces: TUNTAP driver support, VDE driver support.
+    o ARP support
+ * Network Layer
+    o Forwarding over interfaces (IPv4 and IPv6)
+    o Packet fragmentation (IPv4 and IPv6)
+    o NAT support (IPv4 and IPv6)
+    o IPv6: Stateless Address Autoconfiguration, Router Advertising support
+ * Transport Layer
+    o TCP: congestion control, RTT estimation, fast recovery/fast retransmit.
+    o UDP
+ * Berkeley Socket API
+    o Protocol family: PF_INET, PF_INET6, PF_PACKET, PF_NETLINK (partially)
+    o Socket type: SOCK_STREAM, SOCK_DGRAM, SOCK_RAW.
+
+
+License
+=======
+
 The TCP-IP stack is based on lwip by Adam Dunkels <adam@sics.se> 
 	(see README.LICENSE)
 
@@ -24,6 +47,10 @@ The TCP-IP stack is based on lwip by Adam Dunkels <adam@sics.se>
 *    with this program; if not, write to the Free Software Foundation, Inc.,
 *    59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
+
+Install
+-------
+
 cd to the distribution dir and type
 
 % make
@@ -31,6 +58,10 @@ cd to the distribution dir and type
 You can install the library with the following command:
 
 # make install
+
+
+Use LwIPv6a with View-OS project
+================================
 
 The lwipv6.so module is ready to be used by um-viewos.
 

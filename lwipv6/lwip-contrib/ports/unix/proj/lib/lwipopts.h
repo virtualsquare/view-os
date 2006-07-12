@@ -91,7 +91,7 @@ a lot of data that needs to be copied, this should be set high. */
 /* MEMP_NUM_SYS_TIMEOUT: the number of simulateously active
    timeouts. */
 //#define MEMP_NUM_SYS_TIMEOUT    3
-#define MEMP_NUM_SYS_TIMEOUT    8
+#define MEMP_NUM_SYS_TIMEOUT    30
 
 
 /* The following four are used only with the sequential API and can be
@@ -241,11 +241,11 @@ a lot of data that needs to be copied, this should be set high. */
 #define DBG_TYPES_ON    (DBG_ON|DBG_TRACE|DBG_STATE|DBG_FRESH|DBG_HALT)
 
 /* Memory Debug */
-#define MEMP_DEBUG                  DBG_OFF
-#define PBUF_DEBUG                  DBG_OFF
+#define MEMP_DEBUG              DBG_OFF
+#define PBUF_DEBUG              DBG_OFF
 
 /* Ethernet layer debug */
-#define ETHARP_DEBUG                DBG_OFF
+#define ETHARP_DEBUG            DBG_OFF
 
 	/* VDE interface debug */
 	#define VDEIF_DEBUG         DBG_OFF
@@ -257,28 +257,34 @@ a lot of data that needs to be copied, this should be set high. */
 	#define TAPIF_DEBUG         DBG_OFF
 
 /* IP Layer debug */
-#define IP_DEBUG                    DBG_OFF
+#define IP_DEBUG                DBG_ON
 
-#define ROUTE_DEBUG                 DBG_OFF
-
-/* De/Fragmentation code (IPv4, IPv6) debug */
-#if defined(IPv4_FRAGMENTATION) || defined (IPv6_FRAGMENTATION)
-	#define IP_REASS_DEBUG      DBG_OFF
-#endif
+#define ROUTE_DEBUG             DBG_OFF
 
 /* PathMTU Discovery Protocol debug. Code not working yet */
 #ifdef IPv6_PMTU_DISCOVERY
 	#define PMTU_DEBUG          DBG_OFF
 #endif
 
+/* IPv6 Source Address Selection */
+#define IP_SELECT_SRC           DBG_ON
+
+/* De/Fragmentation code (IPv4, IPv6) debug */
+#if defined(IPv4_FRAGMENTATION) || defined (IPv6_FRAGMENTATION)
+	#define IP_REASS_DEBUG      DBG_ON
+#endif
+
+/* IPv6 Stateless Auto-configruration */
 #ifdef IPv6_AUTO_CONFIGURATION
 	#define IP_AUTOCONF_DEBUG   DBG_OFF
 #endif
 
+/* IPv6 Router Advertising */
 #ifdef IPv6_ROUTER_ADVERTISEMENT
 	#define IP_RADV_DEBUG       DBG_OFF
 #endif
 
+/* IPv6 Router Advertising Configuration loader */
 #ifdef IPv6_RADVCONF
 	#define IP_RADVCONF_DEBUG   DBG_OFF
 #endif
@@ -292,18 +298,16 @@ a lot of data that needs to be copied, this should be set high. */
 	#define NAT_DEBUG           DBG_OFF
 #endif
 
-#endif
-
-
+#endif 
 
 /* ICMPv4/v6 protocol debug */
-#define ICMP_DEBUG                  DBG_OFF
+#define ICMP_DEBUG              DBG_OFF
 
 /* TCP/UDP sub-system debug */
-#define TCPIP_DEBUG                 DBG_OFF
+#define TCPIP_DEBUG             DBG_OFF
 
 /* Sockets debug */
-#define SOCKETS_DEBUG               DBG_OFF
+#define SOCKETS_DEBUG           DBG_ON
 
 
 

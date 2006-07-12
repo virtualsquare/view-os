@@ -66,6 +66,9 @@ typedef u32_t mem_ptr_t;
 #endif /* __GNUC__ */
 
 
+#define INLINE  __inline__
+
+
 /* prototypes for printf() and abort() */
 #include <stdio.h>
 #include <stdlib.h>

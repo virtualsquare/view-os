@@ -146,7 +146,8 @@ int uf_unregister_hook(struct uf_hook_handler *h)
 }
 
 
-static inline uf_verdict_t uf_iterate(uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct netif *out)
+INLINE static uf_verdict_t 
+uf_iterate(uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct netif *out)
 {
 	struct uf_hook_handler *currhook;
 	uf_verdict_t ret = UF_ACCEPT;

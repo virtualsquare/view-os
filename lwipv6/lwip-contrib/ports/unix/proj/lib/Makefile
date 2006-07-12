@@ -67,7 +67,7 @@ CFLAGS:=$(CFLAGS) -DIPv6_AUTO_CONFIGURATION
 #CFLAGS:=$(CFLAGS) -DIPv6_ROUTER_ADVERTISEMENT
 #CFLAGS:=$(CFLAGS) -DIPv6_RADVCONF
 
-# added by Diego Billi (ATTENTION: LWIP_NAT needs LWIP_USERFILTER)
+#ATTENTION: LWIP_NAT needs LWIP_USERFILTER)
 #CFLAGS:=$(CFLAGS) -DLWIP_USERFILTER 
 #CFLAGS:=$(CFLAGS) -DLWIP_NAT 
 
@@ -77,7 +77,7 @@ ARFLAGS=rs
 # Includes
 #=============================================================================
 
-CFLAGS:=$(CFLAGS)                 \
+CFLAGS:=$(CFLAGS)             \
 	-I$(LWIPDIR)/include      \
 	-I$(LWIPARCH)/include     \
 	-I$(LWIPDIR)/include/ipv6 \
@@ -99,8 +99,8 @@ CFLAGS:=$(CFLAGS) -I$(LWIPDIR)/include/radv
 # Different implementations of memory manager
 #
 #COREFILES=$(LWIPDIR)/core/mem.c $(LWIPDIR)/core/memp.c
-#COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_malloc.c
-COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_dynmalloc.c 
+#COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_dynmalloc.c 
+COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_malloc.c
 
 #
 # Different implementation of 'pbuf' manager
@@ -177,7 +177,6 @@ LWIPLIB=liblwip.so
 
 STATICLWIPLIB=liblwip.a
 
-
 %.o:
 	$(CC) $(CFLAGS) -c $(<:.o=.c)
 
@@ -206,11 +205,4 @@ $(STATICLWIPLIB): $(LWIPOBJS) unixlib.o
 .depend: unixlib.c $(LWIPFILES)
 	$(CCDEP) $(CFLAGS) -MM $^ > .depend || rm -f .depend
 
-
-
-
-
-
-#CFLAGS=-g -Wall -fPIC -DIPv4 -DLWIP_DEBUG 
-#CFLAGS=-g -Wall -fPIC -DIPv6 -DLWIP_DEBUG -DLWIP_NL -DLWIP_PACKET -DRD235LIB -DLWIP_COMPAT_SOCKETS=0
 

@@ -50,18 +50,17 @@
 static void
 loopif_input( void * arg )
 {
-	//printf("loopif_input\n");
-	struct netif *netif = (struct netif *)( ((void **)arg)[ 0 ] );
-	struct pbuf *r = (struct pbuf *)( ((void **)arg)[ 1 ] );
+  //printf("loopif_input\n");
+  struct netif *netif = (struct netif *)( ((void **)arg)[ 0 ] );
+  struct pbuf *r = (struct pbuf *)( ((void **)arg)[ 1 ] );
 
-	//printf("R %p NETIF %p\n",r,netif);
-	mem_free( arg );
-	netif->input( r, netif );
+  //printf("R %p NETIF %p\n",r,netif);
+  mem_free( arg );
+  netif->input( r, netif );
 }
 
 static err_t
-loopif_output(struct netif *netif, struct pbuf *p,
-       struct ip_addr *ipaddr)
+loopif_output(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr)
 {
   struct pbuf *q, *r;
   char *ptr;
@@ -71,13 +70,13 @@ loopif_output(struct netif *netif, struct pbuf *p,
   tcpdump(p);
 #endif /* LWIP_DEBUG && LWIP_TCPDUMP */
 
-	if (! (netif->flags & NETIF_FLAG_UP)) {
-		return ERR_OK;
-	}
+  if (! (netif->flags & NETIF_FLAG_UP)) {
+    return ERR_OK;
+  }
 		
-	//printf("LOOPIFpbuf_alloc\n");
+  //printf("LOOPIFpbuf_alloc\n");
   r = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
-	//printf("LOOPIFpbuf_alloc done\n");
+  //printf("LOOPIFpbuf_alloc done\n");
   if (r != NULL) {
     ptr = r->payload;
     
@@ -85,7 +84,7 @@ loopif_output(struct netif *netif, struct pbuf *p,
       memcpy(ptr, q->payload, q->len);
       ptr += q->len;
     }
-		netif->input( r, netif );
+    netif->input( r, netif );
 
     /* arg = mem_malloc( sizeof( void *[2]));
 	if( NULL == arg ) {
@@ -115,14 +114,14 @@ loopif_output(struct netif *netif, struct pbuf *p,
 err_t
 loopif_init(struct netif *netif)
 {
-	static int num=0;
+  static int num=0;
   netif->name[0] = 'l';
   netif->name[1] = 'o';
-	netif->num = num++;
+  netif->num = num++;
   netif->output = loopif_output;
-	netif->flags |= NETIF_FLAG_UP | NETIF_FLAG_LOOPBACK;
+  netif->flags |= NETIF_FLAG_UP | NETIF_FLAG_LOOPBACK;
 #ifdef LWIP_NL
-	netif->type = ARPHRD_LOOPBACK;
+  netif->type = ARPHRD_LOOPBACK;
 #endif
   return ERR_OK;
 }

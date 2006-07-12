@@ -565,9 +565,24 @@ tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb)
 
     /*netif = ip_route(&(pcb->remote_ip));
     if (netif == NULL) { */
-    if (ip_route_findpath(&(pcb->remote_ip), &nexthop, &netif, &flags) != ERR_OK ||
-		    (el=ip_addr_list_maskfind(netif->addrs,nexthop)) == NULL)
-      return;
+    ///if (ip_route_findpath(&(pcb->remote_ip), &nexthop, &netif, &flags) != ERR_OK ||
+	///	    (el=ip_addr_list_maskfind(netif->addrs,nexthop)) == NULL)
+    ///  return;
+
+    /* Added by Diego Billi */
+    /* Get outgoing interface and next hop */
+    if (ip_route_findpath(&(pcb->remote_ip), &nexthop, &netif, &flags) != ERR_OK)
+		return;
+
+    /* Get source address */
+    if (ip_addr_is_v4comp(&pcb->remote_ip)) {
+      if ((el=ip_addr_list_maskfind(netif->addrs,nexthop)) == NULL)
+        return;
+    }
+    else {
+      if ((el = ip_route_ipv6_select_source(netif, &pcb->remote_ip)) == NULL) 
+        return;
+    }
 
     ip_addr_set(&(pcb->local_ip), &(el->ipaddr));
   }

@@ -47,10 +47,14 @@
 #include "lwip/stats.h"
 
 /* added by Diego Billi */
-//#ifdef LWIP_NAT
 #if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
 #include "lwip/nat/nat.h"
 #endif
+
+/*
+ * FIX: This implementation uses malloc() and free() functions.
+ *      These functions MUST be thread safe.
+ */
 
 static const u16_t memp_sizes[MEMP_MAX] = {
   sizeof(struct pbuf),
@@ -66,7 +70,6 @@ static const u16_t memp_sizes[MEMP_MAX] = {
   sizeof(struct sys_timeout)
 
 /* added by Diego Billi */
-//#ifdef LWIP_NAT
 #if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
   ,
   sizeof(struct nat_pcb),

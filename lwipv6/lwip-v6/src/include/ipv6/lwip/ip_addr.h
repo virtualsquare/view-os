@@ -189,7 +189,6 @@ void ip4_addr_set(struct ip4_addr *dest, struct ip4_addr *src);
 #define ip_addr_ismulticast(addr1) ((ntohl((addr1)->addr[0]) >> 24) == 0xff)
 /* #define ip_addr_isbroadcast(addr1, mask) ip_addr_ismulticast(addr1) */
 
-
 #define ip_addr_isallnode(addr1) \
 	((((addr1)->addr[0] == htonl(0xff010000)) || \
 	  ((addr1)->addr[0] == htonl(0xff020000))) && \
@@ -263,12 +262,11 @@ void ip_addr_debug_print(int how, struct ip_addr *addr);
 
 
 
+struct netif;
+
 #ifdef IPv6_AUTO_CONFIGURATION
 #include "lwip/ip_autoconf.h"
 #endif
-
-
-struct netif;
 
 struct ip_addr_list {
 	struct ip_addr_list *next;
@@ -344,6 +342,7 @@ struct ip_addr_list *ip_addr_list_masquarade_addr(struct ip_addr_list *tail, u8_
 })
 
 #define IPSADDR_IFINDEX(I) ((I).addr[0])
+
 #endif /* LWIP_PACKET */
 
 

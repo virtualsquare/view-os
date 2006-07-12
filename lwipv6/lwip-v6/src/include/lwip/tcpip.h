@@ -43,7 +43,7 @@ enum tcpip_msg_type {
   TCPIP_MSG_INPUT,
   TCPIP_MSG_CALLBACK,
 
-
+  /* other messages */
   TCPIP_MSG_NETIFADD,
   TCPIP_MSG_SHUTDOWN,
   TCPIP_MSG_NETIF_CHANGE
@@ -55,10 +55,12 @@ struct tcpip_msg {
   union {
 
     struct api_msg *apimsg;
+
     struct {
       struct pbuf *p;
       struct netif *netif;
     } inp;
+
     struct {
       void (*f)(void *ctx);
       void *ctx;
@@ -111,9 +113,8 @@ struct netif * tcpip_netif_add(struct netif *netif,
 /* Signal to the stack to shutdown */
 void tcpip_shutdown(void (* tcpip_shutdown_done)(void *), void *arg);
 
-
-void
-tcpip_change(struct netif *netif, u32_t type);
+/* Signal to the stack the interface's state is changed */
+void tcpip_change(struct netif *netif, u32_t type);
 
 
 #endif /* __LWIP_TCPIP_H__ */

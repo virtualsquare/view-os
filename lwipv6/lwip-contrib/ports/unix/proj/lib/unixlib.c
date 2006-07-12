@@ -75,8 +75,6 @@ struct netif *lwip_vdeif_add(void *arg)
 	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
 
-	//netif_add(pnetif, arg, vdeif_init, tcpip_input);
-	//tcpip_netif_add(pnetif, arg, vdeif_init, tcpip_input);
 	tcpip_netif_add(pnetif, arg, vdeif_init, tcpip_input, tcpip_change);
 
 #ifndef IPv6_AUTO_CONFIGURATION
@@ -92,8 +90,8 @@ struct netif *lwip_vdeif_add(void *arg)
 	IP6_ADDR_LINKSCOPE(&ipaddr, pnetif->hwaddr);
 	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
 	netif_add_addr(pnetif, &ipaddr, &netmask);
-
 #endif
+
 	return(pnetif);
 }
 
@@ -105,7 +103,6 @@ struct netif *lwip_tapif_add(void *arg)
 	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
 
-	//netif_add(pnetif, arg, tapif_init, tcpip_input);
 	tcpip_netif_add(pnetif, arg, tapif_init, tcpip_input, tcpip_change);
 
 #ifndef IPv6_AUTO_CONFIGURATION
@@ -122,6 +119,7 @@ struct netif *lwip_tapif_add(void *arg)
 	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
 	netif_add_addr(pnetif, &ipaddr, &netmask);
 #endif
+
 	return(pnetif);
 }
 
@@ -133,8 +131,6 @@ struct netif *lwip_tunif_add(void *arg)
 	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
 
-	//netif_add(pnetif, arg, tunif_init, tcpip_input);
-	//tcpip_netif_add(pnetif, arg, tunif_init, tcpip_input);
 	tcpip_netif_add(pnetif, arg, tunif_init, tcpip_input, tcpip_change);
 
 	/* missing? */
@@ -154,8 +150,6 @@ static void lwip_loopif_add()
 	static struct netif loopif;
 	struct ip_addr ipaddr, netmask;
 
-	//netif_add(&loopif,NULL, loopif_init, tcpip_input);
-	//tcpip_netif_add(&loopif,NULL, loopif_init, tcpip_input);
 	tcpip_netif_add(&loopif,NULL, loopif_init, tcpip_input, tcpip_change);
 
 	IP6_ADDR(&ipaddr, 0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x1);
@@ -278,6 +272,20 @@ void _fini(void){
 	tcpip_shutdown(shutdown_done, &sem);
 	sys_sem_wait(sem);
 	sys_sem_free(sem);
-
-	//netif_cleanup();
 }
+
+
+
+
+
+	//netif_add(pnetif, arg, vdeif_init, tcpip_input);
+	//tcpip_netif_add(pnetif, arg, vdeif_init, tcpip_input);
+
+	//netif_add(pnetif, arg, tapif_init, tcpip_input);
+
+	//netif_add(pnetif, arg, tunif_init, tcpip_input);
+	//tcpip_netif_add(pnetif, arg, tunif_init, tcpip_input);
+
+
+	//netif_add(&loopif,NULL, loopif_init, tcpip_input);
+	//tcpip_netif_add(&loopif,NULL, loopif_init, tcpip_input);

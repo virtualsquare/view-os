@@ -48,6 +48,11 @@
 
 #include "lwip/stats.h"
 
+/*
+ * FIX: If you want to use these functions malloc() and free() 
+ *      implementation MUST be thread safe.
+ */
+
 void
 mem_init(void)
 {

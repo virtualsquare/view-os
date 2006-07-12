@@ -240,7 +240,7 @@ sys_untimeout(sys_timeout_handler h, void *arg)
             if (t->next != NULL)
                 t->next->time += t->time;
 
-	    if (t->raw != 1) /// ADDED XXX(should never happen)XXXXXXXXXXXXXXXXXXXX
+	    if (t->raw != 1) 
             memp_free(MEMP_SYS_TIMEOUT, t);
             return;
         }
@@ -355,7 +355,6 @@ void sys_timeout_raw(struct sys_timeout * timeout)
   timeout->raw = 1;
 
   msecs = timeout->time;
-  //, sys_timeout_handler h, void *arg)
 
   timeouts = sys_arch_timeouts();
 
@@ -410,7 +409,7 @@ int  sys_untimeout_raw(struct sys_timeout *timeout)
             /* If not the last one, add time of this one back to next */
             if (t->next != NULL) t->next->time += t->time;
 
-	    t->next = NULL;
+            t->next = NULL;
 
             return 1;
         }

@@ -1,3 +1,6 @@
+#
+# LwIPv6a Makefile
+#
 prefix = /usr/local
 bindir = ${prefix}/bin
 libdir = ${prefix}/lib
@@ -24,11 +27,9 @@ install: ${libdir}
 	install lwip-contrib/ports/unix/include/lwipv6.h ${includedir}
 	install lwip-contrib/ports/unix/proj/lib/liblwip.a ${libdir}
 
-# added by Diego Billi 
 installstatic: ${libdir}
 	install lwip-contrib/ports/unix/proj/lib/liblwip.a ${libdir}
 	
-# added by Diego Billi
 help:
 	@echo -e "Lwipv6 targets:"
 	@echo -e "all - Compile LwipV6 as dynamic Library (.so)"

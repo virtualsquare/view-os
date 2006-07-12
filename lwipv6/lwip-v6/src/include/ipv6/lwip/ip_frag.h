@@ -75,33 +75,28 @@
 #ifndef __LWIP_IP_FRAG_H__
 #define __LWIP_IP_FRAG_H__
 
-#include "lwip/err.h"
-#include "lwip/pbuf.h"
-#include "lwip/netif.h"
-#include "lwip/ip_addr.h"
-
-
 /* Module init */
 void ip_frag_reass_init(void);
 
 
+#ifdef IPv4_FRAGMENTATION
+
 /* 
  * IPv4 Frag/Defrag functions 
  */
-
-#ifdef IPv4_FRAGMENTATION
-
 struct pbuf *ip4_reass(struct pbuf *p);
+
 err_t ip4_frag(struct pbuf *, struct netif *, struct ip_addr *);
 
 #endif /* IPv4_FRAGMENTATION */
 
 
+
+#ifdef IPv6_FRAGMENTATION
+
 /*
  * IPv6 Frag/Defrag functions
  */
-
-#ifdef IPv6_FRAGMENTATION
 
 /* Fragmentation extension header */
 #ifdef PACK_STRUCT_USE_INCLUDES
@@ -115,13 +110,13 @@ struct ip6_fraghdr {
 #define IP6_OFFMASK       0xfff8
 #define IP6_MF            0x0001
 	PACK_STRUCT_FIELD(u32_t id);
-}  PACK_STRUCT_STRUCT;
+} PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
 #ifdef PACK_STRUCT_USE_INCLUDES
 #  include "arch/epstruct.h"
 #endif
 
-#define IP6_NEXTHDR(fhdr) ((fhdr)->nexthdr )
+#define IP6_NEXTHDR(fhdr) (fhdr)->nexthdr
 #define IP6_OFFSET(fhdr)  (ntohs((fhdr)->offset_res_m) & IP6_OFFMASK)
 #define IP6_M(fhdr)       (ntohs((fhdr)->offset_res_m) & IP6_MF)
 #define IP6_ID(fhdr)      (ntohl((fhdr)->id) )
@@ -129,7 +124,6 @@ PACK_STRUCT_END
 /* Lenght in bytes of the fragmentation header.  */
 #define IP_EXTFRAG_LEN    8
 
-//struct pbuf *ip6_reass(struct pbuf *p, struct ip6_fraghdr *fh);
 struct pbuf *ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_exthdr *lastext);
 
 err_t ip6_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest);

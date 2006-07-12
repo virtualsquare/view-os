@@ -70,6 +70,12 @@
 #include "lwip/tcp.h"
 #include "lwip/if.h"
 
+
+#ifndef NETIF_DEBUG
+#define NETIF_DEBUG DBG_OFF
+#endif
+
+
 struct netif *netif_list = NULL;
 
 /**
@@ -335,6 +341,8 @@ static int netif_ifconf(struct ifconf *ifc)
 	struct netif *nip;
 	register int i;
 	register int maxlen=ifc->ifc_len;
+	
+	printf("%s\n", __func__);
 #define ifr_v (ifc->ifc_req)
 
 	/*printf("-netif_ifconf %d\n",ifc->ifc_len);*/
@@ -375,7 +383,7 @@ int netif_ioctl(int cmd,struct ifreq *ifr)
 	int retval;
 	struct netif *nip;
 	register int i;
-	//printf("netif_ioctl %x\n",cmd);
+
 	if (ifr == NULL)
 		retval=EFAULT;
 	else {
@@ -384,19 +392,36 @@ int netif_ioctl(int cmd,struct ifreq *ifr)
 		} else {
 #define ifrname ifr->ifr_name
 			ifrname[4]=ifrname[5]=0;
-			if (ifrname[3] != 0 ||
-					(nip = netif_find(ifrname)) == NULL) {
-				//printf("%s: interface not found\n",ifrname);
+			if (ifrname[3] != 0 || (nip = netif_find(ifrname)) == NULL) {
 				retval=EINVAL;
 			}
 			else {
 #undef ifrname
 				switch (cmd) {
+
+					case SIOCSIFBRDADDR:
+						LWIP_DEBUGF( NETIF_DEBUG, ("SIOCSIFBRDADDR\n"));
+						retval = ENOSYS; break;
+
+					case SIOCSIFNETMASK:
+						LWIP_DEBUGF( NETIF_DEBUG, ("SIOCSIFNETMASK\n"));
+						retval = ENOSYS; break;
+
+					case SIOCSIFADDR:
+						LWIP_DEBUGF( NETIF_DEBUG, ("SIOCSIFADDR\n"));
+						retval = ENOSYS; break;
+
+					case SIOCGIFADDR:
+						LWIP_DEBUGF( NETIF_DEBUG, ("SIOCGIFADDR\n"));
+						retval = ENOSYS; break;
+
 					case SIOCGIFFLAGS:
+						LWIP_DEBUGF( NETIF_DEBUG, ("SIOCGIFFLAGS %x\n",nip->flags));
 						ifr->ifr_flags= nip->flags & ~(IFF_RUNNING);
-						/*printf("SIOCGIFFLAGS %x\n",nip->flags);*/
-						retval=ERR_OK; break;
+						retval=ERR_OK; 
+						break;
 					case SIOCSIFFLAGS:
+						LWIP_DEBUGF( NETIF_DEBUG, ("SIOCSIFFLAGS %x %x\n",ifr->ifr_flags, nip->flags));
 						oldflags = nip->flags;
 
 						/* If interface is going down */
@@ -405,7 +430,6 @@ int netif_ioctl(int cmd,struct ifreq *ifr)
 							nip->change(nip, NETIF_CHANGE_DOWN);
 
 						nip->flags = (nip->flags & IFF_RUNNING) | (ifr->ifr_flags & ~(IFF_RUNNING));
-						/*printf("SIOCSIFFLAGS %x %x\n",ifr->ifr_flags, nip->flags);*/
 
 						/* If interface is now up */
 						if ( !(oldflags & IFF_UP) &&  (ifr->ifr_flags & IFF_UP) )
@@ -417,12 +441,11 @@ int netif_ioctl(int cmd,struct ifreq *ifr)
 					case SIOCGIFMTU:
 						ifr->ifr_mtu=nip->mtu;
 						retval=ERR_OK; break;
+
 					case SIOCSIFMTU:
 						nip->mtu=ifr->ifr_mtu;
-
 						if (nip->change)
-						nip->change(nip, NETIF_CHANGE_MTU);
-
+							nip->change(nip, NETIF_CHANGE_MTU);
 						retval=ERR_OK; break;
 
 					case SIOCGIFHWADDR:
@@ -759,5 +782,24 @@ void netif_netlink_adddeladdr(struct nlmsghdr *msg,void * buf,int *offset)
 	}
 	netlink_ackerror(msg,err,buf,offset);	
 }
+
+#endif
+
+
+#if 0
+					case SIOCSIFADDR:
+					{
+						struct  sockaddr_in *addr = (struct  sockaddr_in *) &ifr->ifr_addr;
+						if (addr->sin_family == AF_INET) {
+							struct ip_addr ip;
+							printf("IPv4\n");
+							IP64_CONV( &ip, (struct ip4_addr *) &addr->sin_addr);
+							ip_addr_debug_print(NETIF_DEBUG, &ip);
+						}
+						else 
+						if (addr->sin_family == AF_INET) {
+							printf("IPv6\n");
+						}
+					}
 
 #endif

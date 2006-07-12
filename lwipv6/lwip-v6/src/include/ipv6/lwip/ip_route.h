@@ -63,6 +63,10 @@ err_t ip_route_findpath(struct ip_addr *addr, struct ip_addr **pnexthop, struct 
 err_t ip_route_list_delnetif(struct netif *netif);
 
 
+/* Select the source address for the given destination IP "dst" and the outgoing interface "outif"  */
+struct ip_addr_list * ip_route_ipv6_select_source(struct netif *outif, struct ip_addr *dst);
+
+
 
 
 /* added by Diego Billi */

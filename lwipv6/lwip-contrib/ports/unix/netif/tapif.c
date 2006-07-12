@@ -1,3 +1,23 @@
+/*   This is part of LWIPv6
+ *   
+ *   VDE (virtual distributed ethernet) interface for ale4net
+ *   (based on tapif interface Adam Dunkels <adam@sics.se>)
+ *   Copyright 2005 Renzo Davoli University of Bologna - Italy
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
 /*
  * Copyright (c) 2001-2003 Swedish Institute of Computer Science.
  * All rights reserved. 
@@ -83,6 +103,9 @@ struct tapif {
   struct eth_addr *ethaddr;
   /* Add whatever per-interface state that is needed here. */
   int fd;
+
+  u8_t      active;  
+  sys_sem_t cleanup_mutex;
 };
 
 /* Forward declarations. */
@@ -92,13 +115,22 @@ static err_t tapif_output(struct netif *netif, struct pbuf *p, struct ip_addr *i
 static void tapif_thread(void *data);
 
 /*-----------------------------------------------------------------------------------*/
+
+static void
+arp_timer(void *arg)
+{
+	etharp_tmr((struct netif *) arg );
+	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, arg);
+}
+
+/*-----------------------------------------------------------------------------------*/
 static int
 low_level_init(struct netif *netif)
 {
 	struct tapif *tapif;
 	
 	tapif = netif->state;
-	
+
 	/* Obtain MAC address from network interface. */
 	
 	/* (We just fake an address...) */
@@ -106,9 +138,9 @@ low_level_init(struct netif *netif)
 	tapif->ethaddr->addr[1] = 0x2;
 	tapif->ethaddr->addr[2] = 0x3;
 	tapif->ethaddr->addr[3] = 0x4;
-	tapif->ethaddr->addr[4] = 0x5;
+	tapif->ethaddr->addr[4] = 0x5 + netif->num;
 	tapif->ethaddr->addr[5] = 0x6;
-	
+
 	/* Do whatever else is needed to initialize interface. */
 	
 	tapif->fd = open(DEVTAP, O_RDWR);
@@ -133,6 +165,9 @@ low_level_init(struct netif *netif)
 	}
 #endif /* Linux */
 
+	tapif->active = 1;
+	tapif->cleanup_mutex = sys_sem_new(0);
+
 	sys_thread_new(tapif_thread, netif, DEFAULT_THREAD_PRIO);
 	return ERR_OK;
 }
@@ -143,7 +178,16 @@ static err_t cleanup(struct netif *netif)
 	struct tapif *tapif = netif->state;
 
 	if (tapif) {
+
 		close(tapif->fd);
+
+		/* Unset ARP timeout on this interface */
+		sys_untimeout((sys_timeout_handler)arp_timer, netif);
+
+		/* Stop interface thread and wait until it exits */
+		tapif->active = 0;
+		sys_sem_wait_timeout(tapif->cleanup_mutex, 0); 
+		sys_sem_free(tapif->cleanup_mutex);
 	}
 	return ERR_OK;
 }
@@ -256,29 +300,22 @@ tapif_thread(void *arg)
 	struct tapif *tapif;
 	fd_set fdset;
 	int ret;
-	//struct timeval tv;
+	struct timeval tv;
 	
 	netif = arg;
 	tapif = netif->state;
-	
-	//tv.tv_sec=ARP_TMR_INTERVAL/1000;
-	//tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
-	
-	while(1) {
+
+	/* Check if we have to exit and wait 100ms for new data */
+	while (tapif->active) {
 	
 		FD_ZERO(&fdset);
 		FD_SET(tapif->fd, &fdset);
-	
+
+		tv.tv_sec = 0;
+		tv.tv_usec = 100000;
+
 		/* Wait for a packet to arrive. */
-		//ret = select(tapif->fd + 1, &fdset, NULL, NULL, &tv);
-		ret = select(tapif->fd + 1, &fdset, NULL, NULL, NULL);
-	
-		//if (tv.tv_sec == 0 && tv.tv_usec==0) {
-		//	etharp_tmr(netif);
-		//	tv.tv_sec=ARP_TMR_INTERVAL/1000;
-		//	tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
-		//}
-	
+		ret = select(tapif->fd + 1, &fdset, NULL, NULL, &tv);
 		if(ret == 1) {
 			/* Handle incoming packet. */
 			tapif_input(netif);
@@ -286,6 +323,9 @@ tapif_thread(void *arg)
 			perror("tapif_thread: select");
 		}
 	}
+
+	/* Ok, signal cleanup mutex */
+	sys_sem_signal(tapif->cleanup_mutex);   
 }
 /*-----------------------------------------------------------------------------------*/
 /*
@@ -306,6 +346,7 @@ tapif_output(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr)
 	} else
 		return etharp_output(netif, ipaddr, p);
 }
+
 /*-----------------------------------------------------------------------------------*/
 /*
  * tapif_input():
@@ -323,7 +364,6 @@ tapif_input(struct netif *netif)
 	struct tapif *tapif;
 	struct eth_hdr *ethhdr;
 	struct pbuf *p;
-	
 	
 	tapif = netif->state;
 	
@@ -359,15 +399,6 @@ tapif_input(struct netif *netif)
 			pbuf_free(p);
 			break;
 	}
-}
-
-/*-----------------------------------------------------------------------------------*/
-
-static void
-arp_timer(void *arg)
-{
-	etharp_tmr((struct netif *) arg );
-	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, arg);
 }
 
 /*-----------------------------------------------------------------------------------*/
@@ -409,8 +440,16 @@ tapif_init(struct netif *netif)
 	
 	etharp_init();
 	
-	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, tapif);
+	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, netif);
 
 	return ERR_OK;
 }
 /*-----------------------------------------------------------------------------------*/
+
+		//tv.tv_sec=ARP_TMR_INTERVAL/1000;
+		//tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
+		//if (tv.tv_sec == 0 && tv.tv_usec==0) {
+		//	etharp_tmr(netif);
+		//	tv.tv_sec=ARP_TMR_INTERVAL/1000;
+		//	tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
+		//}

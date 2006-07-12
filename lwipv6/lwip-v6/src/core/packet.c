@@ -74,6 +74,8 @@
 #include "lwip/netif.h"
 #include "lwip/packet.h"
 
+#include "netif/etharp.h"
+
 #include "lwip/stats.h"
 
 #include "arch/perf.h"

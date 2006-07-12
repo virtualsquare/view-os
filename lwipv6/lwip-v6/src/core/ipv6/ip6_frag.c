@@ -63,11 +63,11 @@
 
 #if defined(IPv6_FRAGMENTATION) || defined(IPv4_FRAGMENTATION)
 
+#include "lwip/stats.h"
 #include "lwip/sys.h"
+#include "lwip/netif.h"
 #include "lwip/ip.h"
 #include "lwip/ip_frag.h"
-#include "lwip/netif.h"
-#include "lwip/stats.h"
 
 
 #ifndef IP_REASS_DEBUG
@@ -85,14 +85,14 @@
  *
  * helper used by both ip_reass and ip_frag
  */
-static struct pbuf *
+INLINE static struct pbuf *
 copy_from_pbuf(struct pbuf *p, u16_t * offset, u8_t * buffer, u16_t len)
 {
 	u16_t l;
 
 	p->payload = (u8_t *) p->payload + *offset;
 	p->len -= *offset;
-	while (len) {
+  	while (len) {
 		l = len < p->len ? len : p->len;
 		memcpy(buffer, p->payload, l);
 		buffer += l;
@@ -169,7 +169,7 @@ static struct ip_reassbuf ip_reassembly_pool[IP_REASS_POOL_SIZE];
 #define MAX_MTU 1500
 
 /* Reassembly timer */
-static void ip_reass_tmr(void *arg)
+INLINE static void ip_reass_tmr(void *arg)
 {
 	int i;
 
@@ -187,6 +187,19 @@ static void ip_reass_tmr(void *arg)
 
 	sys_timeout(IP_REASS_TIMER_TIMEOUT, ip_reass_tmr, NULL);
 }
+
+#if 0
+#define IP_REASS_EXPIRE_TIMEOUT  5000
+
+static void ip_reass_expire_tm(void *arg)
+{
+	struct ip_reassbuf * entry = (struct ip_reassbuf *) arg;
+
+	CLEAR_ENTRY( entry );
+
+	LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: free entry (IPv%d, id=%u)\n", entry->ipv, UINT entry->id));
+}
+#endif
 
 
 /****************************************************************************/
@@ -206,7 +219,7 @@ void ip_frag_reass_init(void)
 	LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: IPv6 fragmentation enabled.\n", __func__));
 #endif
 
-	sys_timeout(IP_REASS_TIMER_TIMEOUT, ip_reass_tmr, NULL);
+	sys_timeout(IP_REASS_TIMER_TIMEOUT, (sys_timeout_handler) ip_reass_tmr, NULL);
 }
 
 /****************************************************************************/
@@ -254,7 +267,11 @@ struct pbuf *ip4_reass(struct pbuf *p)
 
 				/* Reset entry data */
 				ip_reassembly_pool[pos].flags = IP4_REASS_FLAG_USED;
+
 				ip_reassembly_pool[pos].age   = 0;
+#if 0
+				sys_timeout(IP_REASS_EXPIRE_TIMEOUT, ip_reass_expire_tm, &ip_reassembly_pool[pos]);
+#endif
 
 				ip_reassembly_pool[pos].ipv   = 4;
 				ip_reassembly_pool[pos].id    = IPH4_ID(fragment_hdr);
@@ -829,7 +846,7 @@ err_t ip6_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest)
 		linkheader = pbuf_alloc(PBUF_LINK, 0, PBUF_RAM);
 		pbuf_chain(linkheader, rambuf);
 
-		LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: netif->output\n", __func__));
+		LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: netif->output (pbuf len/tot=%d/%d)\n", __func__, linkheader->len, linkheader->tot_len ));
 		netif->output(netif, linkheader, dest);
 		LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: netif->output finish\n", __func__));
 

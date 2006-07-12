@@ -33,35 +33,33 @@
 #define ROUTE_DEBUG  DBG_OFF
 #endif
 
+
 /* added by Diego Billi */
 #if 0
 #ifdef IPv6_PMTU_DISCOVERY
 static void ip_pmtu_init();
 static void ip_pmtu_free_list(struct pmtu_info  *head);
 #define IP_PMTU_FREELIST(list) \
-	do {                                 \
+	do {
 		if ((list) != NULL) {            \
 			ip_pmtu_free_list( (list) ); \
 			(list) = NULL;               \
-		}                                \
-	} while(0);
+		}                                
+	} while (0);
 #endif
 #endif
-
 
 
 static struct ip_route_list ip_route_pool[IP_ROUTE_POOL_SIZE];
 static struct ip_route_list *ip_route_freelist;
-/*static struct ip_route_list *ip_route_head;*/
 struct ip_route_list *ip_route_head;
-
-
 
 /*---------------------------------------------------------------------------*/
 
 #ifdef ROUTE_DEBUG
 
-static void sprintf_ip(char *str, struct ip_addr *addr)
+INLINE static void 
+sprintf_ip(char *str, struct ip_addr *addr)
 {
 	if (addr != NULL) {
 
@@ -113,6 +111,8 @@ void ip_route_debug_list(void)
 
 /*---------------------------------------------------------------------------*/
 
+void ip_route_policy_table_init(void);
+
 
 void ip_route_list_init(void)
 {
@@ -123,13 +123,13 @@ void ip_route_list_init(void)
 	ip_route_freelist=ip_route_pool;
 	ip_route_head=NULL;
 
-
 #if 0
 #ifdef IPv6_PMTU_DISCOVERY
 	ip_pmtu_init();
 #endif
 #endif
 
+	ip_route_policy_table_init();
 }
 
 #define mask_wider(x,y) \
@@ -149,7 +149,6 @@ err_t ip_route_list_add(struct ip_addr *addr, struct ip_addr *netmask, struct ip
 	else {
 		struct ip_route_list **dp=(&ip_route_head);
 		struct ip_route_list *el=ip_route_freelist;
-
 
 		/* Find duplicate */
 		while (*dp != NULL && 
@@ -177,9 +176,6 @@ err_t ip_route_list_add(struct ip_addr *addr, struct ip_addr *netmask, struct ip
 		}
 		el->next= *dp;
 		*dp=el;
-		/*printf("NEW ADDED!\n"); 
-	
-		ip_route_list_debug();      */
 
 		ip_route_debug_list();
 
@@ -195,17 +191,16 @@ err_t ip_route_list_del(struct ip_addr *addr, struct ip_addr *netmask, struct ip
 	if (nexthop==NULL) nexthop=IP_ADDR_ANY;
 	while (*dp != NULL && (
 			!ip_addr_cmp(&((*dp)->addr),addr) ||
-			(netmask != NULL && 
-			 !ip_addr_cmp(&((*dp)->netmask),netmask)) ||
-			( !ip_addr_cmp(&((*dp)->nexthop),nexthop) &&
-			(*dp)->netif != netif )))
+			(netmask != NULL && !ip_addr_cmp(&((*dp)->netmask),netmask)) ||
+			( !ip_addr_cmp(&((*dp)->nexthop),nexthop) && (*dp)->netif != netif ) 
+			))
 		dp = &((*dp)->next);
+
 	if (*dp == NULL)
 		return ERR_CONN;
 	else {
 		struct ip_route_list *el=*dp;
 		*dp = el->next;
-
 #if 0
 #ifdef IPv6_PMTU_DISCOVERY
 		IP_PMTU_FREELIST( el->pmtu_list );
@@ -231,7 +226,6 @@ err_t ip_route_list_delnetif(struct netif *netif)
 			if ((*dp)->netif == netif) {
 				struct ip_route_list *el=*dp;
 				*dp = el->next;
-
 
 #if 0
 #ifdef IPv6_PMTU_DISCOVERY
@@ -266,47 +260,25 @@ err_t ip_route_findpath(struct ip_addr *addr, struct ip_addr **pnexthop, struct 
 	}
 	else {
 		*pnetif=dp->netif;
-		if (ip_addr_isany(&(dp->nexthop)))
+		if (ip_addr_isany(&(dp->nexthop))) {
+			//LWIP_DEBUGF(ROUTE_DEBUG, ("DIRECTLY CONNECTED %x\n",(*pnexthop)->addr[3]));
 			*pnexthop=addr;
-		else
+		} else {
+			//LWIP_DEBUGF(ROUTE_DEBUG, ("VIA %x\n",(*pnexthop)->addr[3]));
 			*pnexthop=&(dp->nexthop);
-		/*if (ip_addr_isany(&(dp->nexthop)))
-			printf("DIRECTLY CONNECTED %x\n",(*pnexthop)->addr[3]);
-		else
-			printf("VIA %x\n",(*pnexthop)->addr[3]);*/
+		}
+
 		return ERR_OK;
 	}
 }
 
-#if 0
-void
-ip_route_list_debug()
-{
-	struct ip_route_list *dp=ip_route_head;
-	while (dp != NULL) {
-		printf("addr %x:%x:%x:%x - msk %x:%x:%x:%x - nh %x:%x:%x:%x\n",
-				dp->addr.addr[0],
-				dp->addr.addr[1],
-				dp->addr.addr[2],
-				dp->addr.addr[3],
-				dp->netmask.addr[0],
-				dp->netmask.addr[1],
-				dp->netmask.addr[2],
-				dp->netmask.addr[3],
-				dp->nexthop.addr[0],
-				dp->nexthop.addr[1],
-				dp->nexthop.addr[2],
-				dp->nexthop.addr[3]);
-		printf("addr%x- msk%x- nh%x\n",
-				&(dp->addr),
-				&(dp->netmask),
-				&(dp->nexthop));
-		dp=dp->next;
-	}
-}
-#endif
 
 #ifdef LWIP_NL
+
+/*---------------------------------------------------------------------------------*/
+/* Netlink functions (iproute2 tools) */
+/*---------------------------------------------------------------------------------*/
+
 #include "lwip/netlink.h"
 
 static int isdefault (struct ip_addr *addr)
@@ -548,8 +520,301 @@ void ip_route_netlink_adddelroute(struct nlmsghdr *msg,void * buf,int *offset)
 
 
 
+/*---------------------------------------------------------------------------------*/
+/* IPv6 Default Address Selection (RFC 3484) */
+/*---------------------------------------------------------------------------------*/
+
+#ifndef IP_SELECT_SRC
+#define IP_SELECT_SRC  DBG_OFF
+#endif
+
+
+struct ip_policy {
+	struct ip_addr ip;
+	struct ip_addr prefix;
+	u16_t          precedence;
+	u16_t          label;
+};
+
+#define IP_SELECT_SRC_TABLE_SIZE   5
+
+struct ip_policy  ip_policy_table[IP_SELECT_SRC_TABLE_SIZE];
+
+
+/* FIX: now the table is read only, make it writable! */
+
+/* FIX: add destination address selection */
+
+
+void 
+ip_route_policy_table_init(void)
+{
+	/* From RFC
+      Prefix        Precedence Label
+      ::1/128               50     0
+      ::/0                  40     1
+      2002::/16             30     2
+      ::/96                 20     3
+      ::ffff:0:0/96         10     4
+	*/
+
+	IP6_ADDR( &ip_policy_table[0].ip     , 0,0,0,0,0,0,0,1);
+	IP6_ADDR( &ip_policy_table[0].prefix , 0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff);
+	ip_policy_table[0].precedence = 50;
+	ip_policy_table[0].label      =  0;
+
+	IP6_ADDR( &ip_policy_table[1].ip     , 0,0,0,0,0,0,0,0);
+	IP6_ADDR( &ip_policy_table[1].prefix , 0,0,0,0,0,0,0,0);
+	ip_policy_table[0].precedence = 40;
+	ip_policy_table[0].label      =  1;
+
+	IP6_ADDR( &ip_policy_table[2].ip     , 0x2002,0,0,0,0,0,0,0);
+	IP6_ADDR( &ip_policy_table[2].prefix , 0xffff,0,0,0,0,0,0,0);
+	ip_policy_table[0].precedence = 30;
+	ip_policy_table[0].label      =  2;
+
+	IP6_ADDR( &ip_policy_table[3].ip     , 0,0,0,0,0,0,0,0);
+	IP6_ADDR( &ip_policy_table[3].prefix , 0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0,0);
+	ip_policy_table[0].precedence = 20;
+	ip_policy_table[0].label      =  3;
+
+	IP6_ADDR( &ip_policy_table[4].ip     , 0,0,0,0,0,0xffff,0,0);
+	IP6_ADDR( &ip_policy_table[4].prefix , 0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0,0);
+	ip_policy_table[0].precedence = 10;
+	ip_policy_table[0].label      =  4;
+
+	LWIP_DEBUGF(ROUTE_DEBUG, ("%s: done\n", __func__));
+}
+
+u16_t  ip_policy_get_label(struct ip_addr *ip)
+{
+	int i;
+
+	for (i=0; i < IP_SELECT_SRC_TABLE_SIZE; i++) {
+		if (ip_addr_maskcmp(ip, &ip_policy_table[i].ip, &ip_policy_table[i].prefix)) {
+			return ip_policy_table[i].label;
+		}
+	}
+	return 0;
+}
+
+#define SCOPE_NODE   0x1
+#define SCOPE_LINK   0x2 
+#define SCOPE_SUBNET 0x3 
+#define SCOPE_ADMIN  0x4
+#define SCOPE_SITE   0x5
+#define SCOPE_ORG    0x8 
+#define SCOPE_GLOBAL 0xE
+#define ismulticast(addr1,scope) ( (ntohl((addr1)->addr[0]) & 0x000f) == (scope) )
+
+#define isunicast_link(addr1)    (ntohl((addr1)->addr[0]) & 0xFE80)
+#define isunicast_site(addr1)    (ntohl((addr1)->addr[0]) & 0xFEC0)
+#define isunicast_global(addr1)  (ntohl((addr1)->addr[0]) & 0x2000)
+
+INLINE static int ip_policy_get_scope(struct ip_addr *ip)
+{
+	/* FIX: do this better */
+	if (ip_addr_ismulticast(ip)) {
+		if (ismulticast(ip,SCOPE_NODE))   return 0;
+		if (ismulticast(ip,SCOPE_LINK))   return 1;
+		if (ismulticast(ip,SCOPE_SUBNET)) return 2;
+		if (ismulticast(ip,SCOPE_ADMIN))  return 3;
+		if (ismulticast(ip,SCOPE_SITE))   return 4;
+		if (ismulticast(ip,SCOPE_ORG))    return 5;
+		if (ismulticast(ip,SCOPE_GLOBAL)) return 6;
+	}
+	else {
+		if (isunicast_link(ip))           return 1;
+		if (isunicast_site(ip))           return 4;
+		if (isunicast_global(ip))         return 6;
+	}
+
+	/* Strange, return the smallest scope */
+	LWIP_DEBUGF(ROUTE_DEBUG, ("%s: unable to get address scope. BUG?\n", __func__));
+	return 0;
+}
+
+INLINE static struct ip_addr_list * 
+select_prefer_source(struct ip_addr_list *sa, struct ip_addr_list *sb, struct ip_addr *dst, struct netif *outif)
+{
+	int scope_sa, scope_sb, scope_d;
+	int label_sa, label_sb, label_d;
+
+	/* FIX: implement all checks */
+
+	/* Rule 1:  Prefer same address.
+	If SA = D, then prefer SA.  Similarly, if SB = D, then prefer SB. */
+	if (ip_addr_cmp(&(sa->ipaddr), dst)) 
+		return sa; 
+	else 
+	if (ip_addr_cmp(&(sb->ipaddr), dst)) 
+		return sb; 
+	
+	/* Rule 2:  Prefer appropriate scope.
+	If Scope(SA) < Scope(SB): If Scope(SA) < Scope(D), then prefer SB
+	and otherwise prefer SA.  Similarly, if Scope(SB) < Scope(SA): If
+	Scope(SB) < Scope(D), then prefer SA and otherwise prefer SB. */
+	scope_sa = ip_policy_get_scope(&sa->ipaddr);
+	scope_sb = ip_policy_get_scope(&sb->ipaddr);
+	scope_d  = ip_policy_get_scope(dst);
+
+	if (scope_sa < scope_sb) {
+		if (scope_sa < scope_d) return sb; 
+		else                    return sa; 
+	} else
+	if (scope_sb < scope_sa) {
+		if (scope_sb < scope_d) return sa; 
+		else                    return sb; 
+	}
+	
+	/* Rule 3:  Avoid deprecated addresses.
+	The addresses SA and SB have the same scope.  If one of the two
+	source addresses is "preferred" and one of them is "deprecated" (in
+	the RFC 2462 sense), then prefer the one that is "preferred." */
+#ifdef IPv6_AUTO_CONFIGURATION
+	if (sa->info.flag != IPADDR_PREFERRED)
+		if (sb->info.flag == IPADDR_PREFERRED) 
+			return sb;
+	if (sb->info.flag != IPADDR_PREFERRED)
+		if (sa->info.flag == IPADDR_PREFERRED) 
+			return sa;
+#endif
+	
+	/* Rule 4:  Prefer home addresses.
+	If SA is simultaneously a home address and care-of address and SB is
+	not, then prefer SA.  Similarly, if SB is simultaneously a home
+	address and care-of address and SA is not, then prefer SB.
+	If SA is just a home address and SB is just a care-of address, then
+	prefer SA.  Similarly, if SB is just a home address and SA is just a
+	care-of address, then prefer SB.  */
+	/* Implementations should provide a mechanism allowing an application to
+	reverse the sense of this preference and prefer care-of addresses
+	over home addresses (e.g., via appropriate API extensions).  Use of
+	the mechanism should only affect the selection rules for the invoking
+	application. */
+
+	/* TODO */
+	
+	/* Rule 5:  Prefer outgoing interface.
+	If SA is assigned to the interface that will be used to send to D
+	and SB is assigned to a different interface, then prefer SA.
+	Similarly, if SB is assigned to the interface that will be used to
+	send to D and SA is assigned to a different interface, then prefer
+	SB. */
+
+	/* TODO: up to now, selected SA and SB are both assigned to the interface */
+	
+	/* Rule 6:  Prefer matching label.
+	If Label(SA) = Label(D) and Label(SB) <> Label(D), then prefer SA.
+	Similarly, if Label(SB) = Label(D) and Label(SA) <> Label(D), then
+	prefer SB. */
+	label_sa = ip_policy_get_label(&sa->ipaddr);
+	label_sb = ip_policy_get_label(&sb->ipaddr);
+	label_d  = ip_policy_get_label(dst);
+	if (label_sa == label_d && label_sb != label_d) {
+		return sa; 
+	}
+	if (label_sb == label_d && label_sa != label_d) {
+		return sb;
+	}
+
+	/* Rule 7:  Prefer public addresses.
+	If SA is a public address and SB is a temporary address, then prefer
+	SA.  Similarly, if SB is a public address and SA is a temporary
+	address, then prefer SB. */
+
+	/* TODO */
+
+	/* Rule 8:  Use longest matching prefix.
+	If CommonPrefixLen(SA, D) > CommonPrefixLen(SB, D), then prefer SA.
+	Similarly, if CommonPrefixLen(SB, D) > CommonPrefixLen(SA, D), then
+	prefer SB. */
+
+	/* TODO */
+	
+	/* Rule 8 may be superseded if the implementation has other means of
+	choosing among source addresses.  For example, if the implementation
+	somehow knows which source address will result in the "best"
+	communications performance. */
+	
+	/* Rule 2 (prefer appropriate scope) MUST be implemented and given high
+	priority because it can affect interoperability. */
+
+	
+	/* Uhm... just choose one of them */
+
+	return sa;
+}
+
+struct ip_addr_list * ip_route_ipv6_select_source(struct netif *outif, struct ip_addr *dst)
+{
+    struct ip_addr_list *el, *tail;
+	struct ip_addr_list *sa, *sb;
+	struct ip_addr_list *prefer;
+
+	LWIP_DEBUGF(IP_SELECT_SRC, ("%s:  destination ip=", __func__));
+		ip_addr_debug_print(IP_SELECT_SRC, dst);
+		LWIP_DEBUGF(IP_SELECT_SRC, ("\n"));
+
+	/* RFC 3484 - 4. Candidate Source Addresses
+	[...]It is RECOMMENDED that the candidate source addresses be the set of
+	unicast addresses assigned to the interface that will be used to send
+	to the destination.  (The "outgoing" interface.)  On routers, the
+	candidate set MAY include unicast addresses assigned to any interface
+	that forwards packets, subject to the restrictions described below[...]
+	*/
+
+    /* Visit interface's addresses and take the prefered one */
+	prefer = sa = sb = NULL;
+	el = tail = outif->addrs->next;
+	do {
+		sa = prefer;
+	    /* Get SA (skip IPv4) */
+		if (sa == NULL)
+			if (!ip_addr_is_v4comp(&el->ipaddr)) 
+				sa = el;
+		/* Get SB (skip ipv4) */
+		if (!ip_addr_is_v4comp(&el->ipaddr))
+			sb = el;
+
+		/* If sa != sb != NULL, they are IPv6 and i can compare them */
+		if (sa != NULL && sb != NULL) {
+			if (sa != sb)
+				prefer = select_prefer_source(sa, sb, dst, outif);
+			else
+				prefer = sa;
+		}
+
+		el=el->next;
+	} while (el != tail);
+
+#if IP_SELECT_SRC == DBG_ON
+	LWIP_DEBUGF(IP_SELECT_SRC, ("%s:  ", __func__));
+	ip_addr_debug_print(IP_SELECT_SRC, &sa->ipaddr);
+	LWIP_DEBUGF(IP_SELECT_SRC, (", "));
+	ip_addr_debug_print(IP_SELECT_SRC, &sb->ipaddr);
+	LWIP_DEBUGF(IP_SELECT_SRC, (" -> "));
+	ip_addr_debug_print(IP_SELECT_SRC, &prefer->ipaddr);
+	LWIP_DEBUGF(IP_SELECT_SRC, ("\n"));
+#endif
+
+	return prefer;
+}
+
+
+
+
+
+
+
+
+
 /* added by Diego Billi */
 #if 0
+
+/*---------------------------------------------------------------------------------*/
+/* Path MTU Discovery - RFC 1191, 1981(ipv6) */
+/*---------------------------------------------------------------------------------*/
 
 err_t pmtu_find_route_entry(struct ip_addr *dest, struct ip_route_list **entry)
 {
@@ -869,3 +1134,37 @@ static void ip_pmtu_start_timer(void)
 
 
 #endif /* IPv6_PMTU_DISCOVERY */
+
+
+#if 0
+void
+ip_route_list_debug()
+{
+	struct ip_route_list *dp=ip_route_head;
+	while (dp != NULL) {
+		printf("addr %x:%x:%x:%x - msk %x:%x:%x:%x - nh %x:%x:%x:%x\n",
+				dp->addr.addr[0],
+				dp->addr.addr[1],
+				dp->addr.addr[2],
+				dp->addr.addr[3],
+				dp->netmask.addr[0],
+				dp->netmask.addr[1],
+				dp->netmask.addr[2],
+				dp->netmask.addr[3],
+				dp->nexthop.addr[0],
+				dp->nexthop.addr[1],
+				dp->nexthop.addr[2],
+				dp->nexthop.addr[3]);
+		printf("addr%x- msk%x- nh%x\n",
+				&(dp->addr),
+				&(dp->netmask),
+				&(dp->nexthop));
+		dp=dp->next;
+	}
+}
+#endif
+
+
+
+
+

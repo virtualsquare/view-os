@@ -287,18 +287,32 @@ raw_sendto(struct raw_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr)
   if (ip_addr_isany(&(pcb->local_ip))) {
     /* use outgoing network interface IP address as source address */
     /*src_ip = &(netif->ip_addr);*/
-	  struct ip_addr_list *el;
-	  //if ((el=ip_addr_list_maskfind(netif->addrs,nexthop)) != NULL) {
-	  if ((el=ip_addr_list_maskfind(netif->addrs, nexthop)) != NULL) {
-		  src_ip= &(el->ipaddr);
-		  //printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>2\n");
-	  } else
-		  src_ip = &(pcb->local_ip);
-  /*printf("outping src was null now %x:%x:%x:%x\n",
-			  src_ip->addr[0],
-			  src_ip->addr[1],
-			  src_ip->addr[2],
-			  src_ip->addr[3]);*/
+	struct ip_addr_list *el;
+
+	///if ((el=ip_addr_list_maskfind(netif->addrs, nexthop)) != NULL) {
+    ///  src_ip= &(el->ipaddr);
+	///} else {
+	///  src_ip = &(pcb->local_ip);
+	///}
+
+    /* Added by Diego Billi */
+    /* Get source address */
+    if (ip_addr_is_v4comp(&pcb->remote_ip)) 
+      el = ip_addr_list_maskfind(netif->addrs, nexthop);
+    else 
+      el = ip_route_ipv6_select_source(netif, &pcb->remote_ip);
+
+    if (el != NULL) {
+      src_ip = &(el->ipaddr);
+    }
+    else {
+      src_ip = &(pcb->local_ip); 
+      // FIX: i should do these instead?
+      //if (q != p) 
+      //  pbuf_free(q);
+      //return ERR_RTE;
+    }
+
   } else {
     /* use RAW PCB local IP address as source address */
     src_ip = &(pcb->local_ip);

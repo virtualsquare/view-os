@@ -92,15 +92,17 @@
 #include "lwip/nat/nat.h"
 #endif
 
+/*--------------------------------------------------------------------------*/
+
 #ifndef IP_DEBUG
 #define IP_DEBUG DBG_OFF
 #endif
-
 
 /* IPv4 ID counter */
 /* FIX: race condition with fragmentation code */
 u16_t ip_id = 0;
 
+INLINE static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pbuf **p, struct pseudo_iphdr *piphdr);
 
 /*--------------------------------------------------------------------------*/
                      
@@ -135,9 +137,6 @@ ip_init(void)
 #endif
 }
 
-static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pbuf **p, struct pseudo_iphdr *piphdr);
-
-
 
 /*--------------------------------------------------------------------------*/
 
@@ -149,7 +148,7 @@ static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pbuf **p,
  * appropriate interface.
  */
 
-static void
+INLINE static void
 ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif, 
 		struct netif *netif, struct ip_addr *nexthop,  struct pseudo_iphdr *piphdr)
 {
@@ -267,7 +266,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
  *
  * Finally, the packet is sent to the upper layer protocol input function.
  */
-void
+INLINE static void
 ip_inpacket(struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piphdr) 
 {
 
@@ -614,12 +613,16 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
     if (netif->mtu && (p->tot_len > netif->mtu)) {
       LWIP_DEBUGF(IP_DEBUG, ("ip_output_if: packet need fragmentation (len=%d, mtu=%d)\n",p->tot_len,netif->mtu));
 #ifdef IPv4_FRAGMENTATION 
-      if (version == 4)
-        ret = ip4_frag(p , netif, dest);
+      if (version == 4) {
+        ret = ip4_frag(p , netif, nexthop);
+        goto end_ip_output_if;
+      }
 #endif
 #ifdef IPv6_FRAGMENTATION 
-      if (version == 6)
-        ret = ip6_frag(p , netif, dest);
+      if (version == 6) {
+        ret = ip6_frag(p , netif, nexthop);
+        goto end_ip_output_if;
+      }
 #endif
       LWIP_DEBUGF(IP_DEBUG, ("ip_output_if: fragmentation not supported. Dropped!\n"));
       /* FIX: error code? */
@@ -730,7 +733,8 @@ ip_change(struct netif *netif, u32_t type)
 
 #if IP_DEBUG
 
-static void ip_debug_print_transport(u8_t proto, void *hdr)
+INLINE static void 
+ip_debug_print_transport(u8_t proto, void *hdr)
 {
   struct icmp_echo_hdr *icmph = NULL;
   struct tcp_hdr       *tcphdr  = NULL;
@@ -767,7 +771,7 @@ static void ip_debug_print_transport(u8_t proto, void *hdr)
   LWIP_DEBUGF(IP_DEBUG, ("\n"));
 }
 
-static	void
+INLINE static void
 ip4_debug_print(struct pbuf *p)
 {
   struct ip_addr tempsrc, tempdest;
@@ -796,7 +800,7 @@ ip4_debug_print(struct pbuf *p)
   ip_debug_print_transport(IPH4_PROTO(iphdr), payload);
 }
 
-static void
+INLINE static void
 ip6_debug_print(int how, struct pbuf *p)
 {
   struct ip_hdr *iphdr = p->payload;
@@ -882,7 +886,7 @@ int ip_build_piphdr(struct pseudo_iphdr *piphdr, struct pbuf *p,
 /*
  * Process Extension headers of IPv6.
  */
-static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pbuf **p, struct pseudo_iphdr *piphdr)
+INLINE static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pbuf **p, struct pseudo_iphdr *piphdr)
 {
   struct ip_exthdr *prevhdr; /* previous ext header */
   u8_t loop = 1;
