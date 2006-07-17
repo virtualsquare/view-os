@@ -1,5 +1,5 @@
 
-ifeq ($(RELEASE),true)
+ifeq ($(RELEASE_FLAGS),true)
 LWIPDIR=
 else
 LWIPDIR=../../LWIPV6a
