@@ -23,61 +23,115 @@
 .TH VIEW-OS 1viewos "June 10, 2006" "VIEW-OS: a process with a view"
 .SH NAME
 lwipv6 \- User Mode IPv4/v6 stack
+
+.\" -------------------------------------------------------------------
+
 .SH SYNOPSIS
-.B um_add_service lwipv6.so
-[
-.I, options
+
+.B um_add_service 
+.RB \| lwipv6.so \|\c
+.RB [\| , \|\c
+.RI \| options \|\c
 ]
 .br
-.B umview ... --preload lwipv6.so
-[
-.I, options
+
+.B
+umview ... --preload 
+.RB \| lwipv6.so \|\c
+.RB [\| , \|\c
+.RI \| options \|\c
 ]
+
+.\" -------------------------------------------------------------------
+
 .SH DESCRIPTION
 .B lwipv6
 is the gateway to the lwipv6 library a user-mode implementation a
 TCP-IP v4/v6 hybrid stack.
 This module uses the liblwip.so which implements a user-level TCP-IP stack.
-The core of this stack is IPv6. 
-.br
+The core of this stack is IPv6.
+ 
 When 
 .B lwipv6
 gets invoked without extra parameters it creates one virtual interface 
-name vd0 connected to the default vde switch.
+named vd0 and connected to the default vde switch.
 .br
-It is possible with arrporiate options to define several interface connected 
-to vde switches, tun or tap.
-The options are a comma separated list of items of the follwing types:
+It is possible with appropriate \fIoptions\fR to define several interfaces connected 
+to VDE switches and tun or tap kernel interfaces.
+The \fIoptions\fR are a comma separated list of items of the follwing types:
+
 .IP "vd\fI#\fR=\fIvde_id\fR" 4
-(e.g. um_add_service lwipv6.so,vd1=/var/run/vd1.ctl ) 
-create a vde interface. Interfaces are numbered
+Create a virtual interfaces (vd0, vd1, etc) connected to VDE switch with id \fIvde_id\fR. Interfaces are numbered
 starting from 0 and allocated sequentially. If vd4 is defined, lwipv6 allocate
 also vd0, vd1, vd2 and vd3. \fIvde_id\fR is the vde switch id.
+.br
+(e.g. um_add_service lwipv6.so,vd1=/var/run/vd1.ctl )
 .IP "tp\fI#\fR" 4
 .PD 0
 .IP "tn\fI#\fR" 4
-(eg um_add_service lwipv6.so,tn1,tp2)
-create virtual interfaces connected to the tuntap kernel service.
-tp0, tp1 etc are tap interfaces, packets are delivered as ethernet frames,
+Create a virtual interface (tp0, tp1, tn0, tn1, etc) connected to the TUNTAP kernel service.
+With tap interfaces (tp0, tp1 etc) packets are delivered as ethernet frames, 
 while tn0, tn1 etc are tun interfaces that exchange IP packets.
-The use of tuntap interfaces need the read and write access to 
-\fB/dev/net/tun\fR. Allowing users to access this device reduces the
-safety of your system.
+The use of tuntap interfaces need the read and write access to \fB/dev/net/tun\fR. 
+Allowing users to access this device reduces the safety of your system.
 From the user point of view there are no evident changes between tun and
 tap when used with lwipv6. There are differences in performance and 
 services.
+.br
+(e.g. um_add_service lwipv6.so,tn1,tp2)
+
+.IP "ra\fR=\fIlwip-radv.conf" 4
+Enable the Router Advertising service and load the service's configuration
+from \fIlwip-radv.conf\fR file. This service is disabled by default.
+.br
+(e.g. um_add_service lwipv6.so,ra=./myradvconfig.txt)
+
+.\" -------------------------------------------------------------------
+
+.SH FILES
+.I lwip_radv.conf
+
+.\" -------------------------------------------------------------------
 
 .SH SEE ALSO
-.BR umview(1)
-.BR um_add_service(1)
-.BR um_del_service(1)
-.BR um_ls_service(1)
-.BR um_mov_service(1)
-.BR vde_switch(1)
+.BR umview(1) ,
+.BR um_add_service(1) ,
+.BR um_del_service(1) ,
+.BR um_ls_service(1) ,
+.BR um_mov_service(1) ,
+.BR vde_switch(1) ,
+.BR lwip_radv.conf(5)
+
+.\" -------------------------------------------------------------------
+
+.SH EXAMPLES
+
+.IP "um_add_service lwipv6.so"
+
+Load the lwipv6 module and add a single VDE interface (with name \fIvd0\fR) connected
+to the default vde switch id.
+
+.IP "um_add_service lwipv6.so,tp1,ra=./my_lwip_radv.conf"
+
+Load the lwipv6 module, add a single TUNTAP interface (with name \fItp0\fR) and enable
+the Router Advertising service by loading the configuration file \fImy_lwip_radv.conf\fR 
+from the current working directory.
+
+.\" -------------------------------------------------------------------
+
 .SH AUTHORS
-View-OS is a project of the Computer Science Department, University of
-Bologna. Project Leader: Renzo Davoli. 
-.\" TODO: add umfuse contributors.
+View-OS is a project of the Computer Science Department, University of Bologna. 
 .br
-<http://savannah.nongnu.org/projects/view-os>
+Project Leader: Renzo Davoli.
+.br
+Project Team: Alberto Bacchelli, Andrea Forni, Andrea Gasparini, Andrea Seraghiti, Christian Martellini, 
+Daniele Lacamera, Diego Billi, Ludovico Gardenghi, Mattia Belletti, Paolo Angelelli, Paolo Beverini
+
+<http://savannah.nongnu.org/projects/view-os>.
+.\" -------------------------------------------------------------------
+
+.SH HISTORY
+2005, 2006 \- Originally written by Renzo Davoli.
+
+July 2006 \- Edited by Diego Billi.
 
