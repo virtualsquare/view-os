@@ -65,8 +65,11 @@ PACK_STRUCT_END
 	 (*(u8_t *)(PCKTMAC)) & 0x1 || \
 	 (FLAGS) & NETIF_PROMISC)) 
 
-#ifdef LWIP_PACKET
-#include <lwip/packet.h>
+
+
+
+#if LWIP_PACKET
+#include "lwip/packet.h"
 #define ARPHRD_ETHER 1
 #define ETH_CHECK_PACKET_IN(NETIF,P) ({ \
 		if (active_pfpacket) eth_packet_mgmt((NETIF),(P),0) ; \
@@ -77,7 +80,12 @@ PACK_STRUCT_END
 void eth_packet_mgmt(struct netif *netif, struct pbuf *p,u8_t pkttype);
 u16_t eth_packet_out(struct netif *netif, struct pbuf *p, struct sockaddr_ll *sll, u16_t protocol, u16_t dgramflag);
 
+#else
+#define ETH_CHECK_PACKET_IN(NETIF,P) ({})
+#define ETH_CHECK_PACKET_OUT(NETIF,P) ({})
 #endif
+
+
 
 #ifdef PACK_STRUCT_USE_INCLUDES
 #  include "arch/bpstruct.h"

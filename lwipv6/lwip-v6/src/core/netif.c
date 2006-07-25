@@ -60,15 +60,17 @@
 
 #include "lwip/def.h"
 #include "lwip/ip_addr.h"
-#ifdef LWIP_NL
+
 #include "lwip/api.h"
 #include "lwip/sockets.h"
+#if LWIP_NL
 #include "lwip/netlink.h"
 #endif
+#include "lwip/if.h"
 #include "lwip/ip_route.h"
 #include "lwip/netif.h"
 #include "lwip/tcp.h"
-#include "lwip/if.h"
+
 
 
 #ifndef NETIF_DEBUG
@@ -102,9 +104,11 @@ netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
 	for (nip=netif_list; nip!=NULL; lastnip=nip,nip=nip->next)
 		;
 
+#if 0
 #if LWIP_DHCP
   /* netif not under DHCP control by default */
   netif->dhcp = NULL;
+#endif
 #endif
 
   /* remember netif specific state information data */
@@ -127,11 +131,11 @@ netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
     return NULL;
   }
 
-#ifdef IPv6_AUTO_CONFIGURATION  
+#if IPv6_AUTO_CONFIGURATION  
   ip_autoconf_netif_init(netif);
 #endif
 
-#ifdef IPv6_ROUTER_ADVERTISEMENT
+#if IPv6_ROUTER_ADVERTISEMENT
   ip_radv_netif_init(netif);
 #endif
 
@@ -161,7 +165,7 @@ netif_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netma
 		}
 		else {
 
-#ifdef IPv6_AUTO_CONFIGURATION  
+#if IPv6_AUTO_CONFIGURATION  
 			/* FIX:	start Duplicate Address Detection on all IPv6 Addresss:
 			   - use netif->addrs_tentative
 			   - Implement a tcpip_start_dad() to set a timeout in the main thread 
@@ -170,7 +174,10 @@ netif_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netma
 	
 			ip_addr_set(&(add->ipaddr),ipaddr);
 			ip_addr_set(&(add->netmask),netmask);
+
+#if LWIP_NL
 			add->flags=IFA_F_PERMANENT;
+#endif
 			add->netif=netif;
 			ip_addr_list_add(&(netif->addrs),add);
 			ip_route_list_add(ipaddr,netmask,NULL,netif,0);
@@ -222,7 +229,7 @@ netif_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netma
 	
 	} else
 	{
-#ifdef IPv6_AUTO_CONFIGURATION  
+#if IPv6_AUTO_CONFIGURATION  
 		/* FIX: what about if i remove link-local address needed for Autoconfiguration? */
 #endif
 
@@ -505,7 +512,7 @@ void netif_set_down_low(struct netif *netif)
 
 
 
-#ifdef LWIP_NL
+#if LWIP_NL
 
 static void netif_out_link_address (int index,struct netif *nip,void * buf,int *offset) {
 	struct rtattr x;

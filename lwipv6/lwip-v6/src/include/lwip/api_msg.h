@@ -44,7 +44,7 @@
 #ifdef LWIP_RAW
 #include "lwip/raw.h"
 #endif
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 #include "lwip/packet.h"
 #endif
 

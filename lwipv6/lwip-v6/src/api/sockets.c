@@ -69,11 +69,11 @@
 #define LWIP_TIMEVAL_PRIVATE
 #include "lwip/sockets.h"
 
-#ifdef LWIP_NL
+#if LWIP_NL
 #include "lwip/netlink.h"
 #endif
 
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 #include <netpacket/packet.h>
 #endif
 
@@ -89,19 +89,21 @@
 #define SOCK_IP46_CONV(ip4, ipaddr)  (memcpy((ip4),&((ipaddr)->addr[3]),sizeof(struct ip4_addr)))
 int _nofdfake = 0;
 
+#ifdef LWIP_DEBUG
 static char *domain_name(int domain) {
 	switch (domain) {
 		case PF_INET: return "PF_INET";
 		case PF_INET6: return "PF_INET6";
-#ifdef LWIP_NL
+#if LWIP_NL
 		case PF_NETLINK: return "PF_NETLINK";
 #endif
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 		case PF_PACKET: return "PF_PACKET";
 #endif
 	}
 	return "UNKNOWN";
 }
+#endif
 
 #define SO_REUSE 1
 
@@ -135,7 +137,7 @@ struct lwip_select_cb
 
 static struct lwip_socket sockets[NUM_SOCKETS];
 static struct lwip_select_cb *select_cb_list = 0;
-#ifdef LWIP_NL
+#if LWIP_NL
 #define NOT_CONN_SOCKET ((struct netconn *)(-1))
 #endif
 
@@ -298,10 +300,10 @@ lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_accept(%d)...\n", s));
 	sock = get_socket(s);
 	if (!sock
-#ifdef LWIP_NL
+#if LWIP_NL
 			|| sock->family == PF_NETLINK
 #endif
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 			|| sock->family == PF_PACKET
 #endif
 		 ) {
@@ -379,14 +381,14 @@ lwip_bind(int s, struct sockaddr *name, socklen_t namelen)
 		set_errno(EBADF);
 		return -1;
 	}
-#ifdef LWIP_NL
+#if LWIP_NL
 	if (sock->family == PF_NETLINK) {
 		return netlink_bind(sock->conn,name,namelen);
 	} 
 	else 
 #endif
 	{
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 		if (sock->family == PF_PACKET) {
 			struct sockaddr_ll *packname=(struct sockaddr_ll *)name;
 			SALL2IPADDR(*packname,local_addr);
@@ -440,7 +442,7 @@ lwip_close(int s)
 		return -1;
 	}
 
-#ifdef LWIP_NL
+#if LWIP_NL
 	if (sock->family == PF_NETLINK) {
 		err=netlink_close(sock->conn);
 		sock->conn = NULL;
@@ -480,11 +482,11 @@ lwip_connect(int s, struct sockaddr *name, socklen_t namelen)
 		LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_connect(%d, PF_UNSPEC)\n", s));
 		err = netconn_disconnect(sock->conn);
 	}  
-#ifdef LWIP_NL
+#if LWIP_NL
 	else if (sock->family == PF_NETLINK)
 		err=netlink_connect(sock->conn,name,namelen);
 #endif
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 	//
 #endif
 	else 
@@ -528,10 +530,10 @@ lwip_listen(int s, int backlog)
 	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_listen(%d, backlog=%d)\n", s, backlog));
 	sock = get_socket(s);
 	if (!sock
-#ifdef LWIP_NL
+#if LWIP_NL
 			|| sock->family == PF_NETLINK
 #endif
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 			|| sock->family == PF_PACKET
 #endif
 		 ) {
@@ -569,7 +571,7 @@ lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 		return -1;
 	}
 
-#ifdef LWIP_NL
+#if LWIP_NL
 	if (sock->family == PF_NETLINK) {
 		return netlink_recvfrom(sock->conn,mem,len,flags,from,fromlen);
 	} else
@@ -652,7 +654,7 @@ lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 
 				memcpy(from, &sin, *fromlen);
 			}
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 			else if (sock->family == PF_PACKET) {
 				struct sockaddr_ll sll;
 
@@ -728,7 +730,7 @@ lwip_send(int s, void *data, int size, unsigned int flags)
 		return -1;
 	}
 
-#ifdef LWIP_NL
+#if LWIP_NL
 	if (sock->family == PF_NETLINK)  {
 		return netlink_send(sock->conn,data,size,flags);
 	}
@@ -741,7 +743,7 @@ lwip_send(int s, void *data, int size, unsigned int flags)
 			case NETCONN_RAW:
 			case NETCONN_UDP:
 			case NETCONN_UDPLITE:
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 			case NETCONN_PACKET_RAW:
 			case NETCONN_PACKET_DGRAM:
 #endif
@@ -798,7 +800,7 @@ lwip_sendto(int s, void *data, int size, unsigned int flags,
 		return -1;
 	}
 
-#ifdef LWIP_NL
+#if LWIP_NL
 	if (sock->family == PF_NETLINK)  {
 		return netlink_sendto(sock->conn,data,size,flags,to,tolen);
 	}
@@ -817,7 +819,7 @@ lwip_sendto(int s, void *data, int size, unsigned int flags,
 				memcpy(&(remote_addr.addr),&(((struct sockaddr_in6 *)to)->sin6_addr),sizeof(remote_addr.addr));
 				remote_port = ((struct sockaddr_in *)to)->sin_port;
 			}
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 			else if (sock->family == PF_PACKET) {
 				SALL2IPADDR(*(struct sockaddr_ll *)to,remote_addr);
 				remote_port=(((struct sockaddr_ll *)to)->sll_protocol);
@@ -849,10 +851,10 @@ lwip_socket(int domain, int type, int protocol)
 	int i;
 
 	if (domain != PF_INET && domain != PF_INET6
-#ifdef LWIP_NL
+#if LWIP_NL
 			&& domain != PF_NETLINK
 #endif
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 			&& domain != PF_PACKET
 #endif
 		 ) {
@@ -860,9 +862,9 @@ lwip_socket(int domain, int type, int protocol)
 		return -1;
 	}
 
-#if defined(LWIP_NL) || defined(LWIP_PACKET)
+//#if LWIP_NL || LWIP_PACKET
 	switch(domain) {
-#ifdef LWIP_NL
+#if LWIP_NL
 		case PF_NETLINK:
 			switch (type) {
 				case SOCK_RAW:
@@ -880,8 +882,9 @@ lwip_socket(int domain, int type, int protocol)
 					return -1;
 			}
 			break;
-#endif
-#ifdef LWIP_PACKET
+#endif /* LWIP_NL */
+
+#if LWIP_PACKET
 		case PF_PACKET:
 			switch (type) {
 				case SOCK_RAW:
@@ -898,10 +901,12 @@ lwip_socket(int domain, int type, int protocol)
 					return -1;
 			}
 			break;
-#endif
+#endif /* LWIP_PACKET */
+
 		case PF_INET:
 		case PF_INET6:
-#endif
+//#endif 
+
 			/* create a netconn */
 			switch (type) {
 				case SOCK_RAW:
@@ -921,9 +926,12 @@ lwip_socket(int domain, int type, int protocol)
 					set_errno(EINVAL);
 					return -1;
 			}
-#ifdef LWIP_NL
+		default:
+			LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_socket(%d/UNKNOWN, %d, %d) = -1\n", domain, type, protocol));
+			
+//#if LWIP_NL
 	}
-#endif
+//#endif
 
 	if (!conn) {
 		LWIP_DEBUGF(SOCKETS_DEBUG, ("-1 / ENOBUFS (could not create netconn)\n"));
@@ -934,7 +942,7 @@ lwip_socket(int domain, int type, int protocol)
 	i = alloc_socket(conn,domain);
 
 	if (i == -1
-#ifdef LWIP_NL
+#if LWIP_NL
 			&& domain != PF_NETLINK
 #endif
 		 ) {
@@ -942,7 +950,7 @@ lwip_socket(int domain, int type, int protocol)
 		set_errno(ENOBUFS);
 		return -1;
 	}
-#ifdef LWIP_NL
+#if LWIP_NL
 	if (domain != PF_NETLINK)
 #endif
 		conn->socket = i;
@@ -957,7 +965,7 @@ lwip_write(int s, void *data, int size)
 	return lwip_send(s, data, size, 0);
 }
 
-	static int
+static int
 lwip_selscan(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset)
 {
 	int i, nready = 0;
@@ -1097,7 +1105,7 @@ int lwip_select_register(void (* cb)(), void *arg, int fd, int how)
 	sys_sem_wait(selectsem);
 	if (psock) {
 		//printf("R %d L %d S %d\n", psock->rcvevent, psock->lastdata, psock->sendevent);
-#ifdef LWIP_NL
+#if LWIP_NL
 		if (psock->family == PF_NETLINK)
 			rv=how;
 		else
@@ -1216,14 +1224,14 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 
 
 
-	int
+int
 lwip_shutdown(int s, int how)
 {
 	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_shutdown(%d, how=%d)\n", s, how));
 	return lwip_close(s); /* XXX temporary hack until proper implementation */
 }
 
-	int
+int
 lwip_getpeername (int s, struct sockaddr *name, socklen_t *namelen)
 {
 	struct lwip_socket *sock;
@@ -1232,10 +1240,10 @@ lwip_getpeername (int s, struct sockaddr *name, socklen_t *namelen)
 
 	sock = get_socket(s);
 	if (!sock
-#ifdef LWIP_NL
+#if LWIP_NL
 			|| sock->family == PF_NETLINK
 #endif
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 			|| sock->family == PF_PACKET
 #endif
 		 ) {
@@ -1281,7 +1289,7 @@ lwip_getpeername (int s, struct sockaddr *name, socklen_t *namelen)
 	return 0;
 }
 
-	int
+int
 lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 {
 	struct lwip_socket *sock;
@@ -1294,7 +1302,7 @@ lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 		return -1;
 	}
 
-#ifdef LWIP_NL
+#if LWIP_NL
 	if (sock->family == PF_NETLINK) {
 		return netlink_getsockname (sock->conn,name,namelen);
 	}
@@ -1350,7 +1358,7 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 		set_errno(EBADF);
 		return -1;
 	}
-#ifdef LWIP_NL
+#if LWIP_NL
 	if(sock->family == PF_NETLINK) {
 		int err=netlink_getsockopt(sock, level, optname, optval, optlen); 
 		if (err != 0) {
@@ -1559,7 +1567,7 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 		return -1;
 	}
 
-#ifdef LWIP_NL
+#if LWIP_NL
 	if(sock->family == PF_NETLINK) {
 		int err=netlink_setsockopt(sock, level, optname, optval, optlen);
 		if (err != 0) {
@@ -1682,7 +1690,7 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 			}
 			break;
 
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 		case SOL_PACKET: 
 			switch( optname ) { 
 				case PACKET_ADD_MEMBERSHIP:
@@ -1823,7 +1831,7 @@ int lwip_ioctl(int s, long cmd, void *argp)
 	struct lwip_socket *sock = get_socket(s);
 
 	if (!sock
-#ifdef LWIP_NL
+#if LWIP_NL
 			|| sock->family == PF_NETLINK
 #endif
 #ifdef LWIP_SOCKET
@@ -1904,7 +1912,7 @@ int lwip_fcntl(int s, int cmd, int arg)
 	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_fcntl(%d, %x)\n",s,cmd));
 
 	if (!sock
-#ifdef LWIP_NL
+#if LWIP_NL
 			|| sock->family == PF_NETLINK
 #endif
 #ifdef LWIP_SOCKET

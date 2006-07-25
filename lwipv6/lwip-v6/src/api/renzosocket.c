@@ -71,7 +71,7 @@ struct lwip_select_cb
     fd_set *writeset;
     fd_set *exceptset;
     int sem_signalled;
-#ifdef RD235LIB
+#if RD235LIB
 		int pipe[2];
 #else
     sys_sem_t sem;
@@ -905,7 +905,7 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
         {
             scb->sem_signalled = 1;
             sys_sem_signal(selectsem);
-#ifdef RD235LIB
+#if RD235LIB
 						write(scb->pipe[1]," ",1);
 #else
 						sys_sem_signal(scb->sem);
@@ -1390,7 +1390,7 @@ int lwip_ioctl(int s, long cmd, void *argp)
   }
 }
 
-#ifdef RD235LIB
+#if RD235LIB
 
 static int fdsplit(int max, 
 		fd_set *rfd,

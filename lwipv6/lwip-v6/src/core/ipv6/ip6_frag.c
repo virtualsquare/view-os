@@ -61,7 +61,7 @@
 #include "lwip/debug.h"
 #include <string.h>
 
-#if defined(IPv6_FRAGMENTATION) || defined(IPv4_FRAGMENTATION)
+#if IPv6_FRAGMENTATION || IPv4_FRAGMENTATION
 
 #include "lwip/stats.h"
 #include "lwip/sys.h"
@@ -69,16 +69,18 @@
 #include "lwip/ip.h"
 #include "lwip/ip_frag.h"
 
+/*---------------------------------------------------------------------------*/
 
-#ifndef IP_REASS_DEBUG
-#define IP_REASS_DEBUG   DBG_OFF
-#endif
+//#ifndef IP_REASS_DEBUG
+//#define IP_REASS_DEBUG   DBG_OFF
+//#endif
 
 /* FIX: used only for printf warning */
 #ifdef IP_REASS_DEBUG
 #define  UINT  (unsigned int)
 #endif
 
+/*---------------------------------------------------------------------------*/
 
 /*
  * Copy len bytes from offset in pbuf to buffer 
@@ -105,10 +107,9 @@ copy_from_pbuf(struct pbuf *p, u16_t * offset, u8_t * buffer, u16_t len)
 	return p;
 }
 
-/****************************************************************************/
+/*---------------------------------------------------------------------------*/
 /* Macro and costants */
-/****************************************************************************/
-
+/*---------------------------------------------------------------------------*/
 
 static const u8_t bitmap_bits[8] = { 0xff, 0x7f, 0x3f, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
 
@@ -169,7 +170,8 @@ static struct ip_reassbuf ip_reassembly_pool[IP_REASS_POOL_SIZE];
 #define MAX_MTU 1500
 
 /* Reassembly timer */
-INLINE static void ip_reass_tmr(void *arg)
+INLINE static void 
+ip_reass_tmr(void *arg)
 {
 	int i;
 
@@ -202,31 +204,33 @@ static void ip_reass_expire_tm(void *arg)
 #endif
 
 
-/****************************************************************************/
+/*---------------------------------------------------------------------------*/
 /* Module functions */
-/****************************************************************************/
+/*---------------------------------------------------------------------------*/
 
 /* Initialize IPv4 Reassembly cache */
-void ip_frag_reass_init(void)
+void 
+ip_frag_reass_init(void)
 {
 	/* FIX: rough init, change it? */
 	bzero(ip_reassembly_pool, IP_REASS_POOL_SIZE * sizeof(struct ip_reassbuf));
 
-#ifdef IPv4_FRAGMENTATION
+#if IPv4_FRAGMENTATION
 	LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: IPv4 fragmentation enabled.\n", __func__));
 #endif
-#ifdef IPv6_FRAGMENTATION
+#if IPv6_FRAGMENTATION
 	LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: IPv6 fragmentation enabled.\n", __func__));
 #endif
 
 	sys_timeout(IP_REASS_TIMER_TIMEOUT, (sys_timeout_handler) ip_reass_tmr, NULL);
 }
 
-/****************************************************************************/
-/* IPv4 */
-/****************************************************************************/
 
-#ifdef IPv4_FRAGMENTATION
+/*---------------------------------------------------------------------------*/
+/* IPv4 */
+/*---------------------------------------------------------------------------*/
+
+#if IPv4_FRAGMENTATION
 
 struct pbuf *ip4_reass(struct pbuf *p)
 {
@@ -416,7 +420,8 @@ nullreturn:
  * Chop the packet in mtu sized chunks and send them in order
  * by using a fixed size static memory buffer (PBUF_ROM)
  */
-err_t ip4_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest)
+err_t 
+ip4_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest)
 {
 	u8_t buf[MAX_MTU];
 
@@ -496,13 +501,15 @@ err_t ip4_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest)
 
 #endif
 
-/****************************************************************************/
+
+/*---------------------------------------------------------------------------*/
 /* IPv6 */
-/****************************************************************************/
+/*---------------------------------------------------------------------------*/
 
-#ifdef IPv6_FRAGMENTATION
+#if IPv6_FRAGMENTATION
 
-struct pbuf *ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_exthdr *lastext)
+struct pbuf *
+ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_exthdr *lastext)
 {
 	struct pbuf *q;
 	struct ip_hdr      *entry_iphdr;
@@ -710,7 +717,8 @@ nullreturn:
  * Chop the packet in mtu sized chunks and send them in order
  * by using a fixed size static memory buffer (PBUF_ROM)
  */
-err_t ip6_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest)
+err_t 
+ip6_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest)
 {
 	u8_t buf6[MAX_MTU];
 

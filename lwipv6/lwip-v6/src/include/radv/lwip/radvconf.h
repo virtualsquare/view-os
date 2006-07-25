@@ -19,7 +19,7 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-#ifdef IPv6_RADVCONF
+#if IPv6_RADVCONF
 
 #ifndef __LWIP_RADVCONF_H__
 #define __LWIP_RADVCONF_H__

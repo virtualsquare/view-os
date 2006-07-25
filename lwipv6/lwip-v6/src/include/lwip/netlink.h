@@ -63,7 +63,7 @@ netlink_setsockopt (void *sock, int level, int optname, const void *optval, sock
 
 /* CONSTANT DEFINITION */
 
-#ifdef LWIP_NL
+#if LWIP_NL
 
 void netlink_addanswer(void *buf,int *offset,void *in,int len);
 int mask2prefix (struct ip_addr *netmask);

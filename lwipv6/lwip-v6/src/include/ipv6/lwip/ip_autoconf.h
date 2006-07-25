@@ -19,17 +19,34 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
 
-#ifdef IPv6_AUTO_CONFIGURATION
+#if IPv6_AUTO_CONFIGURATION
 
 #ifndef __LWIP_IP_AUTOCONF_H__
 #define __LWIP_IP_AUTOCONF_H__
 
+/*--------------------------------------------------------------------------*/
+/* Protocol Costants (RFC 2461) */
+/*--------------------------------------------------------------------------*/
+
+#define UNSPECIFIED                  0
+
+#define INFINITE_LIFETIME            0xffffffff
+
+#define RETRANS_TIMER			     1000 /* milliseconds */
+
+/* Host constants: */
+#define MAX_RTR_SOLICITATION_DELAY	 1 /* seconds */
+#define RTR_SOLICITATION_INTERVAL	 4 /* seconds */
+#define MAX_RTR_SOLICITATIONS		 3 /* transmissions */
+
+
+/*--------------------------------------------------------------------------*/
+/* Per-interface data used by stateless autoconfiguration protocol. */
+/*--------------------------------------------------------------------------*/
+
 struct netif;
 struct ip_addr;
 
-/*
- * Per-interface data used by stateless autoconfiguration protocol.
- */
 struct autoconf {
 	
 	/* Autoconfiguration protocol status */
@@ -54,31 +71,31 @@ struct autoconf {
 	   messages sent while performing Duplicate Address
 	   Detection on a tentative address [rfc2462]. */
 	u8_t dad_duptrans; 
+#define DUP_ADDR_DETECT_TRANSMITS  1
 
-	/* Retrans Timer
-	   The time, in milliseconds, between retransmitted 
-	   Neighbor Solicitation messages. Set by Router 
-	   Advertisement message [rfc2461]*/
-        u32_t dad_retrans_delay;  /* milliseconds */
+	/* RetransTimer. Milliseconds between retransmitted 
+	   Neighbor Solicitation messages. Default: RETRANS_TIMER. */
+    u32_t retrans_timer;
 
-	u8_t  rtr_sol_counter;            /* Number of sent RS */
-	u8_t  max_rtr_solicitations;      /* Number of solicitations */
-	u16_t rtr_solicitation_interval;  /* Interval between solicitations */
-	u16_t max_rtr_solicitation_delay; /* Initial delay befor first solicitation */
+	/* Number of sent RS */
+	u8_t  rtr_sol_counter;            
+
+	/* Initial delay befor first solicitation in seconds. 
+	   Default: MAX_RTR_SOLICITATION_DELAY */
+	u16_t max_rtr_solicitation_delay;  
+
+	/* Interval between solicitations in seconds.
+	   Default: RTR_SOLICITATION_INTERVAL */
+	u16_t rtr_solicitation_interval;  
+
+	/* Max Number of solicitations.
+	   Default: MAX_RTR_SOLICITATIONS */
+	u8_t  max_rtr_solicitations;      
 };
 
-/* Global default values for DupAddrDetectTransmits */
-extern u8_t dad_duptrans_default;
 
-/* Global default values for DupAddrDetectTransmits */
-extern u32_t dad_retrans_delay_default; /* milliseconds */
-
-/* Global default values for Router solicitations */
-extern u8_t max_rtr_solicitations_default;     
-extern u16_t rtr_solicitation_interval_default;   /* seconds */
-extern u16_t max_rtr_solicitation_delay_default;
-
-
+/*--------------------------------------------------------------------------*/
+/* Per-address informations */
 /*--------------------------------------------------------------------------*/
 
 /*
@@ -114,11 +131,12 @@ struct addr_info {
 	u32_t valid;
 };
 
-#define INFINITE_LIFETIME   0xffffffff
+/*--------------------------------------------------------------------------*/
+/* Module Functions and costants */
+/*--------------------------------------------------------------------------*/
 
-/*--------------------------------------------------------------------------*/
-/* Functions */
-/*--------------------------------------------------------------------------*/
+/* Autoconfiguration Timer timeout (1 second) */
+#define AUTOCONF_TMR_INTERVAL    1000 
 
 /* Called by ip_init() */
 void ip_autoconf_init(void);
@@ -126,15 +144,9 @@ void ip_autoconf_init(void);
 /* Called by netif_add() */
 void ip_autoconf_netif_init(struct netif *netif);
 
-#define AUTOCONF_TMR_INTERVAL  1000 
-void ip_autoconf_tmr(struct netif *netif);
-
-
-
+/* Called by ip_change() */
 void ip_autoconf_start(struct netif *netif);
 void ip_autoconf_stop(struct netif *netif);
-
-
 
 
 struct ip_hdr;

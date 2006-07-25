@@ -65,16 +65,21 @@
 */
 
 #include "lwip/opt.h"
+
 #include "lwip/inet.h"
 #include "netif/etharp.h"
 #include "lwip/ip.h"
 #include "lwip/stats.h"
 #include "lwip/icmp.h"
 
+
+#if 0
 /* ARP needs to inform DHCP of any ARP replies? */
-/* #if (LWIP_DHCP && DHCP_DOES_ARP_CHECK)
-#  include "lwip/dhcp.h"
-#endif */
+#if (LWIP_DHCP && DHCP_DOES_ARP_CHECK)
+#include "lwip/dhcp.h"
+#endif
+#endif
+
 
 /** the time an ARP entry stays valid after its last update,
 * (240 * 5) seconds = 20 minutes.
@@ -622,6 +627,7 @@ etharp_arp_input(struct netif *netif, struct eth_addr *ethaddr, struct pbuf *p)
   case ARP_REPLY:
     /* ARP reply. We already updated the ARP cache earlier. */
     LWIP_DEBUGF(ETHARP_DEBUG | DBG_TRACE, ("etharp_arp_input: incoming ARP reply\n"));
+
 #if 0
 #if (LWIP_DHCP && DHCP_DOES_ARP_CHECK)
     /* DHCP wants to know about ARP replies from any host with an
@@ -629,10 +635,13 @@ etharp_arp_input(struct netif *netif, struct eth_addr *ethaddr, struct pbuf *p)
      * want to take a duplicate IP address on a single network.
      * @todo How should we handle redundant (fail-over) interfaces?
      * */
-    dhcp_arp_reply(netif, &sipaddr);
+    ///dhcp_arp_reply(netif, &sipaddr);
+    dhcp_arp_reply(netif, (struct ip4_addr *) &(hdr->sipaddr));
 #endif
 #endif
+
     break;
+
   default:
     LWIP_DEBUGF(ETHARP_DEBUG | DBG_TRACE, ("etharp_arp_input: ARP unknown opcode type %d\n", htons(hdr->opcode)));
     break;
@@ -682,8 +691,10 @@ etharp_output(struct netif *netif, struct ip_addr *ipaddr, struct pbuf *q)
 
 	/* broadcast destination IP address? */
 	if (ip_addr_is_v4comp(ipaddr)) {
+
 		/* destination IP address is an IP multicast address? */
 		if (ip_addr_is_v4multicast(ipaddr)) {
+
 			/* Hash IP multicast address to MAC address. */
 			mcastaddr.addr[0] = 0x01;
 			mcastaddr.addr[1] = 0x00;
@@ -694,9 +705,15 @@ etharp_output(struct netif *netif, struct ip_addr *ipaddr, struct pbuf *q)
 			/* destination Ethernet address is multicast */
 			dest = &mcastaddr;
 			/* unicast destination IP address? */
-		} else {
+		} 
+		/// CHANGED BY DIEGO BILLI
+		else if (ip_addr_is_v4broadcast_allones(ipaddr)) {
+			dest = (struct eth_addr *)&ethbroadcast;
+		}
+		else {
+
 			/* destination IP network address not on local network?
-			 *        * IP layer wants us to forward to the default gateway */
+			*        * IP layer wants us to forward to the default gateway */
 			if ((al=ip_addr_list_maskfind(netif->addrs, ipaddr)) == NULL) {
 				return -1;
 			}
@@ -772,11 +789,11 @@ etharp_output(struct netif *netif, struct ip_addr *ipaddr, struct pbuf *q)
 	
 		for(i = 0; i < netif->hwaddr_len; i++) {
 			ethhdr->dest.addr[i] = dest->addr[i];
-			ethhdr->src.addr[i] = srcaddr->addr[i];
+			ethhdr->src.addr[i]  = srcaddr->addr[i];
 		}
 	
 		/* return the outgoing packet */
-		return LINKOUTPUT(netif, q);;
+		return LINKOUTPUT(netif, q);
 	}
 
 	/* never reached; here for safety */
@@ -999,7 +1016,7 @@ err_t etharp_request(struct ip_addr_list *al, struct ip_addr *ipaddr)
   return result;
 }
 
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 void eth_packet_mgmt(struct netif *netif, struct pbuf *p,u8_t pkttype)
 {
 	struct sockaddr_ll sll;

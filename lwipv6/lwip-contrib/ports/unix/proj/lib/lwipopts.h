@@ -52,6 +52,37 @@
 #ifndef __LWIPOPTS_H__
 #define __LWIPOPTS_H__
 
+
+/*
+ * These are the default options of liblwip.so library. 
+ * Some of these are necessary if you are going to
+ * use Lwipv6a as UMVIEWOS module (lwipv6.so).
+ */
+
+//#define LWIP_DEBUG
+
+/* Enable NETLINK sockets to support network configuration by using iproute2 tools */
+#define LWIP_NL                        1
+
+/* Enable PACKET socket if you want to use udhcpc with UMVIEWOS */
+#define LWIP_PACKET                    1
+
+#define IPv6                           1
+#define IPv4_CHECK_CHECKSUM            1
+#define IPv4_FRAGMENTATION             1
+#define IPv6_FRAGMENTATION             1
+
+#define IPv6_AUTO_CONFIGURATION        1
+
+#define IPv6_ROUTER_ADVERTISEMENT      0
+#define IPv6_RADVCONF                  0
+
+#define LWIP_USERFILTER                0
+#define LWIP_NAT                       0
+
+
+
+
 /* ---------- Memory options ---------- */
 
 /* MEM_ALIGNMENT: should be set to the alignment of the CPU for which
@@ -61,23 +92,19 @@
 
 /* MEM_SIZE: the size of the heap memory. If the application will send
 a lot of data that needs to be copied, this should be set high. */
-//#define MEM_SIZE                1600
 #define MEM_SIZE                65536
 
 /* MEMP_NUM_PBUF: the number of memp struct pbufs. If the application
    sends a lot of data out of ROM (or other static memory), this
    should be set high. */
 #define MEMP_NUM_PBUF           256
-//#define MEMP_NUM_PBUF           16
 
 /* MEMP_NUM_UDP_PCB: the number of UDP protocol control blocks. One
    per active UDP "connection". */
-//#define MEMP_NUM_UDP_PCB        4
 #define MEMP_NUM_UDP_PCB        8
 
 /* MEMP_NUM_TCP_PCB: the number of simulatenously active TCP
    connections. */
-//#define MEMP_NUM_TCP_PCB        5
 #define MEMP_NUM_TCP_PCB        16
 
 /* MEMP_NUM_TCP_PCB_LISTEN: the number of listening TCP
@@ -90,18 +117,15 @@ a lot of data that needs to be copied, this should be set high. */
 
 /* MEMP_NUM_SYS_TIMEOUT: the number of simulateously active
    timeouts. */
-//#define MEMP_NUM_SYS_TIMEOUT    3
 #define MEMP_NUM_SYS_TIMEOUT    30
 
 
 /* The following four are used only with the sequential API and can be
    set to 0 if the application only will use the raw API. */
 /* MEMP_NUM_NETBUF: the number of struct netbufs. */
-//#define MEMP_NUM_NETBUF         2
 #define MEMP_NUM_NETBUF         8
 
 /* MEMP_NUM_NETCONN: the number of struct netconns. */
-//#define MEMP_NUM_NETCONN        4
 #define MEMP_NUM_NETCONN        8
 
 /* MEMP_NUM_APIMSG: the number of struct api_msg, used for
@@ -123,11 +147,9 @@ a lot of data that needs to be copied, this should be set high. */
 /* ---------- Pbuf options ---------- */
 
 /* PBUF_POOL_SIZE: the number of buffers in the pbuf pool. */
-//#define PBUF_POOL_SIZE          6
 #define PBUF_POOL_SIZE          64
 
 /* PBUF_POOL_BUFSIZE: the size of each pbuf in the pbuf pool. */
-//#define PBUF_POOL_BUFSIZE       128
 #define PBUF_POOL_BUFSIZE       32768
 
 /* PBUF_LINK_HLEN: the number of bytes that should be allocated for a
@@ -141,7 +163,6 @@ a lot of data that needs to be copied, this should be set high. */
 
 #define ARP_QUEUEING        1
 
-
 /* ---------- IP options ---------- */
 
 /* Define IP_FORWARD to 1 if you wish to have the ability to forward
@@ -152,6 +173,7 @@ a lot of data that needs to be copied, this should be set high. */
 /* If defined to 1, IP options are allowed (but not parsed). If
    defined to 0, all packets with IP options are dropped. */
 #define IP_OPTIONS              1
+
 
 /* ---------- ICMP options ---------- */
 
@@ -174,8 +196,6 @@ a lot of data that needs to be copied, this should be set high. */
 #define TCP_QUEUE_OOSEQ         1
 
 /* TCP Maximum segment size. */
-//#define TCP_MSS                 128
-//#define TCP_MSS                 1024
 #define TCP_MSS                 1488
 
 /* TCP sender buffer space (bytes). */
@@ -195,32 +215,21 @@ a lot of data that needs to be copied, this should be set high. */
 #define TCP_SYNMAXRTX           4
 
 
+
+#ifndef LWIP_COMPAT_SOCKETS
+#define LWIP_COMPAT_SOCKETS      0
+#endif
+
 /* ---------- TCP/UDP sub-system thread ---------- */
 
 /* TCP/UDP sub-system thread priority */
 #define TCPIP_THREAD_PRIO       3
 
 
-/* ---------- DHCP options ---------- */
-
-/* Define LWIP_DHCP to 1 if you want DHCP configuration of
-   interfaces. DHCP is not implemented in lwIP 0.5.1, however, so
-   turning this on does currently not work. */
-#define LWIP_DHCP               0
-
-/* 1 if you want to do an ARP check on the offered address
-   (recommended). */
-#define DHCP_DOES_ARP_CHECK     1
-
-
-
-
 /* ---------- Statistics options ---------- */
-//#define STATS
 
 /* By default, statistics are enabled */
-#define LWIP_STATS   1
-
+#define LWIP_STATS   0
 #ifdef STATS
 #define LINK_STATS   1
 #define IP_STATS     1
@@ -233,82 +242,44 @@ a lot of data that needs to be copied, this should be set high. */
 #define SYS_STATS    1
 #endif /* STATS */
 
-
 /* ---------- Debug options ------------- */
 
 #define DBG_MIN_LEVEL 0
 
 #define DBG_TYPES_ON    (DBG_ON|DBG_TRACE|DBG_STATE|DBG_FRESH|DBG_HALT)
 
-/* Memory Debug */
-#define MEMP_DEBUG              DBG_OFF
-#define PBUF_DEBUG              DBG_OFF
+//#define MEMP_DEBUG              DBG_ON
+//#define PBUF_DEBUG              DBG_ON
+//#define ETHARP_DEBUG            DBG_ON
+//#define ROUTE_DEBUG             DBG_ON
 
-/* Ethernet layer debug */
-#define ETHARP_DEBUG            DBG_OFF
 
-	/* VDE interface debug */
-	#define VDEIF_DEBUG         DBG_OFF
+//#define IP_DEBUG                DBG_ON
+//#define PMTU_DEBUG              DBG_ON
+//#define IPv6_ADDRSELECT_DBG     DBG_ON
+//#define IP_REASS_DEBUG          DBG_ON
+//#define IP_AUTOCONF_DEBUG       DBG_ON
+//#define IP_RADV_DEBUG           DBG_ON
+//#define IP_RADVCONF_DEBUG       DBG_ON
 
-	/* TUN interface debug */
-	#define TUNIF_DEBUG         DBG_OFF
+//#define USERFILTER_DEBUG        DBG_ON
+//#define NAT_DEBUG               DBG_ON
 
-	/* TAP interface debug */
-	#define TAPIF_DEBUG         DBG_OFF
+//#define ICMP_DEBUG              DBG_ON
+//#define UDP_DEBUG               DBG_ON
 
-/* IP Layer debug */
-#define IP_DEBUG                DBG_ON
 
-#define ROUTE_DEBUG             DBG_OFF
+//#define TCPIP_DEBUG             DBG_ON
+//#define SOCKETS_DEBUG           DBG_ON
 
-/* PathMTU Discovery Protocol debug. Code not working yet */
-#ifdef IPv6_PMTU_DISCOVERY
-	#define PMTU_DEBUG          DBG_OFF
-#endif
 
-/* IPv6 Source Address Selection */
-#define IP_SELECT_SRC           DBG_ON
 
-/* De/Fragmentation code (IPv4, IPv6) debug */
-#if defined(IPv4_FRAGMENTATION) || defined (IPv6_FRAGMENTATION)
-	#define IP_REASS_DEBUG      DBG_ON
-#endif
+/* ---------- Debug options for /contrib/port/unix/netif files ------------- */
 
-/* IPv6 Stateless Auto-configruration */
-#ifdef IPv6_AUTO_CONFIGURATION
-	#define IP_AUTOCONF_DEBUG   DBG_OFF
-#endif
-
-/* IPv6 Router Advertising */
-#ifdef IPv6_ROUTER_ADVERTISEMENT
-	#define IP_RADV_DEBUG       DBG_OFF
-#endif
-
-/* IPv6 Router Advertising Configuration loader */
-#ifdef IPv6_RADVCONF
-	#define IP_RADVCONF_DEBUG   DBG_OFF
-#endif
-
-/* UserFilter sub-system debug  */
-#ifdef LWIP_USERFILTER
-	#define USERFILTER_DEBUG    DBG_OFF
-
-/* NAT sub-system debug */
-#ifdef LWIP_NAT
-	#define NAT_DEBUG           DBG_OFF
-#endif
-
-#endif 
-
-/* ICMPv4/v6 protocol debug */
-#define ICMP_DEBUG              DBG_OFF
-
-/* TCP/UDP sub-system debug */
-#define TCPIP_DEBUG             DBG_OFF
-
-/* Sockets debug */
-#define SOCKETS_DEBUG           DBG_ON
-
+/* These are not defined in opt.h */
+//#define VDEIF_DEBUG             DBG_ON
+//#define TUNIF_DEBUG             DBG_ON
+//#define TAPIF_DEBUG             DBG_ON
 
 
 #endif /* __LWIPOPTS_H__ */

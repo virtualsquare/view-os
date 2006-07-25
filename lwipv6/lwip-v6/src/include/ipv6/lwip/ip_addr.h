@@ -52,6 +52,7 @@
 #ifndef __LWIP_IP_ADDR_H__
 #define __LWIP_IP_ADDR_H__
 
+#include "lwip/opt.h"
 #include "lwip/arch.h"
 
 
@@ -63,11 +64,20 @@ struct ip4_addr {
   u32_t addr;
 };
 
+/* Added by Diego Billi */
+extern const struct ip4_addr ip4_addr_broadcast;
+#define IP4_ADDR_BROADCAST   ((struct ip4_addr *)&ip4_addr_broadcast)
+
+
+
+
 extern const struct ip_addr ip_addr_any;
+extern const struct ip_addr ip4_addr_any;
 /** IP_ADDR_ can be used as a fixed IP address
  *  *  for the wildcard and the broadcast address
  *   */
-#define IP_ADDR_ANY ((struct ip_addr *)&ip_addr_any)
+#define IP_ADDR_ANY  ((struct ip_addr *)&ip_addr_any)
+#define IP4_ADDR_ANY ((struct ip_addr *)&ip4_addr_any)
 
 typedef struct {
 	u32_t a1;
@@ -132,6 +142,8 @@ void ip_addr_set_mask(struct ip_addr *dest, struct ip_addr *src,
 		struct ip_addr *mask);
 void ip64_addr_set(struct ip4_addr *dest, struct ip_addr *src);
 void ip4_addr_set(struct ip4_addr *dest, struct ip4_addr *src);
+#define ip4_addr_cmp(addr1, addr2) ((addr1)->addr == (addr2)->addr)
+
 
 /*int ip_addr_isany(struct ip_addr *addr);*/
 #define ip_addr_isany(addrx) (((addrx) == NULL) || \
@@ -241,6 +253,13 @@ void ip4_addr_set(struct ip4_addr *dest, struct ip4_addr *src);
 	((addr1)->addr[1] == 0) && \
 	((addr1)->addr[2] == IP64_PREFIX))
 
+#define ip_addr_is_v4broadcast_allones(addr1) \
+	(((addr1)->addr[0] == 0) && \
+	((addr1)->addr[1] == 0) && \
+	((addr1)->addr[2] == IP64_PREFIX) && \
+	((addr1)->addr[3] == 0xffffffff) )
+
+
 #define ip_addr_is_v4broadcast(addr1,localaddr,mask) \
 	(((addr1)->addr[0] == 0) && \
 	((addr1)->addr[1] == 0) && \
@@ -253,8 +272,6 @@ void ip4_addr_set(struct ip4_addr *dest, struct ip4_addr *src);
 	((addr1)->addr[2] == IP64_PREFIX) && \
 	(((addr1)->addr[3] & htonl(0xf0000000)) == htonl(0xe0000000)))
 
-/* added by Diego Billi */
-#define ip4_addr_cmp(addr1, addr2) ((addr1)->addr == (addr2)->addr)
 	
 /*#if IP_DEBUG*/
 void ip_addr_debug_print(int how, struct ip_addr *addr);
@@ -264,7 +281,7 @@ void ip_addr_debug_print(int how, struct ip_addr *addr);
 
 struct netif;
 
-#ifdef IPv6_AUTO_CONFIGURATION
+#if IPv6_AUTO_CONFIGURATION
 #include "lwip/ip_autoconf.h"
 #endif
 
@@ -275,7 +292,7 @@ struct ip_addr_list {
 	struct netif *netif;
 	char flags;
 
-#ifdef IPv6_AUTO_CONFIGURATION
+#if IPv6_AUTO_CONFIGURATION
 	/* FIX: "flags" use NETLINK values (IFA_F_TENTATIVE), 
 	        but "info.flag" doesn't. */
 	struct addr_info info;
@@ -305,7 +322,7 @@ struct ip_addr_list *ip_addr_list_masquarade_addr(struct ip_addr_list *tail, u8_
 
 #define ip_addr_list_first(x) (((x)==NULL) ? NULL : ((x)->next))
 
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 /* Conversion Macros to create fake ip_addr containing all the info
  * of sockaddr_ll structures (but sll_protocol).
  * This simplify the implementation as all the internal structures

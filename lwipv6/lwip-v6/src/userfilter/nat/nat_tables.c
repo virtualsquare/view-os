@@ -19,8 +19,9 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
 
-//#ifdef LWIP_NAT
-#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#include "lwip/opt.h"
+
+#if LWIP_USERFILTER && LWIP_NAT
 
 #include <string.h>
 

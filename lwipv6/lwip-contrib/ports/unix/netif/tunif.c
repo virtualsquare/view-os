@@ -59,12 +59,16 @@
 #define DEVTAP "/dev/tun0"
 #endif /* linux */
 
+/*-----------------------------------------------------------------------------------*/
+
 #ifndef TUNIF_DEBUG
 #define TUNIF_DEBUG                     DBG_OFF
 #endif
 
 #define IFNAME0 't'
 #define IFNAME1 'n'
+
+/*-----------------------------------------------------------------------------------*/
 
 struct tunif {
   /* Add whatever per-interface state that is needed here. */

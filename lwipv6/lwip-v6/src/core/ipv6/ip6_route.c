@@ -24,15 +24,17 @@
  *
  */
 #include "lwip/debug.h"
+#include "lwip/opt.h"
 
 #include "lwip/ip_route.h"
 #include "lwip/inet.h"
 #include "lwip/netlink.h"
 
-#ifndef ROUTE_DEBUG
-#define ROUTE_DEBUG  DBG_OFF
-#endif
+/*--------------------------------------------------------------------------*/
 
+//#ifndef ROUTE_DEBUG
+//#define ROUTE_DEBUG  DBG_OFF
+//#endif
 
 /* added by Diego Billi */
 #if 0
@@ -273,7 +275,7 @@ err_t ip_route_findpath(struct ip_addr *addr, struct ip_addr **pnexthop, struct 
 }
 
 
-#ifdef LWIP_NL
+#if LWIP_NL
 
 /*---------------------------------------------------------------------------------*/
 /* Netlink functions (iproute2 tools) */
@@ -524,9 +526,11 @@ void ip_route_netlink_adddelroute(struct nlmsghdr *msg,void * buf,int *offset)
 /* IPv6 Default Address Selection (RFC 3484) */
 /*---------------------------------------------------------------------------------*/
 
-#ifndef IP_SELECT_SRC
-#define IP_SELECT_SRC  DBG_OFF
-#endif
+
+
+//#ifndef IPv6_ADDRSELECT_DBG
+//#define IPv6_ADDRSELECT_DBG  DBG_OFF
+//#endif
 
 
 struct ip_policy {
@@ -671,7 +675,7 @@ select_prefer_source(struct ip_addr_list *sa, struct ip_addr_list *sb, struct ip
 	The addresses SA and SB have the same scope.  If one of the two
 	source addresses is "preferred" and one of them is "deprecated" (in
 	the RFC 2462 sense), then prefer the one that is "preferred." */
-#ifdef IPv6_AUTO_CONFIGURATION
+#if IPv6_AUTO_CONFIGURATION
 	if (sa->info.flag != IPADDR_PREFERRED)
 		if (sb->info.flag == IPADDR_PREFERRED) 
 			return sb;
@@ -752,9 +756,9 @@ struct ip_addr_list * ip_route_ipv6_select_source(struct netif *outif, struct ip
 	struct ip_addr_list *sa, *sb;
 	struct ip_addr_list *prefer;
 
-	LWIP_DEBUGF(IP_SELECT_SRC, ("%s:  destination ip=", __func__));
-		ip_addr_debug_print(IP_SELECT_SRC, dst);
-		LWIP_DEBUGF(IP_SELECT_SRC, ("\n"));
+	LWIP_DEBUGF(IPv6_ADDRSELECT_DBG, ("%s:  destination ip=", __func__));
+		ip_addr_debug_print(IPv6_ADDRSELECT_DBG, dst);
+		LWIP_DEBUGF(IPv6_ADDRSELECT_DBG, ("\n"));
 
 	/* RFC 3484 - 4. Candidate Source Addresses
 	[...]It is RECOMMENDED that the candidate source addresses be the set of
@@ -788,14 +792,14 @@ struct ip_addr_list * ip_route_ipv6_select_source(struct netif *outif, struct ip
 		el=el->next;
 	} while (el != tail);
 
-#if IP_SELECT_SRC == DBG_ON
-	LWIP_DEBUGF(IP_SELECT_SRC, ("%s:  ", __func__));
-	ip_addr_debug_print(IP_SELECT_SRC, &sa->ipaddr);
-	LWIP_DEBUGF(IP_SELECT_SRC, (", "));
-	ip_addr_debug_print(IP_SELECT_SRC, &sb->ipaddr);
-	LWIP_DEBUGF(IP_SELECT_SRC, (" -> "));
-	ip_addr_debug_print(IP_SELECT_SRC, &prefer->ipaddr);
-	LWIP_DEBUGF(IP_SELECT_SRC, ("\n"));
+#if IPv6_ADDRSELECT_DBG == DBG_ON
+	LWIP_DEBUGF(IPv6_ADDRSELECT_DBG, ("%s:  ", __func__));
+	ip_addr_debug_print(IPv6_ADDRSELECT_DBG, &sa->ipaddr);
+	LWIP_DEBUGF(IPv6_ADDRSELECT_DBG, (", "));
+	ip_addr_debug_print(IPv6_ADDRSELECT_DBG, &sb->ipaddr);
+	LWIP_DEBUGF(IPv6_ADDRSELECT_DBG, (" -> "));
+	ip_addr_debug_print(IPv6_ADDRSELECT_DBG, &prefer->ipaddr);
+	LWIP_DEBUGF(IPv6_ADDRSELECT_DBG, ("\n"));
 #endif
 
 	return prefer;

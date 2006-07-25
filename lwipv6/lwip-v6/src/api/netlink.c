@@ -22,6 +22,9 @@
 #include <sys/types.h>
 #define SELECT4ALE
 #include "lwip/opt.h"
+
+#if LWIP_NL 
+
 #include "lwip/api.h"
 #include "lwip/sockets.h"
 #include "lwip/netlink.h"
@@ -66,15 +69,18 @@ int mask2prefix (struct ip_addr *netmask)
 {
 	int result=0;
 	register int i,j;
+
 	for (i=0; i<4; i++)
 		if (~netmask->addr[i]==0)
 			result+=32;
 		else
 			break;
+
 	if (i<4 && netmask->addr[i] != 0) 
 		for (j=0; j<32; j++)
 			if (ntohl(netmask->addr[i]) & 1 << (31 - j))
 				result++;
+
 	return result;
 }
 
@@ -82,6 +88,7 @@ void prefix2mask(int prefix,struct ip_addr *netmask)
 {
 	register int i,j;
 	register int tmp;
+
 	for (i=0; i<4; i++, prefix -= 32) {
 		if (prefix > 32)
 			netmask->addr[i]=0xffffffff;
@@ -90,7 +97,8 @@ void prefix2mask(int prefix,struct ip_addr *netmask)
 			for (j=0;j<prefix;j++)
 				tmp |= (1 << (31 - j));
 			netmask->addr[i]=htonl(tmp);
-		} else
+		} 
+		else
 			netmask->addr[i]=0;
 	}
 }
@@ -373,19 +381,19 @@ netlink_setsockopt (void *sock, int level, int optname, const void *optval, sock
 					}
 					break;
 				default:
-						//printf("ENOPROTOOPT1\n");
+					//printf("ENOPROTOOPT1\n");
 					err = ENOPROTOOPT;
 			}
 			break;
 		default:
-						//printf("ENOPROTOOPT2\n");
+			//printf("ENOPROTOOPT2\n");
 			err = ENOPROTOOPT;
 	}  /* switch */
 
 	if(err != 0 ) {
-		    return err;
-	} else
-	{
+		return err;
+	} 
+	else {
 
 		switch( level ) {
 			case SOL_SOCKET:
@@ -403,3 +411,5 @@ netlink_setsockopt (void *sock, int level, int optname, const void *optval, sock
 		return 0;
 	}
 }
+
+#endif   /* LWIP_NL */

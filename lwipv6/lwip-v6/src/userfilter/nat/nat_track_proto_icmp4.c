@@ -19,8 +19,9 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
 
-//#ifdef LWIP_NAT
-#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#include "lwip/opt.h"
+
+#if LWIP_USERFILTER && LWIP_NAT
 
 #include "lwip/debug.h"
 #include "lwip/sys.h"
@@ -38,10 +39,11 @@
 #include "lwip/nat/nat_tables.h"
 
 
-#ifndef NAT_DEBUG
-#define NAT_DEBUG   DBG_OFF
+#ifndef NAT_ICMP_DEBUG
+#define NAT_ICMP_DEBUG   DBG_OFF
 #endif
 
+/*--------------------------------------------------------------------------*/
 
 #define SECOND   1000  
 #define NAT_IDLE_ICMP_TIMEOUT       (30  * SECOND)
@@ -53,7 +55,7 @@ int track_icmp4_tuple(struct ip_tuple *tuple, void *hdr)
 	struct icmp_echo_hdr *icmphdr = NULL;
 	icmphdr = (struct icmp_echo_hdr *) hdr;
 
-	LWIP_DEBUGF(NAT_DEBUG, ("%s: start\n", __func__));
+	LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: start\n", __func__));
 
 	tuple->src.proto.upi.icmp4.id   = icmphdr->id;
 	tuple->src.proto.upi.icmp4.type = icmphdr->type;
@@ -68,7 +70,7 @@ int track_icmp4_inverse(struct ip_tuple *reply, struct ip_tuple *tuple)
 		= { [ICMP4_ECHO] = ICMP4_ER + 1,
 		    [ICMP4_ER] = ICMP4_ECHO + 1 };
 
-	LWIP_DEBUGF(NAT_DEBUG, ("%s: start\n", __func__));
+	LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: start\n", __func__));
 
 	if ( (tuple->src.proto.upi.icmp4.type >= sizeof(invmap)) || 
 	     !(invmap[tuple->src.proto.upi.icmp4.type])) {
@@ -87,7 +89,7 @@ int track_icmp6_tuple(struct ip_tuple *tuple, void *hdr)
 	struct icmp_echo_hdr *icmphdr = NULL;
 	icmphdr = (struct icmp_echo_hdr *) hdr;
 
-	LWIP_DEBUGF(NAT_DEBUG, ("%s: start\n", __func__));
+	LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: start\n", __func__));
 
 	tuple->src.proto.upi.icmp6.id   = icmphdr->id;
 	tuple->src.proto.upi.icmp6.type = icmphdr->type;
@@ -102,7 +104,7 @@ int track_icmp6_inverse(struct ip_tuple *reply, struct ip_tuple *tuple)
 		= { [ICMP6_ECHO] = ICMP6_ER   + 1,
 		    [ICMP6_ER]   = ICMP6_ECHO + 1 };
 
-	LWIP_DEBUGF(NAT_DEBUG, ("%s: start\n", __func__));
+	LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: start\n", __func__));
 
 	if ( (tuple->src.proto.upi.icmp6.type >= sizeof(invmap6)) || 
 	     !(invmap6[tuple->src.proto.upi.icmp6.type])) {
@@ -165,7 +167,7 @@ static int error_message(uf_verdict_t *verdict, struct pbuf *p)
 	 * 3) Get the tuple of the packet 
 	 */
 	if (tuple_create(&original, (char *) inside_ip4hdr, innerproto) < 0) {
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: unable to create tuple!\n", __func__ ));
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: unable to create tuple!\n", __func__ ));
 		* verdict = UF_ACCEPT;
 		return -1;
 	}
@@ -173,7 +175,7 @@ static int error_message(uf_verdict_t *verdict, struct pbuf *p)
 	/* This is an error message. Create a fake reply tuple and search for the
 	   connection the reply belongs to */ 
 	if (tuple_inverse(&inverse, &original) < 0) {
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: unable to create tuple!\n", __func__ ));
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: unable to create tuple!\n", __func__ ));
 		* verdict = UF_ACCEPT;
 		return -1;
 	}
@@ -181,13 +183,13 @@ static int error_message(uf_verdict_t *verdict, struct pbuf *p)
 	pcb = conn_find_track( & direction, &inverse );
 	if (pcb == NULL) {
 		/* No connection? */
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: Not found original connection!\n", __func__ ));
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: Not found original connection!\n", __func__ ));
 		* verdict = UF_DROP;
 		return -1;
 	}
 
 	/* Ok, we have found the right connection */ 		
-	LWIP_DEBUGF(NAT_DEBUG, ("%s: Found connection!\n", __func__ ));
+	LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: Found connection!\n", __func__ ));
 
 	p->nat.track = pcb;
 	p->nat.dir = direction;
@@ -195,11 +197,11 @@ static int error_message(uf_verdict_t *verdict, struct pbuf *p)
 
 	p->nat.info = CT_RELATED;
 	if (direction == CONN_DIR_REPLY) {
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: CT_RELATED + CT_IS_REPLY!\n", __func__ ));
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: CT_RELATED + CT_IS_REPLY!\n", __func__ ));
 		p->nat.info += CT_IS_REPLY;
 	} 
 	else {
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: CT_RELATED!\n", __func__ ));
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: CT_RELATED!\n", __func__ ));
 	}
 
 
@@ -213,7 +215,7 @@ int track_icmp4_error (uf_verdict_t *verdict, struct pbuf *p)
 	struct ip4_hdr *ip4hdr;
 	struct icmp_echo_hdr *icmphdr = NULL;
 
-	LWIP_DEBUGF(NAT_DEBUG, ("%s: start\n", __func__));
+	LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: start\n", __func__));
 
 	ip4hdr = (struct ip4_hdr *) p->payload;
 	if (IPH4_V(ip4hdr) == 4) 
@@ -227,12 +229,12 @@ int track_icmp4_error (uf_verdict_t *verdict, struct pbuf *p)
 
 	/* Drop unsupported types */
 	if (icmphdr->type > ICMP4_IR) {
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: wrong ICMPv4 type %d.\n", __func__, icmphdr->type));
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: wrong ICMPv4 type %d.\n", __func__, icmphdr->type));
 	      	*verdict = UF_DROP;
 		return -1;
 	}
 
-	LWIP_DEBUGF(NAT_DEBUG, ("%s: ICMPv4 type %d code %d.\n", __func__, icmphdr->type, icmphdr->icode));
+	LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: ICMPv4 type %d code %d.\n", __func__, icmphdr->type, icmphdr->icode));
 
 	/* Check only error messages and skip the others */
 	if (icmphdr->type != ICMP4_DUR  &&    /* destination unreachable */
@@ -240,12 +242,12 @@ int track_icmp4_error (uf_verdict_t *verdict, struct pbuf *p)
 	    icmphdr->type != ICMP4_TE   &&    /* time exceeded */
 	    icmphdr->type != ICMP4_PP   &&    /* parameter problem */
 	    icmphdr->type != ICMP4_RD) {       /* redirect */
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: not error message. return!\n", __func__));
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: not error message. return!\n", __func__));
 
 		return 1;
 	}
 
-	LWIP_DEBUGF(NAT_DEBUG, ("%s: ICMPv4 error message %d.\n", __func__, icmphdr->type));
+	LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: ICMPv4 error message %d.\n", __func__, icmphdr->type));
 
 	return error_message(verdict, p);
 }
@@ -255,7 +257,7 @@ int track_icmp6_error (uf_verdict_t *verdict, struct pbuf *p)
 	struct ip_hdr *iphdr;
 	struct icmp_echo_hdr *icmph = NULL;
 
-	LWIP_DEBUGF(NAT_DEBUG, ("%s: start\n", __func__));
+	LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: start\n", __func__));
 
 	iphdr  = (struct ip_hdr *) p->payload;
 	if (IPH_V(iphdr) == 6)      
@@ -274,7 +276,7 @@ int track_icmp6_error (uf_verdict_t *verdict, struct pbuf *p)
 	    icmph->type == ICMP6_NS ||    /* neighbor solicitation */
 	    icmph->type == ICMP6_NA) {   /* neighbor advertisement */
 
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: not track NS or RA.\n", __func__));
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: not track NS or RA.\n", __func__));
 		*verdict = UF_ACCEPT;
 		return -1;
 	}
@@ -286,11 +288,11 @@ int track_icmp6_error (uf_verdict_t *verdict, struct pbuf *p)
 	    icmph->type != ICMP4_PP   &&    /* parameter problem */
 	    icmph->type != ICMP4_RD) {      /* redirect */
 
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: not error message. return!\n", __func__));
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: not error message. return!\n", __func__));
 		return 1;
 	}
 
-	LWIP_DEBUGF(NAT_DEBUG, ("%s: ICMPv6 error message %d.\n", __func__, icmph->type));
+	LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: ICMPv6 error message %d.\n", __func__, icmph->type));
 
 	return error_message(verdict, p);
 }
@@ -328,10 +330,10 @@ int track_icmp4_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t directi
 	else if (IPH_V(iphdr) == 4) icmphdr = p->payload + IPH4_HL(ip4hdr) * 4;
 
 	if (direction == CONN_DIR_ORIGINAL) {
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: icmp4 ORIGINAL.\n", __func__));
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: icmp4 ORIGINAL.\n", __func__));
 		pcb->proto.icmp4.count++;
 	} else {
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: icmp4 REPLY.\n", __func__));
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: icmp4 REPLY.\n", __func__));
 		pcb->proto.icmp4.count--;
 
 		/* Last packet in this direction, remove timer */
@@ -339,7 +341,7 @@ int track_icmp4_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t directi
 			if (conn_remove_timer(pcb))
 				conn_force_timeout(pcb);
 
-			LWIP_DEBUGF(NAT_DEBUG, ("%s: REPLY RECEIVED.\n", __func__));
+			LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: REPLY RECEIVED.\n", __func__));
 		}
 	}
 
@@ -364,10 +366,10 @@ int track_icmp6_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t directi
 	else if (IPH_V(iphdr) == 4) icmphdr = p->payload + IPH4_HL(ip4hdr) * 4;
 
 	if (direction == CONN_DIR_ORIGINAL) {
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: icmp6 ORIGINAL.\n", __func__));
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: icmp6 ORIGINAL.\n", __func__));
 		pcb->proto.icmp6.count++;
 	} else {
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: icmp6 REPLY.\n", __func__));
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: icmp6 REPLY.\n", __func__));
 		pcb->proto.icmp6.count--;
 
 		/* Last packet in this direction, remove timer */
@@ -376,7 +378,7 @@ int track_icmp6_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t directi
 			if (conn_remove_timer(pcb))
 				conn_force_timeout(pcb);
 
-			LWIP_DEBUGF(NAT_DEBUG, ("%s: REPLY RECEIVED.\n", __func__));
+			LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: REPLY RECEIVED.\n", __func__));
 		}
 	}
 
@@ -410,7 +412,7 @@ int nat_icmp4_manip (nat_manip_t type, void *iphdr, int iplen, struct ip_tuple *
 
 		nat_chksum_adjust((u8_t *) & ICMPH_CHKSUM(icmphdr), (u8_t *) & old_value, 2, (u8_t *) & icmphdr->id, 2);
 
-		LWIP_DEBUGF(NAT_DEBUG, ("\t\ticmp id: %d\n", ntohs(icmphdr->id))    ); 
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("\t\ticmp id: %d\n", ntohs(icmphdr->id))    ); 
 	}
 
 	return -1;
@@ -442,7 +444,7 @@ int nat_icmp6_manip (nat_manip_t type, void *iphdr, int iplen, struct ip_tuple *
 
 		nat_chksum_adjust((u8_t *) & ICMPH_CHKSUM(icmphdr), (u8_t *) & old_value, 2, (u8_t *) & icmphdr->id, 2);
 
-		LWIP_DEBUGF(NAT_DEBUG, ("\t\ticmp id: %d\n", ntohs(icmphdr->id))    ); 
+		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("\t\ticmp id: %d\n", ntohs(icmphdr->id))    ); 
 	}
 
 	return -1;

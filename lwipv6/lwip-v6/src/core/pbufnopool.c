@@ -74,7 +74,7 @@
 #include "arch/perf.h"
 
 //#ifdef LWIP_NAT
-#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#if LWIP_USERFILTER && LWIP_NAT
 #include "lwip/netif.h"
 #include "lwip/ip.h"
 #include "lwip/nat/nat.h"
@@ -196,7 +196,7 @@ pbuf_alloc(pbuf_layer l, u16_t length, pbuf_flag flag)
 
 /* added by Diego Billi */
 //#ifdef LWIP_NAT
-#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#if LWIP_USERFILTER && LWIP_NAT
   nat_pbuf_init(p);
 #endif
 
@@ -446,7 +446,7 @@ pbuf_free(struct pbuf *p)
 
 /* added by Diego Billi */
 //#ifdef LWIP_NAT
-#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#if LWIP_USERFILTER && LWIP_NAT
       nat_pbuf_put(p);
 #endif
 
@@ -828,7 +828,7 @@ struct pbuf * pbuf_clone(pbuf_layer l, struct pbuf *p, pbuf_flag flag)
 			ptr += q->len;
 		}
 
-#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#if LWIP_USERFILTER && LWIP_NAT
 		nat_pbuf_clone(r, p);
 #endif
 

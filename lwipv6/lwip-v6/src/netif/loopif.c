@@ -43,10 +43,11 @@
 #include "lwip/tcp.h"
 #include "lwip/ip.h"
 
-#ifdef LWIP_NL
+#if LWIP_NL
 #include "lwip/arphdr.h"
 #endif
 
+#if 0
 static void
 loopif_input( void * arg )
 {
@@ -58,6 +59,7 @@ loopif_input( void * arg )
   mem_free( arg );
   netif->input( r, netif );
 }
+#endif
 
 static err_t
 loopif_output(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr)
@@ -120,7 +122,7 @@ loopif_init(struct netif *netif)
   netif->num = num++;
   netif->output = loopif_output;
   netif->flags |= NETIF_FLAG_UP | NETIF_FLAG_LOOPBACK;
-#ifdef LWIP_NL
+#if LWIP_NL
   netif->type = ARPHRD_LOOPBACK;
 #endif
   return ERR_OK;

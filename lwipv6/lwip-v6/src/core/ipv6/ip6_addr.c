@@ -50,10 +50,18 @@
  *
  */
 
+#include "lwip/opt.h"
 #include "lwip/ip_addr.h"
 #include "lwip/inet.h"
 
+
+/* Added by Diego Billi */
+#define IP4_ADDR_BROADCAST_VALUE 0xffffffffUL
+const struct ip4_addr ip4_addr_broadcast = { IP4_ADDR_BROADCAST_VALUE };
+
 const struct ip_addr ip_addr_any = {{0,0,0,0}};
+const struct ip_addr ip4_addr_any = {{0,0,0xffff,0}};
+
 
 static struct ip_addr_list ip_addr_pool[IP_ADDR_POOL_SIZE];
 static struct ip_addr_list *ip_addr_freelist;
@@ -309,16 +317,18 @@ struct ip_addr_list *ip_addr_list_deliveryfind(struct ip_addr_list *tail, struct
 	return NULL;
 }
 
-
-/* Added by Diego Billi */ 
 struct ip_addr_list *ip_addr_list_masquarade_addr(struct ip_addr_list *tail, u8_t ipv)
 {
 	struct ip_addr_list *el;
 	if (tail==NULL)
 		return NULL;
 
+	/* FIX: we have ip_route_ipv6_select_source() and we should use it */
+
 	if (ipv != 4 && ipv != 6)
 		return NULL;
+
+
 
 	el=tail=tail->next;
 	do {
@@ -335,34 +345,4 @@ struct ip_addr_list *ip_addr_list_masquarade_addr(struct ip_addr_list *tail, u8_
 	} while (el != tail);
 	return NULL;
 }
-
-
-#if 0
-void
-ip_addr_debug_printf(struct ip_addr *addr)
-{
-	if (addr != NULL)
-		printf("%lx:%lx:%lx:%lx:%lx:%lx:%lx:%lx",
-					ntohl(addr->addr[0]) >> 16 & 0xffff,
-					ntohl(addr->addr[0]) & 0xffff,
-					ntohl(addr->addr[1]) >> 16 & 0xffff,
-					ntohl(addr->addr[1]) & 0xffff,
-					ntohl(addr->addr[2]) >> 16 & 0xffff,
-					ntohl(addr->addr[2]) & 0xffff,
-					ntohl(addr->addr[3]) >> 16 & 0xffff,
-					ntohl(addr->addr[3]) & 0xffff);
-	else
-		printf("IPv6 NULL ADDR");
-}
-#endif
-/*
-int
-ip_addr_isany(struct ip_addr *addr) {
-  if (addr == NULL) return 1;
-  return((addr->addr[0] | addr->addr[1] | addr->addr[2] | addr->addr[3]) == 0);
-}
-*/
-
-
-
 

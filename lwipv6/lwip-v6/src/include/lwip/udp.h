@@ -73,17 +73,17 @@ struct udp_pcb {
    UDP code. */
 struct udp_pcb * udp_new        (void);
 void             udp_remove     (struct udp_pcb *pcb);
-err_t            udp_bind       (struct udp_pcb *pcb, struct ip_addr *ipaddr,
-                 u16_t port);
-err_t            udp_connect    (struct udp_pcb *pcb, struct ip_addr *ipaddr,
-                 u16_t port);
-void             udp_disconnect    (struct udp_pcb *pcb);
+err_t            udp_bind       (struct udp_pcb *pcb, struct ip_addr *ipaddr, u16_t port);
+err_t            udp_connect    (struct udp_pcb *pcb, struct ip_addr *ipaddr, u16_t port);
+void             udp_disconnect (struct udp_pcb *pcb);
+
 void             udp_recv       (struct udp_pcb *pcb,
-         void (* recv)(void *arg, struct udp_pcb *upcb,
-                 struct pbuf *p,
-                 struct ip_addr *addr,
-                 u16_t port),
-         void *recv_arg);
+                                 void (* recv)(void *arg, struct udp_pcb *upcb,
+                                 struct pbuf *p,
+                                 struct ip_addr *addr,
+                                 u16_t port),
+                                 void *recv_arg);
+
 err_t            udp_sendto     (struct udp_pcb *pcb, struct pbuf *p, struct ip_addr *dst_ip, u16_t dst_port);
 err_t            udp_send       (struct udp_pcb *pcb, struct pbuf *p);
 
@@ -94,11 +94,16 @@ err_t            udp_send       (struct udp_pcb *pcb, struct pbuf *p);
 void             udp_input      (struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr);
 void             udp_init       (void);
 
+
 #if UDP_DEBUG
 int udp_debug_print(struct udp_hdr *udphdr);
 #else
 #define udp_debug_print(udphdr)
 #endif
+
+
+
 #endif /* __LWIP_UDP_H__ */
+
 
 

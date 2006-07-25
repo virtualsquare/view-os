@@ -19,7 +19,9 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-#ifdef IPv6_RADVCONF
+#include "lwip/opt.h"
+
+#if IPv6_RADVCONF
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -531,7 +533,6 @@ int radv_load_configfile(char *path)
 
 			set_netif_parameter(curr_netif, key, val, lineno);
 		}
-
 	}
 
 	if (curr_netif != NULL) {

@@ -42,16 +42,19 @@
 
 #include "lwip/inet.h"
 #include "lwip/pbuf.h"
+
+#if 0
 #if LWIP_DHCP
-#  include "lwip/dhcp.h"
+#include "lwip/dhcp.h"
+#endif
 #endif
 
 
-#ifdef IPv6_AUTO_CONFIGURATION
+#if IPv6_AUTO_CONFIGURATION
 #include "lwip/ip_autoconf.h"
 #endif
 
-#ifdef IPv6_ROUTER_ADVERTISEMENT
+#if IPv6_ROUTER_ADVERTISEMENT
 #include "lwip/ip_radv.h"
 #endif
 
@@ -125,12 +128,12 @@ struct netif {
   struct dhcp *dhcp;
 #endif
 
-#ifdef IPv6_AUTO_CONFIGURATION
+#if IPv6_AUTO_CONFIGURATION
   /* FIX: make this a pointer? */
   struct autoconf autoconf;
 #endif
 
-#ifdef IPv6_ROUTER_ADVERTISEMENT
+#if IPv6_ROUTER_ADVERTISEMENT
   /* FIX: make this a pointer? */
   struct radv radv;
 #endif
@@ -167,13 +170,9 @@ extern struct netif *netif_default;
 
 /* netif_init() must be called first. */
 void netif_init(void);
+
 /* netif_cleanup() must be called for a final garbage collection. */
 void netif_cleanup(void);
-
-//struct netif *netif_add(struct netif *netif, 
-//      void *state,
-//      err_t (* init)(struct netif *netif),
-//      err_t (* input)(struct pbuf *p, struct netif *netif));
 
 struct netif *
 netif_add(struct netif *netif, 
@@ -201,14 +200,6 @@ struct netif *netif_find(char *name);
 struct netif *netif_find_id(int id);
 struct netif * netif_find_direct_destination(struct ip_addr *addr);
 
-/* void netif_set_default(struct netif *netif);
-void netif_set_ipaddr(struct netif *netif, struct ip_addr *ipaddr);
-void netif_set_netmask(struct netif *netif, struct ip_addr *netmast);
-void netif_set_gw(struct netif *netif, struct ip_addr *gw);
-void netif_set_up(struct netif *netif);
-void netif_set_down(struct netif *netif);
-u8_t netif_is_up(struct netif *netif); */
-
 /* These functions change interface state and inform IP layer */
 void netif_set_up(struct netif *netif);
 u8_t netif_is_up(struct netif *netif);
@@ -220,3 +211,18 @@ void netif_set_down_low(struct netif *netif);
 
 
 #endif /* __LWIP_NETIF_H__ */
+
+
+/* void netif_set_default(struct netif *netif);
+void netif_set_ipaddr(struct netif *netif, struct ip_addr *ipaddr);
+void netif_set_netmask(struct netif *netif, struct ip_addr *netmast);
+void netif_set_gw(struct netif *netif, struct ip_addr *gw);
+void netif_set_up(struct netif *netif);
+void netif_set_down(struct netif *netif);
+u8_t netif_is_up(struct netif *netif); */
+
+
+//struct netif *netif_add(struct netif *netif, 
+//      void *state,
+//      err_t (* init)(struct netif *netif),
+//      err_t (* input)(struct pbuf *p, struct netif *netif));

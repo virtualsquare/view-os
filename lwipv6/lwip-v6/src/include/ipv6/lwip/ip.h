@@ -304,13 +304,11 @@ err_t ip_output_if(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 		unsigned char ttl, unsigned char tos, unsigned char proto,
 		struct netif *netif, struct ip_addr *nexthop, int flags);
 
-
-//err_t ip_output_raw(struct pbuf *p, struct netif *out, struct ip_addr *nexthop);
-
-void ip_change(struct netif *netif, u32_t type);
+/* Called when the stack need to know something about the interface's state */
+void ip_notify(struct netif *netif, u32_t type);
 
 
-#if IP_DEBUG
+#ifdef IP_DEBUG
 void ip_debug_print(int how, struct pbuf *p);
 #else
 #define ip_debug_print(how,p) 

@@ -18,9 +18,9 @@
  *   with this program; if not, write to the Free Software Foundation, Inc.,
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
+#include "lwip/opt.h"
 
-//#ifdef LWIP_NAT
-#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#if LWIP_USERFILTER && LWIP_NAT
 
 #include "lwip/debug.h"
 #include "lwip/sys.h"
@@ -36,8 +36,8 @@
 #include "lwip/nat/nat.h"
 #include "lwip/nat/nat_tables.h"
 
-#ifndef NAT_DEBUG
-#define NAT_DEBUG   DBG_OFF
+#ifndef NAT_UDP_DEBUG
+#define NAT_UDP_DEBUG   DBG_OFF
 #endif
 
 /*--------------------------------------------------------------------------*/
@@ -95,7 +95,7 @@ int track_udp_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction
 
 
 	if (direction == CONN_DIR_REPLY) {
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: Maybe this is a UDP stream.\n", __func__));
+		LWIP_DEBUGF(NAT_UDP_DEBUG, ("%s: Maybe this is a UDP stream.\n", __func__));
 		pcb->proto.udp.isstream = 1;
 		pcb->timeout = NAT_IDLE_UDP_STREAM_TIMEOUT;
 	}
@@ -137,7 +137,7 @@ int nat_udp_manip (nat_manip_t type, void *iphdr, int iplen, struct ip_tuple *in
 
 			nat_chksum_adjust((u8_t *) & udphdr->chksum, (u8_t *) & old_value, 2, (u8_t *) & udphdr->src, 2);
 		}
-		LWIP_DEBUGF(NAT_DEBUG, ("\t\tdest port: %d\n", ntohs(udphdr->dest))    ); 
+		LWIP_DEBUGF(NAT_UDP_DEBUG, ("\t\tdest port: %d\n", ntohs(udphdr->dest))    ); 
 	}
 
 

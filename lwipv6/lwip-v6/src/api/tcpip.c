@@ -153,9 +153,7 @@ static void tcpip_set_down_interfaces(void)
 	struct netif *nip;
 		
 	for (nip=netif_list; nip!=NULL; nip=nip->next) {
-
-		ip_change(nip, NETIF_CHANGE_DOWN);
-
+		ip_notify(nip, NETIF_CHANGE_DOWN);
 		netif_set_down_low(nip);
 	}
 }
@@ -232,12 +230,12 @@ tcpip_thread(void *arg)
 
 					break;
 
-				case TCPIP_MSG_NETIF_CHANGE:
+				case TCPIP_MSG_NETIF_NOTIFY:
 					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: netif state change! %p\n", (void *)msg));
 
-					ip_change(msg->msg.netif_change.netif, msg->msg.netif_change.type);
+					ip_notify(msg->msg.netif_notify.netif, msg->msg.netif_notify.type);
 
-					sys_sem_signal(* msg->msg.netif_change.sem);   
+					sys_sem_signal(* msg->msg.netif_notify.sem);   
 
 					break;
 
@@ -448,7 +446,7 @@ struct netif * tcpip_netif_add(struct netif *netif,
 
 
 void
-tcpip_change(struct netif *netif, u32_t type)
+tcpip_notify(struct netif *netif, u32_t type)
 {
 	struct tcpip_msg *msg;
 	sys_sem_t         msg_wait;
@@ -473,12 +471,12 @@ tcpip_change(struct netif *netif, u32_t type)
 		return;  
 	}
 	
-	msg->type = TCPIP_MSG_NETIF_CHANGE;;
-	msg->msg.netif_change.netif = netif;
-	msg->msg.netif_change.type  = type;
+	msg->type = TCPIP_MSG_NETIF_NOTIFY;
+	msg->msg.netif_notify.netif = netif;
+	msg->msg.netif_notify.type  = type;
 
 	msg_wait = sys_sem_new(0);
-	msg->msg.netif_change.sem = &msg_wait;
+	msg->msg.netif_notify.sem = &msg_wait;
 
 	sys_mbox_post(mbox, msg);
 
@@ -489,3 +487,4 @@ tcpip_change(struct netif *netif, u32_t type)
 
 	sys_sem_signal(tcpip_mutex);   
 }
+

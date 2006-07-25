@@ -52,7 +52,11 @@
 #ifndef NO_SYS
 #define NO_SYS                          0
 #endif
-/* ---------- Memory options ---------- */
+
+/*----------------------------------------------------------------------*/
+/* Memory options  */
+/*----------------------------------------------------------------------*/
+
 /* MEM_ALIGNMENT: should be set to the alignment of the CPU for which
    lwIP is compiled. 4 byte alignment -> define MEM_ALIGNMENT to 4, 2
    byte alignment -> define MEM_ALIGNMENT to 2. */
@@ -161,15 +165,16 @@ a lot of data that needs to be copied, this should be set high. */
 /* how many addresses the system can manage */
 
 #ifndef IP_ADDR_POOL_SIZE
-#define IP_ADDR_POOL_SIZE   16
+#define IP_ADDR_POOL_SIZE     16
 #endif
 
 #ifndef IP_ROUTE_POOL_SIZE
 #define IP_ROUTE_POOL_SIZE    16
 #endif
 
-
-/* ---------- ARP options ---------- */
+/*----------------------------------------------------------------------*/
+/* ARP Options  */
+/*----------------------------------------------------------------------*/
 
 /** Number of active hardware address, IP address pairs cached */
 #ifndef ARP_TABLE_SIZE
@@ -202,34 +207,75 @@ a lot of data that needs to be copied, this should be set high. */
 #error ETHARP_ALWAYS_INSERT option is deprecated. Remove it from your lwipopts.h.
 #endif
 
-/* ---------- IP options ---------- */
+/*----------------------------------------------------------------------*/
+/* IPv4 IPv6 Settings  */
+/*----------------------------------------------------------------------*/
+
 /* Define IP_FORWARD to 1 if you wish to have the ability to forward
    IP packets across network interfaces. If you are going to run lwIP
    on a device with only one network interface, define this to 0. */
 #ifndef IP_FORWARD
-#define IP_FORWARD                      0
+#define IP_FORWARD                     0
 #endif
 
 /* If defined to 1, IP options are allowed (but not parsed). If
    defined to 0, all packets with IP options are dropped. */
 #ifndef IP_OPTIONS
-#define IP_OPTIONS                      1
+#define IP_OPTIONS                     0
 #endif
 
-/** IP reassembly and segmentation. Even if they both deal with IP
- *  fragments, note that these are orthogonal, one dealing with incoming
- *  packets, the other with outgoing packets
- */
-
-/** Reassemble incoming fragmented IP packets */
-#ifndef IP_REASSEMBLY
-#define IP_REASSEMBLY                   1
+/* IPv6 Support */
+#ifndef IPv6
+#define IPv6                           1
 #endif
 
-/** Fragment outgoing IP packets if their size exceeds MTU */
-#ifndef IP_FRAG
-#define IP_FRAG                         1
+/* Enable IPv4 checksum validation */
+#ifndef IPv4_CHECK_CHECKSUM 
+#define IPv4_CHECK_CHECKSUM            0
 #endif
+
+/* Enable IPv4 Fragmentation/Defragmentation */
+#ifndef IPv4_FRAGMENTATION
+#define IPv4_FRAGMENTATION             0
+#endif
+
+/* Enable IPv6 Fragmentation/Defragmentation */
+#ifndef IPv6_FRAGMENTATION
+#define IPv6_FRAGMENTATION             0
+#endif
+
+/* Enable IPv6 Stateless Autoconfiguration */
+#ifndef IPv6_AUTO_CONFIGURATION
+#define IPv6_AUTO_CONFIGURATION        0
+#endif
+
+/* Enable IPv6 Router Advertising service */
+#ifndef IPv6_ROUTER_ADVERTISEMENT
+#define IPv6_ROUTER_ADVERTISEMENT      0
+#endif
+
+/* Add support for Router Advertising configuration file */
+#ifndef IPv6_RADVCONF
+#define IPv6_RADVCONF                  0
+#endif
+
+/*----------------------------------------------------------------------*/
+/* Userfilter & NAT support */
+/*----------------------------------------------------------------------*/
+
+/* Enable Userfilter Hooks sub-system */
+#ifndef LWIP_USERFILTER 
+#define LWIP_USERFILTER                0
+#endif
+
+/* Enable NAT (IPv4/IPv6) support over Userfilter */
+#ifndef LWIP_NAT 
+#define LWIP_NAT                       0
+#endif
+
+/*----------------------------------------------------------------------*/
+/* ICMP Settings */
+/*----------------------------------------------------------------------*/
 
 /* ---------- ICMP options ---------- */
 
@@ -247,19 +293,10 @@ a lot of data that needs to be copied, this should be set high. */
 #define RAW_TTL                        255
 #endif
 
-/* ---------- DHCP options ---------- */
+/*----------------------------------------------------------------------*/
+/* UDP Settings */
+/*----------------------------------------------------------------------*/
 
-#ifndef LWIP_DHCP
-#define LWIP_DHCP                       0
-#endif
-
-/* 1 if you want to do an ARP check on the offered address
-   (recommended). */
-#ifndef DHCP_DOES_ARP_CHECK
-#define DHCP_DOES_ARP_CHECK             1
-#endif
-
-/* ---------- UDP options ---------- */
 #ifndef LWIP_UDP
 #define LWIP_UDP                        1
 #endif
@@ -268,7 +305,10 @@ a lot of data that needs to be copied, this should be set high. */
 #define UDP_TTL                         255
 #endif
 
-/* ---------- TCP options ---------- */
+/*----------------------------------------------------------------------*/
+/* TCP Settings */
+/*----------------------------------------------------------------------*/
+
 #ifndef LWIP_TCP
 #define LWIP_TCP                        1
 #endif
@@ -329,6 +369,12 @@ a lot of data that needs to be copied, this should be set high. */
 #define LWIP_HAVE_LOOPIF		1
 #endif
 
+
+/*----------------------------------------------------------------------*/
+/* API Settings */
+/*----------------------------------------------------------------------*/
+
+
 #ifndef LWIP_EVENT_API
 #define LWIP_EVENT_API                  0
 #define LWIP_CALLBACK_API               1
@@ -338,7 +384,7 @@ a lot of data that needs to be copied, this should be set high. */
 #endif 
 
 #ifndef LWIP_COMPAT_SOCKETS
-#define LWIP_COMPAT_SOCKETS             1
+#define LWIP_COMPAT_SOCKETS             0
 #endif
 
 
@@ -346,29 +392,53 @@ a lot of data that needs to be copied, this should be set high. */
 #define TCPIP_THREAD_PRIO               1
 #endif
 
-#ifndef SLIPIF_THREAD_PRIO
-#define SLIPIF_THREAD_PRIO              1
-#endif
+//#ifndef SLIPIF_THREAD_PRIO
+//#define SLIPIF_THREAD_PRIO              1
+//#endif
 
-#ifndef PPP_THREAD_PRIO
-#define PPP_THREAD_PRIO                 1
-#endif
+//#ifndef PPP_THREAD_PRIO
+//#define PPP_THREAD_PRIO                 1
+//#endif
 
 #ifndef DEFAULT_THREAD_PRIO
 #define DEFAULT_THREAD_PRIO             1
 #endif
 
 
-/* ---------- Socket Options ---------- */
+/*----------------------------------------------------------------------*/
+/* Sockets Options */
+/*----------------------------------------------------------------------*/
+
 /* Enable SO_REUSEADDR and SO_REUSEPORT options */ 
 #ifndef SO_REUSE
 # define SO_REUSE 1
 #endif                                                                        
 
+/*----------------------------------------------------------------------*/
+/* Sockets API Settings */
+/*----------------------------------------------------------------------*/
 
-/* ---------- Statistics options ---------- */
+/* Enable Renzo Davoli changes (used only inside renzosockets.c) */
+#ifndef RD235LIB 
+#define RD235LIB                       0
+#endif
+
+/* Netlink Socket support */
+#ifndef LWIP_NL
+#define LWIP_NL                        0
+#endif
+
+/* PACKET Socket support */
+#ifndef LWIP_PACKET
+#define LWIP_PACKET                    0
+#endif
+
+/*----------------------------------------------------------------------*/
+/* Statistics options */
+/*----------------------------------------------------------------------*/
+
 #ifndef LWIP_STATS
-#define LWIP_STATS                      1
+#define LWIP_STATS                      0
 #endif
 
 #if LWIP_STATS
@@ -378,47 +448,47 @@ a lot of data that needs to be copied, this should be set high. */
 #endif
 
 #ifndef LINK_STATS
-#define LINK_STATS	1
+#define LINK_STATS	   1
 #endif
 
 #ifndef IP_STATS
-#define IP_STATS	1
+#define IP_STATS	   1
 #endif
 
 #ifndef IPFRAG_STATS
-#define IPFRAG_STATS	1
+#define IPFRAG_STATS   1
 #endif
 
 #ifndef ICMP_STATS
-#define ICMP_STATS	1
+#define ICMP_STATS     1
 #endif
 
 #ifndef UDP_STATS
-#define UDP_STATS	1
+#define UDP_STATS      1
 #endif
 
 #ifndef TCP_STATS
-#define TCP_STATS	1
+#define TCP_STATS      1
 #endif
 
 #ifndef MEM_STATS
-#define MEM_STATS	1
+#define MEM_STATS      1
 #endif
 
 #ifndef MEMP_STATS
-#define MEMP_STATS	1
+#define MEMP_STATS     1
 #endif
 
 #ifndef PBUF_STATS
-#define PBUF_STATS	1
+#define PBUF_STATS     1
 #endif
 
 #ifndef SYS_STATS
-#define SYS_STATS	1
+#define SYS_STATS      1
 #endif
 
 #ifndef RAW_STATS
-#define RAW_STATS	0
+#define RAW_STATS      0
 #endif
 
 #else
@@ -438,6 +508,240 @@ a lot of data that needs to be copied, this should be set high. */
 #define LWIP_STATS_DISPLAY	0
 
 #endif /* LWIP_STATS */
+
+
+/* checksum options - set to zero for hardware checksum support */
+
+#ifndef CHECKSUM_GEN_IP
+#define CHECKSUM_GEN_IP                 1
+#endif
+ 
+#ifndef CHECKSUM_GEN_UDP
+#define CHECKSUM_GEN_UDP                1
+#endif
+ 
+#ifndef CHECKSUM_GEN_TCP
+#define CHECKSUM_GEN_TCP                1
+#endif
+ 
+#ifndef CHECKSUM_CHECK_IP
+#define CHECKSUM_CHECK_IP               1
+#endif
+ 
+#ifndef CHECKSUM_CHECK_UDP
+#define CHECKSUM_CHECK_UDP              1
+#endif
+
+#ifndef CHECKSUM_CHECK_TCP
+#define CHECKSUM_CHECK_TCP              1
+#endif
+
+/*----------------------------------------------------------------------*/
+/* DEBUG Settings */
+/*----------------------------------------------------------------------*/
+
+/* Debugging options all default to off */
+
+#ifndef DBG_MIN_LEVEL
+#define DBG_MIN_LEVEL                   DBG_LEVEL_OFF
+#endif
+
+#ifndef DBG_TYPES_ON
+#define DBG_TYPES_ON                    0
+#endif
+
+#ifndef MEM_DEBUG
+#define MEM_DEBUG                       DBG_OFF
+#endif
+
+#ifndef MEMP_DEBUG
+#define MEMP_DEBUG                      DBG_OFF
+#endif
+
+#ifndef SYS_DEBUG
+#define SYS_DEBUG                       DBG_OFF
+#endif
+
+#ifndef ETHARP_DEBUG
+#define ETHARP_DEBUG                    DBG_OFF
+#endif
+
+#ifndef NETIF_DEBUG
+#define NETIF_DEBUG                     DBG_OFF
+#endif
+
+#ifndef PBUF_DEBUG
+#define PBUF_DEBUG                      DBG_OFF
+#endif
+
+#ifndef API_LIB_DEBUG
+#define API_LIB_DEBUG                   DBG_OFF
+#endif
+
+#ifndef API_MSG_DEBUG
+#define API_MSG_DEBUG                   DBG_OFF
+#endif
+
+#ifndef IP_DEBUG
+#define IP_DEBUG                        DBG_OFF
+#endif
+
+#ifndef IP_REASS_DEBUG
+#define IP_REASS_DEBUG                  DBG_OFF
+#endif
+
+#ifndef ROUTE_DEBUG
+#define ROUTE_DEBUG                     DBG_OFF
+#endif
+
+#ifndef PMTU_DEBUG
+#define PMTU_DEBUG                      DBG_OFF
+#endif
+
+#ifndef IPv6_ADDRSELECT_DBG
+#define IPv6_ADDRSELECT_DBG             DBG_OFF
+#endif
+
+#ifndef IP_AUTOCONF_DEBUG     
+#define IP_AUTOCONF_DEBUG               DBG_OFF
+#endif
+
+#ifndef IP_RADV_DEBUG
+#define IP_RADV_DEBUG                   DBG_OFF
+#endif
+
+#ifndef IP_RADVCONF_DEBUG
+#define IP_RADVCONF_DEBUG               DBG_OFF
+#endif
+
+#ifndef USERFILTER_DEBUG
+#define USERFILTER_DEBUG                DBG_OFF
+#endif
+
+#ifndef NAT_DEBUG
+#define NAT_DEBUG                       DBG_OFF
+#endif
+
+#ifndef ICMP_DEBUG
+#define ICMP_DEBUG                      DBG_OFF
+#endif
+
+
+#ifndef SOCKETS_DEBUG
+#define SOCKETS_DEBUG                   DBG_OFF
+#endif
+
+#ifndef INET_DEBUG
+#define INET_DEBUG                      DBG_OFF
+#endif
+
+#ifndef RAW_DEBUG
+#define RAW_DEBUG                       DBG_OFF
+#endif
+
+#ifndef PACKET_DEBUG
+#define PACKET_DEBUG                    DBG_OFF
+#endif
+
+#ifndef TCP_DEBUG
+#define TCP_DEBUG                       DBG_OFF
+#endif
+
+#ifndef TCP_INPUT_DEBUG
+#define TCP_INPUT_DEBUG                 DBG_OFF
+#endif
+
+#ifndef TCP_FR_DEBUG
+#define TCP_FR_DEBUG                    DBG_OFF
+#endif
+
+#ifndef TCP_RTO_DEBUG
+#define TCP_RTO_DEBUG                   DBG_OFF
+#endif
+
+#ifndef TCP_REXMIT_DEBUG
+#define TCP_REXMIT_DEBUG                DBG_OFF
+#endif
+
+#ifndef TCP_CWND_DEBUG
+#define TCP_CWND_DEBUG                  DBG_OFF
+#endif
+
+#ifndef TCP_WND_DEBUG
+#define TCP_WND_DEBUG                   DBG_OFF
+#endif
+
+#ifndef TCP_OUTPUT_DEBUG
+#define TCP_OUTPUT_DEBUG                DBG_OFF
+#endif
+
+#ifndef TCP_RST_DEBUG
+#define TCP_RST_DEBUG                   DBG_OFF
+#endif
+
+#ifndef TCP_QLEN_DEBUG
+#define TCP_QLEN_DEBUG                  DBG_OFF
+#endif
+
+#ifndef UDP_DEBUG
+#define UDP_DEBUG                       DBG_OFF
+#endif
+
+#ifndef TCPIP_DEBUG
+#define TCPIP_DEBUG                     DBG_OFF
+#endif
+
+#endif /* __LWIP_OPT_H__ */
+
+
+
+
+
+
+
+
+/*----------------------------------------------------------------------*/
+/* No more working features */
+/*----------------------------------------------------------------------*/
+
+#if 0
+
+
+
+
+/** IP reassembly and segmentation. Even if they both deal with IP
+ *  fragments, note that these are orthogonal, one dealing with incoming
+ *  packets, the other with outgoing packets
+ */
+
+/** Reassemble incoming fragmented IP packets */
+//#ifndef IP_REASSEMBLY
+//#define IP_REASSEMBLY                   1
+//#endif
+
+/** Fragment outgoing IP packets if their size exceeds MTU */
+//#ifndef IP_FRAG
+//#define IP_FRAG                         1
+//#endif
+
+
+
+
+#ifndef PPP_DEBUG 
+#define PPP_DEBUG                       DBG_OFF
+#endif
+
+#ifndef SLIP_DEBUG 
+#define SLIP_DEBUG                      DBG_OFF
+#endif
+
+#ifndef DHCP_DEBUG 
+#define DHCP_DEBUG                      DBG_OFF
+#endif
+
+
+
+
 
 /* ---------- PPP options ---------- */
 
@@ -526,164 +830,26 @@ a lot of data that needs to be copied, this should be set high. */
 
 #endif /* PPP_SUPPORT */
 
-/* checksum options - set to zero for hardware checksum support */
 
-#ifndef CHECKSUM_GEN_IP
-#define CHECKSUM_GEN_IP                 1
-#endif
- 
-#ifndef CHECKSUM_GEN_UDP
-#define CHECKSUM_GEN_UDP                1
-#endif
- 
-#ifndef CHECKSUM_GEN_TCP
-#define CHECKSUM_GEN_TCP                1
-#endif
- 
-#ifndef CHECKSUM_CHECK_IP
-#define CHECKSUM_CHECK_IP               1
-#endif
- 
-#ifndef CHECKSUM_CHECK_UDP
-#define CHECKSUM_CHECK_UDP              1
+/*----------------------------------------------------------------------*/
+/* DHCP options  */
+/*----------------------------------------------------------------------*/
+
+/* FIX: DHCP doesn't work, but somewhere in the code there are some #if. Remove them */
+
+#ifndef LWIP_DHCP
+#define LWIP_DHCP                       0
 #endif
 
-#ifndef CHECKSUM_CHECK_TCP
-#define CHECKSUM_CHECK_TCP              1
-#endif
-
-/* Debugging options all default to off */
-
-#ifndef DBG_TYPES_ON
-#define DBG_TYPES_ON                    0
-#endif
-
-#ifndef ETHARP_DEBUG
-#define ETHARP_DEBUG                    DBG_OFF
-#endif
-
-#ifndef NETIF_DEBUG
-#define NETIF_DEBUG                     DBG_OFF
-#endif
-
-#ifndef PBUF_DEBUG
-#define PBUF_DEBUG                      DBG_OFF
-#endif
-
-#ifndef API_LIB_DEBUG
-#define API_LIB_DEBUG                   DBG_OFF
-#endif
-
-#ifndef API_MSG_DEBUG
-#define API_MSG_DEBUG                   DBG_OFF
-#endif
-
-#ifndef SOCKETS_DEBUG
-#define SOCKETS_DEBUG                   DBG_OFF
-#endif
-
-#ifndef ICMP_DEBUG
-#define ICMP_DEBUG                      DBG_OFF
-#endif
-
-#ifndef INET_DEBUG
-#define INET_DEBUG                      DBG_OFF
-#endif
-
-#ifndef IP_DEBUG
-#define IP_DEBUG                        DBG_OFF
-#endif
-
-#ifndef IP_REASS_DEBUG
-#define IP_REASS_DEBUG                  DBG_OFF
-#endif
-
-#ifndef RAW_DEBUG
-#define RAW_DEBUG                       DBG_OFF
-#endif
-
-#ifndef PACKET_DEBUG
-#define PACKET_DEBUG                    DBG_OFF
-#endif
-
-#ifndef MEM_DEBUG
-#define MEM_DEBUG                       DBG_OFF
-#endif
-
-#ifndef MEMP_DEBUG
-#define MEMP_DEBUG                      DBG_OFF
-#endif
-
-#ifndef SYS_DEBUG
-#define SYS_DEBUG                       DBG_OFF
-#endif
-
-#ifndef TCP_DEBUG
-#define TCP_DEBUG                       DBG_OFF
-#endif
-
-#ifndef TCP_INPUT_DEBUG
-#define TCP_INPUT_DEBUG                 DBG_OFF
-#endif
-
-#ifndef TCP_FR_DEBUG
-#define TCP_FR_DEBUG                    DBG_OFF
-#endif
-
-#ifndef TCP_RTO_DEBUG
-#define TCP_RTO_DEBUG                   DBG_OFF
-#endif
-
-#ifndef TCP_REXMIT_DEBUG
-#define TCP_REXMIT_DEBUG                DBG_OFF
-#endif
-
-#ifndef TCP_CWND_DEBUG
-#define TCP_CWND_DEBUG                  DBG_OFF
-#endif
-
-#ifndef TCP_WND_DEBUG
-#define TCP_WND_DEBUG                   DBG_OFF
-#endif
-
-#ifndef TCP_OUTPUT_DEBUG
-#define TCP_OUTPUT_DEBUG                DBG_OFF
-#endif
-
-#ifndef TCP_RST_DEBUG
-#define TCP_RST_DEBUG                   DBG_OFF
-#endif
-
-#ifndef TCP_QLEN_DEBUG
-#define TCP_QLEN_DEBUG                  DBG_OFF
-#endif
-
-#ifndef UDP_DEBUG
-#define UDP_DEBUG                       DBG_OFF
-#endif
-
-#ifndef TCPIP_DEBUG
-#define TCPIP_DEBUG                     DBG_OFF
-#endif
-
-#ifndef PPP_DEBUG 
-#define PPP_DEBUG                       DBG_OFF
-#endif
-
-#ifndef SLIP_DEBUG 
-#define SLIP_DEBUG                      DBG_OFF
-#endif
-
-#ifndef DHCP_DEBUG 
-#define DHCP_DEBUG                      DBG_OFF
+/* 1 if you want to do an ARP check on the offered address
+   (recommended). */
+#ifndef DHCP_DOES_ARP_CHECK
+#define DHCP_DOES_ARP_CHECK             0
 #endif
 
 
-#ifndef DBG_MIN_LEVEL
-#define DBG_MIN_LEVEL                   DBG_LEVEL_OFF
 #endif
 
-#endif /* __LWIP_OPT_H__ */
 
 
 

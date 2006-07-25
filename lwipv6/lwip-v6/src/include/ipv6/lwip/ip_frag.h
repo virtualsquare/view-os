@@ -70,7 +70,7 @@
  *
  */
 
-#if defined(IPv4_FRAGMENTATION) || defined(IPv6_FRAGMENTATION)
+#if Pv4_FRAGMENTATION || IPv6_FRAGMENTATION
 
 #ifndef __LWIP_IP_FRAG_H__
 #define __LWIP_IP_FRAG_H__
@@ -79,7 +79,7 @@
 void ip_frag_reass_init(void);
 
 
-#ifdef IPv4_FRAGMENTATION
+#if IPv4_FRAGMENTATION
 
 /* 
  * IPv4 Frag/Defrag functions 
@@ -92,7 +92,7 @@ err_t ip4_frag(struct pbuf *, struct netif *, struct ip_addr *);
 
 
 
-#ifdef IPv6_FRAGMENTATION
+#if IPv6_FRAGMENTATION
 
 /*
  * IPv6 Frag/Defrag functions

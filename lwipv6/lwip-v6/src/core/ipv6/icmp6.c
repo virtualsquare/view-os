@@ -64,13 +64,11 @@
 
 #include "lwip/stats.h"
 
-#ifdef IPv6_AUTO_CONFIGURATION
+#if IPv6_AUTO_CONFIGURATION
 #include "lwip/ip_autoconf.h"
 #endif
 
-#ifndef ICMP_DEBUG
-#define ICMP_DEBUG   DBG_OFF
-#endif
+/*--------------------------------------------------------------------------*/
 
 /*
  * Handle ICMP input packets.
@@ -241,12 +239,12 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 				/* TODO */
 			}
 
-#ifdef IPv6_AUTO_CONFIGURATION  
+#if IPv6_AUTO_CONFIGURATION  
 			/* Check Target IP for Duplicate Address Detection protocol */
 			ip_autoconf_handle_na(inad->netif, p, iphdr, ina);
 #endif
 
-#ifdef IPv6_PMTU_DISCOVERY
+#if IPv6_PMTU_DISCOVERY
 			/* FIX: this function is 'static' in etharp.c 
 			update_arp_entry(inp, & ina->targetip, & opt->addr, 0); 
 			*/
@@ -257,7 +255,7 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 		 * Router Advertisement Protocol 
 		 */
 		case ICMP6_RS | (6 << 8):
-#ifdef IPv6_ROUTER_ADVERTISEMENT
+#if IPv6_ROUTER_ADVERTISEMENT
 			{
 			struct icmp_rs_hdr   *irs;
 
@@ -287,7 +285,7 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 			break;
 
 		case ICMP6_RA | (6 << 8):
-#ifdef IPv6_AUTO_CONFIGURATION  
+#if IPv6_AUTO_CONFIGURATION  
 			{
 			struct icmp_ra_hdr   *ira;
 
@@ -627,15 +625,4 @@ icmp4_time_exceeded(struct pbuf *p, enum icmp_te_type t)
 	
 	pbuf_free(q);
 }
-
-
-#if 0
-			if (ip_addr_issolicited(&(iphdr->dest), &(inad->ipaddr))) {
-				/* If this solicited message is not for us, ignore it */
-	                      	if (ip_addr_list_deliveryfind(inad->netif->addrs, &ins->targetip, &(iphdr->src)) == NULL) {
-					LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: not for us\n"));
-					pbuf_free(p);
-				}
-			}
-#endif
 

@@ -18,7 +18,8 @@
  *   with this program; if not, write to the Free Software Foundation, Inc.,
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
-#include "lwip/debug.h"
+#include "lwip/opt.h"
+
 #include "lwip/sys.h"
 #include "lwip/netif.h"
 #include "lwip/ip.h"
@@ -29,10 +30,9 @@
 
 #include "lwip/netlinkdefs.h"
 
+#if IPv6_AUTO_CONFIGURATION
 
-#ifdef IPv6_AUTO_CONFIGURATION
-
-#define INLINE   __inline__
+/*--------------------------------------------------------------------------*/
 
 #ifndef IP_AUTOCONF_DEBUG
 #define IP_AUTOCONF_DEBUG     DBG_OFF
@@ -43,31 +43,19 @@ void dad_remove_timer(struct ip_addr_list *addr);
 void start_dad_on_addr(struct ip_addr_list *addr, struct netif *netif);
 
 /*--------------------------------------------------------------------------*/
-/* Global variabiles */
-/*--------------------------------------------------------------------------*/
-
-/* Global default value for DupAddrDetectTransmits */
-u8_t dad_duptrans_default = 1;
-/* Global default value for DupAddrDetectTransmits */
-u32_t dad_retrans_delay_default = 1000; /* milliseconds */
-
-/* Global default values for Router solicitations */
-u8_t  max_rtr_solicitations_default      = 3;     
-u16_t rtr_solicitation_interval_default  = 2000;  /* milliseconds */
-u16_t max_rtr_solicitation_delay_default = 500;  /* milliseconds */
-
-
-/*--------------------------------------------------------------------------*/
 /* Functions */
 /*--------------------------------------------------------------------------*/
 
-void ip_autoconf_init(void)
+void 
+ip_autoconf_init(void)
 {
 	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: IPv6 Address Autoconfiguration Enabled.\n", __func__));	
 }
 
+
 /* Initialize interface data for autoconfiguration protocol */
-void ip_autoconf_netif_init(struct netif *netif)
+void 
+ip_autoconf_netif_init(struct netif *netif)
 {
 	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: Init interface %c%c%d.\n", __func__, netif->name[0],netif->name[1],netif->num));
 
@@ -76,20 +64,21 @@ void ip_autoconf_netif_init(struct netif *netif)
 	netif->autoconf.flag_M = 0; 
 	netif->autoconf.flag_O = 0;
 
-	netif->autoconf.dad_duptrans = dad_duptrans_default; 
-        netif->autoconf.dad_retrans_delay = dad_retrans_delay_default;  /* milliseconds */
+	netif->autoconf.dad_duptrans               = DUP_ADDR_DETECT_TRANSMITS; 
+    netif->autoconf.retrans_timer              = RETRANS_TIMER;  /* milliseconds */
 
 	netif->autoconf.rtr_sol_counter = 0;
-	netif->autoconf.max_rtr_solicitations      = max_rtr_solicitations_default;
-	netif->autoconf.rtr_solicitation_interval  = rtr_solicitation_interval_default;
-	netif->autoconf.max_rtr_solicitation_delay = max_rtr_solicitation_delay_default;
 
+	netif->autoconf.max_rtr_solicitation_delay = MAX_RTR_SOLICITATION_DELAY;
+	netif->autoconf.rtr_solicitation_interval  = RTR_SOLICITATION_INTERVAL;
+	netif->autoconf.max_rtr_solicitations      = MAX_RTR_SOLICITATIONS;
 
 	netif->autoconf.addrs_tentative = NULL;
 }
 
 
-int create_address_from_prefix(struct ip_addr *ip, struct ip_addr *netmask, 
+int 
+create_address_from_prefix(struct ip_addr *ip, struct ip_addr *netmask, 
 	struct ip_addr *prefix, int prefixlen, struct netif *netif)
 {
 	/* FIX FIX FIX FIX: very bad way to create address XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
@@ -106,7 +95,8 @@ int create_address_from_prefix(struct ip_addr *ip, struct ip_addr *netmask,
 /* 
  * TODO: read better: RFC 2461 - 6.3.4. Processing Received Router Advertisements 
  */
-void ip_autoconf_handle_ra(struct netif *netif, struct pbuf *p, struct ip_hdr *iphdr, struct icmp_ra_hdr *ira)
+void 
+ip_autoconf_handle_ra(struct netif *netif, struct pbuf *p, struct ip_hdr *iphdr, struct icmp_ra_hdr *ira)
 {
 	u16_t  icmp_len;
 	struct icmp_opt        *opt;
@@ -130,7 +120,6 @@ void ip_autoconf_handle_ra(struct netif *netif, struct pbuf *p, struct ip_hdr *i
 		LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: invalide HOP LIMIT: %d", __func__, IPH_HOPLIMIT(iphdr)));
 		return;
 	}
-
 
 	/* Scan for options */
 	icmp_len = sizeof(struct icmp_ra_hdr);
@@ -174,7 +163,7 @@ void ip_autoconf_handle_ra(struct netif *netif, struct pbuf *p, struct ip_hdr *i
 	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("Reach:%d "    , (unsigned int)ntohl(ira->reach)  ));
 	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("Retrans:%u\n" , (unsigned int)ntohl(ira->retran) ));
 
-	if (ira->hoplimit != 0) {
+	if (ira->hoplimit != UNSPECIFIED) {
 		/* TODO: up to now, HOPLIMIT values for TCP/UPD/ICMP are fixed
 		         (TCP_TTL, UDP_TTL, ICMP_TTL). :-/ */
 	}
@@ -185,12 +174,12 @@ void ip_autoconf_handle_ra(struct netif *netif, struct pbuf *p, struct ip_hdr *i
 		return;
 	}
 
-	if (ira->reach != 0) {
+	if (ira->reach != UNSPECIFIED) {
 		/* TODO: reachability detection non implemented yet */
 	}
 
-	if (ira->retran != 0) {
-		netif->autoconf.dad_retrans_delay = ntohl(ira->retran);
+	if (ira->retran != UNSPECIFIED) {
+		netif->autoconf.retrans_timer = ntohl(ira->retran);
 	}
 
 	/* Handle options */
@@ -201,13 +190,13 @@ void ip_autoconf_handle_ra(struct netif *netif, struct pbuf *p, struct ip_hdr *i
 			oaddr->addr[0],oaddr->addr[1],oaddr->addr[2],
 			oaddr->addr[3],oaddr->addr[4],oaddr->addr[5], oaddr->len * 8));
 
-		/* TODO: update or refresh ARP table */
+		/* TODO: update or refresh ARP table? */
 	}
 
 	if (omtu != NULL) {
 		LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("\tLink MTU: %u (len=%u)\n", (unsigned int) ntohl(omtu->mtu), omtu->len * 8));
-		/* TODO: update Link MTU */
-		netif->mtu = ntohl(omtu->mtu);
+		/* FIX: !!!!!!!!!!!!! very bad thing to change net->mtu */
+		//netif->mtu = ntohl(omtu->mtu);
 	}
 
         if (oprefix != NULL) {
@@ -270,7 +259,7 @@ void ip_autoconf_handle_ra(struct netif *netif, struct pbuf *p, struct ip_hdr *i
 					LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("\tAddress already added.\n"));
 					ip_addr_list_free(confaddr);
 
-                               		/* TODO: update (address|route entry)'s life-time information? */
+					/* TODO: update (address|route entry)'s life-time information? */
 				}
 
 			}
@@ -281,7 +270,8 @@ void ip_autoconf_handle_ra(struct netif *netif, struct pbuf *p, struct ip_hdr *i
 	}
 }
 
-void ip_autoconf_handle_na(struct netif *netif, struct pbuf *p, struct ip_hdr *iphdr, struct icmp_na_hdr *ina) 
+void 
+ip_autoconf_handle_na(struct netif *netif, struct pbuf *p, struct ip_hdr *iphdr, struct icmp_na_hdr *ina) 
 {
 	struct ip_addr_list * ip;
 
@@ -313,7 +303,7 @@ void ip_autoconf_handle_na(struct netif *netif, struct pbuf *p, struct ip_hdr *i
 
 					LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("\tIs TENTATIVE, remove it!\n"));
 
-                                        /* Remove DAD timeout */
+					/* Remove DAD timeout */
 					dad_remove_timer(ip);
 
 					/* This address is duplicated, remove it */
@@ -326,7 +316,7 @@ void ip_autoconf_handle_na(struct netif *netif, struct pbuf *p, struct ip_hdr *i
 					if (ip_addr_islinkscope(&ip->ipaddr)) {
 						netif->autoconf.status = AUTOCONF_FAIL;
 						//netif->flags &= ~NETIF_FLAG_UP;
-						ip_change(netif, NETIF_CHANGE_DOWN);
+						ip_notify(netif, NETIF_CHANGE_DOWN);
 						netif_set_down_low(netif);
 					}
 				}
@@ -353,16 +343,17 @@ void ip_autoconf_handle_na(struct netif *netif, struct pbuf *p, struct ip_hdr *i
 /* Duplicate Address Detection (DAD) functions */
 /*--------------------------------------------------------------------------*/
 
-void dad_timeout(void *arg)
+void 
+dad_timeout(void *arg)
 {
 	struct ip_addr_list *addr = (struct ip_addr_list *) arg;
 	struct netif * netif = addr->netif;
 
 	/* FIX: LOCK netif->addr */
 
-	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: start on ", __func__));                        
-	ip_addr_debug_print(IP_AUTOCONF_DEBUG, &(addr->ipaddr));
-	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("\n"));                        
+	//LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: start on ", __func__));                        
+	//ip_addr_debug_print(IP_AUTOCONF_DEBUG, &(addr->ipaddr));
+	//LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("\n"));                        
 
         /* If address still is TENTATIVE */
 	if (addr->info.flag == IPADDR_TENTATIVE) {
@@ -371,8 +362,9 @@ void dad_timeout(void *arg)
 			LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: still TENTATIVE (probes %d/%d)\n", __func__, addr->info.dad_counter, addr->netif->autoconf.dad_duptrans));  
 			icmp_send_dad(addr, netif);
 			addr->info.dad_counter++;
+
 			/* Set next timeout */
-			sys_timeout(netif->autoconf.dad_retrans_delay, (sys_timeout_handler)dad_timeout, addr);
+			sys_timeout(netif->autoconf.retrans_timer, (sys_timeout_handler)dad_timeout, addr);
 		}
 		else {
 			LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: now PERMANENT\n", __func__));                        
@@ -391,13 +383,15 @@ void dad_timeout(void *arg)
 	/* FIX: UNLOCK netif->addr */
 }
 
-void dad_remove_timer(struct ip_addr_list *addr)
+void 
+dad_remove_timer(struct ip_addr_list *addr)
 {
 	sys_untimeout((sys_timeout_handler)dad_timeout, addr);
 }
 
 /* Start Duplicate Address Detection in the address "addr" */
-void start_dad_on_addr(struct ip_addr_list *addr, struct netif *netif)
+void 
+start_dad_on_addr(struct ip_addr_list *addr, struct netif *netif)
 {
 	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: start on ", __func__));                        
 	ip_addr_debug_print(IP_AUTOCONF_DEBUG, &(addr->ipaddr));
@@ -411,7 +405,7 @@ void start_dad_on_addr(struct ip_addr_list *addr, struct netif *netif)
 
 	/* Set DAD timeout for this entry. */
 	addr->info.dad_counter++;
-	sys_timeout(netif->autoconf.dad_retrans_delay, (sys_timeout_handler)dad_timeout, addr);
+	sys_timeout(netif->autoconf.retrans_timer, (sys_timeout_handler)dad_timeout, addr);
 }
 
 
@@ -423,7 +417,8 @@ void start_dad_on_addr(struct ip_addr_list *addr, struct netif *netif)
 /* 
  * See RFC 2461: 6.3.7.  Sending Router Solicitations 
  */
-void rtr_sol_timeout(void *arg)
+void 
+rtr_sol_timeout(void *arg)
 {
 	struct netif *netif = (struct netif *) arg;
 	struct ip_addr_list unspecified;
@@ -454,8 +449,8 @@ void rtr_sol_timeout(void *arg)
 		icmp_router_solicitation(NULL, srcaddr);
 		netif->autoconf.rtr_sol_counter++;
 
-                /* Set next timeout */
-		sys_timeout( netif->autoconf.rtr_solicitation_interval, (sys_timeout_handler)rtr_sol_timeout, netif);
+		/* Set next timeout */
+		sys_timeout( netif->autoconf.rtr_solicitation_interval * 1000, (sys_timeout_handler)rtr_sol_timeout, netif);
 	}
 	else {
 		LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: no routers on the link.\n", __func__));                        
@@ -464,7 +459,8 @@ void rtr_sol_timeout(void *arg)
 }
 
 /* Start Duplicate Address Detection in the address "addr" */
-void start_router_solicitation(struct netif *netif)
+void 
+start_router_solicitation(struct netif *netif)
 {
 	unsigned int r;
 	u32_t delay;
@@ -472,7 +468,7 @@ void start_router_solicitation(struct netif *netif)
 	/* Before a host sends an initial solicitation, it SHOULD delay the
 	   transmission for a random amount of time between 0 and
 	   MAX_RTR_SOLICITATION_DELAY */
-	delay = ( ((float)rand_r(&r)) / RAND_MAX ) * netif->autoconf.max_rtr_solicitation_delay  ;
+	delay = ( ((float)rand_r(&r)) / RAND_MAX ) * (netif->autoconf.max_rtr_solicitation_delay * 1000) ;
 	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: start initial delay (%d/%d).\n", __func__, (unsigned int) delay, 
 		(int) netif->autoconf.max_rtr_solicitation_delay));
 
@@ -487,7 +483,8 @@ void start_router_solicitation(struct netif *netif)
 
 /* Update lifetime and returns 1 if there is a valid (or tentative) link-scope 
    address in the list */
-INLINE static int addr_update_lifetime(struct ip_addr_list **addrs, u32_t time)
+INLINE static int 
+addr_update_lifetime(struct ip_addr_list **addrs, u32_t time)
 {
 	struct ip_addr_list *cur, *next;
 	struct ip_addr_list *list, *new_list;
@@ -552,7 +549,8 @@ INLINE static int addr_update_lifetime(struct ip_addr_list **addrs, u32_t time)
 	return r;
 }
 
-static struct ip_addr_list * create_link_scope_addr(struct netif *netif)
+static struct ip_addr_list * 
+create_link_scope_addr(struct netif *netif)
 {
 	struct ip_addr_list *add = NULL;
 	
@@ -578,7 +576,8 @@ static struct ip_addr_list * create_link_scope_addr(struct netif *netif)
 }
 
 
-static void remove_autoconf_data(struct netif *netif)
+static void 
+remove_autoconf_data(struct netif *netif)
 {
 	struct ip_addr_list *cur, *next;
 	struct ip_addr_list *list, *new_list;
@@ -605,7 +604,7 @@ static void remove_autoconf_data(struct netif *netif)
 				ip_addr_debug_print(IP_AUTOCONF_DEBUG, &(cur->ipaddr));
 				LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("\n"));                        
 	
-				/* ABORT TCP,UDP,ICMP connections */
+				/* FIX: ABORT TCP,UDP,ICMP connections */
 				//ip_addr_close(&(cur->ipaddr));
 
 				ip_addr_list_free(cur);
@@ -639,7 +638,8 @@ static void remove_autoconf_data(struct netif *netif)
 
 /*--------------------------------------------------------------------------*/
 
-void ip_autoconf_timer(void *arg)
+static void 
+ip_autoconf_timer(void *arg)
 {
 	int have_linkaddr = 0;
 
@@ -659,7 +659,8 @@ void ip_autoconf_timer(void *arg)
 
 }
 
-void ip_autoconf_start(struct netif *netif)
+void 
+ip_autoconf_start(struct netif *netif)
 {
 	struct ip_addr_list *linkadd;
 
@@ -691,7 +692,7 @@ void ip_autoconf_start(struct netif *netif)
 
 			/* Disable interface */
 			//netif->flags &= ~NETIF_FLAG_UP;
-			ip_change(netif, NETIF_CHANGE_DOWN);
+			ip_notify(netif, NETIF_CHANGE_DOWN);
 			netif_set_down_low(netif);
 
 			netif->autoconf.status = AUTOCONF_FAIL;
@@ -702,7 +703,8 @@ void ip_autoconf_start(struct netif *netif)
 	} 
 }
 
-void ip_autoconf_stop(struct netif *netif)
+void 
+ip_autoconf_stop(struct netif *netif)
 {
 	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: start.\n", __func__) );
 
@@ -715,83 +717,5 @@ void ip_autoconf_stop(struct netif *netif)
 	sys_untimeout(ip_autoconf_timer, netif);
 }
 
-/*--------------------------------------------------------------------------*/
-
-
 #endif
-
-
-#if 0
-/* Update interface status and check life-fime of every addresses.
- * Called every second
- */
-void ip_autoconf_tmr(struct netif *netif)
-{
-	struct ip_addr_list *linkadd;
-	int have_linkaddr = 0;
-
-	/*
-	 * FIX: check interface's status UP or DOWN every second, it's too long interval.
-	 */
-
-	/* The interface is down? */
-	if ( (netif->flags & NETIF_FLAG_UP) != NETIF_FLAG_UP) {
-		/* If the interface is down but autoconfiguration was started 
-		   then reset all data */
-		if (netif->autoconf.status != AUTOCONF_INIT) {
-			LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: %c%c%d set down. reset data\n", __func__, netif->name[0],netif->name[1],netif->num));                        
-
-			remove_autoconf_data(netif);
-
-			netif->autoconf.status = AUTOCONF_INIT;
-		}
-		return;
-	}
-
-	/* Update addresses status (and remove invalid addresses) */
-	have_linkaddr =  addr_update_lifetime(&netif->autoconf.addrs_tentative, (AUTOCONF_TMR_INTERVAL/1000));
-
-	/* FIX: LOCK netif->addrs */
-	have_linkaddr |= addr_update_lifetime(&netif->addrs, (AUTOCONF_TMR_INTERVAL/1000));
-	/* FIX: UNLOCK netif->addrs */
-
-	/* If autoconfiguration has not started yet */
-	if (netif->autoconf.status == AUTOCONF_INIT) {
-
-		/* Haven't got Link-scope address? (Neither VALID nor TENTATIVE) */
-		if (have_linkaddr == 0) {
-
-			LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: creating link-scope address.\n", __func__));                        
-
-			linkadd = create_link_scope_addr(netif);
-			if (linkadd != NULL) {
-				/* Add link-scope address as tentative */
-				ip_addr_list_add(&(netif->autoconf.addrs_tentative),linkadd);
-
-				/* Add routing entry for link-scope addresses */
-				ip_route_list_add(&(linkadd->ipaddr),&(linkadd->netmask), NULL, netif, 0);
-
-				/* Start DAD on link-scope address */
-				start_dad_on_addr(linkadd, netif);
-			}
-			else {
-				LWIP_DEBUGF( IP_AUTOCONF_DEBUG, ("%s: unable to create link-scop address. No more memory.\n", __func__) );
-
-				/* Disable interface */
-				//netif->flags &= ~NETIF_FLAG_UP;
-
-				ip_change(netif, NETIF_CHANGE_DOWN);
-				netif_set_down_low(netif);
-
-				netif->autoconf.status = AUTOCONF_FAIL;
-			}
-
-			/* Router solicitation starts concurrently with 
-			   autoconfiguration to save time. */
-			start_router_solicitation(netif);
-		}
-	} 
-}
-#endif
-
 

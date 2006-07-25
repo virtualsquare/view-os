@@ -19,8 +19,7 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */ 
 
-//#ifdef LWIP_NAT
-#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#if LWIP_USERFILTER && LWIP_NAT
 
 #ifndef __NAT_H__
 #define __NAT_H__

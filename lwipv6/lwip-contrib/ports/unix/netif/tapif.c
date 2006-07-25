@@ -71,6 +71,10 @@
 
 #include "netif/etharp.h"
 
+#if LWIP_NL
+#include "lwip/arphdr.h"
+#endif
+
 #ifdef IPv6_AUTO_CONFIGURATION
 #include "lwip/ip_autoconf.h"
 #endif
@@ -89,13 +93,16 @@
 #define DEVTAP "/dev/tap0"
 #endif /* linux */
 
+/*-----------------------------------------------------------------------------------*/
+
 #ifndef TAPIF_DEBUG
 #define TAPIF_DEBUG                     DBG_OFF
 #endif
 
-
 #define IFNAME0 't'
 #define IFNAME1 'p'
+
+/*-----------------------------------------------------------------------------------*/
 
 static const struct eth_addr ethbroadcast = {{0xff,0xff,0xff,0xff,0xff,0xff}};
 
@@ -237,6 +244,7 @@ low_level_output(struct netif *netif, struct pbuf *p)
 	if(write(tapif->fd, buf, p->tot_len) == -1) {
 		perror("tapif: write");
 	}
+
 	return ERR_OK;
 }
 /*-----------------------------------------------------------------------------------*/
@@ -431,6 +439,9 @@ tapif_init(struct netif *netif)
 	/* hardware address length */
 	netif->hwaddr_len = 6;
 	netif->flags|=NETIF_FLAG_BROADCAST;
+#if LWIP_NL
+	netif->type = ARPHRD_ETHER;
+#endif
 	
 	tapif->ethaddr = (struct eth_addr *)&(netif->hwaddr[0]);
 	if (low_level_init(netif) < 0) {
@@ -444,12 +455,4 @@ tapif_init(struct netif *netif)
 
 	return ERR_OK;
 }
-/*-----------------------------------------------------------------------------------*/
 
-		//tv.tv_sec=ARP_TMR_INTERVAL/1000;
-		//tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
-		//if (tv.tv_sec == 0 && tv.tv_usec==0) {
-		//	etharp_tmr(netif);
-		//	tv.tv_sec=ARP_TMR_INTERVAL/1000;
-		//	tv.tv_usec=(ARP_TMR_INTERVAL%1000) * 1000;
-		//}

@@ -19,17 +19,18 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-#ifdef LWIP_USERFILTER
-
+#include "lwip/opt.h"
 #include "lwip/debug.h"
 #include "lwip/sys.h"
 #include "lwip/netif.h"
 
 #include "lwip/userfilter.h"
 
-#ifndef USERFILTER_DEBUG
-#define USERFILTER_DEBUG     DBG_OFF
-#endif
+#if LWIP_USERFILTER
+
+//#ifndef USERFILTER_DEBUG
+//#define USERFILTER_DEBUG     DBG_OFF
+//#endif
 
 /*--------------------------------------------------------------------------*/
 /* Variabiles */

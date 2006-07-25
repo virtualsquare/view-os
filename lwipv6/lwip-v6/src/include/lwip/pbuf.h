@@ -36,8 +36,7 @@
 #include "arch/cc.h"
 
 /* added by Diego Billi */
-//#ifdef LWIP_NAT
-#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#if LWIP_USERFILTER && LWIP_NAT
 #include "lwip/nat/nat.h"
 //struct nat_info;
 #endif
@@ -101,7 +100,7 @@ struct pbuf {
 
 /* added by Diego Billi */
 //#ifdef LWIP_NAT
-#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#if LWIP_USERFILTER && LWIP_NAT
   struct nat_info nat;
 #endif
 

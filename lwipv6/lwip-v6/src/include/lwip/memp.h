@@ -59,8 +59,7 @@ typedef enum {
   MEMP_SYS_TIMEOUT,
 
 /* added by Diego Billi */  
-//#ifdef LWIP_NAT
-#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#if LWIP_USERFILTER && LWIP_NAT
   MEMP_NAT_PCB,
   MEMP_NAT_RULE,
 #endif

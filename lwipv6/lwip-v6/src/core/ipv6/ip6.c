@@ -76,27 +76,33 @@
 
 #include "arch/perf.h"
 
-#ifdef IPv6_AUTO_CONFIGURATION
+
+#if LWIP_DHCP
+#include "lwip/dhcp.h"
+#endif 
+
+
+#if IPv6_AUTO_CONFIGURATION
 #include "lwip/ip_autoconf.h"
 #endif 
 
-#ifdef IPv6_ROUTER_ADVERTISEMENT
+#if IPv6_ROUTER_ADVERTISEMENT
 #include "lwip/ip_radv.h"
 #endif 
 
-#ifdef LWIP_USERFILTER
+#if LWIP_USERFILTER
 #include "lwip/userfilter.h"
 #endif
 
-#ifdef LWIP_NAT
+#if LWIP_NAT
 #include "lwip/nat/nat.h"
 #endif
 
-/*--------------------------------------------------------------------------*/
+//#ifndef IP_DEBUG
+//#define IP_DEBUG DBG_OFF
+//#endif
 
-#ifndef IP_DEBUG
-#define IP_DEBUG DBG_OFF
-#endif
+/*--------------------------------------------------------------------------*/
 
 /* IPv4 ID counter */
 /* FIX: race condition with fragmentation code */
@@ -113,24 +119,24 @@ INLINE static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pb
 void
 ip_init(void)
 {
-#if defined(IPv4_FRAGMENTATION) || defined(IPv6_FRAGMENTATION)
+#if IPv4_FRAGMENTATION || IPv6_FRAGMENTATION
   /* init IP de/fragmentation code  */
   ip_frag_reass_init();
 #endif
 
-#ifdef IPv6_AUTO_CONFIGURATION
+#if IPv6_AUTO_CONFIGURATION
   ip_autoconf_init();
 #endif 
 
-#ifdef IPv6_ROUTER_ADVERTISEMENT
+#if IPv6_ROUTER_ADVERTISEMENT
   ip_radv_init();
 #endif 
 
-#ifdef LWIP_USERFILTER
+#if LWIP_USERFILTER
   /* init UserFilter's internal tables */
   userfilter_init();
 
-#ifdef LWIP_NAT
+#if LWIP_NAT
   nat_init();
 #endif
 
@@ -156,7 +162,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
 
   PERF_START;
 
-#ifdef LWIP_USERFILTER
+#if LWIP_USERFILTER
   if (UF_HOOK(UF_IP_FORWARD, &p, NULL, netif, UF_FREE_BUF) <= 0) {
     return;
   }
@@ -202,7 +208,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
   LWIP_DEBUGF(IP_DEBUG, (" via %c%c%d\n",netif->name[0], netif->name[1], netif->num));
 
 
-#ifdef LWIP_USERFILTER
+#if LWIP_USERFILTER
   /* pbuf_free() is called by Caller */
   if (UF_HOOK(UF_IP_POST_ROUTING, &p, NULL, netif, UF_FREE_BUF) <= 0) {
     return;
@@ -215,7 +221,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
   if (p->tot_len > netif->mtu) {
 
     if (IPH_V(iphdr) == 4) {
-#ifdef IPv4_FRAGMENTATION 
+#if IPv4_FRAGMENTATION 
       ip4hdr = (struct ip4_hdr *) iphdr;
 
       if (IPH4_OFFSET(ip4hdr) & htons(IP_MF)) {
@@ -270,7 +276,7 @@ INLINE static void
 ip_inpacket(struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piphdr) 
 {
 
-#ifdef LWIP_USERFILTER
+#if LWIP_USERFILTER
   if (UF_HOOK(UF_IP_LOCAL_IN, &p, addr->netif, NULL, UF_FREE_BUF) <= 0) {
     return;
   }
@@ -283,7 +289,7 @@ ip_inpacket(struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piph
 	/* See if this is a fragment */
     if ((IPH4_OFFSET(ip4hdr) & htons(IP_OFFMASK | IP_MF)) != 0) 
     {
-#ifdef IPv4_FRAGMENTATION 
+#if IPv4_FRAGMENTATION 
       struct ip_addr src4, dest4;
 
       LWIP_DEBUGF(IP_DEBUG, ("IPv4 packet is a fragment (id=0x%04x tot_len=%u len=%u MF=%u offset=%u), calling ip_reass()\n",ntohs(IPH4_ID(ip4hdr)), p->tot_len, ntohs(IPH4_LEN(ip4hdr)), !!(IPH4_OFFSET(ip4hdr) & htons(IP_MF)), (ntohs(IPH4_OFFSET(ip4hdr)) & IP_OFFMASK)*8));
@@ -329,11 +335,9 @@ ip_inpacket(struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piph
 #endif /* LWIP_RAW */
 
 
-#ifdef LWIP_USERFILTER
-#ifdef LWIP_NAT
+#if LWIP_USERFILTER && LWIP_NAT
   /* Reset NAT+tracking information before sending to the upper layer */
   nat_pbuf_reset(p);
-#endif
 #endif
 
   switch (piphdr->proto + (piphdr->version << 8)) {
@@ -376,7 +380,7 @@ ip_input(struct pbuf *p, struct netif *inp) {
   struct ip4_hdr *ip4hdr;
   struct netif *netif;
   struct ip_addr_list *addrel;
-#ifdef IP_FORWARD
+#if IP_FORWARD
   struct ip_addr *nexthop;
   int fwflags;
 #endif
@@ -403,7 +407,7 @@ ip_input(struct pbuf *p, struct netif *inp) {
     return;
   }
 
-#ifdef IPv4_CHECK_CHECKSUM
+#if IPv4_CHECK_CHECKSUM
   if (IPH_V(iphdr) == 4) {
     /* Only IPv4 has checksum field */
     u16_t sum = inet_chksum(ip4hdr, piphdr.iphdrlen);
@@ -417,7 +421,7 @@ ip_input(struct pbuf *p, struct netif *inp) {
   }
 #endif
 
-#ifdef LWIP_USERFILTER
+#if LWIP_USERFILTER
   if (UF_HOOK(UF_IP_PRE_ROUTING, &p, inp, NULL, UF_FREE_BUF) <= 0) {
     return;
   }
@@ -456,7 +460,7 @@ ip_input(struct pbuf *p, struct netif *inp) {
 
     ip_inpacket(&tmpaddr, p, &piphdr);
   }
-#ifdef IP_FORWARD
+#if IP_FORWARD
   else if (ip_route_findpath(piphdr.dest, &nexthop, &netif, &fwflags) == ERR_OK && netif != inp)
   { 
     /* forwarding */
@@ -491,7 +495,7 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
   struct ip_hdr *iphdr;
   struct ip4_hdr *ip4hdr;
   u8_t version;
-#ifdef LWIP_USERFILTER
+#if LWIP_USERFILTER
   struct pbuf *caller_p;
 #endif
 
@@ -501,7 +505,13 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 
   PERF_START;
 
-  version = ip_addr_is_v4comp(src) ? 4 : 6;
+  if (!ip_addr_isany(src)) {
+  	version = ip_addr_is_v4comp(src) ? 4 : 6;
+  }
+  else {
+  	version = ip_addr_is_v4comp(dest) ? 4 : 6;
+  }
+
 
   /* Get size for the IP header */
   if (pbuf_header(p, version==6?IP_HLEN:IP4_HLEN)) {
@@ -543,7 +553,7 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
     }
   }
 
-#ifdef LWIP_USERFILTER
+#if LWIP_USERFILTER
   /* The Caller of ip_output_if() will call pbuf_free() on buffer pointed by 'p' 
      after return.
      Hooks could call pbuf_free() on 'p' too, so we need to increase reference.
@@ -553,14 +563,14 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
   pbuf_ref(p);
 #endif
 
-#ifdef LWIP_USERFILTER
+#if LWIP_USERFILTER
   /* FIX: LOCAL_OUT after routing decisions? It this the right place */
   if (UF_HOOK(UF_IP_LOCAL_OUT, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
     goto end_ip_output_if;
   }
 #endif
 
-#if IP_DEBUG
+#ifdef IP_DEBUG
   LWIP_DEBUGF(IP_DEBUG, ("\nip_output_if: %c%c (len %u)\n", netif->name[0], netif->name[1], p->tot_len));
   ip_debug_print(IP_DEBUG, p);
 #endif /* IP_DEBUG */
@@ -584,11 +594,11 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
     r = pbuf_clone(PBUF_RAW, p, PBUF_RAM);
     if (r != NULL) {
 
-#ifdef LWIP_USERFILTER
+#if LWIP_USERFILTER
       if (UF_HOOK(UF_IP_POST_ROUTING, &r, NULL, netif, UF_DONTFREE_BUF) <= 0) {
         goto end_ip_output_if;
       }
-#ifdef LWIP_NAT
+#if LWIP_NAT
       /* Reset NAT+tracking information before sending packet back to us */
       nat_pbuf_reset(r);
 #endif
@@ -601,9 +611,9 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
   }
   /* packet for remote host */ 
   else {
-    LWIP_DEBUGF(IP_DEBUG, ("SENDING OUT\n"));
+    LWIP_DEBUGF(IP_DEBUG, ("SENDING OUT %c%c%d\n", netif->name[0],netif->name[1],netif->num));
 	
-#ifdef LWIP_USERFILTER
+#if LWIP_USERFILTER
     if (UF_HOOK(UF_IP_POST_ROUTING, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
       goto end_ip_output_if;
     }
@@ -612,13 +622,13 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
     /* Handle fragmentation */
     if (netif->mtu && (p->tot_len > netif->mtu)) {
       LWIP_DEBUGF(IP_DEBUG, ("ip_output_if: packet need fragmentation (len=%d, mtu=%d)\n",p->tot_len,netif->mtu));
-#ifdef IPv4_FRAGMENTATION 
+#if IPv4_FRAGMENTATION 
       if (version == 4) {
         ret = ip4_frag(p , netif, nexthop);
         goto end_ip_output_if;
       }
 #endif
-#ifdef IPv6_FRAGMENTATION 
+#if IPv6_FRAGMENTATION 
       if (version == 6) {
         ret = ip6_frag(p , netif, nexthop);
         goto end_ip_output_if;
@@ -628,6 +638,7 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
       /* FIX: error code? */
     }
     else {
+      LWIP_DEBUGF(IP_DEBUG, ("ip_output_if: nettif->output()\n"));
       ret = netif->output(netif, p, nexthop);
     }
   }
@@ -635,7 +646,7 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 
 end_ip_output_if:
 
-#ifdef LWIP_USERFILTER
+#if LWIP_USERFILTER
   if (caller_p != p) {
     /* Somewhere, inside a hook, we've changed packet's buffer. In this case
        we have to free it because Caller will call pbuf_free() only on 
@@ -689,17 +700,18 @@ ip_output(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest, u8_t ttl, u
 /* This function inform the IP Layer that interface's properties have been
    changed. */
 void 
-ip_change(struct netif *netif, u32_t type)
+ip_notify(struct netif *netif, u32_t type)
 {
   switch(type) {
 
     case NETIF_CHANGE_UP:
       LWIP_DEBUGF(IP_DEBUG, ("%s: netif %c%c%d now UP!\n", __func__,	
         netif->name[0], netif->name[1], netif->num));
-#ifdef IPv6_AUTO_CONFIGURATION
+
+#if IPv6_AUTO_CONFIGURATION
       ip_autoconf_start(netif);
 #endif
-#ifdef IPv6_ROUTER_ADVERTISEMENT
+#if IPv6_ROUTER_ADVERTISEMENT
       ip_radv_start(netif);
 #endif
       break;
@@ -707,10 +719,10 @@ ip_change(struct netif *netif, u32_t type)
     case NETIF_CHANGE_DOWN:
       LWIP_DEBUGF(IP_DEBUG, ("%s: netif %c%c%d now DOWN!\n", __func__, 
         netif->name[0], netif->name[1], netif->num));
-#ifdef IPv6_ROUTER_ADVERTISEMENT
+#if IPv6_ROUTER_ADVERTISEMENT
       ip_radv_stop(netif);
 #endif
-#ifdef IPv6_AUTO_CONFIGURATION
+#if IPv6_AUTO_CONFIGURATION
       ip_autoconf_stop(netif);
 #endif
       break;
@@ -718,10 +730,11 @@ ip_change(struct netif *netif, u32_t type)
     case NETIF_CHANGE_MTU:
       LWIP_DEBUGF(IP_DEBUG, ("%s: netif %c%c%d changed MTU, now %d!\n", __func__,
         netif->name[0], netif->name[1], netif->num, netif->mtu));
-#ifdef IPv6_ROUTER_ADVERTISEMENT
+#if IPv6_ROUTER_ADVERTISEMENT
         /* todo? */
 #endif
         break;
+
     default:
         LWIP_DEBUGF(IP_DEBUG, ("%s: unknown change *** BUG ***\n", __func__));
         break;
@@ -731,7 +744,7 @@ ip_change(struct netif *netif, u32_t type)
 
 /*--------------------------------------------------------------------------*/
 
-#if IP_DEBUG
+#ifdef IP_DEBUG
 
 INLINE static void 
 ip_debug_print_transport(u8_t proto, void *hdr)
@@ -912,7 +925,7 @@ INLINE static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pb
         break;         
 
       case IP6_NEXTHDR_FRAGMENT: 
-#ifdef IPv6_FRAGMENTATION 
+#if IPv6_FRAGMENTATION 
       {
         struct ip6_fraghdr *fhdr = (struct ip6_fraghdr *) exthdr;
         LWIP_DEBUGF(IP_DEBUG, ("Fragment Header\n"));

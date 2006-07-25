@@ -161,7 +161,7 @@ struct linger {
  * Level number for (get/set)sockopt() to apply to socket itself.
  */
 #define  SOL_SOCKET  0x1    /* options for socket level */
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 #define  SOL_PACKET  263
 #endif
 

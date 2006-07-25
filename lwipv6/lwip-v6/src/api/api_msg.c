@@ -97,7 +97,7 @@ recv_raw(void *arg, struct raw_pcb *pcb, struct pbuf *p,
   }
 }
 #endif
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 static void
 recv_packet(void *arg, struct raw_pcb *pcb, struct pbuf *p,
     struct ip_addr *addr, u16_t protocol)
@@ -420,7 +420,7 @@ do_delconn(struct api_msg_msg *msg)
       break;
 #endif
 //#if LWIP_RAW
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
 		case NETCONN_PACKET_RAW:
 		case NETCONN_PACKET_DGRAM:
       packet_remove(msg->conn->pcb.raw);
@@ -480,7 +480,7 @@ do_bind(struct api_msg_msg *msg)
       raw_recv(msg->conn->pcb.raw, recv_raw, msg->conn);
       break;
 #endif
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
     case NETCONN_PACKET_RAW:
       msg->conn->pcb.raw = packet_new(msg->msg.bc.port,0); /* misusing the port field as protocol */
       raw_recv(msg->conn->pcb.raw, recv_packet, msg->conn);
@@ -521,7 +521,7 @@ do_bind(struct api_msg_msg *msg)
     msg->conn->err = raw_bind(msg->conn->pcb.raw,msg->msg.bc.ipaddr,msg->msg.bc.port);
     break;
 #endif
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
   case NETCONN_PACKET_RAW:
   case NETCONN_PACKET_DGRAM:
     msg->conn->err = packet_bind(msg->conn->pcb.raw,msg->msg.bc.ipaddr,msg->msg.bc.port);
@@ -631,7 +631,7 @@ do_connect(struct api_msg_msg *msg)
     sys_mbox_post(msg->conn->mbox, NULL);
     break;
 #endif
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
   case NETCONN_PACKET_RAW:
   case NETCONN_PACKET_DGRAM:
     packet_connect(msg->conn->pcb.raw,msg->msg.bc.ipaddr,msg->msg.bc.port);
@@ -770,7 +770,7 @@ do_send(struct api_msg_msg *msg)
       raw_send(msg->conn->pcb.raw, msg->msg.p);
       break;
 #endif
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
     case NETCONN_PACKET_RAW:
     case NETCONN_PACKET_DGRAM:
       packet_send(msg->conn->pcb.raw, msg->msg.p);

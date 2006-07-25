@@ -20,7 +20,7 @@
  */ 
 
 //#ifdef LWIP_NAT
-#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#if LWIP_USERFILTER && LWIP_NAT
 
 #ifndef __NAT_RULES_H__
 #define __NAT_RULES_H__

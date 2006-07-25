@@ -47,6 +47,8 @@
  *
  */
 
+#include "lwip/opt.h"
+
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -59,7 +61,6 @@
 
 #include "lwip/debug.h"
 
-#include "lwip/opt.h"
 #include "lwip/def.h"
 #include "lwip/ip.h"
 #include "lwip/mem.h"
@@ -92,12 +93,16 @@
 
 #endif /* linux */
 
+/*-----------------------------------------------------------------------------------*/
+
 #ifndef VDEIF_DEBUG
 #define VDEIF_DEBUG    DBG_OFF
 #endif
 
 #define IFNAME0 'v'
 #define IFNAME1 'd'
+
+/*-----------------------------------------------------------------------------------*/
 
 static const struct eth_addr ethbroadcast = { {0xff, 0xff, 0xff, 0xff, 0xff, 0xff} };
 
@@ -334,6 +339,8 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
 	char *bufptr;
 	struct vdeif *vdeif;
 
+	LWIP_DEBUGF(VDEIF_DEBUG, ("%s: start\n", __func__));
+
 	if (p->tot_len > 1514)
 		return ERR_MEM;
 
@@ -354,6 +361,9 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
 	/* signal that packet should be sent(); */
 	if (sendto(vdeif->fddata, buf, p->tot_len, 0, (struct sockaddr *) &(vdeif->dataout), sizeof(struct sockaddr_un)) == -1) {
 	}
+
+	LWIP_DEBUGF(VDEIF_DEBUG, ("%s: end\n", __func__));
+
 	return ERR_OK;
 }
 
@@ -469,6 +479,8 @@ static void vdeif_thread(void *arg)
 /*-----------------------------------------------------------------------------------*/
 static err_t vdeif_output(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr)
 {
+	LWIP_DEBUGF(VDEIF_DEBUG, ("%s: start\n",__func__));
+
 	/*printf("vdeif_output %x:%x:%x:%x\n",
 	   ipaddr->addr[0],
 	   ipaddr->addr[1],
@@ -478,8 +490,10 @@ static err_t vdeif_output(struct netif *netif, struct pbuf *p, struct ip_addr *i
 		LWIP_DEBUGF(VDEIF_DEBUG, ("vdeif_output: interface DOWN, discarded\n"));
 		return ERR_OK;
 	}
-	else
+	else {
+		LWIP_DEBUGF(VDEIF_DEBUG, ("%s: output.\n",__func__));
 		return etharp_output(netif, ipaddr, p);
+	}
 }
 
 /*-----------------------------------------------------------------------------------*/
@@ -572,7 +586,7 @@ err_t vdeif_init(struct netif * netif)
 	/* hardware address length */
 	netif->hwaddr_len = 6;
 	netif->flags |= NETIF_FLAG_BROADCAST;
-#ifdef LWIP_NL
+#if LWIP_NL
 	netif->type = ARPHRD_ETHER;
 #endif
 

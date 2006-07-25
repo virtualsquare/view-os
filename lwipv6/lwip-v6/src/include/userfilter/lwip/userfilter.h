@@ -19,7 +19,7 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-#ifdef LWIP_USERFILTER
+#if LWIP_USERFILTER
 
 #ifndef __USERFILTER_H__
 #define __USERFILTER_H__
@@ -31,16 +31,16 @@
  *                     .---> Lwipv6 --->.
  *                     |                |
  *                     |                |
- *                     |               [4]
+ *                    [2]              [4]
  *                     |                |
- *                    [2]           [routing]
+ *                     |            [routing]
  *                     |                |
  *                     |                |
- *     +--->[1]--->[routing]--->[3]--->[5]--->+
- *     |                                      |
- *     |                                      |
- *   input                                  output
- *   netif                                  netif
+ *     +--->[1]--->[routing]-->[3]----->+--->[5]--->+
+ *     |                                            |
+ *     |                                            |
+ *   input                                       output
+ *   netif                                       netif
  *
  *  [1] PRE_ROUTING
  *  [2] LOCAL_IN
@@ -180,6 +180,7 @@ int uf_visit_hook(uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct 
 	(hook)==UF_IP_LOCAL_OUT    ? "LOCAL_OUT"    : \
 	(hook)==UF_IP_POST_ROUTING ? "POST_ROUTING" : \
 	"***BUG***" )
+
 #endif
 
 #endif  /* USERFILTER */

@@ -350,7 +350,7 @@ netconn_peer(struct netconn *conn, struct ip_addr *addr,
 {
   switch (conn->type) {
   case NETCONN_RAW:
-#ifdef LWIP_PACKET
+#if LWIP_PACKET
   case NETCONN_PACKET_RAW:
   case NETCONN_PACKET_DGRAM:
 #endif

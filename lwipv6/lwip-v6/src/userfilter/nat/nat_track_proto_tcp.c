@@ -40,8 +40,9 @@
  * version 2.2
  */
 
-//#ifdef LWIP_NAT
-#if defined(LWIP_USERFILTER) && defined (LWIP_NAT)
+#include "lwip/opt.h"
+
+#if LWIP_USERFILTER && LWIP_NAT
 
 #include "lwip/debug.h"
 #include "lwip/memp.h" /* MEMP_NAT_RULE */
@@ -59,8 +60,8 @@
 #include "lwip/nat/nat.h"
 #include "lwip/nat/nat_tables.h"
 
-#ifndef NAT_DEBUG
-#define NAT_DEBUG   DBG_OFF
+#ifndef NAT_TCP_DEBUG
+#define NAT_TCP_DEBUG   DBG_OFF
 #endif
 
 /*--------------------------------------------------------------------------*/
@@ -567,7 +568,7 @@ static void tcp_options(const struct pbuf *skb,
 	if (IPH_V(ip6hdr) == 6)      iplen = IP_HLEN;
 	else if (IPH_V(ip6hdr) == 4) iplen = IPH4_HL(ip4hdr) * 4;
 
-	//LWIP_DEBUGF(NAT_DEBUG, ("%s: length=%d.\n", __func__, length));		
+	//LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: length=%d.\n", __func__, length));		
 	
 	if (!length) {
 		return;
@@ -630,7 +631,7 @@ static void tcp_sack(const struct pbuf *skb,
 	if (IPH_V(ip6hdr) == 6)      iplen = IP_HLEN;
 	else if (IPH_V(ip6hdr) == 4) iplen = IPH4_HL(ip4hdr) * 4;
 
-	//LWIP_DEBUGF(NAT_DEBUG, ("%s: length=%d. %d %d\n", __func__, length, ( TCPH_HDRLEN(tcph)*4), sizeof(struct tcp_hdr)));		
+	//LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: length=%d. %d %d\n", __func__, length, ( TCPH_HDRLEN(tcph)*4), sizeof(struct tcp_hdr)));		
 
 	if (!length) {
 		return;
@@ -772,7 +773,7 @@ static int tcp_in_window(struct ip_ct_tcp *state,
 		 * If there is no ACK, just pretend it was set and OK.
 		 */
 		ack = sack = receiver->td_end;
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: 2e\n", __func__));		
+		LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: 2e\n", __func__));		
 	} else if (((TCPH_FLAGS(tcph) & (TCP_ACK|TCP_RST)) == (TCP_ACK|TCP_RST)) 
 		   && (ack == 0)) {
 		/*
@@ -921,7 +922,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 	index     = get_conntrack_index(th);
 	new_state = tcp_conntracks[dir][index][old_state];
 
-	LWIP_DEBUGF(NAT_DEBUG, ("%s: old=%s  new=%s\n", __func__,
+	LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: old=%s  new=%s\n", __func__,
 		TCP_STRSTATE(old_state),
 		TCP_STRSTATE(new_state)
 	));
@@ -930,7 +931,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 	switch (new_state) {
 	case TCP_CONNTRACK_IGNORE:
 
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: CONNTRACK IGNORE\n", __func__));
+		LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: CONNTRACK IGNORE\n", __func__));
 
 		/* Either SYN in ORIGINAL
 		 * or SYN/ACK in REPLY. */
@@ -988,7 +989,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 			if (conn_remove_timer(pcb))
 				conn_force_timeout(pcb);
 
-			LWIP_DEBUGF(NAT_DEBUG, ("%s: need REPEAT\n", __func__));
+			LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: need REPEAT\n", __func__));
 
 		    	//return -NF_REPEAT;
 			* verdict = UF_REPEAT;
@@ -1002,7 +1003,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 		}
 	case TCP_CONNTRACK_CLOSE:
 
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: CLOSE\n", __func__));
+		LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: CLOSE\n", __func__));
 
 		if (index == TCP_RST_SET
 		    //&& test_bit(IPS_SEEN_REPLY_BIT, &conntrack->status)
@@ -1023,7 +1024,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 
 	if (!tcp_in_window(&pcb->proto.TCP, dir, index, skb, iph, th)) {
 
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: ! in window\n", __func__));
+		LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: ! in window\n", __func__));
 
 		write_unlock_bh(&tcp_lock);
 
@@ -1049,7 +1050,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 	//if (!test_bit(IPS_SEEN_REPLY_BIT, &conntrack->status)) {
 	if (!(TS_SEEN_REPLY & pcb->status)) {
 
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: ! SEEN REPLY \n", __func__));
+		LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: ! SEEN REPLY \n", __func__));
 
 		/* If only reply is a RST, we can consider ourselves not to
 		   have an established connection: this is a fairly common
@@ -1075,7 +1076,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 ///			set_bit(IPS_ASSURED_BIT, &conntrack->status);
 	}
 
-	LWIP_DEBUGF(NAT_DEBUG, ("%s: new timer %d\n", __func__, (unsigned int) timeout));
+	LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: new timer %d\n", __func__, (unsigned int) timeout));
 
 //	ip_ct_refresh_acct(conntrack, ctinfo, skb, timeout);
 	conn_refresh_timer(timeout, pcb);
@@ -1114,7 +1115,7 @@ int track_tcp_new2(struct nat_pcb *pcb, struct pbuf *p, void *iph, int iplen)
 
 	if (new_state == TCP_CONNTRACK_SYN_SENT) {
 
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: SYN SENT\n", __func__));
+		LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: SYN SENT\n", __func__));
 
 		/* SYN packet */
 		//conntrack->proto.tcp.seen[0].td_end = segment_seq_plus_len(ntohl(th->seqno), skb->tot_len, iph, th);
@@ -1137,7 +1138,7 @@ int track_tcp_new2(struct nat_pcb *pcb, struct pbuf *p, void *iph, int iplen)
 		return 0;
 	} else {
 
-		LWIP_DEBUGF(NAT_DEBUG, ("%s: TCP LOOSE\n", __func__));
+		LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: TCP LOOSE\n", __func__));
 
 		/*
 		 * We are in the middle of a connection,
@@ -1167,7 +1168,7 @@ int track_tcp_new2(struct nat_pcb *pcb, struct pbuf *p, void *iph, int iplen)
 	pcb->proto.TCP.state = TCP_CONNTRACK_NONE;
 	pcb->proto.TCP.last_index = TCP_NONE_SET;
 
-	LWIP_DEBUGF(NAT_DEBUG, ("%s: end\n", __func__));
+	LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: end\n", __func__));
 	 
 	return 1;
 }

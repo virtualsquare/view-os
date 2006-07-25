@@ -54,30 +54,43 @@
 #include "lwip/netif.h"
 #include "lwip/stats.h"
 
-
 #include "netif/vdeif.h"
 #include "netif/tunif.h"
 #include "netif/tapif.h"
 #include "netif/loopif.h"
 
-#ifdef IPv6_RADVCONF
+
+#if IPv6_RADVCONF
 #include "lwip/radvconf.h"
 #endif
 
 #define IFF_RUNNING 0x40
 
 
+int lwip_ifup(struct netif *netif)
+{
+	netif_set_up(netif);
+	return 0;
+}
+
+int lwip_ifdown(struct netif *netif)
+{
+	netif_set_down(netif);
+	return 0;
+}
+
+
 struct netif *lwip_vdeif_add(void *arg)
 {
-#ifndef IPv6_AUTO_CONFIGURATION
+#if !IPv6_AUTO_CONFIGURATION
 	struct ip_addr ipaddr, netmask;
 #endif
 	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
 
-	tcpip_netif_add(pnetif, arg, vdeif_init, tcpip_input, tcpip_change);
+	tcpip_netif_add(pnetif, arg, vdeif_init, tcpip_input, tcpip_notify);
 
-#ifndef IPv6_AUTO_CONFIGURATION
+#if !IPv6_AUTO_CONFIGURATION
 	//IP6_ADDR(&ipaddr, 0xfe80,0x0,0x0,0x0,
 	//		(pnetif->hwaddr[0]<<8 |pnetif->hwaddr[1]),
 	//		(pnetif->hwaddr[2]<<8 | 0xff),
@@ -97,15 +110,15 @@ struct netif *lwip_vdeif_add(void *arg)
 
 struct netif *lwip_tapif_add(void *arg)
 {
-#ifndef IPv6_AUTO_CONFIGURATION
+#if !IPv6_AUTO_CONFIGURATION
 	struct ip_addr ipaddr, netmask;
 #endif
 	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
 
-	tcpip_netif_add(pnetif, arg, tapif_init, tcpip_input, tcpip_change);
+	tcpip_netif_add(pnetif, arg, tapif_init, tcpip_input, tcpip_notify);
 
-#ifndef IPv6_AUTO_CONFIGURATION
+#if !IPv6_AUTO_CONFIGURATION
 	//IP6_ADDR(&ipaddr, 0xfe80,0x0,0x0,0x0,
 	//		(pnetif->hwaddr[0]<<8 |pnetif->hwaddr[1]),
 	//		(pnetif->hwaddr[2]<<8 | 0xff),
@@ -125,18 +138,18 @@ struct netif *lwip_tapif_add(void *arg)
 
 struct netif *lwip_tunif_add(void *arg)
 {
-#ifndef IPv6_AUTO_CONFIGURATION
+#if ! IPv6_AUTO_CONFIGURATION
 	struct ip_addr ipaddr, netmask;
 #endif	
 	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
 
-	tcpip_netif_add(pnetif, arg, tunif_init, tcpip_input, tcpip_change);
+	tcpip_netif_add(pnetif, arg, tunif_init, tcpip_input, tcpip_notify);
 
 	/* missing? */
 
 	/* Link-scope address */
-#ifndef IPv6_AUTO_CONFIGURATION
+#if !IPv6_AUTO_CONFIGURATION
 	IP6_ADDR_LINKSCOPE(&ipaddr, pnetif->hwaddr);
 	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
 	netif_add_addr(pnetif, &ipaddr, &netmask);
@@ -150,7 +163,7 @@ static void lwip_loopif_add()
 	static struct netif loopif;
 	struct ip_addr ipaddr, netmask;
 
-	tcpip_netif_add(&loopif,NULL, loopif_init, tcpip_input, tcpip_change);
+	tcpip_netif_add(&loopif,NULL, loopif_init, tcpip_input, tcpip_notify);
 
 	IP6_ADDR(&ipaddr, 0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x1);
 	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff);
@@ -191,21 +204,9 @@ int lwip_del_route(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr
 		return ip_route_list_del(addr,netmask,nexthop,netif,flags);
 }
 
-int lwip_ifup(struct netif *netif)
-{
-	netif_set_up(netif);
-	return 0;
-}
-
-int lwip_ifdown(struct netif *netif)
-{
-	netif_set_down(netif);
-	return 0;
-}
-
 int lwip_radv_load_configfile(void *arg)
 {
-#ifdef IPv6_RADVCONF
+#if IPv6_RADVCONF
 	return radv_load_configfile((char*)arg);
 #endif
 	return -1;
