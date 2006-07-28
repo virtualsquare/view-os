@@ -105,6 +105,11 @@ int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptse
 int lwip_ioctl(int s, long cmd, void *argp);
 
 
+struct iovec;
+int lwip_writev(int s, struct iovec *vector, int count);
+int lwip_readv(int s, struct iovec *vector, int count);
+
+
 int lwip_radv_load_configfile(void *arg);
 
 #else   /* Dynamic Loading */
@@ -144,7 +149,11 @@ lwip_sendto,
 lwip_socket,
 lwip_write,
 lwip_select,
-lwip_ioctl ;
+lwip_ioctl,
+
+lwip_writev,
+lwip_readv
+;
 
 /* Added by Diego Billi */
 lwiplongfun lwip_radv_load_configfile;
@@ -179,6 +188,8 @@ struct lwipname2fun {\
 	{"lwip_write", &lwip_write},\
 	{"lwip_select", &lwip_select},\
 	{"lwip_ioctl", &lwip_ioctl},\
+	{"lwip_readv", &lwip_readv},\
+	{"lwip_writev", &lwip_writev},\
 	{"lwip_vdeif_add", (lwiplongfun *)(&lwip_vdeif_add)},\
 	{"lwip_tapif_add", (lwiplongfun *)(&lwip_tapif_add)},\
 	{"lwip_tunif_add", (lwiplongfun *)(&lwip_tunif_add)}, \

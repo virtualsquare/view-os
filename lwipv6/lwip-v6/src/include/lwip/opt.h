@@ -371,9 +371,17 @@ a lot of data that needs to be copied, this should be set high. */
 
 
 /*----------------------------------------------------------------------*/
-/* API Settings */
+/* TCPIP THREAD (tcpip.c) */
 /*----------------------------------------------------------------------*/
 
+#ifndef TCPIP_THREAD_PRIO
+#define TCPIP_THREAD_PRIO               1
+#endif
+
+
+/*----------------------------------------------------------------------*/
+/* API Settings */
+/*----------------------------------------------------------------------*/
 
 #ifndef LWIP_EVENT_API
 #define LWIP_EVENT_API                  0
@@ -385,11 +393,6 @@ a lot of data that needs to be copied, this should be set high. */
 
 #ifndef LWIP_COMPAT_SOCKETS
 #define LWIP_COMPAT_SOCKETS             0
-#endif
-
-
-#ifndef TCPIP_THREAD_PRIO
-#define TCPIP_THREAD_PRIO               1
 #endif
 
 //#ifndef SLIPIF_THREAD_PRIO

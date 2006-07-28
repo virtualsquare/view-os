@@ -420,6 +420,40 @@ int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptse
                 struct timeval *timeout);
 int lwip_ioctl(int s, long cmd, void *argp);
 
+
+
+
+/*
+ * Taken from sys/uio.h and bits/uio.h
+ */
+
+/* Size of object which can be written atomically.
+   This macro has different values in different kernel versions.  The
+   latest versions of ther kernel use 1024 and this is good choice.  Since
+   the C library implementation of readv/writev is able to emulate the
+   functionality even if the currently running kernel does not support
+   this large value the readv/writev call will not fail because of this.  */
+#define UIO_MAXIOV      1024
+
+#define size_t          u32_t
+
+/* Structure for scatter/gather I/O.  */
+struct iovec {
+	void *iov_base;     /* Pointer to data.  */
+	int iov_len;     /* Length of data.  */
+
+/* FIX: iov_len, and many other parameters should be size_t or socklen_t */
+
+};
+
+int lwip_readv(int s, struct iovec *vector, int count);
+int lwip_writev(int s, struct iovec *vectorc, int count);
+
+
+
+
+
+
 #if LWIP_COMPAT_SOCKETS
 #define accept(a,b,c)         lwip_accept(a,b,c)
 #define bind(a,b,c)           lwip_bind(a,b,c)
@@ -440,6 +474,11 @@ int lwip_ioctl(int s, long cmd, void *argp);
 #define write(a,b,c)          lwip_write(a,b,c)
 #define select(a,b,c,d,e)     lwip_select(a,b,c,d,e)
 #define ioctlsocket(a,b,c)    lwip_ioctl(a,b,c)
+
+#define writev(a,b,c)         lwip_writev(a,b,c)
+#define readv(a,b,c)          lwip_readv(a,b,c)
+
+
 #endif /* LWIP_COMPAT_SOCKETS */
 
 #endif /* __LWIP_SOCKETS_H__ */

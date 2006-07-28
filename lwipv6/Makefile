@@ -9,6 +9,7 @@ includedir = ${prefix}/include
 
 export bindir libdir mandir includedir
 
+
 all:
 	make -C lwip-contrib/ports/unix/proj/lib all
 	make -C lwip-contrib/ports/unix/proj/lib allstatic

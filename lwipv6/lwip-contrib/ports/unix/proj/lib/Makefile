@@ -202,7 +202,7 @@ LWIPFILTERFILES:=$(LWIPFILTERFILES)                \
 #=============================================================================
 
 # LWIPFILES: All the above.
-LWIPFILES=$(COREFILES) $(CORE6FILES) $(APIFILES) $(NETIFFILES) $(ARCHFILES)  $(LWIPFILTERFILES) $(RADVFILES)
+LWIPFILES=$(COREFILES) $(CORE6FILES) $(APIFILES) $(NETIFFILES) $(ARCHFILES) $(LWIPFILTERFILES) $(RADVFILES)
 LWIPFILESW=$(wildcard $(LWIPFILES))
 LWIPOBJS=$(notdir $(LWIPFILESW:.c=.o))
 
@@ -229,7 +229,6 @@ clean:
 	rm -f *.o $(LWIPLIB) *.s .depend* *.core core $(STATICLWIPLIB)
 
 depend dep: .depend
-
 include .depend
 
 $(LWIPLIB): $(LWIPOBJS) unixlib.o

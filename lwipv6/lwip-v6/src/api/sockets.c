@@ -709,18 +709,23 @@ lwip_read(int s, void *mem, int len)
 	return lwip_recvfrom(s, mem, len, 0, NULL, NULL);
 }
 
-	int
+int
 lwip_recv(int s, void *mem, int len, unsigned int flags)
 {
 	return lwip_recvfrom(s, mem, len, flags, NULL, NULL);
 }
 
-	int
+int
 lwip_send(int s, void *data, int size, unsigned int flags)
 {
 	struct lwip_socket *sock;
 	struct netbuf *buf;
 	err_t err;
+
+	/* FIX: handle EWOULDBLOCK in the right way. POSIX write()
+	   blocks on a socket until all input data is written. 
+	   Only with EWOULDBLOCK, input data and written data can be of
+	   different sizes */
 
 	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_send(%d, data=%p, size=%d, flags=0x%x)\n", s, data, size, flags));
 
@@ -959,7 +964,7 @@ lwip_socket(int domain, int type, int protocol)
 	return i;
 }
 
-	int
+int
 lwip_write(int s, void *data, int size)
 {
 	return lwip_send(s, data, size, 0);
@@ -2160,6 +2165,105 @@ int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptse
 
 	return nready+nready_native;
 }
+
+
+
+/* FIX: change implementations. Do not use a private buffer */
+
+int lwip_writev(int s, struct iovec *vector, int count)
+{
+	int totsize=0;
+	int i;
+	int pos;
+	char *temp_buf;
+	int ret;
+
+	/* Check for invalid parameter */
+	if (count < 0 || count > UIO_MAXIOV) {
+		set_errno(EINVAL);
+		return -1;
+	}
+
+	/* FIX: check overflow of  totsize and set EINVAL */
+	for (i=0; i<count; i++)
+		totsize += vector[i].iov_len;
+
+	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_writev(%d, %p, %d), iovec totlen=$d\n", s, vector, count, totsize));
+
+
+	if (totsize == 0)
+		return 0;
+
+	temp_buf = mem_malloc(totsize);
+	if (temp_buf == NULL) {
+		set_errno(ENOMEM);
+		return -1;
+	}
+
+	/* Copy in iovec buffers in the private buffer */
+	i = 0;
+    pos = 0;
+	while (pos < totsize) {
+		memcpy( &temp_buf[pos], vector[i].iov_base, vector[i].iov_len);
+		i++;
+		pos += vector[i].iov_len;
+	}
+
+	ret = lwip_write(s, temp_buf, totsize);
+
+	mem_free(temp_buf);
+
+    return ret;
+}
+
+int lwip_readv(int s, struct iovec *vector, int count)
+{
+	int totsize=0;
+	int i;
+	int pos;
+	char *temp_buf;
+	int ret;
+
+	/* Check for invalid parameter */
+	if (count < 0 || count > UIO_MAXIOV) {
+		set_errno(EINVAL);
+		return -1;
+	}
+
+	/* FIX: check overflow of  totsize and set EINVAL */
+	for (i=0; i<count; i++)
+		totsize += vector[i].iov_len;
+
+	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_readv(%d, %p, %d), iovec totlen=$d\n", s, vector, count, totsize));
+
+	if (totsize == 0)
+		return 0;
+
+
+	temp_buf = mem_malloc(totsize);
+	if (temp_buf == NULL) {
+		set_errno(ENOMEM);
+		return -1;
+	}
+
+	ret = lwip_read(s, temp_buf, totsize);
+	if (ret != -1) {
+		i = 0;
+	    pos = 0;
+		while (pos < ret) {
+			memcpy( vector[i].iov_base, &temp_buf[pos], vector[i].iov_len);
+			i++;
+			pos += vector[i].iov_len;
+		}
+	}
+
+	mem_free(temp_buf);
+
+    return ret;
+}
+
+
+/* FIX: aren't these function  used any more? */
 
 #ifdef FAKE_SYSCALL
 

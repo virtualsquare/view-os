@@ -672,7 +672,7 @@ netconn_write(struct netconn *conn, void *dataptr, u16_t size, u8_t copy)
     }
   }
 
-	if ((msg = memp_malloc(MEMP_API_MSG)) == NULL) {
+  if ((msg = memp_malloc(MEMP_API_MSG)) == NULL) {
     return (conn->err = ERR_MEM);
   }
   msg->type = API_MSG_WRITE;
@@ -685,17 +685,17 @@ netconn_write(struct netconn *conn, void *dataptr, u16_t size, u8_t copy)
     
     if (conn->type == NETCONN_TCP) {
       if (tcp_sndbuf(conn->pcb.tcp) == 0) {
-  sys_sem_wait(conn->sem);
-  if (conn->err != ERR_OK) {
-    goto ret;
-  }
+        sys_sem_wait(conn->sem);
+        if (conn->err != ERR_OK) {
+          goto ret;
+        }
       }
       if (size > tcp_sndbuf(conn->pcb.tcp)) {
-  /* We cannot send more than one send buffer's worth of data at a
-     time. */
-  len = tcp_sndbuf(conn->pcb.tcp);
+         /* We cannot send more than one send buffer's worth of data at a
+            time. */
+         len = tcp_sndbuf(conn->pcb.tcp);
       } else {
-  len = size;
+         len = size;
       }
     } else {
       len = size;
@@ -715,7 +715,8 @@ netconn_write(struct netconn *conn, void *dataptr, u16_t size, u8_t copy)
       goto ret;
     }
   }
- ret:
+  
+ret:
   memp_free(MEMP_API_MSG, msg);
   conn->state = NETCONN_NONE;
   if (conn->sem != SYS_SEM_NULL) {
