@@ -1603,4 +1603,102 @@ int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptse
 }
 
 
+
+/* FIX: change implementations. Do not use a private buffer */
+
+int lwip_writev(int s, struct iovec *vector, int count)
+{
+	int totsize=0;
+	int i;
+	int pos;
+	char *temp_buf;
+	int ret;
+
+	/* Check for invalid parameter */
+	if (count < 0 || count > UIO_MAXIOV) {
+		set_errno(EINVAL);
+		return -1;
+	}
+
+	/* FIX: check overflow of  totsize and set EINVAL */
+	for (i=0; i<count; i++)
+		totsize += vector[i].iov_len;
+
+	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_writev(%d, %p, %d), iovec totlen=$d\n", s, vector, count, totsize));
+
+
+	if (totsize == 0)
+		return 0;
+
+	temp_buf = mem_malloc(totsize);
+	if (temp_buf == NULL) {
+		set_errno(ENOMEM);
+		return -1;
+	}
+
+	/* Copy in iovec buffers in the private buffer */
+	i = 0;
+    pos = 0;
+	while (pos < totsize) {
+		memcpy( &temp_buf[pos], vector[i].iov_base, vector[i].iov_len);
+		i++;
+		pos += vector[i].iov_len;
+	}
+
+	ret = lwip_write(s, temp_buf, totsize);
+
+	mem_free(temp_buf);
+
+    return ret;
+}
+
+int lwip_readv(int s, struct iovec *vector, int count)
+{
+	int totsize=0;
+	int i;
+	int pos;
+	char *temp_buf;
+	int ret;
+
+	/* Check for invalid parameter */
+	if (count < 0 || count > UIO_MAXIOV) {
+		set_errno(EINVAL);
+		return -1;
+	}
+
+	/* FIX: check overflow of  totsize and set EINVAL */
+	for (i=0; i<count; i++)
+		totsize += vector[i].iov_len;
+
+	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_readv(%d, %p, %d), iovec totlen=$d\n", s, vector, count, totsize));
+
+	if (totsize == 0)
+		return 0;
+
+
+	temp_buf = mem_malloc(totsize);
+	if (temp_buf == NULL) {
+		set_errno(ENOMEM);
+		return -1;
+	}
+
+	ret = lwip_read(s, temp_buf, totsize);
+	if (ret != -1) {
+		i = 0;
+	    pos = 0;
+		while (pos < ret) {
+			memcpy( vector[i].iov_base, &temp_buf[pos], vector[i].iov_len);
+			i++;
+			pos += vector[i].iov_len;
+		}
+	}
+
+	mem_free(temp_buf);
+
+    return ret;
+}
+
+
+
+
 #endif
