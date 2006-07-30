@@ -61,6 +61,8 @@
 
 pthread_key_t pcb_key=0; /* key to grab the current thread pcb */
 
+sfun native_syscall=syscall;
+
 int fprint2(const char *fmt, ...) {
 	char *s;
 	int rv;

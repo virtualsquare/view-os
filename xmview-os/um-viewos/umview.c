@@ -80,7 +80,7 @@ static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,lon
 	scarg.oldlenp=NULL;
 	scarg.newval=args;
 	scarg.newlen=n;
-	return syscall(__NR__sysctl,&scarg);
+	return native_syscall(__NR__sysctl,&scarg);
 }
 
 static int do_preload(struct prelist *head)

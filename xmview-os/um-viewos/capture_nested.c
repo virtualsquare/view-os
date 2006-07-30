@@ -50,8 +50,6 @@
 
 static struct pcb_file umview_file;
 
-typedef long int (*sfun)(long int __sysno, ...);
-
 char *nest_abspath(long laddr,struct npcb *npc,struct stat64 *pst,int dontfollowlink)
 {
 	char *path=(char*)laddr;
@@ -247,13 +245,13 @@ static int nested_sockindex(struct npcb *npc, int usc)
 
 static int nested_call_syscall (int sysno, struct npcb *npc)
 {
-	return syscall(sysno, npc->args[0], npc->args[1], npc->args[2],
+	return native_syscall(sysno, npc->args[0], npc->args[1], npc->args[2],
 			      npc->args[3], npc->args[4], npc->args[5]);
 }
 
 static int nested_call_sockcall (int sysno, struct npcb *npc)
 {
-	return syscall(__NR_socketcall,sysno,&(npc->args[2]));
+	return native_syscall(__NR_socketcall,sysno,&(npc->args[2]));
 }
 
 typedef int (*nested_commonwrap_index_function)(struct npcb *pc, int usc);
@@ -446,8 +444,12 @@ void capture_nested_init()
 	umview_file.count=1;
 	umview_file.nolfd=0;
 	umview_file.lfdlist=NULL;
+	
 	if ((_pure_syscall=dlsym(RTLD_DEFAULT,"_pure_syscall")) != NULL) {
-		fprintf(stderr, "pure_libc library found: module nesting allowed\n\n");
+		sfun *_pure_native_syscall;
+		if ((_pure_native_syscall=dlsym(RTLD_DEFAULT,"_pure_native_syscall")) != NULL) 
+			native_syscall=*_pure_native_syscall;
+		fprint2("pure_libc library found: module nesting allowed\n\n");
 		*_pure_syscall=capture_nested_syscall;
 	}
 	if ((_pure_socketcall=dlsym(RTLD_DEFAULT,"_pure_socketcall")) != NULL) {
