@@ -57,6 +57,7 @@
 #include "pure_libc.h"
 
 sfun _pure_syscall=syscall;
+sfun _pure_native_syscall=syscall;
 
 /* DAMNED! the kernel stat are different! so glibc converts the 
  *  * kernel structure. We have to make the reverse conversion! */
@@ -1008,4 +1009,24 @@ int ftime(struct timeb *tp){
 	tp->timezone = timezone;
 	tp->dstflag = daylight;
 	return rv;
+}
+
+long int syscall(long int n,...)
+{
+	long int arg0,arg1,arg2,arg3,arg4,arg5;
+	va_list ap;
+	va_start(ap, n);
+	arg0=va_arg(ap, long int);
+	arg1=va_arg(ap, long int);
+	arg2=va_arg(ap, long int);
+	arg3=va_arg(ap, long int);
+	arg4=va_arg(ap, long int);
+	arg5=va_arg(ap, long int);
+	va_end(ap);
+	if (__builtin_expect(_pure_native_syscall == syscall,0))
+		_pure_native_syscall=dlsym(RTLD_NEXT,"syscall");
+	if (__builtin_expect(_pure_syscall == syscall,0))
+		return _pure_native_syscall(n,arg0,arg1,arg2,arg3,arg4,arg5);
+	else
+		return _pure_syscall(n,arg0,arg1,arg2,arg3,arg4,arg5);
 }

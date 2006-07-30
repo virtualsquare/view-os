@@ -8,7 +8,7 @@ VERSION=0.1
 LIBNAME=pure_libc
 
 $(LIBNAME).$(VERSION).so: $(OBJS)
-	gcc -shared -nostartfiles -o $@ $(OBJS)
+	gcc -shared -nostartfiles -o $@ $(OBJS) -ldl
 
 debug: clean
 	$(MAKE) CFLAGS="$(CFLAGS) -DGDEBUG_ENABLED -DGDEBUG_LEVEL=10"
