@@ -217,7 +217,7 @@ static int _pure_parse_mode(const char *modes) {
 			case 'r':flags=O_RDONLY;break;
 			case 'w':flags=O_WRONLY|O_CREAT|O_TRUNC;break;
 			case 'a':flags=O_WRONLY|O_CREAT|O_APPEND;break;
-			case '+':flags &= (O_WRONLY | O_RDONLY); flags |= O_RDWR;break;
+			case '+':flags &= ~(O_WRONLY | O_RDONLY); flags |= O_RDWR;break;
 		}
 		modes++;
 	}
