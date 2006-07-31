@@ -1126,13 +1126,13 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 		GDEBUG(10, "O_CREAT\n");
 	if(flags & O_TRUNC)
 		GDEBUG(10, "O_TRUNC\n");
-	if(flags &  O_RDONLY)
+	if((flags &  O_ACCMODE) == O_RDONLY)
 		GDEBUG(10, "O_RDONLY:\n");
 	if(flags &  O_APPEND)
 		GDEBUG(10, "O_APPEND\n");
-	if(flags &  O_WRONLY)
+	if((flags & O_ACCMODE) ==  O_WRONLY)
 		GDEBUG(10, "O_WRONLY\n");
-	if(flags &  O_RDWR)
+	if((flags & O_ACCMODE) ==  O_RDWR)
 		GDEBUG(10, "O_RDWR\n");
 	if(flags &  O_ASYNC)
 		GDEBUG(10, "O_ASYNC\n");
@@ -1169,7 +1169,7 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 	exists_err = fc->fuse->fops.getattr(filetab[fi]->path, &buf);
 	filetab[fi]->size = buf.st_size;
 
-	if ((flags & (O_CREAT | O_TRUNC | O_WRONLY | O_RDWR)) && (fc->fuse->flags & MS_RDONLY)) {
+	if ((flags & O_ACCMODE) != O_RDONLY && fc->fuse->flags & MS_RDONLY) {
 		delfiletab(fi);
 		errno = EROFS;
 		return -1;
@@ -1188,8 +1188,8 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 	if ((fc->fuse->flags & FUSE_HUMAN) && (exists_err == 0))
 	{
 		int mask=MAY_READ | MAY_WRITE;
-		if (flags & (O_RDONLY)) mask=MAY_READ;
-		if (flags & (O_WRONLY)) mask=MAY_WRITE;
+		if ((flags & O_ACCMODE) == (O_RDONLY)) mask=MAY_READ;
+		if ((flags & O_ACCMODE) == (O_WRONLY)) mask=MAY_WRITE;
 		rv=check_permission (buf.st_mode,buf.st_uid,buf.st_gid,mask);
 		if (rv<0) {
 				delfiletab(fi);
@@ -1198,7 +1198,7 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 		}
 	}
 
-	if(exists_err == 0 && (flags & O_TRUNC) && (flags & (O_WRONLY | O_RDWR))) {
+	if(exists_err == 0 && (flags & O_TRUNC) && (flags & O_ACCMODE)!= O_RDONLY) {
 		rv=fc->fuse->fops.truncate(filetab[fi]->path, 0);
 		if (rv < 0) {
 			delfiletab(fi);
@@ -1207,7 +1207,7 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 		}
 	}
 #if ( FUSE_MINOR_VERSION >= 5 )
-	if (flags == O_CREAT|O_WRONLY|O_TRUNC && fc->fuse->fops.create != NULL) {
+	if (flags == (O_CREAT|O_WRONLY|O_TRUNC) && fc->fuse->fops.create != NULL) {
 			rv = fc->fuse->fops.create(filetab[fi]->path, mode, &filetab[fi]->ffi);
 	} else
 #endif
@@ -1239,8 +1239,8 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 	if (rv < 0)
 	{
 		if (fc->fuse->flags & FUSE_DEBUG) {
-        		GERROR("OPEN[%d] ERROR => path:%s flags:0x%x\n",
-					fi, path, flags);	
+        		GERROR("OPEN[%d] ERROR => path:%s flags:0x%x Err:%d\n",
+					fi, path, flags, -rv);	
 		}		
 		delfiletab(fi);
 		errno = -rv;
@@ -1309,7 +1309,7 @@ static long umfuse_close(int fd)
 static long umfuse_read(int fd, void *buf, size_t count)
 {
 	int rv;
-	if ( (filetab[fd]==NULL) || ((filetab[fd]->ffi.flags & O_ACCMODE) != O_WRONLY)) {
+	if ( (filetab[fd]==NULL) || ((filetab[fd]->ffi.flags & O_ACCMODE) == O_WRONLY)) {
 		errno=EBADF;
 		return -1;
 	} else if (filetab[fd]->pos == filetab[fd]->size)
@@ -1343,7 +1343,7 @@ static long umfuse_write(int fd, void *buf, size_t count)
 //TODO write page?!
 	int rv;
 
-	if ( (filetab[fd]==NULL) || ((filetab[fd]->ffi.flags & O_ACCMODE) != O_RDONLY)) {
+	if ( (filetab[fd]==NULL) || ((filetab[fd]->ffi.flags & O_ACCMODE) == O_RDONLY)) {
 		errno = EBADF;
 		/*
 		if (fc->fuse->flags & FUSE_DEBUG) {
@@ -1409,8 +1409,8 @@ static int common_stat(struct fuse_context *fc, char *path,  struct stat *buf,in
 	rv = fc->fuse->fops.getattr(
 			(wrapped)?unwrap(fc,path):path,buf);
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		GMESSAGE("stat->GETATTR => path:%s status: %s\n",
-				path, rv ? "Error" : "Success");
+		GMESSAGE("stat->GETATTR => path:%s status: %s Err:%d\n",
+				path, rv ? "Error" : "Success", (rv < 0) ? -rv : 0);
 	}
 	if (rv<0) {
 		errno= -rv;
