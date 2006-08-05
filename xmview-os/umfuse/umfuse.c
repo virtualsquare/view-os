@@ -162,22 +162,24 @@ static void fuse_set_context(struct fuse_context *fc)
 /* it accept a level of debug: higher level = more important messages only */
 
 #ifdef __UMFUSE_DEBUG__
-/*static void printdebug(int level, const char *file, const int line, const char *func, const char *fmt, ...) {*/
-/*    va_list ap;*/
-/*    */
-/*    if (level >= __UMFUSE_DEBUG_LEVEL__) {*/
-/*        va_start(ap, fmt);*/
-/*#ifdef _PTHREAD_H*/
-/*        fprintf(stderr, "[%d:%lu] %s:%d %s(): ", getpid(), pthread_self(), file, line, func);*/
-/*#else*/
-/*        fprintf(stderr, "[%d] %s:%d %s(): ", getpid(), file, line, func);*/
-/*#endif*/
-/*        vfprintf(stderr, fmt, ap);*/
-/*        fprintf(stderr, "\n");*/
-/*        fflush(stderr);*/
-/*        va_end(ap);*/
-/*    }*/
-/*}*/
+#if 0
+static void printdebug(int level, const char *file, const int line, const char *func, const char *fmt, ...) {
+    va_list ap;
+    
+    if (level >= __UMFUSE_DEBUG_LEVEL__) {
+        va_start(ap, fmt);
+#ifdef _PTHREAD_H
+        fprintf(stderr, "[%d:%lu] %s:%d %s(): ", getpid(), pthread_self(), file, line, func);
+#else
+        fprintf(stderr, "[%d] %s:%d %s(): ", getpid(), file, line, func);
+#endif
+        vfprintf(stderr, fmt, ap);
+        fprintf(stderr, "\n");
+        fflush(stderr);
+        va_end(ap);
+    }
+}
+#endif
 #endif
 
 static cutdots(char *path)
