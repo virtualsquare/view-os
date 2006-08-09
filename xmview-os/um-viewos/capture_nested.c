@@ -43,7 +43,7 @@
 #include "canonicalize.h"
 
 #include "gdebug.h"
-/*#define _NESTED_CALL_DEBUG_*/
+//#define _NESTED_CALL_DEBUG_
 #ifdef _NESTED_CALL_DEBUG_
 #include "syscallnames.h"
 #endif
@@ -278,8 +278,9 @@ int nested_commonwrap(int sc_number,struct npcb *npc,
 		rv=sm[index].nestwrap(sc_number,npc,sercode,sc(sercode,index));
 		if (rv<0 && npc->erno > 0)
 			errno=npc->erno;
-	} else
+	} else {
 		rv=do_kernel_call(sc_number,npc);
+	}
 	if (npc->path != NULL)
 		free(npc->path);
 	return rv;
@@ -299,6 +300,7 @@ static void nsaveargs(struct pcb *caller,struct npcb *callee,long int sysno){
 		callee->tst=npc->tst;
 		callee->tst.epoch=npc->nestepoch;
 	}
+	callee->nestepoch=callee->tst.epoch;
 }
 
 static void nrestoreargs(struct pcb *caller,struct npcb *callee){
@@ -317,7 +319,7 @@ static long int capture_nested_socketcall(long int sysno, ...){
 	{
 		static char buf[128];
 		snprintf(buf,128,"SkC=%ld\n",sysno);
-		syscall(__NR_write,2,buf,strlen(buf));
+		native_syscall(__NR_write,2,buf,strlen(buf));
 	}
 #endif
 	callee_pcb.args[0]=sysno;
@@ -361,14 +363,14 @@ static long int capture_nested_syscall(long int sysno, ...)
 #ifdef _NESTED_CALL_DEBUG_
 	{
 		static char buf[256];
-		snprintf(buf,256,"SyC=%ld - %s %p - parametri: %p %p %p %p %p %p\n",sysno,SYSCALLNAME(sysno),get_pcb(),
+		snprintf(buf,256,"SyC=%ld - %s %p %lld %lld- parametri: %p %p %p %p %p %p\n",sysno,SYSCALLNAME(sysno),get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
 					(void*)callee_pcb.args[0],
 					(void*)callee_pcb.args[1],
 					(void*)callee_pcb.args[2],
 					(void*)callee_pcb.args[3],
 					(void*)callee_pcb.args[4],
 					(void*)callee_pcb.args[5]);
-		syscall(__NR_write,2,buf,strlen(buf));
+		native_syscall(__NR_write,2,buf,strlen(buf));
 	}
 #endif
 
@@ -381,7 +383,7 @@ static long int capture_nested_syscall(long int sysno, ...)
 	{
 		static char buf[128];
 		snprintf(buf,128,"Nested: return value:%ld %p\n",rv,get_pcb());
-		syscall(__NR_write,2,buf,strlen(buf));
+		native_syscall(__NR_write,2,buf,strlen(buf));
 	}
 #endif
 	return rv;

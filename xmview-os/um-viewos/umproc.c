@@ -32,6 +32,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <dirent.h>
+#include "treepoch.h"
+#include "sctab.h"
 #include "umproc.h"
 #include "scmap.h"
 #include "defs.h"
@@ -46,6 +48,7 @@ struct lfd_table {
 	service_t service; /*the service code */
 	int sfd; /* the fd as seen from the service */
 	char *path; /* the real path */
+	epoch_t epoch;
 };
 
 struct lfd_vtable {
@@ -209,6 +212,7 @@ int lfd_open (service_t service, int sfd, char *path, int nested)
 	lfd_tab[lfd].ptab->path=(path==NULL)?NULL:strdup(path);
 	lfd_tab[lfd].ptab->service=service;
 	lfd_tab[lfd].ptab->sfd=sfd;
+	lfd_tab[lfd].ptab->epoch=um_getnestepoch();
 	lfd_tab[lfd].ptab->count=1;
 	if (service != UM_NONE && !nested) {
 		char *filename;
@@ -350,9 +354,10 @@ service_t service_fd(struct pcb_file *p, int fd)
 		printf("service fd p=%d %x\n",fd, p->lfdlist[fd]);
 	else
 		printf("service fd p=%d xxx\n",fd); */
-	if (fd >= 0 && fd < p->nolfd && p->lfdlist[fd] >= 0)
+	if (fd >= 0 && fd < p->nolfd && p->lfdlist[fd] >= 0) {
+		um_setepoch(lfd_tab[p->lfdlist[fd]].ptab->epoch);
 		return lfd_tab[p->lfdlist[fd]].ptab->service;
-	else
+	} else
 		return UM_NONE;
 }
 	

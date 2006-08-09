@@ -95,6 +95,18 @@ struct timestamp *um_x_gettst()
 		return NULL;
 }
 
+epoch_t um_getnestepoch()
+{
+	struct pcb *pc=get_pcb();
+	if (pc->flags && PCB_INUSE) {
+		struct pcb_ext *pcdata = (struct pcb_ext *) pc->data;
+		return pcdata->nestepoch;
+	} else {
+		struct npcb *npc=(struct npcb *)pc;
+		return npc->nestepoch;
+	}
+}
+
 epoch_t um_setepoch(epoch_t epoch)
 {
 	struct pcb *pc=get_pcb();

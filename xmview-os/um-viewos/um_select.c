@@ -219,6 +219,7 @@ void select_check_wset(int max,fd_set *wset)
 int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how)
 {
 	if (pcdata != NULL) {
+		epoch_t oldepoch=um_getnestepoch();
 		int sercode=service_fd(pcdata->fds,fd);
 		int sfd;
 		int rfd;
@@ -259,6 +260,7 @@ int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how)
 
 						pcdata->selset=sd;
 						//printf("Suspended %d %d %d\n",pc->pid,fd,sd->a_random_lfd);
+						um_setepoch(oldepoch);
 						return SC_SUSPENDED;
 						//pc->retval=fd;
 						//return SC_SOFTSUSP;
@@ -276,11 +278,13 @@ int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how)
 					for (i=0;i<3;i++) 
 						FD_ZERO(&sd->wrfds[i]); /* unuseful, can be omitted */
 					pcdata->selset=sd;
+					um_setepoch(oldepoch);
 					return SC_SUSPENDED;
 				} else
 					free(sd);
 			}
 		}
+		um_setepoch(oldepoch);
 	}
 	return STD_BEHAVIOR;
 }
@@ -345,6 +349,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 
 		/* find the service (if there is any) which manages this file
 		 * descriptor */
+		epoch_t oldepoch=um_getnestepoch();
 		int sercode=service_fd(pcdata->fds,fd);
 		//printf("loop %d sercode %d\n", fd,sercode);
 		int sfd;
@@ -439,6 +444,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		    if (FD_ISSET(fd,&lfds[i]))
 		    FD_SET(fd,&wfds[i]);
 		    }*/
+		um_setepoch(oldepoch);
 	}
 	//printf("count %d signaled %d\n", count, signaled);
 	
@@ -506,6 +512,7 @@ int wrap_out_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		/* convert the return values of the real world select call
 		 * to the correct values. */
 		for(fd=0,pc->retval=0;fd<n;fd++) {
+			epoch_t oldepoch=um_getnestepoch();
 			int sercode=service_fd(pcdata->fds,fd);
 			int sfd;
 			int rfd;
@@ -565,6 +572,7 @@ int wrap_out_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 					pc->retval++;
 				}
 			}
+			um_setepoch(oldepoch);
 		}
 		for (i=0;i<3;i++) {
 			//putargn(i+1,pc,lfds[i]);
@@ -618,6 +626,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	{
 		int fd=ufds[i].fd;
 		int sfd;
+		epoch_t oldepoch=um_getnestepoch();
 		int sercode=service_fd(pcdata->fds,fd);
 		origevents[i]=0;
 		if (sercode != UM_NONE && (sfd=fd2sfd(pcdata->fds,fd)) >= 0) {
@@ -675,6 +684,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 					ufds[i].events=POLLIN;
 				}
 			}
+			um_setepoch(oldepoch);
 		}
 	}
 	if (count == 0) {
@@ -742,6 +752,7 @@ int wrap_out_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		{
 			int fd=ufds[i].fd;
 			int sfd;
+			epoch_t oldepoch=um_getnestepoch();
 			int sercode=service_fd(pcdata->fds,fd);
 			if (sercode != UM_NONE && (sfd=fd2sfd(pcdata->fds,fd)) >= 0) {
 				sysfun localpoll=service_syscall(sercode,uscno(__NR_poll));
@@ -789,6 +800,7 @@ int wrap_out_poll(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 			} else
 				if (ufds[i].revents != 0)
 					pc->retval++;
+			um_setepoch(oldepoch);
 		}
 		/*int i;
 		  printf("pollfdoutout ");

@@ -88,6 +88,7 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc);
 epoch_t um_setepoch(epoch_t epoch);
 
 struct timestamp *um_x_gettst();
+epoch_t um_getnestepoch();
 
 /* modules callbacks for extra args */
 int um_mod_getpid();
