@@ -382,7 +382,8 @@ static long int capture_nested_syscall(long int sysno, ...)
 #ifdef _NESTED_CALL_DEBUG_
 	{
 		static char buf[128];
-		snprintf(buf,128,"Nested: return value:%ld %p\n",rv,get_pcb());
+		snprintf(buf,128,"-> %ld - %s: return value:%ld %p\n",
+				sysno,SYSCALLNAME(sysno),rv,get_pcb());
 		native_syscall(__NR_write,2,buf,strlen(buf));
 	}
 #endif

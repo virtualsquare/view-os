@@ -1192,7 +1192,7 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 			return -1;
 		}
 
-	if ( !(flags & (O_DIRECTORY)) && (S_ISDIR(buf.st_mode))) {
+	if ((flags & O_ACCMODE) != O_RDONLY && (S_ISDIR(buf.st_mode))) {
 			errno=EISDIR;
 			fuse_set_context(oldfc);
 			return -1;
@@ -1249,7 +1249,7 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 		GDEBUG(10,"open_fuse_filesystem CALL!\n");
 		if ((flags & O_DIRECTORY) && fc->fuse->fops.readdir)
 			rv = fc->fuse->fops.opendir(filetab[fi]->path, &filetab[fi]->ffi);
-		else
+		else 
 			rv = fc->fuse->fops.open(filetab[fi]->path, &filetab[fi]->ffi);
 	}
 
@@ -2084,14 +2084,63 @@ static long umfuse_utimes(char *path, struct timeval tv[2])
 	}
 }
 
-static ssize_t umfuse_pread(int fd, void *buf, size_t count, long long offset)
+static ssize_t umfuse_pread64(int fd, void *buf, size_t count, long long offset)
 {
-	off_t off=offset;
+	int rv;
+	if ( (filetab[fd]==NULL) || ((filetab[fd]->ffi.flags & O_ACCMODE) == O_WRONLY)) {
+		errno=EBADF;
+		return -1;
+	} else if (offset >= filetab[fd]->size)
+		return 0;
+	else {
+		struct fuse_context *fc=filetab[fd]->context;
+		struct fuse_context *oldfc=fuse_gs_context(fc);
+		fc->pid=um_mod_getpid();
+		rv = fc->fuse->fops.read(
+				filetab[fd]->path,
+				buf,
+				count,
+				offset,
+				&filetab[fd]->ffi);
+		if (fc->fuse->flags & FUSE_DEBUG) {
+			GMESSAGE("PREAD[%s:%d] => path:%s count:%u pos:%lld rv:%d\n",
+					fc->fuse->path,fd, filetab[fd]->path, count, offset, rv);
+		}
+		fuse_set_context(oldfc);
+		if (rv<0) {
+			errno= -rv;
+			return -1;
+		} else {
+			return rv;
+		}
+	}
 }
 
-static ssize_t umfuse_pwrite(int fd, const void *buf, size_t count, long long offset)
+static ssize_t umfuse_pwrite64(int fd, const void *buf, size_t count, long long offset)
 {
-	off_t off=offset;
+	int rv;
+
+	if ( (filetab[fd]==NULL) || ((filetab[fd]->ffi.flags & O_ACCMODE) == O_RDONLY)) {
+		errno = EBADF;
+		return -1;
+	} else {
+		struct fuse_context *fc=filetab[fd]->context;
+		struct fuse_context *oldfc=fuse_gs_context(fc);
+		fc->pid=um_mod_getpid();
+		rv = fc->fuse->fops.write(filetab[fd]->path,
+				buf, count, offset, &filetab[fd]->ffi);
+		if (fc->fuse->flags & FUSE_DEBUG) {
+			GMESSAGE("PWRITE[%s:%d] => path:%s count:%u pos:%lld rv:%d\n",
+					fc->fuse->path, fd, filetab[fd]->path, count, offset, rv);
+		}
+		fuse_set_context(oldfc);
+		if (rv<0) {
+			errno= -rv;
+			return -1;
+		} else {
+			return rv;
+		}
+	}
 }
 
 /* TODO management of fcntl */
@@ -2238,8 +2287,8 @@ init (void)
 	SERVICESYSCALL(s, truncate, umfuse_truncate64);
 	SERVICESYSCALL(s, ftruncate, umfuse_ftruncate64);
 #endif
-	//SERVICESYSCALL(s, pread64, umfuse_pread);
-	//SERVICESYSCALL(s, pwrite64, umfuse_pwrite);
+	SERVICESYSCALL(s, pread64, umfuse_pread64);
+	SERVICESYSCALL(s, pwrite64, umfuse_pwrite64);
 	SERVICESYSCALL(s, utime, umfuse_utime);
 	SERVICESYSCALL(s, utimes, umfuse_utimes);
 	add_service(&s);
