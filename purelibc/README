@@ -21,7 +21,7 @@ _pure_syscall is defined by default to be the glibc syscall function, thus
 _pure_libc has no effects (provided there are not bugs ;-) before _pure_syscall gets
 assigned.
 
-WARNING: 'syscall' call gets diverted to the _pure_syscall function, too.
+WARNING: 'syscall' call itself gets diverted to the _pure_syscall function, too.
 The library defines the _pure_native_syscall function to access the
 native syscalls (through the original glibc function).
 

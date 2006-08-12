@@ -7,7 +7,7 @@ INCLUDEDIR=/usr/local/include
 endif
 
 CFLAGS= -fPIC -g -ggdb -D_GNU_SOURCE -I../UMVIEWOS/include
-OBJS=syscalls.o socketcalls.o exec.o dir.o stdio.o
+OBJS=syscalls.o socketcalls.o exec.o dir.o stdio.o __v_scanf.o
 VERSION=0.1
 LIBNAME=pure_libc
 
@@ -26,6 +26,8 @@ exec.o: exec.c
 dir.o: dir.c
 
 stdio.o: stdio.c
+
+__v_scanf.o: __v_scanf.c
 
 install: $(LIBNAME).$(VERSION).so
 	install $(LIBNAME).$(VERSION).so $(LIBDIR)

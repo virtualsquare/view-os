@@ -463,10 +463,14 @@ int printf (const char *format, ...){
 	return rv;
 }
 
-/* XXX Not yet implemented */
 int vfscanf(FILE *stream, const char *format, va_list ap) {
-	write(2,"vfscanf unimplemented\n",22);
-	return 0;
+	struct arg_scanf {
+		void *data;
+		int (*getch)(FILE *);
+		int (*putch)(int,FILE *);
+	} as={stream,  fgetc, ungetc};
+
+	return __v_scanf(as,format,ap);
 }
 
 int vscanf(const char *format, va_list ap){
