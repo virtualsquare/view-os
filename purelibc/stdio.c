@@ -470,7 +470,7 @@ int vfscanf(FILE *stream, const char *format, va_list ap) {
 		int (*putch)(int,FILE *);
 	} as={stream,  fgetc, ungetc};
 
-	return __v_scanf(as,format,ap);
+	return __v_scanf(&as,format,ap);
 }
 
 int vscanf(const char *format, va_list ap){
