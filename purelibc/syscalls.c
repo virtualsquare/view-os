@@ -50,6 +50,7 @@
 #include <fcntl.h>
 #include <dlfcn.h>
 #include <ustat.h>
+#include <string.h>
 #include <time.h>
 #include <grp.h>
 #include <limits.h>
@@ -58,6 +59,21 @@
 
 sfun _pure_syscall=syscall;
 sfun _pure_native_syscall=syscall;
+
+int _pure_debug_printf(const char *format, ...)
+{
+	char *s;
+	int rv;
+	va_list ap;
+	va_start(ap, format);
+
+	rv=vasprintf(&s, format, ap);
+	if (rv>0)
+		_pure_native_syscall(__NR_write,2,s,strlen(s));
+	free(s);
+	va_end(ap);
+	return rv;
+}
 
 /* DAMNED! the kernel stat are different! so glibc converts the 
  *  * kernel structure. We have to make the reverse conversion! */

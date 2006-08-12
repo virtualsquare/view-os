@@ -19,7 +19,8 @@
  * 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */ 
 
-//#define _IO_MTSAFE_IO
+#define _IO_MTSAFE_IO
+//#define DEBUG_LOCK
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -28,17 +29,42 @@
 #include <string.h>
 #include <unistd.h>
 #include <mntent.h>
+#include <pthread.h>
 #ifdef _IO_MTSAFE_IO
 #include <bits/stdio-lock.h>
-#endif
+
+#ifdef DEBUG_LOCK
+/* if (__pthread_mutex_init != ((void *)0)):
+ * init functions are undefined when programs do not load libthreads
+ * thus _IO_flockfile would not work (randomly blocks as it works on
+ * dirty memory). When __pthread_mutex_init is not defined (i.e.
+ * programs compiled without pthreads), do not call flock/funlock */
 
 # define _IO_acquire_lock(_fp) \
-	_IO_cleanup_region_start ((void (*) (void *)) _IO_funlockfile, (_fp));      \
-_IO_flockfile (_fp)
+	_pure_debug_printf("_IO_acquire_lock %p %p %d %d %d %d %d F%x L%d\n",_fp,_fp->_lock,_fp->_lock->mutex.__m_kind,_fp->_lock->mutex.__m_count,_fp->_lock->mutex.__m_owner,_fp->_lock->mutex.__m_lock.__status, _fp->_lock->mutex.__m_lock.__spinlock,_fp->_flags,__LINE__);\
+  _IO_cleanup_region_start ((void (*) (void *)) _IO_funlockfile, (_fp));      \
+  if (__pthread_mutex_init != ((void *)0)) __pthread_mutex_lock(&(_fp->_lock->mutex))
 
 # define _IO_release_lock(_fp) \
-	_IO_funlockfile (_fp);                  \
-_IO_cleanup_region_end (0)
+	_pure_debug_printf("_IO_release_lock %p %p %d %d %d %d %d F%x L%d\n",_fp,_fp->_lock,_fp->_lock->mutex.__m_kind,_fp->_lock->mutex.__m_count,_fp->_lock->mutex.__m_owner,_fp->_lock->mutex.__m_lock.__status, _fp->_lock->mutex.__m_lock.__spinlock,_fp->_flags,__LINE__);\
+  if (__pthread_mutex_init != ((void *)0)) __pthread_mutex_unlock (&(_fp->_lock->mutex)); \
+  _IO_cleanup_region_end (0)
+#else
+# define _IO_acquire_lock(_fp) \
+	_IO_cleanup_region_start ((void (*) (void *)) _IO_funlockfile, (_fp));      \
+  if (__pthread_mutex_init != ((void *)0)) __pthread_mutex_lock(&(_fp->_lock->mutex))
+
+# define _IO_release_lock(_fp) \
+  if (__pthread_mutex_init != ((void *)0)) __pthread_mutex_unlock (&(_fp->_lock->mutex)); \
+  _IO_cleanup_region_end (0)
+#endif
+#else
+# define _IO_acquire_lock(_fp) \
+	_IO_cleanup_region_start ((void (*) (void *)) _IO_funlockfile, (_fp));   
+
+# define _IO_release_lock(_fp) \
+  _IO_cleanup_region_end (0)
+#endif
 
 static FILE *_pure_head = NULL;
 
@@ -228,7 +254,12 @@ static FILE *_pure_assign_file(int fd, int oflags, FILE *new) {
 	new->_fileno=fd;
 	new->_flags=_IO_MAGIC|_IO_IS_FILEBUF;
 	new->_offset=0;
-	//_IO_lock_init(*(((_IO_lock_t *)(new->_lock))));
+#ifdef _IO_MTSAFE_IO
+	if (new->_lock == NULL) {
+		new->_lock=malloc(sizeof(_IO_lock_t));
+		_IO_lock_init(*(((_IO_lock_t *)(new->_lock))));
+	}
+#endif
 	if (oflags & O_RDONLY) new->_flags |= _IO_NO_WRITES;
 	if (oflags & O_WRONLY) new->_flags |= _IO_NO_READS;
 	if (oflags & O_APPEND) new->_flags |= _IO_IS_APPENDING;
@@ -316,16 +347,24 @@ int fclose(FILE *stream){
 		errno=EINVAL;
 		return -1;
 	} else {
-		_IO_acquire_lock(stream);
 		int fd;
 		int tofree;
+		_IO_acquire_lock(stream);
 		_pure_fflush(stream);
 		close(stream->_fileno);
 		if (!(stream->_flags & _IO_USER_BUF)) free (stream->_IO_buf_base);
 		tofree=_pure_del_stream(stream,&_pure_head);
 		_IO_release_lock(stream);
-		//_IO_lock_fini(*(((_IO_lock_t *)(stream->_lock))));
-		if (tofree) free(stream);
+#ifdef _IO_MTSAFE_IO
+		if (stream->_lock != NULL)
+			_IO_lock_fini(*(((_IO_lock_t *)(stream->_lock))));
+#endif
+		if (tofree) {
+#ifdef _IO_MTSAFE_IO
+			free(stream->_lock);
+#endif
+			free(stream);
+		}
 		return 0;
 	}
 }

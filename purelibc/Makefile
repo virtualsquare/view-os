@@ -2,6 +2,10 @@ ifeq ($(LIBDIR),)
 LIBDIR=/usr/local/lib
 endif
 
+ifeq ($(INCLUDEDIR),)
+INCLUDEDIR=/usr/local/include
+endif
+
 CFLAGS= -fPIC -g -ggdb -D_GNU_SOURCE -I../UMVIEWOS/include
 OBJS=syscalls.o socketcalls.o exec.o dir.o stdio.o
 VERSION=0.1
@@ -25,6 +29,7 @@ stdio.o: stdio.c
 
 install: $(LIBNAME).$(VERSION).so
 	install $(LIBNAME).$(VERSION).so $(LIBDIR)
+	install pure_libc.h $(INCLUDEDIR)
 	rm -rf $(LIBDIR)/lib$(LIBNAME).so
 	ln -s $(LIBDIR)/$(LIBNAME).$(VERSION).so $(LIBDIR)/lib$(LIBNAME).so
 
