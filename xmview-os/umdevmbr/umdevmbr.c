@@ -129,6 +129,9 @@ static int hdmbr_init(char type, dev_t device, char *path, unsigned long flags, 
 	else {
 		struct mbr *mbr=mbr_open(fd);
 		if (mbr != NULL) {
+			mode_t mode=umdev_getmode(devhandle);
+			mode = (mode & ~S_IFMT) | S_IFBLK;
+			umdev_setmode(devhandle, mode);
 			umdev_setprivatedata(devhandle,mbr);
 			umdev_setnsubdev(devhandle, IDE_MAXPART);
 			return 0;

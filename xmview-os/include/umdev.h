@@ -72,6 +72,9 @@ void *umdev_getprivatedata(struct umdev *devhandle);
 void umdev_setnsubdev(struct umdev *devhandle, int nsubdev);
 int umdev_getnsubdev(struct umdev *devhandle);
 	
+void umdev_setmode(struct umdev *devhandle, mode_t mode);
+mode_t umdev_getmode(struct umdev *devhandle);
+
 dev_t umdev_getbasedev(struct umdev *devhandle);
 #endif /* _UMDEV_H_ */
 

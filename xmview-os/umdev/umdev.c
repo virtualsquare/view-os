@@ -1178,6 +1178,19 @@ dev_t umdev_getbasedev(struct umdev *devhandle)
 		return devhandle->device;
 }
 
+void umdev_setmode(struct umdev *devhandle, mode_t mode)
+{
+	if(devhandle)
+		devhandle->mode=mode;
+}
+
+mode_t umdev_getmode(struct umdev *devhandle)
+{
+	if(devhandle)
+		return devhandle->mode;
+}
+
+
 static void
 __attribute__ ((constructor))
 init (void)
