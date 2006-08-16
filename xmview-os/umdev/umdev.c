@@ -1215,8 +1215,6 @@ init (void)
 #endif
 	SERVICESYSCALL(s, read, umdev_read);
 	SERVICESYSCALL(s, write, umdev_write);
-	//SERVICESYSCALL(s, readv, readv);
-	//SERVICESYSCALL(s, writev, writev);
 	SERVICESYSCALL(s, close, umdev_close);
 #if 0
 	SERVICESYSCALL(s, stat, umdev_stat);

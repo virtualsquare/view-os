@@ -49,13 +49,13 @@ static epoch_t real_path(int type, void *arg)
 		return 0;
 }
 
-static int addproc(int id, int max)
+static long addproc(int id, int max)
 {
 	GDEBUG(3, "new process id %d  pid %d   max %d",id,um_mod_getpid(),max);
 	return 0;
 }
 
-static int delproc(int id)
+static long delproc(int id)
 {
 	GDEBUG(3, "terminated process id %d  pid %d",id,um_mod_getpid());
 	return 0;
@@ -76,8 +76,6 @@ init (void)
 	SERVICESYSCALL(s, open, (sysfun)open);
 	SERVICESYSCALL(s, read, read);
 	SERVICESYSCALL(s, write, write);
-	SERVICESYSCALL(s, readv, readv);
-	SERVICESYSCALL(s, writev, writev);
 	SERVICESYSCALL(s, close, close);
 	SERVICESYSCALL(s, stat, stat);
 	SERVICESYSCALL(s, lstat, lstat);

@@ -57,6 +57,8 @@ static struct syscall_unifier
 	long mod_sc;  // System call nr. as seen by the module
 } scunify[] = {
 	{__NR_creat,	__NR_open},
+	{__NR_readv,	__NR_read},
+	{__NR_writev,	__NR_write},
 #if ! defined(__x86_64__)
 	{__NR_umount,	__NR_umount2},
 	{__NR_stat,		__NR_stat64},

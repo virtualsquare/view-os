@@ -160,8 +160,6 @@ struct libtab {
 	//{SYS_RECVMSG,	SOCK,	"lwip_recvmsg"},
 	{__NR_read,	SYS,	"lwip_read"},
 	{__NR_write,	SYS,	"lwip_write"},
-	{__NR_readv,	SYS,	"lwip_readv"},
-	{__NR_writev,	SYS,	"lwip_writev"},
 	{__NR_close,	SYS,	"lwip_close"},
 	{__NR_fcntl,	SYS,	"lwip_fcntl"},
 	{__NR_fcntl64,	SYS,	"lwip_fcntl64"},

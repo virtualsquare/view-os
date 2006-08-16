@@ -2244,8 +2244,6 @@ init (void)
 	SERVICESYSCALL(s, open, umfuse_open);
 	SERVICESYSCALL(s, read, umfuse_read);
 	SERVICESYSCALL(s, write, umfuse_write);
-	//SERVICESYSCALL(s, readv, readv);
-	//SERVICESYSCALL(s, writev, writev);
 	SERVICESYSCALL(s, close, umfuse_close);
 #if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have theese
 	SERVICESYSCALL(s, stat64, umfuse_stat64);

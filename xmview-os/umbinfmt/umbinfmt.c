@@ -1162,8 +1162,6 @@ init (void)
 #endif
 	SERVICESYSCALL(s, read, umbinfmt_read);
 	SERVICESYSCALL(s, write, umbinfmt_write);
-	//SERVICESYSCALL(s, readv, readv);
-	//SERVICESYSCALL(s, writev, writev);
 	SERVICESYSCALL(s, close, umbinfmt_close);
 #if 0
 	SERVICESYSCALL(s, stat, umbinfmt_stat);

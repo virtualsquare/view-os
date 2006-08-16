@@ -80,6 +80,7 @@ static long unreal_open(char *pathname, int flags, mode_t mode)
 	return open(unwrap(pathname),flags,mode);
 }
 
+#if 0
 static long unreal_stat(char *pathname, struct stat *buf)
 {
 	return stat(unwrap(pathname),buf);
@@ -89,6 +90,7 @@ static long unreal_lstat(char *pathname, struct stat *buf)
 {
 	return lstat(unwrap(pathname),buf);
 }
+#endif
 
 static long unreal_stat64(char *pathname, struct stat64 *buf)
 {
@@ -189,13 +191,8 @@ init (void)
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 
 	SERVICESYSCALL(s, open, unreal_open);
-#if 0 
-	SERVICESYSCALL(s, creat, unreal_open); /*creat must me mapped onto open*/
-#endif
 	SERVICESYSCALL(s, read, read);
 	SERVICESYSCALL(s, write, write);
-	SERVICESYSCALL(s, readv, readv);
-	SERVICESYSCALL(s, writev, writev);
 	SERVICESYSCALL(s, close, close);
 #if 0
 	SERVICESYSCALL(s, stat, unreal_stat64);

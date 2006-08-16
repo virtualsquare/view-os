@@ -594,14 +594,13 @@ int wrap_in_readv(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		unsigned long count=getargn(2,pc);
 		unsigned long i,totalsize,size;
 		struct iovec *iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
-		struct iovec liovec;
+		char *lbuf;
 		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
 		for (i=0,totalsize=0;i<count;i++)
 			totalsize += iovec[i].iov_len;
-		char *lbuf=(char *)alloca(totalsize);
-		liovec.iov_base=lbuf;
-		liovec.iov_len=totalsize;
-		size=pc->retval = um_syscall(sfd,&liovec,1);
+		lbuf=(char *)alloca(totalsize);
+		/* READV is mapped onto READ */
+		size=pc->retval = um_syscall(sfd,lbuf,totalsize);
 		pc->erno=errno;
 		if (size > 0) {
 			for (i=0;i<count && size>0;i++) {
@@ -627,20 +626,19 @@ int wrap_in_writev(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		unsigned long count=getargn(2,pc);
 		unsigned long i,totalsize;
 		struct iovec *iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
-		struct iovec liovec;
+		char *lbuf, *p;
 		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
 		for (i=0,totalsize=0;i<count;i++)
 			totalsize += iovec[i].iov_len;
-		char *lbuf=(char *)alloca(totalsize);
-		char *p=lbuf;
+		lbuf=(char *)alloca(totalsize);
+		p=lbuf;
 		for (i=0;i<count;i++) {
 			long qty=iovec[i].iov_len;
 			umoven(pc,(long)iovec[i].iov_base,qty,p);
 			p += qty;
 		}
-		liovec.iov_base=lbuf;
-		liovec.iov_len=totalsize;
-		pc->retval = um_syscall(sfd,&liovec,1);
+		/* WRITEV is mapped onto WRITE */
+		pc->retval = um_syscall(sfd,lbuf,totalsize);
 		pc->erno=errno;
 	}
 	return SC_FAKE;

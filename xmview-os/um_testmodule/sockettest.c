@@ -146,8 +146,6 @@ init (void)
 	SERVICESOCKET(s, recvmsg, recvmsg);
 	SERVICESYSCALL(s, read, read);
 	SERVICESYSCALL(s, write, write);
-	SERVICESYSCALL(s, readv, readv);
-	SERVICESYSCALL(s, writev, writev);
 	SERVICESYSCALL(s, close, close);
 	SERVICESYSCALL(s, fcntl, fcntl32);
 #if !defined(__x86_64__)
