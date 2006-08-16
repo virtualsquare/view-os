@@ -70,9 +70,11 @@ struct umdev {
 	mode_t mode;
 	uid_t uid;
 	gid_t gid;
+	int nsubdev;
 	struct umdev_operations *devops;	
 	int inuse;
 	unsigned long flags;
+	void *private_data;
 };
 
 struct fileinfo {
@@ -138,6 +140,25 @@ static void cutdots(char *path)
 	}
 }
 
+static int search_plusnum(const char *path, const char *base, int nsubdev)
+{
+	int len=strlen(base);
+	if (strncmp(path,base,len) == 0) {
+		const char *s=path+len;
+		for (s=path+len; *s!=0 && *s>='0' && *s <='9'; s++)
+			;
+		if (*s==0) {
+			int sub=atoi(path+len);
+			if (sub <= nsubdev)
+				return 1;
+			else return 0;
+		} else
+			return 0;
+	}
+	else
+		return 0;
+}
+
 /* search a device, returns the context i.e. the index of info for mounted file
  * -1 otherwise */
 static struct umdev *searchdevice(char *path)
@@ -154,7 +175,9 @@ static struct umdev *searchdevice(char *path)
 	{
 		epoch_t e;
 		if ((devicetab[i] != NULL)) {
-			if ((strcmp(path,devicetab[i]->path) == 0) &&
+			if (
+				//	(strcmp(path,devicetab[i]->path) == 0) &&
+				  search_plusnum(path,devicetab[i]->path,devicetab[i]->nsubdev) &&
 					((e=tst_matchingepoch(&(devicetab[i]->tst))) > maxepoch)) {
 				maxi=i;
 				maxepoch=e;
@@ -175,7 +198,8 @@ static struct umdev *searchdevice(char *path)
 							((buf.st_mode & S_IFMT) ==  (devicetab[i]->mode & S_IFMT))) &&
 						 (major(devicetab[i]->device) == major(buf.st_rdev)) && /* the same Major num AND */
 						 ((minor(devicetab[i]->device) == -1) ||  /* the same Minor (or any) */
-							(minor(devicetab[i]->device) == minor(buf.st_rdev))))) {
+							(((minor(devicetab[i]->device) <= minor(buf.st_rdev)) &&
+								(minor(devicetab[i]->device)+devicetab[i]->nsubdev >= minor(buf.st_rdev))))))) {
 					/* after all the tests: it's it! */
 					maxi=i;
 					maxepoch=e;
@@ -207,10 +231,13 @@ static int set_dev(dev_t *dev, struct umdev *umdev,char *path)
 	struct stat64 buf;
 	
 	*dev=0;
-	if (stat64(path,&buf) >= 0) {
+	if (stat64(path,&buf) >= 0 && (S_ISCHR(buf.st_mode) || S_ISBLK(buf.st_mode))) {
 		*dev=buf.st_rdev;
 	} else {
-		*dev= umdev->device;
+		if (strlen(path) > strlen(umdev->path)) 
+			*dev=makedev(major(umdev->device),minor(umdev->device)+atoi(path+strlen(umdev->path)));
+		else
+			*dev= umdev->device;
 	}
 	mode= umdev->mode;
 	//fprint2("SET_DEV %s %x %d %d\n",path,mode,major(*dev),minor(*dev));
@@ -347,6 +374,14 @@ static void minorfun(char *s,struct umdev *fc)
 	fc->device=makedev(majx,minx);
 }
 
+static void plusnum(char *s,struct umdev *fc)
+{
+#ifdef DEBUGUMDEVARGS
+	fprint2("PLUSNUM %s\n",s);
+#endif
+	fc->nsubdev=atoi(s);
+}
+
 static void modefun(char *s,struct umdev *fc)
 {
 	int mode;
@@ -427,7 +462,8 @@ static struct devargitem umdevargtab[] = {
 	{"minor=", minorfun},
 	{"mode=", modefun},
 	{"uid=", uidfun},
-	{"gid=", gidfun}
+	{"gid=", gidfun},
+	{"nsubdev=", plusnum}
 };
 #define UMDEVARGTABSIZE sizeof(umdevargtab)/sizeof(struct devargitem)
 
@@ -456,6 +492,7 @@ static long umdev_mount(char *source, char *target, char *filesystemtype,
 		new->mode = S_IFCHR | 0600;
 		new->uid = getuid();
 		new->gid = getgid();
+		new->device = 0;
 		if (s64) {
 			new->device = s64->st_rdev;
 			if (S_ISCHR(s64->st_mode) | S_ISBLK (s64->st_mode))
@@ -463,14 +500,22 @@ static long umdev_mount(char *source, char *target, char *filesystemtype,
 		}
 		new->dlhandle = dlhandle;
 		new->devops = umdev_ops;
+		new->nsubdev = 0;
 		new->inuse = 0;
 		new->flags = 0;
+		new->private_data = NULL;
 
 		if(data)
 			devargs(data, umdevargtab, UMDEVARGTABSIZE, new);
 		adddevicetab(new);
-		if (umdev_ops->init)
-			umdev_ops->init(mode2char(new->mode),new->device,source,mountflags,data?data:"");
+		if (umdev_ops->init) {
+			if (umdev_ops->init(mode2char(new->mode),new->device,source,
+					mountflags,data?data:"", new) < 0) {
+				free(new);
+				errno=EINVAL;
+				return -1;
+			}
+		}
 		return 0;
 	}
 }
@@ -491,7 +536,7 @@ static long umdev_umount2(char *target, int flags)
 		if (fc_norace->flags & UMDEV_DEBUG) 
 			fprint2("UMOUNT => path:%s flag:%d\n",target, flags);
 		if (fc_norace->devops->fini)
-			fc_norace->devops->fini(mode2char(fc_norace->mode),fc_norace->device);
+			fc_norace->devops->fini(mode2char(fc_norace->mode),fc_norace->device,fc);
 		deldevicetab(fc);
 		free(fc_norace->path);
 		dlclose(fc_norace->dlhandle);
@@ -515,8 +560,9 @@ static long umdev_ioctlargs(struct ioctl_len_req *arg)
 		struct dev_info di;
 		di.fh = filetab[fd]->fh;
 		di.flags = 0;
+		di.devhandle=filetab[fd]->umdev;
 		return filetab[fd]->umdev->devops->ioctlparms(
-				filetab[fd]->type, filetab[fd]->device, arg->req);
+				filetab[fd]->type, filetab[fd]->device, arg->req, filetab[fd]->umdev);
 	} else
 		return 0;
 }
@@ -594,6 +640,7 @@ static long umdev_open(char *path, int flags, mode_t mode)
 	//filetab[fi]->size = buf.st_size; /* SIZE OF device? */
 	di.flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
 	di.fh = 0;
+	di.devhandle=fc;
 
 	filetab[fi]->type=set_dev(&filetab[fi]->device,fc,path);
 	filetab[fi]->umdev=fc;
@@ -632,6 +679,7 @@ static long umdev_close(int fd)
 		struct dev_info di;
 		di.fh = filetab[fd]->fh;
 		di.flags = filetab[fd]->umdev->flags;
+		di.devhandle=filetab[fd]->umdev;
 		if (filetab[fd]->umdev->flags & UMDEV_DEBUG) 
 			fprint2("CLOSE[%d %c(%d:%d)] %p\n",fd,
 					filetab[fd]->type, major(filetab[fd]->device), minor(filetab[fd]->device),filetab[fd]);
@@ -645,8 +693,8 @@ static long umdev_close(int fd)
 			else
 				rv=0;
 			if (filetab[fd]->umdev->flags & UMDEV_DEBUG) 
-        			fprint2("RELEASE[%d %c(%d:%d)] => flags:0x%x\n",
-					fd, filetab[fd]->type, major(filetab[fd]->device), minor(filetab[fd]->device), filetab[fd]->umdev->flags);
+        			fprint2("RELEASE[%d %c(%d:%d)] => flags:0x%x rv=%d\n",
+					fd, filetab[fd]->type, major(filetab[fd]->device), minor(filetab[fd]->device), filetab[fd]->umdev->flags,rv);
 			delfiletab(fd);
 		}
 		if (rv<0) {
@@ -669,6 +717,7 @@ static long umdev_read(int fd, void *buf, size_t count)
 		struct dev_info di;
 		di.fh = filetab[fd]->fh;
 		di.flags = 0;
+		di.devhandle=filetab[fd]->umdev;
 		if (filetab[fd]->umdev->devops->read)
 			rv = filetab[fd]->umdev->devops->read(
 					filetab[fd]->type, filetab[fd]->device, 
@@ -699,6 +748,7 @@ static long umdev_write(int fd, void *buf, size_t count)
 		struct dev_info di;
 		di.fh = filetab[fd]->fh;
 		di.flags = 0;
+		di.devhandle=filetab[fd]->umdev;
 		if(filetab[fd]->umdev->devops->write) {
 			rv = filetab[fd]->umdev->devops->write(
 					filetab[fd]->type, filetab[fd]->device,
@@ -745,7 +795,7 @@ static int common_stat64(struct umdev *fc, char type, dev_t device, struct stat6
 	struct dev_info di;
 	memset(buf64, 0, sizeof(struct stat64));
 	if(fc->devops->getattr)
-		rv = fc->devops->getattr(type, device,buf64);
+		rv = fc->devops->getattr(type, device,buf64,fc);
 	else {
 		memset(buf64,0,sizeof(struct stat64));
 		buf64->st_mode=fc->mode;
@@ -787,6 +837,7 @@ static long umdev_fstat64(int fd, struct stat64 *buf64)
 			int rv;
 			di.fh = filetab[fd]->fh;
 			di.flags = 0;
+			di.devhandle=fc;
 			rv=fc->devops->fgetattr(filetab[fd]->type,filetab[fd]->device,buf64,&di);
 			if (fc->flags & UMDEV_DEBUG) 
 				fprint2("stat->FGETATTR %c(%d:%d) => status: %s\n",
@@ -872,7 +923,7 @@ static long umdev_access(char *path, int mode)
 				(mode & X_OK) ? "X_OK": "",
 				(mode & F_OK) ? "F_OK": "");
 	if (fc->devops->access)
-		rv= fc->devops->access(type, device, mode);
+		rv= fc->devops->access(type, device, mode, fc);
 	else
 		rv=0;
 	if (rv < 0) {
@@ -917,7 +968,7 @@ static long umdev_chmod(char *path, int mode)
 	if (umdev->flags & UMDEV_DEBUG) 
         	fprint2("CHMOD => path:%s\n",path);
 	if (umdev->devops->chmod)
-		rv= umdev->devops->chmod(type,device,mode);
+		rv= umdev->devops->chmod(type,device,mode,umdev);
 	else {
 		umdev->mode=(umdev->mode & S_IFMT) | mode;
 		rv=0;
@@ -941,7 +992,7 @@ static long umdev_chown(char *path, uid_t owner, gid_t group)
 	type=set_dev(&device,umdev,path);
 
 	if (umdev->devops->chmod)
-		rv= umdev->devops->chown(type,device,owner,group);
+		rv= umdev->devops->chown(type,device,owner,group,umdev);
 	else {
 		umdev->uid=owner;
 		umdev->gid=group;
@@ -954,7 +1005,6 @@ static long umdev_chown(char *path, uid_t owner, gid_t group)
 		return rv;
 }
 
-//see device.h: it is has not the same meaning of syscall
 static long umdev_fsync(int fd)
 {
 	int rv;
@@ -966,14 +1016,15 @@ static long umdev_fsync(int fd)
 		struct dev_info di;
 		di.fh = filetab[fd]->fh;
 		di.flags = 0;
+		di.devhandle=filetab[fd]->umdev;
 		if (filetab[fd]->umdev->devops->fsync)
 			rv = filetab[fd]->umdev->devops->fsync(
 					filetab[fd]->type, filetab[fd]->device, &di);
 		else
-			rv= -EINVAL;
+			rv= 0;
 		if (filetab[fd]->umdev->flags & UMDEV_DEBUG) 
-			fprint2("FSYNC[%d %c(%d:%d)]\n",
-					fd, filetab[fd]->type, major(filetab[fd]->device), minor(filetab[fd]->device));
+			fprint2("FSYNC[%d %c(%d:%d)] rv=%d\n",
+					fd, filetab[fd]->type, major(filetab[fd]->device), minor(filetab[fd]->device), rv);
 		if (rv<0) {
 			errno= -rv;
 			return -1;
@@ -993,6 +1044,7 @@ static loff_t umdev_x_lseek(int fd, off_t offset, int whence)
 		struct dev_info di;
 		di.fh = filetab[fd]->fh;
 		di.flags = 0;
+		di.devhandle=filetab[fd]->umdev;
 		rv=filetab[fd]->umdev->devops->lseek(
 				filetab[fd]->type, filetab[fd]->device, offset, whence, filetab[fd]->pos, &di);
 		if (filetab[fd]->umdev->flags & UMDEV_DEBUG) 
@@ -1049,6 +1101,7 @@ static long umdev_ioctl(int fd, int req, void *arg)
 			struct dev_info di;
 			di.fh = filetab[fd]->fh;
 			di.flags = 0;
+			di.devhandle=filetab[fd]->umdev;
 			rv = filetab[fd]->umdev->devops->ioctl(
 					filetab[fd]->type, filetab[fd]->device,
 					req, arg, &di);
@@ -1082,6 +1135,7 @@ static long umdev_select_register(void (* cb)(), void *arg, int fd, int how)
 			struct dev_info di;
 			di.fh = filetab[fd]->fh;
 			di.flags = 0;
+			di.devhandle=filetab[fd]->umdev;
 			rv = filetab[fd]->umdev->devops->select_register(
 					          filetab[fd]->type, filetab[fd]->device,
 											cb, arg, how, &di);
@@ -1092,6 +1146,36 @@ static long umdev_select_register(void (* cb)(), void *arg, int fd, int how)
 		} else 
 			return rv;
 	}
+}
+
+void umdev_setprivatedata(struct umdev *devhandle, void *privatedata)
+{
+	if(devhandle)
+		devhandle->private_data=privatedata;
+}
+
+void *umdev_getprivatedata(struct umdev *devhandle)
+{
+	if(devhandle)
+		return devhandle->private_data;
+}
+
+void umdev_setnsubdev(struct umdev *devhandle, int nsubdev)
+{
+	if(devhandle)
+		devhandle->nsubdev=nsubdev;
+}
+
+int umdev_getnsubdev(struct umdev *devhandle)
+{
+	if(devhandle)
+		return devhandle->nsubdev;
+}
+
+dev_t umdev_getbasedev(struct umdev *devhandle)
+{
+	if(devhandle)
+		return devhandle->device;
 }
 
 static void

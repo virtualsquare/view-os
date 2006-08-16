@@ -1,7 +1,7 @@
 DEVELFLAGS=
 #DEVELFLAGS=-D__UMDEV_DEBUG__
 
-CFLAGS=-I../include -fPIC -D_GNU_SOURCE -ggdb -rdynamic $(DEVELFLAGS)
+CFLAGS=-I../include -fPIC -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -ggdb -rdynamic $(DEVELFLAGS)
 
 ALL=umdev.so
 

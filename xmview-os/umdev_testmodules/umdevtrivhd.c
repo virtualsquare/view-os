@@ -64,7 +64,7 @@ static loff_t hd_lseek(char type, dev_t device, loff_t offset, int whence, loff_
 	return rv;
 }
 
-static int hd_init(char type, dev_t device, char *path, unsigned long flags, char *args)
+static int hd_init(char type, dev_t device, char *path, unsigned long flags, char *args,struct umdev *devhandle)
 {
 	hd_size=STD_SIZE;
 	hd_geom.start=0;
@@ -109,7 +109,7 @@ static int hd_ioctl(char type, dev_t device, int req, void * arg, struct dev_inf
 	return 0;
 }
 
-static int hd_ioctl_params(char type, dev_t device, int req)
+static int hd_ioctl_params(char type, dev_t device, int req, struct umdev *devhandle)
 {
 	switch (req) {
 		case BLKROSET: return (sizeof(int) | IOCTL_R);
