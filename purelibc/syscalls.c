@@ -785,12 +785,13 @@ int fstatfs(int fd, struct statfs *buf){
 }
 
 #if __WORDSIZE == 32
+/* LIBC add an extra arg: the buf size */
 int statfs64(const char *path, struct statfs64 *buf){
-	return _pure_syscall(__NR_statfs64,path,buf);
+	return _pure_syscall(__NR_statfs64,path,sizeof(struct statfs64), buf);
 }
 
 int fstatfs64(int fd, struct statfs64 *buf){
-	return _pure_syscall(__NR_fstatfs64,fd,buf);
+	return _pure_syscall(__NR_fstatfs64,fd,sizeof(struct statfs64), buf);
 }
 #endif 
 
