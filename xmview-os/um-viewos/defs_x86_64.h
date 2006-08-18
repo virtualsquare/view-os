@@ -229,6 +229,8 @@
 #define __NR_ftruncate64 __NR_doesnotexist
 #define __NR_send __NR_doesnotexist
 #define __NR_recv __NR_doesnotexist
+#define __NR_statfs64 __NR_doesnotexist
+#define __NR_fstatfs64 __NR_doesnotexist
 
 #define wrap_in_stat wrap_in_stat64
 #define wrap_in_fstat wrap_in_fstat64

@@ -54,6 +54,10 @@
 #include <bits/wordsize.h>
 #include <grp.h>
 #include <pwd.h>
+#include <sys/statfs.h>
+#include <sys/statvfs.h>
+
+#define FUSE_SUPER_MAGIC 0x65735546
 
 /* Enable Experimental code */
 //#define __UMFUSE_EXPERIMENTAL__
@@ -1487,16 +1491,11 @@ static long umfuse_fstat(int fd, struct stat *buf)
 
 static long umfuse_fstat64(int fd, struct stat64 *buf64)
 {
-	if (filetab[fd]==NULL) {
-		errno=EBADF;
-		return -1;
-	} else {
-		int rv;
-		struct stat buf;
-		if ((rv=umfuse_fstat(fd,&buf))>=0)
-			stat2stat64(buf64,&buf);
-		return rv;
-	}
+	int rv;
+	struct stat buf;
+	if ((rv=umfuse_fstat(fd,&buf))>=0)
+		stat2stat64(buf64,&buf);
+	return rv;
 }
 
 static long umfuse_stat(char *path, struct stat *buf)
@@ -2173,20 +2172,20 @@ static long umfuse_lseek(int fd, int offset, int whence)
 				 break;
 			case SEEK_END:
 				 {
-				 struct stat buf;
-				 int rv;
-				 struct fuse_context *fc=filetab[fd]->context;
-				 assert(fc != NULL);
-				 fuse_set_context(fc);
+					 struct stat buf;
+					 int rv;
+					 struct fuse_context *fc=filetab[fd]->context;
+					 assert(fc != NULL);
+					 fuse_set_context(fc);
 
-				 fc->pid=um_mod_getpid();
-				 rv = fc->fuse->fops.getattr(filetab[fd]->path,&buf);
-				 if (rv>=0) {
-				 	filetab[fd]->pos = buf.st_size + offset;
-				 } else {
-					 errno=EBADF;
-					 return -1;
-				 }
+					 fc->pid=um_mod_getpid();
+					 rv = fc->fuse->fops.getattr(filetab[fd]->path,&buf);
+					 if (rv>=0) {
+						 filetab[fd]->pos = buf.st_size + offset;
+					 } else {
+						 errno=EBADF;
+						 return -1;
+					 }
 				 }
 				 break;
 		}
@@ -2218,6 +2217,60 @@ static long umfuse__llseek(unsigned int fd, unsigned long offset_high,  unsigned
 	}
 }
 
+static long umfuse_common_statfs64 (struct fuse_context *fc,const char *file, struct statfs64 *buf)
+{
+	long rv;
+	struct statvfs svfs;
+	memset (&svfs, 0, sizeof(struct statvfs));
+	fc->pid=um_mod_getpid();
+	if (fc->fuse->fops.statfs) {
+		rv=fc->fuse->fops.statfs(file, &svfs);
+		if (rv >= 0) {
+			buf->f_type = FUSE_SUPER_MAGIC;
+			buf->f_bsize = svfs.f_bsize;
+			buf->f_blocks = svfs.f_blocks;
+			buf->f_bfree = svfs.f_bfree;
+			buf->f_bavail = svfs.f_bavail;
+			buf->f_files = svfs.f_files;
+			buf->f_ffree = svfs.f_ffree;
+			buf->f_namelen =svfs.f_namemax;
+			buf->f_frsize =svfs.f_frsize;
+			/* fsid is left zero */
+			return rv;
+		} else {
+			errno = -rv;
+			return -1;
+		} 
+	}
+	else {
+		errno = ENOSYS;
+		return -1;
+	}
+}
+
+static long umfuse_statfs64 (char *file, struct statfs64 *buf)
+{
+	struct fuse_context *fc = searchcontext(file, SUBSTR);
+	struct fuse_context *oldfc=fuse_gs_context(fc);
+	long rv= umfuse_common_statfs64(fc,file,buf);
+	fuse_set_context(oldfc);
+	return 0;
+}
+
+static long umfuse_fstatfs64 (unsigned int fd, struct statfs64 *buf)
+{
+	if (filetab[fd]==NULL) {
+		errno = EBADF;
+		return -1;
+	} else { 
+		struct fuse_context *fc=filetab[fd]->context;
+		struct fuse_context *oldfc=fuse_gs_context(fc);
+		long rv= umfuse_common_statfs64(fc,filetab[fd]->path,buf);
+		fuse_set_context(oldfc);
+		return rv;
+	}
+}
+
 void contextclose(struct fuse_context *fc)
 {
 	umfuse_umount2(fc->fuse->path,MNT_FORCE);
@@ -2245,20 +2298,24 @@ init (void)
 	SERVICESYSCALL(s, read, umfuse_read);
 	SERVICESYSCALL(s, write, umfuse_write);
 	SERVICESYSCALL(s, close, umfuse_close);
-#if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have theese
+#if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have these
 	SERVICESYSCALL(s, stat64, umfuse_stat64);
 	SERVICESYSCALL(s, lstat64, umfuse_lstat64);
 	SERVICESYSCALL(s, fstat64, umfuse_fstat64);
+	SERVICESYSCALL(s, statfs64, umfuse_statfs64);
+	SERVICESYSCALL(s, fstatfs64, umfuse_fstatfs64);
 #else 
 	SERVICESYSCALL(s, stat, umfuse_stat64);
 	SERVICESYSCALL(s, lstat, umfuse_lstat64);
 	SERVICESYSCALL(s, fstat, umfuse_fstat64);
+	SERVICESYSCALL(s, statfs, umfuse_statfs64);
+	SERVICESYSCALL(s, fstatfs, umfuse_fstatfs64);
 #endif
 	SERVICESYSCALL(s, readlink, umfuse_readlink);
 	SERVICESYSCALL(s, getdents64, umfuse_getdents64);
 	SERVICESYSCALL(s, access, umfuse_access);
 	SERVICESYSCALL(s, fcntl, umfuse_fcntl32);
-#if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have theese
+#if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have these
 	SERVICESYSCALL(s, fcntl64, umfuse_fcntl64);
 	SERVICESYSCALL(s, _llseek, umfuse__llseek);
 #endif

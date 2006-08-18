@@ -33,6 +33,7 @@
 #include <sys/uio.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <sys/statfs.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
 #include <linux/net.h>
@@ -383,9 +384,11 @@ int wrap_in_truncate(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		                char sercode, sysfun um_syscall)
 {
 	__off64_t off;
+#if (__NR_truncate64 != __NR_doesnotexist)
 	if (sc_number == __NR_truncate64) 
 		off=LONG_LONG(getargn(1+PALIGN,pc), getargn(2+PALIGN,pc));
 	else
+#endif
 		off=getargn(1,pc);
 	pc->retval=um_syscall(pcdata->path,off);
 	pc->erno=errno;
@@ -397,12 +400,109 @@ int wrap_in_ftruncate(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 {
 	__off64_t off;
 	int sfd=fd2sfd(pcdata->fds,pc->arg0);
+#if (__NR_ftruncate64 != __NR_doesnotexist)
 	if (sc_number == __NR_ftruncate64) 
 		off=LONG_LONG(getargn(1+PALIGN,pc), getargn(2+PALIGN,pc));
 	else
+#endif
 		off=getargn(1,pc);
 	pc->retval = um_syscall(sfd,off);
 	pc->erno=errno;
 	return SC_FAKE;
 }
 
+static void statfs264(struct statfs *fs,struct statfs64 *fs64)
+{
+	fs->f_type = fs64->f_type;
+	fs->f_bsize = fs64->f_bsize;
+	fs->f_blocks = fs64->f_blocks;
+	fs->f_bfree = fs64->f_bfree;
+	fs->f_bavail = fs64->f_bavail;
+	fs->f_files = fs64->f_files;
+	fs->f_ffree = fs64->f_ffree;
+	fs->f_fsid = fs64->f_fsid;
+	fs->f_namelen = fs64->f_namelen;
+	fs->f_frsize = fs64->f_frsize;
+}
+
+int wrap_in_statfs(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+		                    char sercode, sysfun um_syscall)
+{
+	struct statfs64 sfs64;
+	long pbuf=getargn(1,pc);
+
+	pc->retval = um_syscall(pcdata->path,&sfs64);
+	pc->erno=errno;
+	if (pc->retval >= 0) {
+		struct statfs sfs;
+		statfs264(&sfs,&sfs64);
+		ustoren(pc,pbuf,sizeof(struct statfs),(char *)&sfs);
+	}
+	return SC_FAKE;
+}
+
+int wrap_in_fstatfs(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+		                    char sercode, sysfun um_syscall)
+{
+	struct statfs64 sfs64;
+	long pbuf=getargn(1,pc);
+	int sfd=fd2sfd(pcdata->fds,pc->arg0);
+	if (sfd < 0) {
+		pc->retval= -1;
+		pc->erno= EBADF;
+	} else {
+		pc->retval = um_syscall(sfd,&sfs64);
+		pc->erno=errno;
+		if (pc->retval >= 0) {
+			struct statfs sfs;
+			statfs264(&sfs,&sfs64);
+			ustoren(pc,pbuf,sizeof(struct statfs),(char *)&sfs);
+		}
+	}
+	return SC_FAKE;
+}
+
+#if (__NR_statfs64 != __NR_doesnotexist)
+int wrap_in_statfs64(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+		char sercode, sysfun um_syscall)
+{
+	struct statfs64 sfs64;
+	long size=getargn(1,pc);
+	long pbuf=getargn(2,pc);
+
+	if (size != sizeof(sfs64)) {
+		pc->retval= -1;
+		pc->erno= EINVAL;
+	}
+	else {
+		pc->retval = um_syscall(pcdata->path,&sfs64);
+		pc->erno=errno;
+		if (pc->retval >= 0) 
+			ustoren(pc,pbuf,sizeof(struct statfs64),(char *)&sfs64);
+	}
+	return SC_FAKE;
+}
+
+int wrap_in_fstatfs64(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+		char sercode, sysfun um_syscall)
+{
+	struct statfs64 sfs64;
+	long size=getargn(1,pc);
+	long pbuf=getargn(2,pc);
+	int sfd=fd2sfd(pcdata->fds,pc->arg0);
+	
+	if (sfd < 0) {
+		pc->retval= -1;
+		pc->erno= EBADF;
+	} else if (size != sizeof(sfs64)) {
+		pc->retval= -1;
+		pc->erno= EINVAL;
+	} else {
+		pc->retval = um_syscall(sfd,&sfs64);
+		pc->erno=errno;
+		if (pc->retval >=0) 
+			ustoren(pc,pbuf,sizeof(struct statfs64),(char *)&sfs64);
+	}
+	return SC_FAKE;
+}
+#endif

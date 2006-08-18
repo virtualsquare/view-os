@@ -51,6 +51,8 @@ wrapinfun wrap_in_link, wrap_in_symlink, wrap_in_pread, wrap_in_pwrite;
 wrapinfun wrap_in_utime, wrap_in_mount, wrap_in_umount,wrap_in_umount2;
 wrapinfun wrap_in_umask, wrap_in_chroot;
 wrapinfun wrap_in_truncate, wrap_in_ftruncate, wrap_in_execve;
+wrapinfun wrap_in_statfs, wrap_in_fstatfs;
+wrapinfun wrap_in_statfs64, wrap_in_fstatfs64;
 
 wrapoutfun wrap_out_open, wrap_out_std, wrap_out_close, wrap_out_chdir;
 wrapoutfun wrap_out_dup, wrap_out_select, wrap_out_poll, wrap_out_fcntl;
@@ -59,6 +61,7 @@ wrapoutfun wrap_out_execve;
 serfunt nchoice_fd, nchoice_sc, nchoice_mount, nchoice_path, nchoice_link, nchoice_link2, nchoice_socket;
 wrapfun nw_syspath_std,nw_sysfd_std,nw_sockfd_std,nw_sysopen,nw_syslink,nw_syspath2_std, nw_notsupp;
 wrapfun nw_sysdup,nw_sysclose;
+wrapfun nw_sysstatfs64,nw_sysfstatfs64;
 
 wrapinfun wrap_in_socket, wrap_out_socket;
 wrapinfun wrap_in_bind_connect, wrap_in_listen, wrap_in_getsock, wrap_in_send;
@@ -152,8 +155,10 @@ struct sc_map scmap[]={
 	{__NR_symlink,	choice_link2,	wrap_in_symlink, wrap_out_std,	nchoice_link2,	nw_syspath2_std, 0,	2, SOC_FILE},
 	{__NR_rename,	choice_link2,	wrap_in_symlink, wrap_out_std,	nchoice_link2,	nw_syspath2_std, 0,	2, SOC_FILE},
 	{__NR_unlink,	choice_link,	wrap_in_unlink, wrap_out_std,	nchoice_link,	nw_syspath_std, 0,	1, SOC_FILE},
-	{__NR_statfs,	choice_path,	wrap_in_notsupp, wrap_out_std,	always_umnone,	NULL, 0,	2, SOC_FILE},
-	{__NR_fstatfs,	choice_fd,	wrap_in_notsupp, wrap_out_std,	always_umnone,	NULL, 0,	2, SOC_FILE},
+	{__NR_statfs,	choice_path,	wrap_in_statfs, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	2, SOC_FILE},
+	{__NR_fstatfs,	choice_fd,	wrap_in_fstatfs, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	2, SOC_FILE},
+	{__NR_statfs64,	choice_path,	wrap_in_statfs64, wrap_out_std,	nchoice_path,	nw_sysstatfs64, 0,	3, SOC_FILE},
+	{__NR_fstatfs64,choice_fd,	wrap_in_fstat64, wrap_out_std,	nchoice_fd,	nw_sysfstatfs64, 0,	3, SOC_FILE},
 	{__NR_utime,	choice_path,	wrap_in_utime, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	2, SOC_FILE|SOC_TIME},
 	{__NR_utimes,	choice_path,	wrap_in_utime, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	2, SOC_FILE|SOC_TIME},
 	{__NR_fsync,	choice_fd,	wrap_in_fsync, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	1, SOC_FILE},

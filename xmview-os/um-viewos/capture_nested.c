@@ -211,13 +211,26 @@ int nw_sysdup(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 	}
 }
 
+int nw_sysstatfs64(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
+{
+	npc->args[0]=(long) npc->path;
+	npc->args[1]=npc->args[2]; /* there is an extra arg (size) */
+	return do_nested_call(um_syscall,&(npc->args[0]),scmap[uscno(scno)].nargs);
+}
+
+int nw_sysfstatfs64(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
+{
+	int fd=npc->args[0];
+	npc->args[0]=fd2sfd(&umview_file,fd);
+	npc->args[1]=npc->args[2]; /* there is an extra arg (size) */
+	return do_nested_call(um_syscall,&(npc->args[0]),scmap[uscno(scno)].nargs);
+}
+
 int nw_sysfd_std(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
 	int fd=npc->args[0];
 	npc->args[0]=fd2sfd(&umview_file,fd);
-	int rv;
-	rv=do_nested_call(um_syscall,&(npc->args[0]),scmap[uscno(scno)].nargs);
-	return rv;
+	return do_nested_call(um_syscall,&(npc->args[0]),scmap[uscno(scno)].nargs);
 }
 
 int nw_sockfd_std(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)

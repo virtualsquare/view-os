@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/statfs.h>
 #include <string.h>
 #include <utime.h>
 #include <stdio.h>
@@ -80,17 +81,10 @@ static long unreal_open(char *pathname, int flags, mode_t mode)
 	return open(unwrap(pathname),flags,mode);
 }
 
-#if 0
-static long unreal_stat(char *pathname, struct stat *buf)
+static long unreal_statfs64(char *pathname, struct statfs64 *buf)
 {
-	return stat(unwrap(pathname),buf);
+	return statfs64(unwrap(pathname),buf);
 }
-
-static long unreal_lstat(char *pathname, struct stat *buf)
-{
-	return lstat(unwrap(pathname),buf);
-}
-#endif
 
 static long unreal_stat64(char *pathname, struct stat64 *buf)
 {
@@ -239,6 +233,13 @@ init (void)
 	SERVICESYSCALL(s, pwrite64, unreal_pwrite);
 	SERVICESYSCALL(s, utime, unreal_utime);
 	SERVICESYSCALL(s, utimes, unreal_utimes);
+#if !defined(__x86_64__)
+	SERVICESYSCALL(s, statfs64, unreal_statfs64);
+	SERVICESYSCALL(s, fstatfs64, fstatfs64);
+#else
+	SERVICESYSCALL(s, statfs, unreal_statfs64);
+	SERVICESYSCALL(s, fstatfs, fstatfs64);
+#endif
 	add_service(&s);
 	t1=tst_timestamp();
 	t2=tst_timestamp();

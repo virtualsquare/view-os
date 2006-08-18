@@ -67,6 +67,8 @@ static struct syscall_unifier
 	{__NR_getdents,	__NR_getdents64},
 	{__NR_truncate,	__NR_truncate64},
 	{__NR_ftruncate,__NR_ftruncate64},
+	{__NR_statfs,	__NR_statfs64},
+	{__NR_fstatfs,	__NR_fstatfs64},
 #endif 
 };
 
