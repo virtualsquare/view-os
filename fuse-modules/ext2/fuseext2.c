@@ -520,7 +520,6 @@ static int ext2_write(const char *path, const char *buf, size_t size, off_t offs
     e2fs=(ext2_filsys) mycontext->private_data;
 
     if ((len > 2) && (str[0] == '<') && (str[len-1] == '>')) {
-printf("COSI\n");
 		ino = strtoul(str+1, &end, 0);
 		if (*end=='>')
 			return ino;
@@ -1099,11 +1098,30 @@ static int ext2_utime(const char *path, const struct utimbuf *buf)
 	return 0;
 }
 
-static int ext2_statfs(const char *path, struct statfs *buf)
+#if ( FUSE_MINOR_VERSION >= 5 )
+static int ext2_statfs(const char *path, struct statvfs *buf)
 {
-		printf("TODO STATFS\n");
+	int err;
+
+	ext2_filsys e2fs;
+	struct fuse_context *mycontext = fuse_get_context();
+	e2fs = (ext2_filsys) mycontext->private_data;
+
+	buf->f_bsize = e2fs->blocksize;
+	/* it does not take into account real overhead */
+	buf->f_blocks = e2fs->super->s_blocks_count;
+	buf->f_bfree = e2fs->super->s_free_blocks_count;
+	if (e2fs->super->s_free_blocks_count < e2fs->super->s_r_blocks_count)
+		buf->f_bavail = 0;
+	else
+		buf->f_bavail = e2fs->super->s_free_blocks_count - e2fs->super->s_r_blocks_count;
+	buf->f_files=e2fs->super->s_inodes_count;
+	buf->f_ffree=e2fs->super->s_free_inodes_count;
+	buf->f_namemax=EXT2_NAME_LEN;
+
 	return 0;
 }
+#endif
 
 static int ext2_flush(const char *path, struct fuse_file_info *fi)
 {
@@ -1169,6 +1187,9 @@ void *ext2_init(void)
 { 
 	  struct fuse_context *mycontext;
 		mycontext=fuse_get_context();
+#ifdef DEBUG
+		printf("INIT %p\n",mycontext->private_data);
+#endif
 		return mycontext->private_data;
 } 
 #endif
@@ -1195,7 +1216,9 @@ static struct fuse_operations ext2_oper = {
 	.chmod		= ext2_chmod,
 	.chown		= ext2_chown,
 	.utime		= ext2_utime,
-	//.statfs		= ext2_statfs,
+#if ( FUSE_MINOR_VERSION >= 5 )
+	.statfs		= ext2_statfs,
+#endif
 /*
 ok    .getattr	= ext2_getattr,
 ok    .readlink	= ext2_readlink,
@@ -1251,7 +1274,6 @@ static int close_filesystem(ext2_filsys current_fs)
 }
 
 struct fuse *fuse;
-int fuse_fd;
 
 int main(int argc, char *argv[])
 {
@@ -1259,6 +1281,11 @@ int main(int argc, char *argv[])
 	io_channel data_io = 0;
 	struct fuse_context *mycontext;
 	ext2_filsys e2fs;
+#if ( FUSE_MINOR_VERSION <= 5 )
+	int fuse_fd;
+#else
+	struct fuse_chan *fuse_fd;
+#endif
 	//argv[0]=nome file system
 #ifdef DEBUG
 	printf("argc:%d\n",argc);
@@ -1300,9 +1327,9 @@ int main(int argc, char *argv[])
 	//printf("blocksize:%d\n",e2fs->blocksize);
 
 	if(e2fs->flags & EXT2_FLAG_RW)
-		printf("FileSistem Read&Write\n");
+		printf("FileSystem Read&Write\n");
 	else
-		printf("FileSistem ReadOnly\n");
+		printf("FileSystem ReadOnly\n");
 #endif
 
 	if (data_io) {
@@ -1316,20 +1343,27 @@ int main(int argc, char *argv[])
 		}
 	}
 
+#if ( FUSE_MINOR_VERSION <= 4 ) 
 	fuse_fd = fuse_mount(mountpoint, "rw");//vuole il  mountpoint, attenzione rw e' dummy, e' ignorato da umfuse ma non libfuse!!
+#else
+	argc -=2;
+	argv[argc]=0;
+	struct fuse_args args=FUSE_ARGS_INIT(argc, argv);
+	fuse_fd = fuse_mount(mountpoint, &args);
+#endif
 #ifdef DEBUG
-printf("fuse-fd%d\n",fuse_fd);
+printf("fuse-fd %d %d\n",fuse_fd,FUSE_MINOR_VERSION);
 #endif
 #if ( FUSE_MINOR_VERSION <= 5 )
 	fuse = fuse_new(fuse_fd, NULL, &ext2_oper, sizeof(ext2_oper));
 	init_data=e2fs;
 #else
-	fuse = fuse_new(fuse_fd, NULL, &ext2_oper, sizeof(ext2_oper), e2fs);
+	fuse = fuse_new(fuse_fd, &args, &ext2_oper, sizeof(ext2_oper), e2fs);
 #endif
 
 //fuse_main(argc, argv, &ext2_oper);
 #ifdef DEBUG
-	printf("vaiInLoop\n");
+	printf("InLoop\n");
 #endif
 	fuse_loop(fuse);
 	//fuse_loop_mt(fuse);
