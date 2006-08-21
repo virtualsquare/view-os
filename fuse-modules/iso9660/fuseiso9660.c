@@ -3,7 +3,7 @@
  *
  *   fuse/umfuse module for iso9660 filesystem support
  *   
- *   Copyright 2005 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2005,2006 Renzo Davoli University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@
 #include <zlib.h>
 #include <dirent.h>
 #include <errno.h>
-#include <sys/statfs.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <cdio/iso9660.h>
@@ -347,6 +347,30 @@ static mode_t convertmode(mode_t nonxamode,uint16_t xaattr)
 	return rv;
 }
 
+#if ( FUSE_MINOR_VERSION >= 5 )
+static int f_iso9660_statfs(const char *path, struct statvfs *stbuf)
+{
+    int res;
+
+		struct fuse_context *mycontext=fuse_get_context();
+		iso9660_t *isofs=(iso9660_t *) mycontext->private_data;
+		static iso9660_pvd_t pvd;
+
+		/* XXX pvd seems to contain trash in the MS part if its fields */
+		if (iso9660_ifs_read_pvd (isofs, &pvd)) {
+			memset(stbuf, 0, sizeof(struct statvfs));
+			stbuf->f_bsize=pvd.logical_block_size & 0xffff;
+			stbuf->f_frsize=stbuf->f_bsize;
+			stbuf->f_blocks=pvd.volume_space_size & 0xffffffff;
+			/*fprintf(stderr,"STATFS! %p %ld %lx %lld %llx\n",isofs,
+					pvd.logical_block_size, pvd.logical_block_size,
+					pvd.volume_space_size, pvd.volume_space_size);*/
+			return 0;
+		} else 
+			return -EINVAL;
+}
+#endif
+
 static int f_iso9660_getattr(const char *path, struct stat *stbuf)
 {
 	struct fuse_context *mycontext=fuse_get_context();
@@ -361,7 +385,9 @@ static int f_iso9660_getattr(const char *path, struct stat *stbuf)
 		return -ENOENT;
 	else {
 		memset (stbuf,0,sizeof(struct stat));
-		stbuf->st_dev=0;
+		/* XXX workaround
+		 * should be unique and != existing devices */
+		stbuf->st_dev=(dev_t) isofs;
 		switch (isostat->type) {
 			case _STAT_FILE: 
 				stbuf->st_mode=__S_IFREG|0555;break;
@@ -541,18 +567,6 @@ static int f_iso9660_write(const char *path, const char *buf, size_t size,
     return res;
 }
 
-static int f_iso9660_statfs(const char *path, struct statfs *stbuf)
-{
-    int res;
-		printf("STATFS!\n");
-
-    /*res = statfs(path, stbuf);
-    if(res == -1)
-        return -errno;
-				*/
-
-    return 0;
-}
 #endif
 
 static int f_iso9660_release(const char *path, struct fuse_file_info *fi)
@@ -638,7 +652,9 @@ void *f_iso9660_init(void)
 static struct fuse_operations iso9660_oper = {
     .getattr	= f_iso9660_getattr,
     .readlink	= f_iso9660_readlink,
-    //.getdir	= f_iso9660_getdir,
+#if ( FUSE_MINOR_VERSION >= 5 )
+    .statfs	= f_iso9660_statfs,
+#endif
     .readdir	= f_iso9660_readdir,
     .open	= f_iso9660_open,
     .read	= f_iso9660_read,
@@ -678,7 +694,11 @@ ok    .release	= f_iso9660_release,
 
 
 struct fuse *fuse;
+#if ( FUSE_MINOR_VERSION <= 5 )
 int fuse_fd;
+#else
+struct fuse_chan *fuse_fd;
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -707,7 +727,7 @@ int main(int argc, char *argv[])
 		fuse = fuse_new(fuse_fd, NULL, &iso9660_oper, sizeof(iso9660_oper));
 		init_data=isofs;
 #else
-		fuse = fuse_new(fuse_fd, NULL, &iso9660_oper, sizeof(iso9660_oper),isofs);
+		fuse = fuse_new(fuse_fd, &arg, &iso9660_oper, sizeof(iso9660_oper),isofs);
 #endif
 		//printf("MOUNT OKAY!\n");
 
