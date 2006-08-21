@@ -100,6 +100,8 @@ static int ext2_getattr(const char *path, struct stat *stbuf)
 	if(err < 0)
 		return -ENOENT;
 
+	/* XXX workaround
+	 * should be unique and != existing devices */
 	stbuf->st_dev = (dev_t) e2fs;
 	stbuf->st_ino = ino_n;
 	stbuf->st_mode = ino.i_mode;
