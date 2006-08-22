@@ -40,6 +40,7 @@
 #include "sctab.h"
 #include "services.h"
 #include "utils.h"
+#include "gdebug.h"
 
 void *open_dllib(char *name)
 {

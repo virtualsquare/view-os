@@ -37,6 +37,7 @@
 #include "umproc.h"
 #include "scmap.h"
 #include "defs.h"
+#include "gdebug.h"
 
 static char *um_proc_root;
 static char *um_tmpfile;
@@ -185,6 +186,7 @@ void lfd_delproc (struct pcb_file *p)
 int lfd_open (service_t service, int sfd, char *path, int nested)
 {
 	int lfd,fifo;
+	GDEBUG(3, "lfd_open sfd %d, path %s, nested %d", sfd, path, nested);
 	//printf("lfd_open %x sfd %d %s",service,sfd,(path==NULL)?"<null>":path);
 	/* looks for a free local file descriptor */
 	for (lfd=0; lfd<um_maxlfd && lfd_tab[lfd].ptab != NULL ; lfd++)

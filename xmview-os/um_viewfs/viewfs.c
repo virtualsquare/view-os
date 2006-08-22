@@ -439,11 +439,14 @@ static void procinfo_fd_clear(int id, int fd, int pers)
 
 static int addproc(int id, int max)
 {
+	GDEBUG(3, "addproc id %d, max %d, procinfo_size %d", id, max, procinfo_size);
+	
 	// FIXME: is "max" the MAXIMUM value of the umpid or is it the size of
 	// the umpid table? umpids start from 0, so the value depends on this
 	// difference. Please specify it or rename the variable.
 	if (max > procinfo_size)
 	{
+		GDEBUG(3, "procinfo realloc to max (%d) * size of procinfo struct", max);
 		procinfo = realloc(procinfo, max * sizeof(struct procinfo_s *));
 		procinfo_size = max;
 	}
@@ -460,6 +463,7 @@ static int addproc(int id, int max)
 
 static int delproc(int id)
 {
+	GDEBUG(3, "delproc %d", id);
 	FD_ZERO(&procinfo[id].cur);
 	FD_ZERO(&procinfo[id].def);
 	FD_ZERO(&procinfo[id].gd64);
@@ -2085,6 +2089,8 @@ init (void)
 {
 	GDEBUG(2, "viewfs init");
 	
+	prepare();
+	
 	s.name="viewfs Virtual FS";
 	s.code = VIEWFS_SERVICE_CODE;
 	s.checkfun=viewfscheck;
@@ -2138,7 +2144,6 @@ init (void)
 	add_service(&s);
 	t = tst_timestamp();
 	
-	prepare();
 	GDEBUG(2, "viewfs ready and waiting");
 }
 

@@ -116,6 +116,7 @@ int wrap_out_open(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) {
 		putrv(pc->retval,pc);
 		puterrno(pc->erno,pc);
 	}
+	GDEBUG(3, "end of wrap_out: retval %d errno %d", pc->retval, pc->erno);
 	return STD_BEHAVIOR;
 }
 

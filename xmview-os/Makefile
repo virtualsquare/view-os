@@ -22,7 +22,7 @@ all:
 	$(MAKE) -C um_lib  $(RELEASE_FLAGS)
 	$(MAKE) -C um_cmd  $(RELEASE_FLAGS)
 	$(MAKE) -C um_testmodule  $(RELEASE_FLAGS)
-#	$(MAKE) -C um_viewfs  $(RELEASE_FLAGS)
+	$(MAKE) -C um_viewfs  $(RELEASE_FLAGS)
 	$(MAKE) -C umfuse $(RELEASE_FLAGS)
 	$(MAKE) -C umdev $(RELEASE_FLAGS)
 	$(MAKE) -C umdev_testmodules $(RELEASE_FLAGS)

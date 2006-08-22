@@ -2196,8 +2196,8 @@ static long umfuse_lseek(int fd, int offset, int whence)
 
 static long umfuse__llseek(unsigned int fd, unsigned long offset_high,  unsigned  long offset_low, loff_t *result, unsigned int whence)
 {
-	GDEBUG(10,"umfuse__llseek [%s] %d %d %d %d\n",
-			fc->fuse->path,fd,offset_high,offset_low,whence);
+	//GDEBUG(10,"umfuse__llseek [%s] %d %d %d %d\n",
+	//		fc->fuse->path,fd,offset_high,offset_low,whence);
 	if (result == NULL) {
 		errno = EFAULT;
 		return -1;
