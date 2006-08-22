@@ -79,10 +79,10 @@ struct service {
 	void *dlhandle;
 
 	/*addproc is called when a new process is created
-	 * (int id, int max)
-	 * max is the current max number of processes: service implementation can use it
+	 * (int id, int numprocs)
+	 * numprocs is the current max number of processes: service implementation can use it
 	 * to realloc their internal structures. ID is an internal id, *not*
-	 * the pid! id is in the range 0,...,max-1 it is never reassigned during
+	 * the pid! id is in the range 0,...,numprocs-1 it is never reassigned during
 	 * the life of a process, can be used as an index for internal data*/
 	sysfun addproc;
 
