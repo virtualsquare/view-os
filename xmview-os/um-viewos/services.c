@@ -252,31 +252,31 @@ void invisible_services()
 	invisible=1;
 }
 
-void service_addproc(service_t code,int id,int max, void *arg)
+void service_addproc(service_t code,int umpid, int pumpid,int max)
 {
 	int pos;
 	if (code == UM_NONE) {
 		for (pos=0;pos<noserv;pos++)
 			if (services[pos]->addproc)
-				services[pos]->addproc(id,max,arg);
+				services[pos]->addproc(umpid,pumpid,max);
 	} else {
 		int pos=servmap[code]-1;
 		if (services[pos]->addproc)
-				services[pos]->addproc(id,max,arg);
+				services[pos]->addproc(umpid,pumpid,max);
 	}
 }
 
-void service_delproc(service_t code,int id, void *arg)
+void service_delproc(service_t code,int id)
 {
 	int pos;
 	if (code == UM_NONE) {
 		for (pos=0;pos<noserv;pos++)
 			if (services[pos]->delproc)
-				services[pos]->delproc(id,arg);
+				services[pos]->delproc(id);
 	} else {
 		int pos=servmap[code]-1;
 		if (services[pos]->delproc)
-				services[pos]->delproc(id,arg);
+				services[pos]->delproc(id);
 	}
 }
 

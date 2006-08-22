@@ -436,7 +436,7 @@ int dsys_um_sysctl(int sc_number,int inout,struct pcb *pc)
 
 static void _reg_service(struct pcb *pc,service_t *pcode)
 {
-	service_addproc(*pcode,pc->umpid,pcbtablesize(),pc);
+	service_addproc(*pcode,pc->umpid,(pc->pp)?pc->pp->umpid:-1,pcbtablesize());
 }
 
 static int reg_service(service_t code)
@@ -447,7 +447,7 @@ static int reg_service(service_t code)
 
 static void _dereg_service(struct pcb *pc,service_t *pcode)
 {
-	service_delproc(*pcode,pc->umpid,pc);
+	service_delproc(*pcode,pc->umpid);
 }
 
 static int dereg_service(service_t code)
@@ -459,13 +459,13 @@ static int dereg_service(service_t code)
 /* UM actions for a new process entering the game*/
 static void um_proc_add(struct pcb *pc)
 {
-	service_addproc(UM_NONE,pc->umpid,pcbtablesize(),pc);
+	service_addproc(UM_NONE,pc->umpid,(pc->pp)?pc->pp->umpid:-1,pcbtablesize());
 }
 
 /* UM actions for a terminated process */
 static void um_proc_del(struct pcb *pc)
 {
-	service_delproc(UM_NONE,pc->umpid,pc);
+	service_delproc(UM_NONE,pc->umpid);
 }
 
 static mode_t local_getumask(void) {

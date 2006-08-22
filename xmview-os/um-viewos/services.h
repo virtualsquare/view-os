@@ -65,7 +65,8 @@ struct service {
 	void *dlhandle;
 
 	/*addproc is called when a new process is created
-	 * (int id, int max)
+	 * (int umpid, int pumpid, int numproc)
+	 * umpid is the um_pid pf the process, pumpid is the parent id
 	 * max is the current max number of processes: service implementation can use it
 	 * to realloc their internal structures*/
 	sysfun addproc;
@@ -117,8 +118,8 @@ int list_services(service_t *buf,int len);
 int name_service(service_t code,char *buf,int len);
 void lock_services();
 void invisible_services();
-void service_addproc(service_t code,int id,int max, void *arg);
-void service_delproc(service_t code,int id, void *arg);
+void service_addproc(service_t code,int umpid, int pumpid, int max);
+void service_delproc(service_t code,int umpid);
 service_t service_check(int type,void *arg,int setepoch);
 sysfun service_syscall(service_t code, int scno);
 sysfun service_socketcall(service_t code, int scno);

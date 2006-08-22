@@ -79,11 +79,12 @@ struct service {
 	void *dlhandle;
 
 	/*addproc is called when a new process is created
-	 * (int id, int numprocs)
+	 * (int umpid, int pumpid, int numprocs)
 	 * numprocs is the current max number of processes: service implementation can use it
-	 * to realloc their internal structures. ID is an internal id, *not*
+	 * to realloc their internal structures. UMPID is an internal id, *not*
 	 * the pid! id is in the range 0,...,numprocs-1 it is never reassigned during
-	 * the life of a process, can be used as an index for internal data*/
+	 * the life of a process, can be used as an index for internal data
+	 * pumpid is the similar id for the parent process, -1 if it does not exist */
 	sysfun addproc;
 
 	/*delproc is called when a process terminates.
