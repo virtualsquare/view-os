@@ -239,7 +239,7 @@ int lfd_open (service_t service, int sfd, char *path, int nested)
 void lfd_close (int lfd)
 {
 	int rv;
-	//printf("close %d %x\n",lfd,lfd_tab[lfd].ptab);
+	GDEBUG(5, "close %d %x\n",lfd,lfd_tab[lfd].ptab);
 	assert (lfd < 0 || (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL));
 	if (lfd >= 0 && --(lfd_tab[lfd].ptab->count) == 0) {
 		register int service;

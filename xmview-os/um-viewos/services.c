@@ -93,6 +93,7 @@ void modify_um_syscall(struct service *s)
 
 	for (i = 0; i < SIZESCUNIFY; i++)
 	{
+		GDEBUG(9, "i = %d < %d", i, SIZESCUNIFY);
 		/* The entry in um_syscall is not NULL, so someone has defined a
 		 * manager for this syscall. It won't be used, so print a warning.
 		 * XXX This can cause false positives if the um_syscall is allocated
@@ -107,6 +108,7 @@ void modify_um_syscall(struct service *s)
 
 		s->um_syscall[uscno(scunify[i].proc_sc)] = s->um_syscall[uscno(scunify[i].mod_sc)];
 	}
+	GDEBUG(9, "i = %d >= %d", i, SIZESCUNIFY);
 }
 
 int add_service(struct service *s)
@@ -120,18 +122,25 @@ int add_service(struct service *s)
 	else if (servmap[s->code] != 0)
 		return s_error(EEXIST);
 	else {
+		GDEBUG(9, "noserv == %d, adding 1", noserv);
 		noserv++;
 		if (noserv > maxserv) {
+			GDEBUG(9, "noserv > maxserv (%d > %d)", noserv, maxserv);
 			maxserv= (noserv + OSER_STEP) & ~OSER_STEP_1;
+			GDEBUG(9, "maxserv = %d", maxserv);
 			services= (struct service **) realloc (services, maxserv*sizeof(struct service *));
+			GDEBUG(9, "reallocating services to %d * %d", maxserv, sizeof(struct service*));
 			assert(services);
 		}
 		services[noserv-1]=s;
 		servmap[services[noserv-1]->code] = noserv;
 		s->dlhandle=NULL;
+		GDEBUG(9, "services[noserv-1] == %p", services[noserv-1]);
 		if (reg_service)
 			reg_service(s->code);
+		GDEBUG(9, "services[noserv-1] == %p", services[noserv-1]);
 		modify_um_syscall(s);
+		GDEBUG(9, "services[noserv-1] == %p", services[noserv-1]);
 		return 0;
 	}
 }
@@ -255,15 +264,20 @@ void invisible_services()
 void service_addproc(service_t code,int umpid, int pumpid,int max)
 {
 	int pos;
+	GDEBUG(9, "code %d, umpid %d, pumpid %d, max %d", code, umpid, pumpid, max);
 	if (code == UM_NONE) {
 		for (pos=0;pos<noserv;pos++)
+		{
+			GDEBUG(9, "services[%d] == %p", services?services[pos]:-1);
 			if (services[pos]->addproc)
 				services[pos]->addproc(umpid,pumpid,max);
+		}
 	} else {
 		int pos=servmap[code]-1;
 		if (services[pos]->addproc)
 				services[pos]->addproc(umpid,pumpid,max);
 	}
+	GDEBUG(9, "done");
 }
 
 void service_delproc(service_t code,int id)

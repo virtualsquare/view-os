@@ -184,7 +184,11 @@ void forallpcbdo(voidfun f,void *arg)
 	for (i = 0; i < pcbtabsize; i++) {
 		struct pcb *pc = pcbtab[i];
 		if (pc->flags & PCB_INUSE)
+		{
+			GDEBUG(8, "calling @%p with arg %p on pid %d", f, arg, pc->pid);
 			f(pc,arg);
+			GDEBUG(8, "returning from call");
+		}
 	}
 }
 

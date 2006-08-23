@@ -437,13 +437,11 @@ static void procinfo_fd_clear(int id, int fd, int pers)
 	GDEBUG(2, "procinfo_fd_clear end");
 }
 
-static int addproc(int id, int max)
+static long addproc(int id, int pumpid, int max)
 {
-	GDEBUG(3, "addproc id %d, max %d, procinfo_size %d", id, max, procinfo_size);
-	
-	// FIXME: is "max" the MAXIMUM value of the umpid or is it the size of
-	// the umpid table? umpids start from 0, so the value depends on this
-	// difference. Please specify it or rename the variable.
+	GDEBUG(3, "addproc id %d, pumpid %d, max %d, procinfo_size %d", id, pumpid, max, procinfo_size);
+	GBACKTRACE(3,20);
+
 	if (max > procinfo_size)
 	{
 		GDEBUG(3, "procinfo realloc to max (%d) * size of procinfo struct", max);
@@ -461,7 +459,7 @@ static int addproc(int id, int max)
 	return 0;
 }
 
-static int delproc(int id)
+static long delproc(int id)
 {
 	GDEBUG(3, "delproc %d", id);
 	FD_ZERO(&procinfo[id].cur);
@@ -791,60 +789,6 @@ static long viewfs_close(int fd)
 	}
 	
 	return retval;
-}
-
-static long viewfs_stat(char *pathname, struct stat *buf)
-{
-	int umpid = um_mod_getumpid();
-
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEPONLY);
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-		return DAR(stat(currentpers->add, buf));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-	
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_ADD))
-		return DAR(stat(defaultpers->add, buf));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-
-	return DAR(stat(currentpers->real, buf));
-}
-
-static long viewfs_lstat(char *pathname, struct stat *buf)
-{
-	int umpid = um_mod_getumpid();
-
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEPONLY);
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-		return DAR(lstat(currentpers->add, buf));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-	
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_ADD))
-		return DAR(lstat(defaultpers->add, buf));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-
-	return DAR(lstat(currentpers->real, buf));
 }
 
 static long viewfs_stat64(char *pathname, struct stat64 *buf)
@@ -1364,19 +1308,6 @@ ssize_t viewfs_pwrite(int fd, const void *buf, size_t count, long long offset)
 {
 	off_t off=offset;
 	return DAR(pwrite(fd,buf,count,off));
-}
-
-static long viewfs_getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
-{
-	GDEBUG(1,"getdents!");
-	int umpid = um_mod_getumpid();
-	
-	if (FD_ISSET(fd, &procinfo[umpid].cur))
-		GDEBUG(1, "fd %d is open in current personality", fd);
-	if (FD_ISSET(fd, &procinfo[umpid].def))
-		GDEBUG(1, "fd %d is open in default personality", fd);
-	
-	return 0;
 }
 
 static long getdents64_whole_dir(char *path, struct dirent64 **buf, int bufsize)
@@ -1996,18 +1927,15 @@ static int is_path_interesting(char *path)
 	switch(scno)
 	{
 		case __NR_open:
-		case __NR_creat:
 			checkresult = check_open(path,
 					(int)(um_mod_getargs()[1]) | ((scno==__NR_creat) ? 
 													  (O_CREAT|O_WRONLY|O_TRUNC) : 0), umpid);
 			break;
 		
-		case __NR_stat:
 #if ! defined(__x86_64__)
 		case __NR_stat64:
 		case __NR_lstat64:
 #endif
-		case __NR_lstat:
 		case __NR_readlink:
 		case __NR_access:
 		case __NR_chmod:
@@ -2053,7 +1981,7 @@ static epoch_t viewfscheck(int type, void *arg)
 	char *path;
 	epoch_t e = tst_matchingepoch(&t);
 
-	GDEBUG(3, "e is %lld, t.epoch is %lld", e, t.epoch);
+	GDEBUG(10, "e is %lld, t.epoch is %lld", e, t.epoch);
 
 	if (!e)
 		return 0;
@@ -2096,25 +2024,18 @@ init (void)
 	s.checkfun=viewfscheck;
 	s.addproc=addproc;
 	s.delproc=delproc;
-	s.syscall=(sysfun *)malloc(scmap_scmapsize * sizeof(sysfun));
-	s.socket=(sysfun *)malloc(scmap_sockmapsize * sizeof(sysfun));
+	s.syscall=(sysfun *)calloc(scmap_scmapsize, sizeof(sysfun));
+	s.socket=(sysfun *)calloc(scmap_sockmapsize, sizeof(sysfun));
 	SERVICESYSCALL(s, open, viewfs_open);
-	SERVICESYSCALL(s, creat, viewfs_open); // creat must me mapped onto open
 	SERVICESYSCALL(s, read, read);
 	SERVICESYSCALL(s, write, write);
-	SERVICESYSCALL(s, readv, readv);
-	SERVICESYSCALL(s, writev, writev);
 	SERVICESYSCALL(s, close, viewfs_close);
-	SERVICESYSCALL(s, stat, viewfs_stat);
-	SERVICESYSCALL(s, lstat, viewfs_lstat);
-	SERVICESYSCALL(s, fstat, fstat);
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, stat64, viewfs_stat64);
 	SERVICESYSCALL(s, lstat64, viewfs_lstat64);
 	SERVICESYSCALL(s, fstat64, viewfs_fstat64);
 #endif
 	SERVICESYSCALL(s, readlink, viewfs_readlink);
-	SERVICESYSCALL(s, getdents, viewfs_getdents);
 	SERVICESYSCALL(s, getdents64, viewfs_getdents64);
 	SERVICESYSCALL(s, access, viewfs_access);
 	SERVICESYSCALL(s, fcntl, fcntl32);
@@ -2142,7 +2063,7 @@ init (void)
 	SERVICESYSCALL(s, utime, viewfs_utime);
 	SERVICESYSCALL(s, utimes, viewfs_utimes);
 	add_service(&s);
-	t = tst_timestamp();
+	//t = tst_timestamp();
 	
 	GDEBUG(2, "viewfs ready and waiting");
 }
