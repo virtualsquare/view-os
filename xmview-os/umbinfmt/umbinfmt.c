@@ -1045,12 +1045,29 @@ static long umbinfmt_access(char *path, int mode)
 				(mode & W_OK) ? "W_OK": "",
 				(mode & X_OK) ? "X_OK": "",
 				(mode & F_OK) ? "F_OK": "");
+	
+
+	if (UBM_IS_ROOT(reg))
+		rv= !(mode & W_OK); /* it is forbidden to create new file by hand*/
+	else if (UBM_IS_REGISTER(reg))
+		rv=(!(mode & R_OK) && !(mode & X_OK)); /* only WRITE on register */
+	else
+		rv=(!(mode & X_OK));
+
+	if (rv)
+		return 0;
+	else {
+		errno=EACCES;
+		return -1;
+	}
+#if 0
 	if (UBM_IS_ROOT(reg))
 		return(!(mode & W_OK));
 	else if (UBM_IS_REGISTER(reg))
 		return(!(mode & R_OK) && !(mode & X_OK));
 	else
 		return(!(mode & X_OK));
+#endif
 }
 
 static loff_t umbinfmt_x_lseek(int fd, off_t offset, int whence)
@@ -1163,15 +1180,14 @@ init (void)
 	SERVICESYSCALL(s, read, umbinfmt_read);
 	SERVICESYSCALL(s, write, umbinfmt_write);
 	SERVICESYSCALL(s, close, umbinfmt_close);
-#if 0
-	SERVICESYSCALL(s, stat, umbinfmt_stat);
-	SERVICESYSCALL(s, lstat, umbinfmt_lstat);
-	SERVICESYSCALL(s, fstat, umbinfmt_fstat);
-#endif
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, stat64, umbinfmt_stat64);
 	SERVICESYSCALL(s, lstat64, umbinfmt_lstat64);
 	SERVICESYSCALL(s, fstat64, umbinfmt_fstat64);
+#else
+	SERVICESYSCALL(s, stat, umbinfmt_stat64);
+	SERVICESYSCALL(s, lstat, umbinfmt_lstat64);
+	SERVICESYSCALL(s, fstat, umbinfmt_fstat64);
 #endif
 	SERVICESYSCALL(s, access, umbinfmt_access);
 	SERVICESYSCALL(s, lseek, umbinfmt_lseek);
