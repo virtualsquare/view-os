@@ -217,6 +217,12 @@ pid2pcb(int pid)
 /*  nprocs--;*/
 /*}*/
 
+static void _cut_pp(struct pcb *pc, struct pcb *delpc)
+{
+	if (pc->pp == delpc)
+		pc->pp = NULL;
+}
+
 static void droppcb(struct pcb *pc)
 {
 	/* the last process descriptor should stay "alive" for
@@ -230,6 +236,7 @@ static void droppcb(struct pcb *pc)
 		close(pc->memfd);
 #endif
 	nprocs--;
+	forallpcbdo(_cut_pp,pc);
 	if (pcb_destr != NULL)
 		pcb_destr(pc);
 }

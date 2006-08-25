@@ -95,6 +95,7 @@ static int ioctlparms(struct ioctl_len_req *arg)
 		case SIOCGIFMEM:
 		case SIOCGIFMTU:
 		case SIOCGIFHWADDR:
+		case SIOCGIFINDEX:
 			return sizeof(struct ifreq) | IOCTL_R | IOCTL_W;
 		case SIOCSIFFLAGS:
 		case SIOCSIFADDR:
@@ -105,7 +106,6 @@ static int ioctlparms(struct ioctl_len_req *arg)
 		case SIOCSIFMEM:
 		case SIOCSIFMTU:
 		case SIOCSIFHWADDR:
-		case SIOCGIFINDEX:
 			return sizeof(struct ifreq) | IOCTL_R;
 		default:
 			return 0;
