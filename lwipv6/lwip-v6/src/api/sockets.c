@@ -590,7 +590,7 @@ lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 				return -1;
 			}
 
-			//printf("netconn_recv\n");
+			/*printf("netconn_recv %p\n",sock->conn);*/
 			/* No data was left from the previous operation, so we try to get
 				 some from the network. */
 			buf = netconn_recv(sock->conn);
@@ -1103,13 +1103,13 @@ int lwip_select_register(void (* cb)(), void *arg, int fd, int how)
 	struct lwip_socket *psock=get_socket(fd);
 	int rv=0;
 	/*printf("UMSELECT REGISTER %s %d how %x arg %x psock %x\n",
-	(cb != NULL)?"REG" : "DEL" ,
-	fd,how,arg,psock);*/
+			(cb != NULL)?"REG" : "DEL" ,
+			fd,how,arg,psock);*/
 	if (!selectsem)
 		selectsem = sys_sem_new(1);
 	sys_sem_wait(selectsem);
 	if (psock) {
-		//printf("R %d L %d S %d\n", psock->rcvevent, psock->lastdata, psock->sendevent);
+		/*printf("R %d L %d S %d\n", psock->rcvevent, psock->lastdata, psock->sendevent);*/
 #if LWIP_NL
 		if (psock->family == PF_NETLINK)
 			rv=how;
@@ -1135,7 +1135,7 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 	struct lwip_socket *sock;
 	struct lwip_select_cb *scb;
 
-	/*printf("event_callback %p ",conn);*/
+	/*printf("event_callback %p \n",conn);*/
 	/* Get socket */
 	if (conn)
 	{
@@ -1417,7 +1417,7 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 			/* Level: IPPROTO_IP */
 		case IPPROTO_IP:
 			switch(optname) {
-				/* UNIMPL case IP_HDRINCL: */
+				case IP_HDRINCL:
 				/* UNIMPL case IP_RCVDSTADDR: */
 				/* UNIMPL case IP_RCVIF: */
 				case IP_TTL:
@@ -1531,6 +1531,9 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 					*(int*)optval = sock->conn->pcb.tcp->tos;
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_getsockopt(%d, IPPROTO_IP, IP_TOS) = %d\n", s, *(int *)optval));
 					break;
+				case IP_HDRINCL:
+					*(int*)optval = (sock->conn->pcb.tcp->so_options & SOF_HDRINCL);
+					break;
 			}  /* switch */
 			break;
 
@@ -1568,7 +1571,7 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 	}
 	if( NULL == optval ) {
 		sock_set_errno( sock, EFAULT );
-		printf("fault\n");
+		/*printf("fault\n");*/
 		return -1;
 	}
 
@@ -1595,6 +1598,7 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 					/* UNIMPL case SO_DEBUG: */
 					/* UNIMPL case SO_DONTROUTE: */
 				case SO_KEEPALIVE:
+				case SO_SNDBUF:
 					/* UNIMPL case SO_OOBINLINE: */
 					/* UNIMPL case SO_RCVBUF: */
 					/* UNIMPL case SO_SNDBUF: */
@@ -1620,7 +1624,7 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 			/* Level: IPPROTO_IP */
 		case IPPROTO_IP:
 			switch(optname) {
-				/* UNIMPL case IP_HDRINCL: */
+				case IP_HDRINCL:
 				/* UNIMPL case IP_RCVDSTADDR: */
 				/* UNIMPL case IP_RCVIF: */
 				case IP_TTL:
@@ -1660,6 +1664,8 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 		case IPPROTO_IPV6:
 			switch( optname ) {
 				case IPV6_HOPLIMIT:
+				case IPV6_MULTICAST_HOPS:
+				case IPV6_UNICAST_HOPS:
 					break;
 				default:
 					printf("IPPROTO_IPV6 %d\n",optname);
@@ -1774,6 +1780,12 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 					sock->conn->pcb.tcp->tos = (u8_t)(*(int*)optval);
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_setsockopt(%d, IPPROTO_IP, IP_TOS, ..)-> %u\n", s, sock->conn->pcb.tcp->tos));
 					break;
+				case IP_HDRINCL:
+					if (*(int*)optval) 
+						sock->conn->pcb.tcp->so_options |= SOF_HDRINCL;
+					else
+						sock->conn->pcb.tcp->so_options &= ~SOF_HDRINCL;
+					break;
 			}  /* switch */
 			break;
 
@@ -1797,9 +1809,15 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 			/* Level IPPROTO_IPV6 */      
 		case IPPROTO_IPV6:
 			switch( optname ) {
-				case IPV6_HOPLIMIT:
-					/*sock->conn->pcb.tcp->ttl = (u8_t)(*(int*)optval);*/
+				case IPV6_UNICAST_HOPS:
+				case IPV6_MULTICAST_HOPS:
+					/* TODO add a separate ttl for unicast */
+					sock->conn->pcb.tcp->ttl = (u8_t)(*(int*)optval);
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_setsockopt(%d, IPPROTO_IPV6, IPV6_HOPLIMIT, ..) -> %u\n", s, sock->conn->pcb.tcp->ttl));
+					break;
+					/* TODO IPV6_HOPLIMIT is a flag to allow packet to inspect
+					 * the hop limit value */
+				case IPV6_HOPLIMIT:
 					break;
 				default:
 					break;

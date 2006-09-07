@@ -77,10 +77,7 @@
 /* This is passed as the destination address to ip_output_if (not
  * to ip_output), meaning that an IP header already is constructed
  * in the pbuf. This is used when TCP retransmits. */
-#ifdef IP_HDRINCL
-#undef IP_HDRINCL
-#endif /* IP_HDRINCL */
-#define IP_HDRINCL  NULL
+#define IP_LWHDRINCL  NULL
 
 
 /*
@@ -279,7 +276,7 @@ PACK_STRUCT_END
 #define	SOF_OOBINLINE	(u16_t)0x0100U		/* leave received OOB data in line */
 #define	SOF_REUSEPORT	(u16_t)0x0200U		/* allow local address & port reuse */
 #define	SOF_IPV6_CHECKSUM (u16_t)0x8000U	/* RAW socket IPv6 checksum */
-
+#define	SOF_HDRINCL 	(u16_t)0x4000U	/* Header included */
 
 
 /*****************************************************************************/

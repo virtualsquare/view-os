@@ -349,7 +349,7 @@ static int netif_ifconf(struct ifconf *ifc)
 	register int i;
 	register int maxlen=ifc->ifc_len;
 	
-	printf("%s\n", __func__);
+	//printf("%s\n", __func__);
 #define ifr_v (ifc->ifc_req)
 
 	/*printf("-netif_ifconf %d\n",ifc->ifc_len);*/
@@ -418,11 +418,26 @@ int netif_ioctl(int cmd,struct ifreq *ifr)
 						LWIP_DEBUGF( NETIF_DEBUG, ("SIOCSIFADDR\n"));
 						retval = ENOSYS; break;
 
-					case SIOCGIFADDR:
-						LWIP_DEBUGF( NETIF_DEBUG, ("SIOCGIFADDR\n"));
-						retval = ENOSYS; break;
+					case SIOCGIFADDR: {
+															struct  sockaddr_in *addr = (struct  sockaddr_in *) &ifr->ifr_addr;
+															struct ip_addr_list *al=nip->addrs;
+															addr->sin_addr.s_addr=0;
+															if (al) {
+																do {
+																	if (al->ipaddr.addr[2] == IP64_PREFIX) {
+																		addr->sin_addr.s_addr=al->ipaddr.addr[3];
+																		break;
+																	}
+																	al=al->next;
+																} while (al != nip->addrs);
+															}
 
-					case SIOCGIFFLAGS:
+															LWIP_DEBUGF( NETIF_DEBUG, ("SIOCGIFADDR\n"));
+														}
+														retval = ERR_OK; break;
+														//retval = ENOSYS; break;
+
+					case SIOCGIFFLAGS: 
 						LWIP_DEBUGF( NETIF_DEBUG, ("SIOCGIFFLAGS %x\n",nip->flags));
 						ifr->ifr_flags= nip->flags & ~(IFF_RUNNING);
 						retval=ERR_OK; 

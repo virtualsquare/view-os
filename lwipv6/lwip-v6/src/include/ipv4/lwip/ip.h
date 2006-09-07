@@ -60,10 +60,7 @@ err_t ip_output_if(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 /* This is passed as the destination address to ip_output_if (not
    to ip_output), meaning that an IP header already is constructed
    in the pbuf. This is used when TCP retransmits. */
-#ifdef IP_HDRINCL
-#undef IP_HDRINCL
-#endif /* IP_HDRINCL */
-#define IP_HDRINCL  NULL
+#define IP_LWHDRINCL  NULL
 
 
 /* This is the common part of all PCB types. It needs to be at the

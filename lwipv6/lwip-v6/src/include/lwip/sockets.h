@@ -195,6 +195,7 @@ struct linger {
  */
 #define IP_TOS       1
 #define IP_TTL       2
+#define IP_HDRINCL   3
 
 /*
  * Options for level IPPROTO_RAW
@@ -211,6 +212,8 @@ struct linger {
  * Options for level IPPROTO_IPV6
  */
 #define IPV6_HOPLIMIT 8
+#define IPV6_UNICAST_HOPS 16
+#define IPV6_MULTICAST_HOPS 18
 
 #define IPTOS_TOS_MASK          0x1E
 #define IPTOS_TOS(tos)          ((tos) & IPTOS_TOS_MASK)

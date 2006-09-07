@@ -495,11 +495,14 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
   struct ip_hdr *iphdr;
   struct ip4_hdr *ip4hdr;
   u8_t version;
+	struct ip_addr addrfromhdr;
 #if LWIP_USERFILTER
   struct pbuf *caller_p;
 #endif
 
-  if (src == NULL) {
+	/*fprintf(stderr, "ip_output_if %p\n", src);*/
+	if (src == NULL) {
+		fprintf(stderr, "*^*^*^ ip_output_if NULL!\n");
 	  return ERR_BUF;
   }
 
@@ -512,9 +515,8 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
   	version = ip_addr_is_v4comp(dest) ? 4 : 6;
   }
 
-
   /* Get size for the IP header */
-  if (pbuf_header(p, version==6?IP_HLEN:IP4_HLEN)) {
+  if (dest != IP_LWHDRINCL && pbuf_header(p, version==6?IP_HLEN:IP4_HLEN)) {
     LWIP_DEBUGF(IP_DEBUG, ("ip_output: not enough room for IP header in pbuf\n"));
     IP_STATS_INC(ip.err);
     return ERR_BUF;
@@ -523,7 +525,7 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
   /* Create IP header */
   if(version == 6) {
     iphdr = p->payload;
-    if (dest != IP_HDRINCL) {
+    if (dest != IP_LWHDRINCL) {
       iphdr->_v_cl_fl = 0;
       IPH_NEXT_HOP_SET(iphdr, proto, ttl);
       iphdr->len = htons(p->tot_len - IP_HLEN);
@@ -536,7 +538,7 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
   } 
   else { /* IPv4 */
     ip4hdr = p->payload;
-    if (dest != IP_HDRINCL) {
+    if (dest != IP_LWHDRINCL) {
       IPH4_TTL_SET(ip4hdr, ttl);
       IPH4_PROTO_SET(ip4hdr, proto);
       ip64_addr_set(&(ip4hdr->dest), dest);
@@ -549,7 +551,15 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
       IPH4_CHKSUM_SET(ip4hdr, 0);
       IPH4_CHKSUM_SET(ip4hdr, inet_chksum(ip4hdr, IP4_HLEN));
     } else {
-      /*dest = &(ip4hdr->dest)*/;
+      IPH4_LEN_SET(ip4hdr, htons(p->tot_len));
+			/* from raw(7) man page: but it is not true! Linux kernel
+			 * does not clean src and ID */
+      /* ip64_addr_set(&(ip4hdr->src), 0); 
+      IPH4_ID_SET(ip4hdr, 0); */
+      IPH4_CHKSUM_SET(ip4hdr, 0);
+      IPH4_CHKSUM_SET(ip4hdr, inet_chksum(ip4hdr, IP4_HLEN));
+			IP64_CONV(&addrfromhdr,&(ip4hdr->dest));
+      dest = &addrfromhdr;
     }
   }
 

@@ -178,9 +178,15 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 
 			/* Reuse packet and create response */
 
-			iphdr = (struct ip_hdr *)((char *)p->payload - IP_HLEN);
 			ina = p->payload;
 			opt = p->payload + sizeof(struct icmp_na_hdr);			
+			if (pbuf_header(p, IP_HLEN)) {
+				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: NA alloc ERR\n"));
+				pbuf_free(p);
+				return;
+			}
+
+			iphdr = (struct ip_hdr *)(p->payload);
 
 			/* Set IP header */
 			ip_addr_set(&(iphdr->dest), &(iphdr->src));
@@ -202,14 +208,16 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 			opt->len  = ICMP6_OPT_LEN_ETHER;
 			memcpy( &opt->addr, &(inp->hwaddr), inp->hwaddr_len);
 
+			pbuf_header(p, - IP_HLEN);
 			/* Calculate checksum */
 			ins->chksum = 0;
 			ins->chksum = inet6_chksum_pseudo(p, &(iphdr->src), &(iphdr->dest), IP_PROTO_ICMP, p->tot_len);
+			pbuf_header(p, IP_HLEN);
 
 			LWIP_DEBUGF(ICMP_DEBUG, ("icmp: p->len %u p->tot_len %u\n", p->len, p->tot_len));
 			LWIP_DEBUGF(ICMP_DEBUG, ("icmp: send Neighbor Advertisement\n"));
 
-			ip_output_if (p, &(iphdr->src), IP_HDRINCL, IPH_HOPLIMIT(iphdr), 0, IP_PROTO_ICMP, inp, &(iphdr->dest), 0);
+			ip_output_if (p, &(iphdr->src), IP_LWHDRINCL, IPH_HOPLIMIT(iphdr), 0, IP_PROTO_ICMP, inp, &(iphdr->dest), 0);
 			break;
 
 		case ICMP6_NA | (6 << 8):

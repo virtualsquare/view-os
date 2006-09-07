@@ -681,6 +681,7 @@ etharp_output(struct netif *netif, struct ip_addr *ipaddr, struct pbuf *q)
 		/* bail out */
 		LWIP_DEBUGF(ETHARP_DEBUG | DBG_TRACE | 2, ("etharp_output: could not allocate room for header.\n"));
 		LINK_STATS_INC(link.lenerr);
+		printf("etharp_output ERR\n");
 		return ERR_BUF;
 	}
 

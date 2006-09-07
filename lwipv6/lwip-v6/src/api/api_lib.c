@@ -240,7 +240,11 @@ netconn *netconn_new_with_proto_and_callback(enum netconn_type t, u16_t proto,
     memp_free(MEMP_NETCONN, conn);
     return NULL;
   }
-  conn->recvmbox = SYS_MBOX_NULL;
+  /*conn->recvmbox = SYS_MBOX_NULL;*/
+  if ((conn->recvmbox = sys_mbox_new()) == SYS_MBOX_NULL) {
+    memp_free(MEMP_NETCONN, conn);
+    return NULL;
+  }
   conn->acceptmbox = SYS_MBOX_NULL;
   conn->sem = SYS_SEM_NULL;
   conn->state = NETCONN_NONE;
@@ -539,6 +543,7 @@ netconn_recv(struct netconn *conn)
     return NULL;
   }
   
+	/*printf("netconn_recv %p %p\n",conn,conn->recvmbox);*/
   if (conn->recvmbox == SYS_MBOX_NULL) {
     conn->err = ERR_CONN;
     return NULL;

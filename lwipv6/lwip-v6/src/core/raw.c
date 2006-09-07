@@ -108,15 +108,14 @@ raw_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr
 {
   struct raw_pcb *pcb;
   u16_t proto;
-  u8_t eaten = 0;
 
   LWIP_DEBUGF(RAW_DEBUG, ("raw_input\n"));
 	proto = piphdr->proto;
 
   pcb = raw_pcbs;
-  /* loop through all raw pcbs until the packet is eaten by one */
+  /* loop through all raw pcbs */
   /* this allows multiple pcbs to match against the packet by design */
-  while (/*(eaten == 0) &&*/ (pcb != NULL)) {
+  while ( (pcb != NULL)) {
     if (pcb->in_protocol == proto) {
       /* receive callback function available? */
       if (pcb->recv != NULL) {
@@ -135,16 +134,6 @@ raw_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr
 
 					pcb->recv(pcb->recv_arg, pcb, r, piphdr->src, proto);
 				}
-				//eaten = 1;
-#if 0
-        /* the receive callback function did not eat the packet? */
-        if (pcb->recv(pcb->recv_arg, pcb, p, piphdr->src) != 0)
-        {
-          /* receive function ate the packet */
-          p = NULL;
-          eaten = 1;
-        }
-#endif
       }
       /* no receive callback function was set for this raw PCB */
       /* drop the packet */
@@ -152,7 +141,7 @@ raw_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr
     pcb = pcb->next;
   }
   LWIP_DEBUGF(RAW_DEBUG, ("raw_input leave\n"));
-  return eaten;
+  return 0;
 }
 
 /**
@@ -173,7 +162,8 @@ err_t
 raw_bind(struct raw_pcb *pcb, struct ip_addr *ipaddr, u16_t protocol)
 {
   ip_addr_set(&pcb->local_ip, ipaddr);
-	pcb->in_protocol=protocol;
+	if (protocol)
+		pcb->in_protocol=protocol;
   return ERR_OK;
 }
 
@@ -247,26 +237,40 @@ raw_sendto(struct raw_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr)
   
   LWIP_DEBUGF(RAW_DEBUG | DBG_TRACE | 3, ("raw_sendto\n"));
   
-  /* not enough space to add an IP header to first pbuf in given p chain? */
-  if (pbuf_header(p, ip_addr_is_v4comp(ipaddr)?IP4_HLEN:IP_HLEN)) {
-    /* allocate header in new pbuf */
-    q = pbuf_alloc(PBUF_IP, 0, PBUF_RAM);
-    /* new header pbuf could not be allocated? */
-    if (q == NULL) {
-      LWIP_DEBUGF(RAW_DEBUG | DBG_TRACE | 2, ("raw_sendto: could not allocate header\n"));
-      return ERR_MEM;
-    }
-    /* chain header q in front of given pbuf p */
-    pbuf_chain(q, p);
-    /* { first pbuf q points to header pbuf } */
-    LWIP_DEBUGF(RAW_DEBUG, ("raw_sendto: added header pbuf %p before given pbuf %p\n", (void *)q, (void *)p));
-  }  else {
-    /* first pbuf q equals given pbuf */
-    q = p;
-    pbuf_header(q, - ip_addr_is_v4comp(ipaddr)?IP4_HLEN:IP_HLEN);
-  }
+	/*fprintf(stderr,"RAW sendto %p %p\n",p,p->payload);*/
+	if (! (pcb->so_options & SOF_HDRINCL)) 
+	{
 
-  //printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>1\n");
+		/* not enough space to add an IP header to first pbuf in given p chain? */
+		if (pbuf_header(p, ip_addr_is_v4comp(ipaddr)?IP4_HLEN:IP_HLEN)) {
+			/* allocate header in new pbuf */
+			q = pbuf_alloc(PBUF_IP, 0, PBUF_RAM);
+			/* new header pbuf could not be allocated? */
+			if (q == NULL) {
+				LWIP_DEBUGF(RAW_DEBUG | DBG_TRACE | 2, ("raw_sendto: could not allocate header\n"));
+				return ERR_MEM;
+			}
+			/* chain header q in front of given pbuf p */
+			pbuf_chain(q, p);
+			/* { first pbuf q points to header pbuf } */
+			LWIP_DEBUGF(RAW_DEBUG, ("raw_sendto: added header pbuf %p before given pbuf %p\n", (void *)q, (void *)p));
+		}  else {
+			/* first pbuf q equals given pbuf */
+			q = p;
+			pbuf_header(q, - (ip_addr_is_v4comp(ipaddr)?IP4_HLEN:IP_HLEN));
+		}
+	} else  {
+		q =  pbuf_alloc(PBUF_LINK, p->len, PBUF_RAM);
+		if (q == NULL) {
+			LWIP_DEBUGF(RAW_DEBUG | DBG_TRACE | 2, ("raw_sendto: could not allocate HDRINCL packet\n"));
+			return ERR_MEM;
+		}
+		memcpy(q->payload,p->payload,p->len);
+		/*printf("pbuf_header %d %d %d\n",ip_addr_is_v4comp(ipaddr),- (ip_addr_is_v4comp(ipaddr)?IP4_HLEN:IP_HLEN),p->tot_len);
+		pbuf_header(q, - (ip_addr_is_v4comp(ipaddr)?IP4_HLEN:IP_HLEN));*/
+	}
+
+  /*printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>1\n");*/
   
   ip_addr_debug_print(IP_DEBUG, ipaddr);
 
@@ -282,7 +286,7 @@ raw_sendto(struct raw_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr)
     return ERR_RTE;
   }
 
-  //printf("nexthop: "); ip_addr_debug_print(IP_DEBUG, nexthop); printf("\n");
+  /*printf("nexthop: "); ip_addr_debug_print(IP_DEBUG, nexthop); printf("\n");*/
 
   if (ip_addr_isany(&(pcb->local_ip))) {
     /* use outgoing network interface IP address as source address */
@@ -335,7 +339,9 @@ raw_sendto(struct raw_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr)
 
   }
 
-  err = ip_output_if (q, src_ip, ipaddr, pcb->ttl, pcb->tos, pcb->in_protocol, netif, nexthop, flags);
+  err = ip_output_if (q, src_ip, 
+			  (pcb->so_options & SOF_HDRINCL)?IP_LWHDRINCL:ipaddr, 
+				pcb->ttl, pcb->tos, pcb->in_protocol, netif, nexthop, flags);
 
   /* did we chain a header earlier? */
   if (q != p) {
