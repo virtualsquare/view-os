@@ -132,8 +132,8 @@ COREFILES:=$(COREFILES)       \
 	$(LWIPDIR)/core/tcp_out.c \
 	$(LWIPDIR)/core/udp.c     \
 	$(LWIPDIR)/core/raw.c     \
-	$(LWIPDIR)/core/packet.c  
-#	$(LWIPDIR)/core/dhcp.c     
+	$(LWIPDIR)/core/packet.c  \
+	$(LWIPDIR)/core/dhcp.c     
 
 CORE6FILES=$(wildcard $(LWIPDIR)/core/ipv6/*.c) $(LWIPDIR)/core/inet6.c
 
@@ -231,7 +231,7 @@ clean:
 depend dep: .depend
 include .depend
 
-$(LWIPLIB): $(LWIPOBJS) unixlib.o
+$(LWIPLIB): $(LWIPOBJS) sharedlib.o unixlib.o
 	$(CC) -g -nostartfiles -shared -o $@ $^
 
 # NB: unixlib.o should not be included, it's used only by ViewOS 
@@ -239,7 +239,7 @@ $(LWIPLIB): $(LWIPOBJS) unixlib.o
 $(STATICLWIPLIB): $(LWIPOBJS) unixlib.o
 	$(AR) $(ARFLAGS) $(STATICLWIPLIB) $?
 
-.depend: unixlib.c $(LWIPFILES)
+.depend: unixlib.c sharedlib.c $(LWIPFILES)
 	$(CCDEP) $(CFLAGS) -MM $^ > .depend || rm -f .depend
 
 

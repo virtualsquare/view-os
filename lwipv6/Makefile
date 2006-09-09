@@ -1,6 +1,7 @@
 #
 # LwIPv6a Makefile
 #
+
 prefix = /usr/local
 bindir = ${prefix}/bin
 libdir = ${prefix}/lib

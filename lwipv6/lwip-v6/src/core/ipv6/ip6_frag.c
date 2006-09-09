@@ -58,10 +58,9 @@
 
 #include "lwip/opt.h"
 
-#include "lwip/debug.h"
-#include <string.h>
-
 #if IPv6_FRAGMENTATION || IPv4_FRAGMENTATION
+
+#include "lwip/debug.h"
 
 #include "lwip/stats.h"
 #include "lwip/sys.h"

@@ -58,7 +58,6 @@
  * Some of these are necessary if you are going to
  * use Lwipv6a as UMVIEWOS module (lwipv6.so).
  */
-
 //#define LWIP_DEBUG
 
 /* Enable NETLINK sockets to support network configuration by using iproute2 tools */
@@ -80,6 +79,8 @@
 #define LWIP_USERFILTER                0
 #define LWIP_NAT                       0
 
+/* Set to 1 to enable DHCP IPv4 */
+#define LWIP_DHCP                      0
 
 
 
@@ -252,7 +253,7 @@ a lot of data that needs to be copied, this should be set high. */
 //#define PBUF_DEBUG              DBG_ON
 //#define ETHARP_DEBUG            DBG_ON
 //#define ROUTE_DEBUG             DBG_ON
-
+//#define DHCP_DEBUG              DBG_ON
 
 //#define IP_DEBUG                DBG_ON
 //#define PMTU_DEBUG              DBG_ON

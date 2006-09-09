@@ -20,6 +20,8 @@
  */ 
 #include "lwip/opt.h"
 
+#if IPv6_AUTO_CONFIGURATION
+
 #include "lwip/sys.h"
 #include "lwip/netif.h"
 #include "lwip/ip.h"
@@ -30,7 +32,7 @@
 
 #include "lwip/netlinkdefs.h"
 
-#if IPv6_AUTO_CONFIGURATION
+
 
 /*--------------------------------------------------------------------------*/
 

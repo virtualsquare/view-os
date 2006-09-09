@@ -483,26 +483,12 @@ udp_send(struct udp_pcb *pcb, struct pbuf *p)
   /* PCB local address is IP_ANY_ADDR? */
   if (ip_addr_isany(&pcb->local_ip)) {
     /* use outgoing network interface IP address as source address */
-    /*src_ip = &(netif->ip_addr);*/
     struct ip_addr_list *el;
-   
-    ///if ((el=ip_addr_list_maskfind(netif->addrs,nexthop)) == NULL)
-	///    return err;
-    ///src_ip = &(el->ipaddr);
 
-    /* Added by Diego Billi */
-    /* Get source address */
-    if (ip_addr_is_v4comp(&pcb->remote_ip)) {
-       if ((el=ip_addr_list_maskfind(netif->addrs, nexthop)) == NULL)
-       return err;  
-    }
-    else {
-       if ((el=ip_route_ipv6_select_source(netif, &pcb->remote_ip)) == NULL) 
-   	   return err;  
-    }
+    if ((el=ip_route_select_source_ip(netif, &pcb->remote_ip, nexthop)) == NULL)
+      return err;
 
     src_ip = &(el->ipaddr);
-
 
   } else {
     /* use UDP PCB local IP address as source address */

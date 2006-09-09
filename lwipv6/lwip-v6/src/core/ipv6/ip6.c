@@ -59,28 +59,25 @@
 #include "lwip/opt.h"
 
 #include "lwip/debug.h"
-
+#include "lwip/stats.h"
+#include "arch/perf.h"
 #include "lwip/def.h"
 #include "lwip/mem.h"
-#include "lwip/ip.h"
-#include "lwip/inet.h"
 #include "lwip/netif.h"
+#include "lwip/ip.h"
+#include "lwip/ip_addr.h"
+#include "lwip/ip_frag.h"
 #include "lwip/icmp.h"
 #include "lwip/raw.h"
 #include "lwip/udp.h"
 #include "lwip/tcp.h"
 
-#include "lwip/stats.h"
-#include "lwip/ip_addr.h"
-#include "lwip/ip_frag.h"
-
-#include "arch/perf.h"
+#include "lwip/inet.h"
 
 
 #if LWIP_DHCP
 #include "lwip/dhcp.h"
 #endif 
-
 
 #if IPv6_AUTO_CONFIGURATION
 #include "lwip/ip_autoconf.h"
@@ -99,7 +96,7 @@
 #endif
 
 //#ifndef IP_DEBUG
-//#define IP_DEBUG DBG_OFF
+//#define IP_DEBUG DBG_ON
 //#endif
 
 /*--------------------------------------------------------------------------*/
@@ -141,6 +138,11 @@ ip_init(void)
 #endif
 
 #endif
+
+#if LWIP_DHCP
+	dhcp_init();
+#endif
+
 }
 
 
@@ -446,9 +448,11 @@ ip_input(struct pbuf *p, struct netif *inp) {
       pbuf_realloc(p, ntohs(IPH4_LEN(ip4hdr)));
 
     ip_inpacket(addrel, p, &piphdr);
+	goto ip_input_end;
   }
+
   /* FIX: handle IPv6 Multicast in this way? */
-  else if (ip_addr_ismulticast(piphdr.dest)) {
+  if (ip_addr_ismulticast(piphdr.dest)) {
 
     struct ip_addr_list tmpaddr;
 
@@ -459,20 +463,49 @@ ip_input(struct pbuf *p, struct netif *inp) {
     IP6_ADDR_LINKSCOPE(&tmpaddr.ipaddr, inp->hwaddr);
 
     ip_inpacket(&tmpaddr, p, &piphdr);
+	goto ip_input_end;
   }
+
+#if LWIP_DHCP
+  /* Pass DHCP messages regardless of destination address. DHCP traffic is addressed
+   * using link layer addressing (such as Ethernet MAC) so we must not filter on IP.
+   * According to RFC 1542 section 3.1.1, referred by RFC 2131).
+   */
+  if (piphdr.version == 4 && IPH4_PROTO(ip4hdr) == IP_PROTO_UDP) {
+
+    struct udp_hdr * udphdr = (struct udp_hdr *)((u8_t *)ip4hdr + piphdr.iphdrlen); 
+
+    /* remote port is DHCP server? */
+    LWIP_DEBUGF(IP_DEBUG, ("ip_input: UDP packet to DHCP client port %u\n", ntohs(udphdr->dest)));
+    if (ntohs(udphdr->dest) == DHCP_CLIENT_PORT) {
+      LWIP_DEBUGF(IP_DEBUG, ("ip_input: DHCP packet accepted.\n")); 
+      struct ip_addr_list tmpaddr;
+
+          memset(&tmpaddr, 0, sizeof(struct ip_addr_list));
+      tmpaddr.netif = inp;
+      tmpaddr.flags = 0;
+
+      ip_inpacket(&tmpaddr, p, &piphdr);
+      goto ip_input_end;
+    }
+  }
+#endif /* LWIP_DHCP */
+
+
+
 #if IP_FORWARD
   else if (ip_route_findpath(piphdr.dest, &nexthop, &netif, &fwflags) == ERR_OK && netif != inp)
   { 
     /* forwarding */
     ip_forward(p, iphdr, inp, netif, nexthop, &piphdr);
+    goto ip_input_end;
   }
 #endif
-  else
-  { 
-    LWIP_DEBUGF(IP_DEBUG | 2, ("ip_input: unable to route IP packet. Droped\n"));
-    pbuf_free(p);
-  }
 
+  LWIP_DEBUGF(IP_DEBUG | 2, ("ip_input: unable to route IP packet. Droped\n"));
+  pbuf_free(p);
+
+ip_input_end:
   PERF_STOP("ip_input");
 }
 
@@ -615,6 +648,7 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 
 #endif
       netif->input( r, netif );
+	  //ip_input(r, netif);
     }
 
     goto end_ip_output_if;
@@ -718,9 +752,15 @@ ip_notify(struct netif *netif, u32_t type)
       LWIP_DEBUGF(IP_DEBUG, ("%s: netif %c%c%d now UP!\n", __func__,	
         netif->name[0], netif->name[1], netif->num));
 
+#if LWIP_DHCP
+      /* FIX: under testing */
+      dhcp_start(netif);
+#endif
+
 #if IPv6_AUTO_CONFIGURATION
       ip_autoconf_start(netif);
 #endif
+
 #if IPv6_ROUTER_ADVERTISEMENT
       ip_radv_start(netif);
 #endif
@@ -729,9 +769,17 @@ ip_notify(struct netif *netif, u32_t type)
     case NETIF_CHANGE_DOWN:
       LWIP_DEBUGF(IP_DEBUG, ("%s: netif %c%c%d now DOWN!\n", __func__, 
         netif->name[0], netif->name[1], netif->num));
+
+#if LWIP_DHCP
+      /* FIX: under testing */
+      dhcp_release(netif);
+      dhcp_stop(netif);
+#endif
+
 #if IPv6_ROUTER_ADVERTISEMENT
       ip_radv_stop(netif);
 #endif
+
 #if IPv6_AUTO_CONFIGURATION
       ip_autoconf_stop(netif);
 #endif

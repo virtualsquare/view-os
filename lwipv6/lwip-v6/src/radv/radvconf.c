@@ -258,7 +258,7 @@ static  int tokenize(char *str, char **tokens, int max, char sep)
 
 int set_prefix_ip_len(struct radv_prefix *prefix, char *str_ip, char *str_len, int lineno)
 {
-	if (inet_ptonn(AF_INET6, str_ip, &prefix->Prefix) < 0) {
+	if (inet_pton(AF_INET6, str_ip, &prefix->Prefix) < 0) {
 		LWIP_DEBUGF(IP_RADVCONF_DEBUG, ("Invalid prefix %s/%s at line: %d\n", str_ip, str_len, lineno) );
 		return 0;
 	}

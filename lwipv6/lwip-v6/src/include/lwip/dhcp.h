@@ -1,6 +1,25 @@
 /** @file
  */
-
+/*   This is part of LWIPv6
+ *   Developed for the Ale4NET project
+ *   Application Level Environment for Networking
+ *   
+ *   Copyright 2004 Diego Billi - Italy
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *            
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */ 
 #ifndef __LWIP_DHCP_H__
 #define __LWIP_DHCP_H__
 
@@ -107,6 +126,9 @@ PACK_STRUCT_END
 #  include "arch/epstruct.h"
 #endif
 
+
+void dhcp_init(void);
+
 /** start DHCP configuration */
 err_t dhcp_start(struct netif *netif);
 /** enforce early lease renewal (not needed normally)*/
@@ -124,9 +146,9 @@ void dhcp_arp_reply(struct netif *netif, struct ip4_addr *addr);
 #endif
 
 /** to be called every minute */
-void dhcp_coarse_tmr(void);
+void dhcp_coarse_tmr(void *arg);
 /** to be called every half second */
-void dhcp_fine_tmr(void);
+void dhcp_fine_tmr(void *arg);
  
 /** DHCP message item offsets and length */
 #define DHCP_MSG_OFS (UDP_DATA_OFS)  

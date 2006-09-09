@@ -53,7 +53,18 @@
 
 #ifndef __LWIP_SOCKETS_H__
 #define __LWIP_SOCKETS_H__
+
 #include "lwip/ip_addr.h"
+
+struct in_addr {
+          u32_t s_addr;
+};
+
+#define INADDR_NONE    ((u32_t) 0xffffffff)  /* 255.255.255.255 */
+
+struct in6_addr {
+        unsigned char   s6_addr[16];/* IPv6 address */
+};
 
 struct sockaddr_in {
   u16_t sin_family;
@@ -237,7 +248,8 @@ struct linger {
 #define IPTOS_PREC_PRIORITY             0x20
 #define IPTOS_PREC_ROUTINE              0x00
 
-#include <asm/ioctls.h>
+/* FIX: not needed? */
+///#include <asm/ioctls.h>
 
 /*
  * Commands for ioctlsocket(),  taken from the BSD file fcntl.h.

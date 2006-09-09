@@ -73,11 +73,10 @@
 #include "lwip/icmp.h"
 
 
-#if 0
+
 /* ARP needs to inform DHCP of any ARP replies? */
 #if (LWIP_DHCP && DHCP_DOES_ARP_CHECK)
 #include "lwip/dhcp.h"
-#endif
 #endif
 
 
@@ -628,7 +627,6 @@ etharp_arp_input(struct netif *netif, struct eth_addr *ethaddr, struct pbuf *p)
     /* ARP reply. We already updated the ARP cache earlier. */
     LWIP_DEBUGF(ETHARP_DEBUG | DBG_TRACE, ("etharp_arp_input: incoming ARP reply\n"));
 
-#if 0
 #if (LWIP_DHCP && DHCP_DOES_ARP_CHECK)
     /* DHCP wants to know about ARP replies from any host with an
      * IP address also offered to us by the DHCP server. We do not
@@ -637,7 +635,6 @@ etharp_arp_input(struct netif *netif, struct eth_addr *ethaddr, struct pbuf *p)
      * */
     ///dhcp_arp_reply(netif, &sipaddr);
     dhcp_arp_reply(netif, (struct ip4_addr *) &(hdr->sipaddr));
-#endif
 #endif
 
     break;

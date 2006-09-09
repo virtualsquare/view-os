@@ -219,7 +219,7 @@ tcpip_thread(void *arg)
 				case TCPIP_MSG_NETIFADD:
 					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: add netif %p\n", (void *)msg));
 
-					netif_add(msg->msg.netif.netif,
+					*msg->msg.netif.retval = netif_add(msg->msg.netif.netif,
 						msg->msg.netif.state,
 						msg->msg.netif.init,
 						msg->msg.netif.input,
@@ -263,6 +263,10 @@ tcpip_thread(void *arg)
 	}
 }
 
+#define TCPIP_LOCK    sys_sem_wait_timeout(tcpip_mutex, 0)
+#define TCPIP_UNLOCK  sys_sem_signal(tcpip_mutex)
+
+
 err_t
 tcpip_input(struct pbuf *p, struct netif *inp)
 {
@@ -271,13 +275,13 @@ tcpip_input(struct pbuf *p, struct netif *inp)
 	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_input %p %p\n", (void *)p, (void *) inp));
 
 	// Exit if the main thread is shutting down
-	sys_sem_wait_timeout(tcpip_mutex, 0); 
-	if (tcpip_mainthread_run == 0) {
-		LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
-		pbuf_free(p);
-		sys_sem_signal(tcpip_mutex);   
-		return ERR_OK;
-	}
+	//sys_sem_wait_timeout(tcpip_mutex, 0); 
+	//if (tcpip_mainthread_run == 0) {
+	//	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
+	//	pbuf_free(p);
+	//	sys_sem_signal(tcpip_mutex);   
+	//	return ERR_OK;
+	//}
 
 	msg = memp_malloc(MEMP_TCPIP_MSG);
 	if (msg == NULL) {
@@ -291,7 +295,7 @@ tcpip_input(struct pbuf *p, struct netif *inp)
 	msg->msg.inp.netif = inp;
 	sys_mbox_post(mbox, msg);
 
-	sys_sem_signal(tcpip_mutex);   
+	//sys_sem_signal(tcpip_mutex);   
 
 	return ERR_OK;
 }
@@ -304,12 +308,12 @@ tcpip_callback(void (*f)(void *ctx), void *ctx)
 	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_callback %p \n", f));
 
 	// Exit if the main thread is shutting down
-	sys_sem_wait_timeout(tcpip_mutex, 0); 
-	if (tcpip_mainthread_run == 0) {
-		LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
-		sys_sem_signal(tcpip_mutex);   
-		return ERR_OK;
-	}
+	//sys_sem_wait_timeout(tcpip_mutex, 0); 
+	//if (tcpip_mainthread_run == 0) {
+	//	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
+	//	sys_sem_signal(tcpip_mutex);   
+	//	return ERR_OK;
+	//}
 	
 	msg = memp_malloc(MEMP_TCPIP_MSG);
 	if (msg == NULL) {
@@ -322,7 +326,7 @@ tcpip_callback(void (*f)(void *ctx), void *ctx)
 	msg->msg.cb.ctx = ctx;
 	sys_mbox_post(mbox, msg);
 
-	sys_sem_signal(tcpip_mutex);   
+	//sys_sem_signal(tcpip_mutex);   
 
 	return ERR_OK;
 }
@@ -335,16 +339,13 @@ tcpip_apimsg(struct api_msg *apimsg)
 	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_apimsg %p\n", apimsg));
 
 	// Exit if the main thread is shutting down
-	sys_sem_wait_timeout(tcpip_mutex, 0); 
-	
-	if (tcpip_mainthread_run == 0) {
-		LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
-
-		// FIX: free apimsg? 
-
-		sys_sem_signal(tcpip_mutex);   
-		return;
-	}
+	//sys_sem_wait_timeout(tcpip_mutex, 0); 
+	//if (tcpip_mainthread_run == 0) {
+	//	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
+	//	// FIX: free apimsg? 
+	//	sys_sem_signal(tcpip_mutex);   
+	//	return;
+	//}
 
 	msg = memp_malloc(MEMP_TCPIP_MSG);
 	/*if (msg == NULL) {
@@ -359,7 +360,7 @@ tcpip_apimsg(struct api_msg *apimsg)
 	msg->msg.apimsg = apimsg;
 	sys_mbox_post(mbox, msg);
 
-	sys_sem_signal(tcpip_mutex);   
+	//sys_sem_signal(tcpip_mutex);   
 }
 
 /*---------------------------------------------------------------------------*/
@@ -384,7 +385,7 @@ tcpip_shutdown(void (* shutdown_fun)(void *), void *arg)
 
 	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread shutdown!\n"));
 
-	sys_sem_wait_timeout(tcpip_mutex, 0); 
+	//sys_sem_wait_timeout(tcpip_mutex, 0); 
 
 	tcpip_shutdown_done = shutdown_fun;
 	tcpip_shutdown_done_arg = arg;
@@ -399,7 +400,7 @@ tcpip_shutdown(void (* shutdown_fun)(void *), void *arg)
 		sys_mbox_post(mbox, msg);
 	}
 
-	sys_sem_signal(tcpip_mutex);   
+	//sys_sem_signal(tcpip_mutex);   
 }
 
 
@@ -409,12 +410,13 @@ struct netif * tcpip_netif_add(struct netif *netif,
       err_t (* input)(struct pbuf *p, struct netif *netif),
       void (* change)(struct netif *netif, u32_t type))
 {
+	struct netif *retval;
 	struct tcpip_msg *msg;
 	sys_sem_t         msg_wait;
 
 	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_netif_add!\n"));
 
-	sys_sem_wait_timeout(tcpip_mutex, 0); 
+	//sys_sem_wait_timeout(tcpip_mutex, 0); 
 
 	msg = memp_malloc(MEMP_TCPIP_MSG);
 	if (msg == NULL) {
@@ -429,6 +431,7 @@ struct netif * tcpip_netif_add(struct netif *netif,
 	msg->msg.netif.init  = init;
 	msg->msg.netif.input = input;
 	msg->msg.netif.change = change;
+	msg->msg.netif.retval = &retval;
 
 	msg_wait = sys_sem_new(0);
 	msg->msg.netif.sem = &msg_wait;
@@ -439,9 +442,9 @@ struct netif * tcpip_netif_add(struct netif *netif,
 	sys_sem_wait_timeout(msg_wait, 0); 
 	sys_sem_free(msg_wait);
 
-	sys_sem_signal(tcpip_mutex);   
+	//sys_sem_signal(tcpip_mutex);   
 
-	return netif;
+	return retval;
 }
 
 
@@ -458,12 +461,12 @@ tcpip_notify(struct netif *netif, u32_t type)
 		(int)type));
 
 	// Exit if the main thread is shutting down
-	sys_sem_wait_timeout(tcpip_mutex, 0); 
-	if (tcpip_mainthread_run == 0) {
-		LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
-		sys_sem_signal(tcpip_mutex);   
-		return;
-	}
+	//sys_sem_wait_timeout(tcpip_mutex, 0); 
+	//if (tcpip_mainthread_run == 0) {
+	//	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
+	//	sys_sem_signal(tcpip_mutex);   
+	//	return;
+	//}
 	
 	msg = memp_malloc(MEMP_TCPIP_MSG);
 	if (msg == NULL) {
@@ -485,6 +488,6 @@ tcpip_notify(struct netif *netif, u32_t type)
 	sys_sem_free(msg_wait);
 
 
-	sys_sem_signal(tcpip_mutex);   
+	//sys_sem_signal(tcpip_mutex);   
 }
 

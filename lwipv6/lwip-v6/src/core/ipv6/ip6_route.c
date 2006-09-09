@@ -192,14 +192,17 @@ err_t ip_route_list_del(struct ip_addr *addr, struct ip_addr *netmask, struct ip
 	/*LWIP_ASSERT("ip_route_list_del NULL netmask",netmask != NULL);*/
 	if (nexthop==NULL) nexthop=IP_ADDR_ANY;
 	while (*dp != NULL && (
-			!ip_addr_cmp(&((*dp)->addr),addr) ||
+///         FIX: Use ip_addr_maskcmp() instead of ip_addr_cmp() ??
+///			!ip_addr_cmp(&((*dp)->addr),addr) ||
+			!ip_addr_maskcmp(&((*dp)->addr),addr, netmask) ||
 			(netmask != NULL && !ip_addr_cmp(&((*dp)->netmask),netmask)) ||
 			( !ip_addr_cmp(&((*dp)->nexthop),nexthop) && (*dp)->netif != netif ) 
 			))
 		dp = &((*dp)->next);
 
-	if (*dp == NULL)
+	if (*dp == NULL) {
 		return ERR_CONN;
+	}
 	else {
 		struct ip_route_list *el=*dp;
 		*dp = el->next;
@@ -280,6 +283,10 @@ err_t ip_route_findpath(struct ip_addr *addr, struct ip_addr **pnexthop, struct 
 /*---------------------------------------------------------------------------------*/
 /* Netlink functions (iproute2 tools) */
 /*---------------------------------------------------------------------------------*/
+
+INLINE static struct ip_addr_list * 
+ip_route_ipv6_select_source(struct netif *outif, struct ip_addr *dst);
+
 
 #include "lwip/netlink.h"
 
@@ -820,7 +827,8 @@ select_prefer_source(struct ip_addr_list *sa, struct ip_addr_list *sb, struct ip
 	return sa;
 }
 
-struct ip_addr_list * ip_route_ipv6_select_source(struct netif *outif, struct ip_addr *dst)
+INLINE static struct ip_addr_list * 
+ip_route_ipv6_select_source(struct netif *outif, struct ip_addr *dst)
 {
     struct ip_addr_list *el, *tail;
 	struct ip_addr_list *sa, *sb;
@@ -876,7 +884,16 @@ struct ip_addr_list * ip_route_ipv6_select_source(struct netif *outif, struct ip
 }
 
 
-
+struct ip_addr_list * 
+ip_route_select_source_ip(struct netif *outif, 
+                       struct ip_addr *dest,
+                       struct ip_addr *nexthop)
+{
+    if (ip_addr_is_v4comp(dest)) 
+		return ip_addr_list_maskfind(outif->addrs, nexthop);
+    else 
+		return ip_route_ipv6_select_source(outif, dest);
+}
 
 
 

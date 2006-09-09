@@ -60,7 +60,15 @@
 const struct ip4_addr ip4_addr_broadcast = { IP4_ADDR_BROADCAST_VALUE };
 
 const struct ip_addr ip_addr_any = {{0,0,0,0}};
-const struct ip_addr ip4_addr_any = {{0,0,0xffff,0}};
+#if BYTE_ORDER == LITTLE_ENDIAN
+const struct ip_addr ip4_addr_any = {{0,0,0xffff0000,0}};
+#else
+const struct ip_addr ip4_addr_any = {{0,0,0x0000ffff,0}};
+#endif
+
+
+
+
 
 
 static struct ip_addr_list ip_addr_pool[IP_ADDR_POOL_SIZE];

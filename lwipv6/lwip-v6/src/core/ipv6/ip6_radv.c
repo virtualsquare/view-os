@@ -18,6 +18,9 @@
  *   with this program; if not, write to the Free Software Foundation, Inc.,
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
+#include "lwip/opt.h"
+
+#if IPv6_ROUTER_ADVERTISEMENT
 
 #include "lwip/debug.h"
 #include "lwip/sys.h"
@@ -31,8 +34,6 @@
 #include "lwip/radvconf.h"
 
 #include "lwip/netlinkdefs.h"
-
-#if IPv6_ROUTER_ADVERTISEMENT
 
 /*---------------------------------------------------------------------------*/
 

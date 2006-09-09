@@ -75,6 +75,7 @@ struct tcpip_msg {
       err_t (* init)(struct netif *netif);
       err_t (* input)(struct pbuf *p, struct netif *netif);
       void (* change)(struct netif *netif, u32_t type);
+      struct netif **retval;
     } netif;
 
 

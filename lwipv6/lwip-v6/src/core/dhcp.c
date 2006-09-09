@@ -3,7 +3,26 @@
  *
  * Dynamic Host Configuration Protocol client
  */
-
+/*   This is part of LWIPv6
+ *   Developed for the Ale4NET project
+ *   Application Level Environment for Networking
+ *   
+ *   Copyright 2004 Diego Billi - Italy
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */ 
 /*
  *
  * Copyright (c) 2001-2004 Leon Woestenberg <leon.woestenberg@gmx.net>
@@ -67,22 +86,33 @@
  * to remove the DHCP client.
  *
  */
- 
-#include <string.h>
- 
-#include "lwip/stats.h"
-#include "lwip/mem.h"
-#include "lwip/udp.h"
-#include "lwip/ip_addr.h"
-#include "lwip/netif.h"
-#include "lwip/inet.h"
-#include "netif/etharp.h"
+#include "lwip/opt.h"
+
+#if LWIP_DHCP 
 
 #include "lwip/sys.h"
-#include "lwip/opt.h"
+
+#include "lwip/stats.h"
+#include "lwip/mem.h"
+#include "lwip/netif.h"
+
+#include "lwip/udp.h"
+#include "lwip/ip_addr.h"
+
+#include "netif/etharp.h"
+
+#include "lwip/sockets.h"
+#include "lwip/inet.h"
+
 #include "lwip/dhcp.h"
 
-#if LWIP_DHCP /* don't build if not configured for use in lwipopt.h */
+/*---------------------------------------------------------------------------*/
+
+//#ifndef DHCP_DEBUG
+//#define DHCP_DEBUG  DBG_ON
+//#endif
+
+/*---------------------------------------------------------------------------*/
 
 #define U16_F "hu"
 #define S16_F "hd"
@@ -91,9 +121,18 @@
 #define S32_F "ld"
 #define X32_F "lx"
 
-//#ifndef DHCP_DEBUG
-#define DHCP_DEBUG  DBG_ON
-//#endif
+
+/*---------------------------------------------------------------------------*/
+
+err_t
+udp_sendto_netif(struct udp_pcb *pcb, struct pbuf *p,
+  struct ip_addr *dst_ip, u16_t dst_port, struct netif *netif);
+err_t
+udp_send_netif(struct udp_pcb *pcb, struct pbuf *p, struct netif *netif);
+
+
+/*---------------------------------------------------------------------------*/
+
 
 /** global transaction identifier, must be
  *  unique for each DHCP request. We simply increment, starting
@@ -305,11 +344,13 @@ static err_t dhcp_select(struct netif *netif)
  * The DHCP timer that checks for lease renewal/rebind timeouts.
  *
  */
-void dhcp_coarse_tmr()
+void dhcp_coarse_tmr(void *arg)
 {
   struct netif *netif = netif_list;
 
   LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE, ("dhcp_coarse_tmr()\n"));
+
+  //printf("dhcp coarse\n");
 
   /* iterate through all network interfaces */
   while (netif != NULL) {
@@ -332,6 +373,8 @@ void dhcp_coarse_tmr()
     /* proceed to next netif */
     netif = netif->next;
   }
+
+	sys_timeout(DHCP_COARSE_TIMER_SECS * 1000, dhcp_coarse_tmr  , NULL);
 }
 
 /**
@@ -341,9 +384,11 @@ void dhcp_coarse_tmr()
  * This timer checks whether an outstanding DHCP request is timed out.
  * 
  */
-void dhcp_fine_tmr()
+void dhcp_fine_tmr(void *arg)
 {
   struct netif *netif = netif_list;
+
+  //printf("dhcp fine\n");
 
   /* loop through netif's */
   while (netif != NULL) {
@@ -360,7 +405,18 @@ void dhcp_fine_tmr()
     /* proceed to next network interface */
     netif = netif->next;
   }
+
+	sys_timeout(DHCP_FINE_TIMER_MSECS, dhcp_fine_tmr  , NULL);
 }
+
+
+
+void dhcp_init(void)
+{
+	sys_timeout(DHCP_FINE_TIMER_MSECS        , dhcp_fine_tmr  , NULL);
+	sys_timeout(DHCP_COARSE_TIMER_SECS * 1000, dhcp_coarse_tmr  , NULL);
+}
+
 
 /**
  * A DHCP negotiation transaction, or ARP request, has timed out.
@@ -592,6 +648,18 @@ err_t dhcp_start(struct netif *netif)
   else {
     LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE | DBG_STATE | 3, ("dhcp_start(): restarting DHCP configuration\n"));
   }
+
+
+///  /* FIX FIX FIX: devo dare un indirizzo all'interfaccia altrimenti non funziona */
+///  {	
+///	struct ip_addr ip,netmask;
+///	IP64_ADDR(&ip, 0,0,0,0);
+///	IP64_MASKADDR(&netmask, 0,0,0,0);
+///	netif_add_addr(netif, &ip, &netmask);
+///	//ip_route_list_add(&ip, &netmask, &netmask, netif, 0);		
+///  }
+
+
   	
   /* clear data structure */
   memset(dhcp, 0, sizeof(struct dhcp));
@@ -910,18 +978,35 @@ static void dhcp_bind(struct netif *netif)
 
   LWIP_DEBUGF(DHCP_DEBUG | DBG_STATE, ("dhcp_bind()"));
     IP64_CONV(&ip, (struct ip4_addr*)&dhcp->offered_ip_addr.addr);
-    ip_addr_debug_print(DHCP_DEBUG | DBG_STATE, &ip);
   LWIP_DEBUGF(DHCP_DEBUG | DBG_STATE, ("\nIP: "));
+    ip_addr_debug_print(DHCP_DEBUG | DBG_STATE, &ip);
   LWIP_DEBUGF(DHCP_DEBUG | DBG_STATE, ("\nSN: "));
     ip_addr_debug_print(DHCP_DEBUG | DBG_STATE, &sn_mask);
   LWIP_DEBUGF(DHCP_DEBUG | DBG_STATE, ("\nGW: "));
   	ip_addr_debug_print(DHCP_DEBUG | DBG_STATE, &gw_addr);
 
+
+///  /* FIX FIX FIX FIX: rimuovo l'indirizzo fittizio */
+///  {	
+///	struct ip_addr ip2,netmask2;
+///	IP64_ADDR(&ip2, 0,0,0,0);
+///	IP64_MASKADDR(&netmask2, 0,0,0,0);
+///	netif_del_addr(netif, &ip2, &netmask2);
+///	//ip_route_list_add(&ip, &netmask, &netmask, netif, 0);		
+///  }
+
+
   netif_add_addr(netif, &ip, &sn_mask);
+  IP64_ADDR(&ip, 0,0,0,0);
+  IP64_MASKADDR(&sn_mask, 0,0,0,0);
   ip_route_list_add(&ip, &sn_mask, &gw_addr, netif, 0);
 
+
+
+
+
   /* bring the interface up */
-  netif_set_up(netif);
+  //netif_set_up_low(netif);
 
   /* netif is now bound to DHCP leased address */
   dhcp_set_state(dhcp, DHCP_BOUND);
@@ -1064,10 +1149,15 @@ err_t dhcp_release(struct netif *netif)
   err_t result;
   u16_t msecs;
 
+  if (dhcp == NULL) {
+    /* FIX: should not append */
+    return ERR_OK;
+  }
+
   struct ip_addr ip, netmask, gw;
 
   IP64_CONV(      &ip, (struct ip4_addr *)&dhcp->offered_ip_addr.addr);
-  IP64_CONV( &netmask, (struct ip4_addr *)&dhcp->offered_sn_mask.addr);
+  IP64_MASKCONV( &netmask, (struct ip4_addr *)&dhcp->offered_sn_mask.addr);
   IP64_CONV(      &gw, (struct ip4_addr *)&dhcp->offered_gw_addr.addr);
 
   LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE | 3, ("dhcp_release()\n"));
@@ -1113,16 +1203,33 @@ err_t dhcp_release(struct netif *netif)
   msecs = dhcp->tries < 10 ? dhcp->tries * 1000 : 10 * 1000;
   dhcp->request_timeout = (msecs + DHCP_FINE_TIMER_MSECS - 1) / DHCP_FINE_TIMER_MSECS;
   LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE | DBG_STATE, ("dhcp_release(): set request timeout %"U16_F" msecs\n", msecs));
-  /* bring the interface down */
-  netif_set_down(netif);
+ 
+
+ /* bring the interface down */
+  //netif_set_down(netif);
 
   /* remove IP address from interface */
   ///netif_set_ipaddr(netif, IP_ADDR_ANY);
   ///netif_set_gw(netif, IP_ADDR_ANY);
   ///netif_set_netmask(netif, IP_ADDR_ANY);
 
+
+
+  LWIP_DEBUGF(DHCP_DEBUG | DBG_STATE, ("dhcp_release()"));
+  LWIP_DEBUGF(DHCP_DEBUG | DBG_STATE, ("\n\tIP: "));
+    ip_addr_debug_print(DHCP_DEBUG | DBG_STATE, &ip);
+  LWIP_DEBUGF(DHCP_DEBUG | DBG_STATE, ("\n\tSN: "));
+    ip_addr_debug_print(DHCP_DEBUG | DBG_STATE, &netmask);
+  LWIP_DEBUGF(DHCP_DEBUG | DBG_STATE, ("\n\tGW: "));
+  	ip_addr_debug_print(DHCP_DEBUG | DBG_STATE, &gw);
+  LWIP_DEBUGF(DHCP_DEBUG | DBG_STATE, ("\n"));
+  {
+  struct ip_addr ip2, netmask2;
+  IP64_ADDR(&ip2, 0,0,0,0);
+  IP64_MASKADDR(&netmask2, 0,0,0,0);
+  ip_route_list_del(&ip2, &netmask2, &gw, netif, 0);
+  }
   netif_del_addr(netif, &ip, &netmask);
-  ip_route_list_del(&ip, &netmask, &gw, netif, 0);
 
   
   /* TODO: netif_down(netif); */
@@ -1627,10 +1734,14 @@ static u32_t dhcp_get_option_long(u8_t *ptr)
   return value;
 }
 
-#endif /* LWIP_DHCP */
 
 
-#if 0
+
+
+
+
+
+
 err_t
 udp_send_netif(struct udp_pcb *pcb, struct pbuf *p, struct netif *netif)
 {
@@ -1671,6 +1782,7 @@ udp_send_netif(struct udp_pcb *pcb, struct pbuf *p, struct netif *netif)
   udphdr->dest = htons(pcb->remote_port);
   udphdr->chksum = 0x0000; 
 
+#if 0
   /* PCB local address is IP_ANY_ADDR? */
   if (ip_addr_isany(&pcb->local_ip)) {
     /* use outgoing network interface IP address as source address */
@@ -1700,6 +1812,8 @@ udp_send_netif(struct udp_pcb *pcb, struct pbuf *p, struct netif *netif)
     /* use UDP PCB local IP address as source address */
     src_ip = &(pcb->local_ip);
   }
+#endif
+  src_ip = &(pcb->local_ip);
 
   LWIP_DEBUGF(UDP_DEBUG, ("udp_send: sending datagram of length %u\n", q->tot_len));
 
@@ -1709,7 +1823,8 @@ udp_send_netif(struct udp_pcb *pcb, struct pbuf *p, struct netif *netif)
     udphdr->chksum = inet6_chksum_pseudo(q, src_ip, &(pcb->remote_ip), IP_PROTO_UDP, pcb->chksum_len);
     if (udphdr->chksum == 0x0000) udphdr->chksum = 0xffff;
     LWIP_DEBUGF(UDP_DEBUG, ("udp_send: ip_output_if (,,,,IP_PROTO_UDPLITE,)\n"));
-    err = ip_output_if (q, src_ip, &pcb->remote_ip, pcb->ttl, pcb->tos, IP_PROTO_UDPLITE, netif, &pcb->remote_ip, flags);    
+    
+	err = ip_output_if (q, src_ip, &pcb->remote_ip, pcb->ttl, pcb->tos, IP_PROTO_UDPLITE, netif, &pcb->remote_ip, flags);    
   } 
   else {
     LWIP_DEBUGF(UDP_DEBUG, ("udp_send: UDP packet length %u\n", q->tot_len));
@@ -1740,23 +1855,32 @@ udp_send_netif(struct udp_pcb *pcb, struct pbuf *p, struct netif *netif)
 
 err_t
 udp_sendto_netif(struct udp_pcb *pcb, struct pbuf *p,
-  struct ip_addr *dst_ip, u16_t dst_port, struct netif *netif)
+                 struct ip_addr *dst_ip, u16_t dst_port, struct netif *netif)
 {
   err_t err;
+
   /* temporary space for current PCB remote address */
   struct ip_addr pcb_remote_ip;
   u16_t pcb_remote_port;
+
   /* remember current remote peer address of PCB */
-	memcpy(&(pcb_remote_ip.addr),&(pcb->remote_ip.addr),sizeof(struct ip_addr));
+  memcpy(&(pcb_remote_ip.addr), &(pcb->remote_ip.addr), sizeof(struct ip_addr));
   pcb_remote_port = pcb->remote_port;
+
   /* copy packet destination address to PCB remote peer address */
-	memcpy(&(pcb->remote_ip.addr),&(dst_ip->addr),sizeof(struct ip_addr));
+  memcpy(&(pcb->remote_ip.addr), &(dst_ip->addr), sizeof(struct ip_addr));
   pcb->remote_port = dst_port;
+
   /* send to the packet destination address */
   err = udp_send_netif(pcb, p, netif);
+
   /* restore PCB remote peer address */
-	memcpy(&(pcb->remote_ip.addr),&(pcb_remote_ip.addr),sizeof(struct ip_addr));
+  memcpy(&(pcb->remote_ip.addr), &(pcb_remote_ip.addr), sizeof(struct ip_addr));
   pcb->remote_port = pcb_remote_port;
+
   return err;
 }
-#endif
+
+
+
+#endif /* LWIP_DHCP */

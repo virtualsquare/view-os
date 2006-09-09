@@ -35,7 +35,7 @@
 #include "lwip/arch.h"
 
 #include "lwip/pbuf.h"
-#include "lwip/inet.h"
+///#include "lwip/inet.h"
 #include "lwip/ip.h"
 
 #define UDP_HLEN 8

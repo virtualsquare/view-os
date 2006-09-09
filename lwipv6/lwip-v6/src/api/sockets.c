@@ -74,7 +74,8 @@
 #endif
 
 #if LWIP_PACKET
-#include <netpacket/packet.h>
+///#include <netpacket/packet.h>
+#include "lwip/packet.h"
 #endif
 
 #include "lwip/native_syscalls.h"

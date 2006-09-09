@@ -104,11 +104,9 @@ netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
 	for (nip=netif_list; nip!=NULL; lastnip=nip,nip=nip->next)
 		;
 
-#if 0
 #if LWIP_DHCP
   /* netif not under DHCP control by default */
   netif->dhcp = NULL;
-#endif
 #endif
 
   /* remember netif specific state information data */

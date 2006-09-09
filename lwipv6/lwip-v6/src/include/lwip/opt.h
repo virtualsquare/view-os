@@ -208,6 +208,22 @@ a lot of data that needs to be copied, this should be set high. */
 #endif
 
 /*----------------------------------------------------------------------*/
+/* DHCP options  */
+/*----------------------------------------------------------------------*/
+
+/* NOTE: under testing */
+#ifndef LWIP_DHCP
+#define LWIP_DHCP                       0
+#endif
+
+/* 1 if you want to do an ARP check on the offered address
+   (recommended). */
+#ifndef DHCP_DOES_ARP_CHECK
+#define DHCP_DOES_ARP_CHECK             0
+#endif
+
+
+/*----------------------------------------------------------------------*/
 /* IPv4 IPv6 Settings  */
 /*----------------------------------------------------------------------*/
 
@@ -585,6 +601,12 @@ a lot of data that needs to be copied, this should be set high. */
 #define API_MSG_DEBUG                   DBG_OFF
 #endif
 
+
+#ifndef DHCP_DEBUG 
+#define DHCP_DEBUG                      DBG_OFF
+#endif
+
+
 #ifndef IP_DEBUG
 #define IP_DEBUG                        DBG_OFF
 #endif
@@ -738,10 +760,6 @@ a lot of data that needs to be copied, this should be set high. */
 #define SLIP_DEBUG                      DBG_OFF
 #endif
 
-#ifndef DHCP_DEBUG 
-#define DHCP_DEBUG                      DBG_OFF
-#endif
-
 
 
 
@@ -832,23 +850,6 @@ a lot of data that needs to be copied, this should be set high. */
 #define MAXSECRETLEN                    256     /* max length of password or secret */
 
 #endif /* PPP_SUPPORT */
-
-
-/*----------------------------------------------------------------------*/
-/* DHCP options  */
-/*----------------------------------------------------------------------*/
-
-/* FIX: DHCP doesn't work, but somewhere in the code there are some #if. Remove them */
-
-#ifndef LWIP_DHCP
-#define LWIP_DHCP                       0
-#endif
-
-/* 1 if you want to do an ARP check on the offered address
-   (recommended). */
-#ifndef DHCP_DOES_ARP_CHECK
-#define DHCP_DOES_ARP_CHECK             0
-#endif
 
 
 #endif

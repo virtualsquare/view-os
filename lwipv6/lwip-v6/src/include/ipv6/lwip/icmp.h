@@ -52,9 +52,9 @@
 #ifndef __LWIP_ICMP_H__
 #define __LWIP_ICMP_H__
 
+#include "lwip/opt.h"
 #include "lwip/arch.h"
 #include "lwip/def.h"
-#include "lwip/opt.h"
 #include "lwip/pbuf.h"
 
 #include "lwip/netif.h"

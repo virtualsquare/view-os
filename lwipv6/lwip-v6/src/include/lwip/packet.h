@@ -35,9 +35,10 @@
 #include "lwip/arch.h"
 
 #include "lwip/pbuf.h"
-#include "lwip/inet.h"
+///#include "lwip/inet.h"
 #include "lwip/ip.h"
 #include "lwip/raw.h"
+
 #include <netpacket/packet.h>
 
 #define ETH_P_ALL  0x0003    /* Every packet (be careful!!!) */

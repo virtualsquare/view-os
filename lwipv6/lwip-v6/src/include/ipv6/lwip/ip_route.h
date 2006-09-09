@@ -64,8 +64,9 @@ err_t ip_route_list_delnetif(struct netif *netif);
 
 
 /* Select the source address for the given destination IP "dst" and the outgoing interface "outif"  */
-struct ip_addr_list * ip_route_ipv6_select_source(struct netif *outif, struct ip_addr *dst);
+//struct ip_addr_list * ip_route_ipv6_select_source(struct netif *outif, struct ip_addr *dst);
 
+struct ip_addr_list * ip_route_select_source_ip(struct netif *outif, struct ip_addr *dst, struct ip_addr *nexthop);
 
 
 
