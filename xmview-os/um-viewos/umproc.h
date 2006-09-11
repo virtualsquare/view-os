@@ -34,6 +34,10 @@
 #include "services.h"
 #include "treepoch.h"
 
+#ifdef _UM_MMAP
+extern int um_mmap_secret;
+#endif
+
 /* informations about the full set of file descriptors of a process */
 struct pcb_file {
 	/* with CLONE_FILES, more than one process can refer to the same file

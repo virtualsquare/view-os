@@ -29,6 +29,7 @@
 #include <sys/wait.h>
 #include <sys/ptrace.h>
 #include <sys/select.h>
+#include <sys/mman.h>
 #include <sched.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
@@ -310,6 +311,16 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 			else*/
 			return SC_FAKE;
 		}
+#ifdef _UM_MMAP
+		/* it returns EBADF when sombody tries to access 
+		 * secret files (mmap_secret) */
+		if (sercode == UM_ERR) {
+			pcdata->path = um_patherror;
+			pc->erno = EBADF;
+			pc->retval = -1;
+			return SC_FAKE;
+		}
+#endif
 		//fprint2("nested_commonwrap choice %d -> %lld %x\n",sc_number,pcdata->tst.epoch,sercode);
 		/* if some service want to manage the syscall (or the ALWAYS
 		 * flag is set), we process it */
@@ -506,6 +517,9 @@ void pcb_plus(struct pcb *pc,int flags,int maxtablesize)
 		pcpe->tst=tst_newproc(&(((struct pcb_ext *)(pc->pp->data))->tst));
 	}
 	pcpe->path=pcpe->selset=pcpe->tmpfile2unlink_n_free=NULL;
+#if _UM_MMAP
+	pcpe->um_mmap=NULL;
+#endif
 	/* if CLONE_FILES, file descriptor table is shared */
 	if (flags & CLONE_FILES)
 		pcpe->fds = ((struct pcb_ext *)(pc->pp->data))->fds;
@@ -517,6 +531,10 @@ void pcb_minus(struct pcb *pc)
 {
 	struct pcb_ext *pcpe=pc->data;
 	//printf("pcb_desctructor %d\n",pc->pid);
+#ifdef _UM_MMAP
+	if (pcpe->um_mmap) 
+		um_mmap_delproc(pcpe->um_mmap);
+#endif
 	lfd_delproc(pcpe->fds);
 	um_proc_del(pc);
 	assert (pcpe->fdfs != NULL);
@@ -644,6 +662,16 @@ char choice_device(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	return service_check(CHECKDEVICE, &((pcdata->pathstat).st_rdev),1);
 }
 
+service_t choice_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+{
+	long fd=getargn(4,pc);
+	long flags=getargn(3,pc);
+
+	if (flags & MAP_ANONYMOUS)
+		return UM_NONE;
+	else
+		return service_fd(pcdata->fds,fd);
+}
 
 char always_umnone(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {

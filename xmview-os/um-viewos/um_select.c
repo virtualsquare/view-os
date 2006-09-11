@@ -351,7 +351,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		 * descriptor */
 		epoch_t oldepoch=um_getnestepoch();
 		int sercode=service_fd(pcdata->fds,fd);
-		//printf("loop %d sercode %d\n", fd,sercode);
+		/*fprint2("loop %d sercode %d\n", fd,sercode);*/
 		int sfd;
 		int rfd;
 		/*if (FD_ISSET(fd,&lfds[0]) ||

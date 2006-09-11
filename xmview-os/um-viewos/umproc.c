@@ -43,6 +43,9 @@ static char *um_proc_root;
 static char *um_tmpfile;
 static char *um_tmpfile_tail;
 static int um_tmpfile_len;
+#ifdef _UM_MMAP
+int um_mmap_secret;
+#endif
 
 struct lfd_table {
 	short count; /*how many pcbs have opened this lfd - look at dup implementation */
@@ -80,7 +83,12 @@ void um_proc_open()
 	}
 	um_proc_root=strdup(path);
 	strcpy(um_proc_root,path);
+#ifdef _UM_MMAP
+	strcat(path,"/lfd.um_mmap");
+	um_mmap_secret = r_open(path,O_RDWR|O_TRUNC|O_CREAT,0700);
+#else
 	strcat(path,"/lfd.xxXXXXX");
+#endif
 	um_tmpfile=strdup(path);
 	strcpy(um_tmpfile,path);
 	um_tmpfile_tail=um_tmpfile+(strlen(path)-7);
@@ -356,7 +364,12 @@ service_t service_fd(struct pcb_file *p, int fd)
 		printf("service fd p=%d %x\n",fd, p->lfdlist[fd]);
 	else
 		printf("service fd p=%d xxx\n",fd); */
-	if (fd >= 0 && fd < p->nolfd && p->lfdlist[fd] >= 0) {
+#ifdef _UM_MMAP
+	if (fd == um_mmap_secret) 
+		return UM_ERR;
+	else 
+#endif
+		if (fd >= 0 && fd < p->nolfd && p->lfdlist[fd] >= 0) {
 		um_setepoch(lfd_tab[p->lfdlist[fd]].ptab->epoch);
 		return lfd_tab[p->lfdlist[fd]].ptab->service;
 	} else

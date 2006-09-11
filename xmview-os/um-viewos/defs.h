@@ -44,6 +44,7 @@ extern sfun native_syscall;
 #define r_getdents64(f,b,c) (native_syscall(__NR_getdents64,(f),(b),(c)))
 #define r_unlink(p) (native_syscall(__NR_unlink,(p)))
 #define r_dup(f) (native_syscall(__NR_dup,(f)))
+#define r_dup2(f,g) (native_syscall(__NR_dup2,(f),(g)))
 #ifdef __NR__newselect
 #define r_select(n,r,w,e,t) (native_syscall(__NR__newselect,(n),(r),(w),(e),(t)))
 #else
@@ -68,6 +69,9 @@ extern sfun native_syscall;
 #define r_kill(p,s) (native_syscall(__NR_kill,(p),(s)))
 #define r_execve(p,a,e) (native_syscall(__NR_execve,(p),(a),(e)))
 #define r_lseek(f,o,w) (native_syscall(__NR_close,(f),(o),(w)))
+#ifdef __NR__llseek
+#define r_llseek(f,ohi,olo,r,w) (native_syscall(__NR__llseek,(f),(ohi),(olo),(r),(w)))
+#endif
 #if defined(__powerpc__)
 #define r_pread64(f,b,c,o1,o2) (native_syscall(__NR_pread64,(f),(b),(c),0,__LONG_LONG_PAIR((o1),(o2))))
 #define r_pwrite64(f,b,c,o1,o2) (native_syscall(__NR_pwrite64,(f),(b),(c),0,__LONG_LONG_PAIR((o1),(o2))))

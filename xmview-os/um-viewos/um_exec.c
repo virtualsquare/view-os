@@ -1,7 +1,7 @@
 /*   This is part of um-ViewOS
  *   The user-mode implementation of OSVIEW -- A Process with a View
  *
- *   um_plusio: io wrappers (second part)
+ *   um_exec: support for virtual executables and binfmt services
  *   
  *   Copyright 2005 Renzo Davoli University of Bologna - Italy
  *   Modified 2005 Ludovico Gardenghi
@@ -53,6 +53,7 @@
 
 #define umNULL ((int) NULL)
 
+/* filecopy creates a copy of the executable inside the tmp file dir */
 static int filecopy(service_t sercode,const char *from, const char *to)
 {
 	char buf[BUFSIZ];
@@ -63,7 +64,7 @@ static int filecopy(service_t sercode,const char *from, const char *to)
 	if ((fdt=open(to,O_CREAT|O_TRUNC|O_WRONLY,0600)) < 0)
 		return -errno;
 	while ((n=service_syscall(sercode,uscno(__NR_read))(fdf,buf,BUFSIZ)) > 0)
-		write (fdt,buf,n);
+		r_write (fdt,buf,n);
 	service_syscall(sercode,uscno(__NR_close))(fdf);
 	fchmod (fdt,0700); /* permissions? */
 	close (fdt);
@@ -71,6 +72,7 @@ static int filecopy(service_t sercode,const char *from, const char *to)
 }
 
 
+/* getparms (argv) from the user space */
 #define CHUNKSIZE 16
 static char **getparms(struct pcb *pc,long laddr) {
 	long *paddr=NULL;
@@ -103,6 +105,7 @@ static char **getparms(struct pcb *pc,long laddr) {
 	return parms;
 }
 
+/* freeparms: free the mem allocated for parms */
 static void freeparms(char **parms)
 {
 	char **scan=parms;
@@ -125,15 +128,19 @@ static void printparms(char *what,char **parms)
 */
 
 #define UMBINWRAP (INSTALLDIR "/umbinwrap")
+/* wrap_in: execve handling */
 int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		service_t sercode,sysfun um_syscall)
 {
 	struct binfmt_req req={(char *)pcdata->path,NULL,0};
 	epoch_t nestepoch=um_setepoch(0);
 	service_t binfmtser;
+	/* The epoch should be just after the mount 
+	 * which generated the executable */
 	um_setepoch(nestepoch+1);
 	binfmtser=service_check(CHECKBINMFT,&req,0);
 	um_setepoch(nestepoch);
+	/* is there a binfmt service for this executable? */
 	if (binfmtser != UM_NONE) {
 		char *umbinfmtarg0;
 		int sep;
@@ -144,6 +151,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		int filenamelen;
 		int arg0len;
 		long sp=getsp(pc);
+		/* create the argv for the wrapper! */
 		rv=umoven(pc,largv,sizeof(char *),&(larg0));
 		assert(rv);
 		if (req.flags & BINFMT_KEEP_ARG0) {
@@ -151,12 +159,14 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			umovestr(pc,larg0,PATH_MAX,oldarg0);
 		} else
 			oldarg0[0]=0;
+		/* search for an unused char to act as arg separator */
 		for (sep=1;sep<255 && 
 				(strchr((char *)pcdata->path,sep)!=NULL ||
 				 strchr(req.interp,sep)!=NULL ||
 				 strchr(oldarg0,sep)!=NULL);
 				sep++)
 			;
+		/* collapse all the args in only one arg */
 		if (req.flags & BINFMT_KEEP_ARG0) 
 			asprintf(&umbinfmtarg0,"%c%s%c%s%c%s",sep,req.interp,sep,oldarg0,sep,(char *)pcdata->path);
 		else 
@@ -172,10 +182,12 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		free(umbinfmtarg0);
 		if (req.flags & BINFMT_MODULE_ALLOC)
 			free(req.interp);
+		/* exec the wrapper instead of the executable! */
 		return SC_CALLONXIT;
 	}
 	else if (sercode != UM_NONE) {
 		pc->retval=ERESTARTSYS;
+		/* does the module define a semantics for execve? */
 		if (! isnosys(um_syscall)) {
 			long largv=getargn(1,pc);
 			long lenv=getargn(2,pc);
@@ -183,26 +195,31 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			char **env=getparms(pc,lenv);
 			/*printparms("ARGV",argv);
 				printparms("ENV",env);*/
+			/* call the module's execve implementation */
 			pc->retval=um_syscall(pcdata->path,argv,env);
 			pc->erno=errno;
 			freeparms(argv);
 			freeparms(env);
 		}
+		/* Either no execve implementation in the module, or the module decided
+		 * to require the real execve */
 		if (pc->retval==ERESTARTSYS){
 			char *filename=strdup(um_proc_tmpname());
 			//fprint2("wrap_in_execve! %s %p %d\n",(char *)pcdata->path,um_syscall,isnosys(um_syscall));
 
-			/* argv and env should be downloaded then
-			 * pc->retval = um_syscall(pcdata->path, argv, env); */
+			/* copy the file and change the first arg of execve to 
+			 * address the copy */
 			if ((pc->retval=filecopy(sercode,pcdata->path,filename))>=0) {
 				long sp=getsp(pc);
 				int filenamelen=WORDALIGN(strlen(filename));
 				pc->retval=0;
+				/* remember to clean up the copy as soon as possible */
 				pcdata->tmpfile2unlink_n_free=filename;
 				ustorestr(pc,sp-filenamelen,filenamelen,filename);
 				putargn(0,sp-filenamelen,pc);
 				return SC_CALLONXIT;
 			} else {
+				/* something went wrong during the copy */
 				free(filename);
 				pc->erno= -(pc->retval);
 				pc->retval= -1;
@@ -217,6 +234,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 
 int wrap_out_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) 
 { 
+	/* If this function is executed it means that something went wrong! */
 	//fprint2("wrap_out_execve %d\n",pc->retval);
 	/* The tmp file gets automagically deleted (see sctab.c) */
 	if (pc->retval < 0) {

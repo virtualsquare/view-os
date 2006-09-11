@@ -705,6 +705,10 @@ int capture_main(char **argv,int has_pselect)
 			exit(1);
 			break;
 		case 0:
+			if (!has_pselect) {
+				close(tracerpipe[0]);
+				close(tracerpipe[1]);
+			}
 			unsetenv("LD_PRELOAD");
 			r_setpriority(PRIO_PROCESS,0,0);
 			if(ptrace(PTRACE_TRACEME, 0, 0, 0) < 0){

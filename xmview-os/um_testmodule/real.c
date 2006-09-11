@@ -35,6 +35,8 @@
 #include "libummod.h"
 #include "gdebug.h"
 
+static struct timestamp t1;
+
 // int read(), write(), close();
 
 static struct service s;
@@ -42,8 +44,11 @@ static struct service s;
 static epoch_t real_path(int type, void *arg)
 {
 	if (type == CHECKPATH) {
-		char *path=arg;
-		return (strncmp(path,"/lib",4) != 0);
+		epoch_t e=0;
+		e=tst_matchingepoch(&t1);
+		/*char *path=arg;
+		return (strncmp(path,"/lib",4) != 0);*/
+		return e;
 	}
 	else
 		return 0;
@@ -67,7 +72,7 @@ init (void)
 {
 	GMESSAGE("real init");
 	s.name="Identity (server side)";
-	s.code=0x00;
+	s.code=0xf9;
 	s.checkfun=real_path;
 	s.addproc=addproc;
 	s.delproc=delproc;
@@ -77,16 +82,12 @@ init (void)
 	SERVICESYSCALL(s, read, read);
 	SERVICESYSCALL(s, write, write);
 	SERVICESYSCALL(s, close, close);
-	SERVICESYSCALL(s, stat, stat);
-	SERVICESYSCALL(s, lstat, lstat);
-	SERVICESYSCALL(s, fstat, fstat);
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, stat64, stat64);
 	SERVICESYSCALL(s, lstat64, lstat64);
 	SERVICESYSCALL(s, fstat64, fstat64);
 #endif
 	SERVICESYSCALL(s, readlink, readlink);
-	SERVICESYSCALL(s, getdents, getdents);
 	SERVICESYSCALL(s, getdents64, getdents64);
 	SERVICESYSCALL(s, access, access);
 	SERVICESYSCALL(s, fcntl, fcntl32);
@@ -95,6 +96,7 @@ init (void)
 	SERVICESYSCALL(s, _llseek, _llseek);
 #endif
 	add_service(&s);
+	t1=tst_timestamp();
 }
 
 static void

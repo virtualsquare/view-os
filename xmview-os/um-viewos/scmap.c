@@ -36,6 +36,9 @@ int scmap_virscmapsize;
 
 serfunt choice_path, choice_link, choice_fd, choice_socket, choice_link2;
 serfunt always_umnone, choice_mount, choice_sc;
+#ifdef _UM_MMAP
+serfunt choice_mmap;
+#endif
 wrapinfun wrap_in_getcwd, wrap_in_chdir, wrap_in_fchdir;
 wrapinfun wrap_in_open, wrap_in_read, wrap_in_write, wrap_in_close;
 wrapinfun wrap_in_select, wrap_in_poll, wrap_in_ioctl;
@@ -53,12 +56,18 @@ wrapinfun wrap_in_umask, wrap_in_chroot;
 wrapinfun wrap_in_truncate, wrap_in_ftruncate, wrap_in_execve;
 wrapinfun wrap_in_statfs, wrap_in_fstatfs;
 wrapinfun wrap_in_statfs64, wrap_in_fstatfs64;
+#ifdef _UM_MMAP
+wrapinfun wrap_in_mmap,wrap_in_mremap,wrap_in_munmap;
+#endif
 
 wrapoutfun wrap_out_open, wrap_out_std, wrap_out_close, wrap_out_chdir;
 wrapoutfun wrap_out_dup, wrap_out_select, wrap_out_poll, wrap_out_fcntl;
 wrapoutfun wrap_out_execve;
+#ifdef _UM_MMAP
+wrapoutfun wrap_out_mmap,wrap_out_mremap,wrap_out_munmap;
+#endif
 
-serfunt nchoice_fd, nchoice_sc, nchoice_mount, nchoice_path, nchoice_link, nchoice_link2, nchoice_socket;
+serfunt nchoice_fd, nchoice_sfd, nchoice_sc, nchoice_mount, nchoice_path, nchoice_link, nchoice_link2, nchoice_socket;
 wrapfun nw_syspath_std,nw_sysfd_std,nw_sockfd_std,nw_sysopen,nw_syslink,nw_syspath2_std, nw_notsupp;
 wrapfun nw_sysdup,nw_sysclose;
 wrapfun nw_sysstatfs64,nw_sysfstatfs64;
@@ -177,8 +186,17 @@ struct sc_map scmap[]={
 #else
 	{__NR_pwrite,	choice_fd,	wrap_in_pwrite, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	4, SOC_FILE},
 #endif
-#if 0
 	/* TO DO! */
+
+#ifdef _UM_MMAP
+	/* MMAP management */
+	{__NR_mmap,	choice_mmap,	wrap_in_mmap, wrap_out_mmap,	always_umnone,	NULL, 0,	6, SOC_MMAP},
+	{__NR_mmap2,	choice_mmap,	wrap_in_mmap, wrap_out_mmap,	always_umnone,	NULL, 0,	6, SOC_MMAP},
+	{__NR_munmap,	always_umnone,	wrap_in_munmap, wrap_out_munmap,always_umnone,	NULL, ALWAYS,	2, SOC_MMAP},
+	{__NR_mremap,	always_umnone,	wrap_in_mremap, wrap_out_mremap,always_umnone,	NULL, ALWAYS,	4, SOC_MMAP},
+#endif
+
+#if 0
 	/* time related calls */
 	{__NR_time,	choice_sc,	wrap_in_time, wrap_out_std,	always_umnone,	NULL, 0,	1, SOC_TIME},
 	{__NR_gettimeofday, choice_sc,	wrap_in_gettimeofday, wrap_out_std,	always_umnone,	NULL, 0,	2, SOC_TIME},
@@ -241,22 +259,22 @@ struct sc_map sockmap[]={
 #endif
 
 /* 1*/	{__NR_socket,    choice_socket, 	wrap_in_socket,		wrap_out_socket,nchoice_socket,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET}, 
-/* 2*/	{__NR_bind,      choice_fd,	wrap_in_bind_connect,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
-/* 3*/	{__NR_connect,   choice_fd,	wrap_in_bind_connect,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
-/* 4*/	{__NR_listen,    choice_fd,	wrap_in_listen,		wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	2, SOC_SOCKET|SOC_NET},
-/* 5*/	{__NR_accept,    choice_fd,	wrap_in_accept,		wrap_out_socket,nchoice_fd,	nw_sockfd_std,	CB_R,	3, SOC_SOCKET|SOC_NET},
-/* 6*/	{__NR_getsockname,choice_fd,	wrap_in_getsock,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
-/* 7*/	{__NR_getpeername,choice_fd,	wrap_in_getsock,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
+/* 2*/	{__NR_bind,      choice_fd,	wrap_in_bind_connect,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
+/* 3*/	{__NR_connect,   choice_fd,	wrap_in_bind_connect,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
+/* 4*/	{__NR_listen,    choice_fd,	wrap_in_listen,		wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	2, SOC_SOCKET|SOC_NET},
+/* 5*/	{__NR_accept,    choice_fd,	wrap_in_accept,		wrap_out_socket,nchoice_sfd,	nw_sockfd_std,	CB_R,	3, SOC_SOCKET|SOC_NET},
+/* 6*/	{__NR_getsockname,choice_fd,	wrap_in_getsock,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
+/* 7*/	{__NR_getpeername,choice_fd,	wrap_in_getsock,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
 /* 8*/	{__NR_socketpair,always_umnone,		NULL, 			NULL,	always_umnone,	NULL, 0,	4, SOC_SOCKET|SOC_NET}, /* not used */
-/* 9*/	{__NR_send,      choice_fd,	wrap_in_send,		wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	4, SOC_SOCKET|SOC_NET},
-/*10*/	{__NR_recv,      choice_fd,	wrap_in_recv,		wrap_out_std,	nchoice_fd,	nw_sockfd_std, CB_R,	4, SOC_SOCKET|SOC_NET},
-/*11*/	{__NR_sendto,    choice_fd,	wrap_in_sendto,		wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	6, SOC_SOCKET|SOC_NET},
-/*12*/	{__NR_recvfrom,  choice_fd,	wrap_in_recvfrom,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, CB_R,	6, SOC_SOCKET|SOC_NET},
-/*13*/	{__NR_shutdown,  choice_fd,	wrap_in_shutdown,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	2, SOC_SOCKET|SOC_NET},
-/*14*/	{__NR_setsockopt,choice_fd,	wrap_in_setsockopt,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	5, SOC_SOCKET|SOC_NET},
-/*15*/	{__NR_getsockopt,choice_fd,	wrap_in_getsockopt,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	5, SOC_SOCKET|SOC_NET},
-/*16*/	{__NR_sendmsg,   choice_fd,	wrap_in_sendmsg,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
-/*17*/	{__NR_recvmsg,   choice_fd,	wrap_in_recvmsg,	wrap_out_std,	nchoice_fd,	nw_sockfd_std, CB_R,	3, SOC_SOCKET|SOC_NET}
+/* 9*/	{__NR_send,      choice_fd,	wrap_in_send,		wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	4, SOC_SOCKET|SOC_NET},
+/*10*/	{__NR_recv,      choice_fd,	wrap_in_recv,		wrap_out_std,	nchoice_sfd,	nw_sockfd_std, CB_R,	4, SOC_SOCKET|SOC_NET},
+/*11*/	{__NR_sendto,    choice_fd,	wrap_in_sendto,		wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	6, SOC_SOCKET|SOC_NET},
+/*12*/	{__NR_recvfrom,  choice_fd,	wrap_in_recvfrom,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, CB_R,	6, SOC_SOCKET|SOC_NET},
+/*13*/	{__NR_shutdown,  choice_fd,	wrap_in_shutdown,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	2, SOC_SOCKET|SOC_NET},
+/*14*/	{__NR_setsockopt,choice_fd,	wrap_in_setsockopt,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	5, SOC_SOCKET|SOC_NET},
+/*15*/	{__NR_getsockopt,choice_fd,	wrap_in_getsockopt,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	5, SOC_SOCKET|SOC_NET},
+/*16*/	{__NR_sendmsg,   choice_fd,	wrap_in_sendmsg,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
+/*17*/	{__NR_recvmsg,   choice_fd,	wrap_in_recvmsg,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, CB_R,	3, SOC_SOCKET|SOC_NET}
 };
 
 /* fake sockmap when socket system calls are normal syscalls */

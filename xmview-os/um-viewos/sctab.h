@@ -50,6 +50,11 @@ struct pcb_fs {
 	mode_t mask;
 };
 
+#ifdef _UM_MMAP
+struct pcb_mmap_entry;
+void um_mmap_delproc(struct pcb_mmap_entry *head);
+#endif
+
 #define MAX_SOCKET_ARGS 6
 struct pcb_ext {
 	struct timestamp tst;
@@ -68,6 +73,10 @@ struct pcb_ext {
 	struct pcb_file *fds;
 	/* PTRACE_MULTI for Sockets */
 	long sockregs[MAX_SOCKET_ARGS];
+#ifdef _UM_MMAP
+	/* Virtual Mapped areas */
+	struct pcb_mmap_entry *um_mmap;
+#endif
 };
 
 extern int um_errno;

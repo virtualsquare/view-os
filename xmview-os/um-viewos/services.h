@@ -108,6 +108,7 @@ struct service {
 };
 
 #define UM_NONE 0xff
+#define UM_ERR 0x00
 int isnosys(sysfun f);
 int add_service(struct service *s);
 int set_handle_new_service(void *dlhandle,int position);

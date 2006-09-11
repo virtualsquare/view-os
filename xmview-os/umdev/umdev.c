@@ -45,7 +45,7 @@
 #include "libummod.h"
 #include "umdev.h"
 
-#define UMDEV_SERVICE_CODE 0x02
+#define UMDEV_SERVICE_CODE 0x04
 
 /* Enable umdev own debug output */
 

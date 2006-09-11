@@ -44,7 +44,7 @@
 #include "libummod.h"
 //#include "umbinfmt.h"
 
-#define UMBINFMT_SERVICE_CODE 0x02
+#define UMBINFMT_SERVICE_CODE 0x03
 
 /* Enable umbinfmt own debug output */
 

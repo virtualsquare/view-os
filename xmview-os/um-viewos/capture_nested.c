@@ -63,8 +63,15 @@ char *nest_abspath(long laddr,struct npcb *npc,struct stat64 *pst,int dontfollow
 
 service_t nchoice_fd(int sc_number,struct npcb *npc)
 {
-	int fd=(sc_number == __NR_socketcall)?npc->args[2]:npc->args[0];
-	//fprint2("nchoice_fd %d %lld\n",fd,npc->tst.epoch);
+	int fd=npc->args[0];
+	//fprint2("nchoice_fd sc %d %d %lld\n",sc_number,fd,npc->tst.epoch);
+	return service_fd(&umview_file,fd);
+}
+
+service_t nchoice_sfd(int sc_number,struct npcb *npc)
+{
+	int fd=npc->args[2];
+	//fprint2("nchoice_sfd sc %d %d %lld\n",sc_number,fd,npc->tst.epoch);
 	return service_fd(&umview_file,fd);
 }
 
@@ -281,6 +288,14 @@ int nested_commonwrap(int sc_number,struct npcb *npc,
 	int index = dcif(npc, usc);
 	//fprint2("nested_commonwrap %d -> %lld\n",sc_number,npc->tst.epoch);
 	sercode=sm[index].nestchoice(sc_number,npc);
+#ifdef _UM_MMAP
+	if (sercode == UM_ERR) {
+		fprint2("NESTED BADF!\n");
+		errno=EBADF;
+		return -1;
+	}
+	else
+#endif
 	if (npc->path == um_patherror) {
 		errno=npc->erno;
 		return -1;
@@ -328,24 +343,38 @@ static long int capture_nested_socketcall(long int sysno, ...){
 	struct npcb callee_pcb;
 	nsaveargs(caller_pcb, &callee_pcb,__NR_socketcall);
 	set_pcb(&callee_pcb);
-#ifdef _NESTED_CALL_DEBUG_
-	{
-		static char buf[128];
-		snprintf(buf,128,"SkC=%ld\n",sysno);
-		native_syscall(__NR_write,2,buf,strlen(buf));
-	}
-#endif
 	callee_pcb.args[0]=sysno;
 	callee_pcb.args[1]=(long) &(callee_pcb.args[2]);
 	va_start(ap, sysno);
 	for (i=0; i<narg;i++)
 		callee_pcb.args[2+i]=va_arg(ap,long int);
 	va_end(ap);
+#ifdef _NESTED_CALL_DEBUG_
+	{
+		static char buf[256];
+		snprintf(buf,256,"SkC=%ld - %p %lld %lld- parametri: %p %p %p %p %p %p\n",sysno,get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
+					(void*)callee_pcb.args[2],
+					(void*)callee_pcb.args[3],
+					(void*)callee_pcb.args[4],
+					(void*)callee_pcb.args[5],
+					(void*)callee_pcb.args[6],
+					(void*)callee_pcb.args[7]);
+		native_syscall(__NR_write,2,buf,strlen(buf));
+	}
+#endif
 	rv=nested_commonwrap(sysno, &callee_pcb, nested_sockindex, nested_call_sockcall, service_socketcall, sockmap);
 
 	/*rv=syscall(__NR_socketcall,sysno,&(callee_pcb.args[2]));*/
 	nrestoreargs(caller_pcb, &callee_pcb);
 	set_pcb(caller_pcb);
+#ifdef _NESTED_CALL_DEBUG_
+	{
+		static char buf[128];
+		snprintf(buf,128,"->(Sk) %ld: return value:%ld %p\n",
+				sysno,rv,get_pcb());
+		native_syscall(__NR_write,2,buf,strlen(buf));
+	}
+#endif
 	return rv;
 }
 

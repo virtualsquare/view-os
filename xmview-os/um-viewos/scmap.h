@@ -99,5 +99,6 @@ extern int scmap_virscmapsize;
 #define SOC_PRIO  0x3
 #define SOC_PID   0x4
 #define SOC_HOSTID 0x5
+#define SOC_MMAP 0x6
 
 #endif

@@ -117,7 +117,7 @@ int add_service(struct service *s)
 		return s_error(ENOSYS);
 	else if (locked)
 		return s_error(EACCES);
-	else if (s->code == UM_NONE)
+	else if (s->code == UM_NONE || s->code == UM_ERR)
 		return s_error(EFAULT);
 	else if (servmap[s->code] != 0)
 		return s_error(EEXIST);
@@ -351,7 +351,7 @@ int isnosys(sysfun f)
 
 sysfun service_syscall(service_t code, int scno)
 {
-	if (code == UM_NONE)
+	if (code == UM_NONE || code == UM_ERR)
 		return NULL;
 	else {
 		int pos=servmap[code]-1;
