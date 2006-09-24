@@ -321,6 +321,8 @@ accept_function(void *arg, struct tcp_pcb *newpcb, err_t err)
   }
   newconn->acceptmbox = SYS_MBOX_NULL;
   newconn->err = err;
+  newconn->recv_avail = 0;
+  newconn->socket = 0;
   //printf("conn->acceptmbox post!\n");
   sys_mbox_post(mbox, newconn);
   /* Register event with callback */

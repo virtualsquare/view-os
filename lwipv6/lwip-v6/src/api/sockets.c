@@ -1105,12 +1105,12 @@ int lwip_select_register(void (* cb)(), void *arg, int fd, int how)
 	int rv=0;
 	/*printf("UMSELECT REGISTER %s %d how %x arg %x psock %x\n",
 			(cb != NULL)?"REG" : "DEL" ,
-			fd,how,arg,psock);*/
+			fd,how,arg,psock); */
 	if (!selectsem)
 		selectsem = sys_sem_new(1);
 	sys_sem_wait(selectsem);
 	if (psock) {
-		/*printf("R %d L %d S %d\n", psock->rcvevent, psock->lastdata, psock->sendevent);*/
+		//printf("R %d L %d S %d\n", psock->rcvevent, psock->lastdata, psock->sendevent);
 #if LWIP_NL
 		if (psock->family == PF_NETLINK)
 			rv=how;
@@ -1124,7 +1124,7 @@ int lwip_select_register(void (* cb)(), void *arg, int fd, int how)
 	if (cb == NULL || rv>0)
 		um_sel_del(arg);
 	sys_sem_signal(selectsem);
-	/*printf("UMSELECT REGISTER returns %x\n",rv);*/
+	//printf("UMSELECT REGISTER returns %x %p %d %d\n",rv,psock->lastdata , psock->rcvevent , psock->conn->recv_avail);
 	return rv;
 }
 
@@ -1136,7 +1136,7 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 	struct lwip_socket *sock;
 	struct lwip_select_cb *scb;
 
-	/*printf("event_callback %p \n",conn);*/
+	//printf("event_callback %p \n",conn);
 	/* Get socket */
 	if (conn)
 	{
