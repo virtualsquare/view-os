@@ -70,6 +70,7 @@ int wrap_in_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		return SC_FAKE;
 }
 
+#define MAX_SOCKLEN 1024
 /* accept creates a new fd! */
 int wrap_in_accept(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		service_t sercode, sysfun um_syscall)
@@ -79,20 +80,25 @@ int wrap_in_accept(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		long sock_addr=pcdata->sockregs[1];
 		long sock_plen=pcdata->sockregs[2];
 		int sock_len;
 		if (sock_plen != umNULL)
 			umoven(pc,sock_plen,4,&sock_len);
-		char *sock=(char *)alloca(sock_len);
-		umoven(pc,sock_addr,sock_len,sock);
-		pc->retval = um_syscall(sfd,sock,&sock_len);
-		pc->erno=errno;
-		if (pc->erno == 0) {
-			if (sock_addr != umNULL)
-				ustoren(pc,sock_addr,sock_len,sock);
-			if (sock_plen != umNULL)
-				umoven(pc,sock_plen,4,&sock_len);
+		if (sock_len == 0 || sock_len > MAX_SOCKLEN) {
+			pc->retval= -1;
+			pc->erno= EINVAL;
+		} else {
+			long sock_addr=pcdata->sockregs[1];
+			char *sock=(char *)alloca(sock_len);
+			umoven(pc,sock_addr,sock_len,sock);
+			pc->retval = um_syscall(sfd,sock,&sock_len);
+			pc->erno=errno;
+			if (pc->erno == 0) {
+				if (sock_addr != umNULL)
+					ustoren(pc,sock_addr,sock_len,sock);
+				if (sock_plen != umNULL)
+					umoven(pc,sock_plen,4,&sock_len);
+			}
 		}
 		if (pc->retval >= 0 && (pc->retval=lfd_open(sercode,pc->retval,NULL,0)) >= 0) {
 			char *filename=lfd_getfilename(pc->retval);

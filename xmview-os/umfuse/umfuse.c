@@ -803,7 +803,10 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 		new->fuse = (struct fuse *)malloc(sizeof(struct fuse));
 		assert(new->fuse);
 		new->fuse->path = strdup(target);
-		new->fuse->pathlen = strlen(target);
+		if (strcmp(target,"/")==0)
+			new->fuse->pathlen = 0;
+		else
+			new->fuse->pathlen = strlen(target);
 		new->fuse->tst=tst_timestamp();
 		new->fuse->filesystemtype = strdup(filesystemtype);
 		new->fuse->dlhandle = dlhandle;
@@ -1296,12 +1299,13 @@ static long umfuse_close(int fd)
         	        GMESSAGE("CLOSE[%s:%d] %s %p\n",fc->fuse->path,fd,filetab[fd]->path,fc);
 	        }
 	
-		if (!(filetab[fd]->ffi.flags & O_DIRECTORY))
+		if (!(filetab[fd]->ffi.flags & O_DIRECTORY)) {
 			rv=fc->fuse->fops.flush(filetab[fd]->path, &filetab[fd]->ffi);
 		
-		if (fc->fuse->flags & FUSE_DEBUG) {
-			GMESSAGE("FLUSH[%s:%d] => path:%s\n",
-					fc->fuse->path, fd, filetab[fd]->path);
+			if (fc->fuse->flags & FUSE_DEBUG) {
+				GMESSAGE("FLUSH[%s:%d] => path:%s\n",
+						fc->fuse->path, fd, filetab[fd]->path);
+			}
 		}
 	
 		filetab[fd]->count--;
@@ -1313,7 +1317,7 @@ static long umfuse_close(int fd)
 			else
 				rv=fc->fuse->fops.release(filetab[fd]->path, &filetab[fd]->ffi);
 			if (fc->fuse->flags & FUSE_DEBUG) {
-        			GMESSAGE("RELEASE[%%s:%d] => path:%s flags:0x%x\n",
+        			GMESSAGE("RELEASE[%s:%d] => path:%s flags:0x%x\n",
 					fc->fuse->path, fd, filetab[fd]->path, fc->fuse->flags);
 			}
 			umcleandirinfo(filetab[fd]->dirinfo);

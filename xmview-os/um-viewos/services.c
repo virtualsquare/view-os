@@ -311,13 +311,12 @@ service_t service_check(int type,void* arg,int setepoch)
 				max_index=i;
 			}
 		}
+		if (setepoch)
+			um_setepoch(matchepoch);
 		if(max_index<0)
 			return(UM_NONE);
-		else {
-			if (setepoch)
-				um_setepoch(matchepoch);
+		else 
 			return services[max_index]->code;
-		}
 	}
 }
 

@@ -157,7 +157,7 @@ int wrap_in_dup(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->arg1= -1;
 	sfd=fd2sfd(pcdata->fds,pc->arg0);
 	GDEBUG(4, "DUP %d %d sfd %d %s",pc->arg0,pc->arg1,sfd,fd_getpath(pcdata->fds,pc->arg0));
-	if (sfd < 0 && sercode != UM_NONE) {
+	if (pc->arg1 == um_mmap_secret || (sfd < 0 && sercode != UM_NONE)) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 		return SC_FAKE;
@@ -337,8 +337,12 @@ int wrap_in_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	unsigned int mountflags=getargn(3,pc);
 	unsigned long pdata=getargn(4,pc);
 	struct stat64 imagestat;
+	epoch_t nestepoch;
 	umovestr(pc,fstype,PATH_MAX,filesystemtype);
 	source = um_abspath(argaddr,pc,&imagestat,0);
+	service_check(CHECKPATH,source,1);
+	nestepoch=um_setepoch(0);
+	um_setepoch(nestepoch+1);
 	if (source==um_patherror) {
 		source=malloc(PATH_MAX);
 		assert(source);
@@ -351,6 +355,7 @@ int wrap_in_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	pc->retval = um_syscall(source,pcdata->path,filesystemtype,mountflags,datax);
 	pc->erno=errno;
 	free(source);
+	um_setepoch(nestepoch);
 	return SC_FAKE;
 }
 

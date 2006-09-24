@@ -2,7 +2,7 @@ CFLAGS=-ggdb -fPIC -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -I/usr/local/include -I.
 LOADLIBES = -L/usr/local/lib
 ##LOADLIBES = -lfuse -lext2fs -lz /usr/lib/libiso9660.so
 
-ALL = umdevnull umdevtrivhd
+ALL = umdevnull umdevtrivhd 
 
 all: $(ALL)
 

@@ -194,7 +194,6 @@ static void inline wakeupmainfifo_signal()
 
 static void select_wakeup_cb(int *wakeupvar)
 {
-	//printf("SELECT WAKEUP\n");
 	*wakeupvar=WAKEUP;
 	wakeupmainfifo_signal();
 }

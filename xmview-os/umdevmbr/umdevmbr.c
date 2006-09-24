@@ -49,14 +49,14 @@ static int hdmbr_read(char type, dev_t device, char *buf, size_t len, loff_t pos
 	int rv;
 	if (partno==0) /* partno==0, the disk as a whole */ {
 		rv=pread64(mbr->fd,buf,len,pos);
-		return (rv<0)?errno:rv;
+		return (rv<0)?-errno:rv;
 	} else { /* access a partition */
 		struct partition *partition=mbr->part[partno-1];
 		if (partition) {
 			if ((pos >> IDE_BLOCKSIZE_LOG) <= partition->LBAnoblocks) {
 				pos += ((off_t) partition->LBAbegin) << IDE_BLOCKSIZE_LOG;
 				rv=pread64(mbr->fd,buf,len,pos);
-				return (rv<0)?errno:rv;
+				return (rv<0)?-errno:rv;
 			} else
 				return -EINVAL;
 		} else
@@ -71,14 +71,14 @@ static int hdmbr_write(char type, dev_t device, const char *buf, size_t len, lof
 	int rv;
 	if (partno==0) /* partno==0, the disk as a whole */ {
 		rv=pwrite64(mbr->fd,buf,len,pos);
-		return (rv<0)?errno:rv;
+		return (rv<0)?-errno:rv;
 	} else { /* access a partition */
 		struct partition *partition=mbr->part[partno-1];
 		if (partition) {
 			if ((pos >> IDE_BLOCKSIZE_LOG) <= partition->LBAnoblocks) {
 				pos += ((off_t) partition->LBAbegin) << IDE_BLOCKSIZE_LOG;
 				rv=pwrite64(mbr->fd,buf,len,pos);
-				return (rv<0)?errno:rv;
+				return (rv<0)?-errno:rv;
 			} else
 				return -EINVAL;
 		} else
@@ -138,6 +138,12 @@ static int hdmbr_init(char type, dev_t device, char *path, unsigned long flags, 
 		} else
 			return -1;
 	}
+}
+
+static int hdmbr_fini(char type, dev_t device, struct umdev *devhandle)
+{
+	struct mbr *mbr=umdev_getprivatedata(devhandle);
+	mbr_close(mbr);
 }
 
 static int hdmbr_ioctl(char type, dev_t device, int req, void * arg, struct dev_info *di)
@@ -210,6 +216,7 @@ struct umdev_operations umdev_ops={
 	.release=hdmbr_release,
 	.lseek=hdmbr_lseek,
 	.init=hdmbr_init,
+	.fini=hdmbr_fini,
 	.ioctl=hdmbr_ioctl,
 	.ioctlparms=hdmbr_ioctl_params,
 };

@@ -25,6 +25,7 @@
 #include<unistd.h>
 #include <sys/types.h>
 #include<string.h>
+#include<linux/fs.h>
 #include "mbr.h"
 #define IDE_HEADER_OFFSET 446
 
@@ -147,14 +148,21 @@ void mbr_reread(struct mbr *mbr)
 struct mbr *mbr_open(int fd)
 {
 	off_t size=lseek(fd,0,SEEK_END);
+	if (size < 0) {
+		/* maybe it is a device */
+		long long lsize=-1;
+		if (ioctl(fd,BLKGETSIZE64,&lsize) >= 0)
+			size=lsize;
+	}
 	if (size > 0) {
 		struct mbr *mbr=calloc(1,sizeof(struct mbr));
 		mbr->fd=fd;
 		mbr->size=size;
 		mbr_read(mbr);
 		return mbr;
-	} else
+	} else {
 		return NULL;
+	}
 }
 
 void mbr_close(struct mbr *mbr)

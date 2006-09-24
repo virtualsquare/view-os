@@ -164,8 +164,6 @@ struct libtab {
 	{__NR_fcntl,	SYS,	"lwip_fcntl"},
 	{__NR_fcntl64,	SYS,	"lwip_fcntl64"},
 	{__NR_ioctl,	SYS,	"lwip_ioctl"},
-	//{__NR__newselect,	SYS,	"alwaysfalse"},
-	//{__NR_poll,	SYS,	"alwaysfalse"}
 };
 #define SIZEOFLIBTAB (sizeof(lwiplibtab)/sizeof(struct libtab))
 static void *lwiphandle;

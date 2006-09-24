@@ -526,6 +526,7 @@ void sc_resume(struct pcb *pc)
 			scno == __NR_vfork ||
 			scno == __NR_clone);
 	divfun fun;
+	pthread_setspecific(pcb_key,pc);
 	fun=scdtab[scno];
 	if (fun != NULL)
 		pc->behavior=fun(scno,inout,pc);
@@ -546,6 +547,7 @@ void sc_resume(struct pcb *pc)
 		if ((pc->behavior & SC_SUSPENDED) == 0)
 			pc->scno=NOSC;
 	}
+	//fprint2("RESTARTED %d %d\n",pc->pid,pc->behavior);
 	if ((pc->behavior & SC_SUSPENDED) == 0) {
 		if (PT_VM_OK) {
 			if(setregs(pc,PTRACE_SYSVM,isreproducing ? 0 : pc->behavior) == -1)

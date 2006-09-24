@@ -52,9 +52,6 @@ struct umdev_operations {
 	int (*select_register) (char, dev_t, voidfun cb, void *arg, int how, struct dev_info *);
 
 	int (*ioctlparms) (char, dev_t, int arg, struct umdev *devhandle);
-
-	/* init returns the number of subdevices defined. i.e. if init returns 5 for /dev/xxx
-	 * /dev/xxx1 ... /dev/xxx5 are also defined */
 	int (*init) (char, dev_t, char *path, unsigned long flags, char *args, struct umdev *devhandle);
 	int (*fini) (char, dev_t, struct umdev *devhandle);
 };	

@@ -593,7 +593,7 @@ service_t choice_sc(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 
 /* choice mount (mount point must be defined + filesystemtype is used
  * instead of the pathname for service selection) */
-char choice_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+service_t choice_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	pc->arg1=getargn(1,pc);
 	pcdata->path=um_abspath(pc->arg1,pc,&(pcdata->pathstat),0); 
@@ -602,7 +602,7 @@ char choice_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		char filesystemtype[PATH_MAX];
 		unsigned long fstype=getargn(2,pc);
 		if (umovestr(pc,fstype,PATH_MAX,filesystemtype) == 0) {
-			return service_check(CHECKFSTYPE,filesystemtype,1);
+			return service_check(CHECKFSTYPE,filesystemtype,0);
 		}
 		else
 			return UM_NONE;

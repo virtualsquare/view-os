@@ -145,15 +145,19 @@ static int search_plusnum(const char *path, const char *base, int nsubdev)
 	int len=strlen(base);
 	if (strncmp(path,base,len) == 0) {
 		const char *s=path+len;
-		for (s=path+len; *s!=0 && *s>='0' && *s <='9'; s++)
-			;
-		if (*s==0) {
-			int sub=atoi(path+len);
-			if (sub <= nsubdev)
-				return 1;
-			else return 0;
-		} else
-			return 0;
+		if (nsubdev == 0)
+			return(*s == 0);
+		else {
+			for (s=path+len; *s!=0 && *s>='0' && *s <='9'; s++)
+				;
+			if (*s==0) {
+				int sub=atoi(path+len);
+				if (sub <= nsubdev)
+					return 1;
+				else return 0;
+			} else
+				return 0;
+		}
 	}
 	else
 		return 0;
@@ -175,6 +179,7 @@ static struct umdev *searchdevice(char *path)
 	{
 		epoch_t e;
 		if ((devicetab[i] != NULL)) {
+			epoch_t prevepoch=um_setepoch(devicetab[i]->tst.epoch);
 			if (
 				//	(strcmp(path,devicetab[i]->path) == 0) &&
 				  search_plusnum(path,devicetab[i]->path,devicetab[i]->nsubdev) &&
@@ -182,6 +187,7 @@ static struct umdev *searchdevice(char *path)
 				maxi=i;
 				maxepoch=e;
 			}
+			um_setepoch(prevepoch);
 		}
 	}
   /* Major/Minor Number select */	
@@ -505,12 +511,17 @@ static long umdev_mount(char *source, char *target, char *filesystemtype,
 		new->flags = 0;
 		new->private_data = NULL;
 
-		if(data)
-			devargs(data, umdevargtab, UMDEVARGTABSIZE, new);
+		if(data) {
+			char *datacopy=strdup(data);
+			devargs(datacopy, umdevargtab, UMDEVARGTABSIZE, new);
+			free(datacopy);
+		}
 		adddevicetab(new);
 		if (umdev_ops->init) {
 			if (umdev_ops->init(mode2char(new->mode),new->device,source,
 					mountflags,data?data:"", new) < 0) {
+				deldevicetab(new);
+				free(new->path);
 				free(new);
 				errno=EINVAL;
 				return -1;
@@ -1064,6 +1075,24 @@ static loff_t umdev_x_lseek(int fd, off_t offset, int whence)
 	}
 }
 
+static ssize_t umdev_pread64(int fd, void *buf, size_t count, long long offset)
+{
+	ssize_t rv;
+	rv=umdev_x_lseek(fd,(off_t) offset,SEEK_SET);
+	if (rv >= 0)
+		rv=umdev_read(fd,buf,count);
+	return rv;
+}
+
+static ssize_t umdev_pwrite64(int fd, void *buf, size_t count, long long offset)
+{
+	ssize_t rv;
+	rv=umdev_x_lseek(fd,(off_t) offset,SEEK_SET);
+	if (rv >= 0)
+		rv=umdev_write(fd,buf,count);
+	return rv;
+}
+
 static long umdev_lseek(int fd, int offset, int whence)
 {
 	return umdev_x_lseek(fd, offset, whence);
@@ -1239,6 +1268,8 @@ init (void)
 	SERVICESYSCALL(s, fsync, umdev_fsync); 
 	//SERVICESYSCALL(s, _newselect, umdev_select);
 	SERVICESYSCALL(s, ioctl, umdev_ioctl); 
+	SERVICESYSCALL(s, pread64, umdev_pread64); 
+	SERVICESYSCALL(s, pwrite64, umdev_pwrite64); 
 	s.select_register=umdev_select_register;
 	add_service(&s);
 }
