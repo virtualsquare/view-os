@@ -10,5 +10,4 @@ install:
 distclean: clean
 
 clean:
-	rm -f syscallnames.h
-
+	rm -f syscallnames.h nrsyscalls.h

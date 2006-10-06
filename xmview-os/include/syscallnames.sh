@@ -111,5 +111,15 @@ static const int syscallnames_size = $scsize;
 
 #endif
 _END_
+
+cat > nrsyscalls.h << _END_
+#ifndef _NRSYSCALLS_H
+#define _NRSYSCALLS_H
+
+#define _UM_NR_syscalls $scsize
+
+#endif
+_END_
 )
+
 rm -f "$tmpfile" "$tmpoutputfile"
