@@ -33,7 +33,7 @@ The following test program prints the number of the system call before actually 
 #include <stdarg.h>
 #include <sys/syscall.h>
 #include <unistd.h>
-#include <pure_libc.h>
+#include <purelibc.h>
 
 static char buf[128];
 static long int mysc(long int sysno, ...){

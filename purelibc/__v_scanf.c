@@ -2,6 +2,7 @@
  * copyright  Felix von Leitner <felix-dietlibc@fefe.de>
  * released under the GPLv2 */
 
+#include <config.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <sys/types.h>

@@ -19,6 +19,7 @@
  * 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */ 
 
+#include <config.h>
 #define _IO_MTSAFE_IO
 //#define DEBUG_LOCK
 #include <stdio.h>

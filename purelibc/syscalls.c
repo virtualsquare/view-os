@@ -20,6 +20,7 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */   
 
+#include <config.h>
 #include <stdarg.h>
 #include <endian.h>
 #include <sys/types.h>
@@ -55,7 +56,7 @@
 #include <grp.h>
 #include <limits.h>
 #include <stdlib.h>
-#include "pure_libc.h"
+#include "purelibc.h"
 
 sfun _pure_syscall=syscall;
 sfun _pure_native_syscall=syscall;

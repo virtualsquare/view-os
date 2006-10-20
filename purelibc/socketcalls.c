@@ -19,12 +19,13 @@
  * 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */ 
 
+#include <config.h>
 #include <stdarg.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
 #include <linux/net.h>
-#include "pure_libc.h"
+#include "purelibc.h"
 #include <alloca.h>
 
 static long int pure_int_socketcall(long int, ...);
