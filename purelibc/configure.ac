@@ -70,7 +70,7 @@ AC_FUNC_STRTOD
 AC_FUNC_UTIME_NULL
 AC_FUNC_VPRINTF
 AC_FUNC_WAIT3
-AC_CHECK_FUNCS([alarm atexit bzero clock_gettime dup2 endgrent euidaccess fchdir fdatasync ftime ftruncate getcwd getdelim gethostname getpagesize getpass gettimeofday getusershell lchown localtime_r mblen memchr memmove mempcpy memset mkdir mkfifo pathconf putenv realpath rmdir rpmatch select setenv sethostname socket stime stpcpy strcasecmp strchr strcspn strdup strerror strncasecmp strndup strpbrk strrchr strspn strstr strtol strtoul strtoull strverscmp sysinfo tzset uname utime])
+AC_CHECK_FUNCS([memchr memset strchr strdup strtol],,[AC_MSG_ERROR(required function not found)])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

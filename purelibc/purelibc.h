@@ -1,5 +1,5 @@
-#ifndef _PURE_LIBC_H
-#define _PURE_LIBC_H
+#ifndef _PURELIBC_H
+#define _PURELIBC_H
 
 #include <config.h>
 
