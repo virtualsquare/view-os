@@ -33,47 +33,18 @@
 # Directories
 #=============================================================================
 
-CONTRIBDIR=../../../..
+CONTRIBDIR = ../../../..
 
 # Architecture directories
-LWIPARCH=$(CONTRIBDIR)/ports/unix
+LWIPARCH = $(CONTRIBDIR)/ports/unix
 
 #Set this to where you have the lwip core module checked out from CVS
 #default assumes it's a dir named lwip at the same level as the contrib module
-LWIPDIR=$(CONTRIBDIR)/../lwip-v6/src
+LWIPDIR = $(CONTRIBDIR)/../lwip-v6/src
 
 # Add on
-LWIPFILTERDIR=$(LWIPDIR)/userfilter
-LWIPRADVDIR=$(LWIPDIR)/radv
-
-#=============================================================================
-# Defines
-#=============================================================================
-
-CCDEP=gcc
-CC=gcc
-
-CFLAGS=-g -Wall -fPIC
-
-# Remove these for the makefile. 
-# They are supposed to be declared in opt.h or lwipopts.h
-#
-#CFLAGS:=$(CFLAGS) -DLWIP_DEBUG 
-#CFLAGS:=$(CFLAGS) -DLWIP_NL=1
-#CFLAGS:=$(CFLAGS) -DLWIP_PACKET=1
-#CFLAGS:=$(CFLAGS) -DRD235LIB=1
-#CFLAGS:=$(CFLAGS) -DLWIP_COMPAT_SOCKETS=0 
-#CFLAGS:=$(CFLAGS) -DIPv6
-#CFLAGS:=$(CFLAGS) -DIPv4_CHECK_CHECKSUM=1
-#CFLAGS:=$(CFLAGS) -DIPv4_FRAGMENTATION=1
-#CFLAGS:=$(CFLAGS) -DIPv6_FRAGMENTATION=1
-#CFLAGS:=$(CFLAGS) -DIPv6_AUTO_CONFIGURATION=1
-#CFLAGS:=$(CFLAGS) -DIPv6_ROUTER_ADVERTISEMENT=0
-#CFLAGS:=$(CFLAGS) -DIPv6_RADVCONF=0
-#CFLAGS:=$(CFLAGS) -DLWIP_USERFILTER=0
-#CFLAGS:=$(CFLAGS) -DLWIP_NAT=0
-
-ARFLAGS=rs
+LWIPFILTERDIR = $(LWIPDIR)/userfilter
+LWIPRADVDIR = $(LWIPDIR)/radv
 
 #=============================================================================
 # Headers 
@@ -82,23 +53,63 @@ ARFLAGS=rs
 #
 # Architecture dependent
 #
-CFLAGS:=$(CFLAGS) -I$(LWIPARCH)/include   
+AM_CPPFLAGS = -I$(LWIPARCH)/include
 
 #
 # Core
 #
-CFLAGS:=$(CFLAGS)             \
-	-I$(LWIPDIR)/include      \
-	-I$(LWIPDIR)/include/ipv6 \
-	-Iapps \
-	-I.
+AM_CPPFLAGS += -I$(LWIPDIR)/include -I$(LWIPDIR)/include/ipv6 -Iapps -I.
 
 #
 # Add ons
 #
-CFLAGS:=$(CFLAGS) -I$(LWIPDIR)/include/userfilter 
+AM_CPPFLAGS += -I$(LWIPDIR)/include/userfilter
+AM_CPPFLAGS += -I$(LWIPDIR)/include/radv
 
-CFLAGS:=$(CFLAGS) -I$(LWIPDIR)/include/radv
+LWIPHEADERS = $(LWIPDIR)/include/lwip/arch.h \
+              $(LWIPDIR)/include/lwip/opt.h  \
+              $(LWIPDIR)/include/lwip/def.h  \
+              $(LWIPDIR)/include/lwip/mem.h  \
+              $(LWIPDIR)/include/lwip/sys.h  \
+              $(LWIPDIR)/include/lwip/stats.h \
+              $(LWIPDIR)/include/lwip/debug.h \
+              $(LWIPDIR)/include/lwip/memp.h \
+              $(LWIPDIR)/include/lwip/pbuf.h \
+              $(LWIPDIR)/include/lwip/udp.h \
+              $(LWIPDIR)/include/lwip/raw.h \
+              $(LWIPDIR)/include/lwip/tcp.h \
+              $(LWIPDIR)/include/lwip/netif.h \
+              $(LWIPDIR)/include/lwip/packet.h \
+              $(LWIPDIR)/include/lwip/err.h \
+              $(LWIPDIR)/include/lwip/api.h \
+              $(LWIPDIR)/include/lwip/api_msg.h \
+              $(LWIPDIR)/include/lwip/tcpip.h \
+              $(LWIPDIR)/include/lwip/sockets.h \
+              $(LWIPDIR)/include/lwip/netlink.h \
+              $(LWIPDIR)/include/lwip/netlinkdefs.h \
+              $(LWIPDIR)/include/lwip/if.h \
+              $(LWIPDIR)/include/lwip/native_syscalls.h \
+              $(LWIPDIR)/include/lwip/snmp.h \
+              $(LWIPDIR)/include/lwip/arphdr.h \
+              $(LWIPDIR)/include/ipv6/lwip/ip.h \
+              $(LWIPDIR)/include/ipv6/lwip/ip_addr.h \
+              $(LWIPDIR)/include/ipv6/lwip/ip_autoconf.h \
+              $(LWIPDIR)/include/ipv6/lwip/ip_route.h \
+              $(LWIPDIR)/include/ipv6/lwip/ip_frag.h \
+              $(LWIPDIR)/include/ipv6/lwip/inet.h \
+              $(LWIPDIR)/include/ipv6/lwip/icmp.h \
+              $(LWIPDIR)/include/netif/etharp.h \
+              $(LWIPDIR)/include/netif/loopif.h \
+              $(LWIPDIR)/include/userfilter/lwip/userfilter.h \
+              $(LWIPARCH)/include/vde.h \
+              $(LWIPARCH)/include/netif/vdeif.h \
+              $(LWIPARCH)/include/netif/tunif.h \
+              $(LWIPARCH)/include/netif/tapif.h \
+              $(LWIPARCH)/include/arch/cc.h \
+              $(LWIPARCH)/include/arch/sys_arch.h \
+              $(LWIPARCH)/include/arch/perf.h \
+              lwipopts.h
+
 
 
 #=============================================================================
@@ -112,18 +123,18 @@ CFLAGS:=$(CFLAGS) -I$(LWIPDIR)/include/radv
 #
 #COREFILES=$(LWIPDIR)/core/mem.c $(LWIPDIR)/core/memp.c
 #COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_dynmalloc.c 
-COREFILES=$(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_malloc.c
+COREFILES = $(LWIPDIR)/core/mem_malloc.c $(LWIPDIR)/core/memp_malloc.c
 
 #
 # Different implementation of 'pbuf' manager
 #
-#COREFILES:=$(COREFILES) $(LWIPDIR)/core/pbuf.c 
-COREFILES:=$(COREFILES) $(LWIPDIR)/core/pbufnopool.c 
+#COREFILES:=$(COREFILES) $(LWIPDIR)/core/pbuf.c
+COREFILES += $(LWIPDIR)/core/pbufnopool.c
 
 #
 # Stack Core files 
 #
-COREFILES:=$(COREFILES)       \
+COREFILES += \
 	$(LWIPDIR)/core/netif.c   \
 	$(LWIPDIR)/core/stats.c   \
 	$(LWIPDIR)/core/sys.c     \
@@ -133,14 +144,21 @@ COREFILES:=$(COREFILES)       \
 	$(LWIPDIR)/core/udp.c     \
 	$(LWIPDIR)/core/raw.c     \
 	$(LWIPDIR)/core/packet.c  \
-	$(LWIPDIR)/core/dhcp.c     
+	$(LWIPDIR)/core/dhcp.c
 
-CORE6FILES=$(wildcard $(LWIPDIR)/core/ipv6/*.c) $(LWIPDIR)/core/inet6.c
+CORE6FILES = $(LWIPDIR)/core/inet6.c \
+             $(LWIPDIR)/core/ipv6/icmp6.c \
+             $(LWIPDIR)/core/ipv6/ip6.c \
+             $(LWIPDIR)/core/ipv6/ip6_addr.c \
+             $(LWIPDIR)/core/ipv6/ip6_route.c \
+             $(LWIPDIR)/core/ipv6/ip6_frag.c \
+             $(LWIPDIR)/core/ipv6/ip6_autoconf.c \
+             $(LWIPDIR)/core/ipv6/ip6_radv.c
 
 #
 # APIFILES: The files which implement the sequential and socket APIs.
 #
-APIFILES=$(LWIPDIR)/api/api_lib.c \
+APIFILES = $(LWIPDIR)/api/api_lib.c \
 	$(LWIPDIR)/api/api_msg.c  \
 	$(LWIPDIR)/api/tcpip.c    \
 	$(LWIPDIR)/api/err.c      \
@@ -151,12 +169,12 @@ APIFILES=$(LWIPDIR)/api/api_lib.c \
 # - renzosockets.c needs RD235LIB to be defined
 #
 #APIFILES:=$(APIFILES) $(LWIPDIR)/api/renzosockets.c
-APIFILES:=$(APIFILES) $(LWIPDIR)/api/sockets.c
+APIFILES += $(LWIPDIR)/api/sockets.c
 
 #
 # NETIFFILES: Files implementing various generic network interface functions.'
 #
-NETIFFILES=$(LWIPDIR)/netif/loopif.c \
+NETIFFILES = $(LWIPDIR)/netif/loopif.c \
 	$(LWIPDIR)/netif/etharp.c
 
 #=============================================================================
@@ -170,11 +188,11 @@ NETIFFILES=$(LWIPDIR)/netif/loopif.c \
 # Different implementation of architecture backend
 #
 #ARCHFILES=$(LWIPARCH)/sys_arch_pipe.c 
-ARCHFILES=$(LWIPARCH)/sys_arch.c 
+ARCHFILES = $(LWIPARCH)/sys_arch.c 
 
-ARCHFILES:=$(ARCHFILES)	$(LWIPARCH)/netif/vdeif.c 
-ARCHFILES:=$(ARCHFILES)	$(LWIPARCH)/netif/tapif.c 
-ARCHFILES:=$(ARCHFILES)	$(LWIPARCH)/netif/tunif.c
+ARCHFILES += $(LWIPARCH)/netif/vdeif.c
+ARCHFILES += $(LWIPARCH)/netif/tapif.c
+ARCHFILES += $(LWIPARCH)/netif/tunif.c
 
 
 #=============================================================================
@@ -182,13 +200,13 @@ ARCHFILES:=$(ARCHFILES)	$(LWIPARCH)/netif/tunif.c
 #=============================================================================
 
 # RADVFILES: Router Advertisement configuration loader (IPv6_RADVCONF)
-RADVFILES=$(LWIPRADVDIR)/radvconf.c
+RADVFILES = $(LWIPRADVDIR)/radvconf.c
 
 # File of Userfilter syb-sytem (LWIP_USERFILTER)
-LWIPFILTERFILES=$(LWIPFILTERDIR)/userfilter.c 
+LWIPFILTERFILES = $(LWIPFILTERDIR)/userfilter.c 
 
 # Files of the NAT sub-system (LWIP_NAT)
-LWIPFILTERFILES:=$(LWIPFILTERFILES)                \
+LWIPFILTERFILES +=                                  \
 	$(LWIPFILTERDIR)/nat/nat.c                     \
 	$(LWIPFILTERDIR)/nat/nat_rules.c               \
 	$(LWIPFILTERDIR)/nat/nat_tables.c              \
@@ -202,44 +220,23 @@ LWIPFILTERFILES:=$(LWIPFILTERFILES)                \
 #=============================================================================
 
 # LWIPFILES: All the above.
-LWIPFILES=$(COREFILES) $(CORE6FILES) $(APIFILES) $(NETIFFILES) $(ARCHFILES) $(LWIPFILTERFILES) $(RADVFILES)
-LWIPFILESW=$(wildcard $(LWIPFILES))
-LWIPOBJS=$(notdir $(LWIPFILESW:.c=.o))
+LWIPFILES = $(COREFILES) $(CORE6FILES) $(APIFILES) $(NETIFFILES) $(ARCHFILES) $(LWIPFILTERFILES) $(RADVFILES)
+#LWIPFILESW = $(wildcard $(LWIPFILES))
+#LWIPOBJS = $(notdir $(LWIPFILESW:.c=.o))
 
 #=============================================================================
 # Targets 
 #=============================================================================
 
-# Shared library
-LWIPLIB=liblwip.so
 
-# Static library
-STATICLWIPLIB=liblwip.a
-
-%.o:
-	$(CC) $(CFLAGS) -c $(<:.o=.c)
-
-all: $(LWIPLIB) 
-.PHONY: all
-
-allstatic: $(STATICLWIPLIB)
-.PHONY: allstatic
-
-clean:
-	rm -f *.o $(LWIPLIB) *.s .depend* *.core core $(STATICLWIPLIB)
-
-depend dep: .depend
-include .depend
-
-$(LWIPLIB): $(LWIPOBJS) sharedlib.o unixlib.o
-	$(CC) -g -nostartfiles -shared -o $@ $^
+lib_LTLIBRARIES = liblwip.la
 
 # NB: unixlib.o should not be included, it's used only by ViewOS 
 # project. It's here only for debug.
-$(STATICLWIPLIB): $(LWIPOBJS) unixlib.o
-	$(AR) $(ARFLAGS) $(STATICLWIPLIB) $?
 
-.depend: unixlib.c sharedlib.c $(LWIPFILES)
-	$(CCDEP) $(CFLAGS) -MM $^ > .depend || rm -f .depend
+liblwip_la_SOURCES = $(LWIPFILES) $(LWIPHEADERS) sharedlib.c unixlib.c
+liblwip_la_LDFLAGS = -version-number 1:0 -Xcompiler -nostartfiles
+# liblwip_la_LIBADD = sharedlib.lo unixlib.lo
 
+include_HEADERS = $(LWIPARCH)/include/lwipv6.h
 
