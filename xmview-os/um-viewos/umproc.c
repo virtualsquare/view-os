@@ -45,6 +45,7 @@ static char *um_tmpfile_tail;
 static int um_tmpfile_len;
 #ifdef _UM_MMAP
 int um_mmap_secret;
+int um_mmap_pageshift;
 #endif
 
 struct lfd_table {
@@ -74,6 +75,9 @@ static struct lfd_top *lfd_tab=NULL;
 void um_proc_open()
 {
 	char path[PATH_MAX];
+#ifdef _UM_MMAP
+	long pagesize;
+#endif
 	snprintf(path,PATH_MAX,"/tmp/.umproc%ld",(long int)r_getpid());
 	//printf("um_proc_open %s\n",path);
 
@@ -86,6 +90,10 @@ void um_proc_open()
 #ifdef _UM_MMAP
 	strcat(path,"/lfd.um_mmap");
 	um_mmap_secret = r_open(path,O_RDWR|O_TRUNC|O_CREAT,0700);
+	pagesize = sysconf(_SC_PAGESIZE);
+	for (um_mmap_pageshift = -1;pagesize > 0; um_mmap_pageshift++, pagesize >>= 1)
+		;
+	fprint2("PAGESIZE %d shift %d\n",sysconf(_SC_PAGESIZE),um_mmap_pageshift);
 #else
 	strcat(path,"/lfd.xxXXXXX");
 #endif

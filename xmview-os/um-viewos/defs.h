@@ -31,6 +31,7 @@
 #include <endian.h>
 #include <stdarg.h>
 #include "ptrace2.h"
+#include "nrsyscalls.h"
 
 /* Real SysCalls ! r_ prefixed calls do not enter the nidification
  * process and go straight to the kernel */
@@ -114,7 +115,7 @@ extern unsigned int ptrace_viewos_mask;
 #elif defined(__x86_64__) // asm-x86_64 define it as 168 [offset in bytes] ! 
 //#define VIEWOS_FRAME_SIZE 22
 #define VIEWOS_FRAME_SIZE 28
-#define NR_syscalls __NR_syscall_max
+#define NR_syscalls _UM_NR_syscalls
 #endif
 
 #ifndef VIEWOS_FRAME_SIZE

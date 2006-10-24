@@ -36,6 +36,7 @@
 
 #ifdef _UM_MMAP
 extern int um_mmap_secret;
+extern int um_mmap_pageshift;
 #endif
 
 /* informations about the full set of file descriptors of a process */

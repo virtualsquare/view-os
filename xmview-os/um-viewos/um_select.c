@@ -202,8 +202,10 @@ void select_check_wset(int max,fd_set *wset)
 {
 	struct fillset workfs;
 	char buf[256];
-	r_read(wakeupmainfifo[0],buf,256); /* NON BLOCKING */
-	wakeupmainfifocount=0;
+	if (FD_ISSET(wakeupmainfifo[0],wset)) {
+		r_read(wakeupmainfifo[0],buf,256); /* NON BLOCKING */
+		wakeupmainfifocount=0;
+	}
 	workfs.max=&max;
 	workfs.wset=wset;
 	//printf("select_check_wset start\n");

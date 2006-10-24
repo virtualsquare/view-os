@@ -86,7 +86,7 @@
 #define PT_ORIG_R3 34
 #endif
 
-#define MAXSC (__NR_syscalls + 1)
+#define MAXSC (_UM_NR_syscalls + 1)
 
 #ifndef __NR_pselect6
 #define __NR_pselect6	280

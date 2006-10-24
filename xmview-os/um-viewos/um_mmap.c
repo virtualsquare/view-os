@@ -266,10 +266,10 @@ static long add_mmap_secret(service_t sercode,const char *from, unsigned long pg
 	//fprint2("add_mmap_secret %s %ld\n",from, pgoffset);
 #ifdef __NR__llseek
 	loff_t result;
-	r_llseek(um_mmap_secret, pgoffset >> ((sizeof (long)*8) - PAGE_SHIFT),
-			pgoffset << PAGE_SHIFT, &result, SEEK_SET);
+	r_llseek(um_mmap_secret, pgoffset >> ((sizeof (long)*8) - um_mmap_pageshift),
+			pgoffset << um_mmap_pageshift, &result, SEEK_SET);
 #else
-	r_lseek(um_mmap_secret,pgoffset << PAGE_SHIFT,SEEK_SET);
+	r_lseek(um_mmap_secret,pgoffset << um_mmap_pageshift,SEEK_SET);
 #endif
 	if ((fdf=service_syscall(sercode,uscno(__NR_open))(from,O_RDONLY,0)) < 0)
 		return -errno;
@@ -278,7 +278,7 @@ static long add_mmap_secret(service_t sercode,const char *from, unsigned long pg
 		size += n;
 	}
 	service_syscall(sercode,uscno(__NR_close))(fdf);
-	return (size >> PAGE_SHIFT)+1;
+	return (size >> um_mmap_pageshift)+1;
 }
 
 /* both mmap and mmap2 management */
@@ -296,8 +296,8 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	if ((!(flags & MAP_PRIVATE)) && (prot & PROT_WRITE))
 		fprint2("MMAP: %s only MAP_PRIVATE has been implemented\n",path);
 	if (sc_number == __NR_mmap)
-		offset >>= PAGE_SHIFT;
-	pgsize=offset+(length >> PAGE_SHIFT)+1;
+		offset >>= um_mmap_pageshift;
+	pgsize=offset+(length >> um_mmap_pageshift)+1;
 	epoch_t nestepoch=um_setepoch(0);
 	um_setepoch(nestepoch +1);
 	if (um_mmap_getstat(path, sercode, &sbuf, pc) < 0) {
@@ -306,9 +306,9 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		return SC_FAKE;
 	} else {
 		struct mmap_sf_entry *sf_entry;
-		if ((sbuf.st_size >> PAGE_SHIFT) + 1 > pgsize)
-			pgsize = (sbuf.st_size >> PAGE_SHIFT) + 1;
-		//fprint2("SIZE %lld pgsize %ld %ld \n", sbuf.st_size,(unsigned long)((sbuf.st_size >> PAGE_SHIFT) + 1),pgsize);
+		if ((sbuf.st_size >> um_mmap_pageshift) + 1 > pgsize)
+			pgsize = (sbuf.st_size >> um_mmap_pageshift) + 1;
+		//fprint2("SIZE %lld pgsize %ld %ld \n", sbuf.st_size,(unsigned long)((sbuf.st_size >> um_mmap_pageshift) + 1),pgsize);
 		/* there is already in the secret file? */
 		if ((sf_entry=mmap_sf_find(path,nestepoch,sbuf.st_mtime,pgsize)) == NULL) {
 			/* NO. must be loaded */
