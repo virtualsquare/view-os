@@ -170,10 +170,10 @@ static void *lwiphandle;
 
 static void openlwiplib()
 {
-	lwiphandle=dlopen("liblwip.so",RTLD_NOW);
-	if(lwiphandle==NULL) {
-		fprint2("lwiplib not found\n");
-	} else {
+	lwiphandle=dlopen("liblwipv6.so",RTLD_NOW);
+	if (lwiphandle==NULL)
+		fprint2("error loading liblwipv6: %s\n", dlerror());
+	else {
 		int i;
 		for (i=0;i<SIZEOFLIBTAB;i++) {
 			sysfun fun;

@@ -182,10 +182,10 @@ static void load_it_again(int argc,char *argv[])
 	if (nesting) {
 		char *path;
 		void *handle;
-		if ((handle=dlopen("libpure_libc.so",RTLD_LAZY))!=NULL) {
+		if ((handle=dlopen("libpurelibc.so",RTLD_LAZY))!=NULL) {
 			dlclose(handle);
 			asprintf(&path,"/proc/%d/exe",getpid());
-			setenv("LD_PRELOAD","libpure_libc.so",1);
+			setenv("LD_PRELOAD","libpurelibc.so",1);
 			argv[0]="-umview";
 			execv(path,argv);
 			free(path);

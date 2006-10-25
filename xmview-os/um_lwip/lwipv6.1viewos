@@ -48,7 +48,7 @@ umview ... --preload
 .B lwipv6
 is the gateway to the lwipv6 library a user-mode implementation a
 TCP-IP v4/v6 hybrid stack.
-This module uses the liblwip.so which implements a user-level TCP-IP stack.
+This module uses the liblwipv6.so which implements a user-level TCP-IP stack.
 The core of this stack is IPv6.
  
 When 
