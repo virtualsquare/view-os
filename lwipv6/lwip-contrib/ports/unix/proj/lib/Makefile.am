@@ -229,13 +229,13 @@ LWIPFILES = $(COREFILES) $(CORE6FILES) $(APIFILES) $(NETIFFILES) $(ARCHFILES) $(
 #=============================================================================
 
 
-lib_LTLIBRARIES = liblwip.la
+lib_LTLIBRARIES = liblwipv6.la
 
 # NB: unixlib.o should not be included, it's used only by ViewOS 
 # project. It's here only for debug.
 
-liblwip_la_SOURCES = $(LWIPFILES) $(LWIPHEADERS) sharedlib.c unixlib.c
-liblwip_la_LDFLAGS = -version-number 1:0:0 -Xcompiler -nostartfiles
+liblwipv6_la_SOURCES = $(LWIPFILES) $(LWIPHEADERS) sharedlib.c unixlib.c
+liblwipv6_la_LDFLAGS = -version-number 1:0:0 -Xcompiler -nostartfiles
 # liblwip_la_LIBADD = sharedlib.lo unixlib.lo
 
 include_HEADERS = $(LWIPARCH)/include/lwipv6.h
