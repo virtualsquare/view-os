@@ -235,7 +235,7 @@ lib_LTLIBRARIES = liblwip.la
 # project. It's here only for debug.
 
 liblwip_la_SOURCES = $(LWIPFILES) $(LWIPHEADERS) sharedlib.c unixlib.c
-liblwip_la_LDFLAGS = -version-number 1:0 -Xcompiler -nostartfiles
+liblwip_la_LDFLAGS = -version-number 1:0:0 -Xcompiler -nostartfiles
 # liblwip_la_LIBADD = sharedlib.lo unixlib.lo
 
 include_HEADERS = $(LWIPARCH)/include/lwipv6.h

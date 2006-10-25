@@ -1,3 +1,5 @@
+EXTRA_DIST = README.LICENSE
+
 SUBDIRS = lwip-contrib/ports/unix/proj/lib
 
 extraclean: distclean
