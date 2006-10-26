@@ -148,6 +148,7 @@ struct netif;
 typedef struct netif *pnetif;
 typedef pnetif (*pnetiffun)();
 typedef int (*lwiplongfun)();
+typedef void (*lwipvoidfun)();
 
 lwipvoidfun lwip_initstack,  lwip_stopstack;
 
