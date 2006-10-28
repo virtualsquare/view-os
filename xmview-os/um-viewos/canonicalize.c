@@ -69,6 +69,7 @@ um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollo
 
 	resolved_limit = resolved + PATH_MAX;
 
+	/* relative path, the first char is not '/' */
 	if (name[0] != '/')
 	{
 		if (!um_getcwd (xpc,resolved, PATH_MAX))
@@ -80,6 +81,7 @@ um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollo
 	}
 	else
 	{
+	/* absolute path */
 		resolved[0] = '/';
 		dest = resolved + 1;
 		/* special case "/" */
@@ -93,6 +95,8 @@ um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollo
 		}
 	}
 
+	/* now resolved is the current wd or "/", navigate through the 
+	 * path */
 	for (start = end = name; *start; start = end)
 	{
 		int n;
@@ -130,6 +134,7 @@ um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollo
 				goto error;
 			}
 
+			/* copy the component */
 			dest = mempcpy (dest, start, end - start);
 			*dest = '\0';
 
@@ -142,6 +147,8 @@ um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollo
 					goto error;
 				}
 			} else {
+				/* this is a symbolic link, thus restart the navigation from
+				 * the symlink location */
 				if (S_ISLNK (pst->st_mode) &&
 						((*end == '/') || !dontfollowlink))
 				{

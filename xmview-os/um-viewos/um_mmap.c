@@ -57,8 +57,12 @@ struct mmap_sf_entry {
 	struct mmap_sf_entry *next;
 };
 
+/* this is the global table used to manage the chunks */
+/* the global table is sorted on chunk starting address */
 static struct mmap_sf_entry *mmap_sf_head;
 
+/* this is an entry of the *process* mmap table */
+/* elements in the process mmap table are unordered */
 struct pcb_mmap_entry {
 	long start;
 	long len;
@@ -66,6 +70,7 @@ struct pcb_mmap_entry {
 	struct pcb_mmap_entry *next;
 };
 
+/* create a new element in the *process* mmap table */
 static struct pcb_mmap_entry *pcb_mmap_add(
 		struct pcb_mmap_entry *head, unsigned long start, unsigned long len, 
 		struct mmap_sf_entry *sf_entry)
@@ -92,6 +97,7 @@ static struct mmap_sf_entry *pcb_mmap_sfsearch(
 }
 #endif
 
+/* delete the first element in the *process* mmap list */
 static void pcb_mmap_deletehead(struct pcb_mmap_entry **head)
 {
 	struct pcb_mmap_entry *this=*head;
@@ -102,6 +108,8 @@ static void pcb_mmap_deletehead(struct pcb_mmap_entry **head)
 	}
 }
 
+/* sfsearch: find a mmap chunk in a process mmap table (and move it to head, 
+ * to support the deletehead if necessary) */
 static int pcb_mmap_sfsearch_n_movetohead(
 		struct pcb_mmap_entry **head, unsigned long start, unsigned long len)
 {
@@ -139,6 +147,11 @@ static void pcb_mmap_sfsearch_n_delete(
 }
 #endif
 
+/* when a process terminates, all the mmap chunks used by the process
+ * have one less refernce.
+ * unused chunks (counter==0) will be reused by the insertion.
+ * lazy: if the mmap-ed file is needed again (and unchanged) the previous
+ * chunk is re-used */
 void um_mmap_delproc(struct pcb_mmap_entry *head)
 {
 	if (head) {
@@ -148,6 +161,8 @@ void um_mmap_delproc(struct pcb_mmap_entry *head)
 	}
 }
 
+/* search for a mmap chunk (given path, epoch, and mtime of the file)
+ * XXX why there is not the "bitstring" of the file? */
 static struct mmap_sf_entry *mmap_sf_find (
 		char *path, epoch_t epoch, time_t mtime, unsigned long pgsize)
 {
@@ -167,11 +182,15 @@ static struct mmap_sf_entry *mmap_sf_find (
 	return NULL;
 }
 
+/* LRU approximation: lastuse is a bitstring, when a process uses a chunk
+ * the MSB is set, lastuse is right shifted at each attempt to load a
+ * mmap-ed file */
 static void mmap_compact()
 {
 	struct mmap_sf_entry *scan=mmap_sf_head;
 	/* mark the empty - reusable parts of the file */
 	while (scan) {
+		/* unused for a long time... free the area */
 		if (scan->path && scan->counter == 0 && scan->lastuse == 0) {
 			free(scan->path);
 			scan->path=NULL;
@@ -180,8 +199,10 @@ static void mmap_compact()
 			scan->lastuse >>= 1;
 		scan = scan->next;
 	}
+	/* second traversal: compact the free space*/
 	scan=mmap_sf_head;
 	while (scan) {
+		/* this is unused, and the next one is also unused */
 		if (!(scan->path) && (scan->next) && !(scan->next->path)) {
 			struct mmap_sf_entry *victim=scan->next;
 			scan->pgsize += victim->pgsize;
@@ -192,6 +213,7 @@ static void mmap_compact()
 	}
 }
 
+/* allocate a free space on the secret file*/
 static struct mmap_sf_entry *mmap_sf_allocate (
 		char *path, epoch_t epoch, time_t mtime, unsigned long pgsize)
 {
@@ -228,10 +250,14 @@ static struct mmap_sf_entry *mmap_sf_allocate (
 			scan->counter=scan->lastuse=0;
 			return scan;
 		}
+		/* no reusable chunks, allocate new space on the file */
 		if (scan->next == NULL) {
+			/* the next and last element is unused: resize it */
 			if (scan->path == NULL)
 				scan->pgsize=pgsize;
 			else {
+			/* the next/last is used, create an empty element of the right size 
+			 * after it */
 				struct mmap_sf_entry *new=malloc(sizeof (struct mmap_sf_entry));
 				new->path=NULL;
 				new->pgoffset=scan->pgoffset+scan->pgsize;
@@ -240,6 +266,8 @@ static struct mmap_sf_entry *mmap_sf_allocate (
 				scan->next = new;
 				scan=new;
 			}
+			/* now there is a new element of the right size for the allocation,
+			 * it will be found in the next iteration */
 		} else
 			scan = scan->next;
 	}
@@ -247,6 +275,7 @@ static struct mmap_sf_entry *mmap_sf_allocate (
 	return NULL;
 }
 
+/* get the stat info of the mmapped file */
 static int um_mmap_getstat(char *filename, service_t sercode, struct stat64 *buf, struct pcb *pc)
 {
  if (sercode == UM_NONE)
@@ -295,11 +324,14 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	char *path=fd_getpath(pcdata->fds,fd);
 	if ((!(flags & MAP_PRIVATE)) && (prot & PROT_WRITE))
 		fprint2("MMAP: %s only MAP_PRIVATE has been implemented\n",path);
+	/* convert mmap into mmap2 */
 	if (sc_number == __NR_mmap)
 		offset >>= um_mmap_pageshift;
+	/* compute the size in pages */
 	pgsize=offset+(length >> um_mmap_pageshift)+1;
 	epoch_t nestepoch=um_setepoch(0);
 	um_setepoch(nestepoch +1);
+	/* get the stat info about the file */
 	if (um_mmap_getstat(path, sercode, &sbuf, pc) < 0) {
 		pc->retval = -1;
 		um_setepoch(nestepoch);
@@ -325,10 +357,13 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 				return SC_FAKE;
 			}
 		}
+		/* add the new item in the *process* mmap table */
 		pcdata->um_mmap = pcb_mmap_add(pcdata->um_mmap, 0, length, sf_entry);
 		sf_entry->counter++;
 		um_setepoch(nestepoch);
 		pc->retval = 0;
+		/* rewrite the syscall parms: it is a mmap2, using the secret file
+		 * at the correct offset */
 		putscno(__NR_mmap2,pc);
 		putargn(4,um_mmap_secret,pc);
 		putargn(5,sf_entry->pgoffset+offset,pc);
@@ -337,6 +372,8 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	}
 }
 
+/* unmap: search the chunk to be unmapped, if found it is moved to the
+ * head of the process mmap table */
 int wrap_in_munmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		char sercode, sysfun um_syscall)
 {
@@ -350,6 +387,7 @@ int wrap_in_munmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		return STD_BEHAVIOR;
 }
 
+/* remap: search the chunk and move it ti the head of the process mmap table */
 int wrap_in_mremap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		char sercode, sysfun um_syscall)
 {
@@ -364,6 +402,7 @@ int wrap_in_mremap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		return STD_BEHAVIOR;
 }
 
+/* mmap after system call management */
 int wrap_out_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	if (pc->retval >= 0) {
@@ -386,6 +425,8 @@ int wrap_out_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	}
 }
 
+/* unmap after syscall management, delete the element only if the 
+ * user mode syscall succeeded */
 int wrap_out_munmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	//fprint2("======== wrap_out_munmap!!!\n");
@@ -395,6 +436,8 @@ int wrap_out_munmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	return STD_BEHAVIOR;
 }
 
+/* unmap after syscall management, change the size only if the 
+ * user mode syscall succeeded */
 int wrap_out_mremap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	unsigned long new_length=getargn(2,pc);

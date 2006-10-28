@@ -35,6 +35,8 @@
 #include <errno.h>
 #define r_waitpid(p,s,o) (syscall(__NR_wait4,(p),(s),(o),NULL))
 
+/* test thread code. This thread is started only to test 
+ * which features are provided by the linux kernel */
 static int child(void *arg)
 {
   if(ptrace(PTRACE_TRACEME, 0, 0, 0) < 0){
@@ -44,6 +46,10 @@ static int child(void *arg)
   return 0;
 }
 
+/* kernel feature test:
+ * exit value =1 means that there is ptrace multi support
+ * vm_mask and viewos_mask are masks of supported features of
+ * PTRACE_SYSVM and PTRACE_VIEWOS tags, respectively*/
 unsigned int test_ptracemulti(unsigned int *vm_mask, unsigned int *viewos_mask) {
   int pid, status, rv;
   static char stack[1024];

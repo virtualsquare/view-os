@@ -62,6 +62,7 @@ void *open_dllib(char *name)
 	return handle;
 }
 
+#if 0
 // umview internal use only, not in syscall management.
 // because it doesn't update pc->errno
 // FIXME: should be moved from this file.
@@ -76,6 +77,7 @@ int um_add_service(char* path,int position){
 	}
 	return 0;
 }
+#endif
 
 int wrap_in_umservice(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		    service_t sercode, sysfun um_syscall)

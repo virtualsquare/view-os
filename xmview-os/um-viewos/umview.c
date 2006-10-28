@@ -60,8 +60,11 @@ struct prelist {
 	char *module;
 	struct prelist *next;
 };
+
+/* module preload list */
 static struct prelist *prehead=NULL;
 
+/* add a module for pre-loading */
 static void preadd(struct prelist **head,char *module)
 {
 	struct prelist *new=malloc(sizeof(struct prelist));
@@ -71,6 +74,7 @@ static void preadd(struct prelist **head,char *module)
 	*head=new;
 }
 
+/* virtual syscall for the underlying umview */
 static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,long arg4,long arg5,long arg6) {
 	struct __sysctl_args scarg;
 	long args[6]={arg1,arg2,arg3,arg4,arg5,arg6};
@@ -83,6 +87,7 @@ static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,lon
 	return native_syscall(__NR__sysctl,&scarg);
 }
 
+/* preload of modules */
 static int do_preload(struct prelist *head)
 {
 	if (head != NULL) {
@@ -101,6 +106,7 @@ static int do_preload(struct prelist *head)
 		return 0;
 }
 
+/* preload for nexted umview (it is a burst of um_add_module) */
 static int do_preload_recursive(struct prelist *head)
 {
 	if (head != NULL) {
@@ -158,12 +164,14 @@ static struct option long_options[] = {
 	{0,0,0,0}
 };
 
+/* pure_libc loading (by relaoding the entire umview) */
 static void load_it_again(int argc,char *argv[])
 {
 	int nesting=1;
 	while (1) {
 		int c;
 		int option_index = 0;
+		/* some options must be parsed before reloading */
 		c=getopt_long(argc,argv,"+p:o:hvnx",long_options,&option_index);
 		if (c == -1) break;
 		switch (c) {
@@ -174,7 +182,7 @@ static void load_it_again(int argc,char *argv[])
 				version(1);
 				exit(0);
 				break;
-			case 'x':
+			case 'x': /* do not use pure_libc */
 				nesting=0;
 				break;
 		}
@@ -182,17 +190,23 @@ static void load_it_again(int argc,char *argv[])
 	if (nesting) {
 		char *path;
 		void *handle;
+		/* does pure_libc exist ? */
 		if ((handle=dlopen("libpurelibc.so",RTLD_LAZY))!=NULL) {
 			dlclose(handle);
+			/* get the executable from /proc */
 			asprintf(&path,"/proc/%d/exe",getpid());
+			/* preload the pure_libc library */
 			setenv("LD_PRELOAD","libpurelibc.so",1);
+			/* reload the executable with a leading - */
 			argv[0]="-umview";
 			execv(path,argv);
+			/* useless cleanup */
 			free(path);
 		}
 	}
 }
 
+/* recursive umview invocation (umview started inside a umview machine) */
 static void umview_recursive(int argc,char *argv[])
 {
 	fprintf(stderr,"UMView: nested invocation\n\n");
@@ -215,6 +229,7 @@ static void umview_recursive(int argc,char *argv[])
 		}
 	}
 	do_preload_recursive(prehead);
+	/* exec the process */
 	execvp(*(argv+optind),argv+optind);
 	exit(-1);
 }
@@ -229,42 +244,59 @@ static int has_pselect_test()
 #endif
 }
 
+/* UMVIEW MAIN PROGRAM */
 int main(int argc,char *argv[])
 {
 	fd_set wset[3];
 	int has_pselect;
 	
+	/* try to set the priority to -11 provided umview has been installed
+	 * setuid. it is effectiveless elsewhere */
 	r_setpriority(PRIO_PROCESS,0,-11);
+	/* if it was setuid, return back to the user status immediately,
+	 * for safety! */
 	r_setuid(getuid());
+	/* if this is a nested invocation of umview, notify the umview monitor
+	 * and execute the process, 
+	 * try the nested invocation notifying virtual syscall, 
+	 * if it succeeded it is actually a nested invocation,
+	 * otherwise nobody is notified and the call fails*/
 	if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_UMVIEW,0,0,0,0,0) >= 0)
 		umview_recursive(argc,argv);	/* do not return!*/
+	/* umview loads itself twice if there is pure_libc, to trace module 
+	 * generated syscalls, this condition manages the first call */
 	if (strcmp(argv[0],"-umview")!=0)
 		load_it_again(argc,argv);	/* do not return!*/
+	/* does this kernel provide pselect? */
 	has_pselect=has_pselect_test();
 	optind=0;
 	argv[0]="umview";
+	/* set up the scdtab */
 	scdtab_init();
+	/* test the ptrace support */
 	has_ptrace_multi=test_ptracemulti(&ptrace_vm_mask,&ptrace_viewos_mask);
 	want_ptrace_multi = has_ptrace_multi;
 	want_ptrace_vm = ptrace_vm_mask;
 	want_ptrace_viewos = ptrace_viewos_mask;
+	/* option management */
 	while (1) {
 		int c;
 		int option_index = 0;
 		c=getopt_long(argc,argv,"+p:o:hvnx",long_options,&option_index);
 		if (c == -1) break;
 		switch (c) {
-			case 'h': 
+			case 'h': /* help */
 				usage(argv[0]);
 				break;
-			case 'v': 
+			case 'v': /* version */
 				version(1);
 				exit(0);
 				break;
-			case 'p': 
+			case 'p': /* module preload, here the module requests are just added to
+			             a data structure */
 				preadd(&prehead,optarg);
 				break;
-			case 'o':{
+			case 'o': /* debugging output file redirection */ { 
 						if (optarg==NULL){
 							fprintf(stderr, "%s: must specify an argument after -o\n",argv[0]);
 							break;
@@ -272,18 +304,18 @@ int main(int argc,char *argv[])
 						gdebug_set_ofile(optarg);
 					 }
 					 break;
-			case 'n':
+			case 'n': /* do not use kernel extensions */
 					 want_ptrace_multi = 0;
 					 want_ptrace_vm = 0;
 					 want_ptrace_viewos = 0;
 					 break;
-			case 0x100:
+			case 0x100: /* do not use ptrace_multi */
 					 want_ptrace_multi = 0;
 					 break;
-			case 0x101:
+			case 0x101: /* do not use ptrace_vm */
 					 want_ptrace_vm = 0;
 					 break;
-			case 0x102:
+			case 0x102: /* do not use ptrace_viewos */
 					 want_ptrace_viewos = 0;
 					 break;
 		}
@@ -320,6 +352,7 @@ int main(int argc,char *argv[])
 	ptrace_vm_mask = want_ptrace_vm;
 	ptrace_viewos_mask = want_ptrace_viewos;
 	
+	/* two different main loops, depending on pselect */
 	if (has_pselect) {
 		sigset_t unblockchild;
 		/* pselect needs a strange sixth arg */
@@ -347,6 +380,7 @@ int main(int argc,char *argv[])
 			/* call tracehand anyway, if waitpid fails it returns here
 			 * quite soon, it is useless to waste another syscall like sigpending*/
 			tracehand();
+			/* if no fd is involved, skip the control */
 			if (n > 0)
 				select_check_wset(max,wset);
 		}

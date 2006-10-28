@@ -45,6 +45,7 @@
  * represents the new istance.
  *
  * Each node is timestamped with its starting epoch.
+ * Processes are always assigned to the leaves.
  *
  */
 
@@ -64,26 +65,30 @@
 #define DEPTH_WORDS ((DEPTH_BYTES + sizeof(long) - 1)/sizeof(long))
 
 struct treepoch {
-	struct treepoch *parent;
-	struct treepoch *sub[2];
-	epoch_t rise;
-	unsigned long nproc;
-	unsigned long nref;
-	unsigned short subheight;
-	unsigned short len;
-	unsigned long bitstr[DEPTH_WORDS];
+	struct treepoch *parent;	
+	struct treepoch *sub[2]; /*structure pointers*/
+	epoch_t rise;            /*when this element was created */
+	unsigned long nproc;     /* number of processes in this node */
+	unsigned long nref;      /* number of references to this node */
+	unsigned short subheight;/* height of the subtree rooted here*/
+	unsigned short len;      /* len of the string (distance to the root) */
+	unsigned long bitstr[DEPTH_WORDS]; /*bitstring of this node*/
 };
 
-static struct treepoch *te_root;
+static struct treepoch *te_root; /* root of the treepoch structure */
 /*
 static struct treepoch tst_useless={
 	.len=__SHRT_MAX__,
 };
 */
 
-static epoch_t epoch_now=2;
+/* epoch now is a (long long) counter, it is used to timestamp all the state
+ * changes in the system */
+static epoch_t epoch_now=2; 
+/* mutex for multithreading */
 static pthread_mutex_t epoch_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+/* bit string management, the string is splitted into word-sized elements */
 static int getbit(unsigned long *v,short b)
 {
 	return (v && (v[b >> __LOG_WORDSIZE] & (1<< (b & __WORDSIZEMASK))));
@@ -99,6 +104,7 @@ static void setbit(unsigned long *v,short b,int val)
 	}
 }
 
+/* TRUE if two strings differs up to the "len"th element */
 static int diffbitstr(unsigned long *a,unsigned long *b,short len)
 {
 	int i;
@@ -113,6 +119,7 @@ static int diffbitstr(unsigned long *a,unsigned long *b,short len)
 	return rv;
 }
 
+/* one tick of the global timestap clock epoch_now */
 static epoch_t new_epoch(){
 	epoch_t tmp;
 	pthread_mutex_lock(&epoch_mutex);
@@ -127,6 +134,8 @@ epoch_t get_epoch(){
 	return epoch_now;
 }
 
+/* it is > 0 if the operation time is consistent with the service time.
+ * in such a case it returns the epoch of the matching */
 epoch_t tst_matchingepoch(struct timestamp *service_tst)
 {
 	/* if service_tst refers to a dead branch service_tst->epoch is updated*/
@@ -153,6 +162,7 @@ epoch_t tst_matchingepoch(struct timestamp *service_tst)
 		return service_tst->epoch;
 }
 
+/* create a complete timestamp of an event */
 struct timestamp tst_timestamp() 
 {
 	struct timestamp *process_tst=um_x_gettst();
@@ -162,6 +172,8 @@ struct timestamp tst_timestamp()
 	return rv;
 }
 
+/* update the treepoch: substring and len are updated towards the leaves
+ * by a recursive depth first search */
 static void de_update_substr(struct treepoch *node,int v01)
 {
 	if (node) {
@@ -173,9 +185,13 @@ static void de_update_substr(struct treepoch *node,int v01)
 	}
 }
 
+/* update the treepoch: the subtree height must be updated towards the root:
+ * this recursive scan terminates when the root has been reached or
+ * when the other subtree is deeper */
 static void de_update_height(struct treepoch *node,short subheight)
 {
 	subheight++;
+	/* XXX does this work correctly when deleting levels? */
 	if (node && node->subheight < subheight) {
 		node->subheight=subheight;
 		de_update_height(node->parent,subheight);
@@ -194,34 +210,54 @@ static void te_printtree(struct treepoch *node,int l)
 }
 #endif
 
+/* delete a process form the treepoch */
 static void te_delproc(struct treepoch *node)
 {
 	if (node != NULL){
 		struct treepoch *parent=node->parent;
+		/* if there are no more processes depending on this node */
 		if (--node->nproc == 0 && parent) {
 			/* treepoch node removal */
 			struct treepoch *other;
+			/* other is the "surviving" branch from the parent */
 			other=(node==parent->sub[0])?parent->sub[1]:parent->sub[0];
 			/* internal nodes have always two branches (sub[0] != NULL & sub[1] != NULL) */
+			/* two nodes of the treepoch gets deleted, the empty leaf and its
+			 * parent, the other branch root node gets the role of the former 
+			 * parent */
+			/* cancellando X (parent is A, deleted, and other is B)
+			 *        |                 |
+			 *        A                 B
+			 *       / \               / \
+			 *      X   B
+			 *         / \
+			 */         
 			other->parent=parent->parent;
+			/* the timestamp of the new parent is the timestamp of the old parent */
 			other->rise=parent->rise;
+			/* special case: root of treepoch redefined */
 			if (other->parent ==NULL)
 				te_root=other;
 			else
-				//other->parent->sub[getbit(parent->bitstr,parent->len-1)]=other;
+			/* normal case: set the pointer of grandparent's son to 'other' */
 				other->parent->sub[getbit(parent->bitstr,parent->len-1)]=other;
 			other->len=parent->len;
+			/* copy the string of parent (other takes the role of its parent) */
 			memcpy(&other->bitstr,&parent->bitstr,DEPTH_WORDS*sizeof(long));
+			/* the node is kept for lazy garbage collection */
 			node->parent=other;
+			/* update the structure */
 			de_update_substr(other->sub[0],0);
 			de_update_substr(other->sub[1],1);
 			de_update_height(other->parent,other->subheight);
 			/*te_printtree(te_root,0);*/
 		}
+		/* nproc must be updated also on the ancestors */
 		te_delproc(parent);
 	}
 }
 
+/* add a new process (nproc++ for the node and for all its ancestors)*/
 static void te_newproc(struct treepoch *node)
 {
 	if (node != NULL){
@@ -230,6 +266,7 @@ static void te_newproc(struct treepoch *node)
 	}
 }
 
+/* interface function: generate a new fork */
 struct timestamp tst_newfork(struct timestamp *old_tst)
 {
 	struct timestamp rv;
@@ -245,35 +282,51 @@ struct timestamp tst_newfork(struct timestamp *old_tst)
 		new_te=calloc(1,sizeof(struct treepoch));
 		assert(new_te);
 		rv.treepoch=new_te;
+		/* a new fork *is* a relevant event for the system timestamping */
 		rv.epoch=new_te->rise=new_epoch();
 		if (te_root == NULL) {
+			/* special case: first node= root */
 			te_root=new_te;
 		} else {
 			/* treepoch creation */
+			/* when a treepoch forks two nodes get created. ex:old_te forks:
+			 *  |            |
+			 *old_te      par_te
+			 *              / \
+			 *         old_te new_te
+			 */
 			struct treepoch *old_te=old_tst->treepoch;
 			struct treepoch *par_te=calloc(1,sizeof(struct treepoch));
 			assert(old_te);
 			assert(par_te);
+			/* old and new have the timestamp of the fork, while par_te
+			 * gets the old timestamp of old_te */
 			par_te->rise=old_te->rise;
 			old_te->rise=new_te->rise;
+			/* the new fork has a process (the caller), old_te has lost
+			 * one process */
 			par_te->nproc=old_te->nproc;
 			old_te->nproc=old_te->nproc-1;
 			new_te->nproc=1;
 			par_te->nref=2;
 			new_te->nref=0;
+			/* re-link the binary tree structure */
 			par_te->sub[0]=old_te;
 			par_te->sub[1]=new_te;
 			par_te->parent=old_te->parent;
 			old_te->parent=new_te->parent=par_te;
+			/* update the grandparent's son pointer */
 			if (par_te->parent ==NULL) 
 				te_root=par_te;
 			else
 				par_te->parent->sub[getbit(old_te->bitstr,old_te->len-1)]=par_te;
+			/* update the bit strings */
 			par_te->len=old_te->len;
 			memcpy(&par_te->bitstr,&old_te->bitstr,DEPTH_WORDS*sizeof(long));
 			memcpy(&new_te->bitstr,&old_te->bitstr,DEPTH_WORDS*sizeof(long));
 			new_te->subheight=0;
 			par_te->subheight=old_te->subheight+1;
+			/* update strings (in the subtree) and height towards the ancestors */
 			de_update_substr(old_te,0);
 			de_update_substr(new_te,1);
 			de_update_height(par_te->parent,par_te->subheight);
@@ -283,6 +336,7 @@ struct timestamp tst_newfork(struct timestamp *old_tst)
 	}
 }
 
+/* interface functions: add a process/delete a process */
 struct timestamp tst_newproc(struct timestamp *parent_tst)
 {
 	struct timestamp rv;

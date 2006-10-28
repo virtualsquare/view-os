@@ -29,7 +29,8 @@
 
 #define getregs(PC)  ( ptrace(PTRACE_GETREGS,(PC)->pid,NULL,(void*) (PC)->saved_regs), (PC)->regs_modified=0 )
 
-// this is coming to became unreadable... how about write a real function?
+/* this is getting unreadable... how about write a real function? */
+/* RD: for performance it should be in-lined */
 #define setregs(PC,CALL,OP) ({ (PC)->regs_modified==0 ? ptrace((CALL),(PC)->pid,(OP),0) :\
 			   	(has_ptrace_multi ? ({\
 			struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, (void *) (PC)->saved_regs, 0},\

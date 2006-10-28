@@ -37,16 +37,24 @@
 #include "scmap.h"
 #include "bits/wordsize.h"
 
+/* Each service module has its unique code 1..254 (0x01..0xfe)
+	0x00 is UM_ERR and 0xff is UM_NONE */
+/* When a module is loaded the index of the services array is loaded into
+ * the corresponding element in servmap (if a module has its code 0x9b,
+ * servmap[0x9b] -1 is the index where the service has been loaded.
+ * (This method gives complexity O(1) to the service code 2
+ * service implementation mapping)*/
 /* servmap[service code] - 1 is the index of the service description into
- * 'services' */
+ * 'services'. with -1 there is no need for initialization */
 static char servmap[256];
 
 static int locked=0;
 static int invisible=0;
 static int noserv=0;
 static int maxserv=0;
-/* descriptor of all services */
-// services maintain list of all modules loaded.
+
+/* the array "services" maintains list of all modules loaded.*/
+/* the sorting of the array services is the search order */
 static struct service **services=NULL;
 
 static sysfun reg_service,dereg_service;
@@ -111,8 +119,10 @@ void modify_um_syscall(struct service *s)
 	GDEBUG(9, "i = %d >= %d", i, SIZESCUNIFY);
 }
 
+/* add a new service module */
 int add_service(struct service *s)
 {
+	/* locking/error management */
 	if (invisible)
 		return s_error(ENOSYS);
 	else if (locked)
@@ -124,6 +134,8 @@ int add_service(struct service *s)
 	else {
 		GDEBUG(9, "noserv == %d, adding 1", noserv);
 		noserv++;
+		/* the "services" array is realloc-ed when there are no more
+		 * free elements */
 		if (noserv > maxserv) {
 			GDEBUG(9, "noserv > maxserv (%d > %d)", noserv, maxserv);
 			maxserv= (noserv + OSER_STEP) & ~OSER_STEP_1;
@@ -132,19 +144,20 @@ int add_service(struct service *s)
 			GDEBUG(9, "reallocating services to %d * %d", maxserv, sizeof(struct service*));
 			assert(services);
 		}
+		/* set the new element */
 		services[noserv-1]=s;
+		/* set the servmap. noserv is the index where the service is, + 1 */
 		servmap[services[noserv-1]->code] = noserv;
+		/* dl handle is the dynamic library handle, it is set in a second time */
 		s->dlhandle=NULL;
-		GDEBUG(9, "services[noserv-1] == %p", services[noserv-1]);
 		if (reg_service)
 			reg_service(s->code);
-		GDEBUG(9, "services[noserv-1] == %p", services[noserv-1]);
 		modify_um_syscall(s);
-		GDEBUG(9, "services[noserv-1] == %p", services[noserv-1]);
 		return 0;
 	}
 }
 
+/* set the new service dl handle and move it to the right position */
 int set_handle_new_service(void *dlhandle,int position)
 {
 	if (noserv == 0 || services[noserv-1]->dlhandle != NULL)
@@ -156,6 +169,7 @@ int set_handle_new_service(void *dlhandle,int position)
 	}
 }
 
+/* get the dynamic library handle */
 void *get_handle_service(service_t code) {
 	int i=servmap[code]-1;
 	if (invisible || locked || i<0)
@@ -165,8 +179,10 @@ void *get_handle_service(service_t code) {
 	}
 }
 
+/* delete a service */
 int del_service(service_t code)
 {
+	/* locking and error management */
 	if (invisible)
 		return s_error(ENOSYS);
 	else if (locked)
@@ -175,11 +191,14 @@ int del_service(service_t code)
 		return s_error(ENOENT);
 	else {
 		int i;
+		/* call deregistrationn upcall (if any) */
 		if (dereg_service)
 			dereg_service(code);
+		/* compact the table */
 		for (i= servmap[code]-1; i<noserv-1; i++)
 			services[i]=services[i+1];
 		noserv--;
+		/* update the indexes in servmap */
 		servmap[code] = 0;
 		for (i=0;i<noserv;i++)
 			servmap[services[i]->code] = i+1;
@@ -187,8 +206,10 @@ int del_service(service_t code)
 	return 0;
 }
 
+/* mov a service */
 int mov_service(service_t code, int position)
 {
+	/* locking and error management */
 	if (invisible)
 		return s_error(ENOSYS);
 	else if (locked)
@@ -199,6 +220,7 @@ int mov_service(service_t code, int position)
 		int i;
 		int oldposition=servmap[code]-1;
 		struct service *s=services[oldposition];
+		/* shift the elements */
 		position--;
 		if (position < 0 || position >= noserv)
 			position=noserv-1;
@@ -216,14 +238,17 @@ int mov_service(service_t code, int position)
 			assert(i==position);
 			services[i]=s;
 		}
+		/* update the indexes in servmap */
 		for (i=0;i<noserv;i++)
 			servmap[services[i]->code] = i+1;
 		return 0;
 	}
 }
 
+/* list services: returns a list of codes */
 int list_services(service_t *buf,int len)
 {
+	/* error management */
 	if (invisible)
 		return s_error(ENOSYS);
 	else if (len < noserv)
@@ -236,8 +261,10 @@ int list_services(service_t *buf,int len)
 	}
 }
 
+/* name services:  maps a service code to its description */
 int name_service(service_t code,char *buf,int len)
 {
+	/* error management */
 	if (invisible)
 		return s_error(ENOSYS);
 	else if (servmap[code] == 0)
@@ -397,6 +424,8 @@ static void _service_fini()
 			*/
 }
 
+/* service initialization: upcalls for new services/deleted services
+ * may be supplied */
 void _service_init(sysfun register_service,sysfun deregister_service)
 {
 	atexit(_service_fini);

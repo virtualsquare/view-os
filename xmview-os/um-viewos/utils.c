@@ -41,17 +41,20 @@
 #include "utils.h"
 #include "ptrace2.h"
 
+/* LOAD data from the process address space */
 int
 umoven(struct pcb *pc, long addr, int len, void *_laddr)
 {
 	if (len==0) 
 		return 0;
+	/* ptrace_multi is the quickest way */
 	if (has_ptrace_multi) {
 		struct ptrace_multi req[] = {{PTRACE_PEEKCHARDATA, addr, _laddr, len}};
 		return ptrace(PTRACE_MULTI, pc->pid, req, 1); 
 	}
 	else {
 #ifdef _PROC_MEM_TEST
+	/* try to read from the /proc/nnnn/mem file */
 		if (pc->memfd >= 0) {
 			int sz;
 			sz=r_pread64(pc->memfd,_laddr,len,0,addr);
@@ -60,6 +63,8 @@ umoven(struct pcb *pc, long addr, int len, void *_laddr)
 		} 
 #endif
 		{
+			/* unlucky option: we need to use the standard ptrace,
+			 * one syscall per memory word */
 			char *laddr=_laddr;
 			long n, m;
 			//FIXME: started is not changed after check it in "if(started && ..." 
@@ -109,11 +114,13 @@ umoven(struct pcb *pc, long addr, int len, void *_laddr)
 	}
 }
 
+/* LOAD data (0 terminated string) from the process address space */
 int
 umovestr(struct pcb *pc, long addr, int len, void *_laddr)
 {
 	if (len==0) 
 		return 0;
+	/* quick solution: ptrace_multi is available */
 	if (has_ptrace_multi) {
 		struct ptrace_multi req[] = {{PTRACE_PEEKSTRINGDATA, addr, _laddr, len}};
 		ptrace(PTRACE_MULTI, pc->pid, req, 1); 
@@ -121,6 +128,7 @@ umovestr(struct pcb *pc, long addr, int len, void *_laddr)
 	}
 	else {
 #ifdef _PROC_MEM_TEST
+   /* try to read /proc/nnnn/mem */
 		if (0 && pc->memfd >= 0) {
 			int sz;
 			sz=r_pread64(pc->memfd,_laddr,len,0,addr);
@@ -129,6 +137,7 @@ umovestr(struct pcb *pc, long addr, int len, void *_laddr)
 		} 
 #endif
 		{
+			/* no hope: use standard ptrace */
 			char *laddr=_laddr;
 			int started = 0;
 			long n,m;
@@ -183,18 +192,21 @@ umovestr(struct pcb *pc, long addr, int len, void *_laddr)
 	}
 }
 
+/* STORE data into the process address space */
 int
 ustoren(struct pcb *pc, long addr, int len, void *_laddr)
 {
 	if (len==0) 
 		return 0;
 	if (has_ptrace_multi) {
+	/* wow: there is ptrace_multi, this is the quicky way */
 		struct ptrace_multi req[] = {{PTRACE_POKECHARDATA, addr, _laddr, len}};
 		return ptrace(PTRACE_MULTI, pc->pid, req, 1); 
 	}
 	else {
 #ifdef _PROC_MEM_TEST
-		/* /proc/<pid>/mem does not support writing yet... */
+    /* let us try to write on /proc/nnnn/mem */
+		/* unfortunately /proc/<pid>/mem does not support writing yet... */
 		if (pc->memfd >= 0) {
 			int sz;
 			sz=r_pwrite64(pc->memfd,_laddr,len,0,addr);
@@ -203,6 +215,7 @@ ustoren(struct pcb *pc, long addr, int len, void *_laddr)
 		} 
 #endif
 		{
+		  /* what a pity: there is only standard ptrace */
 			char *laddr=_laddr;
 			long n, m;
 			int started = 0;
@@ -263,18 +276,21 @@ ustoren(struct pcb *pc, long addr, int len, void *_laddr)
 	}
 }
 
+/* STORE data (0 terminated string) into the process address space */
 int
 ustorestr(struct pcb *pc, long addr, int len, void *_laddr)
 {
 	if (len==0) 
 		return 0;
 	if (has_ptrace_multi) {
+		/* ptrace is provided by this kernel -> let's go speedy */
 		struct ptrace_multi req[] = {{PTRACE_POKECHARDATA, addr, _laddr, len}};
 		return ptrace(PTRACE_MULTI, pc->pid, req, 1); 
 	}
 	else {
 #ifdef _PROC_MEM_TEST
-		/* /proc/<pid>/mem does not support writing... yet*/
+		/* let us try if we can write /proc/nnnn/mem */
+		/* /proc/<pid>/mem: linux does not support writing... yet*/
 		if (pc->memfd >= 0) {
 			int sz;
 			sz=r_pwrite64(pc->memfd,_laddr,len,0,addr);
@@ -283,6 +299,8 @@ ustorestr(struct pcb *pc, long addr, int len, void *_laddr)
 		} 
 #endif
 		{
+			/* umph, there is nothing better to do than using a
+			 * ptrace call per memory word. Snaily way */
 			char *laddr=_laddr;
 			int started = 0;
 			int i, n, m;

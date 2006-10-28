@@ -23,6 +23,14 @@
  *   $Id$
  *
  */   
+/* FILE management:
+ * there are three different "file descriptors"
+ * fd -> file descriptors seen by the processes
+ * lfd -> local file descriptors fd of umview itself
+ * sfd -> service fd, fd as seen by the service modules.
+ * The three set are independent, sfd can be numbers created by modules, 
+ * meaningless for umview, umview should just keep the mapping between
+ * fd, lfd and sfd */
 #include <assert.h>
 #include <string.h>
 #include <fcntl.h>
@@ -72,12 +80,15 @@ struct lfd_top {
 static short um_maxlfd=0;
 static struct lfd_top *lfd_tab=NULL;
 
+/* umproc initialization */
 void um_proc_open()
 {
 	char path[PATH_MAX];
 #ifdef _UM_MMAP
 	long pagesize;
 #endif
+	/* path of the directory umview creates to store temporary and management
+	 * files */
 	snprintf(path,PATH_MAX,"/tmp/.umproc%ld",(long int)r_getpid());
 	//printf("um_proc_open %s\n",path);
 
@@ -88,21 +99,25 @@ void um_proc_open()
 	um_proc_root=strdup(path);
 	strcpy(um_proc_root,path);
 #ifdef _UM_MMAP
+	/* open/create the mmap secret file, it is inherited by all the processes */
 	strcat(path,"/lfd.um_mmap");
 	um_mmap_secret = r_open(path,O_RDWR|O_TRUNC|O_CREAT,0700);
+	/* compute the pageshift value  (log2(pagesize)) */
 	pagesize = sysconf(_SC_PAGESIZE);
 	for (um_mmap_pageshift = -1;pagesize > 0; um_mmap_pageshift++, pagesize >>= 1)
 		;
-	fprint2("PAGESIZE %d shift %d\n",sysconf(_SC_PAGESIZE),um_mmap_pageshift);
 #else
 	strcat(path,"/lfd.xxXXXXX");
 #endif
+	/* set the um_tmpfile variable, it is used to (quickly) create
+	 * tmp file names. The tail is overwritten each time */
 	um_tmpfile=strdup(path);
 	strcpy(um_tmpfile,path);
 	um_tmpfile_tail=um_tmpfile+(strlen(path)-7);
 	um_tmpfile_len=strlen(um_tmpfile);
 }
 
+/* final cleanup: all the directory is deleted (something like rm -rf) */
 static void rec_rm_all(char *name)
 {
 	int fd;
@@ -131,6 +146,7 @@ static void rec_rm_all(char *name)
 	}
 }
 
+/* um_proc destructor: all the files get closed and the dir removed */
 void um_proc_close()
 {
 	//printf("um_proc_close %s\n",um_proc_root);
@@ -138,6 +154,8 @@ void um_proc_close()
 	rec_rm_all(um_proc_root);
 }
 
+/* create a temporary file name, unique names are guaranteed by using
+ * service code+lfd index in the name */
 static char *um_proc_tmpfile(service_t service, int lfd)
 {
 	snprintf(um_tmpfile_tail,um_tmpfile_len,"%02x%02d",service,lfd);
@@ -145,6 +163,8 @@ static char *um_proc_tmpfile(service_t service, int lfd)
 	return um_tmpfile;
 }
 
+/* create a temporary file name, unique names are guaranteed by using
+ * a counter */
 #define NMAX 1000000
 char *um_proc_tmpname()
 {
@@ -155,10 +175,13 @@ char *um_proc_tmpname()
 	return um_tmpfile;
 }
 
+/* set up the umproc data structure needed by a new process */
 void lfd_addproc (struct pcb_file **pp,int flag)
 {
 	//printf("ADDPROC %x\n",flag);
 	/* flag => CLONE_FILES is set */
+	/* when clone file is set, the new process shares the data structure
+	 * with the parent process */
 	if (flag) {
 		struct pcb_file *p=*pp;
 		assert (p != NULL);
@@ -171,11 +194,14 @@ void lfd_addproc (struct pcb_file **pp,int flag)
 	}
 }
 
+/* clean up the umproc data structure when a process terminates */
 void lfd_delproc (struct pcb_file *p)
 {
 	int i;
 	//printf("DELPROC count %d nolfd %d\n",p->count,p->nolfd);
 	p->count--;
+	/* if there are no processes left sharing this data structure
+	 * free all the data */
 	if (p->count == 0) {
 		for (i=0; i<p->nolfd;  i++) {
 			register int lfd=p->lfdlist[i];
@@ -199,6 +225,10 @@ void lfd_delproc (struct pcb_file *p)
 /* open file/socket has two phases: the real open and the register.
  * in the second phase registers the map between the fd as seen by the process and
  * our lfd */
+/* lfd table contains a record for each file opened by a process,
+ * if it is not "virtualized" it is used to keep the path of the open file
+ * (e.g. to manage a fchdir call!)
+ * When the file is virtualized there is the pvtab part*/
 int lfd_open (service_t service, int sfd, char *path, int nested)
 {
 	int lfd,fifo;
@@ -236,9 +266,15 @@ int lfd_open (service_t service, int sfd, char *path, int nested)
 		char *filename;
 		lfd_tab[lfd].pvtab = (struct lfd_vtable *)malloc (sizeof(struct lfd_vtable));
 		assert(lfd_tab[lfd].pvtab != NULL);
+		/* create the fifo to fake the file for the process,
+		 * it will be used to give a fd to the process and to unblock
+		 * select/pselect/poll/ppoll operations */
 		filename=lfd_tab[lfd].pvtab->filename=strdup(um_proc_tmpfile(service,lfd));
 		fifo=mkfifo(filename,0600);
 		assert(fifo==0);
+		/* the fifo is opened on both ends input and output, so that
+		 * 1- the call is not blocking
+		 * 2- it is possible to reread the data after the process gets unblocked */
 		lfd_tab[lfd].pvtab->ififo=r_open(filename,O_RDONLY|O_NONBLOCK,0);
 		assert(lfd_tab[lfd].pvtab->ififo >= 0);
 		lfd_tab[lfd].pvtab->ofifo=r_open(filename,O_WRONLY,0);
@@ -252,13 +288,18 @@ int lfd_open (service_t service, int sfd, char *path, int nested)
 	return lfd;
 }
 
+/* close a file */
 void lfd_close (int lfd)
 {
 	int rv;
 	GDEBUG(5, "close %d %x",lfd,lfd_tab[lfd].ptab);
 	assert (lfd < 0 || (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL));
+	/* if this is the last reference to the lfd 
+	 * close everything*/
 	if (lfd >= 0 && --(lfd_tab[lfd].ptab->count) == 0) {
 		register int service;
+		/* if it is a virtual fifo, close the fifo files, unlink
+		 * the fifo itself, and free the malloc'ed data */
 		if (lfd_tab[lfd].pvtab != NULL) {
 			rv=r_close(lfd_tab[lfd].pvtab->ififo);
 			assert(rv==0);
@@ -272,9 +313,11 @@ void lfd_close (int lfd)
 		//else
 			//printf("del lfd %d file %s\n",lfd,lfd_tab[lfd].ptab->path);
 		service=lfd_tab[lfd].ptab->service;
+		/* call the close method of the service module */
 		if (service != UM_NONE && lfd_tab[lfd].ptab->sfd >= 0) {
 			service_syscall(service,uscno(__NR_close))(lfd_tab[lfd].ptab->sfd); 
 		}
+		/* free path and structure */
 		if (lfd_tab[lfd].ptab->path != NULL)
 			free(lfd_tab[lfd].ptab->path);
 		free(lfd_tab[lfd].ptab);
@@ -282,6 +325,7 @@ void lfd_close (int lfd)
 	}
 }
 
+/* dup: just increment the count, lfd is shared */
 int lfd_dup(int lfd)
 {
 	if (lfd >= 0) {
@@ -291,12 +335,14 @@ int lfd_dup(int lfd)
 		return 1;
 }
 	
+/* access method to read how many process fd share the same lfd element */
 int lfd_getcount(int lfd)
 {
 	assert (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL);
 	return lfd_tab[lfd].ptab->count;
 }
 
+/* set sfd to null (to avoid double close) */
 void lfd_nullsfd(int lfd)
 {
 	//printf("lfd_nullsfd %d %d %x\n",
@@ -305,12 +351,14 @@ void lfd_nullsfd(int lfd)
 	lfd_tab[lfd].ptab->sfd= -1;
 }
 
+/* lfd 2 sfd conversion */
 int lfd_getsfd(int lfd)
 {
 	assert (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL);
 	return lfd_tab[lfd].ptab->sfd;
 }
 	
+/* lfd: get the service code */
 service_t lfd_getservice(int lfd)
 {
 	//fprint2("getservice %d -> %x\n",lfd,lfd_tab[lfd].ptab);
@@ -320,18 +368,21 @@ service_t lfd_getservice(int lfd)
 	return lfd_tab[lfd].ptab->service;
 }
 	
+/* lfd: get the filename (of the fifo): for virtualized files*/
 char *lfd_getfilename(int lfd)
 {
 	assert (lfd < um_maxlfd && lfd_tab[lfd].pvtab != NULL);
 	return lfd_tab[lfd].pvtab->filename;
 }
 
+/* lfd: get the path */
 char *lfd_getpath(int lfd)
 {
 	assert (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL);
 	return lfd_tab[lfd].ptab->path;
 }
 
+/* fd 2 ldf mapping (in a process file table) */
 int fd2lfd(struct pcb_file *p, int fd)
 {
 	if (fd>=0 && fd < p->nolfd)
@@ -340,6 +391,7 @@ int fd2lfd(struct pcb_file *p, int fd)
 		return -1;
 }
 	
+/* fd 2 path mapping (given the file table of a process) */
 char *fd_getpath(struct pcb_file *p, int fd)
 {
 	if (fd>=0 && fd < p->nolfd) {
@@ -353,6 +405,7 @@ char *fd_getpath(struct pcb_file *p, int fd)
 		return NULL;
 }
 
+/* fd 2 sfd conversion (given the file table of a process) */
 int fd2sfd(struct pcb_file *p, int fd)
 {
 	if (fd>=0 && fd < p->nolfd && p->lfdlist[fd] >= 0)
@@ -373,17 +426,24 @@ service_t service_fd(struct pcb_file *p, int fd)
 	else
 		printf("service fd p=%d xxx\n",fd); */
 #ifdef _UM_MMAP
+  /* ummap secret file is not accessible by processes, it is just a 
+	 * non-existent descriptor */
 	if (fd == um_mmap_secret) 
 		return UM_ERR;
 	else 
 #endif
 		if (fd >= 0 && fd < p->nolfd && p->lfdlist[fd] >= 0) {
-		um_setepoch(lfd_tab[p->lfdlist[fd]].ptab->epoch);
-		return lfd_tab[p->lfdlist[fd]].ptab->service;
-	} else
-		return UM_NONE;
+			/* XXX side effect: when service_fd finds a virtual file,
+			 * it sets also the epoch */
+			um_setepoch(lfd_tab[p->lfdlist[fd]].ptab->epoch);
+			return lfd_tab[p->lfdlist[fd]].ptab->service;
+		} else
+			return UM_NONE;
 }
 	
+/* second phase of lfd_open: map the process fd to to lfd,
+ * fd is known only after the kernel has completed its open
+ * of the fifo */
 void lfd_register (struct pcb_file *p, int fd, int lfd)
 {
 	//printf("lfd_register fd %d lfd %d\n",fd,lfd);
@@ -407,6 +467,8 @@ void lfd_register (struct pcb_file *p, int fd, int lfd)
 	//printf("lfd_register fd %d lfd %d path %s\n", fd, lfd, lfd_tab[lfd].ptab->path);
 }
 
+/* when a process closes a file must be closed (lfd element) and deregistered
+ * from the process file table */
 void lfd_deregister_n_close(struct pcb_file *p, int fd)
 {
 	//printf("lfd_deregister_n_close %d %d \n",fd,p->nolfd);
@@ -417,6 +479,7 @@ void lfd_deregister_n_close(struct pcb_file *p, int fd)
 	}
 }
 
+/* final clean up of all the fifos */
 void lfd_closeall()
 {
 	register int lfd;
@@ -429,6 +492,7 @@ void lfd_closeall()
 	}
 }
 
+/* unblock a process waiting on a select/poll call */
 void lfd_signal(int lfd)
 {
 	char ch=0;
@@ -440,6 +504,7 @@ void lfd_signal(int lfd)
 	}
 }
 
+/* when the process has restarted, empty the fifo for the next time */
 void lfd_delsignal(int lfd)
 {
 	char buf[1024];
@@ -450,6 +515,8 @@ void lfd_delsignal(int lfd)
 	}
 }
 
+/* sfd + service --2--> path conversion
+ * linear scan, slow! */
 char *sfd_getpath(service_t code, int sfd)
 {
 	int lfd;

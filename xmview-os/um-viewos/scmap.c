@@ -108,6 +108,16 @@ wrapinfun wrap_in_umservice, wrap_out_umservice;
 #define AL64 0
 #endif
 
+/* SYSTEM CALL MAP, columns:
+ * num of syscall (unistd.h)
+ * choice function
+ * wrap_in function
+ * wrap out function
+ * nested call choice function
+ * nested call wrap function
+ * flags
+ * number of args
+ * category of calls */
 struct sc_map scmap[]={
 	{__NR_doesnotexist, always_umnone, NULL, NULL,always_umnone,NULL,0,6,0},
 
@@ -249,7 +259,7 @@ struct sc_map scmap[]={
 	{__NR_ptrace, always_umnone, wrap_in_ptrace, wrap_out_ptrace, always_umnone,	NULL, 0, 4, 0}
 #endif
 
-/* When socketcall doew not exist it means that all the socket system calls
+/* When socketcall does not exist it means that all the socket system calls
  * are normal syscall, thus the tables must be merged together */
 #if (__NR_socketcall != __NR_doesnotexist)
 };
@@ -301,22 +311,27 @@ struct sc_map virscmap[]={
 
 #define SIZEVIRSCMAP (sizeof(virscmap)/sizeof(struct sc_map))
 
+/* unistd syscall number -> scmap table index conversion */
 static short scremap[MAXSC];
 
 void init_scmap()
 {
 	register int i;
 
+	/* initialize the scremap table */
 	for (i=0; i<SIZESCMAP; i++) {
 		int scno=scmap[i].scno;
 		if (scno>=0)
 			scremap[scno]=i;
 	}
+	/* these global variables can be read from (dynamically loaded)
+	 * modules */
 	scmap_scmapsize = SIZESCMAP;
 	scmap_sockmapsize = SIZESOCKMAP;
 	scmap_virscmapsize = SIZEVIRSCMAP;
 }
 
+/* unistd number to scmap index remap, 0 if non-existent */
 int uscno(int scno)
 {
 	if (scno >= 0 && scno < MAXSC)

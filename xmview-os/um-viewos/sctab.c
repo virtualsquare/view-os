@@ -55,6 +55,7 @@
 #include "capture_nested.h"
 #include "gdebug.h"
 
+/* set the errno */
 void um_set_errno(struct pcb *pc,int i) {
 	if (pc->flags && PCB_INUSE) 
 		pc->erno=i;
@@ -64,6 +65,7 @@ void um_set_errno(struct pcb *pc,int i) {
 	}
 }
 
+/*  get the current working dir */
 char *um_getcwd(struct pcb *pc,char *buf,int size) {
 	if (pc->flags && PCB_INUSE) {
 		strncpy(buf,((struct pcb_ext *)(pc->data))->fdfs->cwd,size);
@@ -74,6 +76,7 @@ char *um_getcwd(struct pcb *pc,char *buf,int size) {
 		return NULL;
 }
 
+/* internal call: get the timestamp */
 struct timestamp *um_x_gettst()
 {
 	struct pcb *pc=get_pcb();
@@ -96,6 +99,9 @@ struct timestamp *um_x_gettst()
 		return NULL;
 }
 
+/* get the epoch for nesting (further system calls)*/
+/* this call is deprecated, use um_setepoch(0) instead, 
+ * it will be eliminated as soon as all the reference have been changed */
 epoch_t um_getnestepoch()
 {
 	struct pcb *pc=get_pcb();
@@ -108,6 +114,9 @@ epoch_t um_getnestepoch()
 	}
 }
 
+/* set the epoch for nesting (further system calls)
+ * this call returns the previous value.
+ * If epoch == 0, the new epoch is not set */
 epoch_t um_setepoch(epoch_t epoch)
 {
 	struct pcb *pc=get_pcb();
@@ -128,13 +137,15 @@ epoch_t um_setepoch(epoch_t epoch)
 	return oldepoch;
 }
 
+/* internal call: check the permissions for a file */
 int um_x_access(char *filename, int mode, struct pcb *pc)
 {
 	service_t sercode;
 	int retval;
-	/*printf("-> um_x_access: %s\n",filename);*/
 	long oldscno;
 	epoch_t epoch;
+	/* fprint2("-> um_x_access: %s\n",filename);  */
+	/* internal nested call save data */
 	if (pc->flags && PCB_INUSE) {
 		oldscno = pc->scno;
 		pc->scno = __NR_access;
@@ -150,6 +161,7 @@ int um_x_access(char *filename, int mode, struct pcb *pc)
 	else{
 		retval = service_syscall(sercode,uscno(__NR_access))(filename,mode,pc);
 	}
+	/* internal nested call restore data */
 	if (pc->flags && PCB_INUSE) {
 		pc->scno = oldscno;
 		((struct pcb_ext *)pc->data)->tst.epoch=epoch;
@@ -160,13 +172,15 @@ int um_x_access(char *filename, int mode, struct pcb *pc)
 	return retval;
 }
 										 
+/* internal call: load the stat info for a file */
 int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
 {
 	service_t sercode;
 	int retval;
-	/*printf("-> um_lstat: %s\n",filename);*/
 	long oldscno;
 	epoch_t epoch;
+	/* fprint2("-> um_lstat: %s\n",filename); */
+	/* internal nested call save data */
 	if (pc->flags && PCB_INUSE) {
 		oldscno = pc->scno;
 		pc->scno = NR64_stat;
@@ -182,6 +196,7 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
 	else{
 		retval = service_syscall(sercode,uscno(NR64_stat))(filename,buf,pc);
 	}
+	/* internal nested call restore data */
 	if (pc->flags && PCB_INUSE) {
 		pc->scno = oldscno;
 		((struct pcb_ext *)pc->data)->tst.epoch=epoch;
@@ -192,12 +207,15 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
 	return retval;
 }
 
+/* internal call: read a symbolic link target */
 int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
 {
 	service_t sercode;
 	long oldscno = pc->scno;
 	int retval;
 	epoch_t epoch;
+	/* fprint2("-> um_x_readlink: %s\n",path); */
+	/* internal nested call save data */
 	if (pc->flags && PCB_INUSE) {
 		oldscno = pc->scno;
 		pc->scno = __NR_readlink;
@@ -213,6 +231,7 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
 	else{
 		retval = service_syscall(sercode,uscno(__NR_readlink))(path,buf,bufsiz,pc);
 	}
+	/* internal nested call restore data */
 	if (pc->flags && PCB_INUSE) {
 		pc->scno = oldscno;
 		((struct pcb_ext *)pc->data)->tst.epoch=epoch;
@@ -224,8 +243,10 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
 }
 
 
+/* one word string used as a tag for mistaken paths */
 char um_patherror[]="PE";
 
+/* get a path (and strdup it) from the process address space */
 char *um_getpath(long laddr,struct pcb *pc)
 {
 	char path[PATH_MAX];
@@ -235,6 +256,8 @@ char *um_getpath(long laddr,struct pcb *pc)
 		return um_patherror;
 }
 
+/* get a path, convert it as an absolute path (and strdup it) 
+ * from the process address space */
 char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink)
 {
 	char path[PATH_MAX];
@@ -252,7 +275,7 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink
 	}
 }
 
-/* Common framework for the dsys_{megawrap,socketwrap,mmapwrap,...} - they all
+/* Common framework for the dsys_{megawrap,socketwrap,sysctlwrap,...} - they all
  * do the usual work, but with different parameter handling.
  * What a dsys_* function do is, in general, receiving the notification of an
  * IN/OUT phase of syscall about a certain process, and decide what to do. What
@@ -270,8 +293,8 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink
  * - A system call table (sm): this is a table of sc_map entries - look at that
  *   structure for more informations.
  */
-typedef void (*dsys_commonwrap_parse_arguments)(struct pcb *pc, struct pcb_ext *pcdata, int usc);
-typedef int (*dsys_commonwrap_index_function)(struct pcb *pc, int usc);
+typedef void (*dsys_commonwrap_parse_arguments)(struct pcb *pc, struct pcb_ext *pcdata, int scno);
+typedef int (*dsys_commonwrap_index_function)(struct pcb *pc, int scno);
 typedef sysfun (*service_call)(service_t code, int scno);
 int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		dsys_commonwrap_parse_arguments dcpa,
@@ -280,7 +303,6 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		struct sc_map *sm)
 {
 	struct pcb_ext *pcdata=(struct pcb_ext *)(pc->data);
-	int usc=uscno(sc_number);
 	if (__builtin_expect(pcdata->tmpfile2unlink_n_free!=NULL,0)) {
 		r_unlink(pcdata->tmpfile2unlink_n_free);
 		free(pcdata->tmpfile2unlink_n_free);
@@ -293,10 +315,10 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		/* timestamp the call */
 		pcdata->tst.epoch=pcdata->nestepoch=get_epoch();
 		/* extract argument */
-		dcpa(pc, pcdata, usc);
+		dcpa(pc, pcdata, sc_number);
 		/* and get the index of the system call table
 		 * regarding this syscall */
-		index = dcif(pc, usc);
+		index = dcif(pc, sc_number);
 		//fprint2("nested_commonwrap %d -> %lld\n",sc_number,pcdata->tst.epoch);
 		/* looks in the system call table what is the 'choice function'
 		 * and ask it the service to manage */
@@ -357,7 +379,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 			int retval;
 			/* and get the index of the system call table
 			 * regarding this syscall */
-			int index = dcif(pc, usc);
+			int index = dcif(pc, sc_number);
 			/* call the wrapout */
 			retval=sm[index].wrapout(sc_number,pc,pcdata);
 			/* check if we can free the path (not NULL and not
@@ -378,7 +400,10 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 }
 
 #if (__NR_socketcall != __NR_doesnotexist)
-void dsys_socketwrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int usc)
+/* socketcall parse arguments, (only for architectures where there is
+ * one shared socketcall system call). Args must be retrieved from the
+ * caller process memory */
+void dsys_socketwrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int scno)
 {
 	pc->arg0=getargn(0,pc); // arg0 is the current socket call
 	pc->arg1=getargn(1,pc);
@@ -398,11 +423,14 @@ void dsys_socketwrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int
 	}
 }
 
-int dsys_socketwrap_index_function(struct pcb *pc, int usc)
+/* arg0 is the socketcall number */
+int dsys_socketwrap_index_function(struct pcb *pc, int scno)
 {
 	return pc->arg0;
 }
 
+/* megawrap call for socket calls (only for architectures where there is
+ * one shared socketcall system call) */
 int dsys_socketwrap(int sc_number,int inout,struct pcb *pc)
 {
 	return dsys_commonwrap(sc_number, inout, pc,
@@ -412,7 +440,8 @@ int dsys_socketwrap(int sc_number,int inout,struct pcb *pc)
 }
 #endif
 
-void dsys_um_sysctl_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int usc)
+/* sysctl argument parsing function */
+void dsys_um_sysctl_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int scno)
 {
 	struct __sysctl_args sysctlargs;
 	sysctlargs.name=NULL;
@@ -420,11 +449,14 @@ void dsys_um_sysctl_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int 
 	pcdata->path = NULL;
 	pc->arg0 = getargn(0, pc);
 	umoven(pc,pc->arg0,sizeof(sysctlargs),&sysctlargs);
+	/* private system calls are encoded with name==NULL and nlen != 0
+	 * (it is usually an error case for sysctl) */
 	if (sysctlargs.name == NULL && sysctlargs.nlen != 0) {
 		/* virtual system call */
 		if (sysctlargs.newval != NULL && sysctlargs.newlen >0 &&
 				sysctlargs.newlen <= 6)
 			umoven(pc,(long)(sysctlargs.newval),sysctlargs.newlen * sizeof(long), &pcdata->sockregs[0]);
+		/* the private system call number is encoded in the nlen field */
 		pc->arg1 = sysctlargs.nlen;
 	} else {
 		/* real sysctl, mapped on 0 */
@@ -432,11 +464,14 @@ void dsys_um_sysctl_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int 
 	}
 }
 
-int dsys_um_sysctl_index_function(struct pcb *pc, int usc)
+/* index function for sysctl: parse args above puts the 
+ * number of syscall in arg1*/
+int dsys_um_sysctl_index_function(struct pcb *pc, int scno)
 {
 	return pc->arg1;
 }
 
+/* megawrap for sysctl */
 int dsys_um_sysctl(int sc_number,int inout,struct pcb *pc)
 {
 	return dsys_commonwrap(sc_number, inout, pc,
@@ -445,22 +480,28 @@ int dsys_um_sysctl(int sc_number,int inout,struct pcb *pc)
 			virscmap);
 }
 
+/* just the function executed by the following function (iterator) */
 static void _reg_service(struct pcb *pc,service_t *pcode)
 {
 	service_addproc(*pcode,pc->umpid,(pc->pp)?pc->pp->umpid:-1,pcbtablesize());
 }
 
+/* when a new service gets registerd all the existing process are added
+ * as a whole to the private data structures of the module */
 static int reg_service(service_t code)
 {
 	forallpcbdo(_reg_service,&code);
 	return 0;
 }
 
+/* just the function executed by the following function (iterator) */
 static void _dereg_service(struct pcb *pc,service_t *pcode)
 {
 	service_delproc(*pcode,pc->umpid);
 }
 
+/* when a service gets deregistered, all the data structures managed by the
+ * module related to * the processes must be deleted */
 static int dereg_service(service_t code)
 {
 	forallpcbdo(_dereg_service,&code);
@@ -479,12 +520,15 @@ static void um_proc_del(struct pcb *pc)
 	service_delproc(UM_NONE,pc->umpid);
 }
 
+#if 0
 static mode_t local_getumask(void) {
 	mode_t mask = r_umask(0);
 	r_umask(mask);
 	return mask;
 }
+#endif
 
+/* set up all the data of the extended pcb for a new process */
 void pcb_plus(struct pcb *pc,int flags,int maxtablesize)
 {
 	struct pcb_ext *pcpe;
@@ -500,21 +544,24 @@ void pcb_plus(struct pcb *pc,int flags,int maxtablesize)
 	} else {
 		pcpe->fdfs =  (struct pcb_fs *) malloc(sizeof (struct pcb_fs));
 		pcpe->fdfs->count=1;
-	}
-	if (pc->pp == pc) {
-		char *path=malloc(PATH_MAX);
-		r_getcwd(path,PATH_MAX);
-		pcpe->fdfs->cwd=realloc(path,strlen(path));
-		pcpe->fdfs->root=strdup("/");
-		pcpe->fdfs->mask=local_getumask();
-		r_umask(pcpe->fdfs->mask);
-		pcpe->tst=tst_newfork(NULL);
-		pcpe->tst=tst_newproc(&(pcpe->tst));
-	} else {
-		pcpe->fdfs->cwd=strdup(((struct pcb_ext *)(pc->pp->data))->fdfs->cwd);
-		pcpe->fdfs->root=strdup(((struct pcb_ext *)(pc->pp->data))->fdfs->root);
-		pcpe->fdfs->mask=((struct pcb_ext *)(pc->pp->data))->fdfs->mask;
-		pcpe->tst=tst_newproc(&(((struct pcb_ext *)(pc->pp->data))->tst));
+		/* ROOT process: the first one activated by umview */
+		if (pc->pp == pc) {
+			char *path=malloc(PATH_MAX);
+			r_getcwd(path,PATH_MAX);
+			pcpe->fdfs->cwd=realloc(path,strlen(path));
+			pcpe->fdfs->root=strdup("/");
+			/*pcpe->fdfs->mask=local_getumask();*/
+			pcpe->fdfs->mask=r_umask(0);
+			r_umask(pcpe->fdfs->mask);
+			/* create the root of the treepoch */
+			pcpe->tst=tst_newfork(NULL);
+			pcpe->tst=tst_newproc(&(pcpe->tst));
+		} else {
+			pcpe->fdfs->cwd=strdup(((struct pcb_ext *)(pc->pp->data))->fdfs->cwd);
+			pcpe->fdfs->root=strdup(((struct pcb_ext *)(pc->pp->data))->fdfs->root);
+			pcpe->fdfs->mask=((struct pcb_ext *)(pc->pp->data))->fdfs->mask;
+			pcpe->tst=tst_newproc(&(((struct pcb_ext *)(pc->pp->data))->tst));
+		}
 	}
 	pcpe->path=pcpe->selset=pcpe->tmpfile2unlink_n_free=NULL;
 #if _UM_MMAP
@@ -527,24 +574,32 @@ void pcb_plus(struct pcb *pc,int flags,int maxtablesize)
 	um_proc_add(pc);
 }
 
+/* clean up all the data structure related to a terminated process */
 void pcb_minus(struct pcb *pc)
 {
 	struct pcb_ext *pcpe=pc->data;
 	//printf("pcb_desctructor %d\n",pc->pid);
 #ifdef _UM_MMAP
+	/* delete all the mmap-ing of this process */
 	if (pcpe->um_mmap) 
 		um_mmap_delproc(pcpe->um_mmap);
 #endif
+	/* delete all the file descriptors */
 	lfd_delproc(pcpe->fds);
+	/* notify services */
 	um_proc_del(pc);
 	assert (pcpe->fdfs != NULL);
+	/* decrement the usage couter for shared info and clean up
+	 * when there are no more processes sharing the data*/
 	pcpe->fdfs->count--;
 	if (pcpe->fdfs->count == 0) {
 		free (pcpe->fdfs->cwd);
 		free (pcpe->fdfs->root);
 		free (pcpe->fdfs);
 	}
+	/* notify the treepoch */
 	tst_delproc(&(pcpe->tst));
+	/* delete the data structure */
 	free(pcpe);
 	/*if (pc->data != NULL) {
 		free(((struct pcb_ext *)pc->data)->fdfs->cwd);
@@ -552,6 +607,8 @@ void pcb_minus(struct pcb *pc)
 	}*/
 }
 
+/* this is the root process of a new recursive invocation for umview */
+/* the process already exists, the timestamp gets converted */
 int pcb_newfork(struct pcb *pc)
 {
 	struct pcb_ext *pcpe=pc->data;
@@ -560,6 +617,7 @@ int pcb_newfork(struct pcb *pc)
 	return (te == pcpe->tst.treepoch)?-1:0;
 }
 
+#if 0
 int dsys_dummy(int sc_number,int inout,struct pcb *pc)
 {
 	if (inout == IN) {
@@ -577,7 +635,9 @@ int dsys_error(int sc_number,int inout,struct pcb *pc)
 	pc->erno = ENOSYS;
 	return STD_BEHAVIOR;
 }
+#endif
 
+/* choicei function for system calls using a file descriptor */
 service_t choice_fd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	int fd=(sc_number == __NR_socketcall)?pc->arg2:pc->arg0;
@@ -649,11 +709,13 @@ char choice_link2(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		return service_check(CHECKPATH,pcdata->path,1);
 }
 
+/* choice function for 'socket', usually depends on the Protocol Family */
 char choice_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	return service_check(CHECKSOCKET, &(pc->arg2),1);
 }
 
+#if 0
 /* choice device through major and minor number... it's a try, don't use it yet */
 char choice_device(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
@@ -661,7 +723,10 @@ char choice_device(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	// CHECK is really st_rdev? it seems...
 	return service_check(CHECKDEVICE, &((pcdata->pathstat).st_rdev),1);
 }
+#endif
 
+/* choice function for mmap: only *non anonymous* mmap must be mapped
+ * depending on the service responsible for the fd. */
 service_t choice_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	long fd=getargn(4,pc);
@@ -673,38 +738,43 @@ service_t choice_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		return service_fd(pcdata->fds,fd);
 }
 
+/* dummy choice function for unimplemented syscalls */
 char always_umnone(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 {
 	return UM_NONE;
 }
 
-void dsys_megawrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int usc)
+/* preload arguments: convert socket args in case socket calls are
+ * ordinary system calls */
+void dsys_megawrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int scno)
 {
 	pcdata->path = NULL;
 	pc->arg0 = getargn(0, pc);
 #if (__NR_socketcall == __NR_doesnotexist)
-	if (scmap[uscno(pc->scno)].setofcall & SOC_SOCKET)
+	if (scmap[uscno(scno)].setofcall & SOC_SOCKET)
 	{
 		int i;
 		pc->arg1 = getargn(1, pc);
 		pc->arg2 = pc->arg0;
 		/*
 		 * fprint2("=== %s %d (",SYSCALLNAME(pc->scno),scmap[uscno(pc->scno)].nargs);
-		 * for (i=0;i<scmap[uscno(pc->scno)].nargs;i++) 
+		 * for (i=0;i<scmap[uscno(scno)].nargs;i++) 
 		 * fprint2 ("%x,",getargn(i,pc)); 
 		 * fprint2("\n");
 		 */
-		for (i=0;i<scmap[uscno(pc->scno)].nargs;i++)
+		for (i=0;i<scmap[uscno(scno)].nargs;i++)
 			pcdata->sockregs[i]=getargn(i, pc);
 	}
 #endif
 }
 
-int dsys_megawrap_index_function(struct pcb *pc, int usc)
+/* index function for system call: uscno gives the index */
+int dsys_megawrap_index_function(struct pcb *pc, int scno)
 {
-	return usc;
+	return uscno(scno);
 }
 
+/* system call megawrap */
 int dsys_megawrap(int sc_number,int inout,struct pcb *pc)
 {
 	return dsys_commonwrap(sc_number, inout, pc,
@@ -712,12 +782,14 @@ int dsys_megawrap(int sc_number,int inout,struct pcb *pc)
 			dsys_megawrap_index_function, service_syscall, scmap);
 }
 
+/* for modules: get the caller pid */
 int um_mod_getpid()
 {
 	struct pcb *pc=get_pcb();
 	return ((pc && (pc->flags & PCB_INUSE))?pc->pid:0);
 }
 
+/* for modules: get data from the caller process */
 int um_mod_umoven(long addr, int len, void *_laddr)
 {
 	struct pcb *pc=get_pcb();
@@ -733,6 +805,7 @@ int um_mod_umoven(long addr, int len, void *_laddr)
 		return -1;
 }
 
+/* for modules: get string data from the caller process */
 int um_mod_umovestr(long addr, int len, void *_laddr)
 {
 	struct pcb *pc=get_pcb();
@@ -748,6 +821,7 @@ int um_mod_umovestr(long addr, int len, void *_laddr)
 		return -1;
 }
 
+/* for modules: store data to the caller process memory */
 int um_mod_ustoren(long addr, int len, void *_laddr)
 {
 	struct pcb *pc=get_pcb();
@@ -763,6 +837,7 @@ int um_mod_ustoren(long addr, int len, void *_laddr)
 		return -1;
 }
 
+/* for modules: store string data to the caller process memory */
 int um_mod_ustorestr(long addr, int len, void *_laddr)
 {
 	struct pcb *pc=get_pcb();
@@ -778,6 +853,7 @@ int um_mod_ustorestr(long addr, int len, void *_laddr)
 		return -1;
 }
 
+/* for modules: get the syscall number */
 int um_mod_getsyscallno(void)
 {
 	struct pcb *pc=get_pcb();
@@ -792,6 +868,7 @@ int um_mod_getsyscallno(void)
 		return 0;
 }
 
+/* for modules: get the syscall args */
 long *um_mod_getargs(void)
 {
 	struct pcb *pc=get_pcb();
@@ -807,12 +884,15 @@ long *um_mod_getargs(void)
 	}
 }
 
+/* for modules: get the user-mode process id (small integer,
+ * suitable for storing private data into arrays) */
 int um_mod_getumpid(void)
 {
 	struct pcb *pc=get_pcb();
 	return ((pc && (pc->flags & PCB_INUSE))?pc->umpid:0);
 }
 
+/* for modules: get the stat info for the current path */ 
 struct stat64 *um_mod_getpathstat(void)
 {
 	struct pcb *pc=get_pcb();
@@ -839,6 +919,7 @@ struct stat64 *um_mod_getpathstat(void)
 		return NULL;
 }
 
+/* for modules: get the absolute path*/ 
 char *um_mod_getpath(void)
 {
 	struct pcb *pc=get_pcb();
@@ -859,6 +940,7 @@ char *um_mod_getpath(void)
 		return NULL;
 }
 
+/* for modules: get the system call type*/ 
 int um_mod_getsyscalltype(int scno)
 {
 	int usc=uscno(scno);
@@ -868,25 +950,39 @@ int um_mod_getsyscalltype(int scno)
 		return -1;
 }
 
+/* scdtab: interface between capture_sc and the wrapper (wrap-in/out)
+ * implemented for each system call (see um_*.c files) */
+/* capture_sc call a "megawrap" that implements all the common code
+ * and then forwards the call to the functions defined in scmap.c */
 void scdtab_init()
 {
 	register int i;
 	pcb_constr=pcb_plus;
 	pcb_destr=pcb_minus;
+	/* init service management */
 	_service_init((sysfun)reg_service,(sysfun)dereg_service);
 
+  /* linux has a single call for all the socket calls 
+	 * in several architecture (i386, ppc), socket calls are standard
+	 * system calls in others (x86_64) */
 #if (__NR_socketcall != __NR_doesnotexist)
 	scdtab[__NR_socketcall]=dsys_socketwrap;
 #endif
 
+	/* sysctl is used to define private system calls */
 	scdtab[__NR__sysctl]=dsys_um_sysctl;
 
+	/* initialize scmap */
 	init_scmap();
+
+	/* define the megawrap for the syscalls defined in scmap */
 	for (i=0; i<scmap_scmapsize; i++) {
 		int scno=scmap[i].scno;
 		if (scno >= 0) 
 			scdtab[scno]=dsys_megawrap;
 	}
+	/* start umproc (file management) and define an atexit function for
+	 * the final cleaning up */
 	um_proc_open();
 	atexit(um_proc_close);
 }

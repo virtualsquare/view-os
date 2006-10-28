@@ -32,6 +32,8 @@
 #include <stdarg.h>
 #include "ptrace2.h"
 #include "nrsyscalls.h"
+#define UM_NO_RESTORE
+// #define FAKESIGSTOP
 
 /* Real SysCalls ! r_ prefixed calls do not enter the nidification
  * process and go straight to the kernel */
@@ -81,9 +83,11 @@ extern sfun native_syscall;
 #define r_pwrite64(f,b,c,o1,o2) (native_syscall(__NR_pwrite64,(f),(b),(c),__LONG_LONG_PAIR((o1),(o2))))
 #endif
 
+/* debugging functions */
 extern int fprint2(const char *fmt, ...);
 extern int vfprint2(const char *fmt, va_list ap);
 
+/* flags on the underlying kernel support */
 extern unsigned int has_ptrace_multi;
 extern unsigned int ptrace_vm_mask;
 #define PT_VM_OK ((ptrace_vm_mask & PTRACE_VM_SKIPOK) == PTRACE_VM_SKIPOK)
@@ -168,8 +172,10 @@ void forallpcbdo(voidfun f,void *arg);
 #define PCB_ALLOCATED 0x2
 											/* Dynamically allocated pcb, to be freed.
 											 * never used inside capture_sc */
+#ifdef FAKESIGSTOP
 #define PCB_FAKEWAITSTOP 0x4000
 #define PCB_FAKESTOP 0x8000
+#endif
 
 typedef	int (*divfun)(int sc_number,int inout,struct pcb *ppcb);
 typedef	void (*t_pcb_constr)(struct pcb *ppcb, int flags, int maxtabsize);
