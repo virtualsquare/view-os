@@ -192,9 +192,9 @@ err_t ip_route_list_del(struct ip_addr *addr, struct ip_addr *netmask, struct ip
 	/*LWIP_ASSERT("ip_route_list_del NULL netmask",netmask != NULL);*/
 	if (nexthop==NULL) nexthop=IP_ADDR_ANY;
 	while (*dp != NULL && (
-///         FIX: Use ip_addr_maskcmp() instead of ip_addr_cmp() ??
-///			!ip_addr_cmp(&((*dp)->addr),addr) ||
-			!ip_addr_maskcmp(&((*dp)->addr),addr, netmask) ||
+	/* addr and mask must be compared separately because 
+	 * netmask can be NULL */
+	 		!ip_addr_cmp(&((*dp)->addr),addr) ||
 			(netmask != NULL && !ip_addr_cmp(&((*dp)->netmask),netmask)) ||
 			( !ip_addr_cmp(&((*dp)->nexthop),nexthop) && (*dp)->netif != netif ) 
 			))
