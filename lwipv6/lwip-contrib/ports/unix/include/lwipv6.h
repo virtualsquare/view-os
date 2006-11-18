@@ -177,6 +177,7 @@ lwip_send,
 lwip_sendto,
 lwip_socket,
 lwip_write,
+	x
 lwip_select,
 lwip_ioctl,
 
@@ -191,9 +192,9 @@ lwiplongfun lwip_radv_load_configfile;
 	struct lwipname2fun {\
 		char *funcname;\
 		lwiplongfun *f;\
-	} lwiplibtab[] = {
-		{"lwip_initstack", (lwiplongfun*)&lwip_initstack},
-		{"lwip_stopstack", (lwiplongfun*)&lwip_stopstack},
+	} lwiplibtab[] = {\
+		{"lwip_initstack", (lwiplongfun*)&lwip_initstack},\
+		{"lwip_stopstack", (lwiplongfun*)&lwip_stopstack},\
 		{"lwip_add_addr", &lwip_add_addr},\
 		{"lwip_del_addr", &lwip_del_addr},\
 		{"lwip_add_route", &lwip_add_route},\

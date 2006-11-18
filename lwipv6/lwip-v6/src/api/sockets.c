@@ -59,6 +59,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <limits.h>
+#include <poll.h>
 
 #include "lwip/opt.h"
 #include "lwip/api.h"
@@ -216,6 +217,10 @@ int lwip_errno;
 	set_errno(sk->err); \
 } while (0)
 
+long lwip_version()
+{
+	return 1;
+}
 	static struct lwip_socket *
 get_socket(int s)
 {
@@ -1034,19 +1039,19 @@ struct um_sel_wait {
 	void (* cb)(); 
 	void *arg; 
 	int fd; 
-	int how;
+	int events;
 	struct um_sel_wait *next;
 };
 static struct um_sel_wait *um_sel_head=NULL;
 
-static void um_sel_add(void (* cb)(), void *arg, int fd, int how)
+static void um_sel_add(void (* cb)(), void *arg, int fd, int events)
 {
 	struct um_sel_wait *new=(struct um_sel_wait *)mem_malloc(sizeof(struct um_sel_wait));
-	//printf("UMSELECT ADD %d how %x arg %x\n",fd,how,arg);
+	//printf("UMSELECT ADD %d events %x arg %x\n",fd,events,arg);
 	new->cb=cb;
 	new->arg=arg;
 	new->fd=fd;
-	new->how=how;
+	new->events=events;
 	new->next=um_sel_head;
 	um_sel_head=new;
 }
@@ -1074,38 +1079,38 @@ static void um_sel_del(void *arg)
 	um_sel_head=um_sel_rec_del(um_sel_head,arg);
 }
 
-static struct um_sel_wait *um_sel_rec_signal(struct um_sel_wait *p,int fd, int how)
+static struct um_sel_wait *um_sel_rec_signal(struct um_sel_wait *p,int fd, int events)
 {
 	if (p==NULL) 
 		return NULL;
 	else {
-		if (fd == p->fd && (how & p->how) != 0) {
+		if (fd == p->fd && (events & p->events) != 0) {
 			/* found */
 			struct um_sel_wait *next=um_sel_rec_del(p->next,p->arg);
 			//printf("UMSELECT SIGNALED %d\n",fd);
 			p->cb(p->arg);
 			free(p);
-			return um_sel_rec_signal(next,fd,how);
+			return um_sel_rec_signal(next,fd,events);
 		} else {
-			p->next=um_sel_rec_signal(p->next,fd,how);
+			p->next=um_sel_rec_signal(p->next,fd,events);
 			return p;
 		}
 	}
 }
 
-static void um_sel_signal(int fd, int how)
+static void um_sel_signal(int fd, int events)
 {
-	//printf("UMSELECT SIGNAL fd %d how %x\n",fd,how);
-	um_sel_head=um_sel_rec_signal(um_sel_head,fd,how);
+	//printf("UMSELECT SIGNAL fd %d events %x\n",fd,events);
+	um_sel_head=um_sel_rec_signal(um_sel_head,fd,events);
 }
 
-int lwip_select_register(void (* cb)(), void *arg, int fd, int how)
+int lwip_select_register(void (* cb)(), void *arg, int fd, int events)
 {
 	struct lwip_socket *psock=get_socket(fd);
 	int rv=0;
-	/*printf("UMSELECT REGISTER %s %d how %x arg %x psock %x\n",
+	/*printf("UMSELECT REGISTER %s %d events %x arg %x psock %x\n",
 			(cb != NULL)?"REG" : "DEL" ,
-			fd,how,arg,psock); */
+			fd,events,arg,psock); */
 	if (!selectsem)
 		selectsem = sys_sem_new(1);
 	sys_sem_wait(selectsem);
@@ -1113,13 +1118,12 @@ int lwip_select_register(void (* cb)(), void *arg, int fd, int how)
 		//printf("R %d L %d S %d\n", psock->rcvevent, psock->lastdata, psock->sendevent);
 #if LWIP_NL
 		if (psock->family == PF_NETLINK)
-			rv=how;
+			rv=events;
 		else
 #endif
-		if ((rv= (how & 0x1) * (psock->lastdata || psock->rcvevent || psock->conn->recv_avail) +
-					(how & 0x2) * psock->sendevent +
-					(how & 0x4) * 0) == 0 && cb != NULL)
-			um_sel_add(cb,arg,fd,how);
+		if ((rv= (events & POLLIN) * (psock->lastdata || psock->rcvevent || psock->conn->recv_avail) +
+					(events & POLLOUT) * psock->sendevent) == 0 && cb != NULL)
+			um_sel_add(cb,arg,fd,events);
 	} 
 	if (cb == NULL || rv>0)
 		um_sel_del(arg);
@@ -1185,9 +1189,8 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 			break;
 	}
 	um_sel_signal(sock->fdfake, 
-			0x1 * (sock->rcvevent || sock->lastdata || sock->conn->recv_avail) +
-			0x2 * sock->sendevent +
-			0x4 * 0 );
+			POLLIN * (sock->rcvevent || sock->lastdata || sock->conn->recv_avail) +
+			POLLOUT * sock->sendevent);
 	/*printf("EVENT fd %d R%d S%d\n",s,sock->rcvevent,sock->sendevent);*/
 	sys_sem_signal(selectsem);
 
