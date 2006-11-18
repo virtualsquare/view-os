@@ -39,8 +39,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <poll.h>
 
 
+static long lwip_version;
 static struct service s;
 
 static int alwaysfalse()
@@ -168,6 +170,37 @@ struct libtab {
 #define SIZEOFLIBTAB (sizeof(lwiplibtab)/sizeof(struct libtab))
 static void *lwiphandle;
 
+static sysfun lib_lwip_select_register;
+static long lwip_select_register1v2(void (* cb)(), void *arg, int fd, int how)
+{
+	short newhow=0;
+	int rv;
+	if (how & 0x1) newhow |= POLLIN;
+	if (how & 0x2) newhow |= POLLOUT;
+	if (how & 0x4) newhow |= POLLPRI;
+	rv=lib_lwip_select_register(cb,arg,fd,newhow);
+	newhow=0;
+	if (rv & POLLIN) newhow |= 0x1;
+	if (rv & POLLOUT) newhow |= 0x2;
+	if (rv & POLLPRI) newhow |= 0x4;
+	return newhow;
+}
+
+static long lwip_select_register2v1(void (* cb)(), void *arg, int fd, int how)
+{
+	short newhow=0;
+	int rv;
+	if (how & POLLIN) newhow |= 0x1;
+	if (how & POLLOUT) newhow |= 0x2;
+	if (how & POLLPRI) newhow |= 0x4;
+	rv=lib_lwip_select_register(cb,arg,fd,newhow);
+	newhow=0;
+	if (rv & 0x1) newhow |= POLLIN;
+	if (rv & 0x2) newhow |= POLLOUT;
+	if (rv & 0x4) newhow |= POLLPRI;
+	return newhow;
+}
+
 static void openlwiplib()
 {
 	lwiphandle=dlopen("liblwipv6.so",RTLD_NOW);
@@ -175,8 +208,10 @@ static void openlwiplib()
 		fprint2("error loading liblwipv6: %s\n", dlerror());
 	else {
 		int i;
+		sysfun fun;
+		if((fun=dlsym(lwiphandle,"lwip_version")) != NULL)
+			lwip_version=fun();
 		for (i=0;i<SIZEOFLIBTAB;i++) {
-			sysfun fun;
 			if ((fun=dlsym(lwiphandle,lwiplibtab[i].funcname)) != NULL)
 			{
 				if (lwiplibtab[i].choice==SOCK)
@@ -185,7 +220,30 @@ static void openlwiplib()
 					s.syscall[uscno(lwiplibtab[i].tag)]=fun;
 			}
 		}
-		s.select_register=dlsym(lwiphandle,"lwip_select_register");
+		/* umview and lwip moved to the poll codes for select register,
+		 * (providing a richer set of possibilities */
+		/* um_lwip is able to provide the suitable conversion to support
+		 * differet versions of lwip/umview */
+		if (_umview_version > 1) {
+			if (lwip_version >= 1) {
+				/* umview interface 2 - lwip interface v1 */
+				s.select_register=dlsym(lwiphandle,"lwip_select_register");
+			} else {
+				/* umview interface 2 - lwip interface v0 */
+				lib_lwip_select_register=dlsym(lwiphandle,"lwip_select_register");
+				s.select_register=lwip_select_register1v2;
+			}
+		}
+		else {
+			if (lwip_version >= 1) {
+				/* umview interface 1 - lwip interface v1 */
+				lib_lwip_select_register=dlsym(lwiphandle,"lwip_select_register");
+				s.select_register=lwip_select_register2v1;
+			} else {
+				/* umview interface 1 - lwip interface v0 */
+				s.select_register=dlsym(lwiphandle,"lwip_select_register");
+			}
+		}
 		real_lwip_ioctl=s.syscall[uscno(__NR_ioctl)];
 		SERVICESYSCALL(s, ioctl, sockioctl);
 		SERVICESYSCALL(s, open, noprocnetdev);
@@ -347,7 +405,7 @@ static void lwipargtoenv(char *initargs)
 	for (i=0;i<PARAMTYPES;i++)
 		if (paramval[i] != NULL)
 			if (paramfun[i] != NULL) {
-			paramfun[i](paramval[i]);
+				paramfun[i](paramval[i]);
 			}
 
 }
