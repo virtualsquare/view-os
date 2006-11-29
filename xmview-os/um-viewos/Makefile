@@ -51,6 +51,7 @@ umview: $(OBJS)
 
 %.d: %.c
 #	@[[ ! -e syscallnames.h ]] && touch -t 197001010100.00 syscallnames.h || true
+	@[[ ! -e pcb-all.h ]] && touch -t 197001010100.00 pcb-all.h || true
 	@set -e; $(CC) -MM $(CPPFLAGS) $(@:.d=.c) | sed 's/\($*\)\.o[ :]*/\1.o $@ : /g' > $@; [ -s $@ ] || rm -f $@
 
 ifeq ($(PIVOTING),true)
