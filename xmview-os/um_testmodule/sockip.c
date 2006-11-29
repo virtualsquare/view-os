@@ -43,6 +43,7 @@
 
 
 static struct service s;
+static struct timestamp stst;
 
 static int ioctlparms(struct ioctl_len_req *arg)
 {
@@ -86,14 +87,14 @@ static int ioctlparms(struct ioctl_len_req *arg)
 
 // int read(), write(), close();
 
-static struct service s;
-
-
 static epoch_t checkip(int type, void *arg)
 {
 	if (type ==  CHECKSOCKET) {
 		int *pdomain=arg;
-		return(*pdomain == AF_INET);
+		if(*pdomain == AF_INET)
+			return tst_matchingepoch(&stst);
+		else
+			return 0;
 	}
 	else if (type == CHECKIOCTLPARMS) 
 		return ioctlparms(arg);
@@ -101,12 +102,12 @@ static epoch_t checkip(int type, void *arg)
 		return 0;
 }
 
-#if 0
+/*
 static int myread(int fd, char *buf, int size)
 {
+	fprint2("READ %d %d\n ",fd,size);
 	int rv=read(fd,buf,size);
 	int i;
-	printf("READ %d %d %d ",fd,size,rv);
 	for (i=0;i<rv;i++)
 		printf("%02x",buf[i]);
 	printf("\n");
@@ -123,7 +124,14 @@ static int mywrite(int fd, char *buf, int size)
 	printf("\n");
 	return rv;
 }
-#endif
+
+static int mysocket(int domain, int type, int protocol)
+{
+	int rv=socket(domain,type,protocol);
+	fprint2("socket %d %d %d -> %d\n",domain,type,protocol,rv);
+	return rv;
+}
+*/
 
 static int sockioctl(int d, int request, void *arg)
 {
@@ -143,6 +151,11 @@ static int sockioctl(int d, int request, void *arg)
 		return rv;
 	}
 	return ioctl(d,request,arg);
+}
+
+static long sock_select_register(void (* cb)(), void *arg, int fd, int how)
+{
+	return um_mod_select_register(cb,arg,fd,how);
 }
 
 	static void
@@ -181,10 +194,12 @@ init (void)
 	SERVICESYSCALL(s, fcntl64, fcntl64);
 #endif
 	SERVICESYSCALL(s, ioctl, sockioctl);
-	SERVICESYSCALL(s, _newselect, select);
-	SERVICESYSCALL(s, poll, poll);
+	//SERVICESYSCALL(s, _newselect, select);
+	//SERVICESYSCALL(s, poll, poll);
+	s.select_register=sock_select_register;
 
 	add_service(&s);
+	stst=tst_timestamp();
 }
 
 	static void

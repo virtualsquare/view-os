@@ -26,6 +26,8 @@
  */   
 #ifndef _DEFS_PPC
 #define _DEFS_PPC
+#define _KERNEL_NSIG   64
+#define _KERNEL_SIGSET_SIZE _KERNEL_NSIG/8
 
 #define getregs(PC) (has_ptrace_multi ? ({\
 		struct ptrace_multi req[] = {{PTRACE_PEEKUSER, 0, (PC)->saved_regs, 10},\
@@ -44,11 +46,11 @@
 				errno!=0?-1:0;}\
 		) )
 /* XXX PTRACE_MULTI ORIG_R3 returns -1 when saved */
-#define setregs(PC,CALL,OP) (has_ptrace_multi ? ({\
+#define setregs(PC,CALL,OP,SIG) (has_ptrace_multi ? ({\
 			struct ptrace_multi req[] = {{PTRACE_POKEUSER, 0, (PC)->saved_regs, 10},\
 			{PTRACE_POKEUSER, 4*PT_NIP, &((PC)->saved_regs[10]), 1},\
 			{PTRACE_POKEUSER, 4*PT_CCR, &((PC)->saved_regs[12]), 1},\
-			{(CALL), (OP), 0, 0}};\
+			{(CALL), (OP), 0, (SIG)}};\
 			ptrace(PTRACE_MULTI,(PC)->pid,req,4); }\
 			) : (\
 				{int rv,count;for(count=0;count<10;count++){\
@@ -56,7 +58,7 @@
 				if(rv!=0)break;}\
 				if(rv==0) rv=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_NIP),(PC)->saved_regs[10]);\
 				if(rv==0) rv=ptrace(PTRACE_POKEUSER,(PC)->pid,(void*)(4*PT_CCR),(PC)->saved_regs[12]);\
-				if(rv==0) rv=ptrace((CALL),(PC)->pid,(OP),0);\
+				if(rv==0) rv=ptrace((CALL),(PC)->pid,(OP),(SIG));\
 				rv;}\
 			    ) )
 
@@ -84,12 +86,6 @@
 
 #ifndef PT_ORIG_R3
 #define PT_ORIG_R3 34
-#endif
-
-#define MAXSC (_UM_NR_syscalls + 1)
-
-#ifndef __NR_pselect6
-#define __NR_pselect6	280
 #endif
 
 #endif // _DEFS_PPC 

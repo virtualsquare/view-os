@@ -45,22 +45,36 @@
 #include "sctab.h"
 #include "scmap.h"
 #include "utils.h"
+#ifndef MULTISTACKFLAG
+#define MULTISTACKFLAG  (1 << ((sizeof(int) * 8) -1))
+#endif
 
 #define umNULL ((int) NULL)
 
-int wrap_in_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+/* SOCKET & MSOCKET call management (IN) */
+int wrap_in_socket(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	int domain  =pc->arg2;
-	int type    =pcdata->sockregs[1];
-	int protocol=pcdata->sockregs[2];
+	int type    =pc->sockregs[1];
+	int protocol=pc->sockregs[2];
+	char *stack=NULL;
+	struct stat64 sourcest;
+	if (domain & MULTISTACKFLAG)
+		stack=um_abspath(pc->arg0,pc,&sourcest,0);
 
-	pc->retval = um_syscall(domain,type,protocol);
+	/* for all the internal calls socket has four arguments (including
+	 * the new one of msocket) */
+	pc->retval = um_syscall(domain,type,protocol,stack);
 	pc->erno = errno;
+	/* create the comm fifo with the user process */
 	if (pc->retval >= 0 && (pc->retval=lfd_open(sercode,pc->retval,NULL,0)) >= 0) {
 		char *filename=lfd_getfilename(pc->retval);
 		int filenamelen=WORDALIGN(strlen(filename));
 		long sp=getsp(pc);
+		/* change the system call arguments (open the fifo) */
+		/* could give some trouble if a process tests the
+		 * "type" of the file connected to the fd */
 		ustorestr(pc,sp-filenamelen,filenamelen,filename); /*socket?*/
 		putscno(__NR_open,pc);
 		putargn(0,sp-filenamelen,pc);
@@ -72,27 +86,33 @@ int wrap_in_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 
 #define MAX_SOCKLEN 1024
 /* accept creates a new fd! */
-int wrap_in_accept(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_accept(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg2);
+	int sfd=fd2sfd(pc->fds,pc->arg2);
+	/* the virtual file does not exist */
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		long sock_plen=pcdata->sockregs[2];
+		/* get the system call args */
+		long sock_plen=pc->sockregs[2];
 		int sock_len;
 		if (sock_plen != umNULL)
 			umoven(pc,sock_plen,4,&sock_len);
+		/* safety check for sock */
 		if (sock_len == 0 || sock_len > MAX_SOCKLEN) {
 			pc->retval= -1;
 			pc->erno= EINVAL;
 		} else {
-			long sock_addr=pcdata->sockregs[1];
+			long sock_addr=pc->sockregs[1];
 			char *sock=(char *)alloca(sock_len);
+			/* get the sock_addr */
 			umoven(pc,sock_addr,sock_len,sock);
+			/* virtual syscall */
 			pc->retval = um_syscall(sfd,sock,&sock_len);
 			pc->erno=errno;
+			/* store the results (if the call was successful) */
 			if (pc->erno == 0) {
 				if (sock_addr != umNULL)
 					ustoren(pc,sock_addr,sock_len,sock);
@@ -100,6 +120,7 @@ int wrap_in_accept(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 					umoven(pc,sock_plen,4,&sock_len);
 			}
 		}
+		/* open the new fifo, (accept creates a new fd) */
 		if (pc->retval >= 0 && (pc->retval=lfd_open(sercode,pc->retval,NULL,0)) >= 0) {
 			char *filename=lfd_getfilename(pc->retval);
 			int filenamelen=WORDALIGN(strlen(filename));
@@ -115,13 +136,16 @@ int wrap_in_accept(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	return SC_FAKE;
 }
 
-int wrap_out_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) {
+/* SOCKET & MSOCKET & ACCEPT wrap out */
+int wrap_out_socket(int sc_number,struct pcb *pc) {
 	/*int lerno=errno;*/
+	/* if everything was okay for the virtual call */
 	if (pc->retval >= 0) {
 		int fd=getrv(pc);	
+		/* if the syscall issued by the process was also okay */
 		if (fd >= 0) {
 			/* update open file table*/
-			lfd_register(pcdata->fds,fd,pc->retval);
+			lfd_register(pc->fds,fd,pc->retval);
 			/* restore parms*/
 			putscno(pc->scno,pc);
 			putargn(0,pc->arg0,pc);
@@ -139,16 +163,16 @@ int wrap_out_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) {
 	return STD_BEHAVIOR;
 }
 
-int wrap_in_bind_connect(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_bind_connect(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg2);
+	int sfd=fd2sfd(pc->fds,pc->arg2);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		long sock_addr=pcdata->sockregs[1];
-		long sock_len=pcdata->sockregs[2];
+		long sock_addr=pc->sockregs[1];
+		long sock_len=pc->sockregs[2];
 		char *sock=(char *)alloca(sock_len);
 		umoven(pc,sock_addr,sock_len,sock);
 		pc->retval = um_syscall(sfd,sock,sock_len);
@@ -157,31 +181,31 @@ int wrap_in_bind_connect(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	return SC_FAKE;
 }
 
-int wrap_in_listen(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_listen(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg2);
+	int sfd=fd2sfd(pc->fds,pc->arg2);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int backlog=pcdata->sockregs[1];
+		int backlog=pc->sockregs[1];
 		pc->retval=um_syscall(sfd,backlog);
 		pc->erno=errno;
 	}
 	return SC_FAKE;
 }
 
-int wrap_in_getsock(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_getsock(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg2);
+	int sfd=fd2sfd(pc->fds,pc->arg2);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		long sock_addr=pcdata->sockregs[1];
-		long sock_plen=pcdata->sockregs[2];
+		long sock_addr=pc->sockregs[1];
+		long sock_plen=pc->sockregs[2];
 		int sock_len;
 		if (sock_plen != umNULL)
 			umoven(pc,sock_plen,4,&sock_len);
@@ -199,17 +223,17 @@ int wrap_in_getsock(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	return SC_FAKE;
 }
 
-int wrap_in_send(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_send(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg2);
+	int sfd=fd2sfd(pc->fds,pc->arg2);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		long buf=pcdata->sockregs[1];
-		int len=pcdata->sockregs[2];
-		int flags=pcdata->sockregs[3];
+		long buf=pc->sockregs[1];
+		int len=pc->sockregs[2];
+		int flags=pc->sockregs[3];
 		char *lbuf=(char *)alloca(len); 
 		umoven(pc,buf,len,lbuf);
 		pc->retval=um_syscall(sfd,lbuf,len,flags);
@@ -218,17 +242,17 @@ int wrap_in_send(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	return SC_FAKE;
 }
 
-int wrap_in_recv(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_recv(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg2);
+	int sfd=fd2sfd(pc->fds,pc->arg2);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		long buf=pcdata->sockregs[1];
-		int len=pcdata->sockregs[2];
-		int flags=pcdata->sockregs[3];
+		long buf=pc->sockregs[1];
+		int len=pc->sockregs[2];
+		int flags=pc->sockregs[3];
 		char *lbuf=(char *)alloca(len);
 		pc->retval=um_syscall(sfd,lbuf,len,flags);
 		pc->erno=errno;
@@ -238,19 +262,19 @@ int wrap_in_recv(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	return SC_FAKE;
 }
 
-int wrap_in_sendto(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_sendto(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg2);
+	int sfd=fd2sfd(pc->fds,pc->arg2);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		long buf=pcdata->sockregs[1];
-		int len=pcdata->sockregs[2];
-		int flags=pcdata->sockregs[3];
-		long pto=pcdata->sockregs[4];
-		int tolen=pcdata->sockregs[5];
+		long buf=pc->sockregs[1];
+		int len=pc->sockregs[2];
+		int flags=pc->sockregs[3];
+		long pto=pc->sockregs[4];
+		int tolen=pc->sockregs[5];
 		char *lbuf=(char *)alloca(len); 
 		char *tosock=NULL;
 		umoven(pc,buf,len,lbuf);
@@ -264,19 +288,19 @@ int wrap_in_sendto(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	return SC_FAKE;
 }
 
-int wrap_in_recvfrom(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_recvfrom(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg2);
+	int sfd=fd2sfd(pc->fds,pc->arg2);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		long buf=pcdata->sockregs[1];
-		int len=pcdata->sockregs[2];
-		int flags=pcdata->sockregs[3];
-		long pfrom=pcdata->sockregs[4];
-		long pfromlen=pcdata->sockregs[5];
+		long buf=pc->sockregs[1];
+		int len=pc->sockregs[2];
+		int flags=pc->sockregs[3];
+		long pfrom=pc->sockregs[4];
+		long pfromlen=pc->sockregs[5];
 		int fromlen=0;
 		char *lbuf=(char *)alloca(len);
 		char *fromsock=NULL;
@@ -300,33 +324,33 @@ int wrap_in_recvfrom(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	return SC_FAKE;
 }
 
-int wrap_in_shutdown(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_shutdown(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg2);
+	int sfd=fd2sfd(pc->fds,pc->arg2);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int how=pcdata->sockregs[1];
+		int how=pc->sockregs[1];
 		pc->retval=um_syscall(sfd,how);
 		pc->erno=errno;
 	}
 	return SC_FAKE;
 }
 
-int wrap_in_getsockopt(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_getsockopt(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg2);
+	int sfd=fd2sfd(pc->fds,pc->arg2);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int level=pcdata->sockregs[1];
-		int optname=pcdata->sockregs[2];
-		long poptval=pcdata->sockregs[3];
-		long poptlen=pcdata->sockregs[4];
+		int level=pc->sockregs[1];
+		int optname=pc->sockregs[2];
+		long poptval=pc->sockregs[3];
+		long poptlen=pc->sockregs[4];
 		int optlen;
 		void *optval;
 		if (poptlen != umNULL) {
@@ -346,18 +370,18 @@ int wrap_in_getsockopt(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	return SC_FAKE;
 }
 
-int wrap_in_setsockopt(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_setsockopt(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg2);
+	int sfd=fd2sfd(pc->fds,pc->arg2);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		int level=pcdata->sockregs[1];
-		int optname=pcdata->sockregs[2];
-		long poptval=pcdata->sockregs[3];
-		int optlen=pcdata->sockregs[4];
+		int level=pc->sockregs[1];
+		int optname=pc->sockregs[2];
+		long poptval=pc->sockregs[3];
+		int optlen=pc->sockregs[4];
 		void *optval;
 		//printf("setsockopt fd %d level %d optname %d poptval %x optlen %d\n",pc->arg2,level,optname,poptval,optlen);
 		if (optlen > 0 && poptval != umNULL) { 
@@ -372,17 +396,17 @@ int wrap_in_setsockopt(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	}
 	return SC_FAKE;
 }
-
-int wrap_in_recvmsg(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+/* sendmsg and recvmsg have more complex arguments */
+int wrap_in_recvmsg(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg2);
+	int sfd=fd2sfd(pc->fds,pc->arg2);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		long pmsg=pcdata->sockregs[1];
-		int flags=pcdata->sockregs[2];
+		long pmsg=pc->sockregs[1];
+		int flags=pc->sockregs[2];
 		struct msghdr msg;
 		struct msghdr lmsg;
 		struct iovec liovec;
@@ -443,16 +467,16 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	return SC_FAKE;
 }
 
-int wrap_in_sendmsg(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_sendmsg(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg2);
+	int sfd=fd2sfd(pc->fds,pc->arg2);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		long pmsg=pcdata->sockregs[1];
-		int flags=pcdata->sockregs[2];
+		long pmsg=pc->sockregs[1];
+		int flags=pc->sockregs[2];
 		struct msghdr msg;
 		struct msghdr lmsg;
 		umoven(pc,pmsg,sizeof(struct msghdr),&msg);

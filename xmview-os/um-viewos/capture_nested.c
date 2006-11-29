@@ -35,12 +35,14 @@
 #include <limits.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <assert.h>
 #include "capture_nested.h"
 #include "capture_sc.h"
 #include "sctab.h"
 #include "scmap.h"
 #include "defs.h"
 #include "canonicalize.h"
+#include "mainpoll.h"
 
 #include "gdebug.h"
 //#define _NESTED_CALL_DEBUG_
@@ -49,6 +51,52 @@
 #endif
 
 static struct pcb_file umview_file;
+
+/* for modules: nesting select register */
+int um_mod_select_register(void (* cb)(), void *arg, int fd, int how)
+{
+	struct pcb *pc=get_pcb();
+	int sercode;
+	assert(pc);
+	epoch_t epoch=pc->tst.epoch;
+	epoch_t nestepoch=pc->tst.epoch=pc->nestepoch;
+	int rv;
+	//fprint2("um_mod_select_register %p %p %d %d ",cb,arg,fd,how);
+	//fprint2("epoch %lld n %lld \n",epoch,nestepoch);
+	sercode=service_fd(&umview_file,fd,1);
+	//fprint2("service %d \n",sercode);
+	if (sercode != UM_NONE) {
+		sysfun local_select_register=service_select_register(sercode);
+		rv=local_select_register(cb,arg,fd,how);
+	} else {
+		/*int newhow=0;
+		if(how & 1) newhow |= POLLIN;
+		if(how & 2) newhow |= POLLOUT;
+		if(how & 4) newhow |= POLLPRI;
+		struct pollfd pdf={fd,newhow,0};*/
+		struct pollfd pdf={fd,how,0};
+		rv=poll(&pdf,1,0);
+		if (cb) {
+			if (rv == 0) 
+				//mp_add(fd,newhow,cb,arg);
+				mp_add(fd,how,cb,arg);
+		}else
+			mp_del(fd,arg);
+		if (rv > 0) 
+			rv = pdf.revents ;
+		/*
+		if (rv > 0) {
+			rv=0;
+			if (pdf.revents & POLLIN) rv |= 1;
+			if (pdf.revents & POLLOUT) rv |= 2;
+			if (pdf.revents & POLLPRI) rv |= 4;
+		}*/
+  }	
+	pc->nestepoch = nestepoch;
+	pc->tst.epoch = epoch;
+	//fprint2("um_mod_select_register -> %d\n",rv);
+	return rv;
+}
 
 /* convert the path into an absolute path (for nested calls) */
 char *nest_abspath(long laddr,struct npcb *npc,struct stat64 *pst,int dontfollowlink)
@@ -67,7 +115,7 @@ service_t nchoice_fd(int sc_number,struct npcb *npc)
 {
 	int fd=npc->args[0];
 	//fprint2("nchoice_fd sc %d %d %lld\n",sc_number,fd,npc->tst.epoch);
-	return service_fd(&umview_file,fd);
+	return service_fd(&umview_file,fd,1);
 }
 
 /* choice function for nested calls: on the private fd */
@@ -75,7 +123,7 @@ service_t nchoice_sfd(int sc_number,struct npcb *npc)
 {
 	int fd=npc->args[2];
 	//fprint2("nchoice_sfd sc %d %d %lld\n",sc_number,fd,npc->tst.epoch);
-	return service_fd(&umview_file,fd);
+	return service_fd(&umview_file,fd,1);
 }
 
 /* choice function for nested calls: on the sc number */
@@ -311,6 +359,11 @@ int nested_commonwrap(int sc_number,struct npcb *npc,
 	long rv;
 	service_t sercode;
 	int index = dcif(npc, sc_number); /* index of the call */
+	if (__builtin_expect(npc->tmpfile2unlink_n_free!=NULL,0)) {
+		r_unlink(npc->tmpfile2unlink_n_free);
+		free(npc->tmpfile2unlink_n_free);
+		npc->tmpfile2unlink_n_free=NULL;
+	}
 	//fprint2("nested_commonwrap %d -> %lld\n",sc_number,npc->tst.epoch);
 	sercode=sm[index].nestchoice(sc_number,npc); /* module code */
 #ifdef _UM_MMAP
@@ -343,20 +396,11 @@ int nested_commonwrap(int sc_number,struct npcb *npc,
 static void nsaveargs(struct pcb *caller,struct npcb *callee,long int sysno){
 	callee->flags=0;
 	callee->scno=sysno;
-	callee->path=NULL;
 	callee->erno=0;
-	if ((caller->flags & PCB_INUSE) == 0) {
-		/* the caller is a thread or a temporary pcb */
-		struct npcb *ncaller=(struct npcb *)caller;
-		callee->tst=ncaller->tst;
-		callee->tst.epoch=ncaller->nestepoch;
-  } else {
-		/* the caller is a user process */
-		struct pcb_ext *npc=(struct pcb_ext *)caller->data;
-		callee->tst=npc->tst;
-		callee->tst.epoch=npc->nestepoch;
-	}
+	callee->tst=caller->tst;
+	callee->tst.epoch=caller->nestepoch;
 	callee->nestepoch=callee->tst.epoch;
+	pcb_constructor((struct pcb *)callee,0,1);
 }
 
 /* restore args (there is nothing to do!) */
@@ -465,16 +509,11 @@ static struct npcb *new_npcb(struct pcb *old)
 	npcb=calloc(1,sizeof(struct npcb));
 	npcb->flags=PCB_ALLOCATED;
 	/* inherit the treepoch path from the generating thread */
-	if ((old->flags & PCB_INUSE) == 0) {
-		struct npcb *nold=(struct npcb *)old;
-		npcb->tst=nold->tst;
-  } else {
-		struct pcb_ext *pcdata=(struct pcb_ext *)old->data;
-		npcb->tst=pcdata->tst;
-	}
+	npcb->tst=old->tst;
 	/* timestamp the new thread with the current time (is it correct?) */
 	npcb->tst.epoch=npcb->nestepoch=get_epoch();
 	//fprint2("new_npcb %lld\n",npcb->tst.epoch);
+	pcb_constructor((struct pcb *)npcb,0,1);
 	return npcb;
 }
 

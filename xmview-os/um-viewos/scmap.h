@@ -24,6 +24,7 @@
  */   
 #ifndef _SCMAP_H
 #define _SCMAP_H
+#include <poll.h>
 #include "services.h"
 
 //typedef struct service *sss;
@@ -34,9 +35,9 @@ typedef long wrapinfun();
 typedef long wrapoutfun();
 typedef long wrapfun();
 /*
-typedef int wrapinfun(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+typedef int wrapinfun(int sc_number,struct pcb *pc,
 		                char sercode, sysfun um_syscall);
-typedef int wrapoutfun(int sc_number,struct pcb *pc,struct pcb_ext *pcdata);
+typedef int wrapoutfun(int sc_number,struct pcb *pc);
 */
 
 // remap real syscall number to a nu
@@ -80,14 +81,18 @@ extern int scmap_scmapsize;
 extern int scmap_sockmapsize;
 extern int scmap_virscmapsize;
 
-#define CB_R 0x1
-#define CB_W 0x2
-#define CB_X 0x4
+//#define CB_R 0x1
+//#define CB_W 0x2
+//#define CB_X 0x4
+#define CB_R POLLIN|POLLHUP
+#define CB_W POLLOUT
+
 /* if set, the wrapin function must be called anyway, even if the choice
  * function tell noone is interested - useful for some system call we must
  * process internally, e.g. to keep fd table updated, or mmap mappings,
  * etc... */
-#define ALWAYS 0x10
+//#define ALWAYS 0x10
+#define ALWAYS 0x8000
 
 #define USC_TYPE(X) (scmap[(X)].setofcall)
 #define SOC_NONE	0x00
@@ -100,5 +105,6 @@ extern int scmap_virscmapsize;
 #define SOC_PID   0x4
 #define SOC_HOSTID 0x5
 #define SOC_MMAP 0x6
+#define SOC_SIGNAL 0x7
 
 #endif

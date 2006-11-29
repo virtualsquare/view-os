@@ -79,13 +79,13 @@ int um_add_service(char* path,int position){
 }
 #endif
 
-int wrap_in_umservice(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_umservice(int sc_number,struct pcb *pc,
 		    service_t sercode, sysfun um_syscall)
 {
 	char buf[PATH_MAX];
-	switch (pcdata->sockregs[0]) {
+	switch (pc->sockregs[0]) {
 		case ADD_SERVICE:
-			if (umovestr(pc,pcdata->sockregs[2],PATH_MAX,buf) == 0) {
+			if (umovestr(pc,pc->sockregs[2],PATH_MAX,buf) == 0) {
 				//if (access(buf,R_OK) != 0) {
 				//	pc->retval=-1;
 				//	pc->erno=errno;
@@ -95,7 +95,7 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 					pc->retval= -1;
 					pc->erno=EINVAL;
 				} else {
-					if ((pc->retval=set_handle_new_service(handle,pcdata->sockregs[1])) != 0) {
+					if ((pc->retval=set_handle_new_service(handle,pc->sockregs[1])) != 0) {
 						dlclose(handle);
 						pc->erno=errno;
 					}
@@ -107,8 +107,8 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			}
 			break;
 		case DEL_SERVICE:
-			pc->retval=del_service(pcdata->sockregs[1] & 0xff);
-			{void * handle=get_handle_service(pcdata->sockregs[1] & 0xff);
+			pc->retval=del_service(pc->sockregs[1] & 0xff);
+			{void * handle=get_handle_service(pc->sockregs[1] & 0xff);
 				if (handle!= NULL) {
 					dlclose(handle);
 				}
@@ -116,25 +116,25 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			pc->erno=errno;
 			break;
 		case MOV_SERVICE:
-			pc->retval=mov_service(pcdata->sockregs[1] & 0xff,pcdata->sockregs[2]);
+			pc->retval=mov_service(pc->sockregs[1] & 0xff,pc->sockregs[2]);
 			pc->erno=errno;
 			break;
 		case LIST_SERVICE:
-			if (pcdata->sockregs[2]>PATH_MAX) pcdata->sockregs[2]=PATH_MAX;
-			pc->retval=list_services((unsigned char *)buf,pcdata->sockregs[2]);
+			if (pc->sockregs[2]>PATH_MAX) pc->sockregs[2]=PATH_MAX;
+			pc->retval=list_services((unsigned char *)buf,pc->sockregs[2]);
 			pc->erno=errno;
 			if (pc->retval > 0)
-				ustoren(pc,pcdata->sockregs[1],pc->retval,buf);
+				ustoren(pc,pc->sockregs[1],pc->retval,buf);
 			break;
 		case NAME_SERVICE:
-			if (pcdata->sockregs[3]>PATH_MAX) pcdata->sockregs[3]=PATH_MAX;
-			pc->retval=name_service(pcdata->sockregs[1] & 0xff,buf,pcdata->sockregs[3]);
+			if (pc->sockregs[3]>PATH_MAX) pc->sockregs[3]=PATH_MAX;
+			pc->retval=name_service(pc->sockregs[1] & 0xff,buf,pc->sockregs[3]);
 			pc->erno=errno;
 			if (pc->retval == 0)
-				ustorestr(pc,pcdata->sockregs[2],pcdata->sockregs[3],buf);
+				ustorestr(pc,pc->sockregs[2],pc->sockregs[3],buf);
 			break;
 		case LOCK_SERVICE:
-			if (pcdata->sockregs[1])
+			if (pc->sockregs[1])
 				invisible_services();
 			else
 				lock_services();
@@ -157,7 +157,7 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	return SC_FAKE;
 }
 
-int wrap_out_umservice(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+int wrap_out_umservice(int sc_number,struct pcb *pc)
 {
 	putrv(pc->retval,pc);
 	puterrno(pc->erno,pc);

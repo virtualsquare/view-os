@@ -152,12 +152,25 @@ static void pcb_mmap_sfsearch_n_delete(
  * unused chunks (counter==0) will be reused by the insertion.
  * lazy: if the mmap-ed file is needed again (and unchanged) the previous
  * chunk is re-used */
-void um_mmap_delproc(struct pcb_mmap_entry *head)
+void um_mmap_recdelproc(struct pcb_mmap_entry *head)
 {
 	if (head) {
 		head->sf_entry->counter--;
-		um_mmap_delproc(head->next);
+		um_mmap_recdelproc(head->next);
 		free(head);
+	}
+}
+
+void um_mmap_addproc(struct pcb *pc,int flags,int npcbflag)
+{
+	if (!npcbflag) 
+		pc->um_mmap=NULL;
+}
+
+void um_mmap_delproc(struct pcb *pc,int flags,int npcbflag)
+{
+	if (!npcbflag) {
+		um_mmap_recdelproc(pc->um_mmap);
 	}
 }
 
@@ -311,7 +324,7 @@ static long add_mmap_secret(service_t sercode,const char *from, unsigned long pg
 }
 
 /* both mmap and mmap2 management */
-int wrap_in_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_mmap(int sc_number,struct pcb *pc,
 		char sercode, sysfun um_syscall)
 {
 	unsigned long length=getargn(1,pc);
@@ -321,7 +334,7 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	long offset=getargn(5,pc);
 	unsigned long pgsize;
 	struct stat64 sbuf;
-	char *path=fd_getpath(pcdata->fds,fd);
+	char *path=fd_getpath(pc->fds,fd);
 	if ((!(flags & MAP_PRIVATE)) && (prot & PROT_WRITE))
 		fprint2("MMAP: %s only MAP_PRIVATE has been implemented\n",path);
 	/* convert mmap into mmap2 */
@@ -358,7 +371,7 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			}
 		}
 		/* add the new item in the *process* mmap table */
-		pcdata->um_mmap = pcb_mmap_add(pcdata->um_mmap, 0, length, sf_entry);
+		pc->um_mmap = pcb_mmap_add(pc->um_mmap, 0, length, sf_entry);
 		sf_entry->counter++;
 		um_setepoch(nestepoch);
 		pc->retval = 0;
@@ -374,27 +387,27 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 
 /* unmap: search the chunk to be unmapped, if found it is moved to the
  * head of the process mmap table */
-int wrap_in_munmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_munmap(int sc_number,struct pcb *pc,
 		char sercode, sysfun um_syscall)
 {
 	unsigned long start=getargn(0,pc);
 	unsigned long length=getargn(1,pc);
 	
 	//fprint2("======== wrap_in_munmap %ld %ld!!!\n",start,length);
-	if (pcb_mmap_sfsearch_n_movetohead(&(pcdata->um_mmap),start,length))
+	if (pcb_mmap_sfsearch_n_movetohead(&(pc->um_mmap),start,length))
 		return SC_CALLONXIT;
 	else
 		return STD_BEHAVIOR;
 }
 
 /* remap: search the chunk and move it ti the head of the process mmap table */
-int wrap_in_mremap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_mremap(int sc_number,struct pcb *pc,
 		char sercode, sysfun um_syscall)
 {
 	unsigned long start=getargn(0,pc);
 	unsigned long length=getargn(1,pc);
 	//unsigned long new_length=getargn(2,pc);
-	if (pcb_mmap_sfsearch_n_movetohead(&(pcdata->um_mmap),start,length)) {
+	if (pcb_mmap_sfsearch_n_movetohead(&(pc->um_mmap),start,length)) {
 		/* TODO check that remap does not overlap next mmap chunk on the secret
 		 * file */
 		return SC_CALLONXIT;
@@ -403,19 +416,19 @@ int wrap_in_mremap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 /* mmap after system call management */
-int wrap_out_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+int wrap_out_mmap(int sc_number,struct pcb *pc)
 {
 	if (pc->retval >= 0) {
 		long rv=getrv(pc);
 		/* user-mode syscall succeeded */
-		if (pcdata->um_mmap) {
+		if (pc->um_mmap) {
 			/* should be always true, just for safety*/
 			if (rv != -1)
 				/* the new mmap entry is the first. update the user-mode address */
-				pcdata->um_mmap->start=rv;
+				pc->um_mmap->start=rv;
 			else
 				/* user mode failed, the mapping must be deleted here, too */
-				pcb_mmap_deletehead(&(pcdata->um_mmap));
+				pcb_mmap_deletehead(&(pc->um_mmap));
 		}
 		return STD_BEHAVIOR;
 	} else {
@@ -427,24 +440,24 @@ int wrap_out_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 
 /* unmap after syscall management, delete the element only if the 
  * user mode syscall succeeded */
-int wrap_out_munmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+int wrap_out_munmap(int sc_number,struct pcb *pc)
 {
 	//fprint2("======== wrap_out_munmap!!!\n");
 	long rv=getrv(pc);
 	if (rv != -1) 
-		pcb_mmap_deletehead(&(pcdata->um_mmap));	
+		pcb_mmap_deletehead(&(pc->um_mmap));	
 	return STD_BEHAVIOR;
 }
 
 /* unmap after syscall management, change the size only if the 
  * user mode syscall succeeded */
-int wrap_out_mremap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+int wrap_out_mremap(int sc_number,struct pcb *pc)
 {
 	unsigned long new_length=getargn(2,pc);
 	long rv=getrv(pc);
-	if (rv != -1 && pcdata->um_mmap) {
-		pcdata->um_mmap->start=rv;
-		pcdata->um_mmap->len = new_length;
+	if (rv != -1 && pc->um_mmap) {
+		pc->um_mmap->start=rv;
+		pc->um_mmap->len = new_length;
 	}
 	return STD_BEHAVIOR;
 }

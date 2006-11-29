@@ -24,6 +24,7 @@
  */
 #ifndef _PTRACE2_H
 #define _PTRACE2_H
+#include <sys/ptrace.h>
 
 #ifndef PTRACE_MULTI
 #define PTRACE_MULTI 0x4300

@@ -46,6 +46,7 @@
 #include "scmap.h"
 #include "defs.h"
 #include "gdebug.h"
+#define FAKECWD "fakecwd"
 
 static char *um_proc_root;
 static char *um_tmpfile;
@@ -89,11 +90,11 @@ void um_proc_open()
 #endif
 	/* path of the directory umview creates to store temporary and management
 	 * files */
-	snprintf(path,PATH_MAX,"/tmp/.umproc%ld",(long int)r_getpid());
+	snprintf(path,PATH_MAX,"/tmp/.umview%ld",(long int)r_getpid());
 	//printf("um_proc_open %s\n",path);
 
 	if(r_mkdir(path,0700) < 0) {
-		perror("um_proc makefile");
+		perror("um_proc mkdir");
 		exit (-1);
 	}
 	um_proc_root=strdup(path);
@@ -115,6 +116,11 @@ void um_proc_open()
 	strcpy(um_tmpfile,path);
 	um_tmpfile_tail=um_tmpfile+(strlen(path)-7);
 	um_tmpfile_len=strlen(um_tmpfile);
+	strcpy(um_tmpfile_tail,FAKECWD);
+	if(r_mkdir(um_tmpfile,0700) < 0) {
+		perror("um_proc mkdir");
+		exit (-1);
+	}
 }
 
 /* final cleanup: all the directory is deleted (something like rm -rf) */
@@ -154,6 +160,12 @@ void um_proc_close()
 	rec_rm_all(um_proc_root);
 }
 
+char *um_proc_fakecwd()
+{
+  strcpy(um_tmpfile_tail,FAKECWD);
+	return um_tmpfile;
+}
+
 /* create a temporary file name, unique names are guaranteed by using
  * service code+lfd index in the name */
 static char *um_proc_tmpfile(service_t service, int lfd)
@@ -176,49 +188,48 @@ char *um_proc_tmpname()
 }
 
 /* set up the umproc data structure needed by a new process */
-void lfd_addproc (struct pcb_file **pp,int flag)
+void umproc_addproc(struct pcb *pc,int flags,int npcbflag)
 {
-	//printf("ADDPROC %x\n",flag);
-	/* flag => CLONE_FILES is set */
-	/* when clone file is set, the new process shares the data structure
-	 * with the parent process */
-	if (flag) {
-		struct pcb_file *p=*pp;
-		assert (p != NULL);
-		p->count++;
-	} else {
-		struct pcb_file *p=*pp=(struct pcb_file *)malloc(sizeof(struct pcb_file));
-		p->count=1;
-		p->nolfd=0;
-		p->lfdlist=NULL;
+	if (!npcbflag) {
+		if (flags & CLONE_FILES) {
+			pc->fds=pc->pp->fds;
+			pc->fds->count++;
+		} else {
+			struct pcb_file *p=pc->fds=(struct pcb_file *)malloc(sizeof(struct pcb_file));
+			p->count=1;
+			p->nolfd=0;
+			p->lfdlist=NULL;
+
+		}
 	}
 }
 
-/* clean up the umproc data structure when a process terminates */
-void lfd_delproc (struct pcb_file *p)
+void umproc_delproc(struct pcb *pc,int flags,int npcbflag)
 {
-	int i;
-	//printf("DELPROC count %d nolfd %d\n",p->count,p->nolfd);
-	p->count--;
-	/* if there are no processes left sharing this data structure
-	 * free all the data */
-	if (p->count == 0) {
-		for (i=0; i<p->nolfd;  i++) {
-			register int lfd=p->lfdlist[i];
-			if (lfd >= 0) {
-			/*	if ((--lfd_tab[lfd].ptab->count) == 0) {
-					register int service=lfd_tab[lfd].ptab->service;
-					if (service != UM_NONE) {
-						service_syscall(service,uscno(__NR_close))(lfd_tab[lfd].ptab->sfd);
-					}
-				} */
-				//printf("CLOSE LFD %d\n",lfd);
-				lfd_close(lfd);
+	if (!npcbflag) {
+		struct pcb_file *p=pc->fds;
+		p->count--;
+		/* if there are no processes left sharing this data structure
+		 *    * free all the data */
+		if (p->count == 0) {
+			int i;
+			for (i=0; i<p->nolfd;  i++) {
+				register int lfd=p->lfdlist[i];
+				if (lfd >= 0) {
+					/*  if ((--lfd_tab[lfd].ptab->count) == 0) {
+					 *    register int service=lfd_tab[lfd].ptab->service;
+					 *    if (service != UM_NONE) {
+					 *       service_syscall(service,uscno(__NR_close))(lfd_tab[lfd].ptab->sfd);
+					 *   }
+					 *  } */
+					//printf("CLOSE LFD %d\n",lfd);
+					lfd_close(lfd);
+				}
 			}
+			if (p->lfdlist != NULL)
+				free(p->lfdlist);
+			free(p);
 		}
-		if (p->lfdlist != NULL)
-			free(p->lfdlist);
-		free(p);
 	}
 }
 
@@ -260,7 +271,7 @@ int lfd_open (service_t service, int sfd, char *path, int nested)
 	lfd_tab[lfd].ptab->path=(path==NULL)?NULL:strdup(path);
 	lfd_tab[lfd].ptab->service=service;
 	lfd_tab[lfd].ptab->sfd=sfd;
-	lfd_tab[lfd].ptab->epoch=um_getnestepoch();
+	lfd_tab[lfd].ptab->epoch=um_setepoch(0);
 	lfd_tab[lfd].ptab->count=1;
 	if (service != UM_NONE && !nested) {
 		char *filename;
@@ -416,7 +427,7 @@ int fd2sfd(struct pcb_file *p, int fd)
 
 /* tell the identifier of the service which manages given fd, or UM_NONE if no
  * service handle it */
-service_t service_fd(struct pcb_file *p, int fd)
+service_t service_fd(struct pcb_file *p, int fd, int setepoch)
 {
 	//printf("service fd p=%x\n",p);
 	//if (p != NULL)
@@ -435,7 +446,8 @@ service_t service_fd(struct pcb_file *p, int fd)
 		if (fd >= 0 && fd < p->nolfd && p->lfdlist[fd] >= 0) {
 			/* XXX side effect: when service_fd finds a virtual file,
 			 * it sets also the epoch */
-			um_setepoch(lfd_tab[p->lfdlist[fd]].ptab->epoch);
+			if (setepoch)
+				um_setepoch(lfd_tab[p->lfdlist[fd]].ptab->epoch);
 			return lfd_tab[p->lfdlist[fd]].ptab->service;
 		} else
 			return UM_NONE;
@@ -496,11 +508,13 @@ void lfd_closeall()
 void lfd_signal(int lfd)
 {
 	char ch=0;
-	//printf("lfd_signal %d\n",lfd);
-	assert (lfd < um_maxlfd && lfd_tab[lfd].pvtab != NULL);
-	if (lfd_tab[lfd].pvtab->signaled == 0) {
-		lfd_tab[lfd].pvtab->signaled = 1;
-		r_write(lfd_tab[lfd].pvtab->ofifo,&ch,1);
+	//fprint2("lfd_signal %d\n",lfd);
+	//assert (lfd < um_maxlfd && lfd_tab[lfd].pvtab != NULL);
+	if  (lfd < um_maxlfd && lfd_tab[lfd].pvtab != NULL) {
+		if (lfd_tab[lfd].pvtab->signaled == 0) {
+			lfd_tab[lfd].pvtab->signaled = 1;
+			r_write(lfd_tab[lfd].pvtab->ofifo,&ch,1);
+		}
 	}
 }
 

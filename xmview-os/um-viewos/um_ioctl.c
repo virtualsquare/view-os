@@ -72,10 +72,10 @@ static void ioctl_putarg(struct pcb* pc, int ioctlparms, unsigned long arg, void
 	}
 }
 
-int wrap_in_ioctl(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_ioctl(int sc_number,struct pcb *pc,
 		char sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pcdata->fds,pc->arg0);
+	int sfd=fd2sfd(pc->fds,pc->arg0);
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;

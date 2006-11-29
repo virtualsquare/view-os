@@ -27,6 +27,8 @@
 #include <stdarg.h>
 //#include <sys/socket.h>
 
+extern int _umview_version;
+
 typedef long (*sysfun)();
 typedef long long epoch_t;
 struct treepoch;
@@ -106,12 +108,12 @@ struct service {
 	/* proactive management of select/poll system call. The module provides this function
 	 * to activate a callback when an event occurs.
 	 * it has the followin args:
-	 * (void (* cb)(), void *arg, int fd, int how)    
+	 * (void (* cb)(), void *arg, int fd, int events)    
 	 * cb: the callback function (if NULL, it means that a previous registration for callback
 	 *     must be deleted).
 	 * arg: argument passed to the callback function
 	 * fd: fd (i.e. sfd, the fd as seen by the service module)
-	 * how: 0x1 READ_OK, 0x2 WRITE_OK, 0x4 EXTRA
+	 * events: as defined in poll(2)
 	 */
 	sysfun select_register;
 
@@ -137,6 +139,7 @@ extern long* um_mod_getargs(void);
 extern struct stat64 *um_mod_getpathstat(void);
 char *um_mod_getpath(void);
 extern int um_mod_getsyscalltype(int scno);
+int um_mod_select_register(void (* cb)(), void *arg, int fd, int how);
 
 extern int uscno(int scno);
 extern int add_service(struct service *);

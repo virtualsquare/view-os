@@ -27,17 +27,26 @@
 #define CAPTURE_SC_H_
 
 extern int first_child_exit_status;
+/* let the game start! */
 int capture_main(char **argv,int has_pselect);
+/* resume a process previously suspended */
 void sc_resume(void *pc);
 
+/* get the pcb of the current thread (thread safe) */
 struct pcb *get_pcb();
+/* set the pcb of the current thread */
 void set_pcb(void *new);
+/* just ask for the current size of the pcbtable */
 int pcbtablesize(void);
 
-void wake_tracer_init();
+/* set up an internal pipe for ancient kernels (< 2.6.18)
+ * not supporting ppoll */
+int wake_tracer_init();
+/* wake up the tracer by the pipe (ancient kernels) */
 void wake_tracer(int s);
-int add_tracerpipe_to_wset(int prevmax, fd_set *wset);
-int must_wake_tracer(fd_set *wset);
+/* read from the pipe to rearm the pipe trigger */
+void do_wake_tracer();
+/* This is the handler of sigchld from user processes */
 void tracehand();
 
 #endif

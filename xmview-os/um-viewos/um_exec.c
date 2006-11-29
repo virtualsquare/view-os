@@ -129,10 +129,10 @@ static void printparms(char *what,char **parms)
 
 #define UMBINWRAP (INSTALLDIR "/umbinwrap")
 /* wrap_in: execve handling */
-int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_execve(int sc_number,struct pcb *pc,
 		service_t sercode,sysfun um_syscall)
 {
-	struct binfmt_req req={(char *)pcdata->path,NULL,0};
+	struct binfmt_req req={(char *)pc->path,NULL,0};
 	epoch_t nestepoch=um_setepoch(0);
 	service_t binfmtser;
 	/* The epoch should be just after the mount 
@@ -161,16 +161,16 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			oldarg0[0]=0;
 		/* search for an unused char to act as arg separator */
 		for (sep=1;sep<255 && 
-				(strchr((char *)pcdata->path,sep)!=NULL ||
+				(strchr((char *)pc->path,sep)!=NULL ||
 				 strchr(req.interp,sep)!=NULL ||
 				 strchr(oldarg0,sep)!=NULL);
 				sep++)
 			;
 		/* collapse all the args in only one arg */
 		if (req.flags & BINFMT_KEEP_ARG0) 
-			asprintf(&umbinfmtarg0,"%c%s%c%s%c%s",sep,req.interp,sep,oldarg0,sep,(char *)pcdata->path);
+			asprintf(&umbinfmtarg0,"%c%s%c%s%c%s",sep,req.interp,sep,oldarg0,sep,(char *)pc->path);
 		else 
-			asprintf(&umbinfmtarg0,"%c%s%c%s",sep,req.interp,sep,(char *)pcdata->path);
+			asprintf(&umbinfmtarg0,"%c%s%c%s",sep,req.interp,sep,(char *)pc->path);
 		filenamelen=WORDALIGN(strlen(UMBINWRAP));
 		arg0len=WORDALIGN(strlen(umbinfmtarg0));
 		pc->retval=0;
@@ -196,7 +196,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 			/*printparms("ARGV",argv);
 				printparms("ENV",env);*/
 			/* call the module's execve implementation */
-			pc->retval=um_syscall(pcdata->path,argv,env);
+			pc->retval=um_syscall(pc->path,argv,env);
 			pc->erno=errno;
 			freeparms(argv);
 			freeparms(env);
@@ -205,16 +205,16 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		 * to require the real execve */
 		if (pc->retval==ERESTARTSYS){
 			char *filename=strdup(um_proc_tmpname());
-			//fprint2("wrap_in_execve! %s %p %d\n",(char *)pcdata->path,um_syscall,isnosys(um_syscall));
+			//fprint2("wrap_in_execve! %s %p %d\n",(char *)pc->path,um_syscall,isnosys(um_syscall));
 
 			/* copy the file and change the first arg of execve to 
 			 * address the copy */
-			if ((pc->retval=filecopy(sercode,pcdata->path,filename))>=0) {
+			if ((pc->retval=filecopy(sercode,pc->path,filename))>=0) {
 				long sp=getsp(pc);
 				int filenamelen=WORDALIGN(strlen(filename));
 				pc->retval=0;
 				/* remember to clean up the copy as soon as possible */
-				pcdata->tmpfile2unlink_n_free=filename;
+				pc->tmpfile2unlink_n_free=filename;
 				ustorestr(pc,sp-filenamelen,filenamelen,filename);
 				putargn(0,sp-filenamelen,pc);
 				return SC_CALLONXIT;
@@ -232,7 +232,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 }
 
 
-int wrap_out_execve(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) 
+int wrap_out_execve(int sc_number,struct pcb *pc) 
 { 
 	/* If this function is executed it means that something went wrong! */
 	//fprint2("wrap_out_execve %d\n",pc->retval);

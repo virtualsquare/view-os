@@ -115,7 +115,7 @@ static int diffbitstr(unsigned long *a,unsigned long *b,short len)
 		rv = (a[i] != b[i]);
 	if (mask && !rv)
 		rv = ((a[i] & mask) != (b[i] & mask));
-	//fprint2("DIFF %x %x %d -> %d\n",a[0],b[0],len,rv);
+	/*fprint2("DIFF %x %x %d -> %d\n",a[0],b[0],len,rv);*/
 	return rv;
 }
 
@@ -126,7 +126,7 @@ static epoch_t new_epoch(){
 	tmp=epoch_now;
 	epoch_now++;
 	pthread_mutex_unlock(&epoch_mutex);
-	//fprint2("NEW EPOCH %lld\n",epoch_now);
+	/*fprint2("NEW EPOCH %lld\n",epoch_now);*/
 	return tmp;
 }
 
@@ -143,12 +143,16 @@ epoch_t tst_matchingepoch(struct timestamp *service_tst)
 	/*fprint2("SE = %lld - PE = %lld\n",service_tst->epoch,process_tst->epoch);*/
 	while (service_tst->treepoch->parent && service_tst->treepoch->nproc==0) 
 		service_tst->treepoch = service_tst->treepoch->parent;
-	//fprint2("MATCH up %lld %lld\n",service_tst->epoch,service_tst->treepoch->rise);
+	/*fprint2("MATCH up %lld %lld\n",service_tst->epoch,service_tst->treepoch->rise);*/
 	while (service_tst->epoch < service_tst->treepoch->rise) 
 		service_tst->treepoch = service_tst->treepoch->parent;
 	/* process_tst->treepoch is NULL only for garbage collection final calls. Always match! */
 	if (process_tst)
 	{
+		if (!process_tst->treepoch) {
+			fprint2("tst_matchingepoch process err %d\n",um_mod_getpid());
+			return 0;
+		}
 		/* if service_tst->treepoch is a  subset of  process_tst->treepoch
 		 * return service_tst->epoch */
 		if (service_tst->treepoch->len > process_tst->treepoch->len ||
@@ -272,7 +276,6 @@ struct timestamp tst_newfork(struct timestamp *old_tst)
 	struct timestamp rv;
 	struct treepoch *new_te;
 	assert ((old_tst != NULL && old_tst->treepoch != NULL) || te_root == NULL);
-	//fprint2("FORK \n");
 	/* if there is one process only no fork takes place */
 	if (old_tst && (old_tst->treepoch->nproc == 1 ||
 	/* if the branch has already reached the max height no fork*/
@@ -342,12 +345,12 @@ struct timestamp tst_newproc(struct timestamp *parent_tst)
 	struct timestamp rv;
 	rv=*parent_tst;
 	te_newproc(rv.treepoch);
-	//fprint2("NEW PROC %p %d %d %x\n",rv.treepoch,rv.treepoch->nproc,rv.treepoch->len,rv.treepoch->bitstr[0]);
+	/* fprint2("NEW PROC %d %p %d %d %x\n",um_mod_getpid(),rv.treepoch,rv.treepoch->nproc,rv.treepoch->len,rv.treepoch->bitstr[0]);*/
 	return rv;
 }
 
 void tst_delproc(struct timestamp *parent_tst)
 {
-	//fprint2("DEL PROC %p %d %d %x\n",parent_tst->treepoch,parent_tst->treepoch->nproc,parent_tst->treepoch->len,parent_tst->treepoch->bitstr[0]);
+	/*fprint2("DEL PROC %p %d %d %x\n",parent_tst->treepoch,parent_tst->treepoch->nproc,parent_tst->treepoch->len,parent_tst->treepoch->bitstr[0]);*/
 	te_delproc(parent_tst->treepoch);
 }

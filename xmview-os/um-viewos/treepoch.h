@@ -43,6 +43,8 @@ epoch_t tst_matchingepoch(struct timestamp *service_tst);
 struct timestamp tst_timestamp();
 
 struct timestamp tst_newfork(struct timestamp *old_tst);
+
+/*these should be transformed into constructors/destructors */
 struct timestamp tst_newproc(struct timestamp *parent_tst);
 	
 void tst_delproc(struct timestamp *parent_tst);

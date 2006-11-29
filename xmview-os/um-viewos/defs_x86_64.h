@@ -27,6 +27,8 @@
 
 #ifndef _DEFS_X86_64
 #define _DEFS_X86_64
+#define _KERNEL_NSIG   64
+#define _KERNEL_SIGSET_SIZE _KERNEL_NSIG/8
 
 // asm-x86_64/ptrace.h declare this as offset in bytes (and I don't want so)
 //registers as mapped in x_86_64 kernel
@@ -140,7 +142,7 @@
 			i; \
 			})
 	
-#define setregs(PC,CALL,OP) ({ (PC)->regs_modified==0? ptrace((CALL),(PC)->pid,(OP),0):({\
+#define setregs(PC,CALL,OP,SIG) ({ (PC)->regs_modified==0? ptrace((CALL),(PC)->pid,(OP),0):({\
 			long temp[VIEWOS_FRAME_SIZE]; \
 			temp[RDI] = (PC)->saved_regs[MY_RDI]; \
 			temp[RSI] = (PC)->saved_regs[MY_RSI]; \
@@ -171,12 +173,12 @@
 			temp[GS] = (PC)->saved_regs[GS]; \
 	(has_ptrace_multi ? ({\
 			     struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, (void *) temp},\
-			     {(CALL), (OP), 0}};\
+			     {(CALL), (OP), (SIG)}};\
 			     ptrace(PTRACE_MULTI,(PC)->pid,req,2); }\
 			    ) : (\
 				    {int rv;\
 				    rv=ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) temp);\
-					    if(rv== 0) rv=ptrace((CALL),(PC)->pid,(OP),0);\
+					    if(rv== 0) rv=ptrace((CALL),(PC)->pid,(OP),(SIG));\
 					    rv;}\
 													) );\
 	});})
@@ -202,7 +204,6 @@
 #define LONG_LONG(_l,_h) \
     ((long long)((unsigned long long)(unsigned)(_l) | ((unsigned long long)(_h)<<32)))
 
-#define MAXSC (NR_syscalls)
 #define MAXERR 4096
 
 #if 0 // let's help vim autoindent  :-P
@@ -234,9 +235,5 @@
 
 #define wrap_in_stat wrap_in_stat64
 #define wrap_in_fstat wrap_in_fstat64
-
-#ifndef __NR_pselect6
-#define __NR_pselect6	270
-#endif
 
 #endif // _DEFS_X86_64

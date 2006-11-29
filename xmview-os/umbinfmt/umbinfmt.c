@@ -1125,13 +1125,12 @@ static void contextclose(struct umbinfmt *fc)
 
 static long umbinfmt_select_register(void (* cb)(), void *arg, int fd, int how)
 {
-	int rv=1;
 	if (filetab[fd]==NULL) {
 		errno=EBADF;
 		return -1;
 	}
 	else 
-		return 0;
+		return 1;
 }
 
 #if 0

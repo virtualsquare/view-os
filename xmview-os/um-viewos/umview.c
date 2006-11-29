@@ -28,6 +28,7 @@
 #include <getopt.h>
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <sys/select.h>
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -43,16 +44,18 @@
 #include "um_select.h"
 #include "um_services.h"
 #include "ptrace_multi_test.h"
+#include "mainpoll.h"
 #include "gdebug.h"
 
-int _umview_version = 1; /* modules interface version id.
+int _umview_version = 2; /* modules interface version id.
 										modules can test to be compatible with
 										um-viewos kernel*/
 unsigned int has_ptrace_multi;
 unsigned int ptrace_vm_mask;
 unsigned int ptrace_viewos_mask;
+unsigned int hasppoll;
 
-unsigned int want_ptrace_multi, want_ptrace_vm, want_ptrace_viewos;
+unsigned int want_ptrace_multi, want_ptrace_vm, want_ptrace_viewos, want_ppoll;
 
 extern int nprocs;
 
@@ -147,7 +150,8 @@ static void usage(char *s)
 			"  -n, --nokernelpatch       avoid using kernel patches\n"
 			"  --nokmulti                avoid using PTRACE_MULTI\n"
 			"  --nokvm                   avoid using PTRACE_SYSVM\n"
-			"  --nokviewos               avoid using PTRACE_VIEWOS\n\n",
+			"  --nokviewos               avoid using PTRACE_VIEWOS\n\n"
+			"  --noppoll                 avoid using ppoll\n\n",
 			s);
 	exit(0);
 }
@@ -161,6 +165,7 @@ static struct option long_options[] = {
 	{"nokmulti",0,0,0x100},
 	{"nokvm",0,0,0x101},
 	{"nokviewos",0,0,0x102},
+	{"noppoll",0,0,0x103},
 	{0,0,0,0}
 };
 
@@ -234,6 +239,7 @@ static void umview_recursive(int argc,char *argv[])
 	exit(-1);
 }
 
+/*
 static int has_pselect_test()
 {
 #ifdef _USE_PSELECT
@@ -243,13 +249,12 @@ static int has_pselect_test()
 	return 0;
 #endif
 }
+*/
 
+#include<errno.h>
 /* UMVIEW MAIN PROGRAM */
 int main(int argc,char *argv[])
 {
-	fd_set wset[3];
-	int has_pselect;
-	
 	/* try to set the priority to -11 provided umview has been installed
 	 * setuid. it is effectiveless elsewhere */
 	r_setpriority(PRIO_PROCESS,0,-11);
@@ -268,16 +273,18 @@ int main(int argc,char *argv[])
 	if (strcmp(argv[0],"-umview")!=0)
 		load_it_again(argc,argv);	/* do not return!*/
 	/* does this kernel provide pselect? */
-	has_pselect=has_pselect_test();
+	/*has_pselect=has_pselect_test();*/
 	optind=0;
 	argv[0]="umview";
 	/* set up the scdtab */
 	scdtab_init();
 	/* test the ptrace support */
 	has_ptrace_multi=test_ptracemulti(&ptrace_vm_mask,&ptrace_viewos_mask);
+	hasppoll=hasppolltest();
 	want_ptrace_multi = has_ptrace_multi;
 	want_ptrace_vm = ptrace_vm_mask;
 	want_ptrace_viewos = ptrace_viewos_mask;
+	want_ppoll = hasppoll;
 	/* option management */
 	while (1) {
 		int c;
@@ -318,10 +325,13 @@ int main(int argc,char *argv[])
 			case 0x102: /* do not use ptrace_viewos */
 					 want_ptrace_viewos = 0;
 					 break;
+			case 0x103: /* do not use ppoll */
+					 want_ppoll = 0;
+					 break;
 		}
 	}
 	
-	if (has_ptrace_multi || ptrace_vm_mask || ptrace_viewos_mask)
+	if (has_ptrace_multi || ptrace_vm_mask || ptrace_viewos_mask || hasppoll)
 	{
 		fprintf(stderr, "This kernel supports: ");
 		if (has_ptrace_multi)
@@ -329,11 +339,13 @@ int main(int argc,char *argv[])
 		if (ptrace_vm_mask)
 			fprintf(stderr, "PTRACE_SYSVM ");
 		if (ptrace_viewos_mask)
-			fprintf(stderr, "PTRACE_VIEWOS");
+			fprintf(stderr, "PTRACE_VIEWOS ");
+		if (hasppoll)
+			fprintf(stderr, "ppoll ");
 		fprintf(stderr, "\n");
 	}
 	
-	if (has_ptrace_multi || ptrace_vm_mask || ptrace_viewos_mask ||
+	if (has_ptrace_multi || ptrace_vm_mask || ptrace_viewos_mask || hasppoll ||
 			want_ptrace_multi || want_ptrace_vm || want_ptrace_viewos)
 	{
 		fprintf(stderr, "%s will use: ", UMVIEW_NAME);	
@@ -342,8 +354,10 @@ int main(int argc,char *argv[])
 		if (want_ptrace_vm)
 			fprintf(stderr,"PTRACE_SYSVM ");
 		if (want_ptrace_viewos)
-			fprintf(stderr,"PTRACE_VIEWOS");
-		if (!want_ptrace_multi && !want_ptrace_vm && !want_ptrace_viewos)
+			fprintf(stderr,"PTRACE_VIEWOS ");
+		if (want_ppoll)
+			fprintf(stderr,"ppoll ");
+		if (!want_ptrace_multi && !want_ptrace_vm && !want_ptrace_viewos && !want_ppoll)
 			fprintf(stderr,"nothing");
 		fprintf(stderr,"\n\n");
 	}
@@ -351,80 +365,33 @@ int main(int argc,char *argv[])
 	has_ptrace_multi = want_ptrace_multi;
 	ptrace_vm_mask = want_ptrace_vm;
 	ptrace_viewos_mask = want_ptrace_viewos;
+	hasppoll = want_ppoll;
 	
-	/* two different main loops, depending on pselect */
-	if (has_pselect) {
+	if (hasppoll) {
 		sigset_t unblockchild;
-		/* pselect needs a strange sixth arg */
-		struct {
-			sigset_t *ss;
-			size_t sz;
-		}psel6={&unblockchild,8};
-		/* save current mask */
 		sigprocmask(SIG_BLOCK,NULL,&unblockchild);
-		/* capture main will block SIGCHLD */
+		pcb_inits(1);
 		capture_main(argv+optind,1);
-		setenv("_INSIDE_UMVIEW_MODULE","",1);
 		do_preload(prehead);
-		/* select() management */
-		select_init();
 		while (nprocs) {
-			int max,n;
-			FD_ZERO(&wset[0]);
-			FD_ZERO(&wset[1]);
-			FD_ZERO(&wset[2]);
-			max=select_fill_wset(wset);
-			/* pselect gets unblocked either by a file request or by
-			 * a signal (SIGCHLD) */
-			n = r_pselect6(max+1,&wset[0],&wset[1],&wset[2],NULL,&psel6);
-			/* call tracehand anyway, if waitpid fails it returns here
-			 * quite soon, it is useless to waste another syscall like sigpending*/
+			mp_ppoll(&unblockchild);
 			tracehand();
-			/* if no fd is involved, skip the control */
-			if (n > 0)
-				select_check_wset(max,wset);
-		}
-	} else {
-		sigset_t blockchild, oldset;
-		sigemptyset(&blockchild);
-		sigaddset(&blockchild,SIGCHLD);
-		/* Creation of the pipe for the signal handler */
-		wake_tracer_init();
-
-		capture_main(argv+optind,0);
-		setenv("_INSIDE_UMVIEW_MODULE","",1);
-		do_preload(prehead);
-
-		/* select() management */
-		select_init();
-		while (nprocs) {
-			int max,n;
-			FD_ZERO(&wset[0]);
-			FD_ZERO(&wset[1]);
-			FD_ZERO(&wset[2]);
-			sigprocmask(SIG_BLOCK,&blockchild,&oldset);
-			max=select_fill_wset(wset);
-
-			/* Add the tracerpipe and update max */
-			max=add_tracerpipe_to_wset(max, &wset[0]);
-
-			sigprocmask(SIG_SETMASK,&oldset,NULL);
-			n = r_select(max+1,&wset[0],&wset[1],&wset[2],NULL);
-			if (n > 0)
-			{
-				if (must_wake_tracer(&wset[0]))
-				{
-					// We received a message from the SIGCHLD handler, time to
-					// start the real handler
-					tracehand();
-					continue;
-				}
-				sigprocmask(SIG_BLOCK,&blockchild,&oldset);
-				select_check_wset(max,wset);
-				sigprocmask(SIG_SETMASK,&oldset,NULL);
-			}
 		}
 	}
+	else {
+		int wt=wake_tracer_init();
+		/* logically should follow pcb_inits, but the wake tracer fd will be the
+		 * most hit, so this inversion gives performance to the system */
+		mp_add(wt,POLLIN,do_wake_tracer,NULL);
+		pcb_inits(0);
+		capture_main(argv+optind,0);
+		do_preload(prehead);
+		while (nprocs)  {
+			mp_poll();
+			do_wake_tracer();
+		}
+	}
+	pcb_finis(hasppoll);
 	return first_child_exit_status;
 }
 

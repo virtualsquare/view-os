@@ -67,6 +67,7 @@ static struct syscall_unifier
 	{__NR_creat,	__NR_open},
 	{__NR_readv,	__NR_read},
 	{__NR_writev,	__NR_write},
+	{__NR_time,	  __NR_gettimeofday},
 #if ! defined(__x86_64__)
 	{__NR_umount,	__NR_umount2},
 	{__NR_stat,		__NR_stat64},
@@ -295,7 +296,7 @@ void service_addproc(service_t code,int umpid, int pumpid,int max)
 	if (code == UM_NONE) {
 		for (pos=0;pos<noserv;pos++)
 		{
-			GDEBUG(9, "services[%d] == %p", services?services[pos]:-1);
+			GDEBUG(9, "services[%d] == %p", services?services[pos]:(void *)(-1));
 			if (services[pos]->addproc)
 				services[pos]->addproc(umpid,pumpid,max);
 		}

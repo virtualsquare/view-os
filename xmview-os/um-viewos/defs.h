@@ -32,7 +32,21 @@
 #include <stdarg.h>
 #include "ptrace2.h"
 #include "nrsyscalls.h"
-#define UM_NO_RESTORE
+#include <sys/ptrace.h>
+#include <asm/ptrace.h>
+
+#if defined(__powerpc__) //setregs/getresg for ppc
+#define FRAME_SIZE 13
+#elif defined(__x86_64__) // asm-x86_64 define it as 168 [offset in bytes] ! 
+#define VIEWOS_FRAME_SIZE 22
+#define VIEWOS_FRAME_SIZE 28
+#endif
+
+#ifndef VIEWOS_FRAME_SIZE
+#define VIEWOS_FRAME_SIZE FRAME_SIZE
+#endif
+
+#include "pcb.h"
 // #define FAKESIGSTOP
 
 /* Real SysCalls ! r_ prefixed calls do not enter the nidification
@@ -48,6 +62,8 @@ extern sfun native_syscall;
 #define r_unlink(p) (native_syscall(__NR_unlink,(p)))
 #define r_dup(f) (native_syscall(__NR_dup,(f)))
 #define r_dup2(f,g) (native_syscall(__NR_dup2,(f),(g)))
+#define r_poll(f,n,t) (native_syscall(__NR_poll,(f),(n),(t)))
+#define r_ppoll(f,n,t,s,l) (native_syscall(__NR_ppoll,(f),(n),(t),(s),(l)))
 #ifdef __NR__newselect
 #define r_select(n,r,w,e,t) (native_syscall(__NR__newselect,(n),(r),(w),(e),(t)))
 #else
@@ -72,6 +88,14 @@ extern sfun native_syscall;
 #define r_kill(p,s) (native_syscall(__NR_kill,(p),(s)))
 #define r_execve(p,a,e) (native_syscall(__NR_execve,(p),(a),(e)))
 #define r_lseek(f,o,w) (native_syscall(__NR_close,(f),(o),(w)))
+#if 0
+#define r_sigsuspend(m) (native_syscall(__NR_sigsuspend,(m)))
+#define r_sigaction(s,a,o) (native_syscall(__NR_sigaction,(s),(a),(o)))
+#define r_sigprocmask(h,s,o) (native_syscall(__NR_sigprocmask,(h),(s),(o)))
+#endif
+#define r_sigsuspend(m) (sigsuspend(m))
+#define r_sigaction(s,a,o) (sigaction((s),(a),(o)))
+#define r_sigprocmask(h,s,o) (sigprocmask((h),(s),(o)))
 #ifdef __NR__llseek
 #define r_llseek(f,ohi,olo,r,w) (native_syscall(__NR__llseek,(f),(ohi),(olo),(r),(w)))
 #endif
@@ -92,12 +116,11 @@ extern unsigned int has_ptrace_multi;
 extern unsigned int ptrace_vm_mask;
 #define PT_VM_OK ((ptrace_vm_mask & PTRACE_VM_SKIPOK) == PTRACE_VM_SKIPOK)
 extern unsigned int ptrace_viewos_mask;
-#include <sys/ptrace.h>
-#include <asm/ptrace.h>
 
 #define WORDLEN sizeof(int *)
 #define WORDALIGN(X) (((X) + WORDLEN) & ~(WORDLEN-1))
 
+#if 0
 #ifdef _MALLOC_DEBUG
 #define free(X) ({ printf("MDBG-FREE %x %s %d\n",(X),__FILE__,__LINE__); \
 		free(X); })
@@ -113,83 +136,16 @@ extern unsigned int ptrace_viewos_mask;
 		printf("MDBG-REALLOC %x->%x %s %d\n",old,x,__FILE__,__LINE__); \
 		x; })
 #endif
-
-#if defined(__powerpc__) //setregs/getresg for ppc
-#define FRAME_SIZE 13
-#elif defined(__x86_64__) // asm-x86_64 define it as 168 [offset in bytes] ! 
-//#define VIEWOS_FRAME_SIZE 22
-#define VIEWOS_FRAME_SIZE 28
-#define NR_syscalls _UM_NR_syscalls
 #endif
 
-#ifndef VIEWOS_FRAME_SIZE
-#define VIEWOS_FRAME_SIZE FRAME_SIZE
-#endif
-
-/**
- * The type of a callback function. Look pivoting.h.
- */
-
-struct pcb;
-enum phase { PHASE_IN, PHASE_OUT };
-typedef void pivoting_callback(int scno, enum phase p, struct pcb *pc,
-		int counter);
-
-// struct containing operation for pcb management
-typedef int (*pcbfun)();
-
-/* Process Control Block */
-struct pcb {
-	short flags;
-	unsigned short umpid;
-	int pid;                /* Process Id of this entry */
-#ifdef _PROC_MEM_TEST
-	int memfd; /* if !has_ptrace_multi, open /proc/PID/mem */
-#endif
-	struct pcb *pp;         /* Parent Process */
-	long scno;              /* System call number */
-	short behavior;
-	unsigned int erno;
-	long retval;
-	unsigned long arg0;
-	unsigned long arg1;
-	unsigned long arg2;
-
-	long saved_regs[VIEWOS_FRAME_SIZE];
-	// if regs aren't modified (because of a real syscall...), we can 
-	// avoid calling PTRACE_SETREGS
-	char regs_modified;
-	void *data;
-};
-
-typedef void (*voidfun)();
 void forallpcbdo(voidfun f,void *arg);
 
-#define NOSC -1
-#define PCB_INUSE 0x1 /* INUSE=0: unused element ready for allocation. 
-												 never = 0 for running processes pcb,
-												 INUSE=0 is a flag for pcb managed outside capture_sc (capture_nested) */
-#define PCB_ALLOCATED 0x2
-											/* Dynamically allocated pcb, to be freed.
-											 * never used inside capture_sc */
 #ifdef FAKESIGSTOP
 #define PCB_FAKEWAITSTOP 0x4000
 #define PCB_FAKESTOP 0x8000
 #endif
 
 typedef	int (*divfun)(int sc_number,int inout,struct pcb *ppcb);
-typedef	void (*t_pcb_constr)(struct pcb *ppcb, int flags, int maxtabsize);
-typedef	void (*t_pcb_destr)(struct pcb *ppcb);
-#define IN 0
-#define OUT 1
-
-/* constants are compatible with PTRACE_SYS_VM definitions */
-#define STD_BEHAVIOR 2	/* DO_SYSCALL SKIP_EXIT */
-#define SC_FAKE 3	/* SKIP_SYSCALL SKIP_EXIT */
-#define SC_CALLONXIT 0  /* DO_SYSCALL DO_CALLONXIT */
-#define SC_SUSPENDED 4
-#define SC_SUSPIN 4     /* SUSPENDED + IN  */
-#define SC_SUSPOUT 5    /* SUSPENDED + OUT */
 
 
 //#####################################
@@ -203,6 +159,27 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define NR64_stat	__NR_stat64
 #define NR64_lstat	__NR_lstat64
 #define NR64_fstat	__NR_fstat64
+#endif
+
+#ifndef __NR_pselect6
+#define __NR_pselect6 __NR_doesnotexist
+#endif
+#ifndef __NR_ppoll
+#define __NR_ppoll __NR_doesnotexist
+#endif
+#ifndef __NR_gethostname
+#define __NR_gethostname __NR_doesnotexist
+#endif
+#ifndef __NR_getdomainname
+#define __NR_getdomainname __NR_doesnotexist
+#endif
+
+/* UNAME HISTORY */
+#ifndef __NR_oldolduname
+#define __NR_oldolduname __NR_uname
+#endif
+#ifndef __NR_olduname
+#define __NR_olduname __NR_uname
 #endif
 
 
@@ -229,8 +206,6 @@ typedef	void (*t_pcb_destr)(struct pcb *ppcb);
 #define LOCK_SERVICE 5
 #define RECURSIVE_UMVIEW 0x100
 
-extern divfun scdtab[MAXSC];
-extern t_pcb_constr pcb_constr;
-extern t_pcb_destr pcb_destr;
+extern divfun scdtab[];
 
 #endif // _DEFS_H

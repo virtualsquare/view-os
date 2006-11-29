@@ -56,9 +56,12 @@ struct pcb_file {
 
 void um_proc_open();
 void um_proc_close();
+char *um_proc_fakecwd();
 char *um_proc_tmpname();
+#if 0
 void lfd_addproc (struct pcb_file **p,int flag);
 void lfd_delproc (struct pcb_file *p);
+#endif
 int lfd_open (service_t service, int sfd, char *path, int nested);
 void lfd_close (int lfd);
 int lfd_dup(int lfd);
@@ -76,7 +79,7 @@ void lfd_deregister_n_close(struct pcb_file *p, int fd);
 void lfd_closeall();
 void lfd_signal(int lfd);
 void lfd_delsignal(int lfd);
-service_t service_fd(struct pcb_file *p, int fd);
+service_t service_fd(struct pcb_file *p, int fd, int setepoch);
 char *sfd_getpath(service_t code, int sfd);
 
 #endif

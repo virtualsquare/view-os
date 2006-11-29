@@ -25,13 +25,6 @@
 #ifndef _UM_SELECT_H
 #define _UM_SELECT_H
 
-
-int select_fill_wset(fd_set *wset);
-
-void select_check_wset(int max,fd_set *wset);
-
-int check_suspend_on(struct pcb *pc, struct pcb_ext *pcdata, int fd, int how);
-
-void select_init();
+int check_suspend_on(struct pcb *pc, int fd, int how);
 
 #endif

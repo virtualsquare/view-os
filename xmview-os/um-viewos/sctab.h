@@ -52,32 +52,8 @@ struct pcb_fs {
 
 #ifdef _UM_MMAP
 struct pcb_mmap_entry;
-void um_mmap_delproc(struct pcb_mmap_entry *head);
+void um_mmap_recdelproc(struct pcb_mmap_entry *head);
 #endif
-
-#define MAX_SOCKET_ARGS 6
-struct pcb_ext {
-	struct timestamp tst;
-	epoch_t nestepoch;
-	void *path;
-	struct stat64 pathstat;
-	/* struct seldata* */
-	void *selset;
-	/* path for tmp files that must be deleted over the next syscall */
-	/* see execve mgmt */
-	void *tmpfile2unlink_n_free;
-	/* keep track of file system informations - look at clone 2
-	 * (CLONE_FS) */
-	struct pcb_fs *fdfs;
-	/* file descriptors of this process */
-	struct pcb_file *fds;
-	/* PTRACE_MULTI for Sockets */
-	long sockregs[MAX_SOCKET_ARGS];
-#ifdef _UM_MMAP
-	/* Virtual Mapped areas */
-	struct pcb_mmap_entry *um_mmap;
-#endif
-};
 
 extern int um_errno;
 extern char um_patherror[];
@@ -97,7 +73,6 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc);
 epoch_t um_setepoch(epoch_t epoch);
 
 struct timestamp *um_x_gettst();
-epoch_t um_getnestepoch();
 
 /* modules callbacks for extra args */
 int um_mod_getpid();
@@ -111,7 +86,6 @@ long* um_mod_getargs(void);
 struct stat64 *um_mod_getpathstat(void);
 char *um_mod_getpath(void);
 int um_mod_getsyscalltype(int scno);
-
 
 //struct pcb* pid2pcb(int pid);
 

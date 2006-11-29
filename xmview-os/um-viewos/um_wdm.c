@@ -49,11 +49,7 @@
 
 #define umNULL ((int) NULL)
 
-// Could this be "/"?
-#define CHDIR_FAKE_DIR "/tmp"
-
-/* TODO mgmt of cwd buffer overflow */
-int wrap_in_getcwd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_getcwd(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	long arg1=getargn(1,pc);
@@ -61,18 +57,24 @@ int wrap_in_getcwd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 		pc->retval=(int) NULL;
 		pc->erno=EFAULT;
 	} else {
-		//printf("dsys_getcwd %s\n",pcdata->fdfs->cwd);
-		if (arg1 > PATH_MAX)
-			arg1=PATH_MAX;
-		if (ustorestr(pc,pc->arg0,arg1,pcdata->fdfs->cwd) < 0) {
+		//printf("dsys_getcwd %s\n",pc->fdfs->cwd);
+		int len=strlen(pc->fdfs->cwd)+1;
+		if (len > arg1) {
 			pc->retval= -1;
 			pc->erno=ERANGE;
 		} else {
-			pc->retval=strlen(pcdata->fdfs->cwd)+1;
-			pc->erno=0;
+			/*if (arg1 > PATH_MAX)
+				arg1=PATH_MAX;*/
+			if (ustorestr(pc,pc->arg0,arg1,pc->fdfs->cwd) < 0) {
+				pc->retval= -1;
+				pc->erno=ERANGE;
+			} else {
+				pc->retval=len;
+				pc->erno=0;
+			}
 		}
 	}
-	//printf("dsys_getcwd %s\n",pcdata->fdfs->cwd);
+	//printf("dsys_getcwd %s\n",pc->fdfs->cwd);
 	return SC_FAKE;
 }
 
@@ -80,29 +82,30 @@ int wrap_in_getcwd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
  * /tmp (if it exists), chdir does not try this yet. I was not sure about
  * the correct check and where to put it, so I haven't done it at the moment.
  * But it should be changed. */
-int wrap_in_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_chdir(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	if (!S_ISDIR(pcdata->pathstat.st_mode)) {
-		if (pcdata->pathstat.st_mode == 0)
+	if (!S_ISDIR(pc->pathstat.st_mode)) {
+		if (pc->pathstat.st_mode == 0)
 			pc->erno=ENOENT;
 		else
 			pc->erno=ENOTDIR;
 	}
-	if ( (pc->erno==0) && (um_x_access(pcdata->path,X_OK,pc)!=0) ) {
+	if ( (pc->erno==0) && (um_x_access(pc->path,X_OK,pc)!=0) ) {
 			pc->erno=EACCES;
 	}
-	if (pc->erno == 0 && S_ISDIR(pcdata->pathstat.st_mode)) {
+	if (pc->erno == 0 && S_ISDIR(pc->pathstat.st_mode)) {
 		long sp=getsp(pc);
 		int pathlen;
 		if (sercode != UM_NONE) {
-			//printf("virtual path chdir to %s\n", CHDIR_FAKE_DIR);
+			char *chdir_fake_dir = um_proc_fakecwd();
+			//fprint2("virtual path chdir to %s\n", chdir_fake_dir);
 			//XXX: check length of parameter??? if arg0 was one byte long?
-			pathlen = WORDALIGN(strlen(CHDIR_FAKE_DIR));
-			ustoren(pc, sp-pathlen, pathlen, CHDIR_FAKE_DIR);
+			pathlen = WORDALIGN(strlen(chdir_fake_dir));
+			ustoren(pc, sp-pathlen, pathlen, chdir_fake_dir);
 		} else {
-			pathlen = WORDALIGN(strlen(pcdata->path));
-			ustorestr(pc, sp-pathlen, pathlen, pcdata->path);
+			pathlen = WORDALIGN(strlen(pc->path));
+			ustorestr(pc, sp-pathlen, pathlen, pc->path);
 		}
 		putargn(0,sp-pathlen,pc);
 		return SC_CALLONXIT;
@@ -112,7 +115,7 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
 	}
 }
 
-int wrap_out_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata) 
+int wrap_out_chdir(int sc_number,struct pcb *pc) 
 {
 	if (pc->behavior == SC_FAKE) {
 		int err;
@@ -121,89 +124,87 @@ int wrap_out_chdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 		err=puterrno(pc->erno,pc);
 	} else {
 		pc->retval=getrv(pc);
-		/*printf("chdir returns %d\n",pc->retval);*/
 		if (pc->retval >= 0) {
-			free(pcdata->fdfs->cwd);
-			pcdata->fdfs->cwd = pcdata->path;
-			/*printf("new dir %d - %s\n",pc->pid,
-			((struct pcb_ext *)(pc->data))->fdfs->cwd);*/
+			free(pc->fdfs->cwd);
+			pc->fdfs->cwd = pc->path;
+			//fprint2("new dir %d - %s\n",pc->pid, pc->fdfs->cwd);
 		} else {
-			free((char *)pcdata->path);
+			free((char *)pc->path);
 		}
 	}
-	pcdata->path=NULL;
+	pc->path=NULL;
 	return STD_BEHAVIOR;
 }
 
-int wrap_in_fchdir(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_fchdir(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	long sp=getsp(pc);
 	int pathlen;
 	char *path;
 
-	if ((path=fd_getpath(pcdata->fds,pc->arg0)) != NULL) {
-		//printf("fchdir to %s\n",pcdata->path);
-		pcdata->path=strdup(path);
-		um_x_lstat64(pcdata->path, &(pcdata->pathstat), pc);
+	if ((path=fd_getpath(pc->fds,pc->arg0)) != NULL) {
+		//printf("fchdir to %s\n",pc->path);
+		pc->path=strdup(path);
+		um_x_lstat64(pc->path, &(pc->pathstat), pc);
 		/* If there is a real directory with this name, and it is chdir-able,
 		 * we can chdir there instead of /tmp/ so the core and the process
 		 * will see the same cwd. */
-		if (S_ISDIR(pcdata->pathstat.st_mode) && (access(pcdata->path, X_OK) == 0))
+		if (S_ISDIR(pc->pathstat.st_mode) && (access(pc->path, X_OK) == 0))
 		{
-			pathlen = WORDALIGN(strlen(pcdata->path));
-			ustorestr(pc, sp - pathlen, pathlen, pcdata->path);
+			pathlen = WORDALIGN(strlen(pc->path));
+			ustorestr(pc, sp - pathlen, pathlen, pc->path);
 			putargn(0, sp - pathlen, pc);
 			putscno(__NR_chdir, pc);
-			GDEBUG(4, "FCHDIR making fake chdir to real %s", pcdata->path);
+			GDEBUG(4, "FCHDIR making fake chdir to real %s", pc->path);
 			return SC_CALLONXIT;
 		}
 		else
 		{
-			um_x_lstat64(pcdata->path, &(pcdata->pathstat), pc);
-			if (S_ISDIR(pcdata->pathstat.st_mode)) {
+			um_x_lstat64(pc->path, &(pc->pathstat), pc);
+			if (S_ISDIR(pc->pathstat.st_mode)) {
 				if (sercode != UM_NONE) {
-					//printf("virtual path chdir to %s\n", CHDIR_FAKE_DIR);
-					GDEBUG(4, "FCHDIR making chdir to %s (instead of %s)", CHDIR_FAKE_DIR, pcdata->path);
-					pathlen = WORDALIGN(strlen(CHDIR_FAKE_DIR));
-					ustorestr(pc, sp-pathlen, pathlen, CHDIR_FAKE_DIR);
+					char *chdir_fake_dir= um_proc_fakecwd();
+					GDEBUG(4, "FCHDIR making chdir to %s (instead of %s)", chdir_fake_dir, pc->path);
+					pathlen = WORDALIGN(strlen(chdir_fake_dir));
+					ustorestr(pc, sp-pathlen, pathlen, chdir_fake_dir);
 				} else {
-					GDEBUG(4, "FCHDIR making chdir to unmanaged %s", pcdata->path);
-					pathlen = WORDALIGN(strlen(pcdata->path));
-					ustorestr(pc, sp-pathlen, pathlen, pcdata->path);
+					GDEBUG(4, "FCHDIR making chdir to unmanaged %s", pc->path);
+					pathlen = WORDALIGN(strlen(pc->path));
+					ustorestr(pc, sp-pathlen, pathlen, pc->path);
 				}
 				putargn(0,sp-pathlen,pc);
 				putscno(__NR_chdir,pc);
 				return SC_CALLONXIT;
 			} else {
-				GDEBUG(4, "FCHDIR ENOTDIR for %s", pcdata->path);
+				GDEBUG(4, "FCHDIR ENOTDIR for %s", pc->path);
 				pc->retval = -1;
 				pc->erno=ENOTDIR;
 				return SC_FAKE;
 			}
 		}
 	} else {
-		GDEBUG(4, "FCHDIR EBADF for %s", pcdata->path);
+		GDEBUG(4, "FCHDIR EBADF for %s", pc->path);
 		pc->retval = -1;
 		pc->erno = EBADF; 
 		return SC_FAKE;
 	}
 }
 
-int wrap_in_umask(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_umask(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	mode_t mode=pc->arg0;
-	pcdata->fdfs->mask = mode;
+	pc->fdfs->mask = mode;
 	return STD_BEHAVIOR;
 }
 
-int wrap_in_chroot(int sc_number,struct pcb *pc,struct pcb_ext *pcdata,
+int wrap_in_chroot(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	if (pc->erno == 0) {
-		free(pcdata->fdfs->root);
-		pcdata->fdfs->root=strdup(pcdata->path);
+		free(pc->fdfs->root);
+		pc->fdfs->root=strdup(pc->path);
 		/* TODO management of chroot */
 		/*pc->erno = pc->retval = 0;*/
 		pc->retval = -1;

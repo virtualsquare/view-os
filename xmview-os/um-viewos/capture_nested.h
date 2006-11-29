@@ -22,26 +22,8 @@
  */
 #ifndef CAPTURE_NESTED_H_
 #define CAPTURE_NESTED_H_
-#include <sys/stat.h>
-#include "treepoch.h"
-
-
-struct npcb {
-	short flags;
-	long scno;              /* System call number */
-	long args[8];
-	long erno;
-	void *path;
-	struct stat64 pathstat;
-	struct timestamp tst;
-	epoch_t nestepoch;
-};
 		
-union xpcb_key {
-	struct pcb *pcb;
-	struct npcb *npcb;
-};
-
+int um_mod_select_register(void (* cb)(), void *arg, int fd, int how);
 void capture_nested_init(void);
 
 #endif

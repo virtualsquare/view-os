@@ -40,7 +40,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <linux/sysctl.h>
-//#include <pthread.h>
 
 #include "defs.h"
 #include "umproc.h"
@@ -68,7 +67,7 @@ void um_set_errno(struct pcb *pc,int i) {
 /*  get the current working dir */
 char *um_getcwd(struct pcb *pc,char *buf,int size) {
 	if (pc->flags && PCB_INUSE) {
-		strncpy(buf,((struct pcb_ext *)(pc->data))->fdfs->cwd,size);
+		strncpy(buf,pc->fdfs->cwd,size);
 		return buf;
 	} else
 		/* TO BE DECIDED! Modules should never use
@@ -81,37 +80,9 @@ struct timestamp *um_x_gettst()
 {
 	struct pcb *pc=get_pcb();
 	if (pc)
-	{
-		if (pc->flags && PCB_INUSE) {
-			struct pcb_ext *pcdata = (struct pcb_ext *) pc->data;
-			//fprint2("USER PROCESS %p\n",pc);
-			if (pcdata) 
-				return &(pcdata->tst);
-			else
-				return NULL;
-		} else {
-			struct npcb *npc=(struct npcb *)pc;
-			//fprint2("NESTED PCB %p\n",npc);
-			return &(npc->tst);
-		}
-	}
+		return &(pc->tst);
 	else
 		return NULL;
-}
-
-/* get the epoch for nesting (further system calls)*/
-/* this call is deprecated, use um_setepoch(0) instead, 
- * it will be eliminated as soon as all the reference have been changed */
-epoch_t um_getnestepoch()
-{
-	struct pcb *pc=get_pcb();
-	if (pc->flags && PCB_INUSE) {
-		struct pcb_ext *pcdata = (struct pcb_ext *) pc->data;
-		return pcdata->nestepoch;
-	} else {
-		struct npcb *npc=(struct npcb *)pc;
-		return npc->nestepoch;
-	}
 }
 
 /* set the epoch for nesting (further system calls)
@@ -120,20 +91,9 @@ epoch_t um_getnestepoch()
 epoch_t um_setepoch(epoch_t epoch)
 {
 	struct pcb *pc=get_pcb();
-	epoch_t oldepoch=0;
-	if (pc->flags && PCB_INUSE) {
-		struct pcb_ext *pcdata = (struct pcb_ext *) pc->data;
-		if (pcdata) {
-			oldepoch=pcdata->nestepoch;
-			if (epoch > 0)
-				pcdata->nestepoch=epoch;
-		}
-	} else {
-		struct npcb *npc=(struct npcb *)pc;
-		oldepoch=npc->nestepoch;
-		if (epoch > 0)
-			npc->nestepoch=epoch;
-	}
+	epoch_t oldepoch=pc->nestepoch;
+	if (epoch > 0)
+		pc->nestepoch=epoch;
 	return oldepoch;
 }
 
@@ -146,29 +106,17 @@ int um_x_access(char *filename, int mode, struct pcb *pc)
 	epoch_t epoch;
 	/* fprint2("-> um_x_access: %s\n",filename);  */
 	/* internal nested call save data */
-	if (pc->flags && PCB_INUSE) {
-		oldscno = pc->scno;
-		pc->scno = __NR_access;
-		epoch=((struct pcb_ext *)pc->data)->tst.epoch;
-	} else {
-		struct npcb *npc=(struct npcb *)pc;
-		oldscno = npc->scno;
-		npc->scno = __NR_access;
-		epoch=npc->tst.epoch;
-	}
+	oldscno = pc->scno;
+	epoch=pc->tst.epoch;
+	pc->scno = __NR_access;
 	if ((sercode=service_check(CHECKPATH,filename,1)) == UM_NONE)
 		retval = r_access(filename,mode);
 	else{
 		retval = service_syscall(sercode,uscno(__NR_access))(filename,mode,pc);
 	}
 	/* internal nested call restore data */
-	if (pc->flags && PCB_INUSE) {
-		pc->scno = oldscno;
-		((struct pcb_ext *)pc->data)->tst.epoch=epoch;
-	} else  {
-		((struct npcb *)pc)->scno = oldscno;
-		((struct npcb *)pc)->tst.epoch = epoch;
-	}
+	pc->scno=oldscno;
+	pc->tst.epoch = epoch;
 	return retval;
 }
 										 
@@ -181,29 +129,17 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
 	epoch_t epoch;
 	/* fprint2("-> um_lstat: %s\n",filename); */
 	/* internal nested call save data */
-	if (pc->flags && PCB_INUSE) {
-		oldscno = pc->scno;
-		pc->scno = NR64_stat;
-		epoch=((struct pcb_ext *)pc->data)->tst.epoch;
-	} else {
-		struct npcb *npc=(struct npcb *)pc;
-		oldscno = npc->scno;
-		npc->scno = NR64_lstat;
-		epoch=npc->tst.epoch;
-	}
+	oldscno = pc->scno;
+	pc->scno = NR64_stat;
+	epoch=pc->tst.epoch;
 	if ((sercode=service_check(CHECKPATH,filename,1)) == UM_NONE)
 		retval = r_lstat64(filename,buf);
 	else{
 		retval = service_syscall(sercode,uscno(NR64_stat))(filename,buf,pc);
 	}
 	/* internal nested call restore data */
-	if (pc->flags && PCB_INUSE) {
-		pc->scno = oldscno;
-		((struct pcb_ext *)pc->data)->tst.epoch=epoch;
-	} else  {
-		((struct npcb *)pc)->scno = oldscno;
-		((struct npcb *)pc)->tst.epoch = epoch;
-	}
+	pc->scno = oldscno;
+	pc->tst.epoch=epoch;
 	return retval;
 }
 
@@ -215,30 +151,17 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
 	int retval;
 	epoch_t epoch;
 	/* fprint2("-> um_x_readlink: %s\n",path); */
-	/* internal nested call save data */
-	if (pc->flags && PCB_INUSE) {
-		oldscno = pc->scno;
-		pc->scno = __NR_readlink;
-		epoch=((struct pcb_ext *)pc->data)->tst.epoch;
-	} else {
-		struct npcb *npc=(struct npcb *)pc;
-		oldscno = npc->scno;
-		npc->scno = __NR_readlink;
-		epoch=npc->tst.epoch;
-	}
+	oldscno = pc->scno;
+	pc->scno = __NR_readlink;
+	epoch=pc->tst.epoch;
 	if ((sercode=service_check(CHECKPATH,path,1)) == UM_NONE)
 		retval = r_readlink(path,buf,bufsiz);
 	else{
 		retval = service_syscall(sercode,uscno(__NR_readlink))(path,buf,bufsiz,pc);
 	}
 	/* internal nested call restore data */
-	if (pc->flags && PCB_INUSE) {
-		pc->scno = oldscno;
-		((struct pcb_ext *)pc->data)->tst.epoch=epoch;
-	} else  {
-		((struct npcb *)pc)->scno = oldscno;
-		((struct npcb *)pc)->tst.epoch = epoch;
-	}
+	pc->scno = oldscno;
+	pc->tst.epoch=epoch;
 	return retval;
 }
 
@@ -293,7 +216,7 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink
  * - A system call table (sm): this is a table of sc_map entries - look at that
  *   structure for more informations.
  */
-typedef void (*dsys_commonwrap_parse_arguments)(struct pcb *pc, struct pcb_ext *pcdata, int scno);
+typedef void (*dsys_commonwrap_parse_arguments)(struct pcb *pc, int scno);
 typedef int (*dsys_commonwrap_index_function)(struct pcb *pc, int scno);
 typedef sysfun (*service_call)(service_t code, int scno);
 int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
@@ -302,30 +225,31 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		service_call sc,
 		struct sc_map *sm)
 {
-	struct pcb_ext *pcdata=(struct pcb_ext *)(pc->data);
-	if (__builtin_expect(pcdata->tmpfile2unlink_n_free!=NULL,0)) {
-		r_unlink(pcdata->tmpfile2unlink_n_free);
-		free(pcdata->tmpfile2unlink_n_free);
-		pcdata->tmpfile2unlink_n_free=NULL;
+	/* some tmp files must be removed at the next invocation (e.g.
+	 * exec creates tmp files), here is the removal */
+	if (__builtin_expect(pc->tmpfile2unlink_n_free!=NULL,0)) {
+		r_unlink(pc->tmpfile2unlink_n_free);
+		free(pc->tmpfile2unlink_n_free);
+		pc->tmpfile2unlink_n_free=NULL;
 	}
 	/* -- IN phase -- */
 	if (inout == IN) {
 		service_t sercode;
 		int index;
 		/* timestamp the call */
-		pcdata->tst.epoch=pcdata->nestepoch=get_epoch();
+		pc->tst.epoch=pc->nestepoch=get_epoch();
 		/* extract argument */
-		dcpa(pc, pcdata, sc_number);
+		dcpa(pc, sc_number);
 		/* and get the index of the system call table
 		 * regarding this syscall */
 		index = dcif(pc, sc_number);
-		//fprint2("nested_commonwrap %d -> %lld\n",sc_number,pcdata->tst.epoch);
+		//fprint2("nested_commonwrap %d -> %lld\n",sc_number,pc->tst.epoch);
 		/* looks in the system call table what is the 'choice function'
 		 * and ask it the service to manage */
-		sercode=sm[index].scchoice(sc_number,pc,pcdata);
+		sercode=sm[index].scchoice(sc_number,pc);
 		/* something went wrong during a path lookup - fake the
 		 * syscall, we do not want to make it run */
-		if (pcdata->path == um_patherror) {
+		if (pc->path == um_patherror) {
 			pc->retval = -1;
 			/*if(sc_number == __NR_execve)
 				fprintf(stderr,"execve dice um_path_error!!\n"); 
@@ -337,13 +261,13 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		/* it returns EBADF when sombody tries to access 
 		 * secret files (mmap_secret) */
 		if (sercode == UM_ERR) {
-			pcdata->path = um_patherror;
+			pc->path = um_patherror;
 			pc->erno = EBADF;
 			pc->retval = -1;
 			return SC_FAKE;
 		}
 #endif
-		//fprint2("nested_commonwrap choice %d -> %lld %x\n",sc_number,pcdata->tst.epoch,sercode);
+		//fprint2("nested_commonwrap choice %d -> %lld %x\n",sc_number,pc->tst.epoch,sercode);
 		/* if some service want to manage the syscall (or the ALWAYS
 		 * flag is set), we process it */
 		if (sercode != UM_NONE || (sm[index].flags & ALWAYS)) {
@@ -355,43 +279,48 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 			 */
 			int howsusp = sm[index].flags & 0x7;
 			int what;
-			if (howsusp != 0 && (what=check_suspend_on(pc, pcdata, 
+			if (howsusp != 0 && (what=check_suspend_on(pc,  
 							(sc_number == __NR_socketcall)?pc->arg2:pc->arg0,
-							howsusp))!=STD_BEHAVIOR)
+							howsusp))!=STD_BEHAVIOR) {
+				if (what == SC_CALLONXIT) {
+					if (pc->path != NULL)
+						free(pc->path);
+					pc->path = um_patherror;
+				}
 				return what;
+			}
 			else
 				/* normal management: call the wrapin function,
 				 * with the correct service syscall function */
-				return sm[index].wrapin(sc_number,pc,pcdata,sercode,sc(sercode,index));
+				return sm[index].wrapin(sc_number,pc,sercode,sc(sercode,index));
 		}
 		else {
 			/* we do not want to manage the syscall: free the path
 			 * field in case, since we do not need it, and ask for
 			 * a standard behavior */
-			if (pcdata->path != NULL)
-				free(pcdata->path);
+			if (pc->path != NULL)
+				free(pc->path);
 			return STD_BEHAVIOR;
 		}
 	/* -- OUT phase -- */
 	} else {
-		if (pcdata->path != um_patherror) {
+		if (pc->path != um_patherror) {
 			/* ok, try to call the wrapout */
 			int retval;
 			/* and get the index of the system call table
 			 * regarding this syscall */
 			int index = dcif(pc, sc_number);
 			/* call the wrapout */
-			retval=sm[index].wrapout(sc_number,pc,pcdata);
+			retval=sm[index].wrapout(sc_number,pc);
 			/* check if we can free the path (not NULL and not
 			 * used) */
-			if (pcdata->path != NULL && (retval & SC_SUSPENDED) == 0)
-				free(pcdata->path);
+			if (pc->path != NULL && (retval & SC_SUSPENDED) == 0)
+				free(pc->path);
 			return retval;
 		}
 		else {
-			/* during the IN phase something gone wrong (XXX: is
-			 * this the point?) - simply pass return value and
-			 * errno to the process */
+			/* during the IN phase path resolution something went wrong 
+			 * simply pass return value and errno to the process */
 			putrv(pc->retval,pc);
 			puterrno(pc->erno,pc);
 			return STD_BEHAVIOR;
@@ -403,23 +332,28 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 /* socketcall parse arguments, (only for architectures where there is
  * one shared socketcall system call). Args must be retrieved from the
  * caller process memory */
-void dsys_socketwrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int scno)
+void dsys_socketwrap_parse_arguments(struct pcb *pc, int scno)
 {
 	pc->arg0=getargn(0,pc); // arg0 is the current socket call
 	pc->arg1=getargn(1,pc);
-	pcdata->path = NULL;
-	if (has_ptrace_multi) {
-		struct ptrace_multi req[] = {{PTRACE_PEEKDATA, pc->arg1, &(pcdata->sockregs[0]), sockmap[pc->arg0].nargs}};
-		errno=0;
-		ptrace(PTRACE_MULTI,pc->pid,req,1);
-		pc->arg2=pcdata->sockregs[0];
-	}
-	else
-	{
-		int i;
-		pc->arg2=pcdata->sockregs[0]=ptrace(PTRACE_PEEKDATA,pc->pid,pc->arg1,0);
-		for (i=1;i<sockmap[pc->arg0].nargs;i++)
-			pcdata->sockregs[i]=ptrace(PTRACE_PEEKDATA,pc->pid,4*i+pc->arg1,0);
+	pc->path = NULL;
+	/* safety check */
+	if (pc->arg0 < 0 || pc->arg0 >= scmap_sockmapsize)
+		pc->arg0 = 0;
+	else {
+		if (has_ptrace_multi) {
+			struct ptrace_multi req[] = {{PTRACE_PEEKDATA, pc->arg1, &(pc->sockregs[0]), sockmap[pc->arg0].nargs}};
+			errno=0;
+			ptrace(PTRACE_MULTI,pc->pid,req,1);
+			pc->arg2=pc->sockregs[0];
+		}
+		else
+		{
+			int i;
+			pc->arg2=pc->sockregs[0]=ptrace(PTRACE_PEEKDATA,pc->pid,pc->arg1,0);
+			for (i=1;i<sockmap[pc->arg0].nargs;i++)
+				pc->sockregs[i]=ptrace(PTRACE_PEEKDATA,pc->pid,4*i+pc->arg1,0);
+		}
 	}
 }
 
@@ -441,12 +375,12 @@ int dsys_socketwrap(int sc_number,int inout,struct pcb *pc)
 #endif
 
 /* sysctl argument parsing function */
-void dsys_um_sysctl_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int scno)
+void dsys_um_sysctl_parse_arguments(struct pcb *pc, int scno)
 {
 	struct __sysctl_args sysctlargs;
 	sysctlargs.name=NULL;
 	sysctlargs.nlen=0;
-	pcdata->path = NULL;
+	pc->path = NULL;
 	pc->arg0 = getargn(0, pc);
 	umoven(pc,pc->arg0,sizeof(sysctlargs),&sysctlargs);
 	/* private system calls are encoded with name==NULL and nlen != 0
@@ -455,7 +389,7 @@ void dsys_um_sysctl_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int 
 		/* virtual system call */
 		if (sysctlargs.newval != NULL && sysctlargs.newlen >0 &&
 				sysctlargs.newlen <= 6)
-			umoven(pc,(long)(sysctlargs.newval),sysctlargs.newlen * sizeof(long), &pcdata->sockregs[0]);
+			umoven(pc,(long)(sysctlargs.newval),sysctlargs.newlen * sizeof(long), &pc->sockregs[0]);
 		/* the private system call number is encoded in the nlen field */
 		pc->arg1 = sysctlargs.nlen;
 	} else {
@@ -529,92 +463,87 @@ static mode_t local_getumask(void) {
 #endif
 
 /* set up all the data of the extended pcb for a new process */
-void pcb_plus(struct pcb *pc,int flags,int maxtablesize)
+void pcb_plus(struct pcb *pc,int flags,int npcflag)
 {
-	struct pcb_ext *pcpe;
-	pc->data = (void *) (pcpe = (struct pcb_ext *) malloc(sizeof (struct pcb_ext)));
-	/* CLONE_PARENT = I'm not your child, I'm your brother. So, parent is
-	 * different from what we thought */
-	if (flags & CLONE_PARENT)
-		pc->pp=pc->pp->pp;
-	/* CLONE_FS = share filesystem information */
-	if (flags & CLONE_FS) {
-		pcpe->fdfs = ((struct pcb_ext *)pc->pp->data)->fdfs;
-		pcpe->fdfs->count++;
-	} else {
-		pcpe->fdfs =  (struct pcb_fs *) malloc(sizeof (struct pcb_fs));
-		pcpe->fdfs->count=1;
+	pc->path=pc->tmpfile2unlink_n_free=NULL;
+	if (!npcflag) {
+		/* CLONE_PARENT = I'm not your child, I'm your brother. So, parent is
+		 * different from what we thought */
+		int rootprocess=(pc->pp == pc);
+		if (flags & CLONE_PARENT)
+			pc->pp=pc->pp->pp;
+		/* CLONE_FS = share filesystem information */
+		if (flags & CLONE_FS) {
+			pc->fdfs = pc->pp->fdfs;
+			pc->fdfs->count++;
+		} else {
+			pc->fdfs =  (struct pcb_fs *) malloc(sizeof (struct pcb_fs));
+			pc->fdfs->count=1;
+		}
 		/* ROOT process: the first one activated by umview */
-		if (pc->pp == pc) {
+		if (rootprocess) {
 			char *path=malloc(PATH_MAX);
 			r_getcwd(path,PATH_MAX);
-			pcpe->fdfs->cwd=realloc(path,strlen(path));
-			pcpe->fdfs->root=strdup("/");
-			/*pcpe->fdfs->mask=local_getumask();*/
-			pcpe->fdfs->mask=r_umask(0);
-			r_umask(pcpe->fdfs->mask);
+			pc->fdfs->cwd=realloc(path,strlen(path));
+			pc->fdfs->root=strdup("/");
+			/*pc->fdfs->mask=local_getumask();*/
+			pc->fdfs->mask=r_umask(0);
+			r_umask(pc->fdfs->mask);
 			/* create the root of the treepoch */
-			pcpe->tst=tst_newfork(NULL);
-			pcpe->tst=tst_newproc(&(pcpe->tst));
+			pc->tst=tst_newfork(NULL);
+			pc->tst=tst_newproc(&(pc->tst));
 		} else {
-			pcpe->fdfs->cwd=strdup(((struct pcb_ext *)(pc->pp->data))->fdfs->cwd);
-			pcpe->fdfs->root=strdup(((struct pcb_ext *)(pc->pp->data))->fdfs->root);
-			pcpe->fdfs->mask=((struct pcb_ext *)(pc->pp->data))->fdfs->mask;
-			pcpe->tst=tst_newproc(&(((struct pcb_ext *)(pc->pp->data))->tst));
+			pc->fdfs->cwd=strdup(pc->pp->fdfs->cwd);
+			pc->fdfs->root=strdup(pc->pp->fdfs->root);
+			pc->fdfs->mask=pc->pp->fdfs->mask;
+			pc->tst=tst_newproc(&(pc->pp->tst));
 		}
-	}
-	pcpe->path=pcpe->selset=pcpe->tmpfile2unlink_n_free=NULL;
-#if _UM_MMAP
-	pcpe->um_mmap=NULL;
+#if 0
+		/* if CLONE_FILES, file descriptor table is shared */
+		if (flags & CLONE_FILES)
+			pc->fds = pc->pp->fds;
+		lfd_addproc(&(pc->fds),flags);
 #endif
-	/* if CLONE_FILES, file descriptor table is shared */
-	if (flags & CLONE_FILES)
-		pcpe->fds = ((struct pcb_ext *)(pc->pp->data))->fds;
-	lfd_addproc(&(pcpe->fds),flags & CLONE_FILES);
-	um_proc_add(pc);
+		um_proc_add(pc);
+	}
 }
 
 /* clean up all the data structure related to a terminated process */
-void pcb_minus(struct pcb *pc)
+void pcb_minus(struct pcb *pc,int flags,int npcbflag)
 {
-	struct pcb_ext *pcpe=pc->data;
-	//printf("pcb_desctructor %d\n",pc->pid);
-#ifdef _UM_MMAP
-	/* delete all the mmap-ing of this process */
-	if (pcpe->um_mmap) 
-		um_mmap_delproc(pcpe->um_mmap);
+	if (!npcbflag) {
+		//printf("pcb_desctructor %d\n",pc->pid);
+#if 0
+		/* delete all the file descriptors */
+		lfd_delproc(pc->fds);
 #endif
-	/* delete all the file descriptors */
-	lfd_delproc(pcpe->fds);
-	/* notify services */
-	um_proc_del(pc);
-	assert (pcpe->fdfs != NULL);
-	/* decrement the usage couter for shared info and clean up
-	 * when there are no more processes sharing the data*/
-	pcpe->fdfs->count--;
-	if (pcpe->fdfs->count == 0) {
-		free (pcpe->fdfs->cwd);
-		free (pcpe->fdfs->root);
-		free (pcpe->fdfs);
+		/* notify services */
+		um_proc_del(pc);
+		assert (pc->fdfs != NULL);
+		/* decrement the usage couter for shared info and clean up
+		 * when there are no more processes sharing the data*/
+		pc->fdfs->count--;
+		if (pc->fdfs->count == 0) {
+			free (pc->fdfs->cwd);
+			free (pc->fdfs->root);
+			free (pc->fdfs);
+		}
+		/* notify the treepoch */
+		tst_delproc(&(pc->tst));
+		/*if (pc->data != NULL) {
+			free(pc->data->fdfs->cwd);
+			free(pc->data);
+			}*/
 	}
-	/* notify the treepoch */
-	tst_delproc(&(pcpe->tst));
-	/* delete the data structure */
-	free(pcpe);
-	/*if (pc->data != NULL) {
-		free(((struct pcb_ext *)pc->data)->fdfs->cwd);
-		free(pc->data);
-	}*/
 }
 
 /* this is the root process of a new recursive invocation for umview */
 /* the process already exists, the timestamp gets converted */
 int pcb_newfork(struct pcb *pc)
 {
-	struct pcb_ext *pcpe=pc->data;
-	struct treepoch *te=pcpe->tst.treepoch;
-	pcpe->tst=tst_newfork(&(pcpe->tst));
-	return (te == pcpe->tst.treepoch)?-1:0;
+	struct treepoch *te=pc->tst.treepoch;
+	pc->tst=tst_newfork(&(pc->tst));
+	return (te == pc->tst.treepoch)?-1:0;
 }
 
 #if 0
@@ -638,14 +567,14 @@ int dsys_error(int sc_number,int inout,struct pcb *pc)
 #endif
 
 /* choicei function for system calls using a file descriptor */
-service_t choice_fd(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+service_t choice_fd(int sc_number,struct pcb *pc)
 {
 	int fd=(sc_number == __NR_socketcall)?pc->arg2:pc->arg0;
-	return service_fd(pcdata->fds,fd);
+	return service_fd(pc->fds,fd,1);
 }
 
 /* choice sd (just the system call number is the choice parameter) */
-service_t choice_sc(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+service_t choice_sc(int sc_number,struct pcb *pc)
 {
 	int sc=sc_number;
 	return service_check(CHECKSC,&sc,1);
@@ -653,12 +582,12 @@ service_t choice_sc(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 
 /* choice mount (mount point must be defined + filesystemtype is used
  * instead of the pathname for service selection) */
-service_t choice_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+service_t choice_mount(int sc_number,struct pcb *pc)
 {
 	pc->arg1=getargn(1,pc);
-	pcdata->path=um_abspath(pc->arg1,pc,&(pcdata->pathstat),0); 
-	
-	if (pcdata->path!=um_patherror) {
+	pc->path=um_abspath(pc->arg1,pc,&(pc->pathstat),0); 
+
+	if (pc->path!=um_patherror) {
 		char filesystemtype[PATH_MAX];
 		unsigned long fstype=getargn(2,pc);
 		if (umovestr(pc,fstype,PATH_MAX,filesystemtype) == 0) {
@@ -671,63 +600,63 @@ service_t choice_mount(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 }
 
 /* choice path (filename must be defined) */
-service_t choice_path(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+service_t choice_path(int sc_number,struct pcb *pc)
 {
-	pcdata->path=um_abspath(pc->arg0,pc,&(pcdata->pathstat),0); 
-	//printf("choice_path %d %s\n",sc_number,pcdata->path);
-	
-	if (pcdata->path==um_patherror){
-/*		char buff[PATH_MAX];
-		umovestr(pc,pc->arg0,PATH_MAX,buff);
-        fprintf(stderr,"um_patherror: %s",buff);*/
+	pc->path=um_abspath(pc->arg0,pc,&(pc->pathstat),0); 
+	//printf("choice_path %d %s\n",sc_number,pc->path);
+
+	if (pc->path==um_patherror){
+		/*		char buff[PATH_MAX];
+					umovestr(pc,pc->arg0,PATH_MAX,buff);
+					fprintf(stderr,"um_patherror: %s",buff);*/
 		return UM_NONE;
 	}
 	else
-		return service_check(CHECKPATH,pcdata->path,1);
+		return service_check(CHECKPATH,pc->path,1);
 }
 
 /* choice link (dirname must be defined, basename can be non-existent) */
-char choice_link(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+char choice_link(int sc_number,struct pcb *pc)
 {
-	pcdata->path=um_abspath(pc->arg0,pc,&(pcdata->pathstat),1); 
-	//printf("choice_path %d %s\n",sc_number,pcdata->path);
-	if (pcdata->path==um_patherror)
+	pc->path=um_abspath(pc->arg0,pc,&(pc->pathstat),1); 
+	//printf("choice_path %d %s\n",sc_number,pc->path);
+	if (pc->path==um_patherror)
 		return UM_NONE;
 	else
-		return service_check(CHECKPATH,pcdata->path,1);
+		return service_check(CHECKPATH,pc->path,1);
 }
 
 /* choice link (dirname must be defined, basename can be non-existent second arg)*/
-char choice_link2(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+char choice_link2(int sc_number,struct pcb *pc)
 {
 	pc->arg1=getargn(1,pc);
-	pcdata->path=um_abspath(pc->arg1,pc,&(pcdata->pathstat),1); 
-	//printf("choice_path %d %s\n",sc_number,pcdata->path);
-	if (pcdata->path==um_patherror)
+	pc->path=um_abspath(pc->arg1,pc,&(pc->pathstat),1); 
+	//printf("choice_path %d %s\n",sc_number,pc->path);
+	if (pc->path==um_patherror)
 		return UM_NONE;
 	else
-		return service_check(CHECKPATH,pcdata->path,1);
+		return service_check(CHECKPATH,pc->path,1);
 }
 
 /* choice function for 'socket', usually depends on the Protocol Family */
-char choice_socket(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+char choice_socket(int sc_number,struct pcb *pc)
 {
 	return service_check(CHECKSOCKET, &(pc->arg2),1);
 }
 
 #if 0
 /* choice device through major and minor number... it's a try, don't use it yet */
-char choice_device(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+char choice_device(int sc_number,struct pcb *pc)
 {
-	pcdata->path=um_abspath(pc->arg1,pc,&(pcdata->pathstat),1);
+	pc->path=um_abspath(pc->arg1,pc,&(pc->pathstat),1);
 	// CHECK is really st_rdev? it seems...
-	return service_check(CHECKDEVICE, &((pcdata->pathstat).st_rdev),1);
+	return service_check(CHECKDEVICE, &((pc->pathstat).st_rdev),1);
 }
 #endif
 
 /* choice function for mmap: only *non anonymous* mmap must be mapped
  * depending on the service responsible for the fd. */
-service_t choice_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+service_t choice_mmap(int sc_number,struct pcb *pc)
 {
 	long fd=getargn(4,pc);
 	long flags=getargn(3,pc);
@@ -735,20 +664,20 @@ service_t choice_mmap(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
 	if (flags & MAP_ANONYMOUS)
 		return UM_NONE;
 	else
-		return service_fd(pcdata->fds,fd);
+		return service_fd(pc->fds,fd,1);
 }
 
 /* dummy choice function for unimplemented syscalls */
-char always_umnone(int sc_number,struct pcb *pc,struct pcb_ext *pcdata)
+char always_umnone(int sc_number,struct pcb *pc)
 {
 	return UM_NONE;
 }
 
 /* preload arguments: convert socket args in case socket calls are
  * ordinary system calls */
-void dsys_megawrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int scno)
+void dsys_megawrap_parse_arguments(struct pcb *pc, int scno)
 {
-	pcdata->path = NULL;
+	pc->path = NULL;
 	pc->arg0 = getargn(0, pc);
 #if (__NR_socketcall == __NR_doesnotexist)
 	if (scmap[uscno(scno)].setofcall & SOC_SOCKET)
@@ -763,7 +692,7 @@ void dsys_megawrap_parse_arguments(struct pcb *pc, struct pcb_ext *pcdata, int s
 		 * fprint2("\n");
 		 */
 		for (i=0;i<scmap[uscno(scno)].nargs;i++)
-			pcdata->sockregs[i]=getargn(i, pc);
+			pc->sockregs[i]=getargn(i, pc);
 	}
 #endif
 }
@@ -897,23 +826,10 @@ struct stat64 *um_mod_getpathstat(void)
 {
 	struct pcb *pc=get_pcb();
 	if (pc) {
-		if (pc->flags && PCB_INUSE) {
-			struct pcb_ext *pcdata = (struct pcb_ext *) pc->data;
-			if (pcdata) {
-				if (pcdata->pathstat.st_mode == 0)
-					return NULL;
-				else
-					return &(pcdata->pathstat);
-			}
-			else
-				return NULL;
-		} else {
-			struct npcb *npc=(struct npcb *)pc;
-			if (npc->pathstat.st_mode == 0)
-				return NULL;
-			else
-				return &(npc->pathstat);
-		}
+		if (pc->pathstat.st_mode == 0)
+			return NULL;
+		else
+			return &(pc->pathstat);
 	}
 	else
 		return NULL;
@@ -923,19 +839,8 @@ struct stat64 *um_mod_getpathstat(void)
 char *um_mod_getpath(void)
 {
 	struct pcb *pc=get_pcb();
-	if (pc) {
-		struct pcb_ext *pcdata = (struct pcb_ext *) pc->data;
-		if (pc->flags && PCB_INUSE) {
-			if (pcdata) {
-				return pcdata->path;
-			}
-			else
-				return NULL;
-		} else {
-			struct npcb *npc=(struct npcb *)pc;
-			return npc->path;
-		}
-	}
+	if (pc) 
+		return pc->path;
 	else
 		return NULL;
 }
@@ -957,12 +862,10 @@ int um_mod_getsyscalltype(int scno)
 void scdtab_init()
 {
 	register int i;
-	pcb_constr=pcb_plus;
-	pcb_destr=pcb_minus;
 	/* init service management */
 	_service_init((sysfun)reg_service,(sysfun)dereg_service);
 
-  /* linux has a single call for all the socket calls 
+	/* linux has a single call for all the socket calls 
 	 * in several architecture (i386, ppc), socket calls are standard
 	 * system calls in others (x86_64) */
 #if (__NR_socketcall != __NR_doesnotexist)
