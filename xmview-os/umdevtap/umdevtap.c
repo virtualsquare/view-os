@@ -104,7 +104,7 @@ static int umtap_ioctl(char type, dev_t device, int req, void * arg, struct dev_
 					else
 						strncpy(name,ifr->ifr_name,IFNAMSIZ);
 				  name[IFNAMSIZ]=0;
-					snprintf(comment,80+IFNAMSIZ,"umdevtap PID:%d %s\n",um_mod_getpid(),name);
+					snprintf(comment,80+IFNAMSIZ,"umdevtap PID:%d %s",um_mod_getpid(),name);
 					umtap->conn=vde_open(path,comment,NULL);
 					if (umtap->conn) 
 						umtap->name=strdup(name);
