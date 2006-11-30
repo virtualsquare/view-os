@@ -17,7 +17,7 @@ CPPFLAGS+=-I../include
 
 OBJS=capture_sc.o canonicalize.o utils.o umproc.o services.o sctab.o umview.o um_services.o scmap.o um_basicio.o um_plusio.o um_socket.o um_wdm.o um_select.o um_ioctl.o ptrace_multi_test.o um_exec.o capture_nested.o treepoch.o um_mmap.o mainpoll.o pcb.o um_signal.o um_time.o um_uname.o
 
-PCB_MODULES=pcb.00.capture.h pcb.00.mainpoll.h pcb.01.sctab.h pcb.02.umproc.h pcb.03.mmap.h pcb.04.select.h
+PCB_MODULES=$(wildcard pcb.*.h)
 
 LDFLAGS=-rdynamic -L../gdebug
 
@@ -50,8 +50,8 @@ pcb-all.h: $(PCB_MODULES)
 umview: $(OBJS)
 
 %.d: %.c
-#	@[[ ! -e syscallnames.h ]] && touch -t 197001010100.00 syscallnames.h || true
-	@[[ ! -e pcb-all.h ]] && touch -t 197001010100.00 pcb-all.h || true
+#	@test ! -e syscallnames.h && touch -t 197001010100.00 syscallnames.h || true
+	@test ! -e pcb-all.h && touch -t 197001010100.00 pcb-all.h || true
 	@set -e; $(CC) -MM $(CPPFLAGS) $(@:.d=.c) | sed 's/\($*\)\.o[ :]*/\1.o $@ : /g' > $@; [ -s $@ ] || rm -f $@
 
 ifeq ($(PIVOTING),true)
@@ -70,7 +70,7 @@ clean:
 
 distclean: clean
 	rm -f *.d
-	rm -f syscall_code.h syscall_code.c
+	rm -f syscall_code.h syscall_code.c pcb-all.h
 
 install: all
 	install umview ${bindir}
