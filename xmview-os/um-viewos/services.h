@@ -98,7 +98,7 @@ struct service {
 	 * fd: fd (i.e. sfd, the fd as seen by the service module)
 	 * how: 0x1 READ_OK, 0x2 WRITE_OK, 0x4 EXTRA
 	 */
-	sysfun select_register;
+	sysfun event_subscribe;
 
 	/* the syscall table, the arguments are the same of the "real world" syscalls,*/
 	sysfun *um_syscall;
@@ -125,7 +125,7 @@ service_t service_check(int type,void *arg,int setepoch);
 sysfun service_syscall(service_t code, int scno);
 sysfun service_socketcall(service_t code, int scno);
 epochfun service_checkfun(service_t code);
-sysfun service_select_register(service_t code);
+sysfun service_event_subscribe(service_t code);
 void _service_init(sysfun register_service,sysfun deregister_service);
 
 #endif

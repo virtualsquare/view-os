@@ -115,7 +115,7 @@ struct service {
 	 * fd: fd (i.e. sfd, the fd as seen by the service module)
 	 * events: as defined in poll(2)
 	 */
-	sysfun select_register;
+	sysfun event_subscribe;
 
 	/* the syscall table, the arguments are the same of the "real world" syscalls,*/
 	sysfun *syscall;
@@ -139,7 +139,7 @@ extern long* um_mod_getargs(void);
 extern struct stat64 *um_mod_getpathstat(void);
 char *um_mod_getpath(void);
 extern int um_mod_getsyscalltype(int scno);
-int um_mod_select_register(void (* cb)(), void *arg, int fd, int how);
+int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
 
 extern int uscno(int scno);
 extern int add_service(struct service *);

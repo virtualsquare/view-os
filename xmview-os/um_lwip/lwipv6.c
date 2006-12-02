@@ -170,15 +170,15 @@ struct libtab {
 #define SIZEOFLIBTAB (sizeof(lwiplibtab)/sizeof(struct libtab))
 static void *lwiphandle;
 
-static sysfun lib_lwip_select_register;
-static long lwip_select_register1v2(void (* cb)(), void *arg, int fd, int how)
+static sysfun lib_lwip_event_subscribe;
+static long lwip_event_subscribe1v2(void (* cb)(), void *arg, int fd, int how)
 {
 	short newhow=0;
 	int rv;
 	if (how & 0x1) newhow |= POLLIN;
 	if (how & 0x2) newhow |= POLLOUT;
 	if (how & 0x4) newhow |= POLLPRI;
-	rv=lib_lwip_select_register(cb,arg,fd,newhow);
+	rv=lib_lwip_event_subscribe(cb,arg,fd,newhow);
 	newhow=0;
 	if (rv & POLLIN) newhow |= 0x1;
 	if (rv & POLLOUT) newhow |= 0x2;
@@ -186,14 +186,14 @@ static long lwip_select_register1v2(void (* cb)(), void *arg, int fd, int how)
 	return newhow;
 }
 
-static long lwip_select_register2v1(void (* cb)(), void *arg, int fd, int how)
+static long lwip_event_subscribe2v1(void (* cb)(), void *arg, int fd, int how)
 {
 	short newhow=0;
 	int rv;
 	if (how & POLLIN) newhow |= 0x1;
 	if (how & POLLOUT) newhow |= 0x2;
 	if (how & POLLPRI) newhow |= 0x4;
-	rv=lib_lwip_select_register(cb,arg,fd,newhow);
+	rv=lib_lwip_event_subscribe(cb,arg,fd,newhow);
 	newhow=0;
 	if (rv & 0x1) newhow |= POLLIN;
 	if (rv & 0x2) newhow |= POLLOUT;
@@ -227,21 +227,21 @@ static void openlwiplib()
 		if (_umview_version > 1) {
 			if (lwip_version >= 1) {
 				/* umview interface 2 - lwip interface v1 */
-				s.select_register=dlsym(lwiphandle,"lwip_select_register");
+				s.event_subscribe=dlsym(lwiphandle,"lwip_event_subscribe");
 			} else {
 				/* umview interface 2 - lwip interface v0 */
-				lib_lwip_select_register=dlsym(lwiphandle,"lwip_select_register");
-				s.select_register=lwip_select_register1v2;
+				lib_lwip_event_subscribe=dlsym(lwiphandle,"lwip_select_register");
+				s.event_subscribe=lwip_event_subscribe1v2;
 			}
 		}
 		else {
 			if (lwip_version >= 1) {
 				/* umview interface 1 - lwip interface v1 */
-				lib_lwip_select_register=dlsym(lwiphandle,"lwip_select_register");
-				s.select_register=lwip_select_register2v1;
+				lib_lwip_event_subscribe=dlsym(lwiphandle,"lwip_event_subscribe");
+				s.event_subscribe=lwip_event_subscribe2v1;
 			} else {
 				/* umview interface 1 - lwip interface v0 */
-				s.select_register=dlsym(lwiphandle,"lwip_select_register");
+				s.event_subscribe=dlsym(lwiphandle,"lwip_select_register");
 			}
 		}
 		real_lwip_ioctl=s.syscall[uscno(__NR_ioctl)];

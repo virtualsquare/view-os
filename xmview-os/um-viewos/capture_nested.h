@@ -23,7 +23,7 @@
 #ifndef CAPTURE_NESTED_H_
 #define CAPTURE_NESTED_H_
 		
-int um_mod_select_register(void (* cb)(), void *arg, int fd, int how);
+int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
 void capture_nested_init(void);
 
 #endif

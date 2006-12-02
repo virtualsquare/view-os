@@ -1123,7 +1123,7 @@ static void contextclose(struct umbinfmt *fc)
 	umbinfmt_umount2(fc->path,MNT_FORCE);
 }
 
-static long umbinfmt_select_register(void (* cb)(), void *arg, int fd, int how)
+static long umbinfmt_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 {
 	if (filetab[fd]==NULL) {
 		errno=EBADF;
@@ -1205,7 +1205,7 @@ init (void)
 	//SERVICESYSCALL(s, fsync, umbinfmt_fsync); 
 	//SERVICESYSCALL(s, _newselect, umbinfmt_select);
 	//SERVICESYSCALL(s, ioctl, umbinfmt_ioctl); 
-	s.select_register=umbinfmt_select_register;
+	s.event_subscribe=umbinfmt_event_subscribe;
 	add_service(&s);
 }
 

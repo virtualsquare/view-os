@@ -153,9 +153,9 @@ static int sockioctl(int d, int request, void *arg)
 	return ioctl(d,request,arg);
 }
 
-static long sock_select_register(void (* cb)(), void *arg, int fd, int how)
+static long sock_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 {
-	return um_mod_select_register(cb,arg,fd,how);
+	return um_mod_event_subscribe(cb,arg,fd,how);
 }
 
 	static void
@@ -196,7 +196,7 @@ init (void)
 	SERVICESYSCALL(s, ioctl, sockioctl);
 	//SERVICESYSCALL(s, _newselect, select);
 	//SERVICESYSCALL(s, poll, poll);
-	s.select_register=sock_select_register;
+	s.event_subscribe=sock_event_subscribe;
 
 	add_service(&s);
 	stst=tst_timestamp();

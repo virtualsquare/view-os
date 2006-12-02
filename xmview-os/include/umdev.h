@@ -49,7 +49,7 @@ struct umdev_operations {
 	int (*release) (char, dev_t, struct dev_info *);
 	int (*access) (char, dev_t, int, struct umdev *devhandle);
 
-	int (*select_register) (char, dev_t, voidfun cb, void *arg, int how, struct dev_info *);
+	int (*event_subscribe) (char, dev_t, voidfun cb, void *arg, int how, struct dev_info *);
 
 	int (*ioctlparms) (char, dev_t, int arg, struct umdev *devhandle);
 	int (*init) (char, dev_t, char *path, unsigned long flags, char *args, struct umdev *devhandle);

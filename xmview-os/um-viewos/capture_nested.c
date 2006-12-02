@@ -53,7 +53,7 @@
 static struct pcb_file umview_file;
 
 /* for modules: nesting select register */
-int um_mod_select_register(void (* cb)(), void *arg, int fd, int how)
+int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 {
 	struct pcb *pc=get_pcb();
 	int sercode;
@@ -61,13 +61,13 @@ int um_mod_select_register(void (* cb)(), void *arg, int fd, int how)
 	epoch_t epoch=pc->tst.epoch;
 	epoch_t nestepoch=pc->tst.epoch=pc->nestepoch;
 	int rv;
-	//fprint2("um_mod_select_register %p %p %d %d ",cb,arg,fd,how);
+	//fprint2("um_mod_event_subscribe %p %p %d %d ",cb,arg,fd,how);
 	//fprint2("epoch %lld n %lld \n",epoch,nestepoch);
 	sercode=service_fd(&umview_file,fd,1);
 	//fprint2("service %d \n",sercode);
 	if (sercode != UM_NONE) {
-		sysfun local_select_register=service_select_register(sercode);
-		rv=local_select_register(cb,arg,fd,how);
+		sysfun local_event_subscribe=service_event_subscribe(sercode);
+		rv=local_event_subscribe(cb,arg,fd,how);
 	} else {
 		/*int newhow=0;
 		if(how & 1) newhow |= POLLIN;
@@ -94,7 +94,7 @@ int um_mod_select_register(void (* cb)(), void *arg, int fd, int how)
   }	
 	pc->nestepoch = nestepoch;
 	pc->tst.epoch = epoch;
-	//fprint2("um_mod_select_register -> %d\n",rv);
+	//fprint2("um_mod_event_subscribe -> %d\n",rv);
 	return rv;
 }
 

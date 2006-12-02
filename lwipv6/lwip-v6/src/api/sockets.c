@@ -1106,6 +1106,11 @@ static void um_sel_signal(int fd, int events)
 
 int lwip_select_register(void (* cb)(), void *arg, int fd, int events)
 {
+	return lwip_event_subscribe(cb,arg,fd,events);
+}
+
+int lwip_event_subscribe(void (* cb)(), void *arg, int fd, int events)
+{
 	struct lwip_socket *psock=get_socket(fd);
 	int rv=0;
 	/*printf("UMSELECT REGISTER %s %d events %x arg %x psock %x\n",

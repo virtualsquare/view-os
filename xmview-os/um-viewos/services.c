@@ -407,11 +407,11 @@ epochfun service_checkfun(service_t code)
 	return (s->checkfun);
 }
 
-sysfun service_select_register(service_t code)
+sysfun service_event_subscribe(service_t code)
 {
 	int pos=servmap[code]-1;
 	struct service *s=services[pos];
-	return (s->select_register);
+	return (s->event_subscribe);
 }
 
 static void _service_fini()

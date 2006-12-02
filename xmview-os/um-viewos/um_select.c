@@ -83,10 +83,10 @@ static void cleanup_pending(struct pcb *pc)
 		assert(sd->pending);
 		for (i=0; i<sd->len; i++) {
 			int sercode=service_fd(pc->fds,sd->pending[i].fd,1);
-			sysfun local_select_register=service_select_register(sercode);
+			sysfun local_event_subscribe=service_event_subscribe(sercode);
 			int sfd=fd2sfd(pc->fds,sd->pending[i].fd);
-			assert(local_select_register != NULL && sfd >= 0);
-			local_select_register(NULL,pc,sfd,sd->pending[i].how);
+			assert(local_event_subscribe != NULL && sfd >= 0);
+			local_event_subscribe(NULL,pc,sfd,sd->pending[i].how);
 			um_setepoch(oldepoch);
 		}
 		free(sd->pending);
@@ -104,10 +104,10 @@ static void suspend_signaled(struct pcb *pc)
 	struct seldata *sd=pc->selset;
 	assert(sd && sd->pending);
 	int sercode=service_fd(pc->fds,sd->pending[0].fd,1);
-	sysfun local_select_register=service_select_register(sercode);
+	sysfun local_event_subscribe=service_event_subscribe(sercode);
 	int sfd=fd2sfd(pc->fds,sd->pending[0].fd);
-	assert(local_select_register != NULL && sfd >= 0);
-	local_select_register(NULL,pc,sfd,sd->pending[0].how);
+	assert(local_event_subscribe != NULL && sfd >= 0);
+	local_event_subscribe(NULL,pc,sfd,sd->pending[0].how);
 	pc->selset=NULL;
 	um_setepoch(oldepoch);
 	free(sd->pending);
@@ -133,10 +133,10 @@ int check_suspend_on(struct pcb *pc, int fd, int how)
 	}
 	/* check the fd is managed by some service and gets its service fd (sfd) */
 	if (sercode != UM_NONE && (sfd=fd2sfd(pc->fds,fd)) >= 0) {
-		sysfun local_select_register;
-		if ((local_select_register=service_select_register(sercode)) != NULL) {
+		sysfun local_event_subscribe;
+		if ((local_event_subscribe=service_event_subscribe(sercode)) != NULL) {
 			bq_block(pc);
-			if (local_select_register(bq_signal, pc, sfd, how) == 0)
+			if (local_event_subscribe(bq_signal, pc, sfd, how) == 0)
 			{
 				struct seldata *sd=malloc(sizeof(struct seldata));
 				sd->pending=malloc(sizeof(struct pendingdata));
@@ -212,7 +212,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,
 		if (how) {
 			int sercode=service_fd(pc->fds,fd,0);
 			if (sercode != UM_NONE && (fd2sfd(pc->fds,fd)) >= 0
-					&& (service_select_register(sercode)) != NULL)
+					&& (service_event_subscribe(sercode)) != NULL)
 				count++;
 		}
 	}
@@ -237,10 +237,10 @@ int wrap_in_select(int sc_number,struct pcb *pc,
 				int sercode=service_fd(pc->fds,fd,1);
 				if (sercode != UM_NONE) {
 					int sfd=fd2sfd(pc->fds,fd);
-					sysfun local_select_register=service_select_register(sercode);
-					if (sfd >= 0 && local_select_register) {
+					sysfun local_event_subscribe=service_event_subscribe(sercode);
+					if (sfd >= 0 && local_event_subscribe) {
 						/* virtual file: split components */
-						/* how encodes the requested waiting flags for select_register */
+						/* how encodes the requested waiting flags for event_subscribe */
 						/* wfds gets modified for the select syscall of the usermode process*/
 						int lfd=fd2lfd(pc->fds,fd);
 						sd->pending[count].fd = fd;
@@ -249,8 +249,8 @@ int wrap_in_select(int sc_number,struct pcb *pc,
 						FD_SET(fd,&wfds[RX]);
 						FD_CLR(fd,&wfds[WX]); /* needed? maybe no*/
 						FD_CLR(fd,&wfds[XX]); /* needed? maybe no*/
-						if (signaled==0 && local_select_register(selectpoll_signal, pc, sfd, how) > 0) {
-							/* if local_select_register returned with a nonzero value, it
+						if (signaled==0 && local_event_subscribe(selectpoll_signal, pc, sfd, how) > 0) {
+							/* if local_event_subscribe returned with a nonzero value, it
 							 * means there's *already* data! */
 							signaled++;
 							lfd_signal(lfd);
@@ -287,10 +287,10 @@ int wrap_out_select(int sc_number,struct pcb *pc)
 		}
 		for (i=0; i<sd->len; i++) {
 			int sercode=service_fd(pc->fds,sd->pending[i].fd,1);
-			sysfun local_select_register=service_select_register(sercode);
+			sysfun local_event_subscribe=service_event_subscribe(sercode);
 			int sfd=fd2sfd(pc->fds,sd->pending[i].fd);
-			assert(local_select_register != NULL && sfd >= 0);
-			int howret=local_select_register(NULL,pc,sfd,sd->pending[i].how);
+			assert(local_event_subscribe != NULL && sfd >= 0);
+			int howret=local_event_subscribe(NULL,pc,sfd,sd->pending[i].how);
 			int lfd=fd2lfd(pc->fds,sd->pending[i].fd);
 			lfd_delsignal(lfd);
 			for (j=0;j<3;j++) {
@@ -336,7 +336,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 		int fd=ufds[i].fd;
 		int sercode=service_fd(pc->fds,fd,1);
 		if (ufds[i].events && sercode != UM_NONE && fd2sfd(pc->fds,fd) >= 0 &&
-				service_select_register(sercode))
+				service_event_subscribe(sercode))
 			count++;
 	}
 	/* no virtual file: nothing to do here */
@@ -354,8 +354,8 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 				int sercode=service_fd(pc->fds,fd,1);
 				if (sercode != UM_NONE) {
 					int sfd=fd2sfd(pc->fds,fd);
-					sysfun local_select_register=service_select_register(sercode);
-					if (sfd >= 0 && local_select_register) {
+					sysfun local_event_subscribe=service_event_subscribe(sercode);
+					if (sfd >= 0 && local_event_subscribe) {
 						//short how=0;
 						int lfd=fd2lfd(pc->fds,fd);
 						sd->lfd=lfd;
@@ -370,8 +370,8 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 						sd->pending[count].how = how;*/
 						sd->pending[count].how = ufds[i].events;
 						ufds[i].events=POLLIN;
-						//if (signaled==0 && local_select_register(selectpoll_signal, pc, sfd, how) > 0) {
-						if (signaled==0 && local_select_register(selectpoll_signal, pc, sfd, sd->pending[count].how) > 0) {
+						//if (signaled==0 && local_event_subscribe(selectpoll_signal, pc, sfd, how) > 0) {
+						if (signaled==0 && local_event_subscribe(selectpoll_signal, pc, sfd, sd->pending[count].how) > 0) {
 							signaled++;
 							lfd_signal(lfd);
 						}
@@ -405,11 +405,11 @@ int wrap_out_poll(int sc_number,struct pcb *pc)
 			for(i=0,j=0;i<nfds;i++) {
 				if(j<sd->len && ufds[i].fd == sd->pending[j].fd) {/* virtual file */
 					int sercode=service_fd(pc->fds,sd->pending[j].fd,1);
-					sysfun local_select_register=service_select_register(sercode);
+					sysfun local_event_subscribe=service_event_subscribe(sercode);
 					int sfd=fd2sfd(pc->fds,sd->pending[j].fd);
-					assert(local_select_register != NULL && sfd >= 0);
+					assert(local_event_subscribe != NULL && sfd >= 0);
 					int lfd=fd2lfd(pc->fds,sd->pending[j].fd);
-					int howret=local_select_register(NULL,pc ,sfd,sd->pending[j].how);
+					int howret=local_event_subscribe(NULL,pc ,sfd,sd->pending[j].how);
 					lfd_delsignal(lfd);
 					/*
 					ufds[i].revents=0;

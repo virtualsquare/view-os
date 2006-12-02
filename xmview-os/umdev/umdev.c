@@ -1152,7 +1152,7 @@ static void contextclose(struct umdev *fc)
 	umdev_umount2(fc->path,MNT_FORCE);
 }
 
-static long umdev_select_register(void (* cb)(), void *arg, int fd, int how)
+static long umdev_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 {
 	int rv=1;
 	if (filetab[fd]==NULL) {
@@ -1160,12 +1160,12 @@ static long umdev_select_register(void (* cb)(), void *arg, int fd, int how)
 		return -1;
 	}
 	else {
-		if (filetab[fd]->umdev->devops->select_register) {
+		if (filetab[fd]->umdev->devops->event_subscribe) {
 			struct dev_info di;
 			di.fh = filetab[fd]->fh;
 			di.flags = 0;
 			di.devhandle=filetab[fd]->umdev;
-			rv = filetab[fd]->umdev->devops->select_register(
+			rv = filetab[fd]->umdev->devops->event_subscribe(
 					          filetab[fd]->type, filetab[fd]->device,
 											cb, arg, how, &di);
 		}
@@ -1270,7 +1270,7 @@ init (void)
 	SERVICESYSCALL(s, ioctl, umdev_ioctl); 
 	SERVICESYSCALL(s, pread64, umdev_pread64); 
 	SERVICESYSCALL(s, pwrite64, umdev_pwrite64); 
-	s.select_register=umdev_select_register;
+	s.event_subscribe=umdev_event_subscribe;
 	add_service(&s);
 }
 
