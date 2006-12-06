@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.60a)
+AC_PREREQ(2.60)
 AC_INIT([purelibc], [0.2], [osd@cs.unibo.it])
 AM_INIT_AUTOMAKE([foreign])
 AC_CONFIG_SRCDIR([purelibc.h])
