@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.60)
-AC_INIT([lwipv6], [1.0], [osd@cs.unibo.it])
+AC_INIT([lwipv6], [1.1], [osd@cs.unibo.it])
 AM_INIT_AUTOMAKE([foreign])
 AC_CONFIG_SRCDIR([lwip-contrib/ports/unix/include/lwipv6.h])
 AC_CONFIG_HEADER([config.h])
