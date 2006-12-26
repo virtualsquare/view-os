@@ -228,7 +228,7 @@ lwiplongfun lwip_radv_load_configfile;
 		{"lwip_radv_load_configfile", (lwiplongfun *)(&lwip_radv_load_configfile)} \
 	};\
 	int i;\
-	void *lwiphandle = dlopen("liblwip.so",RTLD_NOW); \
+	void *lwiphandle = dlopen("liblwipv6.so",RTLD_NOW); \
 	if(lwiphandle == NULL) { \
 		fprintf(stderr,"lwiplib not found %s\n",dlerror());\
 		exit(-1);\
