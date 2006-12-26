@@ -177,7 +177,7 @@ lwip_send,
 lwip_sendto,
 lwip_socket,
 lwip_write,
-	x
+	
 lwip_select,
 lwip_ioctl,
 
