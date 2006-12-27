@@ -1,5 +1,0 @@
-To create umfusecram module
-type make
-then enter the src directory
-type ./umfuse.sh
-
