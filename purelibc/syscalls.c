@@ -42,6 +42,7 @@
 #include <sys/sendfile.h>
 #include <sys/xattr.h>
 #include <sys/timeb.h>
+#include <sys/mman.h>
 #include <bits/wordsize.h>
 #include <utime.h>
 #include <stdarg.h>
@@ -61,7 +62,18 @@
 sfun _pure_syscall=syscall;
 sfun _pure_native_syscall=syscall;
 
-int _pure_debug_printf(const char *format, ...)
+static int _pageshift()
+{
+	static int ps=0;
+	if (ps == 0) {
+		long pagesize=pagesize = sysconf(_SC_PAGESIZE);
+		for (ps = -1;pagesize > 0; ps++, pagesize >>= 1)
+			;
+	}
+	return ps;
+}
+
+long _pure_debug_printf(const char *format, ...)
 {
 	char *s;
 	int rv;
@@ -1016,6 +1028,30 @@ int fstatvfs(int fd, struct statvfs *buf){
 	int rv=_pure_syscall(__NR_fstatfs,fd,&sfs);
 	statfs2vfs(&sfs,buf);
 	return 0;
+}
+
+void *mmap(void  *start, size_t length, int prot, int flags, int fd,
+		       off_t offset)
+{
+		return (void *) _pure_syscall(__NR_mmap2,start,length,prot,flags,fd,offset>> _pageshift());
+		//return (void *) _pure_syscall(__NR_mmap,start,length,prot,flags,fd,offset);
+}
+
+void *mmap2(void  *start, size_t length, int prot, int flags, int fd,
+		       off_t pgoffset)
+{
+		return (void *) _pure_syscall(__NR_mmap2,start,length,prot,flags,fd,pgoffset);
+}
+
+int munmap(void *start, size_t length)
+{
+	return _pure_syscall(__NR_munmap,start,length);
+}
+
+void *mremap(void  *old_address,  size_t old_size , size_t new_size,
+		       int flags)
+{
+	    return (void *) _pure_syscall(__NR_mremap,old_address,old_size,new_size,flags);
 }
 
 int ftime(struct timeb *tp){
