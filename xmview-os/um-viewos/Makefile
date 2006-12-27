@@ -6,7 +6,7 @@ mandir=/usr/local/man
 endif
 
 RELEASE=false
-DEBUGLEVEL=0
+DEBUGLEVEL=3
 #CBASEFLAGS=-Wall -D_GNU_SOURCE -I../include -DINSTALLDIR=\"$(bindir)\" -D_PROC_MEM_TEST
 #CBASEFLAGS=-Wall -D_GNU_SOURCE -I../include -DINSTALLDIR=\"$(bindir)\" -D_USE_PSELECT -D_UM_MMAP
 CBASEFLAGS=-Wall -D_GNU_SOURCE -I../include -DINSTALLDIR=\"$(bindir)\" -D_UM_MMAP -D_USE_PSELECT

@@ -425,7 +425,7 @@ static long int capture_nested_socketcall(long int sysno, ...){
 		callee_pcb.args[2+i]=va_arg(ap,long int);
 	va_end(ap);
 #ifdef _NESTED_CALL_DEBUG_
-		fprint2(256,"SkC=%ld - %p %lld %lld- parametri: %p %p %p %p %p %p\n",sysno,get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
+	fprint2(256,"SkC=%ld - %p %lld %lld- parametri: %p %p %p %p %p %p\n",sysno,get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
 					(void*)callee_pcb.args[2],
 					(void*)callee_pcb.args[3],
 					(void*)callee_pcb.args[4],
@@ -439,7 +439,7 @@ static long int capture_nested_socketcall(long int sysno, ...){
 	nrestoreargs(caller_pcb, &callee_pcb);
 	set_pcb(caller_pcb);
 #ifdef _NESTED_CALL_DEBUG_
-		fprint2(buf,128,"->(Sk) %ld: return value:%ld %p\n",
+	fprint2(128,"->(Sk) %ld: return value:%ld %p\n",
 				sysno,rv,get_pcb());
 #endif
 	return rv;
@@ -472,7 +472,7 @@ static long int capture_nested_syscall(long int sysno, ...)
 	}
 	va_end(ap);
 #ifdef _NESTED_CALL_DEBUG_
-		fprint2("SyC=%ld - %s %p %lld %lld- parametri: %p %p %p %p %p %p\n",sysno,SYSCALLNAME(sysno),get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
+		fprint2("SyC=%ld - %s %p %lld %lld- parametri: %x %x %x %x %x %x\n",sysno,SYSCALLNAME(sysno),get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
 					(void*)callee_pcb.args[0],
 					(void*)callee_pcb.args[1],
 					(void*)callee_pcb.args[2],

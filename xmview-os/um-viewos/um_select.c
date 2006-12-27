@@ -173,6 +173,10 @@ static void putfdset(long addr, struct pcb* pc, int max, fd_set *lfds)
 static void selectpoll_signal(struct pcb *pc)
 {
 	struct seldata *sd=pc->selset;
+	if (!sd)
+		fprint2("sd err %p\n",sd);
+	else if (sd->lfd <= 0)
+		fprint2("lfd err\n",sd->lfd);
 	assert(pc && sd && sd->lfd >= 0);
 	lfd_signal(sd->lfd);
 }
