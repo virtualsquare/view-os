@@ -1,10 +1,14 @@
 nodist_noinst_HEADERS = syscallnames.h nrsyscalls.h
 
 noinst_HEADERS = \
+	umdev.h
+
+pkgincludedir = $(includedir)/umview
+
+dist_pkginclude_HEADERS = \
 	gdebug.h \
 	libummod.h \
-	module.h \
-	umdev.h
+	module.h
 
 dist_noinst_SCRIPTS = \
 	syscallnames.sh
