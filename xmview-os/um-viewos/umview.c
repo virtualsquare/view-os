@@ -7,9 +7,8 @@
  *   Modified 2005 Ludovico Gardenghi, Andrea Gasparini, Andrea Seraghiti
  *   
  *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ *   it under the terms of the GNU General Public License, version 2, as
+ *   published by the Free Software Foundation.
  *
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +17,7 @@
  *
  *   You should have received a copy of the GNU General Public License along
  *   with this program; if not, write to the Free Software Foundation, Inc.,
- *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
  *
  *   $Id$
  *
@@ -36,6 +35,7 @@
 #include <assert.h>
 #include <signal.h>
 #include <linux/sysctl.h>
+#include <config.h>
 #include "defs.h"
 #include "umview.h"
 #include "capture_sc.h"
@@ -46,6 +46,12 @@
 #include "ptrace_multi_test.h"
 #include "mainpoll.h"
 #include "gdebug.h"
+
+#ifdef GDEBUG_ENABLED
+#	define OPTSTRING "+p:o:hvnx"
+#else
+#	define OPTSTRING "+p:hvnx"
+#endif
 
 int _umview_version = 2; /* modules interface version id.
 										modules can test to be compatible with
@@ -145,7 +151,9 @@ static void usage(char *s)
 			"  -h, --help                print this help message\n"
 			"  -v, --version             show version information\n"
 			"  -p file, --preload file   load plugin named `file' (must be a .so)\n"
+#ifdef GDEBUG_ENABLED
 			"  -o file, --output file    send debug messages to file instead of stderr\n"
+#endif
 			"  -x, --nonesting           do not permit module nesting\n"
 			"  -n, --nokernelpatch       avoid using kernel patches\n"
 			"  --nokmulti                avoid using PTRACE_MULTI\n"
@@ -158,7 +166,9 @@ static void usage(char *s)
 
 static struct option long_options[] = {
 	{"preload",1,0,'p'},
+#ifdef GDEBUG_ENABLED
 	{"output",1,0,'o'},
+#endif
 	{"help",0,0,'h'},
 	{"nonesting",0,0,'x'},
 	{"nokernelpatch",0,0,'n'},
@@ -177,7 +187,8 @@ static void load_it_again(int argc,char *argv[])
 		int c;
 		int option_index = 0;
 		/* some options must be parsed before reloading */
-		c=getopt_long(argc,argv,"+p:o:hvnx",long_options,&option_index);
+		c = getopt_long(argc, argv, OPTSTRING, long_options, &option_index);
+
 		if (c == -1) break;
 		switch (c) {
 			case 'h':
@@ -218,7 +229,7 @@ static void umview_recursive(int argc,char *argv[])
 	while (1) {
 		int c;
 		int option_index = 0;
-		c=getopt_long(argc,argv,"+p:o:hvnx",long_options,&option_index);
+		c = getopt_long(argc, argv, OPTSTRING, long_options, &option_index);
 		if (c == -1) break;
 		switch (c) {
 			case 'h':
@@ -289,7 +300,7 @@ int main(int argc,char *argv[])
 	while (1) {
 		int c;
 		int option_index = 0;
-		c=getopt_long(argc,argv,"+p:o:hvnx",long_options,&option_index);
+		c = getopt_long(argc, argv, OPTSTRING, long_options, &option_index);
 		if (c == -1) break;
 		switch (c) {
 			case 'h': /* help */
@@ -303,6 +314,7 @@ int main(int argc,char *argv[])
 			             a data structure */
 				preadd(&prehead,optarg);
 				break;
+#ifdef GDEBUG_ENABLED
 			case 'o': /* debugging output file redirection */ { 
 						if (optarg==NULL){
 							fprintf(stderr, "%s: must specify an argument after -o\n",argv[0]);
@@ -311,6 +323,7 @@ int main(int argc,char *argv[])
 						gdebug_set_ofile(optarg);
 					 }
 					 break;
+#endif
 			case 'n': /* do not use kernel extensions */
 					 want_ptrace_multi = 0;
 					 want_ptrace_vm = 0;

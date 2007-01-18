@@ -15,8 +15,8 @@
 
 	 You should have received a copy of the GNU Lesser General Public
 	 License along with the GNU C Library; if not, write to the Free
-	 Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-	 02111-1307 USA.  */
+	 Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+	 02110-1301 USA.  */
 
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <stddef.h>
+#include <config.h>
 #include "sctab.h"
 
 /* Return the canonical absolute name of file NAME.  A canonical name

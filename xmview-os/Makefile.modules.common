@@ -1,0 +1,14 @@
+moddir = $(pkglibdir)/modules
+
+DEVELFLAGS=
+
+AM_CFLAGS = -ggdb
+AM_LDFLAGS = -module -avoid-version -export-dynamic
+AM_LIBTOOLFLAGS = --tag=disable-static
+AM_CPPFLAGS = -I../include -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $(DEVELFLAGS)
+LIBS = ../um_lib/libumlib.la
+
+install-data-hook:
+	cd "$(DESTDIR)/$(moddir)" && rm -f $(mod_LTLIBRARIES)
+
+debug release: all

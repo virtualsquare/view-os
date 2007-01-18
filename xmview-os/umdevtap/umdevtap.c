@@ -17,7 +17,7 @@
  *
  *   You should have received a copy of the GNU General Public License along
  *   with this program; if not, write to the Free Software Foundation, Inc.,
- *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
  *  
  */
 
@@ -32,6 +32,7 @@
 #include <linux/ioctl.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>
+#include <config.h>
 
 struct umtap {
 	VDECONN *conn;
@@ -159,7 +160,7 @@ struct umdev_operations umdev_ops={
 	.fini=umtap_fini,
 	.ioctl=umtap_ioctl,
 	.ioctlparms=umtap_ioctl_params,
-	.select_register=umtap_select_register,
+	.event_subscribe=umtap_select_register,
 };
 
 

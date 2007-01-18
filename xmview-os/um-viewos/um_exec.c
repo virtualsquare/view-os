@@ -7,9 +7,8 @@
  *   Modified 2005 Ludovico Gardenghi
  *
  *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ *   it under the terms of the GNU General Public License, version 2, as
+ *   published by the Free Software Foundation.
  *
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +17,7 @@
  *
  *   You should have received a copy of the GNU General Public License along
  *   with this program; if not, write to the Free Software Foundation, Inc.,
- *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
  *
  *   $Id$
  *
@@ -42,6 +41,7 @@
 #include <stdlib.h>
 #include <alloca.h>
 #include <utime.h>
+#include <config.h>
 #include "defs.h"
 #include "gdebug.h"
 #include "umproc.h"
@@ -127,7 +127,7 @@ static void printparms(char *what,char **parms)
 }
 */
 
-#define UMBINWRAP (INSTALLDIR "/umbinwrap")
+#define UMBINWRAP LIBEXECDIR "/umbinwrap"
 /* wrap_in: execve handling */
 int wrap_in_execve(int sc_number,struct pcb *pc,
 		service_t sercode,sysfun um_syscall)

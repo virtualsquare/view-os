@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <config.h>
 #include "defs.h"
 #include "services.h"
 

@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <config.h>
 
 /* return value: 0=the file is mmapable, 1 otherwise */
 static int mmap_not_ok(char *path)

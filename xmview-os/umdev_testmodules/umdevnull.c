@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "umdev.h"
+#include <config.h>
 
 static int null_open(char type, dev_t device, struct dev_info *di)
 {
