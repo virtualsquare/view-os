@@ -1,4 +1,4 @@
-lib_LTLIBRARIES = libumlib.la
+pkglib_LTLIBRARIES = libumlib.la
 
 libumlib_la_SOURCES = um_lib.c libummod.c
 libumlib_la_CPPFLAGS = -I../include
