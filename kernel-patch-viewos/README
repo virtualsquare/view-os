@@ -1,0 +1,44 @@
+The patches here included add the PTRACE_MULTI tag to the
+ptrace system call into the linux kernel of the hosting machine.
+
+This patch add PTRACE MULTI for the following architectures:
+i386 ppc um (subarch i386)
+
+UMVIEW does not need any patch in the kernel of the hosting computer to 
+work but with PTRACE_MULTI there is a dramatic increase in performance.
+
+(Tech detail: standard ptrace needs one system call invocation for
+each word of memory to be tranferred between the process memory
+and the umview memory. System calls like read/write need one context
+switch each 4 bytes - on 32bits machine. With PTRACE_MULTI one single
+system call invocation suffices).
+
+PT_VM is a more advanced patch.
+It is a more efficient support of PTRACE for Virtual Machine.
+with PT_VM it is possible to use the PTRACE_SYSVM call instead
+of PTRACE_SYSCALL. PTRACE_SYSVM has a parameter that can be set to skip
+the syscall execution and/or the after-syscall trace upcall.
+
+As usual:
+
+/*   This is part of um-ViewOS
+ *   The user-mode implementation of OSVIEW -- A Process with a View
+ *
+ *   LINUX KERNEL PATCH for PTRACE_MULTI support.
+ *   
+ *   Copyright 2005 Renzo Davoli
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License, version 2, as
+ *   published by the Free Software Foundation.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
+ *
+ */
