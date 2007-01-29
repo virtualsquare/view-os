@@ -3,7 +3,7 @@
 
 DEBUGLEVEL = 3
 
-SUBDIRS = doc include kernelpatch4performance um_lib um_cmd um_testmodule umdev umdev_testmodules umdevmbr umdevtap umfuse umbinfmt um_lwip um_viewfs um-viewos
+SUBDIRS = doc include um_lib um_cmd um_testmodule umdev umdev_testmodules umdevmbr umdevtap umfuse umbinfmt um_lwip um_viewfs um-viewos
 
 if ENABLE_UMDEVTAP
 SUBDIRS += umdevtap

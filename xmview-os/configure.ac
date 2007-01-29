@@ -80,7 +80,6 @@ AM_CONDITIONAL([ENABLE_DEBUG], [test x$enable_debug = "xyes"])
 
 AC_CONFIG_FILES([Makefile
                  doc/Makefile
-                 kernelpatch4performance/Makefile
                  include/Makefile
                  um_lib/Makefile
                  um_cmd/Makefile
