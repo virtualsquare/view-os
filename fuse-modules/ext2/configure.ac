@@ -1,33 +1,29 @@
+#                                               -*- Autoconf -*-
+# Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.59)
-AC_INIT(fuseext2,0.0.1)
-AM_INIT_AUTOMAKE(fuseext2,0.0.1)
+AC_PREREQ(2.60)
+AC_INIT([fuse+umfuse-ext2], [0.1], [osd@cs.unibo.it])
+AM_INIT_AUTOMAKE([foreign dist-bzip2 1.10])
 AC_CONFIG_SRCDIR([fuseext2.c])
+AC_CONFIG_HEADER([config.h])
 
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_LIBTOOL
 
 # Checks for libraries.
-AC_CHECK_LIB(fuse,fuse_main, [FUSE_LIBS="-lfuse"],
-    [AC_MSG_ERROR([
-	Can't find libfuse.a - add the search path to LDFLAGS
-	and rerun configure, eg:
-	export LDFLAGS=-L/usr/local/lib ])],)
-	
-AC_CHECK_LIB(ext2fs,ext2fs_unlink, [EXT2FS_LIBS="-lext2fs"],
-    [AC_MSG_ERROR([
-	Can't find libext2fs - add the search path to LDFLAGS
-	and rerun configure, eg:
-	export LDFLAGS=-L/usr/local/lib ])],)
+AC_CHECK_LIB([fuse], [fuse_main], [FUSE_LIBS="-lfuse"],
+    [AC_MSG_ERROR([Can't find libfuse, please install it])])
+AC_CHECK_LIB([ext2fs], [ext2fs_unlink], [EXT2FS_LIBS="-lext2fs"],
+    [AC_MSG_ERROR([Can't find libext2fs, please install it])])
 
+AC_CHECK_LIB([umlib], [um_add_service], [UMLIB_LIBS="-lumlib"],
+    [AC_MSG_ERROR([Can't find libumlib, please install it])])
 
 # Checks for header files.
 AC_HEADER_DIRENT
 AC_HEADER_STDC
 AC_CHECK_HEADERS([fcntl.h string.h sys/statfs.h unistd.h])
-
-AC_ARG_PROGRAM
-AC_PROG_INSTALL 
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
