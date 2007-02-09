@@ -5,7 +5,7 @@ DEVELFLAGS =
 AM_CFLAGS = -ggdb
 AM_LDFLAGS = -module -avoid-version -export-dynamic
 AM_LIBTOOLFLAGS = --tag=disable-static
-AM_CPPFLAGS = -I../include -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=26 -D_GNU_SOURCE $(DEVELFLAGS)
+AM_CPPFLAGS = -I$(includedir)/umview -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=26 -D_GNU_SOURCE $(DEVELFLAGS)
 
 bin_PROGRAMS = fuseext2
 mod_LTLIBRARIES = umfuseext2.la
@@ -16,7 +16,7 @@ fuseext2_LDFLAGS = -lfuse -lext2fs
 fuseext2_CFLAGS = $(AM_CFLAGS)
 
 umfuseext2_la_SOURCES = fuseext2.c bindir.h
-umfuseext2_la_LDFLAGS = $(AM_LDFLAGS) -lumlib -lext2fs
+umfuseext2_la_LDFLAGS = $(AM_LDFLAGS) -lumlib -lfuse -lext2fs
 
 install-data-hook:
 	cd "$(DESTDIR)/$(moddir)" && rm -f $(mod_LTLIBRARIES)
