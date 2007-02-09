@@ -1,42 +1,30 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.59)
-AC_INIT(fuseiso9660,0.0.1)
-AM_INIT_AUTOMAKE(fuseiso9660,0.0.1)
+AC_PREREQ(2.60)
+AC_INIT([fuse-umfuse-iso9660], [0.1], [osd@cs.unibo.it])
+AM_INIT_AUTOMAKE([foreign dist-bzip2 1.10])
 AC_CONFIG_SRCDIR([fuseiso9660.c])
+AC_CONFIG_HEADER([config.h])
 
 # Checks for programs.
 AC_PROG_CC
-
-AC_ARG_PROGRAM
-AC_PROG_INSTALL
-
+AC_PROG_LIBTOOL
 
 # Checks for libraries.
-AC_CHECK_LIB(fuse,fuse_main, [FUSE_LIBS="-lfuse"],
-    [AC_MSG_ERROR([
-	Can't find libfuse.a - add the search path to LDFLAGS
-	and rerun configure, eg:
-	export LDFLAGS=-L/usr/local/lib ])],)
-	
-AC_CHECK_LIB(iso9660,iso9660_xa_init, [ISO9660_LIBS="-liso9660"],
-    [AC_MSG_ERROR([
-	Can't find libiso9660 - add the search path to LDFLAGS
-	and rerun configure, eg:
-	export LDFLAGS=-L/usr/local/lib ])],)
-	
-AC_CHECK_LIB(z,zlibVersion, [Z_LIBS="-lz"],
-    [AC_MSG_ERROR([
-	Can't find libz - add the search path to LDFLAGS
-	and rerun configure, eg:
-	export LDFLAGS=-L/usr/local/lib ])],)
-
+AC_CHECK_LIB([fuse], [fuse_main],,
+    [AC_MSG_ERROR([Can't find libfuse, please install it])])
+AC_CHECK_LIB([iso9660], [iso9660_open_ext],,
+    [AC_MSG_ERROR([Can't find libiso9660, please install it])])
+AC_CHECK_LIB([z], [uncompress],,
+    [AC_MSG_ERROR([Can't find zlib, please install it])])
+AC_CHECK_LIB([umlib], [um_add_service],,
+    [AC_MSG_ERROR([Can't find libumlib, please install it])])
 
 # Checks for header files.
 AC_HEADER_DIRENT
 AC_HEADER_STDC
-AC_CHECK_HEADERS([fcntl.h stdlib.h string.h sys/statfs.h unistd.h])
+AC_CHECK_HEADERS([fcntl.h stdlib.h string.h sys/statvfs.h unistd.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -49,6 +37,7 @@ AC_STRUCT_ST_BLOCKS
 AC_CHECK_MEMBERS([struct stat.st_rdev])
 AC_STRUCT_TM
 AC_HEADER_STDBOOL
+AC_TYPE_UINT16_T
 
 # Checks for library functions.
 AC_FUNC_MALLOC

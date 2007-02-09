@@ -1,13 +1,31 @@
-bin_PROGRAMS=fuseiso9660 
-noinst_PROGRAMS=umfuseiso9660
+moddir = $(libdir)/umview/modules
 
-AM_CFLAGS=-fPIC -ggdb -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=26 -I/usr/local/include
+DEVELFLAGS =
 
-umfuseiso9660_LDFLAGS= -shared -nostartfiles -liso9660 -lz
-umfuseiso9660_SOURCES=fuseiso9660.c
+AM_CFLAGS = -ggdb
+AM_LDFLAGS = -module -avoid-version -export-dynamic
+AM_LIBTOOLFLAGS = --tag=disable-static
+AM_CPPFLAGS = -I$(includedir)/umview -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=26 -D_GNU_SOURCE $(DEVELFLAGS)
 
-fuseiso9660_SOURCES=fuseiso9660.c zlibiso.h
-fuseiso9660_LDFLAGS=-lfuse -liso9660 -lz
+bin_PROGRAMS = fuseiso9660
+mod_LTLIBRARIES = umfuseiso9660.la
 
-install-exec-hook:
-	$(INSTALL) umfuseiso9660 $(prefix)/lib
+fuseiso9660_SOURCES = fuseiso9660.c zisofs.h
+fuseiso9660_LDFLAGS = -lfuse -lz -liso9660
+# Leave this also if it seems a no-op
+fuseiso9660_CFLAGS = $(AM_CFLAGS)
+
+umfuseiso9660_la_SOURCES = fuseiso9660.c zisofs.h
+umfuseiso9660_la_LDFLAGS = $(AM_LDFLAGS) -lumlib -lfuse -lz -liso9660
+
+install-data-hook:
+	cd "$(DESTDIR)/$(moddir)" && rm -f $(mod_LTLIBRARIES)
+
+extraclean: maintainer-clean
+	rm -rf aclocal.m4 autom4te.cache autoscan.log configure.scan \
+	config.h.in* configure depcomp install-sh Makefile.in \
+	config.guess config.sub \
+	ltmain.sh missing `find . -name Makefile.in` \
+	fuse-umfuse-*.tar.gz \
+	fuse-umfuse-*.tar.bz2
+
