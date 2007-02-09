@@ -26,6 +26,6 @@ extraclean: maintainer-clean
 	config.h.in* configure depcomp install-sh Makefile.in \
 	config.guess config.sub \
 	ltmain.sh missing `find . -name Makefile.in` \
-	fuse+umfuse-*.tar.gz \
-	fuse+umfuse-*.tar.bz2
+	fuse-umfuse-*.tar.gz \
+	fuse-umfuse-*.tar.bz2
 
