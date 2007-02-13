@@ -1,7 +1,7 @@
 /*   This is part of um-ViewOS
  *   The user-mode implementation of OSVIEW -- A Process with a View
  *
- *   viewfs.
+ *   ViewFS
  *   It is possible to remap files and directories
  *   
  *   Copyright 2005, 2006 Ludovico Gardenghi
@@ -21,1911 +21,369 @@
  *
  *   $Id$
  *
- */   
+ */
+
 #include <assert.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <string.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <linux/types.h>
 #include <sys/stat.h>
-#include <string.h>
-#include <utime.h>
-#include <errno.h>
-#include <sys/time.h>
+#include <unistd.h>
 #include <limits.h>
-#include <linux/dirent.h>
-#include <linux/unistd.h>
-#include <stdio.h>
-#include <sys/uio.h>
+#include <fcntl.h>
 #include <config.h>
 
+#include "gdebug.h"
 #include "module.h"
 #include "libummod.h"
-#include "gdebug.h"
-
-// #define VIEWFS_ENABLE_REMAP
-// #define VIEWFS_CHECK_CRITICAL
-
-#define FALLBACK_PERS "test"
-
-#define EXISTS(x) ((access((x), F_OK)) == 0)
-
-#ifdef GDEBUG_ENABLED
-#define DAR(x) (GDEBUG(6, "DAR %s", #x),(x))
 #include "syscallnames.h"
-#else
-#define DAR(x) (x)
-#endif
-
-#define MAXVAL(x) (~((__typeof__(x))1 << ((sizeof(x) * 8) - 1)))
 
 #define VIEWFS_SERVICE_CODE 0xf5
+#define TABSTEP 4
 
-#define VIEWFS_PREFIX			"/.viewfs"
-#define VIEWFS_DEFAULTPERSPATH	"/*"
-#define VIEWFS_ADDNAME			"/+"
-#define VIEWFS_HIDENAME			"/-"
-#define VIEWFS_MAPNAME			"/#"
-
-#define VIEWFS_CURRENT_MAP		0x00000001
-#define VIEWFS_CURRENT_ADD		0x00000002
-#define VIEWFS_CURRENT_HIDE		0x00000004
-#define VIEWFS_DEFAULT_MAP		0x00000008
-#define VIEWFS_DEFAULT_ADD		0x00000010
-#define VIEWFS_DEFAULT_HIDE		0x00000020
-#define VIEWFS_REAL				0x00000040
-#define VIEWFS_CURRENT			(VIEWFS_CURRENT_ADD | VIEWFS_CURRENT_HIDE | VIEWFS_CURRENT_MAP)
-#define VIEWFS_DEFAULT			(VIEWFS_DEFAULT_ADD | VIEWFS_DEFAULT_HIDE | VIEWFS_DEFAULT_MAP)
-#define VIEWFS_BOTH				(VIEWFS_DEFAULT | VIEWFS_CURRENT)
-
-// Total number of personality directories including the real one
-// (at the moment: R, *#, *+, *-, P#, P+, P-)
-#define VIEWFS_DIRP_TOTAL					7
-
-#define VIEWFS_CHECK_FALSE					0
-#define VIEWFS_CHECK_CURRENT_ADD			1
-#define VIEWFS_CHECK_CURRENT_HIDE			2
-#define VIEWFS_CHECK_DEFAULT_ADD			3
-#define VIEWFS_CHECK_DEFAULT_HIDE			4
-#define VIEWFS_CHECK_PARENT_CURRENT_ADD		5
-#define VIEWFS_CHECK_PARENT_CURRENT_HIDE	6
-#define VIEWFS_CHECK_PARENT_DEFAULT_ADD		7
-#define VIEWFS_CHECK_PARENT_DEFAULT_HIDE	8
-
-#define VIEWFS_KEEP_FIRST					0
-#define VIEWFS_KEEP_SECOND					1
-
-#define VIEWFS_SHALLOW						0
-#define VIEWFS_DEEP							1
-#define VIEWFS_DEEPONLY						2
-
-#undef NO
-#undef YES
-#define NO									0
-#define YES									1
-
-#define ISLASTCHECK(x)			(procinfo[umpid].lastcheck == (x))
-
-#define VIEWFS_CRITCHECK(path, retval, deep) {	\
-	GDEBUG(6, "entering management function"); \
-	if (is_critical(path, deep))				\
-	{											\
-		errno = EACCES;							\
-		return (retval);						\
-	}											\
-}
-
-#ifdef VIEWFS_ENABLE_REMAP
-#define REMAP(x, y) (remap(x, y))
-#else
-#define REMAP(x, y) (x)
-#endif
-
-struct persdirs
-{
-	// Start of strings
-	char *real;
-	char *add;
-	char *hide;
-	char *map;
-
-	// Pointers to the first char of the "real" path name
-	char *addr, *hider, *mapr;
-};
-
-struct procinfo_s
-{
-	fd_set cur;
-	fd_set def;
-	fd_set gd64;
-	int lastcheck;
-	int lastremap;
-	struct d64array **gd64_data;
-	int gd64_size;
-};
-
-static struct procinfo_s *procinfo;
-static int procinfo_size;
-
-struct d64array
-{
-	int fd;
-	struct dirent64 **array;
-	int size;
-	int lastindex;
-	struct dirent64 *dirp_orig[VIEWFS_DIRP_TOTAL];
-};
-
-// Name of current personality
-static char *pers_name;
-
-// User's home directory
-static char *homedir;
-
-// viewfs base path
-static char *basepath;
-
-// Personalities directories
-static struct persdirs *defaultpers, *currentpers;
-
-#ifdef VIEWFS_ENABLE_REMAP
-// Buffers for remap readlink (declared global for speed)
-static char *remapbuf;
-#endif
-
-// FIXME: #include "umproc.h" leads to duplicate definitions here
-extern char* sfd_getpath(int, int);
-
-static struct service s;
-static struct timestamp t;
-
-#ifdef VIEWFS_ENABLE_REMAP
-static void prepare_names_remap(char *path, int which)
-{
-	if (which & VIEWFS_DEFAULT)
-		strcpy(defaultpers->mapr, path);
-
-	if (which & VIEWFS_CURRENT)
-		strcpy(currentpers->mapr, path);
-}
-
-
-/* This function uses a statically allocated buffer (remapbuf). This is not
- * thread safe, but is fast and avoids keeping track of mallocs and frees for
- * the buffer. */
-
-#define DAREMAP(x) (GDEBUG(1, "[REMAP] remapping %s -> %s", path, (x)), (x))
-static char *remap(char *path, int umpid)
-{
-	int retval;
-	int stop;
-	char *curp;
-	char old;
-
-	prepare_names_remap(path, VIEWFS_BOTH);
-	procinfo[umpid].lastremap = NO;
-
-	// Search in current personality
-	
-	curp = currentpers->mapr + 1;
-	stop = 0;
-	do
-	{
-		old = *curp;
-
-		if (old == '/')
-			*curp = '\0';
-
-		if (*curp == '\0')
-		{
-			retval = readlink(currentpers->map, remapbuf, PATH_MAX);
-/*            GDEBUG(5, "internal readlink on %s: %d (%s)", currentpers->map, retval, strerror(errno));*/
-			*curp = old;
-			if (retval >= 0)
-			{
-				strncpy(remapbuf + retval, curp, strlen(curp) + 1);
-				procinfo[umpid].lastremap = YES;
-
-				return DAREMAP(remapbuf);
-			}
-			else if (errno != EINVAL)
-				stop = 1;
-
-			if (old == '\0')
-				stop = 1;
-		}
-
-		curp++;
-	}
-	while (stop != 1);
-
-	// The same but in default personality
-	
-	curp = defaultpers->mapr + 1;
-	stop = 0;
-	do
-	{
-		old = *curp;
-
-		if (old == '/')
-			*curp = '\0';
-
-		if (*curp == '\0')
-		{
-			retval = readlink(defaultpers->map, remapbuf, PATH_MAX);
-/*            GDEBUG(5, "internal readlink on %s: %d (%s)", defaultpers->map, retval, strerror(errno));*/
-			*curp = old;
-			if (retval >= 0)
-			{
-				strncpy(remapbuf + retval, curp, strlen(curp) + 1);
-				procinfo[umpid].lastremap = YES;
-
-				return DAREMAP(remapbuf);
-			}
-			else if (errno != EINVAL)
-				stop = 1;
-
-			if (old == '\0')
-				stop = 1;
-		}
-
-		curp++;
-	}
-	while (stop != 1);
-
-	return path;
-}
-#endif
-
-
-/* Update all persdirs structure with a given filename to be checked (e.g.
- * "/etc/passwd")
- */
-static void prepare_names(char *path, int umpid, int which, int already_remapped)
-{
-	if (already_remapped == NO)
-		path = REMAP(path, umpid);
-
-	if (which & VIEWFS_DEFAULT)
-	{
-		strcpy(defaultpers->real, path);
-		strcpy(defaultpers->addr, path);
-		strcpy(defaultpers->hider, path);
-	}
-
-	if (which & VIEWFS_CURRENT)
-	{
-		strcpy(currentpers->real, path);
-		strcpy(currentpers->addr, path);
-		strcpy(currentpers->hider, path);
-	}
-}
-
-
-/* Allocate, prepare and return a new persdirs struct */
-static struct persdirs *newpers()
-{
-	struct persdirs *tmp = malloc(sizeof(struct persdirs));
-
-	memset(tmp, 0, sizeof(struct persdirs));
-
-	tmp->add = malloc(2*PATH_MAX);
-	tmp->hide = malloc(2*PATH_MAX);
-	tmp->map = malloc(2*PATH_MAX);
-	tmp->real = malloc(PATH_MAX);
-
-	strcpy(tmp->add, basepath);
-	strcpy(tmp->hide, basepath);
-	strcpy(tmp->map, basepath);
-	
-	return tmp;
-}
-/* Free a persdirs structure */
-static void freepers(struct persdirs *p)
-{
-	if (!p)
-		return;
-	
-	free(p->add);
-	free(p->hide);
-	free(p->map);
-	free(p->real);
-	free(p);
-}
-
-/* Update a persdirs structure with a new basename (i.e. with a new
- * personality name) */
-static void update_persdirs(struct persdirs *pd, char *basename)
-{
-	int startlen = strlen(basepath);
-	int bnlen = strlen(basename);
-	
-	assert(pd);
-	assert(basename);
-
-	strcpy(pd->add + startlen, basename);
-	strcpy(pd->hide + startlen, basename);
-	strcpy(pd->map + startlen, basename);
-	
-	strcpy(pd->add + startlen + bnlen, VIEWFS_ADDNAME);
-	strcpy(pd->hide + startlen + bnlen, VIEWFS_HIDENAME);
-	strcpy(pd->map + startlen + bnlen, VIEWFS_MAPNAME);
-
-	pd->addr = pd->add + startlen + bnlen + strlen(VIEWFS_ADDNAME);
-	pd->hider = pd->hide + startlen + bnlen + strlen(VIEWFS_HIDENAME);
-	pd->mapr = pd->map + startlen + bnlen + strlen(VIEWFS_MAPNAME);
-}
-
-
-/* Change the current personality, updating structures as needed */
-static void setpers(char *persname)
-{
-	char *tmp = malloc(strlen(persname) + 2);
-	
-	tmp[0]='/';
-	strcpy(&tmp[1], persname);
-	
-	update_persdirs(currentpers, tmp);
-}
-
-/* Initialization routine. Checks home directory name and prepares
- * structures and variables. */
-static void prepare()
-{
-	char *tmppers = getenv("VIEWFS_PERS");
-
-	if (tmppers)
-		pers_name = strdup(tmppers);
-	else
-		pers_name = strdup(FALLBACK_PERS);
-	
-	homedir = getenv("HOME");
-	basepath = malloc(strlen(homedir) + strlen(VIEWFS_PREFIX) + 1);
-	strcpy(basepath, homedir);
-	strcpy(basepath + strlen(homedir), VIEWFS_PREFIX);
-	defaultpers = newpers();
-	currentpers = newpers();
-
-	update_persdirs(defaultpers, VIEWFS_DEFAULTPERSPATH);
-	setpers(pers_name);
-
-	procinfo = NULL;
-	procinfo_size = 0;
-
-#ifdef VIEWFS_ENABLE_REMAP
-	remapbuf = malloc(2*PATH_MAX + 1);
-#endif
-
-	GDEBUG(2, "personality name: %s", pers_name);
-	GDEBUG(2, "base path: %s", basepath);
-	GDEBUG(2, "default pers add dir: %s", defaultpers->add);
-	GDEBUG(2, "current pers add dir: %s", currentpers->add);
-}
-
-static void dispose()
-{
-	free(basepath);
-
-	freepers(currentpers);
-	freepers(defaultpers);
-
-#ifdef VIEWFS_ENABLE_REMAP
-	free(remapbuf);
-#endif
-
-	free(pers_name);
-}
-
-static void procinfo_fd_set(int id, int fd, int pers)
-{
-	GDEBUG(2, "procinfo_fd_set id %d, fd %d, pers %d", id, fd, pers);
-	if (pers & VIEWFS_CURRENT)
-		FD_SET(fd, &procinfo[id].cur);
-	if (pers & VIEWFS_DEFAULT)
-		FD_SET(fd, &procinfo[id].def);
-	GDEBUG(2, "procinfo_fd_set end");
-}
-
-static void procinfo_fd_clear(int id, int fd, int pers)
-{
-	GDEBUG(2, "procinfo_fd_clear id %d, fd %d, pers %d", id, fd, pers);
-	if (pers & VIEWFS_CURRENT)
-		FD_CLR(fd, &procinfo[id].cur);
-	if (pers & VIEWFS_DEFAULT)
-		FD_CLR(fd, &procinfo[id].def);
-	GDEBUG(2, "procinfo_fd_clear end");
-}
-
-static long addproc(int id, int pumpid, int max)
-{
-	GDEBUG(3, "addproc id %d, pumpid %d, max %d, procinfo_size %d", id, pumpid, max, procinfo_size);
-	GBACKTRACE(3,20);
-
-	if (max > procinfo_size)
-	{
-		GDEBUG(3, "procinfo realloc to max (%d) * size of procinfo struct", max);
-		procinfo = realloc(procinfo, max * sizeof(struct procinfo_s *));
-		procinfo_size = max;
-	}
-
-	FD_ZERO(&procinfo[id].cur);
-	FD_ZERO(&procinfo[id].gd64);
-	FD_ZERO(&procinfo[id].def);
-
-	procinfo[id].gd64_data = NULL;
-	procinfo[id].gd64_size = 0;
-
-	return 0;
-}
-
-static long delproc(int id)
-{
-	GDEBUG(3, "delproc %d", id);
-	FD_ZERO(&procinfo[id].cur);
-	FD_ZERO(&procinfo[id].def);
-	FD_ZERO(&procinfo[id].gd64);
-
-	if (procinfo[id].gd64_data)
-		free(procinfo[id].gd64_data);
-
-	return 0;
-}
-
-#ifdef VIEWFS_CHECK_CRITICAL
-/* Return 1 if the given path is at or under the ~/.viewfs directory.
- * If "deep" is set to VIEWFS_SHALLOW, return 1 only if the given
- * path is EQUAL to ~/.viewfs. If "deep" is set to VIEWFS_SHALLOW,
- * return 1 only if the given path is UNDER ~/.viewfs, but return 0
- * if it is equal to ~/.viewfs. */
-inline static int is_critical(char *path, int deep)
-{
-	if (deep == VIEWFS_DEEP)
-		return (strncmp(basepath, path, strlen(basepath)) == 0);
-	else if (deep == VIEWFS_SHALLOW)
-		return (strcmp(basepath, path) == 0);
-	else // deep == VIEWFS_DEEPONLY
-		return (is_critical(path, VIEWFS_DEEP) && 
-				!is_critical(path, VIEWFS_SHALLOW));
-}
-#else
-#define is_critical(x, y) (0)
-#endif
+#define TRUE (0 == 0)
+#define FALSE (!TRUE)
 
 /*
- * Return values:
- * >0          empty directory
- * 0           not empty directory
- * <0          error
+ * N_{DATA, META, DMETA} must be of the same length (N_LEN)
+ * DMETA stays for DIRECTORY META
  */
-static int is_directory_empty(char *dirname)
+
+#define N_DATA  "data/"
+#define N_META  "meta/"
+#define N_DMETA "dmeta"
+#define N_LEN 5
+#define T_DATA 0
+#define T_META 1
+
+/*
+ * Bitmasks:
+ *
+ *      VNUL 0100 0000
+ *      VREM 0000 0001
+ *      VADD 0000 0010
+ *      VMRG 0000 0100
+ *      VMOV 0000 1000
+ *      VCOW 0001 0000
+ *      VINV 0010 0000
+ *
+ * VNUL must be OR'ed to every flag before using the result
+ * as the argument to symlink(). VINV stays for "invalid" and should
+ * never be found on the file system but will be returned by read_flags
+ * as an error condition.
+ */
+
+#define VNUL 0x40
+#define VREM 0x01
+#define VADD 0x02
+#define VMRG 0x04
+#define VMOV 0x08
+#define VCOW 0x10
+#define VINV 0x20
+
+#define VALL (VNUL | VREM | VADD | VMRG | VMOV | VCOW)
+
+static struct service s;
+
+struct viewfs_proc
 {
-	int retval;
-	int fd;
-	int dirp_size = 3 * sizeof(struct dirent64);
-	struct dirent64 *dirp = malloc(dirp_size);
-
-	fd = open(dirname, O_DIRECTORY);
-	if (fd < 0)
-	{
-		free(dirp);
-		GDEBUG(3, "%s is ERROR during open", dirname);
-		return -1;
-	}
-
-	/* A directory is empty if and only if it contains only 2 files: . and ..
-	 * (unless it's a very broken directory, in that case it's an error) */
 	
-	retval = getdents64(fd, dirp, dirp_size);
 
-	close(fd);
+};
 
-	if (retval <= 0) // It could not be MORE EMPTY than this :-)
-	{
-		free(dirp);
-		GDEBUG(3, "%s is ERROR", dirname);
-		return -1;
-	}
+static struct viewfs_proc **proctab = NULL;
+static int proctabmax = 0;
 
-	if ((dirp->d_reclen < retval) && ((((struct dirent64*)((char*)dirp + dirp->d_reclen))->d_reclen) + dirp->d_reclen == retval))
-	{
-		free(dirp);
-		GDEBUG(5, "%s is empty", dirname);
-		return 1;
-	}
-	else
-	{
-		free(dirp);
-		GDEBUG(5, "%s is NOT empty", dirname);
-		return 0;
-	}
-}
+static char fnbuf[2*PATH_MAX];
 
-static int check_generic(char *path, int umpid, int already_prepared)
+struct viewfs_layer
 {
-	if (already_prepared == NO)
-		prepare_names(path, umpid, VIEWFS_BOTH, NO);
-
-	GDEBUG(4, "checking: %s", currentpers->real);
-
-	if (currentpers->real[1] == 0)
-	{
-		procinfo[umpid].lastcheck = VIEWFS_CHECK_FALSE;
-		return 0;
-	}
-
-	if (EXISTS(currentpers->add) || (errno != ENOENT))
-	{
-		procinfo[umpid].lastcheck = VIEWFS_CHECK_CURRENT_ADD;
-		return 1;
-	}
-
-	if (EXISTS(currentpers->hide) || (errno == EACCES))
-	{
-		if (is_directory_empty(currentpers->hide) > 0)
-		{
-			procinfo[umpid].lastcheck = VIEWFS_CHECK_CURRENT_HIDE;
-			return 1;
-		}
-	}
+	// Where ViewFS must start to apply this layer
+	char *mountpoint;
+	// Location of the description tree for this layer
+	char *vfspath;
 	
-	if (EXISTS(defaultpers->add) || (errno != ENOENT))
-	{
-		procinfo[umpid].lastcheck = VIEWFS_CHECK_DEFAULT_ADD;
-		return 1;
-	}
-	
-	if (EXISTS(defaultpers->hide) || (errno == EACCES))
-	{
-		if (is_directory_empty(defaultpers->hide) > 0)
-		{
-			procinfo[umpid].lastcheck = VIEWFS_CHECK_DEFAULT_HIDE;
-			return 1;
-		}
-	}
+	char *testpath;
+	char *userpath;
 
-	procinfo[umpid].lastcheck = VIEWFS_CHECK_FALSE;
-	return 0;
-}
+	unsigned long mountflags;
+	struct timestamp tst;
+	// Is this layer mounted in maintenance mode?
+	int maint;
+	unsigned long used;
+};
 
-static int check_chdir(char *path, int umpid)
+static struct viewfs_layer **layertab = NULL;
+static int layertabmax = 0;
+
+static void cutdots(char *path)
 {
-	prepare_names(path, umpid, VIEWFS_BOTH, NO);
-
-	if (access(currentpers->real, X_OK) != 0)
-		return 1;
-
-	procinfo[umpid].lastcheck = VIEWFS_CHECK_FALSE;
-
-	return 0;
-}
-
-static int check_open(char *path, int flags, int umpid)
-{
-	prepare_names(path, umpid, VIEWFS_BOTH, NO);
-
-	if ((flags & O_CREAT) && (!EXISTS(currentpers->real)))
+	int l = strlen(path);
+	GDEBUG(2, "original string: %s", path);
+	l--;
+	if (path[l] == '.')
 	{
-		check_generic(path, umpid, YES);
-		return 1;
-	}
-	else
-		return check_generic(path, umpid, YES);
-}
-
-
-static int check_mkdir(char *path, int umpid)
-{
-	int retval = 0;
-	char *lastslash;
-	
-	path = REMAP(path, umpid);
-	lastslash = strrchr(path, '/');
-
-	procinfo[umpid].lastcheck = VIEWFS_CHECK_FALSE;
-
-	if (!lastslash) // No '/' in the string? Strange.
-	{
-		return 0;
-	}
-
-	/* Truncate the path to the parent of the given path */
-	*lastslash = '\0';
-	prepare_names(path, umpid, VIEWFS_BOTH, YES);
-
-	if (EXISTS(currentpers->add) || (errno != ENOENT))
-	{
-		procinfo[umpid].lastcheck = VIEWFS_CHECK_PARENT_CURRENT_ADD;
-		retval = 1;
-	}
-	else if (EXISTS(currentpers->hide) || (errno == EACCES))
-	{
-		procinfo[umpid].lastcheck = VIEWFS_CHECK_PARENT_CURRENT_HIDE;
-		retval = 1;
-	}
-	else if (EXISTS(defaultpers->add) || (errno != ENOENT))
-	{
-		procinfo[umpid].lastcheck = VIEWFS_CHECK_PARENT_DEFAULT_ADD;
-		retval = 1;
-	}
-	else if (EXISTS(defaultpers->hide) || (errno == EACCES))
-	{
-		procinfo[umpid].lastcheck = VIEWFS_CHECK_PARENT_DEFAULT_HIDE;
-		retval = 1;
-	}
-
-	/* Put the / back where it was */
-	*lastslash = '/';
-	prepare_names(path, umpid, VIEWFS_BOTH, YES);
-
-	return retval;
-}
-
-static long viewfs_open(char *pathname, int flags, mode_t mode)
-{
-	int retval;
-	int umpid = um_mod_getumpid();
-
-	if (um_mod_getsyscallno() == __NR_creat)
-		flags |= (O_CREAT|O_WRONLY|O_TRUNC);
-
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
-	
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-	{
-		retval = DAR(open(currentpers->add, flags, mode));
-		if (retval >= 0)
-			procinfo_fd_set(umpid, retval, VIEWFS_CURRENT);
-		return retval;
-	}
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-	{
-		if (flags & O_CREAT)
+		l--;
+		if (path[l] == '/')
 		{
-			retval = DAR(open(currentpers->add, flags, mode));
-			if (retval >= 0)
-				procinfo_fd_set(umpid, retval, VIEWFS_CURRENT);
-			return retval;
+			if (l)
+				path[l] = 0;
+			else
+				path[l+1] = 0;
 		}
-		else
+		else if (path[l] == '.')
 		{
-			errno = ENOENT;
-			return DAR(-1);
-		}
-	}
-
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_ADD))
-	{
-		retval = DAR(open(defaultpers->add, flags, mode));
-		if (retval >= 0)
-		{
-			procinfo_fd_set(umpid, retval, VIEWFS_DEFAULT);
-			return retval;
-		}
-		// return retval;
-	}
-
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
-	{
-		if (flags & O_CREAT)
-		{
-			retval = DAR(open(currentpers->add, flags, mode));
-			if (retval >= 0)
-				procinfo_fd_set(umpid, retval, VIEWFS_CURRENT);
-			return retval;
-		}
-		else
-		{
-			errno = ENOENT;
-			return DAR(-1);
-		}
-	}
-
-	retval = DAR(open(currentpers->real, flags, mode));
-	if (retval >= 0)
-		procinfo_fd_clear(umpid, retval, VIEWFS_BOTH);
-	else if (flags & O_CREAT)
-	{
-		int retval2 = DAR(open(currentpers->add, flags, mode));
-		if (retval2 >= 0)
-			procinfo_fd_set(umpid, retval2, VIEWFS_CURRENT);
-		
-		return retval2;
-	//	else
-	//		return retval2;
-	}
-	
-	return retval;
-}
-
-static void clear_cachedata(struct d64array *data, int deep)
-{
-	int i;
-
-	GDEBUG(1, "clearing cache data for fd %d", data->fd);
-
-	if (deep == VIEWFS_DEEP)
-		for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
-			if (data->dirp_orig[i])
+			l--;
+			if (path[l] == '/')
 			{
-				GDEBUG(1, "clearing original dirp pos %d", i);
-				free(data->dirp_orig[i]);
-			}
-	
-
-	GDEBUG(1, "clearing data->array");
-	free(data->array);
-
-	GDEBUG(1, "clearing data");
-	free(data);
-
-	return;
-}
-
-static long viewfs_close(int fd)
-{
-	int retval = DAR(close(fd));
-	int umpid;
-	int i;
-
-	// FIXME: this check is a hack I made because
-	// viewfs_close is called 2 times
-	if (retval == 0)
-	{
-		umpid = um_mod_getumpid();
-		if (FD_ISSET(fd, &procinfo[umpid].gd64))
-		{
-			FD_CLR(fd, &procinfo[umpid].gd64);
-			for (i = 0; i < procinfo[umpid].gd64_size; i++)
-				if (procinfo[umpid].gd64_data[i] &&
-						(procinfo[umpid].gd64_data[i]->fd == fd))
+				while (l > 0)
 				{
-					clear_cachedata(procinfo[umpid].gd64_data[i], VIEWFS_DEEP);
-					procinfo[umpid].gd64_data[i] = NULL;
-					break;
+					l--;
+					if (path[l] == '/')
+						break;
 				}
-		}
-	}
-	
-	return retval;
-}
-
-static long viewfs_stat64(char *pathname, struct stat64 *buf)
-{
-	int umpid = um_mod_getumpid();
-	int retval;
-	
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEPONLY);
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-	{
-		retval = DAR(stat64(currentpers->add, buf));
-/*        if (retval == 0)*/
-/*        {*/
-/*            if (S_ISDIR(buf->st_mode))*/
-/*                buf->st_size = MAXVAL(buf->st_size);*/
-/*        }*/
-		return retval;
-	}
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-	
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_ADD))
-	{
-/*        retval = DAR(stat64(defaultpers->add, buf));*/
-/*        if (retval == 0)*/
-/*        {*/
-/*            if (S_ISDIR(buf->st_mode))*/
-/*                buf->st_size = MAXVAL(buf->st_size);*/
-/*        }*/
-		return retval;
-	}
-
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-
-	return DAR(stat64(currentpers->real, buf));
-}
-
-static long viewfs_lstat64(char *pathname, struct stat64 *buf)
-{
-	int umpid = um_mod_getumpid();
-	int retval;
-	
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEPONLY);
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-	{
-		retval = DAR(lstat64(currentpers->add, buf));
-/*        if (retval == 0)*/
-/*        {*/
-/*            if (S_ISDIR(buf->st_mode))*/
-/*                buf->st_size = MAXVAL(buf->st_size);*/
-/*        }*/
-		return retval;
-	}
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-	
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_ADD))
-	{
-		retval = DAR(lstat64(defaultpers->add, buf));
-/*        if (retval == 0)*/
-/*        {*/
-/*            if (S_ISDIR(buf->st_mode))*/
-/*                buf->st_size = MAXVAL(buf->st_size);*/
-/*        }*/
-		return retval;
-	}
-
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-
-	return DAR(lstat64(currentpers->real, buf));
-}
-
-static long viewfs_fstat64(int fd, struct stat64 *buf)
-{
-	int retval = DAR(fstat64(fd, buf));
-/*    if (retval == 0)*/
-/*    {*/
-/*        if (S_ISDIR(buf->st_mode))*/
-/*            buf->st_size = MAXVAL(buf->st_size);*/
-/*    }*/
-	return retval;
-}
-
-static long viewfs_readlink(char *path, char *buf, size_t bufsiz)
-{
-	int umpid = um_mod_getumpid();
-	
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-		return DAR(readlink(currentpers->add, buf, bufsiz));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-	
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_ADD))
-		return DAR(readlink(defaultpers->add, buf, bufsiz));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-
-	return DAR(readlink(currentpers->real, buf, bufsiz));
-}
-
-static long viewfs_access(char *path, int mode)
-{
-	int umpid = um_mod_getumpid();
-	
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-		return DAR(access(currentpers->add, mode));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-	
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_ADD))
-		return DAR(access(defaultpers->add, mode));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-
-	return DAR(access(currentpers->real, mode));
-}
-
-static long viewfs_mkdir(char *path, int mode)
-{
-	int retval;
-	int umpid = um_mod_getumpid();
-	
-	
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
-
-	if (ISLASTCHECK(VIEWFS_CHECK_PARENT_CURRENT_ADD))
-	{
-		//char *lastslash = strrchr(currentpers->add, '/');
-		//assert(lastslash);
-		//*lastslash = '\0';
-		retval = DAR(mkdir(currentpers->add, mode));
-		//*lastslash = '/';
-		return retval;
-	}
-	if (ISLASTCHECK(VIEWFS_CHECK_PARENT_CURRENT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-	if (ISLASTCHECK(VIEWFS_CHECK_PARENT_DEFAULT_ADD))
-	{
-		//char *lastslash = strrchr(defaultpers->add, '/');
-		//assert(lastslash);
-		//*lastslash = '\0';
-		retval = DAR(mkdir(defaultpers->add, mode));
-		//*lastslash = '/';
-		return retval;
-	}
-	if (ISLASTCHECK(VIEWFS_CHECK_PARENT_CURRENT_ADD))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-	
-	return DAR(mkdir(currentpers->real,mode));
-}
-
-static long viewfs_rmdir(char *path)
-{
-	int umpid = um_mod_getumpid();
-
-	
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-	{
-		if (EXISTS(currentpers->hide))
-			return DAR(rmdir(currentpers->add));
-		else if (!is_directory_empty(currentpers->add))
-			return DAR(rmdir(currentpers->add));
-		else if (!EXISTS(defaultpers->add))
-		{
-			if (EXISTS(defaultpers->hide))
-				return DAR(rmdir(currentpers->add));
-			else
-			{
-				int retval = rmdir(currentpers->real);
-				if (!retval || (errno == ENOENT))
-					return DAR(rmdir(currentpers->add));
-				else
-					return DAR(retval);
-			}
-		}
-		else if (!is_directory_empty(defaultpers->add))
-		{
-			errno = ENOTEMPTY;
-			return DAR(-1);
-		}
-		else
-		{
-			if (EXISTS(defaultpers->hide))
-			{
-				int retval = rmdir(currentpers->add);
-				if (!retval) // Success
-					return DAR(rmdir(defaultpers->add));
-				else
-					return retval;
-			}
-			else
-			{
-				int retval = rmdir(currentpers->real);
-				if (!retval || (errno == ENOENT)) // Success
-					return DAR(rmdir(currentpers->add) && (rmdir(defaultpers->add)));
-				else
-					return retval;
+				if(path[l] == '/')
+				{
+					if (l)
+						path[l] = 0;
+					else
+						path[l+1] = 0;
+				}
 			}
 		}
 	}
-	else if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-	{
-		errno = ENOENT;
-		return -1;
-	}
-	else if (!EXISTS(defaultpers->add))
-	{
-		if (EXISTS(defaultpers->hide))
-		{
-			errno = ENOENT;
-			return -1;
-		}
-		else
-			return DAR(rmdir(currentpers->real));
-	}
-	else if (EXISTS(defaultpers->hide))
-		return DAR(rmdir(defaultpers->add));
-	else if (!is_directory_empty(defaultpers->add))
-	{
-		errno = ENOTEMPTY;
-		return -1;
-	}
-	else
-	{
-		int retval = rmdir(currentpers->real);
-		if (!retval || (errno == ENOENT)) // Success
-			return DAR(rmdir(defaultpers->add));
-		else
-			return retval;
-	}
+	GDEBUG(2, "final string:   %s", path);
 }
 
-static long viewfs_chmod(char *path, int mode)
+static void addlayertab(struct viewfs_layer *new)
 {
-	int umpid = um_mod_getumpid();
+	int i;
 	
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
+	// Search for an empty slot or end of table
+	for (i = 0; (i < layertabmax) && layertab[i]; i++);
 
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-		return DAR(chmod(currentpers->add, mode));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
+	if (i >= layertabmax)
 	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-	
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_ADD))
-		return DAR(chmod(defaultpers->add, mode));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-
-	return DAR(chmod(currentpers->real, mode));
-}
-
-static long viewfs_chown(char *path, uid_t owner, gid_t group)
-{
-	int umpid = um_mod_getumpid();
-	
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-		return DAR(chown(currentpers->add, owner, group));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-	
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_ADD))
-		return DAR(chown(defaultpers->add, owner, group));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-
-	return DAR(chown(currentpers->real, owner, group));
-}
-
-static long viewfs_lchown(char *path, uid_t owner, gid_t group)
-{
-	int umpid = um_mod_getumpid();
-	
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-		return DAR(lchown(currentpers->add, owner, group));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-	
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_ADD))
-		return DAR(lchown(defaultpers->add, owner, group));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-
-	return DAR(lchown(currentpers->real, owner, group));
-}
-
-/* Some of the conditions managed by this function should never happen. If
- * they happen, it is because someone directly modified one of the ~/.viewfs/
- * files. The behavior is not well defined and not consistent with the viewfs
- * semantic.
- * A really complete implementation should make some of the following unlinks
- * atomic, un-doing some of them if some of the following ones fail. However,
- * this should not happen during normal operations.
- */
-static long viewfs_unlink(char *path)
-{
-	int umpid = um_mod_getumpid();
-
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
-
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-	{
-		if (EXISTS(currentpers->hide))
-			return DAR(unlink(currentpers->add));
-		else if EXISTS(defaultpers->hide)
-		{
-			int retval = unlink(defaultpers->add);
-			if (!retval || (errno == ENOENT))
-				return DAR(unlink(currentpers->add));
-			else
-				return retval;
-		}
-		else
-		{
-			int retval = unlink(currentpers->real);
-			if (!retval || (errno == ENOENT)) // Success (real file existed)
-			{
-				int retval2 = unlink(defaultpers->add);
-				if (!retval2 || (errno == ENOENT)) // Success (*+ file existed)
-					return DAR(unlink(currentpers->add));
-				else
-					return retval2;
-			}
-			else
-				return retval;
-		}
-	}
-	else if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-	{
-		errno = ENOENT;
-		return -1;
-	}
-	else if (EXISTS(defaultpers->hide))
-		return DAR(unlink(defaultpers->add));
-	else if (EXISTS(defaultpers->add))
-	{
-		int retval = unlink(currentpers->real);
-		if (!retval || errno == ENOENT)
-			return DAR(unlink(defaultpers->add));
-		else
-			return retval;
-	}
-	else
-		return DAR(unlink(currentpers->real));
-}
-
-static long viewfs_link(char *oldpath, char *newpath)
-{
-	
-	VIEWFS_CRITCHECK(oldpath, -1, VIEWFS_DEEP);
-	VIEWFS_CRITCHECK(newpath, -1, VIEWFS_DEEP);
-
-	errno = EPERM;
-	return -1;
-}
-
-static long viewfs_symlink(char *oldpath, char *newpath)
-{
-	int umpid = um_mod_getumpid();
-
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-		return DAR(symlink(oldpath, currentpers->add));
-	else if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-		return DAR(symlink(oldpath, currentpers->add));
-	else if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_ADD))
-		return DAR(symlink(oldpath, defaultpers->add));
-	else if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
-		return DAR(symlink(oldpath, currentpers->add));
-	else
-		return DAR(symlink(oldpath, currentpers->real));
-}
-
-static long viewfs_utime(char *filename, struct utimbuf *buf)
-{
-	int umpid = um_mod_getumpid();
-
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-		return DAR(utime(currentpers->add, buf));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-	
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_ADD))
-		return DAR(utime(defaultpers->add, buf));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-
-	return DAR(utime(currentpers->real, buf));
-}
-
-static long viewfs_utimes(char *filename, struct timeval tv[2])
-{
-	int umpid = um_mod_getumpid();
-
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_ADD))
-		return DAR(utimes(currentpers->add, tv));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_CURRENT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-	
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_ADD))
-		return DAR(utimes(defaultpers->add, tv));
-
-	if (ISLASTCHECK(VIEWFS_CHECK_DEFAULT_HIDE))
-	{
-		errno = ENOENT;
-		return DAR(-1);
-	}
-
-	return DAR(utimes(currentpers->real, tv));
-}
-
-ssize_t viewfs_getxattr(char *path, char *name, void *value, size_t size)
-{
-	// TODO: add support for this. should be like stat64.
-	errno = ENOTSUP;
-	return DAR(-1);
-}
-
-ssize_t viewfs_pread(int fd, void *buf, size_t count, long long offset)
-{
-	off_t off=offset;
-	return DAR(pread(fd,buf,count,off));
-}
-
-ssize_t viewfs_pwrite(int fd, const void *buf, size_t count, long long offset)
-{
-	off_t off=offset;
-	return DAR(pwrite(fd,buf,count,off));
-}
-
-static long getdents64_whole_dir(char *path, struct dirent64 **buf, int bufsize)
-{
-	struct dirent64 *alldents;
-	int alldents_size;
-	struct dirent64 *tmp;
-	int gdretval;
-	int fd = open(path, O_RDONLY);
-	
-	if (fd < 0)
-		return -1;
-
-	alldents = NULL;
-	alldents_size = 0;
-	gdretval = bufsize;
-	
-	do
-	{
-		alldents_size += gdretval;
-		alldents = realloc(alldents, alldents_size);
-		tmp = (struct dirent64*)(((char*)alldents) + alldents_size - bufsize);
+		int j;
+		int newmax = (i + TABSTEP) & ~(TABSTEP -1);
 		
-		gdretval = getdents64(fd, tmp, bufsize);
-	}
-	while (gdretval > 0);
+		layertab = realloc(layertab, newmax * sizeof(struct viewfs_layer *));
+		assert(layertab);
 
-	close(fd);
-
-	if (gdretval < 0)
-	{
-		if (errno == EINVAL)
-			GDEBUG(1, "Buffer for getdents_whole_dir is too small. This is a bug.");
-		free(alldents);
-		return -1;
+		for (j = i; j < newmax; j++)
+			layertab[j] = NULL;
+		
+		layertabmax = newmax;
 	}
 
-	*buf = alldents;
+	layertab[i] = new;
 
-	return (alldents_size - bufsize);
+	GDEBUG(2, "inserted layer %s -> %s with timestamp %llu at index %d", new->vfspath, new->mountpoint, new->tst.epoch, i);
 }
 
-static struct d64array *dirent64_to_d64array(struct dirent64 *dirp, int count, int fd)
+static void dellayertab(struct viewfs_layer *layer)
 {
-	struct dirent64 *tmp;
-	struct d64array *retval;
-	int curcount = 0;
-	int elems = 0;
-	int i = 0;
-	
-	if (count == 0)
+	int i;
+	for (i = 0; (i < layertabmax) && (layer != layertab[i]); i++);
+	if (i < layertabmax)
+		layertab[i] = NULL;
+}
+
+static struct viewfs_layer *searchlayer(char *path, int exact)
+{
+	struct viewfs_layer *result = NULL;
+	int bestmatch = -1;
+	int i, j;
+	epoch_t e, maxe = 0;
+	char oldp;
+
+	if (!path || !path[0])
 		return NULL;
 
-	retval = malloc(sizeof(struct d64array));
+	cutdots(path);
 
-	// First pass: count the number of elements of dirp (sigh)
-	tmp = dirp;
-	
-	do
+	GDEBUG(2, "trying to match path %s", path);
+
+	if (exact)
 	{
-		GDEBUG(3, "COUNTING info for %s", tmp->d_name);
-		GDEBUG(4, " ** d_ino: %llu", tmp->d_ino);
-		GDEBUG(4, " ** d_off: %lld", tmp->d_off);
-		GDEBUG(4, " ** d_reclen: %u", tmp->d_reclen);
-		GDEBUG(4, " ** d_type: %u", tmp->d_type);
-		GDEBUG(4, " ** d_name: %s", tmp->d_name);
-		
-		elems++;
-		curcount += tmp->d_reclen;
-		tmp = (struct dirent64*)(((char*)tmp) + tmp->d_reclen);
-	}
-	while (curcount < count);
-
-	GDEBUG(1, "there are %d elements in the struct dirent", elems);
-
-	// Allocate a pointer array
-	retval->array = malloc(elems * sizeof(struct dirent64*));
-
-	// Second pass: populate the array
-	tmp = dirp;
-	curcount = 0;
-
-	for (i = 0; i < elems; i++)
-	{
-		retval->array[i] = tmp;
-		tmp->d_off = i;
-		tmp = (struct dirent64*)(((char*)tmp) + tmp->d_reclen);
-	}
-
-	retval->fd = fd;
-	retval->size = elems;
-
-	return retval;
-}
-
-static int dirent64_compare(const void *d1, const void *d2)
-{
-	
-	struct dirent64 **dirpp1 = (struct dirent64**) d1;
-	struct dirent64 **dirpp2 = (struct dirent64**) d2;
-
-	return strcoll((*dirpp1)->d_name, (*dirpp2)->d_name);
-}
-
-static void sort_array64(struct d64array *array)
-{
-	qsort(array->array, array->size, sizeof(struct dirent64*), dirent64_compare);
-}
-
-static int getdents64_cached(struct d64array *data, struct dirent64 *dirp, unsigned int count)
-{
-	int curcount = 0;
-	char *curp;
-	int dentsize;
-	struct dirent64 *tmpdir;
-
-	// We're already at the end of the directory -> getdents returns 0
-	if (data->lastindex == data->size)
-	{
-		GDEBUG(1, "end of directory!");
-		return 0;
-	}
-
-	if (!dirp)
-	{
-		errno = EFAULT;
-		return -1;
-	}
-
-	curp = (char*) dirp;
-	
-	for (; data->lastindex < data->size; data->lastindex++)
-	{
-		dentsize = data->array[data->lastindex]->d_reclen;
-		if ((curcount + dentsize) > count)
+		for (j = 0; j < layertabmax; j++)
 		{
-			GDEBUG(1, "end of buffer!");
-			break;
-		}
+			if (!layertab[j])
+				continue;
 
-		curcount += dentsize;
-		memcpy(curp, data->array[data->lastindex], dentsize);
-		tmpdir = (struct dirent64*)curp;
-		if (data->lastindex == data->size - 1)
-			tmpdir->d_off = ~((__typeof__(tmpdir->d_off))1 << ((sizeof(tmpdir->d_off)*8) - 1));
-		else
-			tmpdir->d_off = data->lastindex;
-		GDEBUG(3, "added info for %s", tmpdir->d_name);
-		GDEBUG(4, " ** d_ino: %llu", tmpdir->d_ino);
-		GDEBUG(4, " ** d_off: %lld", tmpdir->d_off);
-		GDEBUG(4, " ** d_reclen: %u", tmpdir->d_reclen);
-		GDEBUG(4, " ** d_type: %u", tmpdir->d_type);
-		GDEBUG(4, " ** d_name: %s", tmpdir->d_name);
-		curp += dentsize;
-	}
-
-
-	GDEBUG(1, "curcount: %d, count: %d, lastindex: %d, size: %d", curcount, count, data->lastindex, data->size);
-
-	// If no dirents have been copied in dirp, the buffer is too small
-	if (curcount == 0)
-	{
-		errno = EINVAL;
-		return -1;
-	}
-
-	return curcount;
-
-}
-
-static struct d64array *d64array_merge(struct d64array *a1, struct d64array *a2, int keep)
-{
-	struct d64array* retval;
-	int i, c1, c2, d, compare;
-
-	retval = malloc(sizeof(struct d64array));
-
-	// Probably too much, overlapping files count as 1. But here no
-	// assumptions can be made.
-	retval->array = malloc((a1->size + a2->size) * sizeof(struct dirent64*));
-	retval->fd = a1->fd;
-	retval->lastindex = 0;
-	retval->size = a1->size + a2->size;
-	
-	// One of them is always NULL, I'm interested in the union of the two sets
-	// of pointers
-	for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
-		retval->dirp_orig[i] = (struct dirent64*)((int)a1->dirp_orig[i] + (int)a2->dirp_orig[i]);
-
-	c1 = 0;
-	c2 = 0;
-	d = 0;
-	
-	while (c1 < a1->size && c2 < a2->size)
-	{
-		compare = strcoll(a1->array[c1]->d_name, a2->array[c2]->d_name);
-		
-		if (compare < 0)
-			retval->array[d++] = a1->array[c1++];
-		else if (compare > 0)
-			retval->array[d++] = a2->array[c2++];
-		else if (keep == VIEWFS_KEEP_FIRST)
-		{
-			retval->array[d++] = a1->array[c1++];
-			c2++;
-			retval->size--;
-		}
-		else
-		{
-			retval->array[d++] = a2->array[c2++];
-			c1++;
-			retval->size--;
-		}
-	}
-
-	while (c1 < a1->size)
-		retval->array[d++] = a1->array[c1++];
-
-	while (c2 < a2->size)
-		retval->array[d++] = a2->array[c2++];
-	
-	return retval;
-}
-
-static struct d64array *d64array_subtract(struct d64array *a1, struct d64array *a2)
-{
-	struct d64array *retval;
-	int i, c1, c2, d, compare;
-
-	retval = malloc(sizeof(struct d64array));
-
-	retval->array = malloc(a1->size * sizeof(struct dirent64*));
-	retval->fd = a1->fd;
-	retval->lastindex = 0;
-	retval->size = a1->size;
-
-	for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
-		retval->dirp_orig[i] = (struct dirent64*)((int)a1->dirp_orig[i] + (int)a2->dirp_orig[i]);
-
-	c1 = 0;
-	c2 = 0;
-	d = 0;
-	
-	while ((c1 < a1->size) && (c2 < a2->size))
-	{
-		compare = strcoll(a1->array[c1]->d_name, a2->array[c2]->d_name);
-
-		if (compare < 0)
-			retval->array[d++] = a1->array[c1++];
-		else if (compare > 0)
-			c2++;
-		else
-		{
-			c1++;
-			c2++;
-			retval->size--;
-		}
-	}
-
-	while (c1 < a1->size)
-		retval->array[d++] = a1->array[c1++];
-
-	return retval;
-
-}
-
-static long viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
-{
-	int umpid = um_mod_getumpid();
-	char *path = sfd_getpath(VIEWFS_SERVICE_CODE, fd);
-	int pd_status = 0;
-	int pd_total = 0;
-	int found, firstempty;
-	int i;
-
-	struct dirent64 *gdtmp;
-	int gdretval;
-
-	struct d64array *cachedata;
-
-	if (FD_ISSET(fd, &procinfo[umpid].gd64))
-	{
-		for (i = 0; i < procinfo[umpid].gd64_size; i++)
-		{
-			GDEBUG(1, "parsing cache array: position %d (size %d), fd %d", i, procinfo[umpid].gd64_size, procinfo[umpid].gd64_data[i]->fd);
-			if (procinfo[umpid].gd64_data[i]->fd == fd)
-				return getdents64_cached(procinfo[umpid].gd64_data[i], dirp, count);
-		}
-		GDEBUG(1, "should have cached data for getdents64(%d) but none found. This is a bug.", fd);
-		return -1;
-	}
-
-	prepare_names(path, umpid, VIEWFS_BOTH, NO);
-#ifdef VIEWFS_ENABLE_REMAP
-	prepare_names_remap(path, VIEWFS_BOTH);
-#endif
-	
-	// Should have been blocked in open(), but who knows.
-	VIEWFS_CRITCHECK(currentpers->real, -1, VIEWFS_DEEP);
-
-#ifdef VIEWFS_ENABLE_REMAP
-	if (EXISTS(currentpers->map))
-	{
-		pd_status |= VIEWFS_CURRENT_MAP;
-		pd_total++;
-	}
-#endif
-	if (EXISTS(currentpers->add))
-	{
-		pd_status |= VIEWFS_CURRENT_ADD;
-		pd_total++;
-	}
-	if (EXISTS(currentpers->hide))
-	{
-		pd_status |= VIEWFS_CURRENT_HIDE;
-		pd_total++;
-	}
-#ifdef VIEWFS_ENABLE_REMAP
-	if (EXISTS(defaultpers->map))
-	{
-		pd_status |= VIEWFS_DEFAULT_MAP;
-		pd_total++;
-	}
-#endif
-	if (EXISTS(defaultpers->add))
-	{
-		pd_total++;
-		pd_status |= VIEWFS_DEFAULT_ADD;
-	}
-	if (EXISTS(defaultpers->hide))
-	{
-		pd_status |= VIEWFS_DEFAULT_HIDE;
-		pd_total++;
-	}
-	if (EXISTS(currentpers->real))
-	{
-		pd_status |= VIEWFS_REAL;
-		pd_total++;
-	}
-
-	GDEBUG(1, "perspath is %s", currentpers->real);
-	
-	if (FD_ISSET(fd, &procinfo[umpid].cur))
-		GDEBUG(1, "fd %d is open in current personality", fd);
-	if (FD_ISSET(fd, &procinfo[umpid].def))
-		GDEBUG(1, "fd %d is open in default personality", fd);
-	
-	GDEBUG(1, "result =");
-
-	if (pd_status & VIEWFS_REAL)
-		GDEBUG(1, " R");
-	else
-		GDEBUG(1, " 0");
-
-	if (pd_status & VIEWFS_DEFAULT_HIDE)
-		GDEBUG(1, " \\ *-");
-	if (pd_status & VIEWFS_DEFAULT_ADD)
-		GDEBUG(1, " U *+");
-	if (pd_status & VIEWFS_DEFAULT_MAP)
-		GDEBUG(1, " U *#");
-	if (pd_status & VIEWFS_CURRENT_HIDE)
-		GDEBUG(1, " \\ P-");
-	if (pd_status & VIEWFS_CURRENT_ADD)
-		GDEBUG(1, " U P+");
-	if (pd_status & VIEWFS_CURRENT_MAP)
-		GDEBUG(1, " U P#");
-
-	if (!pd_status)
-		return DAR(syscall(__NR_getdents64, fd, dirp, count));
-
-	/* If pd_total == 1, it means that only one of the various directories
-	 * (real, current{add,hide}, default{add,hide} exists. So we don't have to
-	 * sort and join the sets but we can directly call getdents and return it.
-	 * The fd should already be associated to the correct directory, if the
-	 * viewfs_open() implementation is correct. At least when the only
-	 * existant directory is the real one (in this case the module should
-	 * never be called, but just in case) or one of the "add" directories. */
-	if (pd_total == 1)
-	{
-		if ((pd_status & VIEWFS_REAL) ||
-				(pd_status & VIEWFS_CURRENT_ADD) ||
-				(pd_status & VIEWFS_CURRENT_MAP) ||
-				(pd_status & VIEWFS_DEFAULT_ADD) ||
-				(pd_status & VIEWFS_DEFAULT_MAP))
-			return DAR(syscall(__NR_getdents64, fd, dirp, count));
-		else
-			GDEBUG(1, "this should never happen. please check: pd_status == %08x", pd_status);
-	}
-	else
-	{
-		/* What to do: for each of the potential 5 sets of files, obtain them
-		 * and sort them; then, perform the correct operation (merge or
-		 * difference).
-		 */
-
-		if (pd_status & VIEWFS_REAL)
-		{
-			gdretval = getdents64_whole_dir(currentpers->real, &gdtmp, count);
-			GDEBUG(1, "gwd on R returned %d", gdretval);
-			if (gdretval < 0)
-				return -1;
-
-			GDEBUG(1, "converting to fixed-size array");
-			cachedata = dirent64_to_d64array(gdtmp, gdretval, fd);
-			cachedata->lastindex = 0;
-			
-			cachedata->dirp_orig[0] = gdtmp;
-			for (i = 1; i < VIEWFS_DIRP_TOTAL; i++)
-				cachedata->dirp_orig[i] = NULL;
-				
-			GDEBUG(1, "sorting");
-			sort_array64(cachedata);
-			GDEBUG(1, "sorted");
-		}
-		else
-		{
-			cachedata = malloc(sizeof(struct d64array));
-			cachedata->fd = fd;
-			cachedata->array = NULL;
-			cachedata->size = 0;
-			cachedata->lastindex = 0;
-			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
-				cachedata->dirp_orig[i] = NULL;
-		}
-	
-		/* TODO: Make the following a bit more efficient.
-		 * At present, for each of the 6 possible changes to the original set
-		 * (remove *-, add *+, add *#, remove P-, add P+, add P#) a d64array{merge,subtract}
-		 * is called. These functions DO NOT work in place, but create a new
-		 * array adding the elements from the original sets. So, if the 6
-		 * personal directories are all non-empty, there is a total of 6
-		 * passes and each of them allocates and copies the array.
-		 * A better approach would take the 7 original sets once and perform
-		 * the correct operations writing the result in a single new array.
-		 * I think that in-place merging and subtraction is very difficult
-		 * with the current array-based implementation. */
-		
-		if (pd_status & VIEWFS_DEFAULT_HIDE)
-		{
-			struct d64array *datmp, *old;
-			gdretval = getdents64_whole_dir(defaultpers->hide, &gdtmp, count);
-			GDEBUG(1, "gwd on *- returned %d", gdretval);
-			if (gdretval < 0)
-				return -1;
-
-			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
-			datmp->lastindex = 0;
-			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
-				datmp->dirp_orig[i] = NULL;
-			datmp->dirp_orig[1] = gdtmp;
-			sort_array64(datmp);
-
-			old = cachedata;
-			cachedata = d64array_subtract(old, datmp);
-			clear_cachedata(old, VIEWFS_SHALLOW);
-			clear_cachedata(datmp, VIEWFS_SHALLOW);
-		}
-		
-		if (pd_status & VIEWFS_DEFAULT_ADD)
-		{
-			struct d64array *datmp, *old;
-			gdretval = getdents64_whole_dir(defaultpers->add, &gdtmp, count);
-			GDEBUG(1, "gwd on *+ returned %d", gdretval);
-			if (gdretval < 0)
-				return -1;
-			
-			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
-			datmp->lastindex = 0;
-			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
-				datmp->dirp_orig[i] = NULL;
-			datmp->dirp_orig[2] = gdtmp;
-			sort_array64(datmp);
-
-			old = cachedata;
-			cachedata = d64array_merge(old, datmp, VIEWFS_KEEP_SECOND);
-			clear_cachedata(old, VIEWFS_SHALLOW);
-			clear_cachedata(datmp, VIEWFS_SHALLOW);
-		}
-		
-		if (pd_status & VIEWFS_DEFAULT_MAP)
-		{
-			struct d64array *datmp, *old;
-			gdretval = getdents64_whole_dir(defaultpers->map, &gdtmp, count);
-			GDEBUG(1, "gwd on *# returned %d", gdretval);
-			if (gdretval < 0)
-				return -1;
-			
-			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
-			datmp->lastindex = 0;
-			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
-				datmp->dirp_orig[i] = NULL;
-			datmp->dirp_orig[3] = gdtmp;
-			sort_array64(datmp);
-
-			old = cachedata;
-			cachedata = d64array_merge(old, datmp, VIEWFS_KEEP_SECOND);
-			clear_cachedata(old, VIEWFS_SHALLOW);
-			clear_cachedata(datmp, VIEWFS_SHALLOW);
-		}
-		
-		if (pd_status & VIEWFS_CURRENT_HIDE)
-		{
-			struct d64array *datmp, *old;
-			gdretval = getdents64_whole_dir(currentpers->hide, &gdtmp, count);
-			GDEBUG(1, "gwd on P- returned %d", gdretval);
-			if (gdretval < 0)
-				return -1;
-
-			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
-			datmp->lastindex = 0;
-			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
-				datmp->dirp_orig[i] = NULL;
-			datmp->dirp_orig[4] = gdtmp;
-			sort_array64(datmp);
-
-			old = cachedata;
-			cachedata = d64array_subtract(old, datmp);
-			clear_cachedata(old, VIEWFS_SHALLOW);
-			clear_cachedata(datmp, VIEWFS_SHALLOW);
-		}
-		
-		if (pd_status & VIEWFS_CURRENT_ADD)
-		{
-			struct d64array *datmp, *old;
-			gdretval = getdents64_whole_dir(currentpers->add, &gdtmp, count);
-			GDEBUG(1, "gwd on P+ returned %d", gdretval);
-			if (gdretval < 0)
-				return -1;
-			
-			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
-			datmp->lastindex = 0;
-			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
-				datmp->dirp_orig[i] = NULL;
-			datmp->dirp_orig[5] = gdtmp;
-			sort_array64(datmp);
-
-			old = cachedata;
-			cachedata = d64array_merge(old, datmp, VIEWFS_KEEP_SECOND);
-			clear_cachedata(old, VIEWFS_SHALLOW);
-			clear_cachedata(datmp, VIEWFS_SHALLOW);
-		}
-		
-		if (pd_status & VIEWFS_CURRENT_MAP)
-		{
-			struct d64array *datmp, *old;
-			gdretval = getdents64_whole_dir(currentpers->map, &gdtmp, count);
-			GDEBUG(1, "gwd on P# returned %d", gdretval);
-			if (gdretval < 0)
-				return -1;
-			
-			datmp = dirent64_to_d64array(gdtmp, gdretval, fd);
-			datmp->lastindex = 0;
-			for (i = 0; i < VIEWFS_DIRP_TOTAL; i++)
-				datmp->dirp_orig[i] = NULL;
-			datmp->dirp_orig[6] = gdtmp;
-			sort_array64(datmp);
-
-			old = cachedata;
-			cachedata = d64array_merge(old, datmp, VIEWFS_KEEP_SECOND);
-			clear_cachedata(old, VIEWFS_SHALLOW);
-			clear_cachedata(datmp, VIEWFS_SHALLOW);
-		}
-
-		// Add result to cache
-		FD_SET(fd, &procinfo[umpid].gd64);
-		found = 0;
-		firstempty = -1;
-		for (i = 0; i < procinfo[umpid].gd64_size && !found; i++)
-			if (procinfo[umpid].gd64_data[i] && 
-					(procinfo[umpid].gd64_data[i]->fd == fd))
-			{
-				GDEBUG(1, "cache already full for fd %d, flushing and creating new", fd);
-				clear_cachedata(procinfo[umpid].gd64_data[i], VIEWFS_DEEP);
-				procinfo[umpid].gd64_data[i] = cachedata;
-				found = 1;
-			}
-			else if ((!procinfo[umpid].gd64_data[i]) && (firstempty < 0))
-				firstempty = i;
-
-
-		if (!found)
-		{
-			GDEBUG(1, "saving data to cache for fd %d", fd);
-			if (firstempty < 0)
-			{
-				i = procinfo[umpid].gd64_size++;
-				procinfo[umpid].gd64_data = realloc(procinfo[umpid].gd64_data,
-						(i+1) * sizeof (struct d64array*));
-				procinfo[umpid].gd64_data[i] = cachedata;
-			}
+			GDEBUG(2, " - comparing with %s", layertab[j]->mountpoint);
+			if ((strcmp(path, layertab[j]->mountpoint) == 0) &&
+				((e = tst_matchingepoch(&(layertab[j]->tst))) > maxe))
+				{
+					bestmatch = j;
+					maxe = e;
+					GDEBUG(2, " + match! bestmatch = %d, maxe = %llu", bestmatch, maxe);
+				}
 			else
-				procinfo[umpid].gd64_data[firstempty] = cachedata;
+				GDEBUG(2, "e = %llu, maxe = %llu", e, maxe);
 		}
-
-		return getdents64_cached(cachedata, dirp, count);
 	}
-	return 0;
+	else
+	{
+		for (i = strlen(path); (i > 0) && (bestmatch < 0); i--)
+		{
+			oldp = path[i+1];
+			path[i+1] = '\0';
+			GDEBUG(2, " - cutting path to %s", path);
+			for (j = 0; j < layertabmax; j++)
+			{
+				if (!layertab[j])
+					continue;
+				GDEBUG(2, "   - comparing with %s", layertab[j]->mountpoint);
+				if ((strcmp(path, layertab[j]->mountpoint) == 0) &&
+						((e = tst_matchingepoch(&(layertab[j]->tst))) > maxe))
+				{
+					bestmatch = j;
+					maxe = e;
+					GDEBUG(2, "   + match! bestmatch = %d, maxe = %d", bestmatch, maxe);
+				}
+			}
+			path[i+1] = oldp;
+
+			while ((i > 0) && path[i] != '/')
+				i--;
+		}
+	}
+
+	if (bestmatch < 0)
+		return NULL;
+
+	result = layertab[bestmatch];
+
+	GDEBUG(2, "returning %s", result->mountpoint);
+	return result;
+}
+
+static char *extend_path(char *old, char *new, int size, int type)
+{
+	int oc, nc, lastd;
+
+	int maxlen = size - 1;
+
+	for (oc = 0, nc = 0; old[oc] && nc < maxlen; oc++, nc++)
+	{
+		new[nc] = old[oc];
+		if (new[nc] == '/')
+		{
+			if ((nc + N_LEN) >= maxlen)
+				return NULL;
+			
+			memcpy(&new[nc + 1], N_DATA, N_LEN);
+			lastd = nc + 1;
+
+			nc += N_LEN;
+		}
+	}
+
+	if (nc > maxlen)
+		return NULL;
+
+	new[nc] = '\0';
+
+	if (type == T_META)
+	{
+		if (new[nc - 1] == '/')
+			memcpy(&new[lastd], N_DMETA, N_LEN);
+		else
+			memcpy(&new[lastd], N_META, N_LEN);
+	}
+
+	return new;
+}
+
+static void prepare_testpath(struct viewfs_layer *layer, char *path)
+{
+	assert(strncmp(path, layer->mountpoint, strlen(layer->mountpoint)) == 0);
+
+	char *tmp;
+	int delta = strlen(layer->mountpoint);
+	if (delta == 1)
+		delta--;
+
+	tmp = path + delta;
+
+	extend_path(tmp, layer->userpath, (2 * PATH_MAX) - strlen(layer->vfspath), T_DATA);
+
+	strncpy(layer->userpath, tmp, (2 * PATH_MAX) - strlen(layer->vfspath) - 2);
+
+	GDEBUG(2, "tmp: ^%s$, delta: %d", tmp, delta);
+	GDEBUG(2, "userpath: ^%s$", layer->userpath);
+	GDEBUG(2, "asked for ^%s$, will check for ^%s$", path, layer->testpath);
+}
+
+static unsigned char read_flags(char *path)
+{
+	char lc;
+
+	if (readlink(path, &lc, 1) != 1)
+		return VINV;
+
+	if (lc & ~VALL)
+		return VINV;
+
+	lc &= ~VNUL;
+
+	return lc;
+}
+
+static char make_flags(unsigned char flags)
+{
+	return (flags & ~VALL) | VNUL;
 }
 
 
-/* Check if the given pathname must be managed by this module or not.
- * The choice takes into account the system call number and can look at its
- * parameters.
- * FIXME: check if the syscall parameters obtained via umph are the same that
- * are passed to the viewfs_* functions later.
- */
-static int is_path_interesting(char *path)
+static epoch_t check_umount2(char* path)
 {
-	int scno = um_mod_getsyscallno();
-	int umpid = um_mod_getumpid();
-	int checkresult = 0;
+	struct viewfs_layer *l = searchlayer(path, TRUE);
+	if (l)
+		return l->tst.epoch;
+	else
+		return 0;
+}
 
-	GDEBUG(5, "check for %s in syscall %s", path, SYSCALLNAME(scno));
+static epoch_t check_open(char *path, int flags, int umpid)
+{
+	struct viewfs_layer *l = searchlayer(path, FALSE);
+	if (!l)
+		return 0;
 
-	// TODO: convert this [slow?] switch into something faster, maybe
-	// a pointer array
-	switch(scno)
+	prepare_testpath(l, path);
+
+	if (flags & O_CREAT)
 	{
+		
+	}
+	else
+	{
+		
+	}
+
+	return 0;
+
+}
+
+static epoch_t wrap_check_path(char* path)
+{
+	int sc = um_mod_getsyscallno();
+	int umpid = um_mod_getumpid();
+	static struct viewfs_layer *layer;
+	epoch_t retval = 0;
+
+	GDEBUG(2, "%s(\"%s\", ...)", SYSCALLNAME(sc), path);
+
+	layer = searchlayer(path, FALSE);
+	
+	if (layer)
+		prepare_testpath(layer, path);
+
+	switch(sc)
+	{
+		/*
 		case __NR_open:
 			checkresult = check_open(path,
 					(int)(um_mod_getargs()[1]) | ((scno==__NR_creat) ? 
@@ -1966,114 +424,162 @@ static int is_path_interesting(char *path)
 			GDEBUG(4, "[FIXME] viewfs support for %s has to be written", SYSCALLNAME(scno));
 			prepare_names(path, umpid, VIEWFS_BOTH, NO);
 			break;
+
+*/
+		case __NR_open:
+		case __NR_creat:
+			retval = check_open(path, (int)(um_mod_getargs()[1]) |
+						((sc == __NR_creat) ? (O_CREAT | O_WRONLY | O_TRUNC) : 0), umpid);
+			break;
+
+		case __NR_umount:
+		case __NR_umount2:
+			retval = check_umount2(path);
+			break;
+
+		default:
+			GDEBUG(5, "[FIXME] ViewFS does not support %s yet.", SYSCALLNAME(sc));
+			break;
+
 	}
-#ifdef VIEWFS_ENABLE_REMAP
-	if (procinfo[umpid].lastremap == YES)
-		return 1;
-#endif
-	
-	return checkresult;
+
+	return retval;
 }
 
-/* Choice function for viewfs */
-static epoch_t viewfscheck(int type, void *arg)
+
+
+static epoch_t viewfs_check(int type, void *arg)
 {
-	char *path;
-	epoch_t e = tst_matchingepoch(&t);
+	epoch_t retval = 0;
 
-	GDEBUG(10, "e is %lld, t.epoch is %lld", e, t.epoch);
+	switch(type)
+	{
+		case CHECKPATH:
+			GDEBUG(2, "path check: %s", arg);
+			retval = wrap_check_path((char*) arg);
+			break;
 
-	if (!e)
-		return 0;
+		case CHECKFSTYPE:
+			GDEBUG(2, "fstype check: %s", arg);
+			retval = ((strlen((char*) arg) == 6) &&
+					(strncmp((char*) arg, "viewfs", 6) == 0));
+			break;
+
+		default:
+			GDEBUG(2, "unknown check type: %d, arg %p", type, arg);
+			break;
+	}
+
+	GDEBUG(2, " -> %llu", retval);
+	return retval;
+}
+
+
+
+static long viewfs_mount(char *source, char *target, char *filesystemtype,
+		unsigned long mountflags, void *data)
+{
+	struct stat mstat;
+	struct viewfs_layer *new;
+
+	GDEBUG(2, "mount %s %s %s %08x %s", source, target, filesystemtype,
+			mountflags, (data ? data : "(null)"));
+
+	if (stat(target, &mstat) != 0)
+	{
+		// errno has been set by stat and is ok
+		GDEBUG(2, "return -1 with errno %d", errno);
+		return -1;
+	}
+	else if (!S_ISDIR(mstat.st_mode))
+	{
+		errno = ENOTDIR;
+		GDEBUG(2, "return -1 with errno ENOTDIR");
+		return -1;
+	}
+
+	new = malloc(sizeof(struct viewfs_layer));
+
+	new->mountpoint = strdup(target);
+	new->vfspath = strdup(source);
 	
-	if (type != CHECKPATH)
-		return 0;
+	new->testpath = malloc(2 * PATH_MAX);
+	memset(new->testpath, 0, 2 * PATH_MAX);
+	strncpy(new->testpath, source, 2 * PATH_MAX);
+	new->userpath = &(new->testpath[strlen(source)]);
 
-	path = (char*) arg;
+	GDEBUG(2, "vfspath: ^%s$ testpath: ^%s$",
+			new->vfspath, new->testpath);
 
-	if (path[0] == '\0')
+	new->mountflags = mountflags;
+	new->tst = tst_timestamp();
+
+	// TODO: parse options and activate maint mode
+	new->maint = 0;
+	new->used = 0;
+	
+	addlayertab(new);
+
+	return 0;
+}
+
+static long viewfs_umount2(char *target, int flags)
+{
+	struct viewfs_layer *layer;
+
+	layer = searchlayer(target, TRUE);
+	if (!layer)
 	{
-		GDEBUG(5, "check path for empty path in syscall %s. Strange thing.", SYSCALLNAME(um_mod_getsyscallno()));
-		return 0;
+		errno = EINVAL;
+		return -1;
 	}
-	if (is_critical(path, VIEWFS_DEEP))
+	else if (layer->used > 0)
 	{
-		GDEBUG(1, "attempt to read inside the pers directory: %s", path);
-		return e;
-	}
-
-	if (is_path_interesting(path))
-	{
-		GDEBUG(2, "%s: interested in %s", SYSCALLNAME(um_mod_getsyscallno()), path);
-		return e;
+		errno = EBUSY;
+		return -1;
 	}
 	else
+	{
+		dellayertab(layer);
+		free(layer->vfspath);
+		free(layer->testpath);
+		free(layer);
 		return 0;
+	}
 }
 
-static void
-__attribute__ ((constructor))
-init (void)
+static long addproc(int id, int pumpid, int max)
 {
-	GDEBUG(2, "viewfs init");
-	
-	prepare();
-	
-	s.name="viewfs Virtual FS";
+	GDEBUG(2, "new process, id: %d, pumpid: %d, max: %d, array size: %d",
+			id, pumpid, max, proctabmax);
+
+	if (max > proctabmax)
+	{
+		proctabmax = (max + TABSTEP) & ~(TABSTEP -1);
+		proctab = realloc(layertab, proctabmax * sizeof(struct viewfs_layer *));
+	}
+
+	proctab[id] = malloc(sizeof(struct viewfs_layer));
+
+	return 0;
+}
+
+static void __attribute__ ((constructor)) init(void)
+{
+	GDEBUG(2, "ViewFS init");
+
+	s.name = "ViewFS Virtual FS 2";
 	s.code = VIEWFS_SERVICE_CODE;
-	s.checkfun=viewfscheck;
-	s.addproc=addproc;
-	s.delproc=delproc;
-	s.syscall=(sysfun *)calloc(scmap_scmapsize, sizeof(sysfun));
-	s.socket=(sysfun *)calloc(scmap_sockmapsize, sizeof(sysfun));
-	SERVICESYSCALL(s, open, viewfs_open);
-	SERVICESYSCALL(s, read, read);
-	SERVICESYSCALL(s, write, write);
-	SERVICESYSCALL(s, close, viewfs_close);
-#if !defined(__x86_64__)
-	SERVICESYSCALL(s, stat64, viewfs_stat64);
-	SERVICESYSCALL(s, lstat64, viewfs_lstat64);
-	SERVICESYSCALL(s, fstat64, viewfs_fstat64);
-#endif
-	SERVICESYSCALL(s, readlink, viewfs_readlink);
-	SERVICESYSCALL(s, getdents64, viewfs_getdents64);
-	SERVICESYSCALL(s, access, viewfs_access);
-	SERVICESYSCALL(s, fcntl, fcntl32);
-#if ! defined(__x86_64__)
-	SERVICESYSCALL(s, fcntl64, fcntl64);
-	SERVICESYSCALL(s, _llseek, _llseek);
-#endif
-	SERVICESYSCALL(s, lseek, (sysfun) lseek);
-	SERVICESYSCALL(s, mkdir, viewfs_mkdir);
-	SERVICESYSCALL(s, rmdir, viewfs_rmdir);
-	SERVICESYSCALL(s, chown, viewfs_chown);
-	SERVICESYSCALL(s, lchown, viewfs_lchown);
-	SERVICESYSCALL(s, fchown, fchown);
-	SERVICESYSCALL(s, chmod, viewfs_chmod);
-	SERVICESYSCALL(s, fchmod, fchmod);
-	SERVICESYSCALL(s, getxattr, viewfs_getxattr);
-	SERVICESYSCALL(s, unlink, viewfs_unlink);
-	SERVICESYSCALL(s, fsync, fsync);
-	SERVICESYSCALL(s, fdatasync, fdatasync);
-	SERVICESYSCALL(s, _newselect, select);
-	SERVICESYSCALL(s, link, viewfs_link);
-	SERVICESYSCALL(s, symlink, viewfs_symlink);
-	SERVICESYSCALL(s, pread64, viewfs_pread);
-	SERVICESYSCALL(s, pwrite64, viewfs_pwrite);
-	SERVICESYSCALL(s, utime, viewfs_utime);
-	SERVICESYSCALL(s, utimes, viewfs_utimes);
-	add_service(&s);
-	//t = tst_timestamp();
-	
-	GDEBUG(2, "viewfs ready and waiting");
-}
+	s.checkfun = viewfs_check;
+	s.addproc = addproc;
+	s.syscall = (sysfun *) calloc(scmap_scmapsize, sizeof(sysfun));
+	s.socket = (sysfun *) calloc(scmap_sockmapsize, sizeof(sysfun));
 
-static void
-__attribute__ ((destructor))
-fini (void)
-{
-	dispose();
-	free(s.syscall);
-	free(s.socket);
-	GDEBUG(2, "viewfs fini");
+	SERVICESYSCALL(s, umount2, viewfs_umount2);
+	SERVICESYSCALL(s, mount, viewfs_mount);
+
+	add_service(&s);
+
+
+	GDEBUG(2, "ViewFS ready");
 }
