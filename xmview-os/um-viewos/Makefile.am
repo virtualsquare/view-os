@@ -1,4 +1,4 @@
-DEBUGLEVEL = 3
+DEBUGLEVEL = 0
 
 PCB_MODULES = \
 	pcb.00.capture.h \

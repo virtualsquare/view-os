@@ -475,7 +475,7 @@ void tracehand()
 				 * safely eliminated  to increase the performance*/
 				if ((pc->behavior == SC_FAKE && scno != __NR_getpid) && 
 						scno != pc->scno)
-					GDEBUG(0, "error FAKE != %d",scno);
+					GDEBUG(0, "error FAKE != %s",SYSCALLNAME(scno));
 				fun=scdtab[pc->scno];
 				if (fun != NULL &&
 						(pc->behavior == SC_FAKE ||

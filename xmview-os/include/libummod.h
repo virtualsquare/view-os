@@ -26,6 +26,7 @@
 #define _LIBUMMOD_H
 #include <unistd.h>
 #include <linux/types.h>
+#include <sys/types.h>
 #include <linux/dirent.h>
 #include <linux/unistd.h>
 #include <errno.h>
@@ -42,8 +43,8 @@ int fcntl32(int fd, int cmd, long arg);
 
 int fcntl64(int fd, int cmd, long arg);
 
-int _llseek(unsigned int fd, unsigned long offset_high,  unsigned  long
-		       offset_low, loff_t *result, unsigned int whence);
+int _llseek(unsigned int fd, unsigned long offset_high,
+		unsigned long offset_low, loff_t *result, unsigned int whence);
 
 #ifdef __NR_chown32
 #undef __NR_chown

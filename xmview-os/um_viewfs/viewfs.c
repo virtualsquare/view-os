@@ -152,7 +152,7 @@ static void cutdots(char *path)
 			}
 		}
 	}
-	GDEBUG(2, "final string:   %s", path);
+	GDEBUG(2, "final string   : %s", path);
 }
 
 static void addlayertab(struct viewfs_layer *new)
@@ -225,33 +225,48 @@ static struct viewfs_layer *searchlayer(char *path, int exact)
 	}
 	else
 	{
-		for (i = strlen(path); (i > 0) && (bestmatch < 0); i--)
+
+		for (j = 0; j < layertabmax; j++)
 		{
-			oldp = path[i+1];
-			path[i+1] = '\0';
-			GDEBUG(2, " - cutting path to %s", path);
-			for (j = 0; j < layertabmax; j++)
+			if (!layertab[j])
+				continue;
+
+			GDEBUG(2, " - comparing with %s", layertab[j]->mountpoint);
+			
+			// Search for longest common subsection starting from 1st char
+			i = -1;
+			do
 			{
-				if (!layertab[j])
-					continue;
-				GDEBUG(2, "   - comparing with %s", layertab[j]->mountpoint);
-				if ((strcmp(path, layertab[j]->mountpoint) == 0) &&
-						((e = tst_matchingepoch(&(layertab[j]->tst))) > maxe))
+				i++;
+				if ((path[i] != layertab[j]->mountpoint[i]) && layertab[j]->mountpoint[i])
+					break;
+
+				if (((path[i] == '/') || !path[i]) && (!layertab[j]->mountpoint[i]))
 				{
-					bestmatch = j;
-					maxe = e;
-					GDEBUG(2, "   + match! bestmatch = %d, maxe = %d", bestmatch, maxe);
+					/**** Debug statements */
+					oldp = path[i];
+					path[i] = 0;
+					GDEBUG(2, "   - looking for epoch for match %s", path);
+					path[i] = oldp;
+					/**** End of debug statements */
+
+					if ((e = tst_matchingepoch(&(layertab[j]->tst))) > maxe)
+					{
+						bestmatch = j;
+						maxe = e;
+						GDEBUG(2, "   + match! bestmatch = %d, maxe = %d", bestmatch, maxe);
+					}
 				}
 			}
-			path[i+1] = oldp;
-
-			while ((i > 0) && path[i] != '/')
-				i--;
+			while (path[i] && layertab[j]->mountpoint[i]);
 		}
 	}
 
 	if (bestmatch < 0)
+	{
+		GDEBUG(2, "no match found, returning NULL");
 		return NULL;
+	}
 
 	result = layertab[bestmatch];
 
@@ -298,18 +313,19 @@ static char *extend_path(char *old, char *new, int size, int type)
 
 static void prepare_testpath(struct viewfs_layer *layer, char *path)
 {
-	assert(strncmp(path, layer->mountpoint, strlen(layer->mountpoint)) == 0);
-
 	char *tmp;
 	int delta = strlen(layer->mountpoint);
+	
+	assert(strncmp(path, layer->mountpoint, strlen(layer->mountpoint)) == 0);
+
+	GDEBUG(2, "preparing path %s for mount point %s", path, layer->mountpoint);
+
 	if (delta == 1)
 		delta--;
 
 	tmp = path + delta;
 
 	extend_path(tmp, layer->userpath, (2 * PATH_MAX) - strlen(layer->vfspath), T_DATA);
-
-	strncpy(layer->userpath, tmp, (2 * PATH_MAX) - strlen(layer->vfspath) - 2);
 
 	GDEBUG(2, "tmp: ^%s$, delta: %d", tmp, delta);
 	GDEBUG(2, "userpath: ^%s$", layer->userpath);
@@ -437,8 +453,11 @@ static epoch_t wrap_check_path(char* path)
 			retval = check_umount2(path);
 			break;
 
+		case __NR_execve:
+			GDEBUG(3, "execve(\"%s\", ...)", path);
+
 		default:
-			GDEBUG(5, "[FIXME] ViewFS does not support %s yet.", SYSCALLNAME(sc));
+			GDEBUG(3, "[FIXME] ViewFS does not support %s yet.", SYSCALLNAME(sc));
 			break;
 
 	}
@@ -466,7 +485,7 @@ static epoch_t viewfs_check(int type, void *arg)
 			break;
 
 		default:
-			GDEBUG(2, "unknown check type: %d, arg %p", type, arg);
+			GDEBUG(3, "unknown check type: %d, arg %p", type, arg);
 			break;
 	}
 
