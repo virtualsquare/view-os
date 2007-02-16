@@ -73,14 +73,16 @@
  * as an error condition.
  */
 
-#define VNUL 0x40
-#define VREM 0x01
-#define VADD 0x02
-#define VMRG 0x04
-#define VMOV 0x08
-#define VCOW 0x10
-#define VINV 0x20
+#define VNUL 0x40 // .O......
+#define VREM 0x01 // .......O
+#define VADD 0x02 // ......O.
+#define VMRG 0x04 // .....O..
+#define VMOV 0x08 // ....O...
+#define VCOW 0x10 // ...O....
+#define VINV 0x20 // ..O.....
 
+/* VALL does not include VINV, but does include VNUL. It is the set of all
+ * valid bits for a symlink. */
 #define VALL (VNUL | VREM | VADD | VMRG | VMOV | VCOW)
 
 static struct service s;
@@ -318,8 +320,6 @@ static void prepare_testpath(struct viewfs_layer *layer, char *path)
 	
 	assert(strncmp(path, layer->mountpoint, strlen(layer->mountpoint)) == 0);
 
-	GDEBUG(2, "preparing path %s for mount point %s", path, layer->mountpoint);
-
 	if (delta == 1)
 		delta--;
 
@@ -327,8 +327,9 @@ static void prepare_testpath(struct viewfs_layer *layer, char *path)
 
 	extend_path(tmp, layer->userpath, (2 * PATH_MAX) - strlen(layer->vfspath), T_DATA);
 
-	GDEBUG(2, "tmp: ^%s$, delta: %d", tmp, delta);
-	GDEBUG(2, "userpath: ^%s$", layer->userpath);
+	// GDEBUG(2, "tmp: ^%s$, delta: %d", tmp, delta);
+	// GDEBUG(2, "userpath: ^%s$", layer->userpath);
+
 	GDEBUG(2, "asked for ^%s$, will check for ^%s$", path, layer->testpath);
 }
 
@@ -336,12 +337,15 @@ static unsigned char read_flags(char *path)
 {
 	char lc;
 
+	/* symlink length must be exaclty 1 char */
 	if (readlink(path, &lc, 1) != 1)
 		return VINV;
 
+	/* There must not be invalid bits */
 	if (lc & ~VALL)
 		return VINV;
 
+	/* VNUL is used on the file system but not internally */
 	lc &= ~VNUL;
 
 	return lc;
@@ -349,7 +353,7 @@ static unsigned char read_flags(char *path)
 
 static char make_flags(unsigned char flags)
 {
-	return (flags & ~VALL) | VNUL;
+	return (flags & VALL) | VNUL;
 }
 
 
