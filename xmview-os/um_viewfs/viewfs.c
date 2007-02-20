@@ -45,16 +45,19 @@
 #define FALSE (!TRUE)
 
 /*
- * N_{DATA, META, DMETA} must be of the same length (N_LEN)
- * DMETA stays for DIRECTORY META
+ * N_{DATA, META, RMETA} must be of the same length (N_LEN)
+ * RMETA stays for ROOT META and is used because the root directory
+ * does not have a "name"
  */
 
-#define N_DATA  "data/"
-#define N_META  "meta/"
-#define N_DMETA "dmeta"
-#define N_LEN 5
-#define T_DATA 0
-#define T_META 1
+#define N_DATA  "d/"
+#define N_META  "m/"
+#define N_RMETA "rm"
+#define N_LEN 2
+
+#define T_DATA 0x01
+#define T_META 0x02
+#define T_DIR  0x04
 
 /*
  * Bitmasks:
@@ -276,18 +279,51 @@ static struct viewfs_layer *searchlayer(char *path, int exact)
 	return result;
 }
 
+/*
+ * Convert the path contained in `old' in a new path. The new one will be stored
+ * in a buffer of size `size' pointed to by `new'. The conversion depends on
+ * the value of `type': (let's assume that N_RMETA == "/rmeta", N_DATA ==
+ * "/data", N_META == "/meta").
+ *
+ * The given path must already be canonicalized (so it must begin with a '/').
+ *
+ * type             old           new
+ * T_DATA           /             /data   (/ is a directory, T_DIR is implied)
+ * T_META           /             /rmeta  (/ is a directory, T_DIR is implied)
+ * T_DATA & T_DIR   /             /data
+ * T_META & T_DIR   /             /rmeta
+ *
+ * T_DATA           /a/b          /data/a/data/b
+ * T_META           /a/b          /data/a/meta/b
+ * T_DATA & T_DIR   /a/b          /data/a/data/b/data
+ * T_META & T_DIR   /a/b          /data/a/meta/b (T_DIR has no effect on meta)
+ */
 static char *extend_path(char *old, char *new, int size, int type)
 {
 	int oc, nc, lastd;
 
-	int maxlen = size - 1;
+	/* "/" must be treated in a special way because it has "no name" */
+	if ( /* (old[0] == '/') && */ (old[1] == '\0'))
+	{
+		switch (type & (T_META | T_DATA))
+		{
+			case T_META:
+				snprintf(new, size, "/%s", N_RMETA);
+				break;
 
-	for (oc = 0, nc = 0; old[oc] && nc < maxlen; oc++, nc++)
+			case T_DATA:
+				snprintf(new, size, "/%s", N_DATA);
+				break;
+		}
+		return new;
+	}
+
+	for (oc = 0, nc = 0; old[oc] && nc < (size - 1); oc++, nc++)
 	{
 		new[nc] = old[oc];
 		if (new[nc] == '/')
 		{
-			if ((nc + N_LEN) >= maxlen)
+			if ((nc + N_LEN) >= (size - 2))
 				return NULL;
 			
 			memcpy(&new[nc + 1], N_DATA, N_LEN);
@@ -297,22 +333,44 @@ static char *extend_path(char *old, char *new, int size, int type)
 		}
 	}
 
-	if (nc > maxlen)
+	if (nc > size - 1)
 		return NULL;
 
-	new[nc] = '\0';
+	/* 
+	 * At this point nc points immediatly after the end of the 
+	 * new path. Usually you should put a \0 at new[nc] now. But that's not
+	 * always the case.
+	 */
 
-	if (type == T_META)
+	if (type & T_META) // We don't care about T_DIR in this case
 	{
-		if (new[nc - 1] == '/')
-			memcpy(&new[lastd], N_DMETA, N_LEN);
-		else
-			memcpy(&new[lastd], N_META, N_LEN);
+		/*
+		 * Substitute the last N_DATA with N_META, e.g.
+		 * /a/b/c is now /data/a/data/b/data/c and must become
+		 * /data/a/data/b/meta/c. This does not affect new's length.
+		 */
+		memcpy(&new[lastd], N_META, N_LEN);
 	}
+	else if ((type & T_DATA) && (type & T_DIR))
+	{
+		if ((nc + 1 + N_LEN) > (size - 1))
+			return NULL;
+
+		new[nc++] = '/';
+		memcpy(&new[nc], N_DATA, N_LEN);
+		nc += N_LEN;
+	}
+	
+	new[nc] = '\0';
 
 	return new;
 }
 
+/*
+ * Converts the given path (i.e. /foo/bar) in the DATA path for the vfs tree
+ * (e.g. /home/user/.viewfs/data/foo/data/bar) assuming that "bar" is a file
+ * and not a directory.
+ */
 static void prepare_testpath(struct viewfs_layer *layer, char *path)
 {
 	char *tmp;
