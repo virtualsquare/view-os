@@ -7,6 +7,9 @@ AM_INIT_AUTOMAKE([foreign dist-bzip2 1.10])
 AC_CONFIG_SRCDIR([um-viewos/umview.c])
 AC_CONFIG_HEADER([config.h])
 
+AC_GNU_SOURCE
+AC_USE_SYSTEM_EXTENSIONS
+
 # Checks for programs.
 AC_PROG_AWK
 AC_PROG_CC
