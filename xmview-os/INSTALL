@@ -1,16 +1,19 @@
-To compile UMVIEWOS type
-$ make
+If you obtained UMView from the CVS repository you need the following
+software:
 
-If you want to install it (login as root or "su" to root) and type:
-# make install
+- autoconf 2.60
+- automake 1.10
 
-You need the following libraries:
+In order to create the configure script and related files you can use the
+following command:
 
-libfuse
-e2fslibs
-libiso9660
+$ autoreconf -i
 
-(with development files, includes etc.).
+After that, or if you obtained UMView from the official tarballs, the usual
+autotools command apply:
 
-See doc/tutorial for a simple example to test some UMVIEWOS features.
+$ ./configure && make && make install
+
+You can add `--enable-debug' as an option to configure if you need verbose
+debug reporting in UMView.
 
