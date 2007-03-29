@@ -110,6 +110,9 @@ extern sfun native_syscall;
 extern int fprint2(const char *fmt, ...);
 extern int vfprint2(const char *fmt, va_list ap);
 
+/* verbosity/quietness */
+extern unsigned int quiet;
+
 /* flags on the underlying kernel support */
 extern unsigned int has_ptrace_multi;
 extern unsigned int ptrace_vm_mask;

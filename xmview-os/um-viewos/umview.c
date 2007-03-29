@@ -48,9 +48,9 @@
 #include "gdebug.h"
 
 #ifdef GDEBUG_ENABLED
-#	define OPTSTRING "+p:o:hvnx"
+#	define OPTSTRING "+p:o:hvnxq"
 #else
-#	define OPTSTRING "+p:hvnx"
+#	define OPTSTRING "+p:hvnxq"
 #endif
 
 int _umview_version = 2; /* modules interface version id.
@@ -60,6 +60,7 @@ unsigned int has_ptrace_multi;
 unsigned int ptrace_vm_mask;
 unsigned int ptrace_viewos_mask;
 unsigned int hasppoll;
+unsigned int quiet = 0;
 
 unsigned int want_ptrace_multi, want_ptrace_vm, want_ptrace_viewos, want_ppoll;
 
@@ -150,6 +151,7 @@ static void usage(char *s)
 	fprintf(stderr, "Usage: %s [OPTION] ... command [args]\n"
 			"  -h, --help                print this help message\n"
 			"  -v, --version             show version information\n"
+			"  -q, --quiet               suppress some additional output\n"
 			"  -p file, --preload file   load plugin named `file' (must be a .so)\n"
 #ifdef GDEBUG_ENABLED
 			"  -o file, --output file    send debug messages to file instead of stderr\n"
@@ -169,6 +171,8 @@ static struct option long_options[] = {
 #ifdef GDEBUG_ENABLED
 	{"output",1,0,'o'},
 #endif
+	{"version",0,0,'v'},
+	{"quiet",0,0,'q'},
 	{"help",0,0,'h'},
 	{"nonesting",0,0,'x'},
 	{"nokernelpatch",0,0,'n'},
@@ -225,7 +229,12 @@ static void load_it_again(int argc,char *argv[])
 /* recursive umview invocation (umview started inside a umview machine) */
 static void umview_recursive(int argc,char *argv[])
 {
-	fprintf(stderr,"UMView: nested invocation\n\n");
+	if (argc < 2)
+	{
+		usage(argv[0]);
+		exit(1);
+	}
+
 	while (1) {
 		int c;
 		int option_index = 0;
@@ -234,6 +243,9 @@ static void umview_recursive(int argc,char *argv[])
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
+				break;
+			case 'q':
+				quiet = 1;
 				break;
 			case 'v':
 				version(1);
@@ -244,6 +256,8 @@ static void umview_recursive(int argc,char *argv[])
 				break;
 		}
 	}
+	if (!quiet)
+		fprintf(stderr,"UMView: nested invocation\n\n");
 	do_preload_recursive(prehead);
 	/* exec the process */
 	execvp(*(argv+optind),argv+optind);
@@ -283,6 +297,13 @@ int main(int argc,char *argv[])
 	 * generated syscalls, this condition manages the first call */
 	if (strcmp(argv[0],"-umview")!=0)
 		load_it_again(argc,argv);	/* do not return!*/
+
+	if (argc < 2)
+	{
+		usage(argv[0]);
+		exit(1);
+	}
+
 	/* does this kernel provide pselect? */
 	/*has_pselect=has_pselect_test();*/
 	optind=0;
@@ -314,6 +335,9 @@ int main(int argc,char *argv[])
 			             a data structure */
 				preadd(&prehead,optarg);
 				break;
+			case 'q':
+				quiet = 1;
+				break;
 #ifdef GDEBUG_ENABLED
 			case 'o': /* debugging output file redirection */ { 
 						if (optarg==NULL){
@@ -344,37 +368,40 @@ int main(int argc,char *argv[])
 		}
 	}
 	
-	if (has_ptrace_multi || ptrace_vm_mask || ptrace_viewos_mask || hasppoll)
+	if (!quiet)
 	{
-		fprintf(stderr, "This kernel supports: ");
-		if (has_ptrace_multi)
-			fprintf(stderr, "PTRACE_MULTI ");
-		if (ptrace_vm_mask)
-			fprintf(stderr, "PTRACE_SYSVM ");
-		if (ptrace_viewos_mask)
-			fprintf(stderr, "PTRACE_VIEWOS ");
-		if (hasppoll)
-			fprintf(stderr, "ppoll ");
-		fprintf(stderr, "\n");
+		if (has_ptrace_multi || ptrace_vm_mask || ptrace_viewos_mask || hasppoll)
+		{
+			fprintf(stderr, "This kernel supports: ");
+			if (has_ptrace_multi)
+				fprintf(stderr, "PTRACE_MULTI ");
+			if (ptrace_vm_mask)
+				fprintf(stderr, "PTRACE_SYSVM ");
+			if (ptrace_viewos_mask)
+				fprintf(stderr, "PTRACE_VIEWOS ");
+			if (hasppoll)
+				fprintf(stderr, "ppoll ");
+			fprintf(stderr, "\n");
+		}
+
+		if (has_ptrace_multi || ptrace_vm_mask || ptrace_viewos_mask || hasppoll ||
+				want_ptrace_multi || want_ptrace_vm || want_ptrace_viewos)
+		{
+			fprintf(stderr, "%s will use: ", UMVIEW_NAME);	
+			if (want_ptrace_multi)
+				fprintf(stderr,"PTRACE_MULTI ");
+			if (want_ptrace_vm)
+				fprintf(stderr,"PTRACE_SYSVM ");
+			if (want_ptrace_viewos)
+				fprintf(stderr,"PTRACE_VIEWOS ");
+			if (want_ppoll)
+				fprintf(stderr,"ppoll ");
+			if (!want_ptrace_multi && !want_ptrace_vm && !want_ptrace_viewos && !want_ppoll)
+				fprintf(stderr,"nothing");
+			fprintf(stderr,"\n\n");
+		}
 	}
-	
-	if (has_ptrace_multi || ptrace_vm_mask || ptrace_viewos_mask || hasppoll ||
-			want_ptrace_multi || want_ptrace_vm || want_ptrace_viewos)
-	{
-		fprintf(stderr, "%s will use: ", UMVIEW_NAME);	
-		if (want_ptrace_multi)
-			fprintf(stderr,"PTRACE_MULTI ");
-		if (want_ptrace_vm)
-			fprintf(stderr,"PTRACE_SYSVM ");
-		if (want_ptrace_viewos)
-			fprintf(stderr,"PTRACE_VIEWOS ");
-		if (want_ppoll)
-			fprintf(stderr,"ppoll ");
-		if (!want_ptrace_multi && !want_ptrace_vm && !want_ptrace_viewos && !want_ppoll)
-			fprintf(stderr,"nothing");
-		fprintf(stderr,"\n\n");
-	}
-	
+
 	has_ptrace_multi = want_ptrace_multi;
 	ptrace_vm_mask = want_ptrace_vm;
 	ptrace_viewos_mask = want_ptrace_viewos;
