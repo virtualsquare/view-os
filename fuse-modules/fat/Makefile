@@ -1,0 +1,37 @@
+# Makefile (to be converted in an AutoMakefile soon)
+# Renzo Davoli 2007
+
+CFLAGS=-ggdb -DFCLUS_BUFSZ=10000 -DFATWRITE -D_FILE_OFFSET_BITS=64 -DLIBFAT_USE_MUTEX -DFUSE_USE_VERSION=26 -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include  -Wall
+LIBS=-pthread -lglib-2.0 -lfuse
+LIBFAT_OBJS=libfat.o utf16be.o utf16le.o utf8.o simple_fold.o
+
+ALL: libfat.a libfat.so fusefat umfusefat
+
+libfat.a: ${LIBFAT_OBJS}
+	rm -f libfat.a
+	ar rcs libfat.a ${LIBFAT_OBJS} 
+	ranlib libfat.a
+
+libfat.so: ${LIBFAT_OBJS}
+	gcc -shared -nostartfiles -o libfat.so ${LIBFAT_OBJS}
+
+libfat.o: libfat.c libfat.h bits/libfat.h
+
+utf8.o: utf8.c
+
+utf16be.o: utf16be.c
+
+utf16le.o: utf16le.c
+
+simple_fold.o: simple_fold.c
+
+fusefat.o: fusefat.c 
+
+fusefat: fusefat.o libfat.a
+	$(CC) -o fusefat ${LIBS} fusefat.o libfat.a
+
+umfusefat:  fusefat.o libfat.a
+	$(CC) -o umfusefat ${LIBS} -shared -nostartfiles fusefat.o libfat.a
+
+clean:
+	rm -f ${LIBFAT_OBJS} libfat.a fusefat umfusefat libfat.so
