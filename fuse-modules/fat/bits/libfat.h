@@ -34,6 +34,7 @@
 #define MAX_BYTES_PER_CLUSTER (32*1024) 
 
 #ifdef LIBFAT_USE_MUTEX
+#include <pthread.h>
 #define fat_lock(V)     pthread_mutex_lock(&(V->fat_mutex))
 #define fat_unlock(V)   pthread_mutex_unlock(&(V->fat_mutex))
 #else

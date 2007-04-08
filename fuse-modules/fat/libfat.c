@@ -64,7 +64,7 @@ static ssize_t readn(int fd, void *buf, size_t count) {
 	while (count > 0) {
 		res = read(fd, (void *) &(((char *) buf)[done]), count);
 		if (res <= 0) {	// 0 indicates EOF, and it should never happen here.
-			perror("read() error");
+			fprintf(stderr,"read() error. line: %i\n",__LINE__);
 			return -1;
 		} else {
 			done += res;
@@ -545,7 +545,7 @@ int fat_partition_finalize(Volume_t *V) {
     }
     res = writen(V->blkDevFd, (char *)  &(V->Fsi), sizeof(FSInfo_t));
     if (res < 0) {
-        perror("readn() error");
+        fprintf(stderr,"readn() error, line:%i\n",__LINE__);
         return -1;
     }
 
@@ -619,7 +619,7 @@ int fat_populate_freelist(Volume_t *V) {
 																
 			res = readn(V->blkDevFd, buf, (size_t) (count * sizeof(DWORD)));
 			if (res < 0) {
-				perror("readn() error");
+				fprintf(stderr,"readn() error, line:%i\n",__LINE__);
 				return -1;
 			}
 			i=0;
@@ -1262,7 +1262,7 @@ int fat_read_data(Volume_t *V, DWORD *Cluster, DWORD *Offset, char *buf, size_t 
 
 		res = readn(V->blkDevFd, &(buf[dataread]), (size_t) numbytes);
 		if (res < 0) {
-			perror("readn() error");
+			fprintf(stderr,"readn() error, line:%i\n",__LINE__);
 			return -1;
 		}
 
@@ -1615,8 +1615,11 @@ static off64_t fat_find_lfnslots(Volume_t *V, File_t *dir, DWORD *Cluster , DWOR
 	int res;
 	int found =0;
 	char *cluster;
+	int rootdirflag = 0;
 	
-	if ((dir != NULL)){
+	if ((dir == NULL) || (dir->rootdir == 1)) rootdirflag =1;
+	
+	if ((rootdirflag != 1)){
 		if (!ATTR_ISDIR(dir->DirEntry->DIR_Attr)) {
 			perror("find lfnslots error: file is not a directory");
 			return -1;
@@ -1666,10 +1669,6 @@ static off64_t fat_find_lfnslots(Volume_t *V, File_t *dir, DWORD *Cluster , DWOR
 				// linking
 				fat32_writen_entry(V, newclus, FAT32_EOC_VALUE);
 				fat32_writen_entry(V, clus, newclus);
-				//dir->DirEntry->DIR_FileSize += dir->V->bpc;
-		
-				//lets write down the changes - the date, since size is always 0 for dirs - not here, since we just increment size which is 0;
-				//fat_update_file(dir);
 
 				return byte_offset(V, *Cluster, *Offset);
 			}
@@ -1720,25 +1719,30 @@ int fat_create(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mo
 	DirEntry_t *dirent;
 	time_t tim;
 	off64_t res64;
+	int rootdirflag = 0;
+
 	
-	res=utf8_stricmp(filename,".");
+	if ((parent == NULL) || (parent->rootdir == 1)) rootdirflag =1;
+
+	res = utf8_stricmp(filename,"");
+	res |= utf8_stricmp(filename,".");
 	res |= utf8_stricmp(filename,"..");
 
 	//lets check for . and ..
 	if (res == 0) {
-		perror("fat_create(): cannot create \".\" or \"..\"");
+		fprintf(stderr,"fat_create(): cannot create \".\" or \"..\" or empty file name. filename: %s\n",filename);
 		return -1;
 	}
 	
 	/* we dont have to check for / because filename was tokenized with it. but we should check for \ */
-	res |= utf8_strchk(filename);	// please note here 1 means string ok, 0 string bad	
+	res = utf8_strchk(filename);	// please note here 1 means string ok, 0 string bad	
 	if (res == 0) {
 		fprintf(stderr,"fat_create(): illegal file name\n");
 		return -1;
 	}
 
 	//let's look for filename in parent.
-	if (parent != NULL) {
+	if (rootdirflag != 1) {
 		clus = get_fstclus(parent->DirEntry);
 	} else {
 		clus = 2;
@@ -1820,7 +1824,7 @@ int fat_create(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mo
 	if (res64 <= 0) {
 		fprintf(stderr,"no slots found\n");
 		return -1;
-	}
+	} else { fprintf(stderr,"clus:%u, off:%u\n",clus, off); }
 	
 	/*  now we can write down the dirent and update the wrttime in the parent. NULL as second param because we are writing a directory */
 	res = fat_write_data(V, NULL, &clus, &off, (char *) entry, ((slotnum + 1) * sizeof(DirEntry_t)));
@@ -1829,7 +1833,7 @@ int fat_create(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mo
 		return -1;
 	}
 	
-	if (parent != NULL) {
+	if (rootdirflag != 1) {
 		fat_fill_time(&(parent->DirEntry->DIR_WrtDate), &(parent->DirEntry->DIR_WrtTime), tim);	
 		parent->DirEntry->DIR_LstAccDate = parent->DirEntry->DIR_CrtDate;	
 		res = fat_update_file(parent);
@@ -2124,12 +2128,15 @@ int fat_open(const char *filename, File_t *F, Volume_t *V) {
 	int res;
 	DWORD clus, off;
 
-	res=utf8_stricmp(filename,".");
+	if (filename == NULL) { fprintf(stderr,"fat_open(): invalid filename string\n"); return -1; }
+	
+	res = utf8_stricmp(filename,"");
+	res = utf8_stricmp(filename,".");
 	res |= utf8_stricmp(filename,"..");
 			
 	//lets check for . and ..
 	if ((res == 0)) {
-		fprintf(stderr,"fat_open(): cannot open \".\" or \"..\"\n");
+		fprintf(stderr,"fat_open(): cannot open \".\" or \"..\" or an empty string. filename: %s\n", filename);
 		return -1;
     }
 
@@ -2501,6 +2508,7 @@ int fat_dirname(char *path, char *dest) {
 	char *slash;
 	strcpy(dest, path);
 	slash = strrchr(dest, 0x2F); // 0x2F = "/"
+	if (slash == &(dest[0])) { dest[1] = 0; return 0; } // root dir
 	*slash  = 0;
 	return 0;
 }

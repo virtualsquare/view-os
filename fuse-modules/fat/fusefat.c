@@ -308,8 +308,8 @@ int main(int argc, char *argv[])
 	
 	int res;
 
-	pathname=argv[argc-2];
-	mountpoint=argv[argc-1];
+	pathname=argv[argc-1];
+	mountpoint=argv[argc-2];
 	
 	if (argc < 3) { 
 		fprintf(stderr,"usage: ./fusefat [fuse opts] mountpoint filesystem\n");
