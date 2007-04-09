@@ -42,6 +42,11 @@
 #define fat_unlock(V)
 #endif
 
+#ifndef ZERO_BFSZ
+#define ZERO_BFSZ 8192
+#endif
+
+
 /* FAT Types */
 typedef enum { FAT12, FAT16, FAT32 } FatType_t;
 
@@ -53,6 +58,8 @@ typedef enum { FAT12, FAT16, FAT32 } FatType_t;
 //#define  FAT32_ISEOC(EntryValue)  ((EntryValue >= 0x0FFFFFF8)
 #define  FAT32_ISEOC(EntryValue)  (((EntryValue) & 0x0FFFFFFF) >= 0x0FFFFFF8)	//??????
 #define	 FAT32_ISFREE(EntryValue) (((EntryValue) & 0x0FFFFFFF) == 0x00000000)
+
+
 
 #define	 FAT12_EOC_VALUE	0x0FFF
 #define  FAT16_EOC_VALUE	0xFFFF
@@ -80,6 +87,8 @@ typedef enum { FAT12, FAT16, FAT32 } FatType_t;
 #define  FAT12_ISBAD(EntryValue)  (EntryValue == 0x0FF7)
 #define  FAT16_ISBAD(EntryValue)  (EntryValue == 0xFFF7)
 #define  FAT32_ISBAD(EntryValue)  (EntryValue == 0x0FFFFFF7)
+
+#define  FAT32_LEGALCLUS(EntryValue)  (!( (FAT32_ISEOC(EntryValue)) || (FAT32_ISFREE(EntryValue)) || (FAT32_ISBAD(EntryValue)))) 
 
 /* FAT Date Encoding */
 /*
@@ -316,6 +325,8 @@ typedef struct
   
   /* a pthread mutex */
   pthread_mutex_t fat_mutex;					
+   
+  char zerobuf[ZERO_BFSZ];
   	  
   /* The BIOS Parameter Block of the volume (the long entry) */
   Bpb_t       Bpb;
@@ -349,12 +360,8 @@ typedef struct
 //  DWORD     DirEntrySecOff;  /* Byte offset of the 1st dir entry in sector */
 //  off64_t	AbsOffset;		 /* Absolute offset in the fs of the 1st dir entry */
   DirEnt_t 	D;        /* The file's directory entry             */
-  int		ChainLength;	 /*	Length of the directory entry chain    */
   DirEntry_t *DirEntry;		 /* Pointer to sfn entry at the end of the chain */
   DWORD     Mode;            /* File opening mode                      */
-  DWORD     References;      /* Number of times the file is open       */
-  int       DirEntryChanged; /* Nonzero if dir entry should be written */
-  int 		NameChanged;	 /* Nonzero if the direntry has to be renamed */
   char 		FileName[511];		 /* Utf8 filename							  */
   int		rootdir;			/* 1 if the file refers to rootdir */
  
