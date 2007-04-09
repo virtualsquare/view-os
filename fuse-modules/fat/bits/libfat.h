@@ -361,7 +361,7 @@ typedef struct
 //  off64_t	AbsOffset;		 /* Absolute offset in the fs of the 1st dir entry */
   DirEnt_t 	D;        /* The file's directory entry             */
   DirEntry_t *DirEntry;		 /* Pointer to sfn entry at the end of the chain */
-  DWORD     Mode;            /* File opening mode                      */
+  int	    Mode;            /* File opening mode                      */
   char 		FileName[511];		 /* Utf8 filename							  */
   int		rootdir;			/* 1 if the file refers to rootdir */
  

@@ -2037,7 +2037,7 @@ int fat_truncate(File_t *F, DWORD len) {
 	Cluster = get_fstclus(F->DirEntry);
 	if (!(FAT32_LEGALCLUS(Cluster))) { fprintf(stderr,"fat_truncate(): line %i\n",__LINE__); return -1; }
 
-	fprintf(stderr,"fclus: %u, clus: %u\n",Cluster,clus);
+//	fprintf(stderr,"fclus: %u, clus: %u\n",Cluster,clus);
 	clus--;
 	
 	while(clus > 0) {
@@ -2152,7 +2152,7 @@ buf->f_namemax=255;  /* maximum filename length */
 }
 
 /*	open() routine for libfat  -- TO COMPLETE	*/
-int fat_open(const char *filename, File_t *F, Volume_t *V) {
+int fat_open(const char *filename, File_t *F, Volume_t *V, int flags) {
 	int res;
 	DWORD clus, off;
 
@@ -2177,6 +2177,7 @@ int fat_open(const char *filename, File_t *F, Volume_t *V) {
 		F->CurOff = F->CurAbsOff = 0;
 		F->rootdir = 1;
 		F->DirEntry = NULL;
+		F->Mode = flags;
 		return 0;
     }
 
@@ -2193,12 +2194,12 @@ int fat_open(const char *filename, File_t *F, Volume_t *V) {
     memset(F->D.entry,0,21 * sizeof(LfnEntry_t));	
 	res = fetch_next_direntry(V, &(F->D), &clus, &off);
  	if (res <= 0) {
-		perror("fat_open():");
-	 	return -1;
+		perror("fat_open():"); return -1;
 	} else  {
 		F->DirEntry = (DirEntry_t *) &(F->D.entry[F->D.len - 1]);
 		F->CurClus = get_fstclus(F->DirEntry);
 		F->CurOff = F->CurAbsOff = 0;
+		F->Mode = flags;
 	}
 	
 

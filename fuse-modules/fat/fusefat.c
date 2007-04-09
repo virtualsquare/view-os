@@ -21,7 +21,7 @@ static int fusefat_getattr(const char *path, struct stat *stbuf) {
 	Volume_t *V;
 	fusefat_getvolume(V);
 	fat_lock(V);
-	if ((res = fat_open(path, &F, V)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+	if ((res = fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
 	if ((res = fat_stat(&F, stbuf)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__);return -1; }
 	fat_unlock(V);
 	fprintf(stderr,"getattr(%s)\n",path);
@@ -34,7 +34,7 @@ static int fusefat_open(const char *path, struct fuse_file_info *fi) {
 	Volume_t *V;
 	fusefat_getvolume(V);
 	fat_lock(V);
-	if ((res = fat_open(path, &F, V)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+	if ((res = fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
 	fat_unlock(V);
 	fprintf(stderr,"open(%s)\n",path);
     return 0;
@@ -54,7 +54,7 @@ static int fusefat_readdir(const char *path, void *buf, fuse_fill_dir_t filler, 
 	fusefat_getvolume(V);
 	fprintf(stderr,"readdir(%s)\n",path);
 	fat_lock(V);
-    if ((res =  fat_open(path, &F, V)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+    if ((res =  fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
 
     while ((res = fat_readdir(&F, &de)) == 0) {
         struct stat st;
@@ -100,7 +100,7 @@ static int fusefat_mknod(const char *path, mode_t mode, dev_t rdev) {
     fat_filename(path, filename);
 	fat_lock(V);
 	fprintf(stderr,"dirname: %s, filename: %s\n", dirname, filename);
-	if ((res =  fat_open(dirname, &Parent, V)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+	if ((res =  fat_open(dirname, &Parent, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
 	if ((res =  fat_create(V, &Parent, filename , NULL, S_IFREG, 0)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 	fat_unlock(V);
     return 0;
@@ -117,7 +117,7 @@ static int fusefat_mkdir(const char *path, mode_t mode) {
     fat_filename(path, filename);
 
 	fat_lock(V);
-    if ((res =  fat_open(dirname, &Parent, V)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+    if ((res =  fat_open(dirname, &Parent, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
     if ((res =  fat_mkdir(V, &Parent, filename , NULL, S_IFDIR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 
 	fat_unlock(V);
@@ -130,7 +130,7 @@ static int fusefat_unlink(const char *path) {
 	Volume_t *V;
 	fusefat_getvolume(V);
 	fat_lock(V);
-	if ((res =  fat_open(path, &F, V)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+	if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
 	if ((res =  fat_delete(&F, 0)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 	fat_unlock(V);
     return 0;
@@ -142,7 +142,7 @@ static int fusefat_rmdir(const char *path) {
 	Volume_t *V;
 	fusefat_getvolume(V);
 	fat_lock(V);
-	if ((res =  fat_open(path, &F, V)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+	if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
 	if ((res =  fat_rmdir(&F)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 	fat_unlock(V);
     return 0;
@@ -166,8 +166,8 @@ static int fusefat_rename(const char *from, const char *to) {
     fat_filename(to, filenameto);
 	fat_lock(V);
 
-    if ((res =  fat_open(from, &F, V)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-	if ((res =  fat_open(dirnameto, &NewParent, V)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+    if ((res =  fat_open(from, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+	if ((res =  fat_open(dirnameto, &NewParent, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
 	if ((res =  fat_rename(V,filenameto,&F,&NewParent)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 
 	fat_unlock(V);
@@ -181,7 +181,7 @@ static int fusefat_truncate(const char *path, off_t size) {
 	fusefat_getvolume(V);
 	fprintf(stderr,"truncate(%s, %d)\n",path,size);
 	fat_lock(V);
-    if ((res =  fat_open(path, &F, V)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+    if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
     if ((res =  fat_truncate(&F, size)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 	fat_unlock(V);
     return 0;
@@ -193,7 +193,7 @@ static int fusefat_utime(const char *path, struct utimbuf *buf) {
 	Volume_t *V;
 	fusefat_getvolume(V);
 	fat_lock(V);
-    if ((res =  fat_open(path, &F, V)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+    if ((res =  fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
     if ((res =  fat_utime(&F, buf)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 	fat_unlock(V);
     return 0;
@@ -205,7 +205,7 @@ static int fusefat_read(const char *path, char *buf, size_t size, off_t offset, 
 	Volume_t *V;
 	fusefat_getvolume(V);
 	fat_lock(V);
-    if ((res =  fat_open(path, &F, V)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+    if ((res =  fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
     if ((res =  fat_seek(&F, offset, SEEK_SET)) != offset) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 	if ((FAT32_ISEOC(F.CurClus)) || FAT32_ISFREE(F.CurClus)) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 	
@@ -221,7 +221,7 @@ static int fusefat_write(const char *path, const char *buf, size_t size, off_t o
 	Volume_t *V;
 	fusefat_getvolume(V);
 	fat_lock(V);
-    if ((res =  fat_open(path, &F, V)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+    if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
 	if ((FAT32_ISEOC(F.CurClus)) || FAT32_ISFREE(F.CurClus)) {
 		if (offset == 0) {
             DWORD freecls;
