@@ -167,7 +167,7 @@ static int fusefat_rename(const char *from, const char *to) {
 	fat_lock(V);
 
     if ((res =  fat_open(from, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-	if ((res =  fat_open(dirnameto, &NewParent, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+	if ((res =  fat_open(dirnameto, &NewParent, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
 	if ((res =  fat_rename(V,filenameto,&F,&NewParent)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 
 	fat_unlock(V);
