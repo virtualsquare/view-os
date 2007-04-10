@@ -44,7 +44,7 @@ int fat_mkdir(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mod
 int fat_delete(File_t *F, int dir);
 int fat_rmdir(File_t *F);
 int fat_truncate(File_t *F, DWORD len);
-int fat_rename(Volume_t *V, char *filename, File_t *OldFile, File_t *NewParent);
+int fat_rename(Volume_t *V, char *from, char *to);
 int fat_open(const char *uft8path, File_t *F, Volume_t *V, int flags);
 off64_t fat_seek(File_t *F, off64_t offset, int whence);
 int fat_stat(File_t *F, struct stat *st);

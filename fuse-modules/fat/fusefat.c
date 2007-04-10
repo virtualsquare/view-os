@@ -151,24 +151,13 @@ static int fusefat_rmdir(const char *path) {
 // rename in libfat has bugs
 static int fusefat_rename(const char *from, const char *to) {
     int res;
-    char dirnamefrom[4096];
-    char filenamefrom[1024];
-    char dirnameto[4096];
-    char filenameto[1024];
-	File_t F;
-	File_t NewParent;
 	Volume_t *V;
 	fusefat_getvolume(V);
 
-    fat_dirname(from, dirnamefrom);
-    fat_filename(from, filenamefrom);
-    fat_dirname(to, dirnameto);
-    fat_filename(to, filenameto);
+	fprintf(stderr,"from: %s, to: %s\n");
 	fat_lock(V);
 
-    if ((res =  fat_open(from, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-	if ((res =  fat_open(dirnameto, &NewParent, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-	if ((res =  fat_rename(V,filenameto,&F,&NewParent)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+	if ((res =  fat_rename(V,from,to)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return res; }
 
 	fat_unlock(V);
     return 0;

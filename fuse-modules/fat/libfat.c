@@ -873,7 +873,7 @@ int fetch_next_direntry(Volume_t *V, DirEnt_t *D, DWORD *Cluster, DWORD *Offset)
 
     /* We are out of the 2 whiles. So we got an SFN. Or an error :) */
 	if ( ! (LIBFAT_DIRENT_ISSFN(res)) ) {
-		return -1;	// we got the error, whatever this is :)
+		return -1;	// we got the error, whatever this is
     } else {
 		i++;		//	Please note (note for me haha) that i increasings are correct.
 		D->len = i;
@@ -1327,7 +1327,6 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 	int res;
 	off64_t seekres;
 	int i=0;
-	DWORD filesize = 0;
 	DWORD orig_filesz = 0;
 	
 	if (F!=NULL) {
@@ -1528,14 +1527,6 @@ static int erase_dirent(DirEnt_t *D) {
 	return 0;
 }
 
-#if 0
-/*  Generate SFN name and ensure it's unique in the directory	*/
-/*  At the moment this function generate a sfn name tath is completely	*/
-/*  unrelated to the lfn name due to lack of support of nls codepages and so on */
-/*  it is just a workaround to keep everything up and working.							*/
-int generate
-#endif
-
 /* find a direntry by sfn name. require a buffer of 11 char containing the sfn name */
 static int find_direntry_bysfn(Volume_t *V, BYTE *sfnname, DWORD *Cluster, DWORD *Offset) {
     int res;
@@ -1719,6 +1710,7 @@ int fat_create(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mo
 	DWORD off=0;
 	DWORD bkclus;
 	BYTE sfnname[12];	// 12 because sprintf put null terminator
+	char lfnname[12];
 	BYTE checksum;
 	DirEntry_t *dirent;
 	time_t tim;
@@ -1764,8 +1756,11 @@ int fat_create(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mo
 
 	
 	sprintf((char *) sfnname,"~%-10d",i);
-	if (sfn != NULL) memcpy(sfnname, sfn->DIR_Name, 11); // we use sfname from sfn	
-	
+	if (sfn != NULL) {
+		memcpy(sfnname, sfn->DIR_Name, 11); // we use sfname from sfn	
+		extract_sfn_name(sfn, 1, lfnname);	
+	}
+
 	/* lets generate a suitable sfn name that is not present in the parent.	*/
 	do {
 		clus =bkclus;
@@ -1777,15 +1772,16 @@ int fat_create(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mo
 		} else {
 			clus =bkclus;
         	off=0;
-			sprintf((char *) sfnname,"~%d",i);
-			res = find_direntry(V, (char *) sfnname, &clus, &off);
+				// let's take care that even a such lfn does not exist
+			res = find_direntry(V, lfnname, &clus, &off);
 			if (res == 0) {
 				//lets change sfn name.
 				sprintf((char *) sfnname,"~%-10d",++i);						
-			} else sprintf((char *) sfnname,"~%-10d",i);
+				sprintf(lfnname,"~%d",i);
+			}
 		}
 	} while( res == 0 );
-
+		fprintf(stderr,"sfn after search: %s.\n",sfnname);
 
 	
 	/* let's generate lfnentry chain	*/
@@ -1869,7 +1865,8 @@ int fat_mkdir(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mod
 	if ((parent != NULL) && (parent->rootdir != 1)) {
 		parentfstclus = Cluster = get_fstclus(parent->DirEntry);
 	} else {
-		parentfstclus = Cluster = 2;
+		Cluster = 2;
+		parentfstclus = 0; // fsck.vfat complains if it's 2.. reeeally weird
 	}
 	
 	res = find_direntry(V, filename, &Cluster, &Offset);
@@ -2058,7 +2055,6 @@ int fat_readdir(File_t *Dir, struct dirent *de) {
 		
 	if	((res = fetch_next_direntry(Dir->V, &D, &(Dir->CurClus), &(Dir->CurOff))) <=0 ) return -1;
 	if	((res = fatentry_to_dirent(&D, de)) < 0 ) return -1;
-//	fprintf(stderr,"performed 1 readdir()\n");
 	 
 	return 0;
 }
@@ -2178,25 +2174,52 @@ int fat_open(const char *filename, File_t *F, Volume_t *V, int flags) {
 		F->Mode = flags;
 	}
 	
-
+	fprintf(stderr,"fat_open(%s): begins at %lld\n",filename,byte_offset(V,F->CurClus, F->CurOff)); 
 	return 0;
 }
 
-/* rename() routine for libfat */		// TOFIX: create with sfn does not check correctly for sfn names present.
-int fat_rename(Volume_t *V, char *filename, File_t *OldFile, File_t *NewParent) {
+/* rename() routine for libfat */		// TOFIX: if destination is present rename returns error, but has already deleted the file
+// TOFIX: behaviour with directories (mv dir1 dir2 puts dir1 into dir2 if dir2 is present)
+
+int fat_rename(Volume_t *V, char *from, char *to) {
 	int res;
-	File_t F;
-	
-	memcpy((char *) &F,(char *) OldFile, sizeof(File_t));
-	if (ATTR_ISDIR(F.DirEntry->DIR_Attr)) { //directory
-		res = fat_real_delete(OldFile,1,1);
+    char dirnameto[4096];
+	char filenameto[1024];
+	File_t From, To, F, newParent;
+
+	if ((res =  fat_open(from, &From, V, O_RDWR)) != 0) { fprintf(stderr,"fat_rename(): source file or directory doesnt exist"); return -ENOENT; }
+	fat_dirname(to, dirnameto);
+	fat_filename(to, filenameto);
+
+	if ((res =  fat_open(dirnameto, &newParent, V, O_RDWR)) != 0) { 
+		fprintf(stderr,"fat_rename(): destination parent does not exist\n"); 
+		return -1; 
+	}
+
+	memcpy((char *) &F,(char *) &From, sizeof(File_t));
+	if (ATTR_ISDIR(From.DirEntry->DIR_Attr)) { //directory
+		if ((res =  fat_open(to, &To, V, O_RDWR)) == 0) { 
+			fprintf(stderr,"fat_rename(): destination file already exist: cant overwrite with a directory\n"); 
+			return -1; 
+		}
+		res = fat_real_delete(&From,1,1);
 		if (res != 0) { fprintf(stderr,"delete directory error\n"); return -1; }	
-		res = fat_mkdir(V, NewParent, filename , F.DirEntry, 0);		
+		res = fat_mkdir(V, &newParent, filenameto , F.DirEntry, 0);		
 		if (res != 0) { fprintf(stderr,"create new directory error\n"); return -1; }	
 	} else {								// regular file
-		res = fat_real_delete(OldFile,0,1);
+		if ((res =  fat_open(to, &To, V, O_RDWR)) == 0) {
+			if (ATTR_ISDIR(To.DirEntry->DIR_Attr)) {
+				fprintf(stderr, "fat_rename() cant overwrite a directory with a file!\n");
+				return -1;
+			}
+			if ((res = fat_delete(&To, 0)) != 0) {		
+				fprintf(stderr,"error while deleting destination file\n");
+				return -1; 
+			}
+		}		
+		res = fat_real_delete(&From,0,1);
 		if (res != 0) { fprintf(stderr,"delete file error\n"); return -1; }
-		res = fat_create(V, NewParent, filename , F.DirEntry, 0, 0);
+		res = fat_create(V, &newParent, filenameto , F.DirEntry, 0, 0);
 		if (res != 0) { fprintf(stderr,"create file error\n"); return -1; }
 	}
 	return 0;
@@ -2234,6 +2257,7 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 
 	/* Let's test if the file is empty. if so let's allocate its first cluster, set it, update the file.	*/
 	
+	if ((mode == O_RDONLY) && (off >= F->DirEntry->DIR_FileSize)) { fprintf(stderr,"fat_seek(): cant seek beyond EOF in O_RDONLY\n"); return -1; } 
 
 	if ((F->rootdir != 1) && (!FAT32_LEGALCLUS(get_fstclus(F->DirEntry))) && (F->DirEntry->DIR_FileSize == 0)) {
 		if (mode != O_RDONLY) {  
@@ -2389,6 +2413,7 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 			return off;
 		}		
 	} else {
+		//check if offset is >= filesize..
 		return offset;
 	}
 	return -2; // we should not reach here
