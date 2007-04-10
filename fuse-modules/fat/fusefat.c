@@ -30,18 +30,21 @@ static int fusefat_getattr(const char *path, struct stat *stbuf) {
 
 static int fusefat_open(const char *path, struct fuse_file_info *fi) {
     int res;
-	File_t F;
+	File_t *F;
 	Volume_t *V;
 	fusefat_getvolume(V);
+	F = malloc(sizeof(File_t));
 	fat_lock(V);
-	if ((res = fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+	if ((res = fat_open(path, F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); free(F); return -ENOENT; }
 	fat_unlock(V);
+	fi->fh = (off64_t) F;
 	fprintf(stderr,"open(%s)\n",path);
     return 0;
 }
 
 static int fusefat_access(const char *path, int mask) {
-    return fusefat_open(path, NULL);
+	return 0;
+//    return fusefat_open(path, NULL);
 }
 
 static int fusefat_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
@@ -79,8 +82,9 @@ static int fusefat_release(const char *path, struct fuse_file_info *fi)
     /* Just a stub.  This method is optional and can safely be left
        unimplemented */
 
-    (void) path;
-    (void) fi;
+//    (void) path;
+//    (void) fi;
+	free((File_t *) fi->fh);
     return 0;
 }
 
@@ -189,32 +193,39 @@ static int fusefat_utime(const char *path, struct utimbuf *buf) {
 }
 
 static int fusefat_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-    int res;
-	File_t F;
+    int res, mode;
+	File_t *F;
 	Volume_t *V;
 	fusefat_getvolume(V);
+	F = (File_t *) fi->fh;
 	fat_lock(V);
-    if ((res =  fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-    if ((res =  fat_seek(&F, offset, SEEK_SET)) != offset) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
-	if ((FAT32_ISEOC(F.CurClus)) || FAT32_ISFREE(F.CurClus)) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+	mode = F->Mode;
+	F->Mode = O_RDONLY;
+//    if ((res =  fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+    if ((res =  fat_seek(F, offset, SEEK_SET)) != offset) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+	if ((FAT32_ISEOC(F->CurClus)) || FAT32_ISFREE(F->CurClus)) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 	
-    if ((res =  fat_read_data(V, &(F.CurClus), &(F.CurOff), buf, size )) <= 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
-	F.CurAbsOff += res;
+    if ((res =  fat_read_data(V, &(F->CurClus), &(F->CurOff), buf, size )) <= 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+	F->CurAbsOff += res;
+	F->Mode = mode;
 	fat_unlock(V);
     return res;
 }
 
 static int fusefat_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
     int res;
-	File_t F;
+	File_t *F;
 	Volume_t *V;
 	fusefat_getvolume(V);
+	F=(File_t *)fi->fh;
+	//if ((fi->flags & O_RDONLY) == O_RDONLY) { fprintf(stderr,"fusefat_write(): file opened in read only mode\n");; return -1; }
+	
 	fat_lock(V);
-    if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-    if ((res =  fat_seek(&F, offset, SEEK_SET)) < 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
-    if ((res =  fat_write_data(V, &F,&(F.CurClus), &(F.CurOff), buf, size )) != size) { 
+//    if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+    if ((res =  fat_seek(F, offset, SEEK_SET)) < 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+    if ((res =  fat_write_data(V, F,&(F->CurClus), &(F->CurOff), buf, size )) != size) { 
 		fat_unlock(V); fprintf(stderr,"fat_write_data() error\n");fprintf(stderr,"-- %d",__LINE__); return -1; }
-	if ((res =  fat_update_file(&F)) != 0) { fat_unlock(V); fprintf(stderr,"fat_update_file() error\n"); fprintf(stderr,"-- %d",__LINE__); return -1; }
+	if ((res =  fat_update_file(F)) != 0) { fat_unlock(V); fprintf(stderr,"fat_update_file() error\n"); fprintf(stderr,"-- %d",__LINE__); return -1; }
 	fat_unlock(V);
     return size;
 }
@@ -262,12 +273,12 @@ static struct fuse_operations fusefat_oper = {
 //    .utimens	= fusefat_utimens,
 	.utime	= fusefat_utime,
     .open	= fusefat_open,
-	.opendir= fusefat_open,
+	.opendir= NULL,
     .read	= fusefat_read,
     .write	= fusefat_write,
     .statfs	= fusefat_statvfs,
     .release	= fusefat_release,	//we should avoid to delete a file if multiple processes are using it.
-//	.releasedir = fusefat_release,
+	.releasedir = NULL,
     .fsync	= fusefat_fsync	//sync
 };
 
@@ -283,8 +294,8 @@ int main(int argc, char *argv[])
 	
 	int res;
 
-	pathname=argv[argc-1];
-	mountpoint=argv[argc-2];
+	pathname=argv[1];
+	argv[1]=argv[0];
 	
 	if (argc < 3) { 
 		fprintf(stderr,"usage: ./fusefat [fuse opts] mountpoint filesystem\n");
@@ -293,7 +304,7 @@ int main(int argc, char *argv[])
 	if ((res = fat_partition_init(V,pathname)) < 0) return -1;		
 	
  //   umask(0);
-    res =  fuse_main(--argc, argv, &fusefat_oper, V);
+    res =  fuse_main(--argc, ++argv, &fusefat_oper, V);
 	
 	res = fat_partition_finalize(V);
 	return res;
