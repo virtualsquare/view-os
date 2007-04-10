@@ -128,22 +128,22 @@ static int umtap_ioctl_params(char type, dev_t device, int req, struct umdev *de
 	}
 }
 
-static int umtap_select_register(char type, dev_t device, 
+static int umtap_event_subscribe(char type, dev_t device, 
 		voidfun cb, void *arg, int how, struct dev_info *di)
 {
 	struct umtap *umtap=(struct umtap *)((long) di->fh);
 	if (umtap->conn) {
-		int rv=um_mod_select_register(cb,arg,vde_datafd(umtap->conn),how);
+		int rv=um_mod_event_subscribe(cb,arg,vde_datafd(umtap->conn),how);
 		/*
 		if (cb) {
 			if (rv == 0)
-				rv=um_select_register(cb,arg,vde_datafd(umtap->conn),POLLIN|POLLERR);
+				rv=um_event_subscribe(cb,arg,vde_datafd(umtap->conn),POLLIN|POLLERR);
 			return rv;
 		} else {
 			if (rv == 0)
-				rv=um_select_register(cb,arg,vde_datafd(umtap->conn),POLLIN|POLLERR);
+				rv=um_event_subscribe(cb,arg,vde_datafd(umtap->conn),POLLIN|POLLERR);
 			else
-				um_select_register(cb,arg,vde_datafd(umtap->conn),POLLIN|POLLERR);
+				um_event_subscribe(cb,arg,vde_datafd(umtap->conn),POLLIN|POLLERR);
 		}*/
 		return rv;
 	}
@@ -160,7 +160,7 @@ struct umdev_operations umdev_ops={
 	.fini=umtap_fini,
 	.ioctl=umtap_ioctl,
 	.ioctlparms=umtap_ioctl_params,
-	.event_subscribe=umtap_select_register,
+	.event_subscribe=umtap_event_subscribe,
 };
 
 
