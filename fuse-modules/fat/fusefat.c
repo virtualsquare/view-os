@@ -222,21 +222,6 @@ static int fusefat_write(const char *path, const char *buf, size_t size, off_t o
 	fusefat_getvolume(V);
 	fat_lock(V);
     if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-	if ((FAT32_ISEOC(F.CurClus)) || FAT32_ISFREE(F.CurClus)) {
-		if (offset == 0) {
-            DWORD freecls;
-
-            if ( F.DirEntry->DIR_FileSize != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
-            fprintf(stderr,"empty file\n");
-            freecls = fat_getFreeCluster(V);
-            set_fstclus(F.DirEntry, freecls);
-            F.CurClus = freecls;
-			F.CurOff  = 0;
-            fat32_writen_entry(V, freecls,  FAT32_EOC_VALUE);
-            res = fat_update_file(&F);
-            if (res != 0) { fat_unlock(V); fprintf(stderr, "update file error. res= %d ",res); fprintf(stderr,"-- %d",__LINE__); return -1; }			
-		} else { fat_unlock(V); fprintf(stderr,"EOC seeked in write()??\n"); fprintf(stderr,"-- %d",__LINE__); return -1; }
-	}
     if ((res =  fat_seek(&F, offset, SEEK_SET)) < 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
     if ((res =  fat_write_data(V, &F,&(F.CurClus), &(F.CurOff), buf, size )) != size) { 
 		fat_unlock(V); fprintf(stderr,"fat_write_data() error\n");fprintf(stderr,"-- %d",__LINE__); return -1; }

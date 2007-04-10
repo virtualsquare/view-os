@@ -64,7 +64,7 @@ static ssize_t readn(int fd, void *buf, size_t count) {
 	while (count > 0) {
 		res = read(fd, (void *) &(((char *) buf)[done]), count);
 		if (res <= 0) {	// 0 indicates EOF, and it should never happen here.
-			fprintf(stderr,"read() error. line: %i\n",__LINE__);
+			fprintf(stderr,"read() error. line: %d\n",__LINE__);
 			return -1;
 		} else {
 			done += res;
@@ -296,13 +296,13 @@ static int fat32_unlinkn(Volume_t *V, DWORD Cluster) {
   do {
     /* Read the next entry in the chain */
     if ( (Res = fat32_read_entry(V, Cluster, 0, &Next)) != 0 ) { 
-		fprintf(stderr,"unlinkn() error cycle: %i Line: %d",i, __LINE__);
+		fprintf(stderr,"unlinkn() error cycle: %d Line: %d",i, __LINE__);
 		return -1; 
 	}
 
     /* Update every FAT in the volume */
     if ( (Res = fat32_writen_entry(V, Cluster, 0)) != 0 ) { 
-		fprintf(stderr,"unlinkn() error cycle: %i Line: %d",i,__LINE__);
+		fprintf(stderr,"unlinkn() error cycle: %d Line: %d",i,__LINE__);
 	  	return -1; 
 	}
 
@@ -558,7 +558,7 @@ int fat_partition_finalize(Volume_t *V) {
     }
     res = writen(V->blkDevFd, (char *)  &(V->Fsi), sizeof(FSInfo_t));
     if (res < 0) {
-        fprintf(stderr,"readn() error, line:%i\n",__LINE__);
+        fprintf(stderr,"readn() error, line:%d\n",__LINE__);
         return -1;
     }
 
@@ -632,7 +632,7 @@ int fat_populate_freelist(Volume_t *V) {
 																
 			res = readn(V->blkDevFd, buf, (size_t) (count * sizeof(DWORD)));
 			if (res < 0) {
-				fprintf(stderr,"readn() error, line:%i\n",__LINE__);
+				fprintf(stderr,"readn() error, line:%d\n",__LINE__);
 				return -1;
 			}
 			i=0;
@@ -1275,7 +1275,7 @@ int fat_read_data(Volume_t *V, DWORD *Cluster, DWORD *Offset, char *buf, size_t 
 
 		res = readn(V->blkDevFd, &(buf[dataread]), (size_t) numbytes);
 		if (res < 0) {
-			fprintf(stderr,"readn() error, line:%i\n",__LINE__);
+			fprintf(stderr,"readn() error, line:%d\n",__LINE__);
 			return -1;
 		}
 
@@ -1318,7 +1318,6 @@ int fat_read_data(Volume_t *V, DWORD *Cluster, DWORD *Offset, char *buf, size_t 
 /* Please NOTE: the function does not make any check on Cluster.										 */
 int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *buf, int count ) {
 #ifdef FATWRITE
-	
 	int cnt = count;
 	off64_t off = 0;
 	int datasize = count;
@@ -1359,11 +1358,9 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 		}
 
 		res = writen(V->blkDevFd, &(buf[datawritten]), (size_t) numbytes);
-		if (res < 0) {
-			fprintf(stderr,"readn() error\n");
-			return -1;
-		}
-
+		if (res != numbytes) { fprintf(stderr,"writen() error in write data\n"); return -1;	}
+		
+		if (F != NULL) F->CurAbsOff += res;
 		datawritten += res;
 		cnt -= res;
 		i++;
@@ -1372,7 +1369,7 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 		// if cnt is now > 0, then we automatically have to jump to next cluster.
 
 		//update cluster and offset -- if we reach end of clusterchain, cnt must have been too large.
-//		fprintf(stderr,"value of cnt: %i\n",cnt);
+//		fprintf(stderr,"value of cnt: %d\n",cnt);
 		if (cnt > 0) {	// lets fetch next cluster.
 			DWORD c =  *Cluster;
 
@@ -1403,15 +1400,9 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 				if (r != 0) {
 					return -1;
 				}
-								
 				/* lets set *Cluster to newclus					*/ 								
 				*Cluster = newclus;
-				/* lets set properly filesize removing the remainder and adding a whole cluster size*/
-				/*	TO FIX: check that the filesize is < 4gb */				
-				if (F != NULL) {
-					F->DirEntry->DIR_FileSize = (DWORD) (((DWORD) (F->DirEntry->DIR_FileSize / clustersz)) * clustersz);
-					F->DirEntry->DIR_FileSize += (DWORD) clustersz;
-				}
+
 			} else {
 				// Cluster must be a valid cluster number set up by fat32_read_entry.
 			}
@@ -1424,9 +1415,7 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 	
 			fat32_read_entry(V, c, 0, Cluster); // if this is the last cluster in the chain, the function will allocate a new cluster.
 			if (FAT32_ISFREE(*Cluster)) { // must be eoc or  a valid cluster number
-				fprintf(stderr,"fat_write_data wrote on an unlinked cluster\n");
-				return -1;
-			}
+				fprintf(stderr,"fat_write_data wrote on an unlinked cluster\n"); return -1; }
 			
 			if ( *Offset >= clustersz ) {	//it cant actually be greater, just equal
 
@@ -1435,14 +1424,6 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 				if (FAT32_ISEOC(*Cluster)) {	//we reached EOC. so we have to get a free cluster and link it to the file
 					DWORD newclus;
 					int r;
-			
-					/* lets set properly filesize removing the remainder and adding the new offset */
-					if (F != NULL) { //not a directory
-
-						F->DirEntry->DIR_FileSize = (DWORD) (((DWORD) (F->DirEntry->DIR_FileSize / clustersz)) * clustersz);
-						F->DirEntry->DIR_FileSize += (DWORD) clustersz;
-//						fprintf(stderr,"write: off > clusz. cnt: %d, filesize: %u, numbytes: %d\n",cnt, F->DirEntry->DIR_FileSize, numbytes);
-					}
 			
 					newclus = fat_getFreeCluster(V);
 					if (newclus <= (DWORD) 0) {
@@ -1468,15 +1449,8 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 				}
 				*Offset = 0;
 			} else { //offset < clustersize
-				if (FAT32_ISEOC(*Cluster)) {
-					if (F != NULL) { //not a directory
-						filesize = (DWORD) (((DWORD) (F->DirEntry->DIR_FileSize / clustersz)) * clustersz);
-						filesize += (DWORD) numbytes;
-//						fprintf(stderr,"write: filesize: %u, numbytes: %d\n",filesize, numbytes);
-						F->DirEntry->DIR_FileSize = MAX(filesize, orig_filesz); // it might happen we have to write in the middle of the file
-					}
-				}
 			}
+			if ((F != NULL) && (F->DirEntry->DIR_FileSize < F->CurAbsOff)) F->DirEntry->DIR_FileSize = F->CurAbsOff; 
 			return datasize;	
 		}			
 	}	 
@@ -1489,12 +1463,14 @@ static ssize_t fat_write0data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Off
 	int retval = count;
 	char *buf = V->zerobuf;
 	
-	if (!(count > 0)) { fprintf(stderr,"write0 error: count <= 0\n"); return -1; }
+	if ((count <= 0)) { fprintf(stderr,"write0 error: count <= 0\n"); return -1; }
 	 
 	while (count > 0) {
 		int size;
-		count -= size = MIN(ZERO_BFSZ, count);
-		if ((res = 	fat_write_data(V, F, Cluster, Offset, buf, size )) != size) { fprintf(stderr,"write0data error. size: %d, res: %d\n",size, res); return -1; }
+		size = MIN(ZERO_BFSZ, count);
+		count -= size;
+		if ((res = 	fat_write_data(V, F, Cluster, Offset, buf, size )) != size) { 
+			fprintf(stderr,"write0data error. size: %d, res: %d\n",size, res); return -1; }
 	}
 	return retval;
 }
@@ -2035,32 +2011,32 @@ int fat_truncate(File_t *F, DWORD len) {
 	
 	// follow the cluster chain up clus cluster;
 	Cluster = get_fstclus(F->DirEntry);
-	if (!(FAT32_LEGALCLUS(Cluster))) { fprintf(stderr,"fat_truncate(): line %i\n",__LINE__); return -1; }
+	if (!(FAT32_LEGALCLUS(Cluster))) { fprintf(stderr,"fat_truncate(): line %d\n",__LINE__); return -1; }
 
 //	fprintf(stderr,"fclus: %u, clus: %u\n",Cluster,clus);
 	clus--;
 	
 	while(clus > 0) {
 		res = fat32_read_entry(F->V, Cluster, 0, &Next); 
-		if (res != 0) { fprintf(stderr,"fat_truncate(): line %i\n",__LINE__); return -1; }
+		if (res != 0) { fprintf(stderr,"fat_truncate(): line %d\n",__LINE__); return -1; }
 		Cluster = Next;
 		clus--;
 	}
 
 	res = fat32_read_entry(F->V, Cluster, 0, &Next);
-	if (res != 0) { fprintf(stderr,"fat_truncate() line %i\n",__LINE__); return -1; }
+	if (res != 0) { fprintf(stderr,"fat_truncate() line %d\n",__LINE__); return -1; }
 	
 	// set cluster number clus to EOC and start unlink from there
 	if (len > 0) {
 		res = fat32_writen_entry(F->V, Cluster, FAT32_EOC_VALUE);
 	} else { res = fat32_writen_entry(F->V, Cluster, 0);  set_fstclus(F->DirEntry,0); }	//setting fstclus to free
-	if (res != 0) { fprintf(stderr,"fat_truncate(): line %i\n",__LINE__); return -1; }
+	if (res != 0) { fprintf(stderr,"fat_truncate(): line %d\n",__LINE__); return -1; }
 	
 	if (FAT32_ISEOC(Next)) {
 		// nothing to do
 	} else {
 		res = fat32_unlinkn(F->V, Next);
-		if (res != 0) { fprintf(stderr,"fat_truncate(): line %i\n",__LINE__); return -1; }
+		if (res != 0) { fprintf(stderr,"fat_truncate(): line %d\n",__LINE__); return -1; }
 	}
 	
 	if ((F->rootdir != 1) || (!(ATTR_ISDIR(F->DirEntry->DIR_Attr)))) {
@@ -2070,7 +2046,7 @@ int fat_truncate(File_t *F, DWORD len) {
 		// update file
 		res = fat_update_file(F);
 	}
-	if (res != 0) { fprintf(stderr,"fat_truncate(): line %i\n",__LINE__); return -1; }
+	if (res != 0) { fprintf(stderr,"fat_truncate(): line %d\n",__LINE__); return -1; }
 	
 	return 0;
 }
@@ -2206,7 +2182,7 @@ int fat_open(const char *filename, File_t *F, Volume_t *V, int flags) {
 	return 0;
 }
 
-/* rename() routine for libfat */
+/* rename() routine for libfat */		// TOFIX: create with sfn does not check correctly for sfn names present.
 int fat_rename(Volume_t *V, char *filename, File_t *OldFile, File_t *NewParent) {
 	int res;
 	File_t F;
@@ -2229,6 +2205,8 @@ int fat_rename(Volume_t *V, char *filename, File_t *OldFile, File_t *NewParent) 
 /*	This function calculate the cluster/offset pair related to an assolute
 offset of a file. It put these informations inside *F.
 It returns the offset on success or negative value on error. */
+/* It now supports RW mode that will allocate clusters filled with 0es 
+if seek is beyond filesize*/
 
 off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 	int res;
@@ -2236,10 +2214,13 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 	off64_t curabsoff= F->CurAbsOff;
 	off64_t curoff = F->CurOff;	
 	off64_t clustersz = F->V->bpc64;
-	DWORD mode = F->Mode;
+	int mode = F->Mode;
 	
+
 	if (F == NULL) { fprintf(stderr,"fat_seek(): NULL File.\n"); return -1; }
 	if (offset < 0) { fprintf(stderr,"fat_seek(): invalid offset < 0\n"); return -1; }
+	if ((F->rootdir == 1) || (ATTR_ISDIR(F->DirEntry->DIR_Attr))) mode=O_RDONLY;
+
 // TOFIX	if (!FAT32_LEGALCLUS(F->CurClus)) { fprintf(stderr,"fat_seek(): illegal current cluster \n"); return -1; }
 			
 	/* Let's combine offset with whence	*/
@@ -2253,20 +2234,33 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 
 	/* Let's test if the file is empty. if so let's allocate its first cluster, set it, update the file.	*/
 	
-	if (F->rootdir != 1) {
-		if (!FAT32_LEGALCLUS(get_fstclus(F->DirEntry))) {
-			if (mode != O_RDONLY) {
-				if (F->DirEntry->DIR_FileSize == 0) {
-			
 
-				} else { fprintf(stderr,"fat_seek(): illegal SfnEntry\n"); return -1; }
-			} else {
-				
-			}
+	if ((F->rootdir != 1) && (!FAT32_LEGALCLUS(get_fstclus(F->DirEntry))) && (F->DirEntry->DIR_FileSize == 0)) {
+		if (mode != O_RDONLY) {  
+		/* Let's allocate the first cluster */
+			DWORD freecls;
+			DWORD freeoff=0;
+
+            freecls = fat_getFreeCluster(F->V);
+            set_fstclus(F->DirEntry, freecls);
+//			fprintf(stderr,"fat_seek(): empty file in O_RDWR. fclus allocated: %d\n",freecls);
+            F->CurClus = freecls;
+            F->CurOff  = 0;
+			F->CurAbsOff = 0;
+			F->DirEntry->DIR_FileSize = 0;
+            fat32_writen_entry(F->V, freecls,  FAT32_EOC_VALUE);
+			res = fat_write0data(F->V, NULL, &freecls, &freeoff, F->V->bpc);	// let's zero the cluster content
+            if (res != F->V->bpc) { fprintf(stderr, "write0data() error. res= %d, line: %d\n",res,__LINE__); return -1; }
+//            res = fat_update_file(F);
+//            if (res != 0) { fprintf(stderr, "update file error. res= %d, line: %d\n",res,__LINE__); return -1; }
+		} else {
+		/* Empty file in O_RDONLY == Error  */
+			fprintf(stderr,"file is empty. Unpossible to perform read only actions.\n"); return -1;	
 		}
 	}
-	
-	if (off < curabsoff) {
+
+	/* Main IF */	
+	if (off < curabsoff) {	// Given this condition we can suppose we will encounter only allocated clusters in this branch
 		if ( (curabsoff - off) > curoff) {	// the offset is in a previous cluster
 			DWORD newclus;					// we start from the beginning and reach the correct cluster/offset pair
 			off64_t newoff = off;
@@ -2301,15 +2295,65 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 			
 			if ( (res = fat32_read_entry(F->V, F->CurClus, 0, &newclus)) != 0 ) { perror("fat_seek() error"); return -1; }
 	
-			if (!FAT32_LEGALCLUS(newclus)) {	// actually we should be able to seek beyond EOF and fill with 0. TO FIX.
-				perror("fat_seek(): end of clusterchain reached"); return -1; }
-			
+			if (FAT32_ISBAD(newclus)) { fprintf(stderr,"bad cluster in the chain\n"); return -1; }
+			if (FAT32_ISFREE(newclus)) { fprintf(stderr,"free cluster in the chain, and no EOC\n"); return -1; }
+				
+			if (FAT32_ISEOC(newclus)) {	// We must be beyond the filesize
+				if (mode != O_RDONLY) {
+				/* Lets allocate the cluster and fill with 0	*/
+					DWORD freecls,cclus,coff;
+					
+					cclus = F->CurClus;
+					coff =  (F->DirEntry->DIR_FileSize) % F->V->bpc;
+		//            fprintf(stderr,"fat_seek(): empty file in O_RDWR\n");
+		            freecls = fat_getFreeCluster(F->V);
+            		fat32_writen_entry(F->V, F->CurClus , freecls);
+					fat32_writen_entry(F->V, freecls,  FAT32_EOC_VALUE);
+            		newclus = F->CurClus = freecls;
+					F->CurOff  = 0;
+	
+					if (((F->DirEntry->DIR_FileSize ) % F->V->bpc ) != 0) { 
+						F->DirEntry->DIR_FileSize = ((F->DirEntry->DIR_FileSize / F->V->bpc) * F->V->bpc) + F->V->bpc ;
+
+						res = fat_write0data(F->V, NULL, &cclus, &coff, (F->V->bpc - coff));	// let's zero the end of the cluster
+						if (res != (F->V->bpc - coff)) { fprintf(stderr, "write0data() error. res= %d, line: %d\n",res,__LINE__); return -1; }
+					}
+    				cclus = freecls;
+					coff = 0;
+					res = fat_write0data(F->V, NULL, &cclus, &coff, F->V->bpc);	// let's zero the new cluster
+					if (res != F->V->bpc) { fprintf(stderr, "write0data() error. res= %d, line: %d\n",res,__LINE__); return -1; }					
+				} else {
+					perror("fat_seek(): end of clusterchain reached"); return -1; 
+				}
+			}
+
 			while (newoff >= clustersz) {
 				if ( (res = fat32_read_entry(F->V, newclus, 0, &newclus)) != 0 ) { perror("fat_seek() error"); return -1; }
-							
-				if (!FAT32_LEGALCLUS(newclus)) {	// actually we should be able to seek beyond EOF and fill with 0. TO FIX.
-					perror("fat_seek(): end of clusterchain reached"); return -1; }
-
+		
+				if (FAT32_ISBAD(newclus)) { fprintf(stderr,"bad cluster in the chain\n"); return -1; }
+				if (FAT32_ISFREE(newclus)) { fprintf(stderr,"free cluster in the chain, and no EOC\n"); return -1; }							
+		
+				if (FAT32_ISEOC(newclus)) {	// We must be beyond the filesize
+					if (mode != O_RDONLY) {
+					/* Lets allocate the cluster and fill with 0	*/
+						DWORD freecls,cclus,coff;
+						
+			            freecls = fat_getFreeCluster(F->V);
+	            		fat32_writen_entry(F->V, F->CurClus , freecls);
+						fat32_writen_entry(F->V, freecls,  FAT32_EOC_VALUE);
+	            		newclus = F->CurClus = freecls;
+						F->CurOff  = 0;
+	
+						F->DirEntry->DIR_FileSize += F->V->bpc ;
+	
+	    				cclus = freecls;
+						coff = 0;
+						res = fat_write0data(F->V, NULL, &cclus, &coff, F->V->bpc);	// let's zero the new cluster
+						if (res != F->V->bpc) { fprintf(stderr, "write0data() error. res= %d, line: %d\n",res,__LINE__); return -1; }					
+					} else {
+						perror("fat_seek(): end of clusterchain reached"); return -1; 
+					}
+				}
 				newoff -= clustersz; 
 			}
 			
@@ -2318,10 +2362,27 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 			F->CurOff = newoff;
 			F->CurAbsOff = off;			
 //			fprintf(stderr, "clus: %u, curclus: %u, off: %lld, curoff: %u\n",newclus, F->CurClus, newoff, F->CurOff);
+//			if (mode != O_RDONLY) { if ((res = fat_update_file(F)) != 0) { 
+//				fprintf(stderr, "update file error. res= %d, line: %d\n",res,__LINE__); return -1; }
+//			}					 
 			return off;
 			
 		} else {								// the offset is in this cluster
 			off64_t newoff = (off - curabsoff) + curoff;
+			
+			if (off >= F->DirEntry->DIR_FileSize) {	// Offset beyond the filesize. we must zero a piece of the cluster
+				if (mode != O_RDONLY) {
+					DWORD cclus = F->CurClus;
+					DWORD coff  = (F->DirEntry->DIR_FileSize % F->V->bpc);
+					res = fat_write0data(F->V, NULL, &cclus, &coff, (off - F->DirEntry->DIR_FileSize));	// let's zero a piece of the clus
+					if (res != (off - F->DirEntry->DIR_FileSize)) { 
+						fprintf(stderr, "write0data() error. res= %d, line: %d\n",res,__LINE__); return -1; 
+					}										
+				} else {
+					fprintf(stderr,"fat_seek(): cant seek beyond filesize in O_RDONLY\n"); return -1; 
+				}
+			}
+			
 			F->CurOff = newoff;
 			F->CurAbsOff = off;
 //			fprintf(stderr, "off: %lld, curoff: %u, clus:%u\n", newoff, F->CurOff,F->CurClus);
@@ -2332,24 +2393,6 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 	}
 	return -2; // we should not reach here
 }
-
-#if 0
-/*	clone data helper function.	*/
-static int fat_clone_data(off64_t src, off64_t dst, int count) {
-	off64_t cnt = count;
-	char buf[8192];
-	int  copied=0;
-	int res;
-	off64_t sres;
-	
-	if ( (src + cnt) >= dst ) return -1;
-	
-	while (cnt > 0) {
-		sres = 
-	}
-	
-}
-#endif
 
 /************************************************************************
 *	Functions for character representation conversion				 	*
