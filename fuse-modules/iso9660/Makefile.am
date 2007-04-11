@@ -10,12 +10,12 @@ AM_CPPFLAGS = -I$(includedir)/umview -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=2
 bin_PROGRAMS = fuseiso9660
 mod_LTLIBRARIES = umfuseiso9660.la
 
-fuseiso9660_SOURCES = fuseiso9660.c zisofs.h
+fuseiso9660_SOURCES = fuseiso9660.c zisofs.h v2fuseutils.c v2fuseutils.h
 fuseiso9660_LDFLAGS = -lfuse -lz -liso9660
 # Leave this also if it seems a no-op
 fuseiso9660_CFLAGS = $(AM_CFLAGS)
 
-umfuseiso9660_la_SOURCES = fuseiso9660.c zisofs.h
+umfuseiso9660_la_SOURCES = fuseiso9660.c zisofs.h v2fuseutils.c v2fuseutils.h
 umfuseiso9660_la_LDFLAGS = $(AM_LDFLAGS) -lumlib -lfuse -lz -liso9660
 
 install-data-hook:

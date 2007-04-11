@@ -46,6 +46,7 @@
 #include <cdio/iso9660.h>
 #include <cdio/logging.h>
 #include "zisofs.h"
+#include <v2fuseutils.h>
 
 #ifdef HAVE_SETXATTR
 #include <sys/xattr.h>
@@ -706,22 +707,23 @@ int main(int argc, char *argv[])
 	struct fuse_context *mycontext;
 	iso9660_t *isofs;
 
-	if (argc < 3)
-		return -1;
-	//if (strcmp(argv[1],"-o")==0)
-	//	argv+=2;
-	//isofs=iso9660_open(argv[1]);
-	isofs=iso9660_open_ext(argv[argc-2],ISO_EXTENSION_ALL);
+	if (argc < 3) 
+		v2f_usage(argv[0],&iso9660_oper);
+	v2f_rearrangeargv(argc,argv);
+	//isofs=iso9660_open_ext(argv[argc-2],ISO_EXTENSION_ALL);
+	isofs=iso9660_open_ext(argv[1],ISO_EXTENSION_ALL);
 	//printf("open %s %p\n",argv[argc-2],isofs);
 	iso9660_ifs_read_superblock(isofs,ISO_EXTENSION_ALL);
 	cdio_loglevel_default=CDIO_LOG_ERROR;
 	if (isofs!=NULL) {
+#if 0
 #if ( FUSE_MINOR_VERSION <= 4 )
 		fuse_fd = fuse_mount(argv[argc-1], "ro");
 #else
 		char *argargv[]={"ro",NULL};
 		struct fuse_args arg={1,argargv,0};
-		fuse_fd = fuse_mount(argv[argc-1], &arg);
+
+		fuse_fd = fuse_mount(argv[argc+1], &arg);
 #endif
 #if ( FUSE_MINOR_VERSION <= 5 )
 		fuse = fuse_new(fuse_fd, NULL, &iso9660_oper, sizeof(iso9660_oper));
@@ -730,8 +732,14 @@ int main(int argc, char *argv[])
 		fuse = fuse_new(fuse_fd, &arg, &iso9660_oper, sizeof(iso9660_oper),isofs);
 #endif
 		//printf("MOUNT OKAY!\n");
-
 		fuse_loop(fuse);
+#endif
+#if ( FUSE_MINOR_VERSION <= 5 )
+		init_data=isofs;
+		fuse_main(--argc,++argv,&iso9660_oper);
+#else
+		fuse_main(--argc,++argv,&iso9660_oper,isofs);
+#endif
 
 		iso9660_close(isofs);
 		return 0;
