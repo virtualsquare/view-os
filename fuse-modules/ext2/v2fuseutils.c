@@ -139,7 +139,7 @@ int v2f_checkrorwplus(int argc, char *argv[])
 
 int v2f_printwarning(int rorwplus) {
 	if (!rorwplus || (rorwplus & FLRW)) {
-		fprintf(stderr,"This is already experimental code, opening rw a real file system could be\n"
+		fprintf(stderr,"This is experimental code, opening rw a real file system could be\n"
 				"dangerous for your data. Please add \"-o ro\" if you want to open the file\n"
 				"system image in read-only mode, or \"-o rw+\" if you accept the risk to test\n"
 				"this module\n");
