@@ -37,7 +37,7 @@ must not be specified when calling the library.
 
 The standard call for the library 'main' is the following:
 
-umfusexxx  -o options source mountpoint
+umfusexxx -o options source mountpoint
 
 pre are extra parms to be put before -o
 post are extra trailing parms
@@ -297,6 +297,14 @@ int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, ch
 		pargv[0][i]=strdup(nargv[i]);
 	}
 	return nargc;
+}
+
+void fusefreearg(int argc,char *argv[])
+{
+	int i;
+	for (i=0;i<argc;i++)
+		free(argv[i]);
+	free(argv);
 }
 
 #ifdef DEBUGFUSEARGS

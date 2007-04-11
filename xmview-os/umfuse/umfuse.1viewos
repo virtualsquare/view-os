@@ -73,9 +73,9 @@ It is possible to match the calling syntax by using the follwing options.
 .IP "\fBnosource\fP" 4
 No image file should be specified.
 .IP "\fBpre=\fP\fIstring\fP" 4
-The string contains parameters that must me put before "-o options"
+The string contains parameters that must be put before "-o options"
 .IP "\fBpost=\fP\fIstring\fP" 4
-The string contains parameters that must me added at the end
+The string contains parameters that must be added at the end
 .IP "\fBformat=\fP\fIstring\fP" 4
 This is the most powerful rewriting rule. If the main needs a completely different structure format can be used:
 the format string is similar to that used in printf.

@@ -540,6 +540,7 @@ static void *startmain(void *vsmo)
 	char *opts;
 	int newargc;
 	char **newargv;
+	char **newnewargv;
 	int i;
 	if (pmain == NULL) {
 		GMESSAGE("%s", dlerror());
@@ -560,11 +561,15 @@ static void *startmain(void *vsmo)
 		fflush(stderr);		
 	}
 
-	if (pmain(newargc,newargv) != 0)
-		umfuse_abort(psmo->new->fuse);
-	for (i=0;i<newargc;i++)
-		free(newargv[i]);
-	free(newargv);
+	/* some modules could change argv! */
+	if ((newnewargv=malloc(newargc * sizeof (char *))) != NULL) {
+		for (i=0;i<newargc;i++) 
+			newnewargv[i]=newargv[i];
+		if (pmain(newargc,newnewargv) != 0)
+			umfuse_abort(psmo->new->fuse);
+		free(newnewargv);
+	}
+	fusefreearg(newargc,newargv);
 	pthread_exit(NULL);
 	return NULL;
 }
