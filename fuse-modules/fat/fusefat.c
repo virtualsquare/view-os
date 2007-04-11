@@ -11,6 +11,7 @@
 
 #include "libfat.h"
 #include <fuse.h>
+#include "v2fuseutils.h"
 
 #define fusefat_getvolume(V)     struct fuse_context *mycontext = fuse_get_context(); V = (Volume_t *) mycontext->private_data;
 	
@@ -282,30 +283,54 @@ static struct fuse_operations fusefat_oper = {
     .fsync	= fusefat_fsync	//sync
 };
 
+static void rearrangeargv(int argc, char *argv[])
+{
+	int i,sourcearg,dasho;
+	for (i=1,dasho=sourcearg=0;i<argc && sourcearg==0;i++) {
+		if (*argv[i] != '-' && !dasho)
+			sourcearg=i;
+		dasho=(strcmp(argv[i],"-o")==0);
+	}
+	if (sourcearg > 1 && sourcearg < argc-1) {
+		char *sourcepath=argv[sourcearg];
+		char *mountpoint=argv[sourcearg+1];
+		for (i=sourcearg; i>1; i--)
+			argv[i+1]=argv[i-1];
+		argv[1]=sourcepath;
+		argv[2]=mountpoint;
+	}
+}
+
 int main(int argc, char *argv[])
 {
-    Volume_t fat32_volume;
+	Volume_t fat32_volume;
 	Volume_t *V = &fat32_volume;
+	int rorwplus;
 
-    struct fuse_chan *fuse_fd;
+	struct fuse_chan *fuse_fd;
 
 	char *pathname ;
 	char *mountpoint;
-	
+
 	int res;
 
+	if (argc < 3) { 
+		v2f_usage(argv[0],&fusefat_oper);
+		return -ENODEV;
+	}
+	v2f_rearrangeargv(argc,argv);
 	pathname=argv[1];
 	argv[1]=argv[0];
-	
-	if (argc < 3) { 
-		fprintf(stderr,"usage: ./fusefat [fuse opts] mountpoint filesystem\n");
-		return -1;
-	}
+
+	rorwplus=v2f_checkrorwplus(argc-2,argv+2);
+	if (v2f_printwarning(rorwplus))
+		return -EINVAL;
+
 	if ((res = fat_partition_init(V,pathname)) < 0) return -1;		
-	
- //   umask(0);
-    res =  fuse_main(--argc, ++argv, &fusefat_oper, V);
-	
+
+	//   umask(0);
+	res =  fuse_main(--argc, ++argv, &fusefat_oper, V);
+
 	res = fat_partition_finalize(V);
 	return res;
 }

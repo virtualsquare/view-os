@@ -27,11 +27,13 @@ simple_fold.o: simple_fold.c
 
 fusefat.o: fusefat.c 
 
-fusefat: fusefat.o libfat.a
-	$(CC) -o fusefat ${LIBS} fusefat.o libfat.a
+v2fuseutils.o: v2fuseutils.c
 
-umfusefat:  fusefat.o libfat.a
-	$(CC) -o umfusefat ${LIBS} -shared -nostartfiles fusefat.o libfat.a
+fusefat: fusefat.o libfat.a v2fuseutils.o
+	$(CC) -o fusefat ${LIBS} fusefat.o libfat.a v2fuseutils.o
+
+umfusefat:  fusefat.o libfat.a v2fuseutils.o
+	$(CC) -o umfusefat ${LIBS} -shared -nostartfiles fusefat.o libfat.a v2fuseutils.o
 
 clean:
 	rm -f ${LIBFAT_OBJS} libfat.a fusefat umfusefat libfat.so
