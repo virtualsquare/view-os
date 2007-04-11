@@ -10,12 +10,12 @@ AM_CPPFLAGS = -I$(includedir)/umview -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=2
 bin_PROGRAMS = fuseext2
 mod_LTLIBRARIES = umfuseext2.la
 
-fuseext2_SOURCES = fuseext2.c bindir.h
+fuseext2_SOURCES = fuseext2.c bindir.h v2fuseutils.c v2fuseutils.h
 fuseext2_LDFLAGS = -lfuse -lext2fs
 # Leave this also if it seems a no-op
 fuseext2_CFLAGS = $(AM_CFLAGS)
 
-umfuseext2_la_SOURCES = fuseext2.c bindir.h
+umfuseext2_la_SOURCES = fuseext2.c bindir.h v2fuseutils.c v2fuseutils.h
 umfuseext2_la_LDFLAGS = $(AM_LDFLAGS) -lumlib -lfuse -lext2fs
 
 install-data-hook:

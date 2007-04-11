@@ -49,7 +49,7 @@
 #include <sys/statfs.h>
 #include <ext2fs/ext2fs.h>
 #include <ext2fs/ext2_io.h>
-
+#include <v2fuseutils.h>
 
 #ifdef HAVE_SETXATTR
 #include <sys/xattr.h>
@@ -1275,6 +1275,7 @@ static int close_filesystem(ext2_filsys current_fs)
 	return 0;
 }
 
+
 struct fuse *fuse;
 
 int main(int argc, char *argv[])
@@ -1283,6 +1284,10 @@ int main(int argc, char *argv[])
 	io_channel data_io = 0;
 	struct fuse_context *mycontext;
 	ext2_filsys e2fs;
+	int nargc;
+	char **nargv;
+	char *source, *mountpoint;
+	int rorwplus;
 #if ( FUSE_MINOR_VERSION <= 5 )
 	int fuse_fd;
 #else
@@ -1295,22 +1300,21 @@ int main(int argc, char *argv[])
 		printf("Argv[%d]:%s\n",i,argv[i]);
 #endif
 	if (argc < 3) {
+		v2f_usage(argv[0],&ext2_oper);
 		return -ENODEV;
 	}
-	char *source = strdup(argv[argc-2]);//2 1 image.ext2
-	char *mountpoint = strdup(argv[argc-1]);//1 2 mountpoint
+	v2f_rearrangeargv(argc,argv);
+	source = argv[1];// image.ext2
+	mountpoint = argv[2];// mountpoint
+	rorwplus=v2f_checkrorwplus(argc-2,argv+2);
+	if (v2f_printwarning(rorwplus))
+		return -EINVAL;
 	
-	//if (strcmp(argv[1],"-o")==0)
-	//	argv+=2;
-	//	
-
-	
-
 /*	initialize_ext2_error_table();
 	fprintf (stderr, "debugfs %s (data)\n", E2FSPROGS_VERSION, E2FSPROGS_DATE);
 */
-	//TODO:EXT2_FLAG_RW is static.but I can open e image in read only mode!
-	err = ext2fs_open (source, EXT2_FLAG_RW, 0, 0, unix_io_manager, &e2fs);
+	err = ext2fs_open (source, (rorwplus & FLRWPLUS)?EXT2_FLAG_RW:0
+			, 0, 0, unix_io_manager, &e2fs);
 //#ifdef DEBUG
 	if(err) {
 		printf("Open_ext2 Error:%d\n",err);
@@ -1345,6 +1349,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
+#if 0
 #if ( FUSE_MINOR_VERSION <= 4 ) 
 	fuse_fd = fuse_mount(mountpoint, "rw");//vuole il  mountpoint, attenzione rw e' dummy, e' ignorato da umfuse ma non libfuse!!
 #else
@@ -1369,10 +1374,18 @@ printf("fuse-fd %d %d\n",fuse_fd,FUSE_MINOR_VERSION);
 #endif
 	fuse_loop(fuse);
 	//fuse_loop_mt(fuse);
+#endif
+
+	argv[1]=argv[0];
+#if ( FUSE_MINOR_VERSION <= 5 )
+	init_data=e2fs;
+	fuse_main(--argc,++argv,&ext2_oper);
+#else
+	fuse_main(--argc,++argv,&ext2_oper,e2fs);
+#endif
 
 	ext2fs_flush(e2fs);
-	//ext2fs_free(e2fs);
 	close_filesystem(e2fs);
-	//ext2fs_close(e2fs);
+	ext2fs_free(e2fs);
 	return 0;
 }
