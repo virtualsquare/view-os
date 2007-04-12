@@ -24,7 +24,6 @@
 *	LIBFAT.c				
 *	Current known problems (limitations) :
 *	- Works only with FAT32
-*	- Works only on little endian machines	
 *	- May have problems if the filesistem 
 *	  is accessed before with MS-DOS or 
 *	  something that does not support Long Filenames
@@ -138,8 +137,8 @@ int fat_fill_time(WORD *Date, WORD *Time, time_t t) {	// works ok.
 	tim &= bmask3;
 	tim |= (((WORD) (time.tm_hour)) << 11); 
 	
-	*Time = tim;
-	*Date = date;
+	*Time = EFW(tim);
+	*Date = EFW(date);
 	return 0;	
 }
 /************************************************************************
@@ -156,19 +155,19 @@ int fat_fill_time(WORD *Date, WORD *Time, time_t t) {	// works ok.
 static int fat32_cluster_entry(Volume_t *V, DWORD N, int FatNum,
                                DWORD *Sector, DWORD *EntryOffset) {
   DWORD FATSz, EntryPerSec32;
-  WORD bytspersec = V->Bpb.BPB_BytsPerSec;
+  WORD bytspersec = EFW(V->Bpb.BPB_BytsPerSec);
 //  DWORD entry;
 
   if (N > V->DataClusters + 1) return -ENXIO;
 
-  FATSz = V->Bpb.BPB_FATSz32 * bytspersec;
+  FATSz = EFD(V->Bpb.BPB_FATSz32) * bytspersec;
 
-//  entry = ( FatNum * FATSz ) + ( V->Bpb.BPB_ResvdSecCnt * bytspersec ) + (N * 4); 
+//  entry = ( FatNum * FATSz ) + ( EFW(V->Bpb.BPB_ResvdSecCnt) * bytspersec ) + (N * 4); 
 
  // printf("---- %u\n",entry);
-  EntryPerSec32 = V->Bpb.BPB_BytsPerSec / 4; /* fat32 entries are 4 bytes long */
+  EntryPerSec32 = EFW(V->Bpb.BPB_BytsPerSec) / 4; /* fat32 entries are 4 bytes long */
 
-  *Sector      = ( FatNum * FATSz ) + V->Bpb.BPB_ResvdSecCnt + 
+  *Sector      = ( FatNum * FATSz ) + EFW(V->Bpb.BPB_ResvdSecCnt) + 
 		    ( N / EntryPerSec32 );
   *EntryOffset = ( (N % EntryPerSec32) * 4 );
 
@@ -221,7 +220,7 @@ int fat32_read_entry(Volume_t *V, DWORD N, int FatNum, DWORD *Value)
     return -1;
   }
   
-  *Value = Entry & 0x0FFFFFFF;
+  *Value = EFD(Entry) & 0x0FFFFFFF;
   return 0;
 }
 
@@ -258,6 +257,7 @@ int fat32_write_entry(Volume_t *V, DWORD N, int FatNum, DWORD Value) {
 
 /*	write()		*/
 
+	Value=EFD(Value);
   if ( (Res = writen(V->blkDevFd, (char*) &Value, 4)) != 4) {
     perror("writen() error in fat32_read_entry()");
     return -1;
@@ -372,7 +372,7 @@ static void printVolumeData(Volume_t *V) {
 	fprintf(stderr,"dataclusters :%d  \n",V->DataClusters);
 	fprintf(stderr,"rootdiroff : %lld \n", V->fdb64   );
 	fprintf(stderr,"1st fat off :  %d \n",V->rsvdbytecnt );
-	fprintf(stderr,"2nd fat off :  %d\n", V->rsvdbytecnt+ (V->Bpb.BPB_FATSz32 * V->bps) );
+	fprintf(stderr,"2nd fat off :  %d\n", V->rsvdbytecnt+ (EFD(V->Bpb.BPB_FATSz32) * V->bps) );
 	return ;
 }
 
@@ -436,7 +436,7 @@ int	fat_partition_init(Volume_t *V, char *pathname) {	// todo: add uid and gid;
 	if ( (res = readn(fd, &(V->Bpb), sizeof(Bpb_t))) != sizeof(Bpb_t))		//we read directly from da disk (NB FAT32 BPB)
 		perror("BPB readn() error");
 	
-	fsi_offset = V->Bpb.BPB_FSInfo * V->Bpb.BPB_BytsPerSec;
+	fsi_offset = EFW(V->Bpb.BPB_FSInfo) * EFW(V->Bpb.BPB_BytsPerSec);
 	if ( (res = lseek(fd, fsi_offset, SEEK_SET)) == -1 ) 
 		perror("FSI lseek() error");
 
@@ -446,20 +446,20 @@ int	fat_partition_init(Volume_t *V, char *pathname) {	// todo: add uid and gid;
 
 /* 	--------------------------------------------------------------------		*/
 
-    if ( V->Bpb.BPB_FATSz16 != 0) {
-        FATSz = V->Bpb.BPB_FATSz16;
+    if ( V->Bpb.BPB_FATSz16 != 0) { /* 0 is endianess independent */
+        FATSz = EFW(V->Bpb.BPB_FATSz16);
     } else {
-        FATSz = V->Bpb.BPB_FATSz32;
+        FATSz = EFD(V->Bpb.BPB_FATSz32);
     }	
 
     if ( V->Bpb.BPB_TotSec16 != 0) {
-        TotSec = V->Bpb.BPB_TotSec16;
+        TotSec = EFW(V->Bpb.BPB_TotSec16);
     } else {
-        TotSec = V->Bpb.BPB_TotSec32;
+        TotSec = EFD(V->Bpb.BPB_TotSec32);
     }
 
     // this calculation sucks. it doesnt keep in account first rootdircluster can be different from 2
-	FirstDataSector = V->Bpb.BPB_ResvdSecCnt + (V->Bpb.BPB_NumFATs * FATSz) + RootDirSectors;
+	FirstDataSector = EFW(V->Bpb.BPB_ResvdSecCnt) + (V->Bpb.BPB_NumFATs * FATSz) + RootDirSectors;
 	DataSec = TotSec - FirstDataSector;
 	CountofClusters = (DWORD)  (DataSec / V->Bpb.BPB_SecPerClus);
 
@@ -482,12 +482,12 @@ int	fat_partition_init(Volume_t *V, char *pathname) {	// todo: add uid and gid;
   	V->FatType = FAT32;   						/* Can be FAT12, FAT16 or FAT32            */
 	V->DataClusters = CountofClusters;   		/* The total number of valid data clusters */
 	V->FirstDataSector = FirstDataSector; 		/* The first sector of the data region     */
-	V->FirstRootCluster = V->Bpb.BPB_RootClus; 	/* The first cluster of FAT32 root, usually 2   */
-//	V->FSI_Free_Count = V->Fsi.FSI_Free_Count; 	/* The count of free clusters              */
-//	V->FSI_Nxt_Free = V->Fsi.FSI_Nxt_Free;     	/* The cluster number from which to start  */
+	V->FirstRootCluster = EFD(V->Bpb.BPB_RootClus); 	/* The first cluster of FAT32 root, usually 2   */
+//	V->FSI_Free_Count = EFD(V->Fsi.FSI_Free_Count); 	/* The count of free clusters              */
+//	V->FSI_Nxt_Free = EFD(V->Fsi.FSI_Nxt_Free);     	/* The cluster number from which to start  */
                           						/* to search for free clusters, if known   */
 												
-	V->bps64 =	V->Bpb.BPB_BytsPerSec; 
+	V->bps64 =	EFW(V->Bpb.BPB_BytsPerSec); 
 	V->spc64 =	V->Bpb.BPB_SecPerClus;
 	V->bpc64 =	V->bps64 * V->spc64;
 	V->fds64 =	FirstDataSector;
@@ -496,16 +496,16 @@ int	fat_partition_init(Volume_t *V, char *pathname) {	// todo: add uid and gid;
 	V->bps = V->bps64;
 	V->spc = V->spc64;
 	V->bpc = V->bpc64;
-	V->fatsz = V->Bpb.BPB_FATSz32 * V->bps;
-	V->rsvdbytecnt = V->Bpb.BPB_ResvdSecCnt * V->bps;
+	V->fatsz = EFD(V->Bpb.BPB_FATSz32) * V->bps;
+	V->rsvdbytecnt = EFW(V->Bpb.BPB_ResvdSecCnt) * V->bps;
 	V->dirtyoff = fat32_cluster_off(V, 1, 0);
 	
 	V->numfats =  V->Bpb.BPB_NumFATs;
 	
 	V->fstfclus=0;
 	V->fclusz=0;
-	V->freecnt = V->Fsi.FSI_Free_Count;
-	V->nextfree = V->Fsi.FSI_Nxt_Free;
+	V->freecnt = EFD(V->Fsi.FSI_Free_Count);
+	V->nextfree = EFD(V->Fsi.FSI_Nxt_Free);
 	
 /* setting mode for the volume -- TODO: get parameter for the mode and use those	*/
 	V->mode =0;
@@ -545,12 +545,12 @@ int fat_partition_finalize(Volume_t *V) {
 	int fsioff;
 	int res;
 	
-	V->Fsi.FSI_Free_Count = V->freecnt;
-	V->Fsi.FSI_Nxt_Free = V->nextfree;
+	V->Fsi.FSI_Free_Count = EFD(V->freecnt);
+	V->Fsi.FSI_Nxt_Free = EFD(V->nextfree);
 	
 	// lets write down FSInfo Sector
 	
-	fsioff = (int) ((int) V->Bpb.BPB_FSInfo * V->bps);
+	fsioff = (int) ((int) EFW(V->Bpb.BPB_FSInfo) * V->bps);
     res = lseek(V->blkDevFd,  fsioff , SEEK_SET);
     if (res != fsioff ) {
         perror("lseek() error in partition finalize");
@@ -1168,7 +1168,7 @@ int traverse_path(Volume_t *V, gchar **parts, guint parts_len, DWORD *Cluster) {
 	
 //    Clus = V->FirstRootCluster;	//initialised to rootsector.  ERROR
 //    Clus = V->FirstDataSector;
-	Clus = V->Bpb.BPB_RootClus;
+	Clus = EFD(V->Bpb.BPB_RootClus);
     
     for (i=1; i < (int) (parts_len - 1); i++) {
 
@@ -1244,7 +1244,7 @@ int fat_read_data(Volume_t *V, DWORD *Cluster, DWORD *Offset, char *buf, size_t 
 	off64_t off = 0;
 	int datasize = count;
 	int dataread = 0;
-	int clustersz= V->Bpb.BPB_BytsPerSec * V->Bpb.BPB_SecPerClus;
+	int clustersz= EFW(V->Bpb.BPB_BytsPerSec) * V->Bpb.BPB_SecPerClus;
 	int byteleftperclus = clustersz - *Offset;
 	int res;
 	off64_t seekres;
@@ -1322,7 +1322,7 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 	off64_t off = 0;
 	int datasize = count;
 	int datawritten = 0;
-	int clustersz= V->Bpb.BPB_BytsPerSec * V->Bpb.BPB_SecPerClus;
+	int clustersz= EFW(V->Bpb.BPB_BytsPerSec) * V->Bpb.BPB_SecPerClus;
 	int byteleftperclus = clustersz - *Offset;
 	int res;
 	off64_t seekres;
@@ -1330,7 +1330,7 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 	DWORD orig_filesz = 0;
 	
 	if (F!=NULL) {
-		orig_filesz = F->DirEntry->DIR_FileSize;
+		orig_filesz = EFD(F->DirEntry->DIR_FileSize);
 	}
 
 //	fprintf(stderr,"off: %u, bytleft %d, cnt: %d\n",*Offset, byteleftperclus,cnt);
@@ -1449,7 +1449,7 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 				*Offset = 0;
 			} else { //offset < clustersize
 			}
-			if ((F != NULL) && (F->DirEntry->DIR_FileSize < F->CurAbsOff)) F->DirEntry->DIR_FileSize = F->CurAbsOff; 
+			if ((F != NULL) && (EFD(F->DirEntry->DIR_FileSize) < F->CurAbsOff)) F->DirEntry->DIR_FileSize = EFD(F->CurAbsOff); 
 			return datasize;	
 		}			
 	}	 
@@ -1500,6 +1500,7 @@ int fat_update_file(File_t *F) {
 /* set first cluster */
 int set_fstclus(DirEntry_t *D, DWORD c) {
 	if (D==NULL) return -1;
+	c=EFD(c);
 	D->DIR_FstClusLO = ((WORD *) &c)[0];
 	D->DIR_FstClusHI = ((WORD *) &c)[1];
 	return 0;
@@ -1510,6 +1511,7 @@ DWORD get_fstclus(DirEntry_t *D) {
 	DWORD val;
 	((WORD *) &val)[0] = D->DIR_FstClusLO; 
 	((WORD *) &val)[1] = D->DIR_FstClusHI;
+	val=EFD(val);
 	return val;
 }
 
@@ -1995,7 +1997,7 @@ int fat_rmdir(File_t *F) {
 
 /* truncate() routine for libfat */
 int fat_truncate(File_t *F, DWORD len) {
-	DWORD fsize = F->DirEntry->DIR_FileSize;
+	DWORD fsize = EFD(F->DirEntry->DIR_FileSize);
 	DWORD clus;
 	int res;
 	DWORD Cluster, Next;
@@ -2038,7 +2040,7 @@ int fat_truncate(File_t *F, DWORD len) {
 	
 	if ((F->rootdir != 1) || (!(ATTR_ISDIR(F->DirEntry->DIR_Attr)))) {
 		// update filesize
-		F->DirEntry->DIR_FileSize = len;
+		F->DirEntry->DIR_FileSize = EFD(len);
 	
 		// update file
 		res = fat_update_file(F);
@@ -2085,8 +2087,8 @@ int fat_stat(File_t *F, struct stat *st) {
 	} else {
 		st->st_mode = S_IFREG | S_IRWXU;	
 	}
-	st->st_size = F->DirEntry->DIR_FileSize;    /* total size, in bytes */  
-	st->st_blocks = (F->DirEntry->DIR_FileSize / 512) + 1;  /* number of blocks allocated */
+	st->st_size = EFD(F->DirEntry->DIR_FileSize);    /* total size, in bytes */  
+	st->st_blocks = (st->st_size / 512) + 1;  /* number of blocks allocated */
     st->st_ctime = st->st_atime = st->st_mtime = fat_mktime2(F->DirEntry);   /* time of last modification. tofix atime */ 
   }
   return 0;
@@ -2252,14 +2254,14 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 	} else if (whence == SEEK_CUR) {
 		off = F->CurAbsOff + offset;
 	} else if (whence == SEEK_END) {
-		off = F->DirEntry->DIR_FileSize + offset;
+		off = EFD(F->DirEntry->DIR_FileSize) + offset;
 	} else { fprintf(stderr,"fat_seek(): unknown Whence\n"); return -1;	}	// error
 
 	/* Let's test if the file is empty. if so let's allocate its first cluster, set it, update the file.	*/
 	
-	if ((mode == O_RDONLY) && (off >= F->DirEntry->DIR_FileSize)) { fprintf(stderr,"fat_seek(): cant seek beyond EOF in O_RDONLY\n"); return -1; } 
+	if ((mode == O_RDONLY) && (off >= EFD(F->DirEntry->DIR_FileSize))) { fprintf(stderr,"fat_seek(): cant seek beyond EOF in O_RDONLY\n"); return -1; } 
 
-	if ((F->rootdir != 1) && (!FAT32_LEGALCLUS(get_fstclus(F->DirEntry))) && (F->DirEntry->DIR_FileSize == 0)) {
+	if ((F->rootdir != 1) && (!FAT32_LEGALCLUS(get_fstclus(F->DirEntry))) && (F->DirEntry->DIR_FileSize == 0)) { /* 0 is endianess independent */
 		if (mode != O_RDONLY) {  
 		/* Let's allocate the first cluster */
 			DWORD freecls;
@@ -2328,7 +2330,7 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 					DWORD freecls,cclus,coff;
 					
 					cclus = F->CurClus;
-					coff =  (F->DirEntry->DIR_FileSize) % F->V->bpc;
+					coff =  (EFD(F->DirEntry->DIR_FileSize)) % F->V->bpc;
 		//            fprintf(stderr,"fat_seek(): empty file in O_RDWR\n");
 		            freecls = fat_getFreeCluster(F->V);
             		fat32_writen_entry(F->V, F->CurClus , freecls);
@@ -2336,8 +2338,8 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
             		newclus = F->CurClus = freecls;
 					F->CurOff  = 0;
 	
-					if (((F->DirEntry->DIR_FileSize ) % F->V->bpc ) != 0) { 
-						F->DirEntry->DIR_FileSize = ((F->DirEntry->DIR_FileSize / F->V->bpc) * F->V->bpc) + F->V->bpc ;
+					if (((EFD(F->DirEntry->DIR_FileSize) ) % F->V->bpc ) != 0) { 
+						F->DirEntry->DIR_FileSize = EFD(((EFD(F->DirEntry->DIR_FileSize) / F->V->bpc) * F->V->bpc) + F->V->bpc) ;
 
 						res = fat_write0data(F->V, NULL, &cclus, &coff, (F->V->bpc - coff));	// let's zero the end of the cluster
 						if (res != (F->V->bpc - coff)) { fprintf(stderr, "write0data() error. res= %d, line: %d\n",res,__LINE__); return -1; }
@@ -2368,7 +2370,7 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 	            		newclus = F->CurClus = freecls;
 						F->CurOff  = 0;
 	
-						F->DirEntry->DIR_FileSize += F->V->bpc ;
+						F->DirEntry->DIR_FileSize += EFD(F->V->bpc) ;
 	
 	    				cclus = freecls;
 						coff = 0;
@@ -2394,12 +2396,12 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 		} else {								// the offset is in this cluster
 			off64_t newoff = (off - curabsoff) + curoff;
 			
-			if (off >= F->DirEntry->DIR_FileSize) {	// Offset beyond the filesize. we must zero a piece of the cluster
+			if (off >= EFD(F->DirEntry->DIR_FileSize)) {	// Offset beyond the filesize. we must zero a piece of the cluster
 				if (mode != O_RDONLY) {
 					DWORD cclus = F->CurClus;
-					DWORD coff  = (F->DirEntry->DIR_FileSize % F->V->bpc);
-					res = fat_write0data(F->V, NULL, &cclus, &coff, (off - F->DirEntry->DIR_FileSize));	// let's zero a piece of the clus
-					if (res != (off - F->DirEntry->DIR_FileSize)) { 
+					DWORD coff  = (EFD(F->DirEntry->DIR_FileSize) % F->V->bpc);
+					res = fat_write0data(F->V, NULL, &cclus, &coff, (off - EFD(F->DirEntry->DIR_FileSize)));	// let's zero a piece of the clus
+					if (res != (off - EFD(F->DirEntry->DIR_FileSize))) { 
 						fprintf(stderr, "write0data() error. res= %d, line: %d\n",res,__LINE__); return -1; 
 					}										
 				} else {

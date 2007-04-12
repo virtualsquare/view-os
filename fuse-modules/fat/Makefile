@@ -36,4 +36,4 @@ umfusefat:  fusefat.o libfat.a v2fuseutils.o
 	$(CC) -o umfusefat ${LIBS} -shared -nostartfiles fusefat.o libfat.a v2fuseutils.o
 
 clean:
-	rm -f ${LIBFAT_OBJS} libfat.a fusefat umfusefat libfat.so
+	rm -f ${LIBFAT_OBJS} libfat.a fusefat umfusefat libfat.so fusefat.o v2fuseutils.o

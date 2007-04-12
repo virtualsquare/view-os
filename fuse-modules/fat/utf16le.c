@@ -20,6 +20,7 @@
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 #include "unicode.h"
+#include <endian.h>
 
 /**
  * \addtogroup unicode
@@ -28,7 +29,7 @@
 
 static inline uint16_t little_endian_16(uint16_t v)
 {
-#if 1 /* Machine is little endian */
+#if __BYTE_ORDER == __LITTLE_ENDIAN /* Machine is little endian */
 	return v;
 #else /* Machine is big endian */
 	return (v << 8) | (v >> 8);

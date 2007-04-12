@@ -251,36 +251,56 @@ static int fusefat_fsync(const char *path, int isdatasync, struct fuse_file_info
     return 0;
 }
 
+#if ( FUSE_MINOR_VERSION <= 5 )
+static void *init_data;
+
+void *fusefat_init(void)
+{
+	return init_data;
+}
+#else
+void *fusefat_init(void)
+{
+	struct fuse_context *mycontext;
+	mycontext=fuse_get_context();
+#ifndef DEBUG
+	printf("INIT %p\n",mycontext->private_data);
+#endif
+	return mycontext->private_data;
+}   
+#endif
+
+
 static struct fuse_operations fusefat_oper = {
-//	.init		=	,
-//	.destroy	=	,
-//	.lookup		=	NULL,
-//	.forget		= 	NULL,		// forget an opened fh
-    .getattr	= fusefat_getattr,
-    .access		= fusefat_access,		// check file access permission
-//    .readlink	= fusefat_readlink,	
-    .readdir	= fusefat_readdir,
-    .mknod		= fusefat_mknod,
-//	.create = ,		
-    .mkdir		= fusefat_mkdir,
-//    .symlink	= fusefat_symlink,
-    .unlink		= fusefat_unlink,		// remove a file
-    .rmdir		= fusefat_rmdir,
-    .rename		= fusefat_rename,
-//    .link	= fusefat_link,
-//    .chmod	= NULL,
-//    .chown	= NULL,
-    .truncate	= fusefat_truncate,
-//    .utimens	= fusefat_utimens,
+	.init		=	fusefat_init,
+	//	.destroy	=	,
+	//	.lookup		=	NULL,
+	//	.forget		= 	NULL,		// forget an opened fh
+	.getattr	= fusefat_getattr,
+	.access		= fusefat_access,		// check file access permission
+	//    .readlink	= fusefat_readlink,	
+	.readdir	= fusefat_readdir,
+	.mknod		= fusefat_mknod,
+	//	.create = ,		
+	.mkdir		= fusefat_mkdir,
+	//    .symlink	= fusefat_symlink,
+	.unlink		= fusefat_unlink,		// remove a file
+	.rmdir		= fusefat_rmdir,
+	.rename		= fusefat_rename,
+	//    .link	= fusefat_link,
+	//    .chmod	= NULL,
+	//    .chown	= NULL,
+	.truncate	= fusefat_truncate,
+	//    .utimens	= fusefat_utimens,
 	.utime	= fusefat_utime,
-    .open	= fusefat_open,
+	.open	= fusefat_open,
 	.opendir= NULL,
-    .read	= fusefat_read,
-    .write	= fusefat_write,
-    .statfs	= fusefat_statvfs,
-    .release	= fusefat_release,	//we should avoid to delete a file if multiple processes are using it.
+	.read	= fusefat_read,
+	.write	= fusefat_write,
+	.statfs	= fusefat_statvfs,
+	.release	= fusefat_release,	//we should avoid to delete a file if multiple processes are using it.
 	.releasedir = NULL,
-    .fsync	= fusefat_fsync	//sync
+	.fsync	= fusefat_fsync	//sync
 };
 
 static void rearrangeargv(int argc, char *argv[])
@@ -329,7 +349,12 @@ int main(int argc, char *argv[])
 	if ((res = fat_partition_init(V,pathname)) < 0) return -1;		
 
 	//   umask(0);
+#if ( FUSE_MINOR_VERSION <= 5 )
+	init_data=V;
+	res =  fuse_main(--argc, ++argv, &fusefat_oper);
+#else
 	res =  fuse_main(--argc, ++argv, &fusefat_oper, V);
+#endif
 
 	res = fat_partition_finalize(V);
 	return res;

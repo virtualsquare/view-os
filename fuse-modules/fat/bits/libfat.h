@@ -4,7 +4,16 @@
 #define __BITS_LIBFAT_H
 
 #ifndef __INSIDE_LIBFAT_H
-#error "Never use <bits/select.h> directly; include <sys/select.h> instead."
+#error "Never use <bits/libfat.h> directly; include <libfat.h> instead."
+#endif
+#include <endian.h>
+#if __BYTE_ORDER == __BIG_ENDIAN
+#include <byteswap.h>
+#define EFW(X) bswap_16(X)
+#define EFD(X) bswap_32(X)
+#else
+#define EFW(X) (X)
+#define EFD(X) (X)
 #endif
 
 /*	Maximum number of file opened	*/
