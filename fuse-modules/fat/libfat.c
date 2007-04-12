@@ -701,7 +701,7 @@ BYTE lfn_checksum(BYTE *name) {
 /* Given a 32byte dirent entry, determines what it is . If lfn entry (and 
    if the last one) or sfn entry or free entry				*/
 
-int analize_dirent(LfnEntry_t *D) {
+int analyze_dirent(LfnEntry_t *D) {
     BYTE c;	
 
     /*	Empty entry	*/
@@ -826,7 +826,7 @@ int fetch_next_direntry(Volume_t *V, DirEnt_t *D, DWORD *Cluster, DWORD *Offset)
 		if ( fetch_entry(V, Cluster, Offset, &((D->entry)[i])) < 0 ) {
 			return -1;	// error fetching direntry
 		}
-		if ( ( res = analize_dirent(&((D->entry)[i])) ) < 0) {
+		if ( ( res = analyze_dirent(&((D->entry)[i])) ) < 0) {
 			return -1;			// malformed 32byte block
 		}
 		if ( LIBFAT_DIRENT_ISLASTFREE(res) ) {			// Nothing else after this 32byte direntry
@@ -866,7 +866,7 @@ int fetch_next_direntry(Volume_t *V, DirEnt_t *D, DWORD *Cluster, DWORD *Offset)
 		if ( fetch_entry(V, Cluster, Offset, &((D->entry)[i])) < 0) {
 			return -1;	
 		}
-		if ( (res = analize_dirent(&((D->entry)[i]))) < 0) {
+		if ( (res = analyze_dirent(&((D->entry)[i]))) < 0) {
 			return -1;
 		}
     }
