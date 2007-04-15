@@ -539,7 +539,8 @@ int	fat_partition_init(Volume_t *V, char *pathname, int flags) {	// todo: add ui
 	//printVolumeData(V);
 	
 #ifdef FATWRITE	
-	fat_mark_dirty(V);
+	if (flags & FAT_WRITE_ACCESS_FLAG) 
+		fat_mark_dirty(V);
 #endif
 	return 0;
 }
