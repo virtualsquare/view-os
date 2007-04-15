@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include "v2fuseutils.h"
 
 void v2f_usage(char *progname,struct fuse_operations *ops)
@@ -37,9 +38,9 @@ void v2f_usage(char *progname,struct fuse_operations *ops)
 				"       %s [options] imagefile mountpoint\n", progname,progname);
 		fprintf(stderr,"valid fuse options follow:\n");
 #if FUSE_USE_VERSION < 26
-		fuse_main( argc, argv, &ops);
+		fuse_main( argc, argv, ops);
 #else
-		fuse_main( argc, argv, &ops, NULL);
+		fuse_main( argc, argv, ops, NULL);
 #endif
 		exit(1);
 }

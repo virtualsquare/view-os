@@ -3,12 +3,11 @@
  *
  *   fuse/umfuse module for iso9660 filesystem support
  *   
- *   Copyright 2005,2006 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2005,2006,2007 Renzo Davoli University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ *   the Free Software Foundation; either version 2 of the License
  *
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -388,7 +387,7 @@ static int f_iso9660_getattr(const char *path, struct stat *stbuf)
 		memset (stbuf,0,sizeof(struct stat));
 		/* XXX workaround
 		 * should be unique and != existing devices */
-		stbuf->st_dev=(dev_t) isofs;
+		stbuf->st_dev=(dev_t) ((long)isofs);
 		switch (isostat->type) {
 			case _STAT_FILE: 
 				stbuf->st_mode=__S_IFREG|0555;break;
@@ -538,7 +537,7 @@ static int f_iso9660_read(const char *path, char *buf, size_t size, off_t offset
 	else 
 #endif
 	{
-		struct iso9660fileinfo *fh9660=(struct iso9660fileinfo *)(fi->fh);
+		struct iso9660fileinfo *fh9660=(struct iso9660fileinfo *)((long)(fi->fh));
 		if (fh9660 ==NULL)
 			return -ENOENT;
 		if (fh9660->pointer_block == NULL) /* UNCOMPRESSED ISO */
@@ -572,7 +571,7 @@ static int f_iso9660_write(const char *path, const char *buf, size_t size,
 
 static int f_iso9660_release(const char *path, struct fuse_file_info *fi)
 {
-    struct iso9660fileinfo *fh9660=(struct iso9660fileinfo *)(fi->fh);
+    struct iso9660fileinfo *fh9660=(struct iso9660fileinfo *)((long)(fi->fh));
 		if (fh9660 != NULL) {
 			if (fh9660->pointer_block != NULL)
 				free(fh9660->pointer_block);
@@ -641,7 +640,7 @@ void *f_iso9660_init(void)
 	return init_data;
 }
 #else
-void *f_iso9660_init(void)
+void *f_iso9660_init(struct fuse_conn_info *conn)
 {
 	struct fuse_context *mycontext;
 	mycontext=fuse_get_context();

@@ -3,13 +3,12 @@
  *
  *   fuse/umfuse module for ext2 filesystems
  *   
- *   Copyright 2005 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2005,2007 Renzo Davoli University of Bologna - Italy
  *   Modified 2005 Andrea Seraghiti
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ *   the Free Software Foundation; either version 2 of the License
  *
  *   This program is distributed in the hope that it will be useful,
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -97,12 +96,12 @@ static int ext2_getattr(const char *path, struct stat *stbuf)
 	#ifdef DEBUG
 	printf("\t\text2_read_inodeERR:%d\n",err);
 	#endif
-	if(err < 0)
+	if(err)
 		return -ENOENT;
 
 	/* XXX workaround
 	 * should be unique and != existing devices */
-	stbuf->st_dev = (dev_t) e2fs;
+	stbuf->st_dev = (dev_t) ((long)e2fs);
 	stbuf->st_ino = ino_n;
 	stbuf->st_mode = ino.i_mode;
 	stbuf->st_nlink = ino.i_links_count;
@@ -139,7 +138,7 @@ static int ext2_readlink(const char *path, char *buf, size_t size)
 		return -ENOENT;
 	
 	err = ext2fs_read_inode (e2fs, ino_n, &ino);
-	if(err < 0)
+	if(err)
 		return -ENOENT;
 	
 	if (!LINUX_S_ISLNK(ino.i_mode))
@@ -256,13 +255,13 @@ static int ext2_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 #ifdef DEBUG
 	printf("\text2_getdir\n\text2_namei_followERR:%d\n",err);
 #endif
-	if(err < 0 || ino_n == 0)
+	if(err || ino_n == 0)
 		return -ENOENT;
 	err=ext2fs_file_open(e2fs, ino_n, 0, &e2file);
-	if(err < 0)
+	if(err)
 		return -ENOENT;
 	err=ext2fs_dir_iterate2(e2fs,ino_n, 0, NULL, ext2_readdir_iter, &sid);
-	if(err < 0)
+	if(err)
 		return -ENOENT;
 	return 0;
 }
@@ -284,13 +283,13 @@ static int ext2_getdir(const char *path, fuse_dirh_t h, fuse_dirfil_t filler)
 	#ifdef DEBUG
 	printf("\text2_getdir\n\text2_namei_followERR:%d\n",err);
 	#endif
-    if(err < 0 || ino_n == 0)
+    if(err || ino_n == 0)
         return -ENOENT;
     err=ext2fs_file_open(e2fs, ino_n, 0, &e2file);
-    if(err < 0)
+    if(err)
         return -ENOENT;
     err=ext2fs_dir_iterate2(e2fs,ino_n, 0, NULL, ext2_dir_iter, &sid);
-    if(err < 0)
+    if(err)
         return -ENOENT;
     return 0;
 }
@@ -316,16 +315,22 @@ static int ext2_open(const char *path, struct fuse_file_info *fi)
 	#ifdef DEBUG
 	printf("\t\text2_namei_followERR:%d\n",err);
 	#endif
-	if(err < 0 || ino_n == 0)
+	if(err || ino_n == 0)
 		return -ENOENT;
 	//err=ext2fs_file_open(e2fs, ino_n,  0, &e2file);
-	err = ext2fs_file_open(e2fs, ino_n, EXT2_FILE_WRITE, &e2file);
-	#ifdef DEBUG
+	if (fi->flags & O_ACCMODE != 0)
+		err = ext2fs_file_open(e2fs, ino_n, EXT2_FILE_WRITE, &e2file);
+	else
+		err = ext2fs_file_open(e2fs, ino_n, 0, &e2file);
+	#ifndef DEBUG
 	printf("\t\text2_file_openERR:%d\n",err);
 	#endif
-	if(err < 0)
-		return -ENOENT;
-
+	if(err) {
+		if (err == EXT2_ET_RO_FILSYS) 
+			return EROFS;
+		else
+			return -ENOENT;
+	}
 	fi->fh = (long) e2file;
 	return 0;
 }
@@ -422,17 +427,16 @@ static int ext2_read(const char *path, char *buf, size_t size, off_t offset,
 	struct fuse_context *mycontext=fuse_get_context();
 	e2fs=(ext2_filsys) mycontext->private_data;
 
-	e2file=(ext2_file_t)(fi->fh);
-    	#ifdef DEBUG
-	printf("\text2_read-file read:%lu\n", fi->fh);
+	e2file=(ext2_file_t)((long)(fi->fh));
+  #ifndef DEBUG
+	printf("\text2_read-file read:%lu %p\n", fi->fh, e2file);
 	#endif
 	err = ext2fs_file_lseek(e2file, offset, SEEK_SET, &newpos);
-	if(err < 0)
+	if(err)
 		return -ENOENT;
 	err = ext2fs_file_read(e2file, buf, size, &got);
-	if(err < 0)
+	if(err)
 		return -ENOENT;
-	//ext2fs_file_close(e2file);
 	return got;
 }
 
@@ -444,7 +448,7 @@ static int ext2_write(const char *path, const char *buf, size_t size, off_t offs
 	unsigned int newpos;
 	unsigned int got = 0;
 	int retval = 0;
-	char *buftmp = buf;
+	const char *buftmp = buf;
 
 	ext2_filsys e2fs;
 	struct fuse_context *mycontext=fuse_get_context();
@@ -453,7 +457,7 @@ static int ext2_write(const char *path, const char *buf, size_t size, off_t offs
 	printf("\text2_write\n");
 	printf("\t\tfiletab:%d\n",fi->fh);
 	#endif
-	e2file = (ext2_file_t)(fi->fh);
+	e2file = (ext2_file_t)((long)(fi->fh));
 	#ifdef DEBUG
 	printf("\t\tfileflag:%d\n",e2file->flags);
 	#endif
@@ -586,7 +590,7 @@ try_again:
 		#ifdef DEBUG
 		fprintf(stderr, "Expand dir space\n");
 		#endif
-		err = ext2fs_expand_dir(e2fs, path_parent);
+		err = ext2fs_expand_dir(e2fs, parent);
 		if (err) {
 			fprintf(stderr, "Error while expanding directory\n");
 			return -ENOENT;
@@ -637,29 +641,35 @@ static int rmdir_proc(ext2_ino_t dir EXT2FS_ATTR((unused)),
 	return 0;
 }
 
-static int unlink_file_by_name(char *filename)
+static int unlink_file_by_name(const char *filename)
 {
 	int		retval;
 	ext2_ino_t	dir;
-	char		*basename;
+	char *basename;
+	char *localfn=strdup(filename);
+	if (!localfn)
+		return -ENOMEM;
 	
 	ext2_filsys e2fs;
 	struct fuse_context *mycontext=fuse_get_context();
 	e2fs = (ext2_filsys) mycontext->private_data;
 
-	basename = strrchr(filename, '/');
+	basename = strrchr(localfn, '/');
 	if (basename) {
 		*basename++ = '\0';
-		retval = ext2fs_namei(e2fs, EXT2_ROOT_INO, EXT2_ROOT_INO, filename, &dir);
-		if (!dir)
-			return;
+		retval = ext2fs_namei(e2fs, EXT2_ROOT_INO, EXT2_ROOT_INO, localfn, &dir);
+		if (!dir) {
+			free(localfn);
+			return -ENOENT;
+		}
 	} else {
 		dir = 2;//cwd;
-		basename = filename;
+		basename = localfn;
 	}
 	retval = ext2fs_unlink(e2fs, dir, basename, 0, 0);
 	if (retval)
 		printf("unlink_file_by_name:%d\n", retval);
+	free(localfn);
 	return retval;
 }
 
@@ -805,7 +815,8 @@ static int ext2_symlink(const char *sourcename, const char *destname)
 	struct ext2_inode inode;
 	int		retval;
 	ext2_ino_t	dir;
-	char		*dest, *cp, *basename;
+	const char	*dest;
+	char  *cp, *basename;
 
 
 	ext2_filsys e2fs;
@@ -848,7 +859,9 @@ static int ext2_link(const char *sourcename, const char *destname)
 	struct ext2_inode inode;
 	int		retval;
 	ext2_ino_t	dir;
-	char		*dest, *cp, *basename;
+	const char *dest;
+	const char *basename;
+	char *cp;
 
 
 	ext2_filsys e2fs;
@@ -969,7 +982,7 @@ static int ext2_chmod(const char *path, mode_t mode)
 	#ifdef DEBUG
 	printf("\t\text2_read_inodeERR:%d\n",err);
 	#endif
-	if(err < 0)
+	if(err)
 		return -ENOENT;
 	
 	ino.i_mode = (mode & S_IALLUGO) | (ino.i_mode & ~S_IALLUGO);
@@ -1006,7 +1019,7 @@ static int ext2_chown(const char *path, uid_t owner, gid_t group)
 	#ifdef DEBUG
 	printf("\t\text2_read_inodeERR:%d\n",err);
 	#endif
-	if(err < 0)
+	if(err)
 		return -ENOENT;
 	
 	ino.i_uid = owner;
@@ -1043,7 +1056,7 @@ static int ext2_truncate(const char *path, off_t length)
 	#ifdef DEBUG
 	printf("\t\text2_read_inodeERR:%d\n",err);
 	#endif
-	if(err < 0)
+	if(err)
 		return -ENOENT;
 	
 	ino.i_size = length; //size of file
@@ -1062,7 +1075,7 @@ static int ext2_rename(const char *oldpath, const char *newpath)
 	return 0;
 }
 
-static int ext2_utime(const char *path, const struct utimbuf *buf)
+static int ext2_utime(const char *path, struct utimbuf *buf)
 {
 	ext2_ino_t ino_n;
 	struct ext2_inode  ino;
@@ -1087,7 +1100,7 @@ static int ext2_utime(const char *path, const struct utimbuf *buf)
 	#ifdef DEBUG
 	printf("\t\text2_read_inodeERR:%d\n",err);
 	#endif
-	if(err < 0)
+	if(err)
 		return -ENOENT;
 	
 	ino.i_atime = buf->actime;
@@ -1144,7 +1157,7 @@ static int ext2_flush(const char *path, struct fuse_file_info *fi)
 	#ifdef DEBUG
 	printf("\t\tfiletab:%d\n",fi->fh);
 	#endif
-	e2file = (ext2_file_t)(fi->fh);
+	e2file = (ext2_file_t)((long)(fi->fh));
 	#ifdef DEBUG
 	printf("\t\tfileflag:%d\n",e2file->flags);
 	#endif
@@ -1160,7 +1173,7 @@ static int ext2_release(const char *path, struct fuse_file_info *fi)
 	ext2_file_t e2file;
 	int err;
 
-	e2file = (ext2_file_t)(fi->fh);
+	e2file = (ext2_file_t)((long)(fi->fh));
 	#ifdef DEBUG
 	fprintf(stderr, "\text2_Release,file:%lu\n",fi->fh);
 	#endif
@@ -1171,7 +1184,7 @@ static int ext2_release(const char *path, struct fuse_file_info *fi)
 	#endif
 	err = ext2fs_file_close(e2file);
 	#ifdef DEBUG
-	printf("\t\tCLOSE ERRORE:%d\n",err);
+	printf("\t\tCLOSE ERROR:%d\n",err);
 	#endif
 	return 0;
 }
@@ -1185,7 +1198,7 @@ void *ext2_init(void)
 	return init_data;
 }
 #else
-void *ext2_init(void)
+void *ext2_init(struct fuse_conn_info *conn)
 { 
 	  struct fuse_context *mycontext;
 		mycontext=fuse_get_context();
