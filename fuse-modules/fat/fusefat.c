@@ -38,7 +38,7 @@ static int fusefat_open(const char *path, struct fuse_file_info *fi) {
 	fat_lock(V);
 	if ((res = fat_open(path, F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); free(F); return -ENOENT; }
 	fat_unlock(V);
-	fi->fh = (off64_t) F;
+	fi->fh = (long)F;
 	fprintf(stderr,"open(%s)\n",path);
     return 0;
 }
@@ -85,7 +85,7 @@ static int fusefat_release(const char *path, struct fuse_file_info *fi)
 
 //    (void) path;
 //    (void) fi;
-	free((File_t *) fi->fh);
+	free((File_t *) ((long)(fi->fh)));
     return 0;
 }
 
@@ -93,7 +93,7 @@ static int fusefat_release(const char *path, struct fuse_file_info *fi)
 static int fusefat_mknod(const char *path, mode_t mode, dev_t rdev) {
     int res;
 	char dirname[4096];
-    char filename[1024];
+  char filename[1024];
 	File_t Parent;
 	Volume_t *V;
 	fusefat_getvolume(V);
@@ -102,7 +102,7 @@ static int fusefat_mknod(const char *path, mode_t mode, dev_t rdev) {
 	} */
 
 	fat_dirname(path, dirname);
-    fat_filename(path, filename);
+  fat_filename(path, filename);
 	fat_lock(V);
 	fprintf(stderr,"dirname: %s, filename: %s\n", dirname, filename);
 	if ((res =  fat_open(dirname, &Parent, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
@@ -159,7 +159,7 @@ static int fusefat_rename(const char *from, const char *to) {
 	Volume_t *V;
 	fusefat_getvolume(V);
 
-	fprintf(stderr,"from: %s, to: %s\n");
+	fprintf(stderr,"from: %s, to: %s\n",from,to);
 	fat_lock(V);
 
 	if ((res =  fat_rename(V,from,to)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return res; }
@@ -259,7 +259,7 @@ void *fusefat_init(void)
 	return init_data;
 }
 #else
-void *fusefat_init(void)
+void *fusefat_init(struct fuse_conn_info *conn)
 {
 	struct fuse_context *mycontext;
 	mycontext=fuse_get_context();
@@ -346,7 +346,8 @@ int main(int argc, char *argv[])
 	if (v2f_printwarning(rorwplus))
 		return -EINVAL;
 
-	if ((res = fat_partition_init(V,pathname)) < 0) return -1;		
+	if ((res = fat_partition_init(V,pathname,
+					(rorwplus==FLRWPLUS)?FAT_WRITE_ACCESS_FLAG:0)) < 0) return -1;		
 
 	//   umask(0);
 #if ( FUSE_MINOR_VERSION <= 5 )

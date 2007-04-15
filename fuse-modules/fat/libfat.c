@@ -381,7 +381,7 @@ static void printVolumeData(Volume_t *V) {
 /*  canonical name															*/
 /*	FAT12/16 NOT SUPPORTED right now										*/
 
-int	fat_partition_init(Volume_t *V, char *pathname) {	// todo: add uid and gid;
+int	fat_partition_init(Volume_t *V, char *pathname, int flags) {	// todo: add uid and gid;
 
     DWORD RootDirSectors = 0;	// Only for FAT12/16
     DWORD FATSz;
@@ -422,8 +422,13 @@ int	fat_partition_init(Volume_t *V, char *pathname) {	// todo: add uid and gid;
 	}
 
 #ifdef FATWRITE
+	if (flags & FAT_WRITE_ACCESS_FLAG) {
 		if ( (fd = open(pathname, O_RDWR)) == -1 ) 
 		perror("open() (RDWR) error");
+	} else {
+		if ( (fd = open(pathname, O_RDONLY)) == -1 ) 
+			perror("open() (RDONLY) error");
+	}
 #else
 	if ( (fd = open(pathname, O_RDONLY)) == -1 ) 
 		perror("open() (RDONLY) error");
@@ -2183,7 +2188,7 @@ int fat_open(const char *filename, File_t *F, Volume_t *V, int flags) {
 /* rename() routine for libfat */		// TOFIX: if destination is present rename returns error, but has already deleted the file
 // TOFIX: behaviour with directories (mv dir1 dir2 puts dir1 into dir2 if dir2 is present)
 
-int fat_rename(Volume_t *V, char *from, char *to) {
+int fat_rename(Volume_t *V, const char *from, const char *to) {
 	int res;
     char dirnameto[4096];
 	char filenameto[1024];
@@ -2611,7 +2616,7 @@ int utf8_strncmp(const char *s1, const char *s2, int n) {		// Seems to work.
 }
 
 /* modifies string filename such that it cointains the dirname of the file, stripping the filename  */
-int fat_dirname(char *path, char *dest) {
+int fat_dirname(const char *path, char *dest) {
 	char *slash;
 	strcpy(dest, path);
 	slash = strrchr(dest, 0x2F); // 0x2F = "/"
@@ -2620,7 +2625,7 @@ int fat_dirname(char *path, char *dest) {
 	return 0;
 }
 
-int fat_filename(char *path, char *dest) {
+int fat_filename(const char *path, char *dest) {
 	char *slash;
 	slash = strrchr(path, 0x2F); // 0x2F = "/"
 	slash++;
