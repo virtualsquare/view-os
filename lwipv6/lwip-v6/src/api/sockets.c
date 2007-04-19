@@ -110,9 +110,6 @@ static char *domain_name(int domain) {
 #define SO_REUSE 1
 
 static short lwip_sockmap[OPEN_MAX];
-#ifdef FAKE_SYSCALL
-static char initialized=0;
-#endif
 
 struct lwip_socket {
 	u16_t family;
@@ -225,9 +222,9 @@ long lwip_version()
 get_socket(int s)
 {
 	struct lwip_socket *sock;
-	int index=(int)lwip_sockmap[s];
+	int index=((int)lwip_sockmap[s])-1;
 
-	if ((index < 0) || (index > NUM_SOCKETS)) {
+	if ((index < 0) || (index >= NUM_SOCKETS)) {
 		LWIP_DEBUGF(SOCKETS_DEBUG, ("get_socket(%d): invalid\n", s));
 		set_errno(EBADF);
 		return NULL;
@@ -286,7 +283,7 @@ alloc_socket(struct netconn *newconn,u16_t family)
 			} 
 			//printf("alloc_socket %d %d %d\n",i,fd,NUM_SOCKETS);
 			sockets[i].fdfake=fd;
-			lwip_sockmap[fd]=i;
+			lwip_sockmap[fd]=i+1;
 			return fd;
 		}
 	}
@@ -464,7 +461,7 @@ lwip_close(int s)
 		sock->lastoffset = 0;
 		sock->conn = NULL;
 	}
-	lwip_sockmap[sock->fdfake]=-1;
+	lwip_sockmap[sock->fdfake]=0;
 	sys_sem_signal(socksem);
 	if (! _nofdfake)
 		close(sock->fdfake);
@@ -1998,7 +1995,7 @@ static int fdsplit(int max,
 		FD_ZERO(enfd);
 	}
 	for (i=0;i<max;i++) {
-		if (lwip_sockmap[i] >= 0) {
+		if (lwip_sockmap[i] > 0) {
 			if(FD_ISSET(i,rlfd) || FD_ISSET(i,wlfd) || FD_ISSET(i,elfd))
 				lcount++;
 			FD_CLR(i,rnfd);
@@ -2296,7 +2293,7 @@ int lwip_readv(int s, struct iovec *vector, int count)
 
 int accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_accept(s,addr,addrlen);
 	else
 		return lwip_accept(s,addr,addrlen);
@@ -2304,7 +2301,7 @@ int accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 
 int bind(int s, struct sockaddr *name, socklen_t namelen)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_bind(s,name, namelen) ;
 	else
 		return lwip_bind(s,name, namelen) ;
@@ -2312,7 +2309,7 @@ int bind(int s, struct sockaddr *name, socklen_t namelen)
 
 int connect(int s, struct sockaddr *name, socklen_t namelen)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_connect(s,name,namelen) ;
 	else
 		return lwip_connect(s,name,namelen) ;
@@ -2320,7 +2317,7 @@ int connect(int s, struct sockaddr *name, socklen_t namelen)
 
 int listen(int s, int backlog)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_listen(s,backlog) ;
 	else
 		return lwip_listen(s,backlog) ;
@@ -2329,7 +2326,7 @@ int listen(int s, int backlog)
 int recvfrom(int s, void *mem, int len, unsigned int flags,
 		struct sockaddr *from, socklen_t *fromlen)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_recvfrom(s,mem,len,flags,from,fromlen) ;
 	else
 		return lwip_recvfrom(s,mem,len,flags,from,fromlen) ;
@@ -2337,7 +2334,7 @@ int recvfrom(int s, void *mem, int len, unsigned int flags,
 
 int read(int s, void *mem, size_t len)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_read(s,mem,len) ;
 	else
 		return lwip_read(s,mem,len) ;
@@ -2345,7 +2342,7 @@ int read(int s, void *mem, size_t len)
 
 int recv(int s, void *mem, int len, unsigned int flags)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_recv(s,mem,len,flags) ;
 	else
 		return lwip_recv(s,mem,len,flags) ;
@@ -2353,7 +2350,7 @@ int recv(int s, void *mem, int len, unsigned int flags)
 
 int send(int s, void *data, ssize_t size, unsigned int flags)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_send(s,data,size,flags) ;
 	else
 		return lwip_send(s,data,size,flags) ;
@@ -2362,7 +2359,7 @@ int send(int s, void *data, ssize_t size, unsigned int flags)
 int sendto(int s, void *data, int size, unsigned int flags,
 		struct sockaddr *to, socklen_t tolen)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_sendto(s, data, size, flags, to, tolen) ;
 	else
 		return lwip_sendto(s, data, size, flags, to, tolen) ;
@@ -2370,12 +2367,6 @@ int sendto(int s, void *data, int size, unsigned int flags,
 
 int socket(int domain, int type, int protocol)
 {
-	if (!initialized) {   /* not here! before! in _init! */
-		register int i;
-		for(i=0;i<OPEN_MAX;i++)
-			lwip_sockmap[i] = -1;
-		initialized = 1;
-	}
 	if (domain != PF_INET && domain != PF_INET6)
 		return native_socket(domain,type,protocol) ;
 	else
@@ -2384,7 +2375,7 @@ int socket(int domain, int type, int protocol)
 
 int write(int s, const void *data, size_t size)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_write(s,data,size) ;
 	else
 		return lwip_write(s,data,size) ;
@@ -2392,7 +2383,7 @@ int write(int s, const void *data, size_t size)
 
 int shutdown(int s, int how)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_shutdown(s,how) ;
 	else
 		return lwip_shutdown(s,how) ;
@@ -2400,7 +2391,7 @@ int shutdown(int s, int how)
 
 int getpeername (int s, struct sockaddr *name, socklen_t *namelen)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_getpeername (s,name,namelen) ;
 	else
 		return lwip_getpeername (s,name,namelen) ;
@@ -2408,7 +2399,7 @@ int getpeername (int s, struct sockaddr *name, socklen_t *namelen)
 
 int getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_getsockname (s, name, namelen) ;
 	else
 		return lwip_getsockname (s, name, namelen) ;
@@ -2416,7 +2407,7 @@ int getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 
 int getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_getsockopt (s, level, optname, optval, optlen) ;
 	else
 		return lwip_getsockopt (s, level, optname, optval, optlen) ;
@@ -2424,7 +2415,7 @@ int getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 
 int setsockopt (int s, int level, int optname, void *optval, socklen_t optlen)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_setsockopt (s, level, optname, optval, optlen) ;
 	else
 		return lwip_setsockopt (s, level, optname, optval, optlen) ;
@@ -2432,7 +2423,7 @@ int setsockopt (int s, int level, int optname, void *optval, socklen_t optlen)
 
 int ioctl(int s, long cmd, void *argp)
 {
-	if (lwip_sockmap[s] < 0)
+	if (lwip_sockmap[s] <= 0)
 		return native_ioctl(s,cmd,argp) ;
 	else
 		return lwip_ioctl(s,cmd,argp) ;
