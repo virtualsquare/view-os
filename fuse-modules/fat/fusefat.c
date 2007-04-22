@@ -346,6 +346,8 @@ int main(int argc, char *argv[])
 	if (v2f_printwarning(rorwplus))
 		return -EINVAL;
 
+	if (rorwplus == FLRWPLUS) fprintf(stderr,"volume mounted in rw mode\n");
+	
 	if ((res = fat_partition_init(V,pathname,
 					(rorwplus==FLRWPLUS)?FAT_WRITE_ACCESS_FLAG:0)) < 0) return -1;		
 

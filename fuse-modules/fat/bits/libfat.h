@@ -64,11 +64,11 @@ typedef enum { FAT12, FAT16, FAT32 } FatType_t;
 /* an EOC for the FAT type. An EOC indicates the last cluster of a file. */
 #define  FAT12_ISEOC(EntryValue)  ((EntryValue) >= 0x0FF8)
 #define  FAT16_ISEOC(EntryValue)  ((EntryValue) >= 0xFFF8)
-//#define  FAT32_ISEOC(EntryValue)  ((EntryValue >= 0x0FFFFFF8)
 #define  FAT32_ISEOC(EntryValue)  (((EntryValue) & 0x0FFFFFFF) >= 0x0FFFFFF8)	//??????
-#define	 FAT32_ISFREE(EntryValue) (((EntryValue) & 0x0FFFFFFF) == 0x00000000)
 
-
+#define  FAT12_ISFREE(EntryValue) (((EntryValue) & 0x0FFF) == 0x0)
+#define  FAT16_ISFREE(EntryValue) (((EntryValue) & 0xFFFF) == 0x0)
+#define  FAT32_ISFREE(EntryValue) (((EntryValue) & 0x0FFFFFFF) == 0x00000000)
 
 #define	 FAT12_EOC_VALUE	0x0FFF
 #define  FAT16_EOC_VALUE	0xFFFF
@@ -97,6 +97,8 @@ typedef enum { FAT12, FAT16, FAT32 } FatType_t;
 #define  FAT16_ISBAD(EntryValue)  (EntryValue == 0xFFF7)
 #define  FAT32_ISBAD(EntryValue)  (EntryValue == 0x0FFFFFF7)
 
+#define  FAT12_LEGALCLUS(EntryValue)  (!( (FAT12_ISEOC(EntryValue)) || (FAT12_ISFREE(EntryValue)) || (FAT12_ISBAD(EntryValue))))
+#define  FAT16_LEGALCLUS(EntryValue)  (!( (FAT16_ISEOC(EntryValue)) || (FAT16_ISFREE(EntryValue)) || (FAT16_ISBAD(EntryValue))))
 #define  FAT32_LEGALCLUS(EntryValue)  (!( (FAT32_ISEOC(EntryValue)) || (FAT32_ISFREE(EntryValue)) || (FAT32_ISBAD(EntryValue)))) 
 
 /* FAT Date Encoding */
@@ -322,9 +324,7 @@ typedef struct
   int bpc;
   DWORD fatsz;					// It's ok to have an int here, cause a fat can have up to 2^28 DWORDs
   int rsvdbytecnt;				// count of reserved bytes before fat 0
-
-  off_t dirtyoff;				// Offset of the cluster entry where to mark the volume dirty
-  						  
+						  
   off64_t bps64; 	// bytes per sector    = V->Bpb.BPB_BytsPerSec;
   off64_t spc64;	// sectors per cluster        d=V->Bpb.BPB_SecPerClus;
   off64_t bpc64;	// bytes per cluster    = 
@@ -336,7 +336,8 @@ typedef struct
   pthread_mutex_t fat_mutex;					
    
   char zerobuf[ZERO_BFSZ];
-  	  
+  char *fat;
+    	  
   /* The BIOS Parameter Block of the volume (the long entry) */
   Bpb_t       Bpb;
   FSInfo_t	  Fsi;
