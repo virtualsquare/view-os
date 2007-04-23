@@ -38,6 +38,7 @@
 #define _XOPEN_SOURCE 500
 #endif
 #endif
+#include <config.h>
 #include <fuse.h>
 #include <stdio.h>
 #include <string.h>

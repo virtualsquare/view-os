@@ -20,6 +20,15 @@ AC_CHECK_LIB([ext2fs], [ext2fs_unlink], [EXT2FS_LIBS="-lext2fs"],
 AC_CHECK_LIB([umlib], [um_add_service], [UMLIB_LIBS="-lumlib"],
     [AC_MSG_ERROR([Can't find libumlib, please install it])])
 
+AC_MSG_CHECKING([if FUSE on this system is too new for us])
+AC_EGREP_CPP([yes], [
+#include "fuse.h"
+#if FUSE_VERSION > 26
+yes
+#endif
+], AC_DEFINE([FUSE_USE_VERSION], [26], [Version of FUSE interface]) AC_MSG_RESULT([yes]),
+   AC_DEFINE([FUSE_USE_VERSION], [FUSE_VERSION], [Version of FUSE interface]) AC_MSG_RESULT([no]))
+
 # Checks for header files.
 AC_HEADER_DIRENT
 AC_HEADER_STDC

@@ -30,6 +30,7 @@
 #endif
 #endif
 
+#include <config.h>
 #include <fuse.h>
 #include <stdio.h>
 #include <stdlib.h>

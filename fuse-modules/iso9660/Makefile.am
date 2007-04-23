@@ -5,7 +5,7 @@ DEVELFLAGS =
 AM_CFLAGS = -ggdb
 AM_LDFLAGS = -module -avoid-version -export-dynamic
 AM_LIBTOOLFLAGS = --tag=disable-static
-AM_CPPFLAGS = -I$(includedir)/umview -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=26 -D_GNU_SOURCE $(DEVELFLAGS)
+AM_CPPFLAGS = -I$(includedir)/umview -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $(DEVELFLAGS)
 
 bin_PROGRAMS = fuseiso9660
 mod_LTLIBRARIES = umfuseiso9660.la
