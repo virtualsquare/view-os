@@ -26,6 +26,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
@@ -56,6 +57,7 @@ static epoch_t real_path(int type, void *arg)
 
 static long addproc(int id, int max)
 {
+	fprintf(stderr, "new proc %d %d\n", id, max);
 	GDEBUG(3, "new process id %d  pid %d   max %d",id,um_mod_getpid(),max);
 	return 0;
 }
@@ -66,6 +68,47 @@ static long delproc(int id)
 	return 0;
 }
 
+static long addmodule(int code)
+{
+	GDEBUG(3, "new module loaded. code", code);
+	return 0;
+}
+
+static long delmodule(int code)
+{
+	GDEBUG(3, "module %d removed", code);
+}
+
+
+static long ctl(int type, va_list ap)
+{
+	int id, ppid, max, code;
+
+	switch(type)
+	{
+		case MC_PROC | MC_ADD:
+			id = va_arg(ap, int);
+			ppid = va_arg(ap, int);
+			max = va_arg(ap, int);
+			return addproc(id, max);
+			
+		case MC_PROC | MC_REM:
+			id = va_arg(ap, int);
+			return delproc(id);
+
+		case MC_MODULE | MC_ADD:
+			code = va_arg(ap, int);
+			return addmodule(code);
+
+		case MC_MODULE | MC_REM:
+			code = va_arg(ap, int);
+			return delmodule(code);
+		
+		default:
+			return -1;
+	}
+}
+
 static void
 __attribute__ ((constructor))
 init (void)
@@ -74,8 +117,12 @@ init (void)
 	s.name="Identity (server side)";
 	s.code=0xf9;
 	s.checkfun=real_path;
-	s.addproc=addproc;
-	s.delproc=delproc;
+	s.ctl = ctl;
+
+	MCH_ZERO(&(s.ctlhs));
+	MCH_SET(MC_PROC, &(s.ctlhs));
+	MCH_MODULE(MC_PROC, &(s.ctlhs));
+
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	SERVICESYSCALL(s, open, (sysfun)open);

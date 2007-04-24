@@ -45,10 +45,36 @@ extern epoch_t um_setepoch(epoch_t epoch);
 typedef epoch_t (*epochfun)();
 typedef unsigned char service_t;
 
-#define CHECKNOCHECK	0
-#define CHECKPATH 		1
-#define CHECKSOCKET 	2
-#define CHECKFSTYPE 	3
+typedef unsigned long c_set;
+
+#define MC_USER 1
+
+#define MC_CORECTLCLASS(x) ((x) << 1)
+#define MC_CORECTLOPT(x) ((x) << 6)
+#define MC_USERCTL(sercode, ctl) (MC_USER | (sercode << 1) | (ctl << 9))
+
+/* To be tested. Bits are fun!  */
+#define MC_USERCTL_SERCODE(x) (((x) >> 1) & ((1 << (sizeof(service_t) * 8)) - 1))
+#define MC_USERCTL_CTL(x) (((x) >> 9) & ((1 << (sizeof(long) * 8 - 9)) - 1))
+
+#define MC_PROC			MC_CORECTLCLASS(0)
+#define MC_MODULE		MC_CORECTLCLASS(1)
+#define MC_MOUNT		MC_CORECTLCLASS(2)
+
+#define MC_ADD			MC_CORECTLOPT(0)
+#define MC_REM			MC_CORECTLOPT(1)
+
+#define MC_ALLSERVICES	((1 << (sizeof(service_t) * 8)) - 1)
+
+#define MCH_SET(c, set)		*(set) |= (1 << c)
+#define MCH_CLR(c, set)		*(set) &= ~(1 << c)
+#define MCH_ISSET(c, set)	(*(set) & (1 << c))
+#define MCH_ZERO(set)		*(set) = 0;
+
+#define CHECKNOCHECK  0
+#define CHECKPATH     1
+#define CHECKSOCKET   2
+#define CHECKFSTYPE   3
 #define CHECKSC 5
 #define CHECKBINFMT 6
 
@@ -79,20 +105,52 @@ struct service {
 	 * dynamic lib handle (see dlopen (3))*/
 	void *dlhandle;
 
-	/*addproc is called when a new process is created
-	 * (int umpid, int pumpid, int numprocs)
+	/* Generic notification/callback function. The first parameter identifies
+	 * the type of command. The lower 5 bits identify the class, the remaining
+	 * ones identify the command.
+	 *
+	 * Valid classes:
+	 *
+	 * MC_PROC (process birth/dead)
+	 * MC_MODULE (module insertion/removal)
+	 * MC_MOUNT (mount/umount)
+	 *
+	 * Valid commands:
+	 *
+	 * MC_ADD
+	 * MC_REM
+	 *
+	 * Parameters 2 to n depend on the command type.
+	 *
+	 * MC_MODULE | MC_ADD:
+	 *
+	 *
+	 * MC_MODULE | MC_REM:
+	 *
+	 *
+	 * MC_PROC | MC_ADD: int umpid, int pumpid, int numprocs
 	 * numprocs is the current max number of processes: service implementation can use it
 	 * to realloc their internal structures. UMPID is an internal id, *not*
 	 * the pid! id is in the range 0,...,numprocs-1 it is never reassigned during
 	 * the life of a process, can be used as an index for internal data
-	 * pumpid is the similar id for the parent process, -1 if it does not exist */
-	sysfun addproc;
-
-	/*delproc is called when a process terminates.
-	 * (int id)
+	 * pumpid is the similar id for the parent process, -1 if it does not exist
+	 *
+	 * MC_PROC | MC_REM: int id
 	 * is the garbage collection function for the data that addproc may have created
+	 *
+	 * MC_MOUNT | MC_ADD:
+	 *
+	 * MC_MOUNT | MC_REM:
+	 *
 	 */
-	sysfun delproc;
+	long (*ctl)(int, va_list);
+
+	/* Mask of ctl classes for which the module want synthetized
+	 * notifications. For example, at module loading time, it may want one
+	 * ctl(MC_PROC | MC_ADD) for each currently running process.
+	 * (hs stands for history set)
+	 */
+	c_set ctlhs;
 
 	/* choice function: returns TRUE if this path must be managed by this module
 	 * FALSE otherwise.
@@ -142,6 +200,9 @@ int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
 
 extern int uscno(int scno);
 extern int add_service(struct service *);
+// XXX: should modules have visibility of this function?
+// extern void service_ctl(unsigned long type, service_t code, int skip, ...);
+extern void service_userctl(unsigned long type, service_t sender, service_t recipient, ...);
 
 extern void *openmodule(const char *modname, int flag);
 

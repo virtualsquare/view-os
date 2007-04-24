@@ -415,43 +415,50 @@ int dsys_um_sysctl(int sc_number,int inout,struct pcb *pc)
 }
 
 /* just the function executed by the following function (iterator) */
-static void _reg_service(struct pcb *pc,service_t *pcode)
+static void _reg_processes(struct pcb *pc,service_t *pcode)
 {
-	service_addproc(*pcode,pc->umpid,(pc->pp)?pc->pp->umpid:-1,pcbtablesize());
+	// service_addproc(*pcode,pc->umpid,(pc->pp)?pc->pp->umpid:-1,pcbtablesize());
+	service_ctl(MC_PROC | MC_ADD, *pcode, -1, pc->umpid, (pc->pp) ? pc->pp->umpid : -1, pcbtablesize());
 }
 
 /* when a new service gets registerd all the existing process are added
- * as a whole to the private data structures of the module */
-static int reg_service(service_t code)
+ * as a whole to the private data structures of the module, if it asked for
+ * them */
+static int reg_processes(service_t code)
 {
-	forallpcbdo(_reg_service,&code);
+	forallpcbdo(_reg_processes,&code);
 	return 0;
 }
 
 /* just the function executed by the following function (iterator) */
-static void _dereg_service(struct pcb *pc,service_t *pcode)
+static void _dereg_processes(struct pcb *pc,service_t *pcode)
 {
-	service_delproc(*pcode,pc->umpid);
+	service_ctl(MC_PROC | MC_REM, *pcode, -1, pc->umpid);
+	// service_delproc(*pcode,pc->umpid);
 }
 
 /* when a service gets deregistered, all the data structures managed by the
- * module related to * the processes must be deleted */
-static int dereg_service(service_t code)
+ * module related to the processes must be deleted (if the module asked for
+ * the processes birth history upon insertion */
+static int dereg_processes(service_t code)
 {
-	forallpcbdo(_dereg_service,&code);
+	forallpcbdo(_dereg_processes, &code);
 	return 0;
 }
 
 /* UM actions for a new process entering the game*/
 static void um_proc_add(struct pcb *pc)
 {
-	service_addproc(UM_NONE,pc->umpid,(pc->pp)?pc->pp->umpid:-1,pcbtablesize());
+	GDEBUG(0, "calling service_ctl %d %d %d %d %d %d", MC_PROC|MC_ADD, UM_NONE, -1, pc->umpid, (pc->pp)?pc->pp->umpid:-1, pcbtablesize());
+	service_ctl(MC_PROC | MC_ADD, UM_NONE, -1, pc->umpid, (pc->pp) ? pc->pp->umpid : -1, pcbtablesize());
+	// service_addproc(UM_NONE,pc->umpid,(pc->pp)?pc->pp->umpid:-1,pcbtablesize());
 }
 
 /* UM actions for a terminated process */
 static void um_proc_del(struct pcb *pc)
 {
-	service_delproc(UM_NONE,pc->umpid);
+	service_ctl(MC_PROC | MC_REM, UM_NONE, -1, pc->umpid);
+	// service_delproc(UM_NONE,pc->umpid);
 }
 
 #if 0
@@ -863,7 +870,8 @@ void scdtab_init()
 {
 	register int i;
 	/* init service management */
-	_service_init((sysfun)reg_service,(sysfun)dereg_service);
+	_service_init();
+	service_addregfun(MC_PROC, (sysfun)reg_processes, (sysfun)dereg_processes);
 
 	/* linux has a single call for all the socket calls 
 	 * in several architecture (i386, ppc), socket calls are standard

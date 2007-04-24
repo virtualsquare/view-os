@@ -29,6 +29,7 @@
 #include <string.h>
 #include <dlfcn.h>
 #include <config.h>
+#include <stdarg.h>
 #include "services.h"
 #include "defs.h"
 #include "sctab.h"
@@ -37,15 +38,18 @@
 #include "scmap.h"
 #include "bits/wordsize.h"
 
-/* Each service module has its unique code 1..254 (0x01..0xfe)
-	0x00 is UM_ERR and 0xff is UM_NONE */
-/* When a module is loaded the index of the services array is loaded into
- * the corresponding element in servmap (if a module has its code 0x9b,
- * servmap[0x9b] -1 is the index where the service has been loaded.
- * (This method gives complexity O(1) to the service code 2
- * service implementation mapping)*/
-/* servmap[service code] - 1 is the index of the service description into
- * 'services'. with -1 there is no need for initialization */
+/* Each service module has its unique code 1..254 (0x01..0xfe) 0x00 is UM_ERR
+ * and 0xff is UM_NONE.
+ *
+ * When a module is loaded the index of the services array is loaded into the
+ * corresponding element in servmap (if a module has its code 0x9b,
+ * servmap[0x9b] -1 is the index where the service has been loaded.  (This
+ * method gives complexity O(1) to the service code 2 service implementation
+ * mapping)
+ *
+ * servmap[service code] - 1 is the index of the service description into
+ * 'services'. with -1 there is no need for initialization.
+ */
 static char servmap[256];
 
 static int locked=0;
@@ -57,7 +61,8 @@ static int maxserv=0;
 /* the sorting of the array services is the search order */
 static struct service **services=NULL;
 
-static sysfun reg_service,dereg_service;
+static sysfun reg_service[sizeof(c_set)], dereg_service[sizeof(c_set)];
+
 
 static struct syscall_unifier
 {
@@ -123,6 +128,8 @@ void modify_um_syscall(struct service *s)
 /* add a new service module */
 int add_service(struct service *s)
 {
+	int i;
+
 	/* locking/error management */
 	if (invisible)
 		return s_error(ENOSYS);
@@ -151,9 +158,19 @@ int add_service(struct service *s)
 		servmap[services[noserv-1]->code] = noserv;
 		/* dl handle is the dynamic library handle, it is set in a second time */
 		s->dlhandle=NULL;
-		if (reg_service)
-			reg_service(s->code);
+
+		for (i = 0; i < sizeof(c_set); i++)
+			if (MCH_ISSET(i, &(s->ctlhs)))
+				if (reg_service[i])
+				{
+					GDEBUG(3, "calling reg_service[%d](0x%02x)", i, s->code);
+					reg_service[i](s->code);
+				}
+
+
 		modify_um_syscall(s);
+
+		service_ctl(MC_MODULE | MC_ADD, UM_NONE, s->code, s->code);
 		return 0;
 	}
 }
@@ -193,8 +210,13 @@ int del_service(service_t code)
 	else {
 		int i;
 		/* call deregistrationn upcall (if any) */
-		if (dereg_service)
-			dereg_service(code);
+		for (i = 0; i < sizeof(c_set); i++)
+			if (MCH_ISSET(i, &(services[servmap[code]-1]->ctlhs)))
+				if (dereg_service[i])
+				{
+					GDEBUG(3, "calling dereg_service[%d](0x%02x)", i, code);
+					dereg_service[i](code);
+				}
 		/* compact the table */
 		for (i= servmap[code]-1; i<noserv-1; i++)
 			services[i]=services[i+1];
@@ -203,6 +225,8 @@ int del_service(service_t code)
 		servmap[code] = 0;
 		for (i=0;i<noserv;i++)
 			servmap[services[i]->code] = i+1;
+		/* notify other modules of service removal */
+		service_ctl(MC_MODULE | MC_REM, UM_NONE, -1, code);
 	}
 	return 0;
 }
@@ -289,6 +313,121 @@ void invisible_services()
 	invisible=1;
 }
 
+
+/*
+ * Call the ctl function of a specific service or of every service except
+ * at most one.
+ *
+ * - type is the ctl function to be called (e.g. MC_PROC | MC_ADD is the same as
+ *   the old "addproc"
+ * - code is the service code. If UM_NONE, every service will be called.
+ * - skip is the code of a service to be skipped if code is UM_NONE. If no
+ *   services have to be skipped, use -1.
+ * - the remaining arguments are containe in the va_list ap and depend on the type.
+ */
+static void vservice_ctl(unsigned long type, service_t code, int skip, va_list ap)
+{
+	va_list aq;
+	int pos;
+	GDEBUG(2, "type %d code %d skip %d...", type, code, skip);
+
+	if (!services)
+		return;
+
+	if (code == UM_NONE)
+	{
+		for (pos = 0; pos < noserv; pos++)
+		{
+			if (!services[pos])
+				continue;
+
+			if (services[pos]->code == skip)
+			{
+				GDEBUG(2, "skipping services[%d] because its code is 0x%02x", pos, skip);
+				continue;
+			}
+
+			GDEBUG(2, "services[%d] == %p", pos, services[pos]);
+			if (services[pos]->ctl)
+			{
+				va_copy(aq, ap);
+				GDEBUG(2, "calling service 0x%02x!", services[pos]->code);
+				services[pos]->ctl(type, aq);
+				va_end(aq);
+			}
+		}
+	}
+	else
+	{
+		int pos = servmap[code] - 1;
+		if (services[pos]->ctl)
+		{
+			GDEBUG(2, "calling service 0x%02x!", services[pos]->code);
+			services[pos]->ctl(type, ap);
+			va_end(ap);
+		}
+	}
+	GDEBUG(2, "done");
+}
+
+/* vararg wrapper for vservice_ctl */
+void service_ctl(unsigned long type, service_t code, int skip, ...)
+{
+	va_list ap;
+	va_start(ap, skip);
+	vservice_ctl(type, code, skip, ap);
+	va_end(ap);
+}
+
+
+/* Call the ctl function of a specific service (or every one except the
+ * caller). This is similar to service_ctl but to be used by umview modules
+ * for inter-module communication.
+ *
+ * - type is the ctl function to be called. It is contained in k bits, where k
+ *   is the number of bits in a long, minus the number of bits of service_t,
+ *   minus one. Currently, on 32 bits architecture, it is 32 - 8 - 1 = 23.
+ * - sender is the service code of the caller module. It is used to build the
+ *   full ctl code and to avoid self-calling. That is, this function never
+ *   calls back the module who made the call UNLESS it is explicitly the
+ *   recipient (see next).
+ * - recipient is the service code of the module whose ctl function is to be
+ *   called. It can be MC_ALLSERVICES (i.e. every registerend service except
+ *   the caller) or an integer (i.e. the service with that specific code,
+ *   possibly including the caller itself)
+ * - the remaining arguments depend on the type
+ */
+void service_userctl(unsigned long type, service_t sender, service_t recipient, ...)
+{
+	va_list ap;
+	va_start(ap, recipient);
+
+	if (recipient == MC_ALLSERVICES)
+		vservice_ctl(MC_USERCTL(sender, type), UM_NONE, sender, ap);
+	else
+		vservice_ctl(MC_USERCTL(sender, type), recipient, -1, ap);
+
+	va_end(ap);
+}
+
+void reg_modules(service_t code)
+{
+	int i;
+	for (i = 0; i < noserv; i++)
+		if(services[i] && (services[i]->code != code))
+			service_ctl(MC_MODULE | MC_ADD, code, -1, services[i]->code);
+}
+
+void dereg_modules(service_t code)
+{
+	int i;
+	for (i = 0; i < noserv; i++)
+		if(services[i] && (services[i]->code != code))
+			service_ctl(MC_MODULE | MC_REM, code, -1, services[i]->code);
+}
+
+/*
+
 void service_addproc(service_t code,int umpid, int pumpid,int max)
 {
 	int pos;
@@ -297,13 +436,13 @@ void service_addproc(service_t code,int umpid, int pumpid,int max)
 		for (pos=0;pos<noserv;pos++)
 		{
 			GDEBUG(9, "services[%d] == %p", services?services[pos]:(void *)(-1));
-			if (services[pos]->addproc)
-				services[pos]->addproc(umpid,pumpid,max);
+			if (services[pos]->ctl)
+				services[pos]->ctl(MC_PROC | MC_ADD, umpid, pumpid, max);
 		}
 	} else {
 		int pos=servmap[code]-1;
-		if (services[pos]->addproc)
-				services[pos]->addproc(umpid,pumpid,max);
+		if (services[pos]->ctl)
+				services[pos]->ctl(MC_PROC | MC_ADD, umpid, pumpid, max);
 	}
 	GDEBUG(9, "done");
 }
@@ -313,15 +452,15 @@ void service_delproc(service_t code,int id)
 	int pos;
 	if (code == UM_NONE) {
 		for (pos=0;pos<noserv;pos++)
-			if (services[pos]->delproc)
-				services[pos]->delproc(id);
+			if (services[pos]->ctl)
+				services[pos]->ctl(MC_PROC | MC_REM, id);
 	} else {
 		int pos=servmap[code]-1;
-		if (services[pos]->delproc)
-				services[pos]->delproc(id);
+		if (services[pos]->ctl)
+				services[pos]->ctl(MC_PROC | MC_REM, id);
 	}
 }
-
+*/
 service_t service_check(int type,void* arg,int setepoch)
 {
 	int i,max_index=-1;
@@ -427,10 +566,20 @@ static void _service_fini()
 
 /* service initialization: upcalls for new services/deleted services
  * may be supplied */
-void _service_init(sysfun register_service,sysfun deregister_service)
+void service_addregfun(int class, sysfun regfun, sysfun deregfun)
+{
+	GDEBUG(3, "adding register/deregister function for class %d", class);
+	reg_service[class] = regfun;
+	dereg_service[class] = deregfun;
+}
+
+/* set exit function */
+void _service_init()
 {
 	atexit(_service_fini);
-	reg_service=register_service;
-	dereg_service=deregister_service;
+	service_addregfun(MC_MODULE, (sysfun)reg_modules, (sysfun)dereg_modules);
 }
+
+
+	
 

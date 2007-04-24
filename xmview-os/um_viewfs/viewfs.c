@@ -124,7 +124,7 @@ static int layertabmax = 0;
 static void cutdots(char *path)
 {
 	int l = strlen(path);
-	GDEBUG(2, "original string: %s", path);
+	GDEBUG(5, "original string: %s", path);
 	l--;
 	if (path[l] == '.')
 	{
@@ -157,7 +157,7 @@ static void cutdots(char *path)
 			}
 		}
 	}
-	GDEBUG(2, "final string   : %s", path);
+	GDEBUG(5, "final string   : %s", path);
 }
 
 static void addlayertab(struct viewfs_layer *new)
@@ -269,7 +269,7 @@ static struct viewfs_layer *searchlayer(char *path, int exact)
 
 	if (bestmatch < 0)
 	{
-		GDEBUG(2, "no match found, returning NULL");
+		GDEBUG(4, "no match found, returning NULL");
 		return NULL;
 	}
 
@@ -285,7 +285,7 @@ static struct viewfs_layer *searchlayer(char *path, int exact)
  * the value of `type': (let's assume that N_RMETA == "/rmeta", N_DATA ==
  * "/data", N_META == "/meta").
  *
- * The given path must already be canonicalized (so it must begin with a '/').
+ * If the given path is the empty string, it is treated as "/".
  *
  * type             old           new
  * T_DATA           /             /data   (/ is a directory, T_DIR is implied)
@@ -303,8 +303,9 @@ static char *extend_path(char *old, char *new, int size, int type)
 	int oc, nc, lastd;
 
 	/* "/" must be treated in a special way because it has "no name" */
-	if ( /* (old[0] == '/') && */ (old[1] == '\0'))
+	if ( (old[0] == '\0') || (old[1] == '\0'))
 	{
+		GDEBUG(3, "old is either empty or root, adding /%s or /%s", N_RMETA, N_DATA);
 		switch (type & (T_META | T_DATA))
 		{
 			case T_META:
@@ -320,6 +321,7 @@ static char *extend_path(char *old, char *new, int size, int type)
 
 	for (oc = 0, nc = 0; old[oc] && nc < (size - 1); oc++, nc++)
 	{
+		GDEBUG(3, "copying '%c'@%d on '%c'@%d", old[oc], oc, new[nc], nc);
 		new[nc] = old[oc];
 		if (new[nc] == '/')
 		{
@@ -383,7 +385,13 @@ static void prepare_testpath(struct viewfs_layer *layer, char *path)
 
 	tmp = path + delta;
 
+	GDEBUG(2, "path: %s, layer->mountpoint: %s, delta: %d, tmp: %s",
+			path, layer->mountpoint, delta, tmp);
+
 	extend_path(tmp, layer->userpath, (2 * PATH_MAX) - strlen(layer->vfspath), T_DATA);
+
+	GDEBUG(2, "layer->vfspath: %s", layer->vfspath);
+	GDEBUG(2, "extend_path(\"%s\", \"%s\", %d, 0x%02x)", tmp, layer->userpath, (2*PATH_MAX)-strlen(layer->vfspath), T_DATA);
 
 	// GDEBUG(2, "tmp: ^%s$, delta: %d", tmp, delta);
 	// GDEBUG(2, "userpath: ^%s$", layer->userpath);
@@ -515,11 +523,8 @@ static epoch_t wrap_check_path(char* path)
 			retval = check_umount2(path);
 			break;
 
-		case __NR_execve:
-			GDEBUG(3, "execve(\"%s\", ...)", path);
-
 		default:
-			GDEBUG(3, "[FIXME] ViewFS does not support %s yet.", SYSCALLNAME(sc));
+			GDEBUG(4, "[FIXME] ViewFS does not support %s yet.", SYSCALLNAME(sc));
 			break;
 
 	}
@@ -546,6 +551,13 @@ static epoch_t viewfs_check(int type, void *arg)
 					(strncmp((char*) arg, "viewfs", 6) == 0));
 			break;
 
+		/* Known but useless for viewfs */
+		case CHECKSOCKET:
+		//case CHECKDEVICE:
+		case CHECKSC:
+		case CHECKBINFMT:
+			break;
+		
 		default:
 			GDEBUG(3, "unknown check type: %d, arg %p", type, arg);
 			break;
@@ -645,6 +657,23 @@ static long addproc(int id, int pumpid, int max)
 	return 0;
 }
 
+static long ctl(int type, va_list ap)
+{
+	int id, pumpid, max;
+
+	switch(type)
+	{
+		case MC_PROC | MC_ADD:
+			id = va_arg(ap, int);
+			pumpid = va_arg(ap, int);
+			max = va_arg(ap, int);
+			return addproc(id, pumpid, max);
+		
+		default:
+			return -1;
+	}
+}
+
 static void __attribute__ ((constructor)) init(void)
 {
 	GDEBUG(2, "ViewFS init");
@@ -652,7 +681,7 @@ static void __attribute__ ((constructor)) init(void)
 	s.name = "ViewFS Virtual FS 2";
 	s.code = VIEWFS_SERVICE_CODE;
 	s.checkfun = viewfs_check;
-	s.addproc = addproc;
+	s.ctl = ctl;
 	s.syscall = (sysfun *) calloc(scmap_scmapsize, sizeof(sysfun));
 	s.socket = (sysfun *) calloc(scmap_sockmapsize, sizeof(sysfun));
 

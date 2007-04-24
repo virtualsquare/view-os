@@ -138,7 +138,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 	/* The epoch should be just after the mount 
 	 * which generated the executable */
 	um_setepoch(nestepoch+1);
-	binfmtser=service_check(CHECKBINMFT,&req,0);
+	binfmtser=service_check(CHECKBINFMT,&req,0);
 	um_setepoch(nestepoch);
 	/* is there a binfmt service for this executable? */
 	if (binfmtser != UM_NONE) {

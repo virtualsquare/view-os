@@ -28,13 +28,32 @@
 typedef long (*sysfun)();
 typedef unsigned char service_t;
 
+typedef unsigned long c_set;
+#define MC_CORECTLCLASS(x) ((x) << 1)
+#define MC_CORECTLOPT(x) ((x) << 6)
+#define MC_USERCTL(sercode, ctl) (1 | (sercode << 1) | (ctl << 9))
+
+#define MC_PROC			MC_CORECTLCLASS(0)
+#define MC_MODULE		MC_CORECTLCLASS(1)
+#define MC_MOUNT		MC_CORECTLCLASS(2)
+
+#define MC_ADD			MC_CORECTLOPT(0)
+#define MC_REM			MC_CORECTLOPT(1)
+
+#define MC_ALLSERVICES	((1 << (sizeof(service_t) * 8)) - 1)
+
+#define MCH_SET(c, set)		*(set) |= (1 << c)
+#define MCH_CLR(c, set)		*(set) &= ~(1 << c)
+#define MCH_ISSET(c, set)	(*(set) & (1 << c))
+#define MCH_ZERO(set)		*(set) = 0;
+
 #define CHECKNOCHECK 0 //to bee or not to bee!! :-D
 #define CHECKPATH 1
 #define CHECKSOCKET 2
 #define CHECKFSTYPE 3
 #define CHECKDEVICE 4
 #define CHECKSC 5
-#define CHECKBINMFT 6
+#define CHECKBINFMT 6
 // for IOCTL mgmt
 #define CHECKIOCTLPARMS   0x40000000
 #define IOCTLLENMASK      0x07ffffff
@@ -63,17 +82,15 @@ struct service {
 	 * dynamic lib handle (see dlopen (3))*/
 	void *dlhandle;
 
-	/*addproc is called when a new process is created
-	 * (int umpid, int pumpid, int numproc)
-	 * umpid is the um_pid pf the process, pumpid is the parent id
-	 * max is the current max number of processes: service implementation can use it
-	 * to realloc their internal structures*/
-	sysfun addproc;
+	/* Generic notification/callback function. See ../include/module.h for
+	 * details. */
+	long (*ctl)();
 
-  /*delproc is called when a process terminates.
-	 * is the garbage collection function for the data that addproc may have created
+	/* Mask of ctl classes for which the module want synthetized
+	 * notifications. For example, at module loading time, it may want one
+	 * ctl(MC_PROC | MC_ADD) for each currently running process.
 	 */
-	sysfun delproc;
+	c_set ctlhs;
 
 	/* choice function: returns TRUE if this path must be managed by this module
 	 * FALSE otherwise.
@@ -108,6 +125,7 @@ struct service {
 
 #define UM_NONE 0xff
 #define UM_ERR 0x00
+
 int isnosys(sysfun f);
 int add_service(struct service *s);
 int set_handle_new_service(void *dlhandle,int position);
@@ -118,13 +136,15 @@ int list_services(service_t *buf,int len);
 int name_service(service_t code,char *buf,int len);
 void lock_services();
 void invisible_services();
-void service_addproc(service_t code,int umpid, int pumpid, int max);
-void service_delproc(service_t code,int umpid);
+// void service_addproc(service_t code,int umpid, int pumpid, int max);
+// void service_delproc(service_t code,int umpid);
+void service_ctl(unsigned long type, service_t code, int skip, ...);
 service_t service_check(int type,void *arg,int setepoch);
 sysfun service_syscall(service_t code, int scno);
 sysfun service_socketcall(service_t code, int scno);
 epochfun service_checkfun(service_t code);
 sysfun service_event_subscribe(service_t code);
-void _service_init(sysfun register_service,sysfun deregister_service);
+void _service_init();
+void service_addregfun(int, sysfun, sysfun);
 
 #endif
