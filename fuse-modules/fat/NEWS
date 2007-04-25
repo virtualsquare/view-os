@@ -1,0 +1,2 @@
+Bug fixed in fat_write_data
+Bug fixed in fat_mkdir (zeroing of new allocated clusters)

@@ -1,7 +1,7 @@
 # Makefile (to be converted in an AutoMakefile soon)
 # Renzo Davoli 2007
 
-CFLAGS=-ggdb -DFCLUS_BUFSZ=10000 -DFATWRITE -D_FILE_OFFSET_BITS=64 -DLIBFAT_USE_MUTEX -DFUSE_USE_VERSION=26 -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include  -Wall
+CFLAGS=-ggdb -DFATWRITE  -DFUSE_USE_VERSION=26 -D_FILE_OFFSET_BITS=64 -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include  -Wall
 LIBS=-pthread -lglib-2.0 -lfuse
 LIBFAT_OBJS=libfat.o utf16be.o utf16le.o utf8.o simple_fold.o
 

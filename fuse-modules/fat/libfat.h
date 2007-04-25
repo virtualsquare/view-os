@@ -24,6 +24,10 @@
 #define WORD	uint16_t
 #define DWORD	uint32_t
 
+#ifndef LIBFAT_USE_MUTEX
+#define LIBFAT_USE_MUTEX 1
+#endif
+
 struct Volume_t;
 struct File_t;
 struct DirEntry_t;

@@ -36,7 +36,7 @@
 
 /* size of free cluster array in Volume_t	*/
 #ifndef FCLUS_BUFSZ
-#define FCLUS_BUFSZ		2048
+#define FCLUS_BUFSZ 8192		
 #endif
 
 /* Maximum number of bytes per cluster: 32k, according to MS for max compatibility */
@@ -308,7 +308,7 @@ typedef struct
   DWORD      VolSig;          	/* Must be FAT_VOLSIG for a valid volume   */
   FatType_t  FatType;         	/* Can be FAT12, FAT16 or FAT32            */
   DWORD      DataClusters;    	/* The total number of valid not reserved data clusters (last valid data cluster is dataclusters + 1 */
-  DWORD      FirstDataSector; 	/* The first sector of the data region, usually the beginning of rootdir     */
+  DWORD      FirstDataSector; 	/* The first sector of the data region, usually the beginning of rootdir in fat32     */
   DWORD      FirstRootCluster;	/* The first sector of FAT12/FAT16 root cluster, usually 2 (useless at the moment)   */
   DWORD    freecnt;  			/* The count of free clusters              */
   DWORD    nextfree;    		/* The cluster number from which to start  */
@@ -331,11 +331,16 @@ typedef struct
   off64_t fds64;	// first data serctor			        e=V->FirstDataSector;
   off64_t fdb64;		// first data byte 
   						
+  off64_t rootdir16off;
+  int rootdir16sz;  
   
   /* a pthread mutex */
   pthread_mutex_t fat_mutex;					
    
+  /* for write0data (in seek) */
   char zerobuf[ZERO_BFSZ];
+
+  /* FAT in fat12/16 volumes */
   char *fat;
     	  
   /* The BIOS Parameter Block of the volume (the long entry) */

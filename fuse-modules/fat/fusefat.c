@@ -7,7 +7,13 @@
     This program can be distributed under the terms of the GNU GPL.
 */
 
+#ifndef FUSE_USE_VERSION
 #define FUSE_USE_VERSION 26
+#endif
+
+#ifndef _FILE_OFFSET_BITS
+#define _FILE_OFFSET_BITS 64
+#endif
 
 #include "libfat.h"
 #include <fuse.h>
@@ -173,7 +179,7 @@ static int fusefat_truncate(const char *path, off_t size) {
 	File_t F;
 	Volume_t *V;
 	fusefat_getvolume(V);
-	fprintf(stderr,"truncate(%s, %d)\n",path,size);
+	fprintf(stderr,"truncate(%s, %d)\n",path,(int) size);
 	fat_lock(V);
     if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
     if ((res =  fat_truncate(&F, size)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
@@ -223,9 +229,12 @@ static int fusefat_write(const char *path, const char *buf, size_t size, off_t o
 	
 	fat_lock(V);
 //    if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+//	fprintf(stderr,"fusefat_write: performing seek at offset %d\n", (int) offset);
     if ((res =  fat_seek(F, offset, SEEK_SET)) < 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+//	fprintf(stderr,"fusefat_write: performing write_data at clus: %u, off: %u\n", F->CurClus, F->CurOff);
     if ((res =  fat_write_data(V, F,&(F->CurClus), &(F->CurOff), buf, size )) != size) { 
 		fat_unlock(V); fprintf(stderr,"fat_write_data() error\n");fprintf(stderr,"-- %d",__LINE__); return -1; }
+//	fprintf(stderr,"fusefat_write: performing update\n");		
 	if ((res =  fat_update_file(F)) != 0) { fat_unlock(V); fprintf(stderr,"fat_update_file() error\n"); fprintf(stderr,"-- %d",__LINE__); return -1; }
 	fat_unlock(V);
     return size;

@@ -55,6 +55,11 @@
 off64_t byte_offset(Volume_t *V, DWORD Cluster, DWORD Offset) {
 	off64_t clus = Cluster;
 	off64_t off	 = Offset;
+	
+	if (Cluster == 1) 
+		if (V->FatType != FAT32) return (V->rootdir16off + off);
+	/* else error */	
+	
 	return  ( ((clus - 2) * V->bpc64) + V->fdb64 + off );
 }
 
@@ -210,6 +215,7 @@ int fat_fill_time(WORD *Date, WORD *Time, time_t t) {	// works ok.
 /* into EntryOffset the offset of the entry in the sector     */
 /* FatNum = number of which fat we want to look into. 0 is 1st*/
 /* N = the cluster we want sector and offset of. first is   2 */
+#if 0	// Useless atm
 static int fat32_cluster_entry(Volume_t *V, DWORD N, int FatNum,
                                DWORD *Sector, DWORD *EntryOffset) {
   DWORD FATSz, EntryPerSec32;
@@ -231,7 +237,7 @@ static int fat32_cluster_entry(Volume_t *V, DWORD N, int FatNum,
 
   return 0;
 }
-
+#endif
 
 
 
@@ -432,7 +438,10 @@ static int fat12_read_entry(Volume_t *V, DWORD N, int FatNum, DWORD *Value) {
 		
 		((BYTE *) &val)[1] &= 0x0F;
 		
-	} else { //odd     X- XX
+	} else { 
+			 /* odd     X- XX
+			 	    	 \  \
+			            XX -X   */
 		val = *((WORD *) (V->fat + ((int) (N * 1.5))));		
 		
 		((BYTE *) &val)[0] = (((BYTE *) &val)[0] >> 4);
@@ -442,6 +451,7 @@ static int fat12_read_entry(Volume_t *V, DWORD N, int FatNum, DWORD *Value) {
 	
 	out = val;
 	*Value = EFD(out);
+//	fprintf(stderr,"fat12_read_entry: N:%u, val:%u, out:%u, value:%u\n",N,val,out,*Value);
 	return 0;		
 }
 
@@ -452,15 +462,19 @@ static int fat12_write_entry(Volume_t *V, DWORD N, int FatNum, DWORD Value) {
 		
 	if (N%2 == 0) { // XX -X : just mix hi byte
 		*((BYTE *) (V->fat + ((int) (N * 1.5)))) = ((BYTE *) &val)[0];
-		*((BYTE *) (V->fat + ((int) (N * 1.5)) + 1)) &= ( ((BYTE *) &val)[1] | 0xF0 );
+		*((BYTE *) (V->fat + ((int) (N * 1.5)) + 1)) &= 0xF0;
+		*((BYTE *) (V->fat + ((int) (N * 1.5)) + 1)) |= ( ((BYTE *) &val)[1] & 0x0F );
 	} else {
 	//		XX -X
 	//       /  /
 	//		X- XX
-		*((BYTE *) (V->fat + ((int) (N * 1.5)))) &= ( (((BYTE *) &val)[0] << 4) | 0x0F );
-		*((BYTE *) (V->fat + ((int) (N * 1.5)) + 1)) = ( (((BYTE *) &val)[0] >> 4) );
-		*((BYTE *) (V->fat + ((int) (N * 1.5)) + 1)) |= ( (((BYTE *) &val)[1] << 4) );
+		*((BYTE *) (V->fat + ((int) (N * 1.5)))) &= 0x0F;
+		*((BYTE *) (V->fat + ((int) (N * 1.5)))) |= ( (((BYTE *) &val)[0] << 4) );
+
+		*((BYTE *) (V->fat + ((int) (N * 1.5)) + 1)) = ( (((BYTE *) &val)[1] << 4) );		
+		*((BYTE *) (V->fat + ((int) (N * 1.5)) + 1)) |= ( (((BYTE *) &val)[0] >> 4) );
 	}
+//	fprintf(stderr,"fat12_write_entry: N:%u, value:%u\n",N,Value);
 	return 0;
 }
 
@@ -469,8 +483,8 @@ static int fat12_unlinkn(Volume_t *V, DWORD Cluster) {
   DWORD Next;
   int 	i = 0;
 	
-  if ((FAT12_ISFREE(Cluster)) || (FAT12_ISEOC(Cluster))) return 0;	
-  if (FAT12_ISBAD(Cluster)) return -1;
+  if ((fat_isfree(V,Cluster)) || (fat_iseoc(V,Cluster))) return 0;	
+  if (fat_isbad(V,Cluster)) return -1;
   
   do {
     /* Read the next entry in the chain */
@@ -490,8 +504,8 @@ static int fat12_unlinkn(Volume_t *V, DWORD Cluster) {
 //    if (Cluster < V->nextfree ) ->nextfree = Cluster;
     Cluster = Next;
  	i++;
- }  while (!(FAT12_ISEOC(Next)));
- 
+ }  while (!(fat_iseoc(V,Next)));
+
   return 0;
 }
 
@@ -507,6 +521,7 @@ static int fat_read_entry(Volume_t *V, DWORD N, int FatNum, DWORD *Value) {
     return 0;
 }
 
+#if 0/* Useless atm	*/
 static int fat_write_entry(Volume_t *V, DWORD N, int FatNum, DWORD Value) {
     if (V->FatType == FAT32) {
         return fat32_write_entry(V, N, FatNum, Value);
@@ -517,6 +532,7 @@ static int fat_write_entry(Volume_t *V, DWORD N, int FatNum, DWORD Value) {
     }
     return 0;
 }
+#endif
 
 static int fat_writen_entry(Volume_t *V, DWORD N, DWORD Value) {
     if (V->FatType == FAT32) {
@@ -627,11 +643,19 @@ static int fat_mark_clean(Volume_t *V) {
 *	Functions to work on Directory entries			 	*
 ************************************************************************/
 static void printVolumeData(Volume_t *V) {
+	DWORD sz;
+	if (V->FatType == FAT32) {
+		sz = EFD(V->Bpb.BPB_FATSz32);
+	} else {
+		sz = EFW(V->Bpb.BPB_FATSz16);
+	}
 	
-	fprintf(stderr,"dataclusters :%d  \n",V->DataClusters);
+	fprintf(stderr,"dataclusters :%u  \n", V->DataClusters);
 	fprintf(stderr,"rootdiroff : %lld \n", V->fdb64   );
-	fprintf(stderr,"1st fat off :  %d \n",V->rsvdbytecnt );
-	fprintf(stderr,"2nd fat off :  %d\n", V->rsvdbytecnt+ (EFD(V->Bpb.BPB_FATSz32) * V->bps) );
+	fprintf(stderr,"1st fat off :  %d \n", V->rsvdbytecnt );
+	fprintf(stderr,"2nd fat off :  %d\n", V->rsvdbytecnt+ (sz * V->bps) );
+	fprintf(stderr,"fat_eoc_value: %u\n", fat_eocvalue(V));
+	fprintf(stderr,"fat_eoc_value is eoc?: %d\n", fat_iseoc(V,fat_eocvalue(V)));
 	return ;
 }
 
@@ -816,6 +840,8 @@ int	fat_partition_init(Volume_t *V, char *pathname, int flags) {	// todo: add ui
         TotSec = EFD(V->Bpb.BPB_TotSec32);
     }
 
+	RootDirSectors = (EFW(V->Bpb.BPB_RootEntCnt) * 32) / EFW(V->Bpb.BPB_BytsPerSec) ;
+
     // this calculation sucks. it doesnt keep in account first rootdircluster can be different from 2
 	FirstDataSector = EFW(V->Bpb.BPB_ResvdSecCnt) + (V->Bpb.BPB_NumFATs * FATSz) + RootDirSectors;
 	DataSec = TotSec - FirstDataSector;
@@ -833,10 +859,15 @@ int	fat_partition_init(Volume_t *V, char *pathname, int flags) {	// todo: add ui
 	V->bpc64 =	V->bps64 * V->spc64;
 	V->fds64 =	FirstDataSector;
 	V->fdb64 =	V->fds64 * V->bps64;											
-	
+
 	V->bps = V->bps64;
 	V->spc = V->spc64;
 	V->bpc = V->bpc64;
+	
+	/* position and size of root dir in fat12/16 */
+	V->rootdir16off = (EFW(V->Bpb.BPB_ResvdSecCnt) + (V->Bpb.BPB_NumFATs * FATSz)) * V->bps64;
+	V->rootdir16sz = RootDirSectors * V->bps;
+	
 	if ( V->FatType == FAT32) {
 		V->fatsz = EFD(V->Bpb.BPB_FATSz32) * V->bps;
 	} else V->fatsz = EFW(V->Bpb.BPB_FATSz16) * V->bps;
@@ -859,7 +890,7 @@ int	fat_partition_init(Volume_t *V, char *pathname, int flags) {	// todo: add ui
 	}
 #endif
 
-	//printVolumeData(V);
+	printVolumeData(V);
 	
 #ifdef FATWRITE	
 	if (flags & FAT_WRITE_ACCESS_FLAG) 
@@ -893,7 +924,7 @@ int fat_partition_finalize(Volume_t *V) {
         }
     }
 
-	if ((V->FatType == FAT12)||(V->FatType == FAT16)) {
+	if ((V->FatType == FAT12) || (V->FatType == FAT16)) {
 		int i,size;
 		off_t off;
 		
@@ -914,7 +945,7 @@ int fat_partition_finalize(Volume_t *V) {
     		}
    		 	/*  write()      */
 
-		    if ( (res = readn(V->blkDevFd, V->fat, size)) != size) {
+		    if ( (res = writen(V->blkDevFd, V->fat, size)) != size) {
         		fprintf(stderr,"writen() error in partition finalize. size: %d\n", size);
         		return -1;
     		}
@@ -934,7 +965,6 @@ int fat_partition_finalize(Volume_t *V) {
 
     // Lets close the fd
     close(V->blkDevFd);
-
     return 0;
 }
 
@@ -1066,12 +1096,14 @@ static DWORD 	fat16_getFreeCluster(Volume_t *V) {
 }
 
 DWORD	fat_getFreeCluster(Volume_t *V) {
+	DWORD val;
     if (V->FatType == FAT32) {
-        return fat32_getFreeCluster(V);
+        val= fat32_getFreeCluster(V);
     } else {
-		return fat16_getFreeCluster(V);
+		val= fat16_getFreeCluster(V);
     }
-	return -2;
+	fprintf(stderr,"- - fat_getFreeCluster: clus: %u\n",val);
+	return val;
 }
 
 /* Calculate the 8-bit checksum for the long file name from its */
@@ -1129,14 +1161,18 @@ int  check_cluster_bound(Volume_t *V, DWORD *Cluster, DWORD *Offset) {
 
 	if (*Offset == 0) {	// we are in the beginning
 		return 0;
+	} else if (*Cluster == 1) { 
+		if ( ( *Offset % V->rootdir16sz ) == 0 ) {
+			fprintf(stderr,"No space left on rootdirectory\n");
+			return -1;
+		} else return 0;	
 	} else  if ( ( *Offset % ClusterSz ) == 0) {	// we need to go in the next cluster
 
 		DWORD value;
 
 		if ((res = fat_read_entry(V, *Cluster, 0, &value)) != 0) {
-		    
 			perror("check_cluster_bound() error");
-		    return res;
+		    return -1;
 		}
 //		printf("Cluster:%d\nOffset:%d\n,res: %u\n", *Cluster, *Offset, value);
 		if (fat_iseoc(V,value)) {
@@ -1553,26 +1589,25 @@ int traverse_path(Volume_t *V, gchar **parts, guint parts_len, DWORD *Cluster) {
 	DirEnt_t D;
     LfnEntry_t *buffer = D.entry;
 	
-//    Clus = V->FirstRootCluster;	//initialised to rootsector.  ERROR
-//    Clus = V->FirstDataSector;
-	Clus = EFD(V->Bpb.BPB_RootClus);
-    
+	if (V->FatType == FAT32) {
+		Clus = EFD(V->Bpb.BPB_RootClus);
+    } else {
+		Clus = 1;
+	}
+	
     for (i=1; i < (int) (parts_len - 1); i++) {
 
-		if ( (res = find_direntry(V, (char *) parts[i] , &Clus, &Offset)) != 0 ) { //looking for the directory
-		
+		if ( (res = find_direntry(V, (char *) parts[i] , &Clus, &Offset)) != 0 ) { //looking for the directory	
 		    return -1;	//error: part of the path not found.
 		} else { // parth of the path found: we have to fetch the related direntry
 			DirEntry_t *sfnentry;
 
 		    if ( ( res = fetch_next_direntry(V, &D, &Clus, &Offset)) <= 0) {
-
 				return -1 ;	//fetching the dirent
 			}
 
 			sfnentry = (DirEntry_t *) &(buffer[res - 1]);
 			if ( ! (ATTR_ISDIR(sfnentry->DIR_Attr))) {
-
 				return -1; //name found but not directory
 			}
 			Offset = 0;
@@ -1607,11 +1642,13 @@ int find_file(Volume_t *V, const char *path, File_t *F, DWORD *Cluster, DWORD *O
 
 	if ( (res=traverse_path(V, parts, parts_len, Cluster)) != 0) { 
 		g_strfreev(parts);
-		
 		return -1; 
 	}	//error 
 
-	if (F!=NULL) F->ParentFstClus = *Cluster;
+	if (F!=NULL) {
+		F->ParentFstClus = *Cluster;
+		F->ParentOffset = 0;	// not used atm.
+	}
 	*Offset = 0;
 
 	res = find_direntry(V, filename , Cluster, Offset); //looking for the directory
@@ -1620,6 +1657,8 @@ int find_file(Volume_t *V, const char *path, File_t *F, DWORD *Cluster, DWORD *O
 	if  (res != 0 ) { 
 		return -1;  //error: part of the path not found.
 	} else { // file found. Cluster and offset are related to its direntry.
+		F->DirEntryClus = *Cluster;
+		F->DirEntryOffset = *Offset;
 		return 0;
 	}
 }
@@ -1637,7 +1676,7 @@ int fat_read_data(Volume_t *V, DWORD *Cluster, DWORD *Offset, char *buf, size_t 
 	off64_t seekres;
 	int i=0;
 
-//	fprintf(stderr,"off: %u, bytleft %d, count: %d\n",*Offset, byteleftperclus,count);
+	fprintf(stderr,"off: %u, bytleft %d, count: %d\n",*Offset, byteleftperclus,count);
 
 	if (*Offset >= clustersz) {
 		perror("Offset too big");
@@ -1653,7 +1692,7 @@ int fat_read_data(Volume_t *V, DWORD *Cluster, DWORD *Offset, char *buf, size_t 
 		newoffset = *Offset + numbytes;		
 		off = byte_offset(V, *Cluster, *Offset);
 
-		//fprintf(stderr,"Cluster: %u, Offset: %u, off: %ld, numbyts:%d, off2: %lld\n",*Cluster, *Offset, off, numbytes,off2);
+		fprintf(stderr,"Cluster: %u, Offset: %u, off: %lld, numbyts:%d\n",*Cluster, *Offset, off, numbytes);
 		seekres = lseek64(V->blkDevFd,(off64_t)  off , SEEK_SET);
 		if (seekres != off ) {
 			perror("lseek() error in read_data");
@@ -1709,7 +1748,7 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 	off64_t off = 0;
 	int datasize = count;
 	int datawritten = 0;
-	int clustersz= EFW(V->Bpb.BPB_BytsPerSec) * V->Bpb.BPB_SecPerClus;
+	int clustersz= V->bpc;
 	int byteleftperclus = clustersz - *Offset;
 	int res;
 	off64_t seekres;
@@ -1760,7 +1799,7 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 			DWORD c =  *Cluster;
 
 			fat_read_entry(V, c, 0, Cluster);
-//			fprintf(stderr,"reading value of cluster %u:  %u\n",c, *Cluster);
+			fprintf(stderr,"reading value of cluster %u:  %u\n",c, *Cluster);
 			if (fat_isfree(V,*Cluster)) {
 				fprintf(stderr,"fat_write_data wrote on an unlinked cluster\n");
 				return -1;
@@ -1798,13 +1837,14 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 		} else {	// cnt <=0. We are done. lets set *Offset properly
 			*Offset = newoffset;
 			DWORD c =  *Cluster;
-	
-			fat_read_entry(V, c, 0, Cluster); // if this is the last cluster in the chain, the function will allocate a new cluster.
-			if (fat_isfree(V,*Cluster)) { // must be eoc or  a valid cluster number
-				fprintf(stderr,"fat_write_data wrote on an unlinked cluster\n"); return -1; }
 			
 			if ( *Offset >= clustersz ) {	//it cant actually be greater, just equal
 
+				fat_read_entry(V, c, 0, Cluster); // if this is the last cluster in the chain, the function will allocate a new cluster.
+				
+				if (fat_isfree(V,*Cluster)) { // must be eoc or  a valid cluster number
+					fprintf(stderr,"fat_write_data wrote on an unlinked cluster\n"); return -1; }				
+			
 				/* workaround to avoid to return an invalid *Cluster	*/
 				// lets check if wehave reached EOC. in this case this function allocate a free cluster to the file even if it does not need it.
 				if (fat_iseoc(V,*Cluster)) {	//we reached EOC. so we have to get a free cluster and link it to the file
@@ -1831,10 +1871,12 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 					/* lets set *Cluster to newclus					*/ 								
 					*Cluster = newclus;
 				} else {
-				// Cluster must be a valid cluster number set up by fat_read_entry.
+					// Cluster must be a valid cluster number set up by fat_read_entry.
+					fprintf(stderr,"offset >= clustersz, but next cluster exist.\n");
 				}
 				*Offset = 0;
 			} else { //offset < clustersize
+					fprintf(stderr,"offset !>= clustersz, so everything is fine and we dont have to allocate a new cluster\n");			
 			}
 			if ((F != NULL) && (EFD(F->DirEntry->DIR_FileSize) < F->CurAbsOff)) F->DirEntry->DIR_FileSize = EFD(F->CurAbsOff); 
 			return datasize;	
@@ -2011,17 +2053,21 @@ static off64_t fat_find_lfnslots(Volume_t *V, File_t *dir, DWORD *Cluster , DWOR
 		clus = get_fstclus(dir->DirEntry);
 		dir->CurAbsOff = 0;
 	} else {
-		clus = 2;
+		if (V->FatType == FAT32) {
+			clus = 2;
+		} else clus = 1;
 	}
 	if ( fat_iseoc(V,clus) || fat_isfree(V,clus) ) {	// this case should never happen since every directories cointain . and .. 
 		//we should fetch a new cluster here..			// when they are create so at least 1 cluster.
 		return -1;	
 	}
 	
-	// now time ti allocate space to read clusters;
-	cluster = alloca(V->bpc);
 	oldclus = newclus = clus;
 	
+  if ((V->FatType == FAT32) || (rootdirflag !=1)) {	// FAT32 or not rootdir
+	// now time to allocate space to read clusters;
+	cluster = alloca(V->bpc);
+
 	while (found < n) {
 		if ((off % V->bpc) == 0) { //fetch new cluster
 			off = 0;
@@ -2033,6 +2079,15 @@ static off64_t fat_find_lfnslots(Volume_t *V, File_t *dir, DWORD *Cluster , DWOR
 					return -1;
 				}
 				
+				/* We must zero this new cluster */
+				{
+				 DWORD tmpclus, tmpoff;
+				 tmpclus=newclus; tmpoff = 0;
+		
+				 if ((res = fat_write0data(V, NULL, &tmpclus, &tmpoff, (V->bpc -1))) != (V->bpc -1)) { 
+					fprintf(stderr,"fat_mkdir() error: write0data() failed\n"); return -1; }
+				}				
+			
 				if (found == 0) {
 					*Cluster=newclus;
 					*Offset=0;
@@ -2059,6 +2114,7 @@ static off64_t fat_find_lfnslots(Volume_t *V, File_t *dir, DWORD *Cluster , DWOR
 			oldclus = clus;
 			clus = newclus;
 			res = fat_read_data(V, &newclus, &off, cluster, V->bpc );	// it updates clus and set off to 0	because we read a whole clustersize	
+			if (res < 0) { fprintf(stderr,"find lfn slots error\n"); return -1; }
 		} 
 		
 		if (DIRENT_ISFREE((BYTE) cluster[off])) {
@@ -2069,7 +2125,7 @@ static off64_t fat_find_lfnslots(Volume_t *V, File_t *dir, DWORD *Cluster , DWOR
 		off += 32;
 		if (dir != NULL) dir->CurAbsOff += 32;
 	}
-	
+		
 	// out of the while: we found n adjacent free entries without having to allocate a new cluster. lets compute the cluster
 	if (off < (n * 32)) { // sequence began in previous cluster
 		*Cluster = oldclus;
@@ -2078,8 +2134,32 @@ static off64_t fat_find_lfnslots(Volume_t *V, File_t *dir, DWORD *Cluster , DWOR
 		*Cluster = clus;
 		*Offset = off - (n*32);
 	}
+  } else { // FAT12/16 root
+  	off64_t res64;
+	cluster = alloca(EFW(V->Bpb.BPB_RootEntCnt) * 32 ); // size of the root directory in the volume
+
+	if ((res64 = lseek64(V->blkDevFd, V->rootdir16off ,SEEK_SET)) != V->rootdir16off) {
+		fprintf(stderr,"find lfn slots error : lseek()\n"); return -1;}
+	if ((res = readn(V->blkDevFd,cluster, (EFW(V->Bpb.BPB_RootEntCnt) * 32) )) != (EFW(V->Bpb.BPB_RootEntCnt) * 32)) {
+		fprintf(stderr,"find lfn slots error : readn()\n"); return -1;}
+	 
+ 	while (found < n) {
+		if (off >= (EFW(V->Bpb.BPB_RootEntCnt) * 32)) { fprintf(stderr,"find_lfn_slots: Not enough free space\n"); return -1; }
+
+		if (DIRENT_ISFREE((BYTE) cluster[off])) {
+			found++;
+		} else {
+			found = 0;
+		}
+		off += 32;
+		if (dir != NULL) dir->CurAbsOff += 32;		
+	}
 	
-	return byte_offset(V, *Cluster, *Offset);
+  	*Cluster = clus;
+	*Offset = off - (n*32);
+  }
+ 
+  return byte_offset(V, *Cluster, *Offset);
 }
 
 /* create() function for	libfat											 */
@@ -2130,7 +2210,9 @@ int fat_create(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mo
 	if (rootdirflag != 1) {
 		clus = get_fstclus(parent->DirEntry);
 	} else {
-		clus = 2;
+		if (V->FatType == FAT32) {
+			clus = 2;
+		} else clus = 1;
 	}
 	bkclus=clus;
 	
@@ -2211,17 +2293,25 @@ int fat_create(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mo
 	
 	res64 = fat_find_lfnslots(V, parent, &clus , &off, res + 1); // lfn slots + sfn slot
 	if (res64 <= 0) {
-		fprintf(stderr,"no slots found\n");
+		fprintf(stderr,"findlfnslots: no slots found\n");
 		return -1;
-	} else { fprintf(stderr,"clus:%u, off:%u\n",clus, off); }
+	} else { fprintf(stderr,"findlfnslots: found %d slots at clus:%u, off:%u\n",(res + 1),clus, off); }
 	
 	/*  now we can write down the dirent and update the wrttime in the parent. NULL as second param because we are writing a directory */
-	res = fat_write_data(V, NULL, &clus, &off, (char *) entry, ((slotnum + 1) * sizeof(DirEntry_t)));
-	if (res != ((slotnum + 1) * sizeof(DirEntry_t))) {
-		fprintf(stderr,"write error in fat_create(). res: %d,line: %d\n",res,__LINE__);
-		return -1;
+	if ((V->FatType == FAT32)  || (rootdirflag != 1)) {
+		res = fat_write_data(V, NULL, &clus, &off, (char *) entry, ((slotnum + 1) * sizeof(DirEntry_t)));
+		if (res != ((slotnum + 1) * sizeof(DirEntry_t))) {
+			fprintf(stderr,"write error in fat_create(). res: %d,line: %d\n",res,__LINE__);
+			return -1;
+		}
+	} else { //FAT12/16 root
+		off64_t res64;
+		res64 = byte_offset(V,clus, off);
+		if ((res64 = lseek(V->blkDevFd, res64, SEEK_SET)) != byte_offset(V,clus, off)) {
+			fprintf(stderr,"lseek error in fat_create(). res: %d,line: %d\n",res,__LINE__); return -1; }		
+		if ((res = writen(V->blkDevFd,(char *) entry,((slotnum + 1) * sizeof(DirEntry_t)))) != ((slotnum + 1) * sizeof(DirEntry_t))) {
+			fprintf(stderr,"write error in fat_create(). res: %d,line: %d\n",res,__LINE__); return -1; }
 	}
-	
 	if (rootdirflag != 1) {
 		fat_fill_time(&(parent->DirEntry->DIR_WrtDate), &(parent->DirEntry->DIR_WrtTime), tim);	
 		parent->DirEntry->DIR_LstAccDate = parent->DirEntry->DIR_CrtDate;	
@@ -2254,7 +2344,9 @@ int fat_mkdir(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mod
 	if ((parent != NULL) && (parent->rootdir != 1)) {
 		parentfstclus = Cluster = get_fstclus(parent->DirEntry);
 	} else {
-		Cluster = 2;
+		if (V->FatType == FAT32) {
+			Cluster = 2;
+		} else Cluster = 1;
 		parentfstclus = 0; // fsck.vfat complains if it's 2.. reeeally weird
 	}
 	
@@ -2304,13 +2396,21 @@ int fat_mkdir(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mod
 	fst2entry[0].DIR_LstAccDate = fst2entry[1].DIR_LstAccDate = fst2entry[0].DIR_CrtDate;
 				
 	Offset =0;
-	res = fat_write_data(V, NULL, &newclus, &Offset, (char *)fst2entry, 2 * sizeof(DirEntry_t) );
-	if (res != (2* sizeof(DirEntry_t))) {
-		fprintf(stderr,"fat_mkdir() error: write_data() failed\n");
-		return -1;
+	/* NB: We have to zero the new cluster allocated BECAUSE otherwise find_file does NOT work properly */
+	{
+		DWORD tmpclus, tmpoff;
+		tmpclus=newclus; tmpoff = 0;
+		
+		if ((res = fat_write0data(V, NULL, &tmpclus, &tmpoff, (V->bpc -1))) != (V->bpc -1)) { 
+			fprintf(stderr,"fat_mkdir() error: write0data() failed\n"); return -1; }
 	}
+
+	if ((res = fat_write_data(V, NULL, &newclus, &Offset, (char *)fst2entry, 2 * sizeof(DirEntry_t))) != (2* sizeof(DirEntry_t))) {
+		fprintf(stderr,"fat_mkdir() error: write_data() failed\n"); return -1; }
+		
 	/* finally we should update the newely created dirent. but update_file() require a File_t and create at the moment does not provide it. so workaround */
 	/* tofix */
+
 	F.V = V;
 	memcpy((char *) &(F.D), (char *) &D, sizeof(DirEnt_t));
 	F.DirEntry = (DirEntry_t *) &(F.D.entry[F.D.len -1]);
@@ -2353,9 +2453,17 @@ static int fat_real_delete(File_t *F, int dir, int flag) {
 	// write it down
 	Cluster=F->D.clus;
 	Offset=F->D.off;
-	res = fat_write_data(F->V, NULL, &Cluster, &Offset, (char *) D.entry, (D.len * sizeof(DirEntry_t)) );
-	if (res != (D.len * sizeof(DirEntry_t)) ) return -1;
-	
+	if (F->V->FatType == FAT32) {
+		res = fat_write_data(F->V, NULL, &Cluster, &Offset, (char *) D.entry, (D.len * sizeof(DirEntry_t)) );
+		if (res != (D.len * sizeof(DirEntry_t)) ) return -1;
+	} else { // FAT12/16
+		off64_t res64;
+		res64 = byte_offset(F->V,Cluster, Offset);
+		if ((res64 = lseek(F->V->blkDevFd, res64, SEEK_SET)) != byte_offset(F->V,Cluster, Offset)) {
+			fprintf(stderr,"lseek error in fat_delete(). res: %d,line: %d\n",res,__LINE__); return -1; }		
+		if ((res = writen(F->V->blkDevFd,(char *) D.entry, (D.len * sizeof(DirEntry_t)))) != (D.len * sizeof(DirEntry_t))) {
+			fprintf(stderr,"write error in fat_delete(). res: %d,line: %d\n",res,__LINE__); return -1; }		
+	}
 	return 0;
 }
 
@@ -2534,7 +2642,11 @@ int fat_open(const char *filename, File_t *F, Volume_t *V, int flags) {
 
 	res = utf8_stricmp(filename,"/");
 	if (res == 0) {// root directory
-		F->CurClus = 2;
+		if (V->FatType == FAT32) {
+			F->CurClus = 2;	
+		} else { // fat12/16
+			F->CurClus = 1;
+		}
 		F->CurOff = F->CurAbsOff = 0;
 		F->rootdir = 1;
 		F->DirEntry = NULL;
@@ -2651,10 +2763,11 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 	if ((F->rootdir != 1) && (!fat_legalclus(F->V,get_fstclus(F->DirEntry))) && (F->DirEntry->DIR_FileSize == 0)) { /* 0 is endianess independent */
 		if (mode != O_RDONLY) {  
 		/* Let's allocate the first cluster */
-			DWORD freecls;
-			DWORD freeoff=0;
-
+			DWORD freecls, freeoff;
+			
             freecls = fat_getFreeCluster(F->V);
+			freeoff=0;
+
             set_fstclus(F->DirEntry, freecls);
 //			fprintf(stderr,"fat_seek(): empty file in O_RDWR. fclus allocated: %d\n",freecls);
             F->CurClus = freecls;
