@@ -60,6 +60,11 @@ wrapinfun wrap_in_statfs64, wrap_in_fstatfs64;
 wrapinfun wrap_in_mmap,wrap_in_mremap,wrap_in_munmap;
 #endif
 wrapinfun wrap_in_kill;
+wrapinfun wrap_in_getxid,wrap_in_setuid,wrap_in_setreuid;
+wrapinfun wrap_in_getresuid, wrap_in_setresuid,wrap_in_setgid;
+wrapinfun wrap_in_setresgid,wrap_in_setregid;
+wrapinfun wrap_in_nice, wrap_in_getpriority, wrap_in_setpriority;
+wrapinfun wrap_in_getpid, wrap_in_setpid, wrap_in_getpid_1, wrap_in_setpgid;
 
 wrapoutfun wrap_out_open, wrap_out_std, wrap_out_close, wrap_out_chdir;
 wrapoutfun wrap_out_dup, wrap_out_select, wrap_out_poll, wrap_out_fcntl;
@@ -245,22 +250,21 @@ struct sc_map scmap[]={
 	{__NR_getdomainname, choice_sc,	wrap_in_gethostname,  wrap_out_std,	always_umnone,	NULL, 0,	2, SOC_HOSTID},
 	{__NR_setdomainname, choice_sc,	wrap_in_sethostname,  wrap_out_std,	always_umnone,	NULL, 0,	2, SOC_HOSTID},
 
-#if 0
 	/* user mgmt calls */
-	{__NR_getuid,	choice_sc,	wrap_in_id_g1, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
-	{__NR_setuid,	choice_sc,	wrap_in_id_s1, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
-	{__NR_geteuid,	choice_sc,	wrap_in_id_g1, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
-	{__NR_setfsuid,	choice_sc,	wrap_in_id_s1, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
-	{__NR_setreuid,	choice_sc,	wrap_in_id_s2, wrap_out_std, 	always_umnone,	NULL, 0,	2, SOC_UID},
-	{__NR_getresuid, choice_sc,	wrap_in_id_g3, wrap_out_std, 	always_umnone,	NULL, 0,	3, SOC_UID},
-	{__NR_setresuid, choice_sc,	wrap_in_id_s3, wrap_out_std, 	always_umnone,	NULL, 0,	3, SOC_UID},
-	{__NR_getgid,	choice_sc,	wrap_in_id_g1, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
-	{__NR_setgid,	choice_sc,	wrap_in_id_s1, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
-	{__NR_getegid,	choice_sc,	wrap_in_id_g1, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
-	{__NR_setfsgid,	choice_sc,	wrap_in_id_s1, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
-	{__NR_setregid,	choice_sc,	wrap_in_id_s2, wrap_out_std, 	always_umnone,	NULL, 0,	2, SOC_UID},
-	{__NR_getresgid, choice_sc,	wrap_in_id_g3, wrap_out_std, 	always_umnone,	NULL, 0,	3, SOC_UID},
-	{__NR_setresgid, choice_sc,	wrap_in_id_s3, wrap_out_std, 	always_umnone,	NULL, 0,	3, SOC_UID},
+	{__NR_getuid,	choice_sc,	wrap_in_getxid, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
+	{__NR_setuid,	choice_sc,	wrap_in_setuid, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
+	{__NR_geteuid,	choice_sc,	wrap_in_getxid, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
+	{__NR_setfsuid,	choice_sc,	wrap_in_setuid, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
+	{__NR_setreuid,	choice_sc,	wrap_in_setreuid, wrap_out_std, 	always_umnone,	NULL, 0,	2, SOC_UID},
+	{__NR_getresuid, choice_sc,	wrap_in_getresuid, wrap_out_std, 	always_umnone,	NULL, 0,	3, SOC_UID},
+	{__NR_setresuid, choice_sc,	wrap_in_setresuid, wrap_out_std, 	always_umnone,	NULL, 0,	3, SOC_UID},
+	{__NR_getgid,	choice_sc,	wrap_in_getxid, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
+	{__NR_setgid,	choice_sc,	wrap_in_setgid, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
+	{__NR_getegid,	choice_sc,	wrap_in_getxid, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
+	{__NR_setfsgid,	choice_sc,	wrap_in_setgid, wrap_out_std, 	always_umnone,	NULL, 0,	1, SOC_UID},
+	{__NR_setregid,	choice_sc,	wrap_in_setregid, wrap_out_std, 	always_umnone,	NULL, 0,	2, SOC_UID},
+	{__NR_getresgid, choice_sc,	wrap_in_setresuid, wrap_out_std, 	always_umnone,	NULL, 0,	3, SOC_UID},
+	{__NR_setresgid, choice_sc,	wrap_in_setresgid, wrap_out_std, 	always_umnone,	NULL, 0,	3, SOC_UID},
 	  
 	/* priority related calls */
 	{__NR_nice,	choice_sc,	wrap_in_nice,  wrap_out_std,	always_umnone,	NULL, 0,	1, SOC_PRIO},
@@ -273,10 +277,11 @@ struct sc_map scmap[]={
 	{__NR_getpgrp,	choice_sc,	wrap_in_getpid,  wrap_out_std,	always_umnone,	NULL, 0,	0, SOC_PID},
 	{__NR_setpgrp,	choice_sc,	wrap_in_setpid,  wrap_out_std,	always_umnone,	NULL, 0,	0, SOC_PID},
 	{__NR_getpgid,	choice_sc,	wrap_in_getpid_1, wrap_out_std,	always_umnone,	NULL, 0,	1, SOC_PID},
-	{__NR_setpgid,	choice_sc,	wrap_in_setpid_2, wrap_out_std,	always_umnone,	NULL, 0,	2, SOC_PID},
-	{__NR_getsid,	choice_sc,	wrap_in_setpid_1, wrap_out_std,	always_umnone,	NULL, 0,	1, SOC_PID},
+	{__NR_setpgid,	choice_sc,	wrap_in_setpgid, wrap_out_std,	always_umnone,	NULL, 0,	2, SOC_PID},
+	{__NR_getsid,	choice_sc,	wrap_in_getpid_1, wrap_out_std,	always_umnone,	NULL, 0,	1, SOC_PID},
 	{__NR_setsid,	choice_sc,	wrap_in_setpid,  wrap_out_std,	always_umnone,	NULL, 0,	0, SOC_PID},
 
+#if 0
 	{__NR_sysctl, choice_sysctl, wrap_in_sysctl, wrap_out_sysctl, always_umnone,	NULL, 0, 2, 0}
 	/* this is a trip */
 	{__NR_ptrace, always_umnone, wrap_in_ptrace, wrap_out_ptrace, always_umnone,	NULL, 0, 4, 0}

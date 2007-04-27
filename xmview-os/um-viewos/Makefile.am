@@ -39,6 +39,7 @@ umview_SOURCES = \
 	um_uname.c \
 	umview.c umview.h \
 	um_wdm.c \
+	um_misc.c \
 	utils.c utils.h
 nodist_umview_SOURCES = \
 	pcb-all.h

@@ -41,7 +41,8 @@ int wrap_in_time(int sc_number,struct pcb *pc,
 		if (pc->retval >= 0) {
 			pc->retval = tv.tv_sec;
 			ustoren(pc,addr,4,&(pc->retval));
-		}
+		} else
+			pc->erno = errno;
 	}
 	else {
 		pc->retval = -1;
@@ -57,11 +58,14 @@ int wrap_in_gettimeofday(int sc_number,struct pcb *pc,
 	struct timezone tz;
 	long tvp=getargn(0,pc);
 	long tzp=getargn(1,pc);
-	pc->retval = um_syscall(&tv,&tz);
-	if (tvp != umNULL)
-		ustoren(pc,tvp,sizeof(struct timeval),&tv);
-	if (tzp != umNULL)
-		ustoren(pc,tzp,sizeof(struct timezone),&tz);
+	if ((pc->retval = um_syscall(&tv,&tz)) < 0)
+		pc->erno=errno;
+	else {
+		if (tvp != umNULL)
+			ustoren(pc,tvp,sizeof(struct timeval),&tv);
+		if (tzp != umNULL)
+			ustoren(pc,tzp,sizeof(struct timezone),&tz);
+	}
 	return SC_FAKE;
 }
 
@@ -84,7 +88,8 @@ int wrap_in_settimeofday(int sc_number,struct pcb *pc,
 	}
 	else
 		tzx=NULL;
-	pc->retval = um_syscall(&tv,&tz);
+	if ((pc->retval = um_syscall(&tv,&tz)) < 0)
+		pc->erno=errno;
 	return SC_FAKE;
 }
 
@@ -98,6 +103,8 @@ int wrap_in_adjtimex(int sc_number,struct pcb *pc,
 		pc->retval=um_syscall(&tmx);
 		if (pc->retval>= 0) 
 			ustoren(pc,tmxp,sizeof(struct timeval),&tmx);
+		else
+			pc->erno=errno;
 	} else {
 		pc->retval = -1;
 		pc->erno = EFAULT;
@@ -115,6 +122,8 @@ int wrap_in_clock_gettime(int sc_number,struct pcb *pc,
 		pc->retval=um_syscall(clk_id,&ts);
 		if (pc->retval>= 0) 
 			ustoren(pc,tss,sizeof(struct timespec),&ts);
+		else
+			pc->erno=errno;
 		return SC_FAKE;
 	}
 	else
@@ -130,7 +139,8 @@ int wrap_in_clock_settime(int sc_number,struct pcb *pc,
 		struct timespec ts;
 		if (tss != umNULL)
 			umoven(pc,tss,sizeof(struct timespec),&ts);
-		pc->retval=um_syscall(clk_id,&ts);
+		if ((pc->retval=um_syscall(clk_id,&ts)) < 0)
+			pc->erno=errno;
 		return SC_FAKE;
 	}
 	else
@@ -147,6 +157,8 @@ int wrap_in_clock_getres(int sc_number,struct pcb *pc,
 		pc->retval=um_syscall(clk_id,&ts);
 		if (pc->retval>= 0) 
 			ustoren(pc,tss,sizeof(struct timespec),&ts);
+		else 
+			pc->erno=errno;
 		return SC_FAKE;
 	}
 	else

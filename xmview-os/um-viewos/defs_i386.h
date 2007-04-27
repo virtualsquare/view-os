@@ -86,4 +86,5 @@
 
 #define MAXERR 4096
 
+#define __NR_setpgrp __NR_doesnotexist
 #endif
