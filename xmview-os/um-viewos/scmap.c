@@ -65,6 +65,7 @@ wrapinfun wrap_in_getresuid, wrap_in_setresuid,wrap_in_setgid;
 wrapinfun wrap_in_setresgid,wrap_in_setregid;
 wrapinfun wrap_in_nice, wrap_in_getpriority, wrap_in_setpriority;
 wrapinfun wrap_in_getpid, wrap_in_setpid, wrap_in_getpid_1, wrap_in_setpgid;
+wrapinfun wrap_in_getpgrp, wrap_in_setpgrp;
 
 wrapoutfun wrap_out_open, wrap_out_std, wrap_out_close, wrap_out_chdir;
 wrapoutfun wrap_out_dup, wrap_out_select, wrap_out_poll, wrap_out_fcntl;
@@ -274,8 +275,8 @@ struct sc_map scmap[]={
 	/* process id related */
 	{__NR_getpid,	choice_sc,	wrap_in_getpid,  wrap_out_std,	always_umnone,	NULL, 0,	0, SOC_PID},
 	{__NR_getppid,	choice_sc,	wrap_in_getpid,  wrap_out_std,	always_umnone,	NULL, 0,	0, SOC_PID},
-	{__NR_getpgrp,	choice_sc,	wrap_in_getpid,  wrap_out_std,	always_umnone,	NULL, 0,	0, SOC_PID},
-	{__NR_setpgrp,	choice_sc,	wrap_in_setpid,  wrap_out_std,	always_umnone,	NULL, 0,	0, SOC_PID},
+	{__NR_getpgrp,	choice_sc,	wrap_in_getpgrp,  wrap_out_std,	always_umnone,	NULL, 0,	0, SOC_PID},
+	{__NR_setpgrp,	choice_sc,	wrap_in_setpgrp,  wrap_out_std,	always_umnone,	NULL, 0,	0, SOC_PID},
 	{__NR_getpgid,	choice_sc,	wrap_in_getpid_1, wrap_out_std,	always_umnone,	NULL, 0,	1, SOC_PID},
 	{__NR_setpgid,	choice_sc,	wrap_in_setpgid, wrap_out_std,	always_umnone,	NULL, 0,	2, SOC_PID},
 	{__NR_getsid,	choice_sc,	wrap_in_getpid_1, wrap_out_std,	always_umnone,	NULL, 0,	1, SOC_PID},

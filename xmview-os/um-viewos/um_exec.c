@@ -153,7 +153,12 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		long sp=getsp(pc);
 		/* create the argv for the wrapper! */
 		rv=umoven(pc,largv,sizeof(char *),&(larg0));
-		assert(rv);
+		//fprint2("%s %d %ld %ld rv=%d\n",pc->path,getpc(pc),largv,larg0,rv); 
+		/* XXX this is a workaround. strace has the same error!
+		 * exec seems to cause an extra prace in a strange address space
+		 * to be solved (maybe using PTRACE OPTIONS!) */
+		//assert(rv);
+		if (!rv) return STD_BEHAVIOR;
 		if (req.flags & BINFMT_KEEP_ARG0) {
 			oldarg0[PATH_MAX]=0;
 			umovestr(pc,larg0,PATH_MAX,oldarg0);
@@ -176,9 +181,10 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		pc->retval=0;
 		ustorestr(pc,sp-filenamelen,filenamelen,UMBINWRAP);
 		putargn(0,sp-filenamelen,pc);
-		ustorestr(pc,sp-filenamelen-arg0len,arg0len,umbinfmtarg0);
 		larg0=sp-filenamelen-arg0len;
+		ustorestr(pc,larg0,arg0len,umbinfmtarg0);
 		ustoren(pc,largv,sizeof(char *),&larg0);
+		//fprint2("%s %s\n",UMBINWRAP,umbinfmtarg0);
 		free(umbinfmtarg0);
 		if (req.flags & BINFMT_MODULE_ALLOC)
 			free(req.interp);

@@ -235,4 +235,5 @@
 #define wrap_in_stat wrap_in_stat64
 #define wrap_in_fstat wrap_in_fstat64
 
+#define __NR_setpgrp __NR_doesnotexist
 #endif // _DEFS_X86_64

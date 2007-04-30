@@ -87,4 +87,5 @@
 #define PT_ORIG_R3 34
 #endif
 
+#define __NR_setpgrp __NR_doesnotexist
 #endif // _DEFS_PPC 

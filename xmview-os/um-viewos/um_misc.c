@@ -186,6 +186,24 @@ int wrap_in_setpid(int sc_number,struct pcb *pc,
 	return SC_FAKE;
 }
 
+int wrap_in_getpgrp(int sc_number,struct pcb *pc,
+		    service_t sercode, sysfun um_syscall)
+{
+	/* mapped onto getpgid(0) */
+	if ((pc->retval = um_syscall(0)) < 0)
+		pc->erno=errno;
+	return SC_FAKE;
+}
+
+int wrap_in_setpgrp(int sc_number,struct pcb *pc,
+		    service_t sercode, sysfun um_syscall)
+{
+	/* mapped onto setpgid(0,0) */
+	if ((pc->retval = um_syscall(0,0)) < 0)
+		pc->erno=errno;
+	return SC_FAKE;
+}
+
 int wrap_in_getpid_1(int sc_number,struct pcb *pc,
 		    service_t sercode, sysfun um_syscall)
 {
