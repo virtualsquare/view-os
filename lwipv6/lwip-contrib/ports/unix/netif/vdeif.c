@@ -205,7 +205,8 @@ static int send_fd(char *name, int fddata, struct sockaddr_un *datasock, struct 
 	req.sock.sun_family = AF_UNIX;
 	snprintf(req.description, MAXDESCR, "%sLWIPv6 user=%s PID=%d if=vd%c", 
 		(getenv("_INSIDE_UMVIEW_MODULE") != NULL) ? "UMVIEW-" : "", 
-		callerpwd->pw_name, getpid(), ifnum + '0');
+		(callerpwd != NULL)?callerpwd->pw_name:"??",
+		getpid(), ifnum + '0');
 
 	/* First choice, return socket from the switch close to the control dir */
 	memset(req.sock.sun_path, 0, sizeof(req.sock.sun_path));
