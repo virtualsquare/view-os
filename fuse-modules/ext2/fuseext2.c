@@ -323,7 +323,7 @@ static int ext2_open(const char *path, struct fuse_file_info *fi)
 		err = ext2fs_file_open(e2fs, ino_n, EXT2_FILE_WRITE, &e2file);
 	else
 		err = ext2fs_file_open(e2fs, ino_n, 0, &e2file);
-	#ifndef DEBUG
+	#ifdef DEBUG
 	printf("\t\text2_file_openERR:%d\n",err);
 	#endif
 	if(err) {
@@ -427,7 +427,7 @@ static int ext2_read(const char *path, char *buf, size_t size, off_t offset,
 	e2fs=(ext2_filsys) mycontext->private_data;
 
 	e2file=(ext2_file_t)((long)(fi->fh));
-  #ifndef DEBUG
+  #ifdef DEBUG
 	printf("\text2_read-file read:%lu %p\n", fi->fh, e2file);
 	#endif
 	err = ext2fs_file_lseek(e2file, offset, SEEK_SET, &newpos);
