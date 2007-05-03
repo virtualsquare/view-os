@@ -8,6 +8,9 @@ license (see the file COPYING and the header note in the source files).
 
 Pure_libc converts glibc from a libc+system interfacing library into a libc-only
 library.
+Pure_libc is not complete yet. Stdio has been implemented onto the
+fopencookie call. 
+Due to current limitations of fopencookie, freopen cannot be "purified".
 
 The process can (re)define the variable
 extern sfun _pure_syscall;

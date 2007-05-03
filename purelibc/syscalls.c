@@ -1019,15 +1019,15 @@ static void statfs2vfs(struct statfs *sfs,struct statvfs *vsfs)
 int statvfs(const char *path, struct statvfs *buf){
 	struct statfs sfs;
 	int rv=_pure_syscall(__NR_statfs,path,&sfs);
-	statfs2vfs(&sfs,buf);
-	return 0;
+	if (rv >= 0) statfs2vfs(&sfs,buf);
+	return rv;
 }
 
 int fstatvfs(int fd, struct statvfs *buf){
 	struct statfs sfs;
 	int rv=_pure_syscall(__NR_fstatfs,fd,&sfs);
-	statfs2vfs(&sfs,buf);
-	return 0;
+	if (rv >= 0) statfs2vfs(&sfs,buf);
+	return rv;
 }
 
 void *mmap(void  *start, size_t length, int prot, int flags, int fd,
@@ -1048,11 +1048,23 @@ int munmap(void *start, size_t length)
 	return _pure_syscall(__NR_munmap,start,length);
 }
 
+#if __GLIBC__ >= 2 && __GLIBC_MINOR__ >= 5
+void *mremap(void  *old_address,  size_t old_size , size_t new_size,
+		       int flags, ...)
+{
+	va_list ap;
+	va_start (ap, flags);
+	void *newaddr = (flags & MREMAP_FIXED) ? va_arg (ap, void *) : NULL;
+	va_end (ap);
+	return (void *) _pure_syscall(__NR_mremap,old_address,old_size,new_size,flags,newaddr);
+}
+#else
 void *mremap(void  *old_address,  size_t old_size , size_t new_size,
 		       int flags)
 {
-	    return (void *) _pure_syscall(__NR_mremap,old_address,old_size,new_size,flags);
+	return (void *) _pure_syscall(__NR_mremap,old_address,old_size,new_size,flags);
 }
+#endif
 
 int ftime(struct timeb *tp){
 	struct timeval tv;
