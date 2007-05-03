@@ -10,6 +10,8 @@ AM_CPPFLAGS = -I$(includedir)/umview -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $(DEVE
 bin_PROGRAMS = fuseiso9660
 mod_LTLIBRARIES = umfuseiso9660.la
 
+dist_man1_MANS = fuseiso9660.1
+
 fuseiso9660_SOURCES = fuseiso9660.c zisofs.h v2fuseutils.c v2fuseutils.h
 fuseiso9660_LDFLAGS = -lfuse -lz -liso9660
 # Leave this also if it seems a no-op

@@ -10,6 +10,8 @@ AM_CPPFLAGS = -I$(includedir)/umview -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE $(DEVE
 bin_PROGRAMS = fuseext2
 mod_LTLIBRARIES = umfuseext2.la
 
+dist_man1_MANS = fuseext2.1
+
 fuseext2_SOURCES = fuseext2.c bindir.h v2fuseutils.c v2fuseutils.h
 fuseext2_LDFLAGS = -lfuse -lext2fs
 # Leave this also if it seems a no-op
