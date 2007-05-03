@@ -382,18 +382,16 @@ static int ext2_mknod(const char *path, mode_t mode, dev_t dev)
 	printf("\t\tName of file to create:%s\n",name);
 	printf("\t\tName of parent:%s\n",path_parent);
 	#endif
-make_link:
 	retval = ext2fs_link(e2fs, parent, name, newfile, EXT2_FT_REG_FILE);
 
-	if (retval == EXT2_ET_DIR_NO_SPACE) {
+	while (retval == EXT2_ET_DIR_NO_SPACE) {
 		printf("EXT2_ET_DIR_NO_SPACE\n");
 		retval = ext2fs_expand_dir(e2fs, parent);
 		if (retval) {
 			fprintf(stderr, "while expanding directory\n");
 			return retval;
 		}
-		//retval = ext2fs_link(e2fs, 2, name, newfile, EXT2_FT_REG_FILE);
-		goto make_link;
+		retval = ext2fs_link(e2fs, parent, name, newfile, EXT2_FT_REG_FILE);
 	}
         if (ext2fs_test_inode_bitmap(e2fs->inode_map, newfile))
 		fprintf(stderr, "Warning: inode already set\n");
@@ -578,7 +576,6 @@ static int ext2_mkdir(const char *path, mode_t mode)
 		#endif
 		return -ENOENT;
 	}
-try_again:
 	#ifdef DEBUG
 	printf("\t\tInode_Parent:%dpath%sname:%sinodebitmap%d\n",
 			parent,path_parent,name,e2fs->inode_map);
@@ -587,7 +584,7 @@ try_again:
 	#ifdef DEBUG
 	printf("\t\tMkdirError:%d\n",err);
 	#endif
-	if (err == EXT2_ET_DIR_NO_SPACE) {
+	while (err == EXT2_ET_DIR_NO_SPACE) {
 		#ifdef DEBUG
 		fprintf(stderr, "Expand dir space\n");
 		#endif
@@ -596,7 +593,14 @@ try_again:
 			fprintf(stderr, "Error while expanding directory\n");
 			return -ENOENT;
 		}
-		goto try_again;
+#ifdef DEBUG
+		printf("\t\tInode_Parent:%dpath%sname:%sinodebitmap%d\n",
+				parent,path_parent,name,e2fs->inode_map);
+#endif
+		err = ext2fs_mkdir(e2fs, parent, 0, name);
+#ifdef DEBUG
+		printf("\t\tMkdirError:%d\n",err);
+#endif
 	}
 	if (err) {
 		fprintf(stderr, "Mkdir error:%d\n",err);
@@ -1359,7 +1363,6 @@ int main(int argc, char *argv[])
 		retval = ext2fs_set_data_io(e2fs, data_io);
 		if (retval) {
 			fprintf(stderr,"ERROR:while setting data source:%d\n",retval);
-			//goto errout;
 		}
 	}
 
