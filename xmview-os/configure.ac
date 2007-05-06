@@ -95,6 +95,8 @@ AC_CONFIG_FILES([Makefile
                  umbinfmt/Makefile
                  um_lwip/Makefile
                  um_viewfs/Makefile
+                 ummisc/Makefile
+                 ummisc_modules/Makefile
                  um-viewos/Makefile])
 AC_OUTPUT
 

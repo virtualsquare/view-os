@@ -21,6 +21,8 @@
  *   $Id$
  *
  */
+#ifndef _UM_VIEW_MODULE_H
+#define _UM_VIEW_MODULE_H
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <stdarg.h>
@@ -197,6 +199,7 @@ extern struct stat64 *um_mod_getpathstat(void);
 char *um_mod_getpath(void);
 extern int um_mod_getsyscalltype(int scno);
 int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
+int um_mod_nrsyscalls(void);
 
 extern int uscno(int scno);
 extern int add_service(struct service *);
@@ -249,9 +252,10 @@ extern int vfprint2(const char *fmt, va_list ap);
 #define INTERNAL_MAKE_NAME(a, b) a ## b
 #define MAKE_NAME(a, b) INTERNAL_MAKE_NAME(a, b)
 
-#define SERVICESYSCALL(s, scno, sfun) (s.syscall[uscno(MAKE_NAME(__NR_, scno))] = (sysfun) sfun)
+#define SERVICESYSCALL(s, scno, sfun) ((s).syscall[uscno(MAKE_NAME(__NR_, scno))] = (sysfun) (sfun))
 #if (__NR_socketcall == __NR_doesnotexist)
-#define SERVICESOCKET(s, scno, sfun) (s.syscall[uscno(MAKE_NAME(__NR_, scno))] = (sysfun) sfun)
+#define SERVICESOCKET(s, scno, sfun) ((s).syscall[uscno(MAKE_NAME(__NR_, scno))] = (sysfun) (sfun))
 #else
-#define SERVICESOCKET(s, scno, sfun) (s.socket[MAKE_NAME(__NR_, scno)] = (sysfun) sfun)
+#define SERVICESOCKET(s, scno, sfun) ((s).socket[MAKE_NAME(__NR_, scno)] = (sysfun) (sfun))
+#endif
 #endif

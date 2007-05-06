@@ -46,6 +46,7 @@
 #include "umdev.h"
 
 #define UMDEV_SERVICE_CODE 0x04
+//static pthread_mutex_t devicetab_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* Enable umdev own debug output */
 

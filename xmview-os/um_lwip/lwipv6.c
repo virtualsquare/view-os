@@ -397,8 +397,9 @@ static void lwipargtoenv(char *initargs)
 		intnum[0]=1;
 	for (i=0;i<INTTYPES;i++)
 		for (j=0;j<intnum[i];j++)
-			if (initfun[i] != NULL)
+			if (initfun[i] != NULL) {
 				initfun[i](ifname(ifh,i,j));
+			}
 	iffree(ifh);
 
 	/* load other parameters */

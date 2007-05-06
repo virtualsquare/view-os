@@ -73,6 +73,12 @@ static struct syscall_unifier
 	{__NR_readv,	__NR_read},
 	{__NR_writev,	__NR_write},
 	{__NR_time,	  __NR_gettimeofday},
+#if (__NR_olduname != __NR_doesnotexist)
+	{__NR_olduname, __NR_uname},
+#endif
+#if (__NR_oldolduname != __NR_doesnotexist)
+	{__NR_oldolduname, __NR_uname},
+#endif
 #if (__NR_setpgrp != __NR_doesnotexist)
 	{__NR_setpgrp,__NR_setpgid},
 #endif

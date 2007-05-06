@@ -57,12 +57,15 @@ int um_mmap_secret;
 int um_mmap_pageshift;
 #endif
 
+struct lfd_vtable;
+
 struct lfd_table {
 	short count; /*how many pcbs have opened this lfd - look at dup implementation */
 	service_t service; /*the service code */
 	int sfd; /* the fd as seen from the service */
 	char *path; /* the real path */
 	epoch_t epoch;
+	struct lfd_vtable *pvtab;
 };
 
 struct lfd_vtable {
@@ -73,13 +76,8 @@ struct lfd_vtable {
 	int ififo,ofifo;
 };
 
-struct lfd_top {
-	struct lfd_table *ptab;
-	struct lfd_vtable *pvtab;
-};
-
 static short um_maxlfd=0;
-static struct lfd_top *lfd_tab=NULL;
+static struct lfd_table **lfd_tab=NULL;
 
 /* umproc initialization */
 void um_proc_open()
@@ -216,10 +214,10 @@ void umproc_delproc(struct pcb *pc,int flags,int npcbflag)
 			for (i=0; i<p->nolfd;  i++) {
 				register int lfd=p->lfdlist[i];
 				if (lfd >= 0) {
-					/*  if ((--lfd_tab[lfd].ptab->count) == 0) {
-					 *    register int service=lfd_tab[lfd].ptab->service;
+					/*  if ((--lfd_tab[lfd]->count) == 0) {
+					 *    register int service=lfd_tab[lfd]->service;
 					 *    if (service != UM_NONE) {
-					 *       service_syscall(service,uscno(__NR_close))(lfd_tab[lfd].ptab->sfd);
+					 *       service_syscall(service,uscno(__NR_close))(lfd_tab[lfd]->sfd);
 					 *   }
 					 *  } */
 					//printf("CLOSE LFD %d\n",lfd);
@@ -246,7 +244,7 @@ int lfd_open (service_t service, int sfd, char *path, int nested)
 	GDEBUG(3, "lfd_open sfd %d, path %s, nested %d", sfd, path, nested);
 	//printf("lfd_open %x sfd %d %s",service,sfd,(path==NULL)?"<null>":path);
 	/* looks for a free local file descriptor */
-	for (lfd=0; lfd<um_maxlfd && lfd_tab[lfd].ptab != NULL ; lfd++)
+	for (lfd=0; lfd<um_maxlfd && lfd_tab[lfd] != NULL ; lfd++)
 		;
 	/* if there are none, expands the lfd table */
 	if (lfd >= um_maxlfd) {
@@ -254,48 +252,48 @@ int lfd_open (service_t service, int sfd, char *path, int nested)
 		//printf("lfd_tab realloc oldndf %d\n",um_maxlfd);
 		um_maxlfd = (lfd + OLFD_STEP) & ~OLFD_STEP_1;
 		//printf("lfd_tab realloc newnfd %d\n",um_maxlfd);
-		lfd_tab=(struct lfd_top *) realloc (lfd_tab, (um_maxlfd * sizeof (struct lfd_top)));
+		lfd_tab=(struct lfd_table **) realloc (lfd_tab, (um_maxlfd * sizeof (struct lfd_table *)));
 		assert (lfd_tab);
 
 		/* Clean the new entries in lfd_tab or lfd_cleanall will not work properly */
 		for (;i < um_maxlfd;i++)
 		{
-			lfd_tab[i].pvtab=NULL;
-			lfd_tab[i].ptab=NULL;
+			lfd_tab[i]=NULL;
 		}
 	}
-	assert(lfd_tab[lfd].ptab == NULL);
-	lfd_tab[lfd].ptab = (struct lfd_table *)malloc (sizeof(struct lfd_table));
-	assert(lfd_tab[lfd].ptab != NULL);
-	//printf("LEAK %x %x path=%s\n",lfd_tab,lfd_tab[lfd].ptab,path);
-	lfd_tab[lfd].ptab->path=(path==NULL)?NULL:strdup(path);
-	lfd_tab[lfd].ptab->service=service;
-	lfd_tab[lfd].ptab->sfd=sfd;
-	lfd_tab[lfd].ptab->epoch=um_setepoch(0);
-	lfd_tab[lfd].ptab->count=1;
+	assert(lfd_tab[lfd] == NULL);
+	lfd_tab[lfd] = (struct lfd_table *)malloc (sizeof(struct lfd_table));
+	assert(lfd_tab[lfd] != NULL);
+	//printf("LEAK %x %x path=%s\n",lfd_tab,lfd_tab[lfd],path);
+	lfd_tab[lfd]->path=(path==NULL)?NULL:strdup(path);
+	lfd_tab[lfd]->service=service;
+	lfd_tab[lfd]->sfd=sfd;
+	lfd_tab[lfd]->epoch=um_setepoch(0);
+	lfd_tab[lfd]->count=1;
+	lfd_tab[lfd]->pvtab=NULL;
 	if (service != UM_NONE && !nested) {
 		char *filename;
-		lfd_tab[lfd].pvtab = (struct lfd_vtable *)malloc (sizeof(struct lfd_vtable));
-		assert(lfd_tab[lfd].pvtab != NULL);
+		lfd_tab[lfd]->pvtab = (struct lfd_vtable *)malloc (sizeof(struct lfd_vtable));
+		assert(lfd_tab[lfd]->pvtab != NULL);
 		/* create the fifo to fake the file for the process,
 		 * it will be used to give a fd to the process and to unblock
 		 * select/pselect/poll/ppoll operations */
-		filename=lfd_tab[lfd].pvtab->filename=strdup(um_proc_tmpfile(service,lfd));
+		filename=lfd_tab[lfd]->pvtab->filename=strdup(um_proc_tmpfile(service,lfd));
 		fifo=mkfifo(filename,0600);
 		assert(fifo==0);
 		/* the fifo is opened on both ends input and output, so that
 		 * 1- the call is not blocking
 		 * 2- it is possible to reread the data after the process gets unblocked */
-		lfd_tab[lfd].pvtab->ififo=r_open(filename,O_RDONLY|O_NONBLOCK,0);
-		assert(lfd_tab[lfd].pvtab->ififo >= 0);
-		lfd_tab[lfd].pvtab->ofifo=r_open(filename,O_WRONLY,0);
-		assert(lfd_tab[lfd].pvtab->ofifo >= 0);
-		lfd_tab[lfd].pvtab->signaled=0;
+		lfd_tab[lfd]->pvtab->ififo=r_open(filename,O_RDONLY|O_NONBLOCK,0);
+		assert(lfd_tab[lfd]->pvtab->ififo >= 0);
+		lfd_tab[lfd]->pvtab->ofifo=r_open(filename,O_WRONLY,0);
+		assert(lfd_tab[lfd]->pvtab->ofifo >= 0);
+		lfd_tab[lfd]->pvtab->signaled=0;
 	} else {
-		//printf("add lfd %d file %s\n",lfd,lfd_tab[lfd].ptab->path);
-		lfd_tab[lfd].pvtab=NULL;
+		//printf("add lfd %d file %s\n",lfd,lfd_tab[lfd]->path);
+		lfd_tab[lfd]->pvtab=NULL;
 	}
-	//printf("lfd_open: lfd %d sfd %d file %s\n",lfd,sfd,lfd_tab[lfd].ptab->path);
+	//printf("lfd_open: lfd %d sfd %d file %s\n",lfd,sfd,lfd_tab[lfd]->path);
 	return lfd;
 }
 
@@ -303,36 +301,36 @@ int lfd_open (service_t service, int sfd, char *path, int nested)
 void lfd_close (int lfd)
 {
 	int rv;
-	GDEBUG(5, "close %d %x",lfd,lfd_tab[lfd].ptab);
-	assert (lfd < 0 || (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL));
+	GDEBUG(5, "close %d %x",lfd,lfd_tab[lfd]);
+	assert (lfd < 0 || (lfd < um_maxlfd && lfd_tab[lfd] != NULL));
 	/* if this is the last reference to the lfd 
 	 * close everything*/
-	if (lfd >= 0 && --(lfd_tab[lfd].ptab->count) == 0) {
+	if (lfd >= 0 && --(lfd_tab[lfd]->count) == 0) {
 		register int service;
 		/* if it is a virtual fifo, close the fifo files, unlink
 		 * the fifo itself, and free the malloc'ed data */
-		if (lfd_tab[lfd].pvtab != NULL) {
-			rv=r_close(lfd_tab[lfd].pvtab->ififo);
+		if (lfd_tab[lfd]->pvtab != NULL) {
+			rv=r_close(lfd_tab[lfd]->pvtab->ififo);
 			assert(rv==0);
-			rv=r_close(lfd_tab[lfd].pvtab->ofifo);
+			rv=r_close(lfd_tab[lfd]->pvtab->ofifo);
 			assert(rv==0);
-			rv=r_unlink(lfd_tab[lfd].pvtab->filename);
+			rv=r_unlink(lfd_tab[lfd]->pvtab->filename);
 			assert(rv==0);
-			free(lfd_tab[lfd].pvtab->filename);
-			free(lfd_tab[lfd].pvtab);
+			free(lfd_tab[lfd]->pvtab->filename);
+			free(lfd_tab[lfd]->pvtab);
 		} 
 		//else
-			//printf("del lfd %d file %s\n",lfd,lfd_tab[lfd].ptab->path);
-		service=lfd_tab[lfd].ptab->service;
+			//printf("del lfd %d file %s\n",lfd,lfd_tab[lfd]->path);
+		service=lfd_tab[lfd]->service;
 		/* call the close method of the service module */
-		if (service != UM_NONE && lfd_tab[lfd].ptab->sfd >= 0) {
-			service_syscall(service,uscno(__NR_close))(lfd_tab[lfd].ptab->sfd); 
+		if (service != UM_NONE && lfd_tab[lfd]->sfd >= 0) {
+			service_syscall(service,uscno(__NR_close))(lfd_tab[lfd]->sfd); 
 		}
 		/* free path and structure */
-		if (lfd_tab[lfd].ptab->path != NULL)
-			free(lfd_tab[lfd].ptab->path);
-		free(lfd_tab[lfd].ptab);
-		lfd_tab[lfd].ptab=NULL;
+		if (lfd_tab[lfd]->path != NULL)
+			free(lfd_tab[lfd]->path);
+		free(lfd_tab[lfd]);
+		lfd_tab[lfd]=NULL;
 	}
 }
 
@@ -340,8 +338,8 @@ void lfd_close (int lfd)
 int lfd_dup(int lfd)
 {
 	if (lfd >= 0) {
-		assert (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL);
-		return ++lfd_tab[lfd].ptab->count;
+		assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
+		return ++lfd_tab[lfd]->count;
 	} else
 		return 1;
 }
@@ -349,48 +347,48 @@ int lfd_dup(int lfd)
 /* access method to read how many process fd share the same lfd element */
 int lfd_getcount(int lfd)
 {
-	assert (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL);
-	return lfd_tab[lfd].ptab->count;
+	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
+	return lfd_tab[lfd]->count;
 }
 
 /* set sfd to null (to avoid double close) */
 void lfd_nullsfd(int lfd)
 {
 	//printf("lfd_nullsfd %d %d %x\n",
-			//lfd,um_maxlfd,lfd_tab[lfd].ptab);
-	assert (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL);
-	lfd_tab[lfd].ptab->sfd= -1;
+			//lfd,um_maxlfd,lfd_tab[lfd]);
+	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
+	lfd_tab[lfd]->sfd= -1;
 }
 
 /* lfd 2 sfd conversion */
 int lfd_getsfd(int lfd)
 {
-	assert (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL);
-	return lfd_tab[lfd].ptab->sfd;
+	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
+	return lfd_tab[lfd]->sfd;
 }
 	
 /* lfd: get the service code */
 service_t lfd_getservice(int lfd)
 {
-	//fprint2("getservice %d -> %x\n",lfd,lfd_tab[lfd].ptab);
-	//assert (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL);
-	if (lfd >= um_maxlfd || lfd_tab[lfd].ptab == NULL)
+	//fprint2("getservice %d -> %x\n",lfd,lfd_tab[lfd]);
+	//assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
+	if (lfd >= um_maxlfd || lfd_tab[lfd] == NULL)
 		return (UM_NONE);
-	return lfd_tab[lfd].ptab->service;
+	return lfd_tab[lfd]->service;
 }
 	
 /* lfd: get the filename (of the fifo): for virtualized files*/
 char *lfd_getfilename(int lfd)
 {
-	assert (lfd < um_maxlfd && lfd_tab[lfd].pvtab != NULL);
-	return lfd_tab[lfd].pvtab->filename;
+	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL && lfd_tab[lfd]->pvtab != NULL);
+	return lfd_tab[lfd]->pvtab->filename;
 }
 
 /* lfd: get the path */
 char *lfd_getpath(int lfd)
 {
-	assert (lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL);
-	return lfd_tab[lfd].ptab->path;
+	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
+	return lfd_tab[lfd]->path;
 }
 
 /* fd 2 ldf mapping (in a process file table) */
@@ -407,8 +405,8 @@ char *fd_getpath(struct pcb_file *p, int fd)
 {
 	if (fd>=0 && fd < p->nolfd) {
 		int lfd=p->lfdlist[fd];
-		if (lfd >= 0 && lfd < um_maxlfd && lfd_tab[lfd].ptab != NULL) {
-			return lfd_tab[lfd].ptab->path;
+		if (lfd >= 0 && lfd < um_maxlfd && lfd_tab[lfd] != NULL) {
+			return lfd_tab[lfd]->path;
 		} else {
 			return NULL;
 		}
@@ -420,7 +418,7 @@ char *fd_getpath(struct pcb_file *p, int fd)
 int fd2sfd(struct pcb_file *p, int fd)
 {
 	if (fd>=0 && fd < p->nolfd && p->lfdlist[fd] >= 0)
-		return lfd_tab[p->lfdlist[fd]].ptab->sfd;
+		return lfd_tab[p->lfdlist[fd]]->sfd;
 	else
 		return -1;
 }
@@ -447,8 +445,8 @@ service_t service_fd(struct pcb_file *p, int fd, int setepoch)
 			/* XXX side effect: when service_fd finds a virtual file,
 			 * it sets also the epoch */
 			if (setepoch)
-				um_setepoch(lfd_tab[p->lfdlist[fd]].ptab->epoch);
-			return lfd_tab[p->lfdlist[fd]].ptab->service;
+				um_setepoch(lfd_tab[p->lfdlist[fd]]->epoch);
+			return lfd_tab[p->lfdlist[fd]]->service;
 		} else
 			return UM_NONE;
 }
@@ -476,7 +474,7 @@ void lfd_register (struct pcb_file *p, int fd, int lfd)
 			p->lfdlist[i]= -1;
 	}
 	p->lfdlist[fd]=lfd;
-	//printf("lfd_register fd %d lfd %d path %s\n", fd, lfd, lfd_tab[lfd].ptab->path);
+	//printf("lfd_register fd %d lfd %d path %s\n", fd, lfd, lfd_tab[lfd]->path);
 }
 
 /* when a process closes a file must be closed (lfd element) and deregistered
@@ -496,10 +494,10 @@ void lfd_closeall()
 {
 	register int lfd;
 	for (lfd=0; lfd<um_maxlfd; lfd++) {
-		if (lfd_tab[lfd].pvtab != NULL) {
-			r_close(lfd_tab[lfd].pvtab->ififo);
-			r_close(lfd_tab[lfd].pvtab->ofifo);
-			r_unlink(lfd_tab[lfd].pvtab->filename);
+		if (lfd_tab[lfd] != NULL && lfd_tab[lfd]->pvtab != NULL) {
+			r_close(lfd_tab[lfd]->pvtab->ififo);
+			r_close(lfd_tab[lfd]->pvtab->ofifo);
+			r_unlink(lfd_tab[lfd]->pvtab->filename);
 		}
 	}
 }
@@ -509,11 +507,11 @@ void lfd_signal(int lfd)
 {
 	char ch=0;
 	//fprint2("lfd_signal %d\n",lfd);
-	//assert (lfd < um_maxlfd && lfd_tab[lfd].pvtab != NULL);
-	if  (lfd < um_maxlfd && lfd_tab[lfd].pvtab != NULL) {
-		if (lfd_tab[lfd].pvtab->signaled == 0) {
-			lfd_tab[lfd].pvtab->signaled = 1;
-			r_write(lfd_tab[lfd].pvtab->ofifo,&ch,1);
+	//assert (lfd < um_maxlfd && lfd_tab[lfd]->pvtab != NULL);
+	if  (lfd < um_maxlfd && lfd_tab[lfd] != NULL && lfd_tab[lfd]->pvtab != NULL) {
+		if (lfd_tab[lfd]->pvtab->signaled == 0) {
+			lfd_tab[lfd]->pvtab->signaled = 1;
+			r_write(lfd_tab[lfd]->pvtab->ofifo,&ch,1);
 		}
 	}
 }
@@ -522,10 +520,10 @@ void lfd_signal(int lfd)
 void lfd_delsignal(int lfd)
 {
 	char buf[1024];
-	assert (lfd < um_maxlfd && lfd_tab[lfd].pvtab != NULL);
-	if (lfd_tab[lfd].pvtab->signaled == 1) {
-		lfd_tab[lfd].pvtab->signaled = 0;
-		r_read(lfd_tab[lfd].pvtab->ififo,buf,1024);
+	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL && lfd_tab[lfd]->pvtab != NULL);
+	if (lfd_tab[lfd]->pvtab->signaled == 1) {
+		lfd_tab[lfd]->pvtab->signaled = 0;
+		r_read(lfd_tab[lfd]->pvtab->ififo,buf,1024);
 	}
 }
 
@@ -535,8 +533,8 @@ char *sfd_getpath(service_t code, int sfd)
 {
 	int lfd;
 	for (lfd=0; lfd<um_maxlfd; lfd++)
-		if(lfd_tab[lfd].ptab && lfd_tab[lfd].ptab->service == code &&
-				lfd_tab[lfd].ptab->sfd == sfd)
-			return lfd_tab[lfd].ptab->path;
+		if(lfd_tab[lfd] && lfd_tab[lfd]->service == code &&
+				lfd_tab[lfd]->sfd == sfd)
+			return lfd_tab[lfd]->path;
 	return NULL;
 }

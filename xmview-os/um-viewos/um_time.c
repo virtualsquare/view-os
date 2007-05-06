@@ -31,6 +31,7 @@
 #include "utils.h"
 #define umNULL ((int) NULL)
 
+/* mapped onto gettimeofday */
 int wrap_in_time(int sc_number,struct pcb *pc,
 		    service_t sercode, sysfun um_syscall)
 {

@@ -119,7 +119,7 @@ struct umfuse_dirent64 {
 
 struct umdirent {
 	struct umfuse_dirent64 de;
-	unsigned short d_reclen32;
+	//unsigned short d_reclen32;
 	struct umdirent *next;
 };
 
@@ -929,7 +929,7 @@ static int umfusefilldir(fuse_dirh_t h, const char *name, int type, ino_t ino)
 		new->de.d_type=type;
 		new->de.d_name=strdup(name);
 		new->de.d_reclen=WORDALIGN(SIZEDIRENT64NONAME+strlen(name)+1);
-		new->d_reclen32=WORDALIGN(SIZEDIRENT32NONAME+strlen(name)+1);
+		//new->d_reclen32=WORDALIGN(SIZEDIRENT32NONAME+strlen(name)+1);
 
 		/* virtualize the offset on a real file, 64bit ino+16len+8namlen+8type */
 		new->de.d_off=h->offset=h->offset+WORDALIGN(12+strlen(name));
@@ -958,7 +958,7 @@ static int umfusefillreaddir(void *buf, const char *name, const struct stat *stb
 		}
 		new->de.d_name=strdup(name);
 		new->de.d_reclen=WORDALIGN(SIZEDIRENT64NONAME+strlen(name)+1);
-		new->d_reclen32=WORDALIGN(SIZEDIRENT32NONAME+strlen(name)+1);
+		//new->d_reclen32=WORDALIGN(SIZEDIRENT32NONAME+strlen(name)+1);
 		/* virtualize the offset on a real file, 64bit ino+16len+8namlen+8type */
 		new->de.d_off=h->offset=h->offset+WORDALIGN(12+strlen(name));
 		if (h->tail==NULL) {
@@ -1004,6 +1004,7 @@ static void umcleandirinfo(struct umdirent *tail)
 	}
 }
 
+#if 0
 static long umfuse_getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
 {
 	if (filetab[fd]==NULL) {
@@ -1043,6 +1044,7 @@ static long umfuse_getdents(unsigned int fd, struct dirent *dirp, unsigned int c
 		return curoffs;
 	}
 }
+#endif
 
 static long umfuse_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
 {
@@ -1115,7 +1117,7 @@ static epoch_t fuse_path(int type, void *arg)
 			return FALSE;
 	} else if (type == CHECKFSTYPE) {
 		char *path=arg;
-		return (strncmp(path,"umfuse",6) == 0);/* a path with no leading / is a filesystemtype */
+		return (strncmp(path,"umfuse",6) == 0);
 	} else {
 		return FALSE;
 	}
@@ -1507,6 +1509,7 @@ static long umfuse_fstat64(int fd, struct stat64 *buf64)
 	return rv;
 }
 
+#if 0
 static long umfuse_stat(char *path, struct stat *buf)
 {
 	return common_stat(searchcontext(path,SUBSTR),path,buf,1);
@@ -1516,6 +1519,7 @@ static long umfuse_lstat(char *path, struct stat *buf)
 {
 	return common_stat(searchcontext(path,SUBSTR),path,buf,1);
 }
+#endif
 
 static long umfuse_stat64(char *path, struct stat64 *buf64)
 {
@@ -2365,6 +2369,7 @@ fini (void)
 	free(s.syscall);
 	free(s.socket);
 	forallfusetabdo(contextclose);
+	pthread_key_delete(context_key);
 	GMESSAGE("umfuse fini");
 }
 

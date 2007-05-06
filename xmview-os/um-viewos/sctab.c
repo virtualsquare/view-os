@@ -583,8 +583,7 @@ service_t choice_fd(int sc_number,struct pcb *pc)
 /* choice sd (just the system call number is the choice parameter) */
 service_t choice_sc(int sc_number,struct pcb *pc)
 {
-	int sc=sc_number;
-	return service_check(CHECKSC,&sc,1);
+	return service_check(CHECKSC,&sc_number,1);
 }
 
 /* choice mount (mount point must be defined + filesystemtype is used
@@ -860,6 +859,14 @@ int um_mod_getsyscalltype(int scno)
 		return USC_TYPE(usc);
 	else
 		return -1;
+}
+
+/* for modules: get the number of syscall for this architecture
+ * (not all the archs define NR_SYSCALLS*/
+
+int um_mod_nrsyscalls(void)
+{
+	return _UM_NR_syscalls;
 }
 
 /* scdtab: interface between capture_sc and the wrapper (wrap-in/out)
