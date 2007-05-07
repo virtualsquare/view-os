@@ -151,7 +151,7 @@ static loff_t gp_time(int op,char *value,int size,struct ummisc *mh,int tag, cha
 	switch (tag) {
 		case GP_OFFSET:
 			if (op==UMMISC_GET) {
-				snprintf(value,size,"%llf",buf->offset);
+				snprintf(value,size,"%llf\n",buf->offset);
 				rv=strlen(value);
 			} else {
 				rv=size;
@@ -161,7 +161,7 @@ static loff_t gp_time(int op,char *value,int size,struct ummisc *mh,int tag, cha
 			break;
 		case GP_FREQ:
 			if (op==UMMISC_GET) {
-				snprintf(value,size,"%15.10lf",buf->freq);
+				snprintf(value,size,"%15.10lf\n",buf->freq);
 				rv=strlen(value);
 			} else {
 				long double newfreq;

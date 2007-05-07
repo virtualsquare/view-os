@@ -96,7 +96,7 @@ loff_t gp_uname(int op,char *value,int size,struct ummisc *mh,int tag, char *pat
 			field=buf->domainname; break;
 	}
 	if (op==UMMISC_GET) {
-		strncpy(value,field,MISCFILESIZE);
+		snprintf(value,MISCFILESIZE,"%s\n",field);
 		return strlen(field);
 	} else {
 		char *nl;
