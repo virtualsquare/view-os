@@ -38,7 +38,7 @@
 #include "libummod.h"
 #include "syscallnames.h"
 
-#define VIEWFS_SERVICE_CODE 0xf5
+#define VIEWFS_SERVICE_CODE 0x05
 #define TABSTEP 4
 
 #define TRUE (0 == 0)
