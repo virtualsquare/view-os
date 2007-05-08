@@ -33,6 +33,7 @@
 *   TODO: fat12/16 read write and management rootdir
 ***********************************************/
 
+#include <config.h>
 
 #include "libfat.h"
 
@@ -47,6 +48,7 @@
 #include <stdarg.h>
 #include <dlfcn.h>
 #include <errno.h>
+#include <glib.h>
 
 #ifndef POPULATE_FREELIST_BUFSZ
 #define POPULATE_FREELIST_BUFSZ 8192

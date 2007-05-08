@@ -6,6 +6,7 @@
 //#define FATWRITE
 #define _LARGEFILE64_SOURCE
 //#define __USE_LARGEFILE64
+#include <config.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <dirent.h>
@@ -13,7 +14,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "unicode.h"
-#include <glib.h>
+//#include <glib.h>
 #include <sys/vfs.h>
 #include <sys/statvfs.h>
 #include <utime.h>

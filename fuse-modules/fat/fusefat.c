@@ -7,14 +7,7 @@
     This program can be distributed under the terms of the GNU GPL.
 */
 
-#ifndef FUSE_USE_VERSION
-#define FUSE_USE_VERSION 26
-#endif
-
-#ifndef _FILE_OFFSET_BITS
-#define _FILE_OFFSET_BITS 64
-#endif
-
+#include <config.h>
 #include "libfat.h"
 #include <fuse.h>
 #include "v2fuseutils.h"

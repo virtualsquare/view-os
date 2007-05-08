@@ -23,6 +23,7 @@
 
 #ifndef __V2FUSEUTILS_H
 #define __V2FUSEUTILS_H
+#include <config.h>
 #include <fuse.h>
 #include <stdio.h>
 #include <string.h>

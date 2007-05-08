@@ -33,6 +33,7 @@ where \c cccc = \c bbbbb - 1.
 
 @{ */
 
+#include <config.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,12 +45,6 @@ where \c cccc = \c bbbbb - 1.
 #include <linux/unistd.h>
 #include <sys/types.h>
 #include <errno.h>
-#include <glib.h>
-
-
-#ifdef __GNUC__
- #define restrict __restrict__
-#endif
 
 #define unicode_utf8len unicode_utf8_len ///< \deprecated Use unicode_utf8_len()
 #define unicode_utf8towc unicode_utf8_to_wchar ///< \deprecated Use unicode_utf8_to_wchar()

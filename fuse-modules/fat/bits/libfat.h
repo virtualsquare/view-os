@@ -16,6 +16,9 @@
 #define EFD(X) (X)
 #endif
 
+#include <config.h>
+#include <glib.h>
+
 /*	Maximum number of file opened	*/
 #define MAX_OPENED_FILES	4096
 
