@@ -3,7 +3,7 @@
 
 DEBUGLEVEL = 3
 
-SUBDIRS = doc include um_lib um_cmd um_testmodule umdev umdev_testmodules umdevmbr umdevtap umfuse umbinfmt um_lwip um_viewfs um-viewos ummisc ummisc_modules
+SUBDIRS = doc include um_lib um_cmd um_testmodule umdev umdev_testmodules umdevmbr umbinfmt um_viewfs um-viewos ummisc ummisc_modules
 
 if ENABLE_UMDEVTAP
 SUBDIRS += umdevtap
