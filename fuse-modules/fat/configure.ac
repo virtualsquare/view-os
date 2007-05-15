@@ -20,8 +20,8 @@ PKG_CHECK_MODULES(GLIB2, glib-2.0)
 AC_SUBST(GLIB2_LIBS)
 AC_SUBST(GLIB2_CFLAGS)
 
-AC_CHECK_LIB([umlib], [um_add_service], [UMLIB_LIBS="-lumlib"],
-    [AC_MSG_ERROR([Can't find libumlib, please install it])])
+#AC_CHECK_LIB([umlib], [um_add_service], [UMLIB_LIBS=""],
+#   [AC_MSG_ERROR([Can't find libumlib, please install it])])
 
 AC_MSG_CHECKING([if FUSE on this system is too new for us])
 AC_EGREP_CPP([yes], [

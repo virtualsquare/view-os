@@ -34,7 +34,6 @@
 ***********************************************/
 
 #include <config.h>
-
 #include "libfat.h"
 
 #include <stdlib.h>
@@ -43,12 +42,12 @@
 #include <string.h>
 #include <linux/unistd.h>
 #include <errno.h>
+#include <glib.h>
 #include <pthread.h>
 #include <execinfo.h>
 #include <stdarg.h>
 #include <dlfcn.h>
 #include <errno.h>
-#include <glib.h>
 
 #ifndef POPULATE_FREELIST_BUFSZ
 #define POPULATE_FREELIST_BUFSZ 8192
@@ -65,7 +64,7 @@ off64_t byte_offset(Volume_t *V, DWORD Cluster, DWORD Offset) {
 	return  ( ((clus - 2) * V->bpc64) + V->fdb64 + off );
 }
 
-static int fat_isfree(Volume_t *V,DWORD value) {
+int fat_isfree(Volume_t *V,DWORD value) {
     if (V->FatType == FAT32) {
         return FAT32_ISFREE(value);
     } else if (V->FatType == FAT16) {
@@ -76,7 +75,7 @@ static int fat_isfree(Volume_t *V,DWORD value) {
     return 0;
 }
 
-static int fat_isbad(Volume_t *V,DWORD value) {
+int fat_isbad(Volume_t *V,DWORD value) {
     if (V->FatType == FAT32) {
         return FAT32_ISBAD(value);
     } else if (V->FatType == FAT16) {
@@ -87,7 +86,7 @@ static int fat_isbad(Volume_t *V,DWORD value) {
     return 0;
 }
 
-static int fat_iseoc(Volume_t *V,DWORD value) {
+int fat_iseoc(Volume_t *V,DWORD value) {
     if (V->FatType == FAT32) {
         return FAT32_ISEOC(value);
     } else if (V->FatType == FAT16) {
@@ -98,7 +97,7 @@ static int fat_iseoc(Volume_t *V,DWORD value) {
     return 0;
 }
 
-static int fat_legalclus(Volume_t *V,DWORD value) {
+int fat_legalclus(Volume_t *V,DWORD value) {
     if (V->FatType == FAT32) {
         return FAT32_LEGALCLUS(value);
     } else if (V->FatType == FAT16) {
@@ -109,7 +108,7 @@ static int fat_legalclus(Volume_t *V,DWORD value) {
     return 0;
 }
 
-static DWORD fat_eocvalue(Volume_t *V) {
+DWORD fat_eocvalue(Volume_t *V) {
     if (V->FatType == FAT32) {
         return FAT32_EOC_VALUE;
     } else if (V->FatType == FAT16) {
@@ -379,6 +378,7 @@ static int fat32_unlinkn(Volume_t *V, DWORD Cluster) {
  	i++;
  }  while (!(FAT32_ISEOC(Next)));
  
+ fprintf(stderr,"unkinkn: freecnt: %u, i:%d\n", V->freecnt,i);
   return 0;
 }
 
@@ -434,17 +434,23 @@ static int fat16_unlinkn(Volume_t *V, DWORD Cluster) {
 static int fat12_read_entry(Volume_t *V, DWORD N, int FatNum, DWORD *Value) {
 	WORD val;
 	DWORD out;
-					// lo hi
-	if (N%2 == 0) {	// XX -X
-		val = (WORD) *(V->fat + ((int) (N * 1.5)));
+					//  lo hi
+	if (N%2 == 0) {	//  XX -X
+		val = 0;
 		
+		((BYTE *) &val)[0] = (BYTE) V->fat[((int) (N * 1.5))];
+		((BYTE *) &val)[1] = (BYTE) V->fat[((int) (N * 1.5)) + 1];
+
 		((BYTE *) &val)[1] &= 0x0F;
 		
 	} else { 
 			 /* odd     X- XX
 			 	    	 \  \
 			            XX -X   */
-		val = *((WORD *) (V->fat + ((int) (N * 1.5))));		
+		val =0;
+
+		((BYTE *) &val)[0] = (BYTE) V->fat[((int) (N * 1.5))];
+		((BYTE *) &val)[1] = (BYTE) V->fat[((int) (N * 1.5)) + 1];		
 		
 		((BYTE *) &val)[0] = (((BYTE *) &val)[0] >> 4);
 		((BYTE *) &val)[0] |= (((BYTE *) &val)[1] << 4);
@@ -453,7 +459,6 @@ static int fat12_read_entry(Volume_t *V, DWORD N, int FatNum, DWORD *Value) {
 	
 	out = val;
 	*Value = EFD(out);
-//	fprintf(stderr,"fat12_read_entry: N:%u, val:%u, out:%u, value:%u\n",N,val,out,*Value);
 	return 0;		
 }
 
@@ -681,6 +686,7 @@ static int libfat_determine_fattype(Volume_t *V) {
         if ( (res = lseek(V->blkDevFd, fsi_offset, SEEK_SET)) != fsi_offset ) { perror("FSI lseek() error"); return -1; }
         if ( (res = readn(V->blkDevFd, &(V->Fsi), sizeof(FSInfo_t))) != sizeof(FSInfo_t) ) { perror("FSI readn() error"); return -1; }
 		fprintf(stderr,"--- nxtfree --- :%u\n",EFD(V->Fsi.FSI_Nxt_Free)); 
+		fprintf(stderr,"--- freecnt --- :%u\n",EFD(V->Fsi.FSI_Free_Count)); 		
 		fflush(stderr);
         return 0;
     }
@@ -707,14 +713,18 @@ static int libfat_initialize_fat(Volume_t *V) {
 	/* Lets determine the total size of the fat in bytes */
     if (V->FatType == FAT16) {
         fatsz = (V->DataClusters + 2) * sizeof(WORD);
-    } else {
+    } else if (V->FatType == FAT12) {
     	fatsz = ((V->DataClusters + 2) / 2) * 3;
         if (((V->DataClusters + 2) % 2) != 0) fatsz += 2;
+	} else {
+		fprintf(stderr,"unknown fat type in initialise_fat\n");
+		return -1;
 	}
 	
 	/* Memory Map or Load/Restore the FAT? Load/restore for the moment	*/
 
-	V->fat = malloc(fatsz); // up to 128k of memory
+	V->fat = malloc(fatsz); // up to 128k of memory for the biggest fat16 ever.
+	memset(V->fat, 0, fatsz);
 
 	if ( (res = lseek64(V->blkDevFd, V->rsvdbytecnt, SEEK_SET)) < 0) {
 		fprintf(stderr,"lseek() error in initialize fat(), off:%d\n",V->rsvdbytecnt);
@@ -726,6 +736,17 @@ static int libfat_initialize_fat(Volume_t *V) {
 		fprintf(stderr,"readn() error in initialize fat. size: %d\n", fatsz);
 		return -1;
 	}
+
+/*
+	fprintf(stderr,"\n\n\n\n\n");
+	for(i=0; i< 200; i++) {
+		fprintf(stderr,"%d: %X ",i,(BYTE) V->fat[i]);	
+//		if ((i %2) == 0) fprintf(stderr, " ");
+	}
+	fprintf(stderr,"\n\n\n\n\n");
+	getc(stdin);
+*/	
+
 	/* we have now the whole fat in V->fat. We need to write it down in finalize in all the fat copies in the volume	*/
 	return 0;
 }
@@ -901,12 +922,10 @@ int	fat_partition_init(Volume_t *V, char *pathname, int flags) {	// todo: add ui
 	return 0;
 }
 
-/* Finalize the volume writing down new count of free clusters and new hint in FSinfo	*/
-int fat_partition_finalize(Volume_t *V) {
-#ifdef FATWRITE
+/* sync the fats into the volume	*/
+int fat_fat_sync(Volume_t *V) {
     int fsioff;
     int res;
-
     if (V->FatType == FAT32) {
         V->Fsi.FSI_Free_Count = EFD(V->freecnt);
         V->Fsi.FSI_Nxt_Free = EFD(V->nextfree);
@@ -924,9 +943,7 @@ int fat_partition_finalize(Volume_t *V) {
             fprintf(stderr,"readn() error, line:%d\n",__LINE__);
             return -1;
         }
-    }
-
-	if ((V->FatType == FAT12) || (V->FatType == FAT16)) {
+    } else if ((V->FatType == FAT12) || (V->FatType == FAT16)) {
 		int i,size;
 		off_t off;
 		
@@ -953,14 +970,24 @@ int fat_partition_finalize(Volume_t *V) {
     		}
 		}
 	}
+	
+	return 0;
+}
+
+/* Finalize the volume writing down new count of free clusters and new hint in FSinfo	*/
+int fat_partition_finalize(Volume_t *V) {
+#ifdef FATWRITE
+    int res;
+
+	if ((res = fat_fat_sync(V)) != 0) return -1;	
 
     // Lets mark volume as clean
 //    if (flags & FAT_WRITE_ACCESS_FLAG)	// TO FIX THIS
-            fat_mark_clean(V);
+    	fat_mark_clean(V);
 #endif
 
 #ifdef LIBFAT_USE_MUTEX
-    if (pthread_mutex_destroy(&(V->fat_mutex)) != 0) { perror("pthread_mutex_destroy() error in partition_init():"); }
+    if (pthread_mutex_destroy(&(V->fat_mutex)) != 0) { perror("pthread_mutex_destroy() error in partition_finalize():"); }
 #endif
     
 	if (V->fat != NULL) free(V->fat);
@@ -1065,7 +1092,7 @@ static DWORD	fat32_getFreeCluster(Volume_t *V) {
 		res = fat_populate_freelist(V);
 		if (res <= 0) {
 			fprintf(stderr,"populate freelist error: end of space on the volume\n");
-			return (DWORD) -1;
+			return (DWORD) 0;
 		}		
 	}
 	
@@ -1075,7 +1102,7 @@ static DWORD	fat32_getFreeCluster(Volume_t *V) {
 	V->nextfree = MAX(clus,V->nextfree);
 	if (clus > (V->DataClusters + 1)) {
 		fprintf(stderr,"getFreeCluster() error. clus num : %u, max clus: %u\n", clus, (V->DataClusters + 1));
-		return -1;
+		return 0;
 	}
 //	fprintf(stderr,"gfc: cluster = %u\n", clus);
 	return clus;	
@@ -1084,17 +1111,17 @@ static DWORD	fat32_getFreeCluster(Volume_t *V) {
 static DWORD 	fat16_getFreeCluster(Volume_t *V) {
 	DWORD c, val;
 	int res;
-	if (V->freecnt <= 0) { fprintf(stderr,"getFreeCluster: end of free clusters in the volume\n"); return -1; }
+	if (V->freecnt <= 0) { fprintf(stderr,"getFreeCluster: end of free clusters in the volume\n"); return 0; }
 		
 	do { 
 		val = V->nextfree;
-		if ((res = fat_read_entry(V, V->nextfree++, 0, &c)) < 0) { fprintf(stderr,"getFreeCluster16 error\n"); return -1; }
+		if ((res = fat_read_entry(V, V->nextfree++, 0, &c)) < 0) { fprintf(stderr,"getFreeCluster16 error\n"); return 0; }
 		if ( V->nextfree > (V->DataClusters + 1))  V->nextfree = 2;
 		if (fat_isfree(V,c)) { V->freecnt--; return val; }
 	} while (V->freecnt > 0);
 
 	fprintf(stderr,"getFreeCluster: end of free clusters in the volume\n");
-	return -2;
+	return 0;
 }
 
 DWORD	fat_getFreeCluster(Volume_t *V) {
@@ -1104,7 +1131,8 @@ DWORD	fat_getFreeCluster(Volume_t *V) {
     } else {
 		val= fat16_getFreeCluster(V);
     }
-	fprintf(stderr,"- - fat_getFreeCluster: clus: %u\n",val);
+	
+	fprintf(stderr,"- - fat_getFreeCluster: clus: %u; freecnt: %u\n",val,V->freecnt);
 	return val;
 }
 
@@ -1248,6 +1276,7 @@ int fetch_next_direntry(Volume_t *V, DirEnt_t *D, DWORD *Cluster, DWORD *Offset)
 		D->clus = *Cluster;
 		D->off  = *Offset;
 		
+		D->direntoff = byte_offset(V, *Cluster, *Offset);		
 		if ( fetch_entry(V, Cluster, Offset, &((D->entry)[i])) < 0 ) {
 			return -1;	// error fetching direntry
 		}
@@ -1678,11 +1707,31 @@ int fat_read_data(Volume_t *V, DWORD *Cluster, DWORD *Offset, char *buf, size_t 
 	off64_t seekres;
 	int i=0;
 
-	fprintf(stderr,"off: %u, bytleft %d, count: %d\n",*Offset, byteleftperclus,count);
+//	fprintf(stderr,"off: %u, bytleft %d, count: %d\n",*Offset, byteleftperclus,count);
 
-	if (*Offset >= clustersz) {
-		perror("Offset too big");
+	if (*Offset > clustersz) {
+		fprintf(stderr,"Offset too big\n");
 		return -1;
+	} else if (*Offset == clustersz) {
+		DWORD c =  *Cluster;
+		*Offset = 0;
+
+		fat_read_entry(V, c, 0, Cluster); // if this is the last cluster in the chain, the function will allocate a new cluster.
+		
+		if (fat_isfree(V,*Cluster)) { // must be eoc or  a valid cluster number
+			fprintf(stderr,"fat_write_data wrote on an unlinked cluster\n"); 
+			return -1; 				
+		/* workaround to avoid to return an invalid *Cluster	*/
+		// lets check if wehave reached EOC. in this case this function allocate a free cluster to the file even if it does not need it.
+		} else if (fat_iseoc(V,*Cluster)) {	//we reached EOC. so we have to get a free cluster and link it to the file
+			fprintf(stderr,"read_data error: EOC reached.\n"); 
+			return -1; 
+		} else {
+			// Cluster must be a valid cluster number set up by fat_read_entry.
+			fprintf(stderr,"offset >= clustersz, but next cluster exist.\n");
+		}
+		
+		*Offset = 0;		
 	}
 
 	while (count > 0) {
@@ -1720,7 +1769,7 @@ int fat_read_data(Volume_t *V, DWORD *Cluster, DWORD *Offset, char *buf, size_t 
 			fat_read_entry(V, c, 0, Cluster);
 			// lets check if wehave reached the end of clusterchain
 			if (fat_iseoc(V,*Cluster)) {	//we reached EOC so count is too big. Caller have to check *Cluster by himself
-			//perror("read_data() error: EOC reached");	
+				fprintf(stderr,"read_data() error: EOC reached\n");	
 				return(datasize -count);
 			}
 			*Offset = 0;
@@ -1751,22 +1800,57 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 	int datasize = count;
 	int datawritten = 0;
 	int clustersz= V->bpc;
-	int byteleftperclus = clustersz - *Offset;
+	int byteleftperclus;
 	int res;
 	off64_t seekres;
 	int i=0;
 	DWORD orig_filesz = 0;
 	
-	if (F!=NULL) {
+	if (F != NULL) {
 		orig_filesz = EFD(F->DirEntry->DIR_FileSize);
 	}
 
-//	fprintf(stderr,"off: %u, bytleft %d, cnt: %d\n",*Offset, byteleftperclus,cnt);
 
-	if (*Offset >= clustersz) {
+
+	if (*Offset > clustersz) {
 		fprintf(stderr,"Offset too big\n");
 		return -1;
+	} else if (*Offset == clustersz) {
+		DWORD c =  *Cluster;
+		*Offset = 0;
+
+		fat_read_entry(V, c, 0, Cluster); // if this is the last cluster in the chain, the function will allocate a new cluster.
+		
+		if (fat_isfree(V,*Cluster)) { // must be eoc or  a valid cluster number
+			fprintf(stderr,"fat_write_data wrote on an unlinked cluster\n"); 
+			return -1; 				
+		/* workaround to avoid to return an invalid *Cluster	*/
+		// lets check if wehave reached EOC. in this case this function allocate a free cluster to the file even if it does not need it.
+		} else if (fat_iseoc(V,*Cluster)) {	//we reached EOC. so we have to get a free cluster and link it to the file
+			DWORD newclus;
+			int r;
+	
+			newclus = fat_getFreeCluster(V);
+			if (newclus == (DWORD) 0) {	// no newclusters available
+				fprintf(stderr,"getFreeCluster() error. line %d\n",__LINE__); return -1; }
+	
+			/* lets write newclus into *Cluster in the fat.	*/	//tofix: writen_entry instead of write_entry???
+			if ((r = fat_writen_entry(V, c, newclus)) != 0) return -1;
+		
+			/* lets write EOC into newclus in the fat.		*/
+			if ((r = fat_writen_entry(V, newclus,  fat_eocvalue(V))) != 0) return -1; 				
+	
+			/* lets set *Cluster to newclus					*/ 								
+			*Cluster = newclus;
+		} else {
+			// Cluster must be a valid cluster number set up by fat_read_entry.
+			fprintf(stderr,"offset >= clustersz, but next cluster exist.\n");
+		}
+		*Offset = 0;		
 	}
+
+	byteleftperclus = clustersz - *Offset;
+	fprintf(stderr,"off: %u, bytleft %d, cnt: %d\n",*Offset, byteleftperclus,cnt);
 
 	while (cnt > 0) {
 		int numbytes;
@@ -1777,7 +1861,7 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 		newoffset = *Offset + numbytes;		
 		off = byte_offset(V, *Cluster, *Offset);
 
-//		fprintf(stderr,"Cluster: %u, Offset: %u, off: %lld, numbyts:%d, i:%d\n",*Cluster, *Offset, off, numbytes,i);
+		fprintf(stderr,"Cluster: %u, Offset: %u, off: %lld, numbyts:%d, i:%d\n",*Cluster, *Offset, off, numbytes,i);
 		seekres = lseek64(V->blkDevFd,(off64_t)  off , SEEK_SET);
 		if (seekres != off ) {
 			fprintf(stderr,"lseek() error in read_data\n");
@@ -1812,36 +1896,32 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 				int r;
 				
 				newclus = fat_getFreeCluster(V);
-				if (newclus <= (DWORD) 0) {
+				if (newclus == 0) {
+					if ((F != NULL) && (EFD(F->DirEntry->DIR_FileSize) < F->CurAbsOff)) F->DirEntry->DIR_FileSize = EFD(F->CurAbsOff);
 					fprintf(stderr,"getFreeCluster() error. line:%d\n",__LINE__); return -1;
 				}
 				
 				/* lets write newclus into *Cluster in the fat.	*/	//tofix: writen_entry instead of write_entry???
-				r = fat_writen_entry(V, c, newclus);
-				if (r != 0) {
-					return -1;
-				}
+				if ((r = fat_writen_entry(V, c, newclus)) != 0) return -1;
 				
 				/* lets write EOC into newclus in the fat.		*/
-				r = fat_writen_entry(V, newclus,  fat_eocvalue(V));
-				if (r != 0) {
-					return -1;
-				}
+				if ((r = fat_writen_entry(V, newclus,  fat_eocvalue(V))) != 0) return -1;
+
 				/* lets set *Cluster to newclus					*/ 								
 				*Cluster = newclus;
-
 			} else {
 				// Cluster must be a valid cluster number set up by fat_read_entry.
 			}
+			
 			*Offset = 0;
 			//lets reset byteleftperclus
 			byteleftperclus = clustersz;
+
 		} else {	// cnt <=0. We are done. lets set *Offset properly
-			*Offset = newoffset;
 			DWORD c =  *Cluster;
+			*Offset = newoffset;
 			
 			if ( *Offset >= clustersz ) {	//it cant actually be greater, just equal
-
 				fat_read_entry(V, c, 0, Cluster); // if this is the last cluster in the chain, the function will allocate a new cluster.
 				
 				if (fat_isfree(V,*Cluster)) { // must be eoc or  a valid cluster number
@@ -1850,33 +1930,13 @@ int fat_write_data(Volume_t *V, File_t *F, DWORD *Cluster, DWORD *Offset, char *
 				/* workaround to avoid to return an invalid *Cluster	*/
 				// lets check if wehave reached EOC. in this case this function allocate a free cluster to the file even if it does not need it.
 				if (fat_iseoc(V,*Cluster)) {	//we reached EOC. so we have to get a free cluster and link it to the file
-					DWORD newclus;
-					int r;
-			
-					newclus = fat_getFreeCluster(V);
-					if (newclus <= (DWORD) 0) {
-						fprintf(stderr,"getFreeCluster() error. line %d\n",__LINE__); return -1;
-					}
-			
-					/* lets write newclus into *Cluster in the fat.	*/	//tofix: writen_entry instead of write_entry???
-					r = fat_writen_entry(V, c, newclus);
-					if (r != 0) {
-						return -1;
-					}
-			
-					/* lets write EOC into newclus in the fat.		*/
-					r = fat_writen_entry(V, newclus,  fat_eocvalue(V));
-					if (r != 0) {
-						return -1;
-					}				
-			
-					/* lets set *Cluster to newclus					*/ 								
-					*Cluster = newclus;
+					// reset cluster value and just left offset value to clustersize
+					*Cluster = c;
 				} else {
 					// Cluster must be a valid cluster number set up by fat_read_entry.
 					fprintf(stderr,"offset >= clustersz, but next cluster exist.\n");
+					*Offset = 0;
 				}
-				*Offset = 0;
 			} else { //offset < clustersize
 					fprintf(stderr,"offset !>= clustersz, so everything is fine and we dont have to allocate a new cluster\n");			
 			}
@@ -2077,7 +2137,7 @@ static off64_t fat_find_lfnslots(Volume_t *V, File_t *dir, DWORD *Cluster , DWOR
 				//set properly clus and off according with found, then allocate new cluster, link it and update the file then return
 
 				newclus = fat_getFreeCluster(V);
-				if (newclus <= 0) {
+				if (newclus == 0) {
 					return -1;
 				}
 				
@@ -2308,7 +2368,7 @@ int fat_create(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mo
 		}
 	} else { //FAT12/16 root
 		off64_t res64;
-		res64 = byte_offset(V,clus, off);
+		res64 = byte_offset(V,clus, off);	// clus have been set to 1 by find_lfnslots to indicate fat12/16 root dir
 		if ((res64 = lseek(V->blkDevFd, res64, SEEK_SET)) != byte_offset(V,clus, off)) {
 			fprintf(stderr,"lseek error in fat_create(). res: %d,line: %d\n",res,__LINE__); return -1; }		
 		if ((res = writen(V->blkDevFd,(char *) entry,((slotnum + 1) * sizeof(DirEntry_t)))) != ((slotnum + 1) * sizeof(DirEntry_t))) {
@@ -2368,7 +2428,7 @@ int fat_mkdir(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mod
 	if (sfn == NULL) {
 		bknewclus = newclus = fat_getFreeCluster(V);
 	} else bknewclus = newclus = get_fstclus(sfn);
-	if (newclus <= 0) {
+	if (newclus == 0) {
 		fprintf(stderr,"fat_mkdir() error: getfreecluster failed\n");
 		return -1;
 	}
@@ -2525,7 +2585,12 @@ int fat_truncate(File_t *F, DWORD len) {
 	// set cluster number clus to EOC and start unlink from there
 	if (len > 0) {
 		res = fat_writen_entry(F->V, Cluster, fat_eocvalue(F->V));
-	} else { res = fat_writen_entry(F->V, Cluster, 0);  set_fstclus(F->DirEntry,0); }	//setting fstclus to free
+	} else { 
+		res = fat_writen_entry(F->V, Cluster, 0);  
+		set_fstclus(F->DirEntry,0); 
+		F->V->freecnt++;
+	}	//setting fstclus to free
+
 	if (res != 0) { fprintf(stderr,"fat_truncate(): line %d\n",__LINE__); return -1; }
 	
 	if (fat_iseoc(F->V,Next)) {
@@ -2677,7 +2742,7 @@ int fat_open(const char *filename, File_t *F, Volume_t *V, int flags) {
 		F->Mode = flags;
 	}
 	
-	fprintf(stderr,"fat_open(%s): begins at %lld\n",filename,byte_offset(V,F->CurClus, F->CurOff)); 
+	fprintf(stderr,"fat_open(%s): begins at %lld. direntry sz: %d:%d\n",filename,byte_offset(V,F->CurClus, F->CurOff),res, F->D.len); 
 	return 0;
 }
 
@@ -2767,7 +2832,8 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 		/* Let's allocate the first cluster */
 			DWORD freecls, freeoff;
 			
-            freecls = fat_getFreeCluster(F->V);
+			if ((freecls = fat_getFreeCluster(F->V)) == 0) return -1;
+	
 			freeoff=0;
 
             set_fstclus(F->DirEntry, freecls);
@@ -2835,7 +2901,7 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 					cclus = F->CurClus;
 					coff =  (EFD(F->DirEntry->DIR_FileSize)) % F->V->bpc;
 		//            fprintf(stderr,"fat_seek(): empty file in O_RDWR\n");
-		            freecls = fat_getFreeCluster(F->V);
+		            if ((freecls = fat_getFreeCluster(F->V)) == 0) return -1;
             		fat_writen_entry(F->V, F->CurClus , freecls);
 					fat_writen_entry(F->V, freecls,  fat_eocvalue(F->V));
             		newclus = F->CurClus = freecls;
@@ -2867,7 +2933,7 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 					/* Lets allocate the cluster and fill with 0	*/
 						DWORD freecls,cclus,coff;
 						
-			            freecls = fat_getFreeCluster(F->V);
+			            if ((freecls = fat_getFreeCluster(F->V)) == 0) return -1;
 	            		fat_writen_entry(F->V, F->CurClus , freecls);
 						fat_writen_entry(F->V, freecls,  fat_eocvalue(F->V));
 	            		newclus = F->CurClus = freecls;
@@ -2917,8 +2983,12 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 //			fprintf(stderr, "off: %lld, curoff: %u, clus:%u\n", newoff, F->CurOff,F->CurClus);
 			return off;
 		}		
-	} else {
-		//check if offset is >= filesize..
+	} else { // offset == filesize
+		// check if offset is >= filesize..
+		// check if curoff is > clustersz
+		if (curoff == clustersz) {
+			// do nothing. write_data already handle this.
+		}
 		return offset;
 	}
 	return -2; // we should not reach here

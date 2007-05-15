@@ -24,7 +24,7 @@ fusefat_LDFLAGS = -lfuse -lpthread $(GLIB2_LIBS) $(FUSE_LIBS)
 fusefat_CFLAGS = $(AM_CFLAGS) $(FUSE_CFLAGS)
 
 umfusefat_la_SOURCES = $(COMMONSRC)
-umfusefat_la_LDFLAGS = $(AM_LDFLAGS) -lumlib -lpthread $(GLIB2_LIBS)
+umfusefat_la_LDFLAGS = $(AM_LDFLAGS) -lpthread $(GLIB2_LIBS)
 
 
 install-data-hook:

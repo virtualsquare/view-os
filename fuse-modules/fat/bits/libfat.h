@@ -390,10 +390,6 @@ typedef struct
 							 /* Useful to know if we have to go ahead or restart from the beginning */
 } File_t;
 
-
-
-
-
 /*	Prototypes			*/
 
 /*	FAT access functions . these should be static so we dont have to declare them here		*/
@@ -404,6 +400,11 @@ int fat32_writen_entry(Volume_t *V, DWORD N, DWORD Value);
 #endif
 time_t fat_mktime2(DirEntry_t *D);
 int fat_fill_time(WORD *Date, WORD *Time, time_t t);
+int fat_isfree(Volume_t *V,DWORD value);
+int fat_isbad(Volume_t *V,DWORD value);
+int fat_iseoc(Volume_t *V,DWORD value);
+int fat_legalclus(Volume_t *V,DWORD value);
+DWORD fat_eocvalue(Volume_t *V);
 
 /*	Directory entry functions			*/
 
@@ -425,4 +426,5 @@ int fatentry_to_dirent(DirEnt_t *D, struct dirent *dirp);
 int find_direntry(Volume_t *V, char *name, DWORD *Cluster, DWORD *Offset);
 int traverse_path(Volume_t *V, gchar **parts, guint parts_len, DWORD *Cluster);
 int find_file(Volume_t *V, const char *path, File_t *F, DWORD *Cluster, DWORD *Offset);
+int fat_fat_sync(Volume_t *V);
 #endif /* #ifdef _BITS_LIBFAT_H */

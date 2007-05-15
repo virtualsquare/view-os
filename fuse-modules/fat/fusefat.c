@@ -8,6 +8,7 @@
 */
 
 #include <config.h>
+
 #include "libfat.h"
 #include <fuse.h>
 #include "v2fuseutils.h"
@@ -194,16 +195,22 @@ static int fusefat_utime(const char *path, struct utimbuf *buf) {
 
 static int fusefat_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
     int res, mode;
+	DWORD fsize;
 	File_t *F;
 	Volume_t *V;
 	fusefat_getvolume(V);
 	F = (File_t *) fi->fh;
 	fat_lock(V);
+	
+	fsize = EFD(F->DirEntry->DIR_FileSize);
+	if ((size + (int) offset) > fsize) size = (fsize - offset);
+	
 	mode = F->Mode;
 	F->Mode = O_RDONLY;
+	
 //    if ((res =  fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
     if ((res =  fat_seek(F, offset, SEEK_SET)) != offset) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
-	if ((FAT32_ISEOC(F->CurClus)) || FAT32_ISFREE(F->CurClus)) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+	if ((fat_iseoc(V, F->CurClus)) || fat_isfree(V,F->CurClus)) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 	
     if ((res =  fat_read_data(V, &(F->CurClus), &(F->CurOff), buf, size )) <= 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 	F->CurAbsOff += res;
@@ -223,10 +230,10 @@ static int fusefat_write(const char *path, const char *buf, size_t size, off_t o
 	fat_lock(V);
 //    if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
 //	fprintf(stderr,"fusefat_write: performing seek at offset %d\n", (int) offset);
-    if ((res =  fat_seek(F, offset, SEEK_SET)) < 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+    if ((res =  fat_seek(F, offset, SEEK_SET)) < 0) { fat_update_file(F); fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
 //	fprintf(stderr,"fusefat_write: performing write_data at clus: %u, off: %u\n", F->CurClus, F->CurOff);
     if ((res =  fat_write_data(V, F,&(F->CurClus), &(F->CurOff), buf, size )) != size) { 
-		fat_unlock(V); fprintf(stderr,"fat_write_data() error\n");fprintf(stderr,"-- %d",__LINE__); return -1; }
+		fat_update_file(F); fat_unlock(V); fprintf(stderr,"-- %d:",__LINE__); fprintf(stderr,"fat_write_data() error\n");   return -1; }
 //	fprintf(stderr,"fusefat_write: performing update\n");		
 	if ((res =  fat_update_file(F)) != 0) { fat_unlock(V); fprintf(stderr,"fat_update_file() error\n"); fprintf(stderr,"-- %d",__LINE__); return -1; }
 	fat_unlock(V);
@@ -250,7 +257,19 @@ static int fusefat_fsync(const char *path, int isdatasync, struct fuse_file_info
     (void) path;
     (void) isdatasync;
     (void) fi;
+
     return 0;
+}
+
+static int fusefat_flush(const char *path, struct fuse_file_info *fi) {
+
+    int res;
+	Volume_t *V;
+	fusefat_getvolume(V);
+	fat_lock(V);
+	fat_fat_sync(V);
+	fat_unlock(V);
+	return 0;
 }
 
 #if ( FUSE_MINOR_VERSION <= 5 )
@@ -302,7 +321,8 @@ static struct fuse_operations fusefat_oper = {
 	.statfs	= fusefat_statvfs,
 	.release	= fusefat_release,	//we should avoid to delete a file if multiple processes are using it.
 	.releasedir = NULL,
-	.fsync	= fusefat_fsync	//sync
+	.fsync	= fusefat_fsync,	//sync
+	.flush  = fusefat_flush
 };
 
 static void rearrangeargv(int argc, char *argv[])
