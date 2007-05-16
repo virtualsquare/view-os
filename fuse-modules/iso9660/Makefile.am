@@ -18,7 +18,7 @@ fuseiso9660_LDFLAGS = -lfuse -lz -liso9660
 fuseiso9660_CFLAGS = $(AM_CFLAGS)
 
 umfuseiso9660_la_SOURCES = fuseiso9660.c zisofs.h v2fuseutils.c v2fuseutils.h
-umfuseiso9660_la_LDFLAGS = $(AM_LDFLAGS) -lumlib -lfuse -lz -liso9660
+umfuseiso9660_la_LDFLAGS = $(AM_LDFLAGS) -lz -liso9660
 
 install-data-hook:
 	cd "$(DESTDIR)/$(moddir)" && rm -f $(mod_LTLIBRARIES)

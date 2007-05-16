@@ -18,7 +18,7 @@ fuseext2_LDFLAGS = -lfuse -lext2fs
 fuseext2_CFLAGS = $(AM_CFLAGS)
 
 umfuseext2_la_SOURCES = fuseext2.c bindir.h v2fuseutils.c v2fuseutils.h
-umfuseext2_la_LDFLAGS = $(AM_LDFLAGS) -lumlib -lfuse -lext2fs
+umfuseext2_la_LDFLAGS = $(AM_LDFLAGS) -lext2fs
 
 install-data-hook:
 	cd "$(DESTDIR)/$(moddir)" && rm -f $(mod_LTLIBRARIES)
