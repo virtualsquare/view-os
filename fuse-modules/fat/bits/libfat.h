@@ -422,7 +422,7 @@ int find_lfn_length( LfnEntry_t *D, int bufsize);
 int extract_lfn_name( LfnEntry_t *Buffer, int bufsize, WORD *dest, int length);
 int find_sfn_length( DirEntry_t *D, int bufsize);
 int extract_sfn_name(DirEntry_t *D, int bufsize, char *name);
-int fatentry_to_dirent(DirEnt_t *D, struct dirent *dirp);
+int fatentry_to_dirent(Volume_t *V, DirEnt_t *D, struct dirent *dirp);
 int find_direntry(Volume_t *V, char *name, DWORD *Cluster, DWORD *Offset);
 int traverse_path(Volume_t *V, gchar **parts, guint parts_len, DWORD *Cluster);
 int find_file(Volume_t *V, const char *path, File_t *F, DWORD *Cluster, DWORD *Offset);

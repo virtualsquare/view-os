@@ -1,4 +1,4 @@
-/*
+/*OS
  	libfat: library to access a fat32 filesystem  
 
 	Rev 0.2	aka "The Bug--"
@@ -1516,7 +1516,7 @@ int extract_sfn_name(DirEntry_t *D, int bufsize, char *name) {
 
 
 /*	Generates a dirent structure from fat directory entries.		*/
-int fatentry_to_dirent(DirEnt_t *D, struct dirent *dirp) {
+int fatentry_to_dirent(Volume_t *V, DirEnt_t *D, struct dirent *dirp) {
     int res;
 
 	LfnEntry_t *Buffer;
@@ -1542,7 +1542,7 @@ int fatentry_to_dirent(DirEnt_t *D, struct dirent *dirp) {
 		memcpy(dirp->d_name, utf8buf, 255);	// copying at most 255 utf8 bytes. the last is already 0
     }
 
-	dirp->d_ino = get_fstclus ( (DirEntry_t *) &(Buffer[bufsize -1]) );
+	dirp->d_ino = get_fstclus(V, (DirEntry_t *) &(Buffer[bufsize -1]) );
 	
     if (ATTR_ISDIR(((DirEntry_t *) Buffer)[bufsize-1].DIR_Attr)) {	// the direntry refers to a directory
 		dirp->d_type = DT_DIR;
@@ -1644,7 +1644,7 @@ int traverse_path(Volume_t *V, gchar **parts, guint parts_len, DWORD *Cluster) {
 				return -1; //name found but not directory
 			}
 			Offset = 0;
-			Clus = get_fstclus(sfnentry);
+			Clus = get_fstclus(V,sfnentry);
 		}												
 	}
 	*Cluster = Clus;
@@ -1991,19 +1991,26 @@ int fat_update_file(File_t *F) {
 }
 
 /* set first cluster */
-int set_fstclus(DirEntry_t *D, DWORD c) {
+int set_fstclus(Volume_t *V, DirEntry_t *D, DWORD c) {
 	if (D==NULL) return -1;
 	c=EFD(c);
 	D->DIR_FstClusLO = ((WORD *) &c)[0];
-	D->DIR_FstClusHI = ((WORD *) &c)[1];
+	if (V->FatType == FAT32) {	
+		D->DIR_FstClusHI = ((WORD *) &c)[1];
+	}
 	return 0;
 }
 
 /* get first cluster */
-DWORD get_fstclus(DirEntry_t *D) {
+DWORD get_fstclus(Volume_t *V, DirEntry_t *D) {
 	DWORD val;
 	((WORD *) &val)[0] = D->DIR_FstClusLO; 
-	((WORD *) &val)[1] = D->DIR_FstClusHI;
+
+	if (V->FatType == FAT32) {
+		((WORD *) &val)[1] = D->DIR_FstClusHI;
+	} else {
+		((WORD *) &val)[1] = 0;
+	}
 	val=EFD(val);
 	return val;
 }
@@ -2114,7 +2121,7 @@ static off64_t fat_find_lfnslots(Volume_t *V, File_t *dir, DWORD *Cluster , DWOR
 			perror("find lfnslots error: file is not a directory");
 			return -1;
 		}
-		clus = get_fstclus(dir->DirEntry);
+		clus = get_fstclus(V, dir->DirEntry);
 		dir->CurAbsOff = 0;
 	} else {
 		if (V->FatType == FAT32) {
@@ -2272,7 +2279,7 @@ int fat_create(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mo
 
 	//let's look for filename in parent.
 	if (rootdirflag != 1) {
-		clus = get_fstclus(parent->DirEntry);
+		clus = get_fstclus(V,parent->DirEntry);
 	} else {
 		if (V->FatType == FAT32) {
 			clus = 2;
@@ -2406,7 +2413,7 @@ int fat_mkdir(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mod
 	}
 	
 	if ((parent != NULL) && (parent->rootdir != 1)) {
-		parentfstclus = Cluster = get_fstclus(parent->DirEntry);
+		parentfstclus = Cluster = get_fstclus(V,parent->DirEntry);
 	} else {
 		if (V->FatType == FAT32) {
 			Cluster = 2;
@@ -2429,7 +2436,7 @@ int fat_mkdir(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mod
 	/* now we have to allocate first cluster to the directory and create . and .. */
 	if (sfn == NULL) {
 		bknewclus = newclus = fat_getFreeCluster(V);
-	} else bknewclus = newclus = get_fstclus(sfn);
+	} else bknewclus = newclus = get_fstclus(V,sfn);
 	if (newclus == 0) {
 		fprintf(stderr,"fat_mkdir() error: getfreecluster failed\n");
 		return -1;
@@ -2448,8 +2455,8 @@ int fat_mkdir(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mod
 	memcpy((char *) fst2entry, ".          ", 11);
 	memcpy((char *) &(fst2entry[1]), "..         ", 11);
 	fst2entry[0].DIR_Attr = fst2entry[1].DIR_Attr = ATTR_DIRECTORY; 
-	set_fstclus(&(fst2entry[0]), bknewclus);	// .
-	set_fstclus(&(fst2entry[1]), parentfstclus);	// ..
+	set_fstclus(V,&(fst2entry[0]), bknewclus);	// .
+	set_fstclus(V,&(fst2entry[1]), parentfstclus);	// ..
 	
 	tim=time(NULL);
 	
@@ -2478,8 +2485,8 @@ int fat_mkdir(Volume_t *V, File_t *parent, char *filename , DirEntry_t *sfn, mod
 	F.V = V;
 	memcpy((char *) &(F.D), (char *) &D, sizeof(DirEnt_t));
 	F.DirEntry = (DirEntry_t *) &(F.D.entry[F.D.len -1]);
-	set_fstclus(F.DirEntry, bknewclus);
-	fprintf(stderr,"newclus = %u,1stclus: %u, len = %d\n", newclus, get_fstclus(F.DirEntry), F.D.len);	
+	set_fstclus(V,F.DirEntry, bknewclus);
+	fprintf(stderr,"newclus = %u,1stclus: %u, len = %d\n", newclus, get_fstclus(V, F.DirEntry), F.D.len);	
 	res = fat_update_file(&F);
 	if (res != 0) {
 		fprintf(stderr,"fat_mkdir() error: update_file() failed\n");
@@ -2505,7 +2512,7 @@ static int fat_real_delete(File_t *F, int dir, int flag) {
 	
 	if (flag == 0) {
 		// get first cluster of the file and unlinkn it
-		fstclus = get_fstclus(F->DirEntry);
+		fstclus = get_fstclus(F->V,F->DirEntry);
 		res = fat_unlinkn(F->V, fstclus);
 		if (res != 0) return -1;
 	}
@@ -2540,7 +2547,7 @@ int fat_rmdir(File_t *F) {
 	int res;
 	DirEnt_t D;
 	DWORD Offset = 64; // let's skip . and .. sfn entries
-	DWORD Cluster = get_fstclus(F->DirEntry);
+	DWORD Cluster = get_fstclus(F->V,F->DirEntry);
 	
 	res = fetch_next_direntry(F->V, &D, &Cluster, &Offset);
 	if (res > 0) {
@@ -2568,7 +2575,7 @@ int fat_truncate(File_t *F, DWORD len) {
 	if (((len % F->V->bpc) != 0) || (len==0))	clus++;
 	
 	// follow the cluster chain up clus cluster;
-	Cluster = get_fstclus(F->DirEntry);
+	Cluster = get_fstclus(F->V,F->DirEntry);
 	if (!(fat_legalclus(F->V,Cluster))) { fprintf(stderr,"fat_truncate(): line %d\n",__LINE__); return -1; }
 
 //	fprintf(stderr,"fclus: %u, clus: %u\n",Cluster,clus);
@@ -2589,7 +2596,7 @@ int fat_truncate(File_t *F, DWORD len) {
 		res = fat_writen_entry(F->V, Cluster, fat_eocvalue(F->V));
 	} else { 
 		res = fat_writen_entry(F->V, Cluster, 0);  
-		set_fstclus(F->DirEntry,0); 
+		set_fstclus(F->V,F->DirEntry,0); 
 		F->V->freecnt++;
 	}	//setting fstclus to free
 
@@ -2620,7 +2627,7 @@ int fat_readdir(File_t *Dir, struct dirent *de) {
 	DirEnt_t D;
 		
 	if	((res = fetch_next_direntry(Dir->V, &D, &(Dir->CurClus), &(Dir->CurOff))) <=0 ) return -1;
-	if	((res = fatentry_to_dirent(&D, de)) < 0 ) return -1;
+	if	((res = fatentry_to_dirent(Dir->V, &D, de)) < 0 ) return -1;
 	 
 	return 0;
 }
@@ -2644,7 +2651,7 @@ int fat_stat(File_t *F, struct stat *st) {
 	st->st_blocks=0;
     st->st_ctime = st->st_atime = st->st_mtime = 0;   /* time of last modification */
   } else {				// normal file or dir
-	st->st_ino = get_fstclus(F->DirEntry);     /* inode number */
+	st->st_ino = get_fstclus(F->V,F->DirEntry);     /* inode number */
     
 	if (ATTR_ISDIR(F->DirEntry->DIR_Attr)) {
 		st->st_mode = S_IFDIR | S_IRWXU;						/* protection */	
@@ -2739,7 +2746,7 @@ int fat_open(const char *filename, File_t *F, Volume_t *V, int flags) {
 		perror("fat_open():"); return -1;
 	} else  {
 		F->DirEntry = (DirEntry_t *) &(F->D.entry[F->D.len - 1]);
-		F->CurClus = get_fstclus(F->DirEntry);
+		F->CurClus = get_fstclus(F->V,F->DirEntry);
 		F->CurOff = F->CurAbsOff = 0;
 		F->Mode = flags;
 	}
@@ -2829,7 +2836,7 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 	
 	if ((mode == O_RDONLY) && (off >= EFD(F->DirEntry->DIR_FileSize))) { fprintf(stderr,"fat_seek(): cant seek beyond EOF in O_RDONLY\n"); return -1; } 
 
-	if ((F->rootdir != 1) && (!fat_legalclus(F->V,get_fstclus(F->DirEntry))) && (F->DirEntry->DIR_FileSize == 0)) { /* 0 is endianess independent */
+	if ((F->rootdir != 1) && (!fat_legalclus(F->V,get_fstclus(F->V,F->DirEntry))) && (F->DirEntry->DIR_FileSize == 0)) { /* 0 is endianess independent */
 		if (mode != O_RDONLY) {  
 		/* Let's allocate the first cluster */
 			DWORD freecls, freeoff;
@@ -2838,7 +2845,7 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 	
 			freeoff=0;
 
-            set_fstclus(F->DirEntry, freecls);
+            set_fstclus(F->V,F->DirEntry, freecls);
 //			fprintf(stderr,"fat_seek(): empty file in O_RDWR. fclus allocated: %d\n",freecls);
             F->CurClus = freecls;
             F->CurOff  = 0;
@@ -2863,7 +2870,7 @@ off64_t	fat_seek(File_t *F, off64_t offset, int whence) {
 			off64_t newoff = off;
 			
 			if (F->rootdir != 1) {
-				newclus = get_fstclus(F->DirEntry);
+				newclus = get_fstclus(F->V,F->DirEntry);
 			} else newclus = 2;
 
 			while (newoff >= clustersz) {
