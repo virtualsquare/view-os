@@ -1160,22 +1160,24 @@ int analyze_dirent(LfnEntry_t *D) {
 
 	c = D->LDIR_Attr;
 
+#if 0 
+	/* these are bits, more flags can be set at the same time */
     if ( (c != ATTR_READ_ONLY) && (c != ATTR_HIDDEN) && (c != ATTR_SYSTEM) && (c != ATTR_VOLUME_ID) &&
 			    (c != ATTR_DIRECTORY)  && (c != ATTR_ARCHIVE) && (c != ATTR_LONG_NAME) ) { 
 		fprintf(stderr,"not a valid LDIR_Attr: %u",c);
 		return -1;
 	}
+#endif
 
-    switch (D->LDIR_Attr) {
-	case	ATTR_LONG_NAME:
-	    if (LFN_ISLAST(D->LDIR_Ord)) {	//Lfn Entry
-			return	LIBFAT_DIRENT_LFN_LAST;
-	    } else {
-			return	LIBFAT_DIRENT_LFN;
-	    }
-	default:
-	    return	LIBFAT_DIRENT_SFN;	//Sfn entry
-    }
+    if (D->LDIR_Attr & ATTR_LONG_NAME) {
+			if (LFN_ISLAST(D->LDIR_Ord)) 	//Lfn Entry
+				return	LIBFAT_DIRENT_LFN_LAST;
+			else 
+				return	LIBFAT_DIRENT_LFN;
+		}   
+		else
+			return	LIBFAT_DIRENT_SFN;	//Sfn entry
+    
 }
 
 /* Check the cluster boundaries. if we reached the end of the cluster, the
