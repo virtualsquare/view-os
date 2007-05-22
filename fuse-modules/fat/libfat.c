@@ -655,10 +655,11 @@ static void printVolumeData(Volume_t *V) {
 		sz = EFD(V->Bpb.BPB_FATSz32);
 	} else {
 		sz = EFW(V->Bpb.BPB_FATSz16);
+		fprintf(stderr,"root dir off : %lld \n", byte_offset(V,1,0));		
 	}
 	
 	fprintf(stderr,"dataclusters :%u  \n", V->DataClusters);
-	fprintf(stderr,"rootdiroff : %lld \n", V->fdb64   );
+	fprintf(stderr,"first data byte : %lld \n", V->fdb64   );
 	fprintf(stderr,"1st fat off :  %d \n", V->rsvdbytecnt );
 	fprintf(stderr,"2nd fat off :  %d\n", V->rsvdbytecnt+ (sz * V->bps) );
 	fprintf(stderr,"fat_eoc_value: %u\n", fat_eocvalue(V));
@@ -1169,15 +1170,18 @@ int analyze_dirent(LfnEntry_t *D) {
 	}
 #endif
 
-    if (D->LDIR_Attr & ATTR_LONG_NAME) {
-			if (LFN_ISLAST(D->LDIR_Ord)) 	//Lfn Entry
-				return	LIBFAT_DIRENT_LFN_LAST;
-			else 
-				return	LIBFAT_DIRENT_LFN;
-		}   
-		else
-			return	LIBFAT_DIRENT_SFN;	//Sfn entry
-    
+    if ( (D->LDIR_Attr == ATTR_LONG_NAME) ) {
+		if (LFN_ISLAST(D->LDIR_Ord)) { 	//Lfn Entry
+//			fprintf(stderr,"LFN LAsT\n");
+			return	LIBFAT_DIRENT_LFN_LAST;
+		} else { 
+//			fprintf(stderr,"LFN\n");
+			return	LIBFAT_DIRENT_LFN;
+		}
+	} else {
+//		fprintf(stderr,"SFN\n");
+		return	LIBFAT_DIRENT_SFN;	//Sfn entry
+    }
 }
 
 /* Check the cluster boundaries. if we reached the end of the cluster, the
@@ -1270,15 +1274,15 @@ int fetch_next_direntry(Volume_t *V, DirEnt_t *D, DWORD *Cluster, DWORD *Offset)
     while ( LIBFAT_DIRENT_ISFREE(res) ) {
 	    /*	Checking cluster boundaries to see if we reached end of the cluster	*/
  	   if ( (res = check_cluster_bound(V, Cluster, Offset)) != 0) { 
-			perror("nothing left to read");
+			fprintf(stderr,"fetch_next_direntry: nothing left to read\n");
 			return -1;	// Nothing left to read 
 		}
+		
 		lastclus = *Cluster;
-		D->off1 = byte_offset(V, *Cluster, *Offset);
+		D->direntoff = D->off1 = byte_offset(V, *Cluster, *Offset);
 		D->clus = *Cluster;
 		D->off  = *Offset;
-		
-		D->direntoff = byte_offset(V, *Cluster, *Offset);		
+				
 		if ( fetch_entry(V, Cluster, Offset, &((D->entry)[i])) < 0 ) {
 			return -1;	// error fetching direntry
 		}
@@ -1494,23 +1498,23 @@ int extract_sfn_name(DirEntry_t *D, int bufsize, char *name) {
     
     // there must be no lead 0 in the sfn extension.
     
-    
     if ( D[bufsize - 1].DIR_Name[8] == 0x20 ) {
-		name[count + 1] = 0;
+		name[count] = 0;
 		return count;
     }
     
-    count ++;
     name[count] = '.';
+	count ++;
 
     for (i=8; i <11; i++) {
         if ( D[bufsize - 1].DIR_Name[i] != 0x20 ) {
-			count++;
 			name[count] = D[bufsize - 1].DIR_Name[i];
+			count++;
 		}
     }    
-    
-    name[++count] = 0;
+   
+    name[count] = 0;
+//	fprintf(stderr, "-- - - -- - -extract_sfn: name extracted: %s\n", name);
     return count;
 }
 
@@ -1530,9 +1534,10 @@ int fatentry_to_dirent(Volume_t *V, DirEnt_t *D, struct dirent *dirp) {
 	
     memset(dirp, 0, sizeof(struct dirent));	// bzeroing the fields.
     memset(utf8buf,0,521);
-    
+    	
     if ( bufsize < 2 ) {	// we have only sfn
 		namelen = find_sfn_length( (DirEntry_t *) Buffer, bufsize);
+//		fprintf(stderr," fatentry to dirent: bufsize: %s\n\n", ((DirEntry_t *) Buffer)[0].DIR_Name  );
 		if ( (namelen = res = extract_sfn_name( (DirEntry_t *) Buffer, bufsize, utf8buf)) <= 0) return res;	
 		memcpy(dirp->d_name, utf8buf, namelen);
     } else {			// lfn
@@ -1993,24 +1998,39 @@ int fat_update_file(File_t *F) {
 /* set first cluster */
 int set_fstclus(Volume_t *V, DirEntry_t *D, DWORD c) {
 	if (D==NULL) return -1;
-	c=EFD(c);
-	D->DIR_FstClusLO = ((WORD *) &c)[0];
+	c=EFD(c); // c is now little endian
+
+	char *src = (char *) &c;
+	char *dst = (char *) &(D->DIR_FstClusLO);	
+
+	dst[0] = src[0];
+	dst[1] = src[1];
+
 	if (V->FatType == FAT32) {	
-		D->DIR_FstClusHI = ((WORD *) &c)[1];
+		dst = (char *) &(D->DIR_FstClusHI);
+		dst[0] = src[2];
+		dst[1] = src[3];	
 	}
+	
 	return 0;
 }
 
 /* get first cluster */
 DWORD get_fstclus(Volume_t *V, DirEntry_t *D) {
-	DWORD val;
-	((WORD *) &val)[0] = D->DIR_FstClusLO; 
+	DWORD val = 0;
+	
+	char *dst = (char *) &val;
+	char *src = (char *) &(D->DIR_FstClusLO);
+	
+	dst[0] = src[0];
+	dst[1] = src[1];
 
 	if (V->FatType == FAT32) {
-		((WORD *) &val)[1] = D->DIR_FstClusHI;
-	} else {
-		((WORD *) &val)[1] = 0;
+		src = (char *) &(D->DIR_FstClusHI);
+		dst[2] = src[0];
+		dst[3] = src[1];
 	}
+	
 	val=EFD(val);
 	return val;
 }
@@ -2621,12 +2641,19 @@ int fat_truncate(File_t *F, DWORD len) {
 	return 0;
 }
 
-/* readdir() routine for libfat */
+/* 
+readdir() routine for libfat */
 int fat_readdir(File_t *Dir, struct dirent *de) {
 	int res;
 	DirEnt_t D;
-		
-	if	((res = fetch_next_direntry(Dir->V, &D, &(Dir->CurClus), &(Dir->CurOff))) <=0 ) return -1;
+
+//	fprintf(stderr,"fat_readdir: CurClus: %u, CurOff: %u\n",Dir->CurClus, Dir->CurOff);		
+	if	((res = fetch_next_direntry(Dir->V, &D, &(Dir->CurClus), &(Dir->CurOff))) <=0 ) {
+		fprintf(stderr, "readdir: error in fetch_next_direntry\n"); return -1;
+	} else { 
+		// fprintf(stderr, "readdir: res: %d\n",res); 
+	}
+	
 	if	((res = fatentry_to_dirent(Dir->V, &D, de)) < 0 ) return -1;
 	 
 	return 0;
@@ -2751,7 +2778,7 @@ int fat_open(const char *filename, File_t *F, Volume_t *V, int flags) {
 		F->Mode = flags;
 	}
 	
-	fprintf(stderr,"fat_open(%s): begins at %lld. direntry sz: %d:%d\n",filename,byte_offset(V,F->CurClus, F->CurOff),res, F->D.len); 
+	fprintf(stderr,"fat_open(%s): first cluster: %u, begins at %lld. direntry sz: %d:%d\n",filename, F->CurClus, byte_offset(V,F->CurClus, F->CurOff),res, F->D.len); 
 	return 0;
 }
 
