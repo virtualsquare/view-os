@@ -183,7 +183,6 @@ struct netif *lwip_vdeif_add(void *arg)
 	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
 
-	if (arg==NULL) arg=nullstring;
 	if (tcpip_netif_add(pnetif, arg, vdeif_init, tcpip_input, tcpip_notify) == NULL) {
 		mem_free(pnetif);
 		return NULL;
