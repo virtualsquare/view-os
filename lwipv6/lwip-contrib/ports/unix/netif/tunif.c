@@ -84,7 +84,7 @@ static void tunif_thread(void *data);
 
 /*-----------------------------------------------------------------------------------*/
 static int
-low_level_init(struct netif *netif)
+low_level_init(struct netif *netif, char *ifname)
 {
   struct tunif *tunif;
 
@@ -105,6 +105,7 @@ low_level_init(struct netif *netif)
 		struct ifreq ifr;
 		memset(&ifr, 0, sizeof(ifr));
 		ifr.ifr_flags = IFF_TUN|IFF_NO_PI;
+		strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name) - 1);
 		if (ioctl(tunif->fd, TUNSETIFF, (void *) &ifr) < 0) {
 			perror("tunif_init: DEVTUN ioctl TUNSETIFF");
 			return ERR_IF;
@@ -295,17 +296,19 @@ tunif_init(struct netif *netif)
 {
   struct tunif *tunif;
 	static u8_t num=0;
+	char *ifname;
     
   tunif = mem_malloc(sizeof(struct tunif));
   if (!tunif)
       return ERR_MEM;
+	ifname = netif->state; /*state is temporarily used to store the if name */
   netif->state = tunif;
   netif->name[0] = IFNAME0;
   netif->name[1] = IFNAME1;
 	netif->num=num++;
   netif->output = tunif_output;
   
-	if (low_level_init(netif) < 0) {
+	if (low_level_init(netif,ifname) < 0) {
 		mem_free(tunif);
 		return ERR_IF;
 	}

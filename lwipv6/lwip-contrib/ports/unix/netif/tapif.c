@@ -132,7 +132,7 @@ arp_timer(void *arg)
 
 /*-----------------------------------------------------------------------------------*/
 static int
-low_level_init(struct netif *netif)
+low_level_init(struct netif *netif, char *ifname)
 {
 	struct tapif *tapif;
 	
@@ -165,6 +165,7 @@ low_level_init(struct netif *netif)
 		struct ifreq ifr;
 		memset(&ifr, 0, sizeof(ifr));
 		ifr.ifr_flags = IFF_TAP|IFF_NO_PI;
+		strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name) - 1);
 		if (ioctl(tapif->fd, TUNSETIFF, (void *) &ifr) < 0) {
 		perror("tapif_init: DEVTAP ioctl TUNSETIFF");
 			return ERR_IF;
@@ -424,10 +425,12 @@ tapif_init(struct netif *netif)
 {
 	struct tapif *tapif;
 	static u8_t num=0;
+	char *ifname;
 	
 	tapif = mem_malloc(sizeof(struct tapif));
 	if (!tapif)
 		return ERR_MEM;
+	ifname = netif->state; /*state is temporarily used to store the if name */
 	netif->state = tapif;
 	netif->name[0] = IFNAME0;
 	netif->name[1] = IFNAME1;
@@ -444,7 +447,7 @@ tapif_init(struct netif *netif)
 #endif
 	
 	tapif->ethaddr = (struct eth_addr *)&(netif->hwaddr[0]);
-	if (low_level_init(netif) < 0) {
+	if (low_level_init(netif, ifname) < 0) {
 		mem_free(tapif);
 		return ERR_IF;
 	}

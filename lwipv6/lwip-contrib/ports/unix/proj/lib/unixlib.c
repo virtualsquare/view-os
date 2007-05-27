@@ -158,6 +158,7 @@ void lwip_stopstack(void)
 	sys_sem_free(sem);
 }
 
+static char *nullstring="";
 /*--------------------------------------------------------------------------*/
 
 /**
@@ -182,6 +183,7 @@ struct netif *lwip_vdeif_add(void *arg)
 	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
 
+	if (arg==NULL) arg=nullstring;
 	if (tcpip_netif_add(pnetif, arg, vdeif_init, tcpip_input, tcpip_notify) == NULL) {
 		mem_free(pnetif);
 		return NULL;
@@ -208,7 +210,7 @@ struct netif *lwip_vdeif_add(void *arg)
 /**
  * Creates and adds a new TAP network interface to the stack. 
  *
- * @param arg Unused, can be NULL.
+ * @param arg, is the if name.
  *
  * Allocs a new virtual interface and creates a TAP interface on your host.
  *
@@ -229,6 +231,7 @@ struct netif *lwip_tapif_add(void *arg)
 	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
 
+	if (arg==NULL) arg=nullstring;
 	if (tcpip_netif_add(pnetif, arg, tapif_init, tcpip_input, tcpip_notify) == NULL) {
 		mem_free(pnetif);
 		return NULL;
@@ -255,7 +258,7 @@ struct netif *lwip_tapif_add(void *arg)
 /**
  * Creates and adds a new TUN network interface to the stack. 
  *
- * @param arg Unused, can be NULL.
+ * @param arg, is the if name.
  *
  * Allocs a new virtual interface and creates a TAP interface on your host.
  *
@@ -274,6 +277,7 @@ struct netif *lwip_tunif_add(void *arg)
 	struct netif *pnetif;
 	pnetif=mem_malloc(sizeof (struct netif));
 
+	if (arg==NULL) arg=nullstring;
 	if (tcpip_netif_add(pnetif, arg, tunif_init, tcpip_input, tcpip_notify) == NULL) {
 		mem_free(pnetif);
 		return NULL;
