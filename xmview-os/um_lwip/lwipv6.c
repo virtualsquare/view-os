@@ -328,7 +328,7 @@ static void myputenv(char *arg)
 		if (strncmp(arg,intname[i],2)==0 && arg[2] >= '0' && arg[2] <= '9') {
 			if (arg[3] == '=') {
 				ifaddname(i,arg[2]-'0',arg+4);
-				if (arg[2]-'0' > intnum[i]) intnum[i]=arg[2]-'0'+1;
+				if (arg[2]-'0'+1 > intnum[i]) intnum[i]=arg[2]-'0'+1;
 			}
 			else if (arg[3] == 0) {
 				if (arg[2]-'0' > intnum[i]) intnum[i]=arg[2]-'0';
