@@ -145,6 +145,7 @@ static int ext2_readlink(const char *path, char *buf, size_t size)
 	if (!LINUX_S_ISLNK(ino.i_mode))
 		return -EINVAL;
 	if ( ext2fs_inode_data_blocks(e2fs, &ino) ) {
+		/* slow symlink */
 		err = ext2fs_get_mem(e2fs->blocksize, &buffer);
 		if (err)
 			return err;
@@ -155,6 +156,7 @@ static int ext2_readlink(const char *path, char *buf, size_t size)
 		}
 		pathname = buffer;
 	} else
+		/* fast symlink */
 		pathname = (char *)&(ino.i_block[0]);
 	size--;
 	if (ino.i_size < size)
@@ -385,7 +387,9 @@ static int ext2_mknod(const char *path, mode_t mode, dev_t dev)
 	retval = ext2fs_link(e2fs, parent, name, newfile, EXT2_FT_REG_FILE);
 
 	while (retval == EXT2_ET_DIR_NO_SPACE) {
-		printf("EXT2_ET_DIR_NO_SPACE\n");
+		#ifdef DEBUG
+		fprintf(stderr, "Expand dir space\n");
+		#endif
 		retval = ext2fs_expand_dir(e2fs, parent);
 		if (retval) {
 			fprintf(stderr, "while expanding directory\n");
@@ -646,7 +650,7 @@ static int rmdir_proc(ext2_ino_t dir EXT2FS_ATTR((unused)),
 	return 0;
 }
 
-static int unlink_file_by_name(const char *filename)
+static int unlink_file_by_name(ext2_filsys e2fs,const char *filename)
 {
 	int		retval;
 	ext2_ino_t	dir;
@@ -655,9 +659,11 @@ static int unlink_file_by_name(const char *filename)
 	if (!localfn)
 		return -ENOMEM;
 	
+#if 0
 	ext2_filsys e2fs;
 	struct fuse_context *mycontext=fuse_get_context();
 	e2fs = (ext2_filsys) mycontext->private_data;
+#endif
 
 	basename = strrchr(localfn, '/');
 	if (basename) {
@@ -689,14 +695,16 @@ static int release_blocks_proc(ext2_filsys fs, blk_t *blocknr,
 	return 0;
 }
 
-static int kill_file_by_inode(ext2_ino_t inode)
+static int kill_file_by_inode(ext2_filsys e2fs, ext2_ino_t inode)
 {
 	struct ext2_inode inode_buf;
 	int retval;
 	
+#if 0
 	ext2_filsys e2fs;
 	struct fuse_context *mycontext=fuse_get_context();
 	e2fs = (ext2_filsys) mycontext->private_data;
+#endif
 
 	retval = ext2fs_read_inode(e2fs, inode, &inode_buf);
 	if(retval)
@@ -739,7 +747,6 @@ static int ext2_rmdir(const char *path)
 	}
 	
 	retval = ext2fs_read_inode(e2fs, inode_num, &inode);
-	printf("\t\text2fs_read_inodeERR:%d\n",retval);
 
 	if (!LINUX_S_ISDIR(inode.i_mode)) {
 		printf("ERROR,file is not a directory\n");
@@ -773,8 +780,8 @@ static int ext2_rmdir(const char *path)
 		printf("while writing inode %u", inode_num);
 		return 1;
 	}
-	unlink_file_by_name(path);
-	kill_file_by_inode(inode_num);
+	unlink_file_by_name(e2fs,path);
+	kill_file_by_inode(e2fs,inode_num);
 	if (rds.parent) {
 		if ( retval = ext2fs_read_inode(e2fs, rds.parent, &inode) )
 			return retval;
@@ -850,13 +857,18 @@ static int ext2_symlink(const char *sourcename, const char *destname)
 		}
 	}
 
+	if (strlen(sourcename) < sizeof(inode.i_blocks)) {
+		/* fast symlink */
+	} else {
+		/* slow symlink */
+	}
+
 	//retval = ext2fs_link(e2fs, dir, dest, ino, ext2_file_type(inode.i_mode));
 	#ifdef DEBUG
 	fprintf(stderr, "\t\text2fs_link error:%d\n",retval);
 	#endif
 	return 0;
 }
-
 
 static int ext2_link(const char *sourcename, const char *destname)
 {
@@ -909,6 +921,20 @@ static int ext2_link(const char *sourcename, const char *destname)
 		return 1;
 	}
 	retval = ext2fs_link(e2fs, dir, dest, ino, ext2_file_type(inode.i_mode));
+	while (retval == EXT2_ET_DIR_NO_SPACE) {
+		#ifdef DEBUG
+		fprintf(stderr, "Expand dir space\n");
+		#endif
+		retval = ext2fs_expand_dir(e2fs, dir);
+		if (retval) {
+			fprintf(stderr, "while expanding directory\n");
+			return retval;
+		}
+		retval = ext2fs_link(e2fs, dir, dest, ino, ext2_file_type(inode.i_mode));
+	}
+	if (retval == EXT2_ET_NO_DIRECTORY)
+		return -EEXIST;
+
 	if (retval == 0) {
 		inode.i_links_count ++;
 		retval =  ext2fs_write_inode(e2fs, ino, &inode);
@@ -955,9 +981,9 @@ static int ext2_unlink(const char *path)
 		return -EIO;
 	}
 
-	unlink_file_by_name(path);
+	unlink_file_by_name(e2fs,path);
 	if (inode.i_links_count == 0)
-		kill_file_by_inode(inode_num);
+		kill_file_by_inode(e2fs,inode_num);
 
 	return 0;
 }
@@ -1076,7 +1102,103 @@ static int ext2_truncate(const char *path, off_t length)
 
 static int ext2_rename(const char *oldpath, const char *newpath)
 {
-	printf("TODO RENAME\n");
+	ext2_ino_t ino_old;
+	ext2_ino_t ino_new=0;
+	struct ext2_inode inode;
+	int err;
+	int retval;
+	ext2_ino_t dir;
+	char *cp = strrchr(newpath, '/');
+	const char *dest;
+
+	ext2_filsys e2fs;
+	struct fuse_context *mycontext = fuse_get_context();
+	e2fs = (ext2_filsys) mycontext->private_data;
+
+	/*Get the source inode*/
+	retval = ext2fs_namei(e2fs, EXT2_ROOT_INO, EXT2_ROOT_INO, oldpath, &ino_old);
+	if (retval != 0 || ino_old == 0)
+		return -ENOENT; //inode with this name does not exist
+	retval = ext2fs_read_inode(e2fs, ino_old, &inode);
+	if (retval) {
+		printf("while reading inode %u", ino_old);
+		return 1;
+	}
+
+	retval = ext2fs_namei(e2fs, EXT2_ROOT_INO, EXT2_ROOT_INO, newpath, &ino_new);
+
+	if (cp) {
+		*cp = 0;
+		retval = ext2fs_namei(e2fs, EXT2_ROOT_INO, EXT2_ROOT_INO, newpath, &dir);
+		if (retval != 0 || dir == 0)
+			return -ENOENT;
+		dest = cp+1;
+	} else {
+		dir = 2;// XXX ERR cwd;
+		dest = newpath;
+	}
+
+	/*Get the destination inode*/
+	if (ino_new != 0) {
+		if (ino_old == ino_new) /*are the same: DO NOTHING*/
+			return 0;
+		else {
+			struct ext2_inode newinode;
+			/*newpath exists*/
+#ifdef DEBUG
+			fprintf(stderr, "rename existing new\n");
+#endif
+			retval = ext2fs_read_inode(e2fs, ino_new, &newinode);
+			if (retval) {
+				printf("while reading inode %u", ino_old);
+				return 1;
+			}
+
+			if (LINUX_S_ISDIR(newinode.i_mode)) {
+				/* oldpath can specify a directory.  In this case, newpath must either not
+				 *        exist, or it must specify an empty directory. */
+				if (!LINUX_S_ISDIR(inode.i_mode)) {
+					return -EISDIR;
+				} else {
+					struct rd_struct rds;
+					rds.parent = 0;
+					rds.empty = 1;
+					retval = ext2fs_dir_iterate2(e2fs, ino_new, 0, 0, rmdir_proc, &rds);
+					if (retval) {
+						printf("while iterating over directory\n");
+						return -ENOENT;
+					}
+					if (rds.empty == 0) {
+						printf("directory not empty\n");
+						return -ENOTEMPTY;
+					}
+				}
+			}
+
+			retval = ext2fs_unlink(e2fs, dir, dest, 0, 0);
+			if (retval)
+				printf("unlink_file_by_name:%d\n", retval);
+		}
+	} 
+	/* link the old to the new path */
+	retval = ext2fs_link(e2fs, dir, dest, ino_old, ext2_file_type(inode.i_mode));
+	while (retval == EXT2_ET_DIR_NO_SPACE) {
+#ifdef DEBUG
+		fprintf(stderr, "Expand dir space\n");
+#endif
+		retval = ext2fs_expand_dir(e2fs, dir);
+		if (retval == 0) 
+			retval = ext2fs_link(e2fs, dir, dest, ino_old, ext2_file_type(inode.i_mode));
+	}
+
+	if (retval == 0) {
+		/* unlink the old path */
+		unlink_file_by_name(e2fs,oldpath);
+		if (ino_new != 0) 
+			kill_file_by_inode(e2fs,ino_new);
+	} else {
+		retval=ext2fs_link(e2fs, dir, dest, ino_new, ext2_file_type(inode.i_mode));
+	}
 	return 0;
 }
 
