@@ -199,7 +199,7 @@ struct sc_map scmap[]={
 	{__NR_rmdir,	choice_path,	wrap_in_unlink, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	1, SOC_FILE},
 	{__NR_link,	choice_link2,	wrap_in_link, wrap_out_std,	nchoice_link2,	nw_syslink, 0,	2, SOC_FILE},
 	{__NR_symlink,	choice_link2,	wrap_in_symlink, wrap_out_std,	nchoice_link2,	nw_syspath2_std, 0,	2, SOC_FILE},
-	{__NR_rename,	choice_link2,	wrap_in_symlink, wrap_out_std,	nchoice_link2,	nw_syspath2_std, 0,	2, SOC_FILE},
+	{__NR_rename,	choice_link2,	wrap_in_link, wrap_out_std,	nchoice_link2,	nw_syslink, 0,	2, SOC_FILE},
 	{__NR_unlink,	choice_link,	wrap_in_unlink, wrap_out_std,	nchoice_link,	nw_syspath_std, 0,	1, SOC_FILE},
 	{__NR_statfs,	choice_path,	wrap_in_statfs, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	2, SOC_FILE},
 	{__NR_fstatfs,	choice_fd,	wrap_in_fstatfs, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	2, SOC_FILE},
