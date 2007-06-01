@@ -371,7 +371,7 @@ static int ext2_mknod(const char *path, mode_t mode, dev_t dev)
 	printf("\t\tAllocated inode: %u\n", newfile);
 	#endif
 	
-	if (strlen(path_parent) == 0)
+	if (strlen(path) == 0)
 		path_parent = strdup("/");
 	else
 		path_parent = strdup(path);
@@ -563,7 +563,7 @@ static int ext2_mkdir(const char *path, mode_t mode)
 	printf("\text2_mkdir:%s\n",path_parent);
 	#endif
 	
-	if (strlen(path_parent) == 0)
+	if (strlen(path) == 0)
 		path_parent=strdup("/");
 	else
 		path_parent= strdup(path);
@@ -733,11 +733,10 @@ static int kill_file_by_inode(ext2_filsys e2fs, ext2_ino_t inode,int nlink)
 
 	if (inode_buf.i_links_count == 0) {
 
-		if (!ext2fs_inode_has_valid_blocks(&inode_buf))
-			return 1;
-
-		ext2fs_block_iterate(e2fs, inode, 0, NULL,
-				release_blocks_proc, NULL);
+		if (ext2fs_inode_has_valid_blocks(&inode_buf)) {
+			ext2fs_block_iterate(e2fs, inode, 0, NULL,
+					release_blocks_proc, NULL);
+		}
 		ext2fs_inode_alloc_stats2(e2fs, inode, -1,
 				LINUX_S_ISDIR(inode_buf.i_mode));
 	}
@@ -850,7 +849,6 @@ static int ext2_symlink(const char *sourcename, const char *destname)
 	const char	*dest;
 	char  *cp, *basename;
 
-
 	ext2_filsys e2fs;
 	struct fuse_context *mycontext=fuse_get_context();
 	e2fs = (ext2_filsys) mycontext->private_data;
@@ -877,15 +875,50 @@ static int ext2_symlink(const char *sourcename, const char *destname)
 		}
 	}
 
-	if (strlen(sourcename) < sizeof(inode.i_blocks)) {
+	retval = ext2fs_new_inode(e2fs, EXT2_ROOT_INO, 010755, 0, &ino);
+	if (retval) {
+#ifdef DEBUG
+		fprintf(stderr, "Error to allocate inode:%d\n",retval);
+#endif
+		return -retval;
+	}
+  
+	retval = ext2fs_link(e2fs, dir, dest, ino, EXT2_FT_SYMLINK);
+	while (retval == EXT2_ET_DIR_NO_SPACE) {
+#ifdef DEBUG
+		fprintf(stderr, "Expand dir space\n");
+#endif
+		retval = ext2fs_expand_dir(e2fs, dir);
+		if (retval) {
+			fprintf(stderr, "while expanding directory\n");
+			return -retval;
+		}
+		retval = ext2fs_link(e2fs, dir, dest, ino, EXT2_FT_SYMLINK);
+	}
+
+	if (ext2fs_test_inode_bitmap(e2fs->inode_map, ino))
+		fprintf(stderr, "Warning: inode already set\n");
+
+	ext2fs_inode_alloc_stats2(e2fs, ino, +1, 0);
+	memset(&inode, 0, sizeof(inode));
+	inode.i_mode = S_IFLNK | 0777;
+	inode.i_atime = inode.i_ctime = inode.i_mtime = time(NULL);
+	inode.i_links_count = 1;
+	inode.i_size = strlen(sourcename); //initial size of file
+	inode.i_uid=mycontext->uid;
+	inode.i_gid=mycontext->gid;
+
+	if (strlen(sourcename) < sizeof(inode.i_block)) {
 		/* fast symlink */
+		strncpy((char *)&(inode.i_block[0]),sourcename,sizeof(inode.i_blocks));
 	} else {
 		/* slow symlink */
 	}
 
-	//retval = ext2fs_link(e2fs, dir, dest, ino, ext2_file_type(inode.i_mode));
+	retval = ext2fs_write_new_inode(e2fs, ino, &inode);
+
 	#ifdef DEBUG
-	fprintf(stderr, "\t\text2fs_link error:%d\n",retval);
+	fprintf(stderr, "\t\text2fs_symlink error:%d\n",retval);
 	#endif
 	return 0;
 }
