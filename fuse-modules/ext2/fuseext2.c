@@ -357,7 +357,6 @@ static int ext2_mknod(const char *path, mode_t mode, dev_t dev)
 		fprintf(stderr, "The file '%s' already exists\n", path);
 		return 1;
 	}*/
-	path_parent = strdup(path);
 	#ifdef DEBUG
 	printf("\text2_mknod:%s\n",path);
 	#endif
@@ -372,10 +371,12 @@ static int ext2_mknod(const char *path, mode_t mode, dev_t dev)
 	printf("\t\tAllocated inode: %u\n", newfile);
 	#endif
 	
+	if (strlen(path_parent) == 0)
+		path_parent = strdup("/");
+	else
+		path_parent = strdup(path);
 	cp = strrchr(path_parent, '/');
 	*cp = 0;
-	if (strlen(path_parent) == 0)
-		path_parent = "/";
 	cp++;//cp point to file name
 	/*name = strdup(cp); // XXX ERR: this DUP has no FREE!!!*/
 	name = cp;
@@ -393,11 +394,13 @@ static int ext2_mknod(const char *path, mode_t mode, dev_t dev)
 		retval = ext2fs_expand_dir(e2fs, parent);
 		if (retval) {
 			fprintf(stderr, "while expanding directory\n");
+			free(path_parent);
 			return retval;
 		}
 		retval = ext2fs_link(e2fs, parent, name, newfile, EXT2_FT_REG_FILE);
 	}
-        if (ext2fs_test_inode_bitmap(e2fs->inode_map, newfile))
+	free(path_parent);
+	if (ext2fs_test_inode_bitmap(e2fs->inode_map, newfile))
 		fprintf(stderr, "Warning: inode already set\n");
 			
 	ext2fs_inode_alloc_stats2(e2fs, newfile, +1, 0);
@@ -549,7 +552,7 @@ static int ext2_mkdir(const char *path, mode_t mode)
 	ext2_ino_t parent;// = NULL;
 	char	*name;
 	char	*cp;
-	char *path_parent = strdup(path);
+	char *path_parent;
 	ext2_ino_t ino_n;
 	struct ext2_inode  ino;
 
@@ -560,17 +563,21 @@ static int ext2_mkdir(const char *path, mode_t mode)
 	printf("\text2_mkdir:%s\n",path_parent);
 	#endif
 	
+	if (strlen(path_parent) == 0)
+		path_parent=strdup("/");
+	else
+		path_parent= strdup(path);
  	cp = strrchr(path_parent, '/');//point to last /
 	if (cp) { 
 		name = strdup(cp+1);
 		*cp = 0;
-		if(!strlen(path_parent))
-			strcat(path_parent, "/");
 		err = ext2fs_namei(e2fs, EXT2_ROOT_INO, EXT2_ROOT_INO, path_parent, &parent);
 		if (!parent) {
 			#ifdef DEBUG
 			printf("Parent Inode not found\n");
 			#endif
+			free(path_parent);
+			free(name);
 			return -ENOENT;
 		}
 
@@ -578,6 +585,8 @@ static int ext2_mkdir(const char *path, mode_t mode)
 		#ifdef DEBUG
 		printf("path without /\n");
 		#endif
+		free(path_parent);
+		free(name);
 		return -ENOENT;
 	}
 	#ifdef DEBUG
@@ -595,6 +604,8 @@ static int ext2_mkdir(const char *path, mode_t mode)
 		err = ext2fs_expand_dir(e2fs, parent);
 		if (err) {
 			fprintf(stderr, "Error while expanding directory\n");
+			free(path_parent);
+			free(name);
 			return -ENOENT;
 		}
 #ifdef DEBUG
@@ -605,6 +616,8 @@ static int ext2_mkdir(const char *path, mode_t mode)
 #ifdef DEBUG
 		printf("\t\tMkdirError:%d\n",err);
 #endif
+		free(path_parent);
+		free(name);
 	}
 	if (err) {
 		fprintf(stderr, "Mkdir error:%d\n",err);
@@ -695,7 +708,7 @@ static int release_blocks_proc(ext2_filsys fs, blk_t *blocknr,
 	return 0;
 }
 
-static int kill_file_by_inode(ext2_filsys e2fs, ext2_ino_t inode)
+static int kill_file_by_inode(ext2_filsys e2fs, ext2_ino_t inode,int nlink)
 {
 	struct ext2_inode inode_buf;
 	int retval;
@@ -709,23 +722,29 @@ static int kill_file_by_inode(ext2_filsys e2fs, ext2_ino_t inode)
 	retval = ext2fs_read_inode(e2fs, inode, &inode_buf);
 	if(retval)
 		return retval;
-	inode_buf.i_dtime = time(NULL);
-	
+  inode_buf.i_links_count -= nlink;
+	if (inode_buf.i_links_count <= 0) {
+		inode_buf.i_links_count =0;
+		inode_buf.i_dtime = time(NULL);
+	}
 	retval = ext2fs_write_inode(e2fs, inode, &inode_buf);
 	if(retval)
 		return retval;
 
-	if (!ext2fs_inode_has_valid_blocks(&inode_buf))
-		return 1;
+	if (inode_buf.i_links_count == 0) {
 
-	ext2fs_block_iterate(e2fs, inode, 0, NULL,
-			     release_blocks_proc, NULL);
-	ext2fs_inode_alloc_stats2(e2fs, inode, -1,
-				  LINUX_S_ISDIR(inode_buf.i_mode));
+		if (!ext2fs_inode_has_valid_blocks(&inode_buf))
+			return 1;
+
+		ext2fs_block_iterate(e2fs, inode, 0, NULL,
+				release_blocks_proc, NULL);
+		ext2fs_inode_alloc_stats2(e2fs, inode, -1,
+				LINUX_S_ISDIR(inode_buf.i_mode));
+	}
 	return 0;
 }
 
-static int ext2_rmdir(const char *path)
+	static int ext2_rmdir(const char *path)
 {
 
 	int retval;
@@ -770,18 +789,19 @@ static int ext2_rmdir(const char *path)
 		return -ENOTEMPTY;
 	}
 
+#if 0
 	inode.i_links_count = 0;
 	retval = ext2fs_write_inode(e2fs, inode_num, &inode);
 	#ifdef DEBUG
 	printf("\t\text2fs_write_inodeERR:%d\n",retval);
 	#endif
-		
 	if (retval) {
 		printf("while writing inode %u", inode_num);
 		return 1;
 	}
+#endif
 	unlink_file_by_name(e2fs,path);
-	kill_file_by_inode(e2fs,inode_num);
+	kill_file_by_inode(e2fs,inode_num,2);
 	if (rds.parent) {
 		if ( retval = ext2fs_read_inode(e2fs, rds.parent, &inode) )
 			return retval;
@@ -974,16 +994,18 @@ static int ext2_unlink(const char *path)
 		return -EISDIR;
 	}
 
+#if 0
 	--inode.i_links_count;
 	retval = ext2fs_write_inode(e2fs, inode_num, &inode);
 	if (retval) {
 		fprintf(stderr, "while writing inode %u", inode_num);
 		return -EIO;
 	}
+#endif
 
 	unlink_file_by_name(e2fs,path);
-	if (inode.i_links_count == 0)
-		kill_file_by_inode(e2fs,inode_num);
+	//if (inode.i_links_count == 0)
+	kill_file_by_inode(e2fs,inode_num,1);
 
 	return 0;
 }
@@ -1195,7 +1217,7 @@ static int ext2_rename(const char *oldpath, const char *newpath)
 		/* unlink the old path */
 		unlink_file_by_name(e2fs,oldpath);
 		if (ino_new != 0) 
-			kill_file_by_inode(e2fs,ino_new);
+			kill_file_by_inode(e2fs,ino_new,1);
 	} else {
 		retval=ext2fs_link(e2fs, dir, dest, ino_new, ext2_file_type(inode.i_mode));
 	}
