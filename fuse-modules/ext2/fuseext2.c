@@ -124,8 +124,6 @@ static int ext2_readlink(const char *path, char *buf, size_t size)
 	ext2_ino_t ino_n;
 	struct ext2_inode  ino;
 	int err;
-	char *buffer = 0;
-	char *pathname;
 
 	ext2_filsys e2fs;
 	struct fuse_context *mycontext=fuse_get_context();
@@ -144,8 +142,12 @@ static int ext2_readlink(const char *path, char *buf, size_t size)
 	
 	if (!LINUX_S_ISLNK(ino.i_mode))
 		return -EINVAL;
+	size--;
+	if (ino.i_size < size)
+		size = ino.i_size;
 	if ( ext2fs_inode_data_blocks(e2fs, &ino) ) {
 		/* slow symlink */
+		char *buffer;
 		err = ext2fs_get_mem(e2fs->blocksize, &buffer);
 		if (err)
 			return err;
@@ -154,18 +156,13 @@ static int ext2_readlink(const char *path, char *buf, size_t size)
 			ext2fs_free_mem(&buffer);
 			return err;
 		}
-		pathname = buffer;
+		memcpy(buf,buffer,size);
+		ext2fs_free_mem(&buffer);
 	} else
 		/* fast symlink */
-		pathname = (char *)&(ino.i_block[0]);
-	size--;
-	if (ino.i_size < size)
-		size = ino.i_size;
-	memcpy(buf,pathname,size);
+		memcpy(buf,(char *)&(ino.i_block[0]),size);
 	buf[size]=0;
 
-	if (buffer)
-		ext2fs_free_mem(&buffer);
 	return 0;
 }
 
@@ -908,11 +905,26 @@ static int ext2_symlink(const char *sourcename, const char *destname)
 	inode.i_uid=mycontext->uid;
 	inode.i_gid=mycontext->gid;
 
-	if (strlen(sourcename) < sizeof(inode.i_block)) {
+	if (strlen(sourcename) <= sizeof(inode.i_block)) {
 		/* fast symlink */
 		strncpy((char *)&(inode.i_block[0]),sourcename,sizeof(inode.i_blocks));
 	} else {
 		/* slow symlink */
+		char *buffer;
+		int err;
+		err = ext2fs_get_mem(e2fs->blocksize, &buffer);
+		if (!err) {
+			blk_t blk;
+			strncpy(buffer,sourcename,e2fs->blocksize);
+			err = ext2fs_new_block(e2fs, 0, 0, &blk);
+			if (!err) {
+				inode.i_block[0]=blk;
+				inode.i_blocks=e2fs->blocksize / 512;
+				err = io_channel_write_blk(e2fs->io, blk, 1, buffer);
+				ext2fs_block_alloc_stats(e2fs, blk, +1);
+			}
+			ext2fs_free_mem(&buffer);
+		}
 	}
 
 	retval = ext2fs_write_new_inode(e2fs, ino, &inode);
