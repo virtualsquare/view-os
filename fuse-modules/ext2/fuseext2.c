@@ -24,12 +24,10 @@
  */
 
 //TODO:
-//symlink
 //fsync!?
 //extended attributes
 //flush is correct?!
 //writepage?!
-//file (in functions open) is always writable, is correct?
 //bug ls, sometimes there aren't all file and/or directory
 //
 #if 0
@@ -118,7 +116,6 @@ static int ext2_getattr(const char *path, struct stat *stbuf)
 	return 0;
 }
 
-//TODO error to symlink
 static int ext2_readlink(const char *path, char *buf, size_t size)
 {
 	ext2_ino_t ino_n;
@@ -317,8 +314,7 @@ static int ext2_open(const char *path, struct fuse_file_info *fi)
 	#endif
 	if(err || ino_n == 0)
 		return -ENOENT;
-	//err=ext2fs_file_open(e2fs, ino_n,  0, &e2file);
-	if (fi->flags & O_ACCMODE != 0)
+	if ((fi->flags & O_ACCMODE) != 0)
 		err = ext2fs_file_open(e2fs, ino_n, EXT2_FILE_WRITE, &e2file);
 	else
 		err = ext2fs_file_open(e2fs, ino_n, 0, &e2file);
@@ -497,7 +493,7 @@ static int ext2_write(const char *path, const char *buf, size_t size, off_t offs
 		size -= got;
 		buftmp += got;
 	#ifdef DEBUG
-	printf("\t\tCycle:%d\n",size);
+	printf("\t\tCycle:%d %d\n",size,retval);
 	#endif
 		}	
 	#ifdef DEBUG
@@ -669,12 +665,6 @@ static int unlink_file_by_name(ext2_filsys e2fs,const char *filename)
 	if (!localfn)
 		return -ENOMEM;
 	
-#if 0
-	ext2_filsys e2fs;
-	struct fuse_context *mycontext=fuse_get_context();
-	e2fs = (ext2_filsys) mycontext->private_data;
-#endif
-
 	basename = strrchr(localfn, '/');
 	if (basename) {
 		*basename++ = '\0';
@@ -710,12 +700,6 @@ static int kill_file_by_inode(ext2_filsys e2fs, ext2_ino_t inode,int nlink)
 	struct ext2_inode inode_buf;
 	int retval;
 	
-#if 0
-	ext2_filsys e2fs;
-	struct fuse_context *mycontext=fuse_get_context();
-	e2fs = (ext2_filsys) mycontext->private_data;
-#endif
-
 	retval = ext2fs_read_inode(e2fs, inode, &inode_buf);
 	if(retval)
 		return retval;
@@ -757,7 +741,7 @@ static int kill_file_by_inode(ext2_filsys e2fs, ext2_ino_t inode,int nlink)
 	printf("\text2_rmdir\n\t\tpath:%s\n\t\tnameiErr:%d\n",path, retval);
 	#endif
 	if (retval) {
-		fprintf(stderr, "while trying to resolve filename");
+		fprintf(stderr, "while trying to resolve filename %s\n",path);
 		return -ENOENT;
 	}
 	
@@ -785,17 +769,6 @@ static int kill_file_by_inode(ext2_filsys e2fs, ext2_ino_t inode,int nlink)
 		return -ENOTEMPTY;
 	}
 
-#if 0
-	inode.i_links_count = 0;
-	retval = ext2fs_write_inode(e2fs, inode_num, &inode);
-	#ifdef DEBUG
-	printf("\t\text2fs_write_inodeERR:%d\n",retval);
-	#endif
-	if (retval) {
-		printf("while writing inode %u", inode_num);
-		return 1;
-	}
-#endif
 	unlink_file_by_name(e2fs,path);
 	kill_file_by_inode(e2fs,inode_num,2);
 	if (rds.parent) {
@@ -1024,7 +997,7 @@ static int ext2_unlink(const char *path)
 
 	retval = ext2fs_namei(e2fs, EXT2_ROOT_INO, EXT2_ROOT_INO, path, &inode_num);
 	if (retval) {
-		printf("while trying to resolve filename");
+		printf("while trying to resolve filename %s\n",path);
 		return -ENOENT;
 	}
 	
@@ -1038,15 +1011,6 @@ static int ext2_unlink(const char *path)
 		fprintf(stderr, "file is a directory");
 		return -EISDIR;
 	}
-
-#if 0
-	--inode.i_links_count;
-	retval = ext2fs_write_inode(e2fs, inode_num, &inode);
-	if (retval) {
-		fprintf(stderr, "while writing inode %u", inode_num);
-		return -EIO;
-	}
-#endif
 
 	unlink_file_by_name(e2fs,path);
 	//if (inode.i_links_count == 0)
@@ -1347,7 +1311,7 @@ static int ext2_flush(const char *path, struct fuse_file_info *fi)
 	#endif
 
 //	if ((e2file->flags & EXT2_FILE_BUF_VALID) || (e2file->flags & EXT2_FILE_BUF_DIRTY))
-//		printf("Ce roba da flusciare!!!!!!!!!!!!!!!\n");
+//		printf("flush needed\n");
 	#ifdef DEBUG
 	printf("\t\tfiletab:%d\n",fi->fh);
 	#endif
@@ -1428,28 +1392,6 @@ static struct fuse_operations ext2_oper = {
 #if ( FUSE_MINOR_VERSION >= 5 )
 	.statfs		= ext2_statfs,
 #endif
-/*
-ok    .getattr	= ext2_getattr,
-ok    .readlink	= ext2_readlink,
-ok    .getdir	= ext2_getdir,
-ok    .mknod	= ext2_mknod,
-ok    .mkdir	= ext2_mkdir,
-process    .symlink	= ext2_symlink,
-ok    .unlink	= ext2_unlink,
-ok    .rmdir	= ext2_rmdir,
-process    .rename	= ext2_rename,
-process    .link	= ext2_link,
-process    .chmod	= ext2_chmod,
-process    .chown	= ext2_chown,
-process     .truncate	= ext2_truncate,
-prcess    .utime	= ext2_utime,
-ok    .open	= ext2_open,
-ok    .read	= ext2_read,
-proces    .write	= ext2_write,
-process    .statfs	= ext2_statfs,
-ok    .release	= ext2_release,
-    .fsync	= ext2_fsync,
-    */
 #if 0
 #ifdef HAVE_SETXATTR
     .setxattr	= ext2_setxattr,
@@ -1554,33 +1496,6 @@ int main(int argc, char *argv[])
 			fprintf(stderr,"ERROR:while setting data source:%d\n",retval);
 		}
 	}
-
-#if 0
-#if ( FUSE_MINOR_VERSION <= 4 ) 
-	fuse_fd = fuse_mount(mountpoint, "rw");//vuole il  mountpoint, attenzione rw e' dummy, e' ignorato da umfuse ma non libfuse!!
-#else
-	argc -=2;
-	argv[argc]=0;
-	struct fuse_args args=FUSE_ARGS_INIT(argc, argv);
-	fuse_fd = fuse_mount(mountpoint, &args);
-#endif
-#ifdef DEBUG
-printf("fuse-fd %d %d\n",fuse_fd,FUSE_MINOR_VERSION);
-#endif
-#if ( FUSE_MINOR_VERSION <= 5 )
-	fuse = fuse_new(fuse_fd, NULL, &ext2_oper, sizeof(ext2_oper));
-	init_data=e2fs;
-#else
-	fuse = fuse_new(fuse_fd, &args, &ext2_oper, sizeof(ext2_oper), e2fs);
-#endif
-
-//fuse_main(argc, argv, &ext2_oper);
-#ifdef DEBUG
-	printf("InLoop\n");
-#endif
-	fuse_loop(fuse);
-	//fuse_loop_mt(fuse);
-#endif
 
 	argv[1]=argv[0];
 #if ( FUSE_MINOR_VERSION <= 5 )
