@@ -32,6 +32,7 @@
 #include "ptrace2.h"
 #include "nrsyscalls.h"
 #include <sys/ptrace.h>
+#include <sys/utsname.h>
 #include <asm/ptrace.h>
 
 #if defined(__powerpc__) //setregs/getresg for ppc
@@ -199,6 +200,14 @@ typedef	int (*divfun)(int sc_number,int inout,struct pcb *ppcb);
 #error Unsupported HW Architecure
 #endif /* architecture */
 
+/* XXX should be moved from here! */
+struct viewinfo {
+	struct utsname uname;
+	pid_t	serverid;
+	viewid_t viewid;
+	char viewname[_UTSNAME_LENGTH];
+};
+
 #define __NR_UM_SERVICE 1
 #define ADD_SERVICE 0
 #define DEL_SERVICE 1
@@ -206,7 +215,9 @@ typedef	int (*divfun)(int sc_number,int inout,struct pcb *ppcb);
 #define LIST_SERVICE 3
 #define NAME_SERVICE 4
 #define LOCK_SERVICE 5
-#define RECURSIVE_UMVIEW 0x100
+#define RECURSIVE_UMVIEW   0x100
+#define UMVIEW_GETINFO     0x101
+#define UMVIEW_SETVIEWNAME 0x102
 
 extern divfun scdtab[];
 

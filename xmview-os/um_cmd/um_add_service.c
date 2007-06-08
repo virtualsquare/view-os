@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <config.h>
+#include <um_lib.h>
 
 void usage()
 {

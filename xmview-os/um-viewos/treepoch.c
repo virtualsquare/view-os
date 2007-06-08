@@ -23,11 +23,13 @@
  *   $Id$
  *
  */   
+/* TODO lazy garbage collection: treepoch nodes*/
 #include <assert.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
 #include <bits/wordsize.h>
+#include <sys/utsname.h>
 #include <stdio.h>
 #include <config.h>
 #include "treepoch.h"
@@ -73,8 +75,11 @@ struct treepoch {
 	unsigned short subheight;/* height of the subtree rooted here*/
 	unsigned short len;      /* len of the string (distance to the root) */
 	unsigned long bitstr[DEPTH_WORDS]; /*bitstring of this node*/
+	viewid_t viewid;
+	char *viewname;
 };
 
+static unsigned long nextviewid;
 static struct treepoch *te_root; /* root of the treepoch structure */
 /*
 static struct treepoch tst_useless={
@@ -229,7 +234,7 @@ static void te_delproc(struct treepoch *node)
 			/* two nodes of the treepoch gets deleted, the empty leaf and its
 			 * parent, the other branch root node gets the role of the former 
 			 * parent */
-			/* cancellando X (parent is A, deleted, and other is B)
+			/* deleting X (parent is A, deleted, and other is B)
 			 *        |                 |
 			 *        A                 B
 			 *       / \               / \
@@ -250,6 +255,11 @@ static void te_delproc(struct treepoch *node)
 			memcpy(&other->bitstr,&parent->bitstr,DEPTH_WORDS*sizeof(long));
 			/* the node is kept for lazy garbage collection */
 			node->parent=other;
+			/* delete the deleted node viewname*/
+			if (node->viewname != NULL) {
+				free(node->viewname);
+				node->viewname=NULL;
+			}
 			/* update the structure */
 			de_update_substr(other->sub[0],0);
 			de_update_substr(other->sub[1],1);
@@ -287,6 +297,7 @@ struct timestamp tst_newfork(struct timestamp *old_tst)
 		rv.treepoch=new_te;
 		/* a new fork *is* a relevant event for the system timestamping */
 		rv.epoch=new_te->rise=new_epoch();
+		new_te->viewid = nextviewid++;
 		if (te_root == NULL) {
 			/* special case: first node= root */
 			te_root=new_te;
@@ -349,8 +360,26 @@ struct timestamp tst_newproc(struct timestamp *parent_tst)
 	return rv;
 }
 
-void tst_delproc(struct timestamp *parent_tst)
+void tst_delproc(struct timestamp *tst)
 {
 	/*fprint2("DEL PROC %p %d %d %x\n",parent_tst->treepoch,parent_tst->treepoch->nproc,parent_tst->treepoch->len,parent_tst->treepoch->bitstr[0]);*/
-	te_delproc(parent_tst->treepoch);
+	te_delproc(tst->treepoch);
 }
+
+viewid_t te_getviewid_t(struct treepoch *te)
+{
+	return(te->viewid);
+}
+
+void te_setviewname(struct treepoch *te,char *name)
+{
+	if (te->viewname != NULL)
+		free(te->viewname);
+	te->viewname=strndup(name,_UTSNAME_LENGTH-1);
+}
+
+char *te_getviewname(struct treepoch *te)
+{
+	return(te->viewname);
+}
+

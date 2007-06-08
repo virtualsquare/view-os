@@ -25,16 +25,7 @@
 #include <unistd.h>
 #include <linux/sysctl.h>
 #include <config.h>
-
-#define VIRUMSERVICE 1
-
-#define ADD_SERVICE 0
-#define DEL_SERVICE 1
-#define MOV_SERVICE 2
-#define LIST_SERVICE 3
-#define NAME_SERVICE 4
-#define LOCK_SERVICE 5
-
+#include <um_lib.h>
 
 static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,long arg4,long arg5,long arg6) {
 	struct __sysctl_args scarg;
@@ -49,10 +40,6 @@ static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,lon
 }
 
 long (*virnsyscall)() = int_virnsyscall;
-#define virsyscall2(virscno,a1,a2) virnsyscall(virscno,2,(a1),(a2),0,0,0,0);
-#define virsyscall3(virscno,a1,a2,a3) virnsyscall(virscno,3,(a1),(a2),(a3),0,0,0);
-#define virsyscall4(virscno,a1,a2,a3,a4) virnsyscall(virscno,4,(a1),(a2),(a3),(a4),0,0);
-
 
 int um_add_service(int position,char *path)
 {
@@ -82,4 +69,14 @@ int um_name_service(int code, char *buf, int len)
 int um_lock_service(int invisible)
 {
 	return virsyscall2(VIRUMSERVICE,LOCK_SERVICE,invisible);
+}
+
+int um_view_getinfo(struct viewinfo *info)
+{
+	return virsyscall2(VIRUMSERVICE,UMVIEW_GETINFO,info);
+}
+
+int um_setviewname(char *name)
+{
+	return virsyscall2(VIRUMSERVICE,UMVIEW_SETVIEWNAME,name);
 }

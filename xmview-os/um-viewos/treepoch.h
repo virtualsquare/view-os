@@ -29,6 +29,7 @@
  
 typedef long long epoch_t;
 typedef epoch_t (*epochfun)();
+typedef unsigned long viewid_t;
 
 struct treepoch;
 struct timestamp {
@@ -46,6 +47,11 @@ struct timestamp tst_newfork(struct timestamp *old_tst);
 /*these should be transformed into constructors/destructors */
 struct timestamp tst_newproc(struct timestamp *parent_tst);
 	
-void tst_delproc(struct timestamp *parent_tst);
+void tst_delproc(struct timestamp *tst);
 
+viewid_t te_getviewid_t(struct treepoch *te);
+
+void te_setviewname(struct treepoch *te,char *name);
+
+char *te_getviewname(struct treepoch *te);
 #endif

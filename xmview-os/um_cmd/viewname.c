@@ -1,7 +1,8 @@
 /*   This is part of um-ViewOS
  *   The user-mode implementation of OSVIEW -- A Process with a View
  *
- *   um_mov_service user command
+ *   umviewname.c 
+ *   uname extension to view-os (umview)
  *   
  *   Copyright 2005 Renzo Davoli University of Bologna - Italy
  *   
@@ -28,61 +29,46 @@
 #include <config.h>
 #include <um_lib.h>
 
-#define UM_NONE 0xff
-
 void usage()
 {
-	fprintf(stderr, "Usage:\n\tum_mov_service [-p #] [-c hex] newposition\n"
-			"\t -p or -c must be specified (but not both)\n");
+	fprintf(stderr, 
+			"Usage: viewname [newname]\n"
+			"\n"
+			"This command can get or set the view name (View-OS)\n"
+			"\n");
 }
 
 main(int argc, char *argv[])
 {
 	int c;
-	int position=0, newposition=0;
-	int code=UM_NONE;
+	struct viewinfo vi;
 	while (1) {
 		int option_index = 0;
 		static struct option long_options[] = {
-			{"position", 1, 0, 'p'},
-			{"code", 1, 0, 'c'},
 			{0,0,0,0}
 		};
-		c=getopt_long(argc,argv,"p:c:",long_options,&option_index);
+		c=getopt_long(argc,argv,"",long_options,&option_index);
 		if (c == -1) break;
 		switch (c) {
-			case 'p':
-				position=atoi(optarg);
-				break;
-			case 'c':
-				sscanf(optarg,"%x",&code);
-				code = code &0xff;
-				break;
 		}
 	}
-	if (argc - optind != 1 || (position == 0 && code == UM_NONE) ||
-			(position != 0 && code != UM_NONE))
+	if (argc > 2) {
 		usage();
-	else {
-		newposition=atoi(argv[optind]);
-		if (position > 0) {
-			char lsbuf[256];
-			int n;
-			if ((n=um_list_service(lsbuf,256)) < 0) {
-				perror("um_mov_service");
-				exit(-1);
-			}
-			if (position > n) 
-				position=n;
-			code=lsbuf[position-1];
-			
-		}
-		if (um_mov_service(code,newposition) < 0) {
-			perror("um_mov_service");
-			exit(-1);
-		}
-		else
-			exit(0);
+		exit(-1);
 	}
+	if (argc == 1) {
+		c=um_view_getinfo(&vi);
+		if (c<0) {
+			perror("umviewname:");
+			exit (-1);
+		}
+		printf("%s\n",vi.viewname);
+	} else {
+		c=um_setviewname(argv[1]);
+		if (c<0) {
+			perror("umviewname:");
+			exit (-1);
+		}
+	}
+	exit (0);
 }
-

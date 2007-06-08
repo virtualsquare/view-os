@@ -5,14 +5,16 @@ dist_man1_MANS = \
 	um_ls_service.1 \
 	um_mov_service.1
 
+CPPFLAGS = -I../include
+
 bin_PROGRAMS = \
 	um_add_service \
 	um_del_service \
 	um_lock_service \
 	um_ls_service \
-	um_mov_service
-
-
+	um_mov_service \
+	vuname \
+	viewname
 
 debug release: all
 

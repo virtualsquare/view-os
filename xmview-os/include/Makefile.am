@@ -8,7 +8,8 @@ pkgincludedir = $(includedir)/umview
 dist_pkginclude_HEADERS = \
 	gdebug.h \
 	libummod.h \
-	module.h
+	module.h \
+	um_lib.h
 
 dist_noinst_SCRIPTS = \
 	syscallnames.sh

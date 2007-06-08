@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <config.h>
+#include <um_lib.h>
 
 void usage()
 {

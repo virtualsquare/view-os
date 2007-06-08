@@ -28,6 +28,7 @@
 #include <sys/ptrace.h>
 #include <sys/stat.h>
 #include <sys/select.h>
+#include <sys/utsname.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
 #include <linux/net.h>
@@ -149,6 +150,26 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 			} else {
 				pc->retval= -1;
 				pc->erno = ENOMEM;
+			}
+			break;
+		case UMVIEW_GETINFO:
+			{
+				struct viewinfo vi;
+				memset (&vi,0,sizeof(struct viewinfo));
+				pcb_getviewinfo(pc,&vi);
+				ustoren(pc,pc->sockregs[1],sizeof(struct viewinfo),&vi);
+				pc->retval=0;
+				pc->erno = 0;
+			}
+			break;
+		case UMVIEW_SETVIEWNAME: 
+			{
+				char name[_UTSNAME_LENGTH];
+				umovestr(pc,pc->sockregs[1],_UTSNAME_LENGTH,name);
+				name[_UTSNAME_LENGTH]=0;
+				pcb_setviewname(pc,name);
+				pc->retval=0;
+				pc->erno = 0;
 			}
 			break;
 		default:

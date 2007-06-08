@@ -553,6 +553,24 @@ int pcb_newfork(struct pcb *pc)
 	return (te == pc->tst.treepoch)?-1:0;
 }
 
+void pcb_getviewinfo(struct pcb *pc,struct viewinfo *vi)
+{
+	char *viewname;
+	uname(&(vi->uname));
+	vi->serverid=getpid();
+	vi->viewid=te_getviewid_t(pc->tst.treepoch);
+	viewname=te_getviewname(pc->tst.treepoch);
+	if (viewname != NULL)
+		strncpy(vi->viewname,viewname,_UTSNAME_LENGTH-1);
+	else
+		vi->viewname[0]=0;
+}
+
+void pcb_setviewname(struct pcb *pc,char *name)
+{
+	te_setviewname(pc->tst.treepoch,name);
+}
+
 #if 0
 int dsys_dummy(int sc_number,int inout,struct pcb *pc)
 {
