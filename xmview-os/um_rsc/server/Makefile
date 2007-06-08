@@ -41,7 +41,7 @@ all: rsc_server
 else
 CFLAGS += -O0 $(C_DEBUG_FLAGS)
 
-all: rsc_server tags
+all: rsc_server
 clean_lib:
 	make -C ../librsc/ clean
 

@@ -23,7 +23,7 @@
 .PHONY: all server module librsc clean tags
 RELEASE=true
 
-all: librsc server module tags
+all: librsc server module
 
 server:
 	make -C server/ all RELEASE=$(RELEASE)

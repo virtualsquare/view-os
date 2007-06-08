@@ -31,7 +31,7 @@ ifeq ($(RELEASE), false)
 
 CFLAGS += ${C_DEBUG_FLAGS}
 .PHONY: tags
-all: tags $(sources:.c=.o)
+all: $(sources:.c=.o)
 tags:
 	ctags-exuberant -R ../
 else

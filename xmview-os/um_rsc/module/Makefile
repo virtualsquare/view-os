@@ -41,7 +41,7 @@ all: um_rsc.so
 else
 CFLAGS += -O0 $(C_DEBUG_FLAGS)
 
-all: um_rsc.so tags
+all: um_rsc.so
 clean_lib:
 	make -C ../librsc/ clean
 

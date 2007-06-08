@@ -46,7 +46,7 @@ all: librsc.a
 else
 MAKE_OVERRIDING_VARS += "RELEASE=false"
 .PHONY: tags
-all: tags librsc.a 
+all: librsc.a 
 
 tags:
 	ctags-exuberant -R .
