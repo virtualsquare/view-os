@@ -29,10 +29,14 @@
 #include <config.h>
 #include <um_lib.h>
 
+int quiet,prompt;
+
 void usage()
 {
 	fprintf(stderr, 
-			"Usage: viewname [newname]\n"
+			"Usage: viewname [-qp] [newname]\n"
+			"       -q quiet mode, silent on errors\n"
+			"       -p prompt mode, create a string for the prompt message\n"
 			"\n"
 			"This command can get or set the view name (View-OS)\n"
 			"\n");
@@ -45,28 +49,47 @@ main(int argc, char *argv[])
 	while (1) {
 		int option_index = 0;
 		static struct option long_options[] = {
+			{"quiet",0,0,'q'},
+			{"prompt",0,0,'p'},
+			{"help",0,0,'h'},
 			{0,0,0,0}
 		};
-		c=getopt_long(argc,argv,"",long_options,&option_index);
+		c=getopt_long(argc,argv,"pqh",long_options,&option_index);
 		if (c == -1) break;
 		switch (c) {
+			case 'p':
+				prompt=1;
+				break;
+			case 'q':
+				quiet=1;
+				break;
+			case 'h':
+				usage();
+				exit(0);
+				break;
 		}
 	}
-	if (argc > 2) {
+	if (argc - optind > 1 || (prompt && (argc - optind > 0))) {
 		usage();
 		exit(-1);
 	}
-	if (argc == 1) {
+	if (argc - optind == 0) {
 		c=um_view_getinfo(&vi);
 		if (c<0) {
-			perror("umviewname:");
+			if (!quiet) perror("umviewname:");
 			exit (-1);
 		}
+		if (prompt) {
+			if (strlen (vi.viewname) > 0) 
+				printf("%s\n",vi.viewname);
+			else
+				printf("%s[%d:%d]\n",vi.uname.nodename,vi.serverid,vi.viewid);
+		} else
 		printf("%s\n",vi.viewname);
 	} else {
 		c=um_setviewname(argv[1]);
 		if (c<0) {
-			perror("umviewname:");
+			if (!quiet) perror("umviewname:");
 			exit (-1);
 		}
 	}

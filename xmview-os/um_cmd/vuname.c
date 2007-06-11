@@ -48,12 +48,17 @@ void usage()
 			" -U, --serverid           print the server id\n"
 			" -V, --viewid             print the view id\n"
 			" -N, --viewname           print the view name\n"
+			"other options\n"
+			" -q, --quiet              quiet mode: silent on errors\n"
+			" -x, --nouname            do not use uname when outside View-OS\n"
 			"     --help     display this help and exit\n"
 			"     --version  output version information and exit\n"
 			"\n");
 }
 
 char flags[12];
+int quiet;
+int unameok=1;
 main(int argc, char *argv[])
 {
 	int c;
@@ -75,11 +80,13 @@ main(int argc, char *argv[])
 			{"serverid",0,0,'U'},
 			{"viewid",0,0,'V'},
 			{"viewname",0,0,'N'},
+			{"quiet",0,0,'q'},
+			{"nouname",0,0,'x'},
 			{"help",0,0,0x100},
 			{"version",0,0,0x101},
 			{0,0,0,0}
 		};
-		c=getopt_long(argc,argv,"asnrvmpioUVN",long_options,&option_index);
+		c=getopt_long(argc,argv,"asnrvmpioxqUVN",long_options,&option_index);
 		if (c == -1) break;
 		switch (c) {
 			case 'a': flags[0]=1; break;
@@ -94,6 +101,8 @@ main(int argc, char *argv[])
 			case 'U': flags[9]=1; break;
 			case 'V': flags[10]=1; break;
 			case 'N': flags[11]=1; break;
+			case 'q': quiet=1; break;
+			case 'x': unameok=0; break;
 			case 0x100:
 				usage();
 				exit(0);
@@ -108,6 +117,9 @@ main(int argc, char *argv[])
 						"Written by Renzo Davoli\n");
 				exit(0);
 				break;
+			default:
+				usage();
+				exit(-1);
 		}
 	}
 	if (argc - optind != 0) {
@@ -116,9 +128,14 @@ main(int argc, char *argv[])
 	}
 	c=um_view_getinfo(&vi);
 	if (c<0) {
-		perror("umviewname:");
-		exit (-1);
-	}
+		if (unameok)
+			c=uname(&vi.uname);
+		if (c<0) {
+			if (!quiet) perror("umviewname:");
+			exit (-1);
+		}
+	} else
+		unameok=0;
 	for (c=i=0;i<12;i++)
 		c+=flags[i];
 	if (c) {
@@ -136,8 +153,12 @@ main(int argc, char *argv[])
 			printf("%s ","unknown");
 		if(flags[7])
 			printf("%s ","unknown");
-		if(flags[0] || flags[8])
-			printf("%s ","GNU/Linux/View-OS");
+		if(flags[0] || flags[8]) {
+			if (unameok)
+				printf("%s ","GNU/Linux");
+			else
+				printf("%s ","GNU/Linux/View-OS");
+		}
 		if(flags[0] || flags[9])
 			printf("%d ",vi.serverid);
 		if(flags[0] || flags[10])

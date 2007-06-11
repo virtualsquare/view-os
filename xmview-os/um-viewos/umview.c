@@ -48,9 +48,9 @@
 #include "gdebug.h"
 
 #ifdef GDEBUG_ENABLED
-#	define OPTSTRING "+p:o:hvnxq"
+#	define OPTSTRING "+p:o:hvnxqV:"
 #else
-#	define OPTSTRING "+p:hvnxq"
+#	define OPTSTRING "+p:hvnxqV:"
 #endif
 
 int _umview_version = 2; /* modules interface version id.
@@ -61,6 +61,7 @@ unsigned int ptrace_vm_mask;
 unsigned int ptrace_viewos_mask;
 unsigned int hasppoll;
 unsigned int quiet = 0;
+static char *viewname;
 
 unsigned int want_ptrace_multi, want_ptrace_vm, want_ptrace_viewos, want_ppoll;
 
@@ -116,6 +117,14 @@ static int do_preload(struct prelist *head)
 		return 0;
 }
 
+static void do_set_viewname(char *viewname)
+{
+	if (viewname) {
+		pcb_setviewname(get_pcb(),viewname);
+		free(viewname);
+	}
+}
+
 /* preload for nexted umview (it is a burst of um_add_module) */
 static int do_preload_recursive(struct prelist *head)
 {
@@ -126,6 +135,13 @@ static int do_preload_recursive(struct prelist *head)
 		return 0;
 	} else
 		return 0;
+}
+
+static void do_set_viewname_recursive(char *viewname)
+{
+	if (viewname) {
+		int_virnsyscall(__NR_UM_SERVICE,2,UMVIEW_SETVIEWNAME,(long)viewname,0,0,0,0);
+	}
 }
 
 static void version(int verbose)
@@ -152,6 +168,7 @@ static void usage(char *s)
 			"  -h, --help                print this help message\n"
 			"  -v, --version             show version information\n"
 			"  -q, --quiet               suppress some additional output\n"
+			"  -V name, --viewname name  set the view name\n"
 			"  -p file, --preload file   load plugin named `file' (must be a .so)\n"
 #ifdef GDEBUG_ENABLED
 			"  -o file, --output file    send debug messages to file instead of stderr\n"
@@ -173,6 +190,7 @@ static struct option long_options[] = {
 #endif
 	{"version",0,0,'v'},
 	{"quiet",0,0,'q'},
+	{"viewname",1,0,'V'},
 	{"help",0,0,'h'},
 	{"nonesting",0,0,'x'},
 	{"nokernelpatch",0,0,'n'},
@@ -251,6 +269,9 @@ static void umview_recursive(int argc,char *argv[])
 				version(1);
 				exit(0);
 				break;
+			case 'V':
+				viewname=strdup(optarg);
+				break;
 			case 'p': 
 				preadd(&prehead,optarg);
 				break;
@@ -259,6 +280,7 @@ static void umview_recursive(int argc,char *argv[])
 	if (!quiet)
 		fprintf(stderr,"UMView: nested invocation\n\n");
 	do_preload_recursive(prehead);
+	do_set_viewname_recursive(viewname);
 	/* exec the process */
 	execvp(*(argv+optind),argv+optind);
 	exit(-1);
@@ -330,6 +352,9 @@ int main(int argc,char *argv[])
 			case 'v': /* version */
 				version(1);
 				exit(0);
+				break;
+			case 'V':
+				viewname=strdup(optarg);
 				break;
 			case 'p': /* module preload, here the module requests are just added to
 			             a data structure */
@@ -413,6 +438,7 @@ int main(int argc,char *argv[])
 		pcb_inits(1);
 		capture_main(argv+optind,1);
 		do_preload(prehead);
+		do_set_viewname(viewname);
 		while (nprocs) {
 			mp_ppoll(&unblockchild);
 			tracehand();
@@ -426,6 +452,7 @@ int main(int argc,char *argv[])
 		pcb_inits(0);
 		capture_main(argv+optind,0);
 		do_preload(prehead);
+		do_set_viewname(viewname);
 		while (nprocs)  {
 			mp_poll();
 			do_wake_tracer();

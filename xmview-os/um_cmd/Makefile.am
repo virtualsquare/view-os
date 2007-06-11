@@ -3,7 +3,9 @@ dist_man1_MANS = \
 	um_del_service.1 \
 	um_lock_service.1 \
 	um_ls_service.1 \
-	um_mov_service.1
+	um_mov_service.1 \
+	vuname.1 \
+	viewname.1
 
 CPPFLAGS = -I../include
 

@@ -64,6 +64,16 @@ aims to provide a general interface to customize the system call semantics
 of process under specified conditions. So more modules will be added both
 by the View-OS team and by third parties.
 .SH OPTIONS
+.PD 0
+.IP "\fB\-V\fP \fIname\fP" 4
+.PD 0
+.IP "\fB\-\-viewname\fP \fIname\fP" 4
+set the name of the view. The view can be read and set using 
+.B vuname
+or
+.B viewname
+commands.
+.PD 0
 .IP "\fB\-p\fP \fImodule\fP [ , \fImodule_options\fP ]" 4 
 .PD 0
 .IP "\fB\-\-preload\fR \fImodule\fP [ , \fImodule_options\fP ]" 4
@@ -130,6 +140,8 @@ Print a short help message and exit.
 .BR umdev(1viewos)
 .BR umbinfmt(1viewos)
 .BR viewfs(1viewos)
+.BR vuname(1viewos)
+.BR viewname(1viewos)
 .SH AUTHORS
 View-OS is a project of the Computer Science Department, University of
 Bologna. Project Leader: Renzo Davoli. Development Team: P. Angelelli, A.
