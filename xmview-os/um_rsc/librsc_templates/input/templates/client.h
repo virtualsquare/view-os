@@ -92,7 +92,6 @@ int rscc_init(int client_fd, int event_sub_fd, struct reg_cbs **rc, enum arch c_
 /*************************************************/
 /*   EVENT SUBSCRIPTION                          */
 /*************************************************/
-struct reg_cbs *rscc_es_init(int event_sub_fd);
 int rscc_es_send_req(struct reg_cbs *reg_cbs, int server_fd, int event_sub_fd, int how, void (* cb)(), void *arg);
 
 

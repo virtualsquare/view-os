@@ -42,7 +42,7 @@ static struct list *rscs_es_list;
 struct rscs_es_listel {
  /* event subscriber fd, used to distinguish between two different 
   * event subscriber with same mfd and event */
- int esfd; 
+ int esfd;  
  int mfd; /* monitored fd */
  short event;
  /* Show if the event 'event' is occurred or not */

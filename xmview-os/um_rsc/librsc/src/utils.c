@@ -98,8 +98,10 @@ int read_n_bytes(int fd, void *buffer, int nbytes) {
 int rwv_n_bytes(rwv_fun fun, int fd, struct iovec *vector, size_t count, int nbytes) {
   int i, n, nrw;
   struct iovec *v, *v_orig;
-  int original_count = count;
   int total_bytes;
+#ifdef RSCDEBUG
+  int original_count = count;
+#endif
   
   assert(fd >= 0);
   assert(vector != NULL);

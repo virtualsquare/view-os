@@ -55,6 +55,7 @@
 #include "aconv.h"
 #include "rsc_consts.h"
 #include "generic_list.h"
+#include "event_sub.h"
 
 #include <errno.h>
 #include <unistd.h>
@@ -82,20 +83,20 @@ static struct list *ioctl_list;
 /*########################################################################*/
 typedef struct sys_resp_header *(*rscs_pre_exec)(void *req, enum arch client_arch);
 typedef int (*rscs_exec)(void *request);
-typedef struct sys_resp_header *(*rscs_post_exec)(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch);
+typedef struct iovec *(*rscs_post_exec)(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch);
 
 /* static void *req_func_recvmsg(void *req); */
 <% nr_all.each_umview do |syscall| %>
 struct sys_resp_header *rscs_pre_<%= syscall.name %>_exec(void *req, enum arch client_arch);
 int rscs_exec_<%= syscall.name %>(void  *request);
-struct sys_resp_header *rscs_post_<%= syscall.name %>_exec(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch);
+struct iovec *rscs_post_<%= syscall.name %>_exec(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch);
 <% end %>
 struct sys_resp_header *rscs_pre_ioctl_exec(void *req, enum arch client_arch);
 int rscs_exec_ioctl(void  *request);
-struct sys_resp_header *rscs_post_ioctl_exec(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch);
+struct iovec *rscs_post_ioctl_exec(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch);
 struct sys_resp_header *rscs_pre_fcntl_exec(void *req, enum arch client_arch);
 int rscs_exec_fcntl(void  *request);
-struct sys_resp_header *rscs_post_fcntl_exec(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch);
+struct iovec *rscs_post_fcntl_exec(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch);
 
 /* Handler Tables */
 rscs_pre_exec rscs_pre_exec_table[] = {
@@ -162,10 +163,13 @@ void rscs_ioctl_register_request(int request, u_int32_t rw, u_int32_t size) {
 #ifndef RSCDEBUG
 static
 #endif
-struct ioctl_resp_header *rscs_manage_ioctl_request(struct ioctl_req_header *ioctl_req) {
+struct iovec *rscs_manage_ioctl_request(struct ioctl_req_header *ioctl_req) {
   struct ioctl_entry *res;
   struct ioctl_resp_header *resp;
+  struct iovec *v;
   int index;
+  v = calloc(1, sizeof(struct iovec));
+  assert(v != NULL);
   resp = calloc(1, sizeof(struct ioctl_resp_header));
   assert(resp != NULL);
   
@@ -183,7 +187,9 @@ struct ioctl_resp_header *rscs_manage_ioctl_request(struct ioctl_req_header *ioc
     /* Positive one */
     resp->resp_size_type = htonl(res->size_type);
   }
-  return resp;
+  v[0].iov_base = resp;
+  v[0].iov_len = ntohl(resp->resp_size);
+  return v;
 }
 
 /**************************************************************************/
@@ -386,6 +392,13 @@ void fcntl_adjust_write_pointers(struct fcntl_req *fcntl_req, struct sys_resp_he
 /**************************************************************************/
 /***  EXECUTION FUNCTIONS                                               ***/
 /**************************************************************************/
+static void rscs_serialize_resp_hdr(struct sys_resp_header *resp) {
+  resp->resp_rsc_const = htons(resp->resp_rsc_const);
+  resp->resp_size = htonl(resp->resp_size);
+  resp->resp_retval = htonl(resp->resp_retval);
+  resp->resp_errno = htonl(resp->resp_errno);
+}
+
 <% nr_all.each_umview do |syscall| %>
 struct sys_resp_header *rscs_pre_<%= syscall.name %>_exec(void *req, enum arch client_arch) {
   struct <%= syscall.name %>_req *<%= syscall.name %>_req;
@@ -487,7 +500,8 @@ int rscs_exec_<%= syscall.name %>(void  *request) {
   return ret;
 }
 
-struct sys_resp_header *rscs_post_<%= syscall.name %>_exec(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch) {
+struct iovec*rscs_post_<%= syscall.name %>_exec(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch) {
+  struct iovec *v;
   resp->resp_retval = retval;
   resp->resp_errno =  errnoval;
   /* workaround for the wrap_in_getsock() pc->erno problem */
@@ -497,7 +511,7 @@ struct sys_resp_header *rscs_post_<%= syscall.name %>_exec(void *req, struct sys
 <%  if syscall.has_write_args?  %>
   /* Now I manage the write buffer. If server and client arch. are the same
    * I've nothing to do, otherwise I need to convert all the write buffers 
-   * and free the memory malloced for write-only buffers */
+   * and free the memory allocated for write-only buffers */
   if(my_arch != client_arch) {
     struct <%= syscall.name %>_req *<%= syscall.name %>_req = (struct <%= syscall.name %>_req *)req;
     void *mem = ((void *)resp) + sizeof(struct sys_resp_header);
@@ -541,7 +555,16 @@ struct sys_resp_header *rscs_post_<%= syscall.name %>_exec(void *req, struct sys
       resp->resp_retval, resp->resp_retval, 
       resp->resp_errno, resp->resp_errno);
 
-  return resp;
+  /* I create the iovec structure */
+  v = calloc(1, sizeof(struct iovec));
+  if(v == NULL)
+    return NULL;
+
+  v[0].iov_base = resp;
+  v[0].iov_len = resp->resp_size;
+  /* I convert the header fields to network byte order */
+  rscs_serialize_resp_hdr(resp);
+  return v;
 }
 
 <% end %>
@@ -604,7 +627,8 @@ int rscs_exec_ioctl(void  *request) {
   return ret;
 }
     
-struct sys_resp_header *rscs_post_ioctl_exec(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch) {
+struct iovec *rscs_post_ioctl_exec(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch) {
+  struct iovec *v;
   resp->resp_retval = retval;
   resp->resp_errno =  errnoval;
   /* workaround for the wrap_in_getsock() pc->erno problem */
@@ -619,8 +643,17 @@ struct sys_resp_header *rscs_post_ioctl_exec(void *req, struct sys_resp_header *
       resp->resp_size, resp->resp_size, 
       resp->resp_retval, resp->resp_retval, 
       resp->resp_errno, resp->resp_errno);
+  
+  /* I create the iovec structure */
+  v = calloc(1, sizeof(struct iovec));
+  if(v == NULL)
+    return NULL;
 
-  return resp;
+  v[0].iov_base = resp;
+  v[0].iov_len = resp->resp_size;
+  /* I convert the header fields to network byte order */
+  rscs_serialize_resp_hdr(resp);
+  return v;
 }
 
 struct sys_resp_header *rscs_pre_fcntl_exec(void *req, enum arch client_arch) {
@@ -681,7 +714,8 @@ int rscs_exec_fcntl(void  *request) {
   return ret;  
 } 
 
-struct sys_resp_header *rscs_post_fcntl_exec(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch) {
+struct iovec *rscs_post_fcntl_exec(void *req, struct sys_resp_header *resp, int retval, int errnoval, enum arch client_arch) {
+  struct iovec *v;
   resp->resp_retval = retval;
   resp->resp_errno =  errnoval;
   /* workaround for the wrap_in_getsock() pc->erno problem */
@@ -696,8 +730,16 @@ struct sys_resp_header *rscs_post_fcntl_exec(void *req, struct sys_resp_header *
       resp->resp_size, resp->resp_size, 
       resp->resp_retval, resp->resp_retval, 
       resp->resp_errno, resp->resp_errno);
+  /* I create the iovec structure */
+  v = calloc(1, sizeof(struct iovec));
+  if(v == NULL)
+    return NULL;
 
-  return resp;
+  v[0].iov_base = resp;
+  v[0].iov_len = resp->resp_size;
+  /* I convert the header fields to network byte order */
+  rscs_serialize_resp_hdr(resp);
+  return v;
 }
 /*########################################################################*/
 /*##                                                                    ##*/
@@ -774,6 +816,7 @@ void *req_func_recvmsg(void *req) {
 
 int rscs_init(enum arch server_arch) {
   my_arch = server_arch;
+  rscs_es_init();
   ioctl_list = init_list(100);
   if(ioctl_list == NULL)
     return -1;
@@ -787,8 +830,8 @@ void rsc_server_teardown() {
   ioctl_list = NULL;
 }
 
-void *rscs_manage_request(int client_arch, void *request) {
-  void *ret_data;
+struct iovec*rscs_manage_request(int client_arch, void *request) {
+  struct iovec*ret_data;
   struct req_header *req_hd;
  
   req_hd = (struct req_header *)request;
@@ -817,14 +860,7 @@ void *rscs_manage_request(int client_arch, void *request) {
     if((resp_hd = pre_exec_f(request, client_arch)) == NULL)
       return NULL;
     ret = exec_f(request);
-    resp_hd = post_exec_f(request, resp_hd, ret, errno, client_arch);
-
-    /* I convert the response's header fields */ 
-    resp_hd->resp_rsc_const = htons(resp_hd->resp_rsc_const);
-    resp_hd->resp_size = htonl(resp_hd->resp_size);
-    resp_hd->resp_retval = htonl(resp_hd->resp_retval);
-    resp_hd->resp_errno = htonl(resp_hd->resp_errno);
-    ret_data = resp_hd;
+    ret_data = post_exec_f(request, resp_hd, ret, errno, client_arch);
   } else {
     /* Bad request type */
     ret_data = NULL;

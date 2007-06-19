@@ -53,10 +53,6 @@ tags:
 endif
 
 librsc.a:
-	@echo "make overriding vars = $(MAKE_OVERRIDING_VARS)"
-	@echo "make overriding vars = $(MAKE_OVERRIDING_VARS)"
-	@echo "make overriding vars = $(MAKE_OVERRIDING_VARS)"
-	@echo "make overriding vars = $(MAKE_OVERRIDING_VARS)"
 	make -C src/ $(MAKE_OVERRIDING_VARS)
 	rm -f $@
 	ar rcs $@ ${sources:.c=.o}

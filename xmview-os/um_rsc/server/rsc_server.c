@@ -280,7 +280,6 @@ static int
 init(char *server_addr, char *server_port, char *event_sub_server_port, int *listen_fd, int *event_sub_fd) {
   int ret;
 
-  /* I set the hook */
   *listen_fd = create_listening_fd(server_addr, server_port);
   if(*listen_fd == -1) {
     fprintf(stderr, "I cannot create the listening socket\n");
@@ -313,7 +312,6 @@ init(char *server_addr, char *server_port, char *event_sub_server_port, int *lis
   /* I set the list of ioctl request I support AFTER the initialization
    * of the rsc_module (otherwise segfault)*/
   init_ioctl_register_request();
-  rscs_es_init();
   
   /* I Init the pollfd structure */
   if((pfdinfo = pollfd_init()) == NULL) {
@@ -439,7 +437,7 @@ main_loop(int listen_fd, int event_sub_fd) {
           /* If there are data to read, but the read buffer is empty 
            * I create a new message */
           if(client->rbuf->first == NULL) {
-            int size;
+            int size = 0;
             void *data;
             if(pfdinfo->clients[i]->type == REQ_RESP && 
                 pfdinfo->clients[i]->state == CONN_READING_HDR)
@@ -447,15 +445,17 @@ main_loop(int listen_fd, int event_sub_fd) {
             else if(pfdinfo->clients[i]->type == EVENT_SUB && 
                 pfdinfo->clients[i]->state == CONN_READING_HDR)
               size = sizeof(struct rsc_es_hdr);
-            data = malloc(size);
-            if(data == NULL) {
-              close_connection(pfdinfo, i);
-              deleted_entry = 1;
-              if(--nready < 0) break;
-              continue;
-            }
+            if(size != 0) {
+              data = malloc(size);
+              if(data == NULL) {
+                close_connection(pfdinfo, i);
+                deleted_entry = 1;
+                if(--nready < 0) break;
+                continue;
+              }
 
-            buff_enq(client->rbuf, data, size);
+              buff_enq(client->rbuf, data, size);
+            }
           }
 		      GDEBUG(1, "There are data ready do be read for fd %d", pfdinfo->pollfd[i].fd);
           /* I read the data from the first message */
@@ -522,20 +522,16 @@ main_loop(int listen_fd, int event_sub_fd) {
                 m->n = sizeof(struct req_header);
 		          }else if(client->state == CONN_READING_BODY) {
 			          /* Now I've read all the request and I can pass it to RSC function */
-			          struct resp_header *resp_hd;
-		            int resp_size;
-                void *resp;
+                struct iovec *resp;
 					      resp = rscs_manage_request(client->arch, read_data);
-                /* If there is an erro, I close the connection */
+                /* If there is an error, I close the connection */
                 if(resp == NULL) {
                   close_connection(pfdinfo, i);
                   deleted_entry = 1;
                   if(--nready < 0) break;
                   continue;
                 }
-			          resp_hd = (struct resp_header *)resp;
-			          resp_size = rsc_resp_msg_size(resp_hd);
-		            buff_enq(client->wbuf, resp, resp_size);
+		            buff_enq(client->wbuf, resp[0].iov_base, resp[0].iov_len);
                 pfdinfo->pollfd[i].events |=  POLLOUT;
                 client->state = CONN_SENDING_RESP;
                 free(read_data);

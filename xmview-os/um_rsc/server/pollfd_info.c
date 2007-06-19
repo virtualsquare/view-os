@@ -32,6 +32,7 @@
 /**************************************************************/
 /* Client elements                                            */
 /**************************************************************/
+#ifdef GDEBUG_ENABLED
 static char *client_state_str[] = {
   "waiting architecture",
   "sending architecture",
@@ -46,6 +47,7 @@ static char *client_type_str[] = {
   "event subscribe",
   "registered fd"
 };
+#endif
 
 struct msg *buff_enq(struct buffer *b, void *data, int tot) {
   struct msg *m;

@@ -28,6 +28,7 @@
 #include "utils.h"
 #include "rsc_client.h"
 #include "rsc_consts.h"
+#include "event_sub.h"
 
 #include <unistd.h>
 #include <fcntl.h>

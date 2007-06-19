@@ -174,7 +174,7 @@ struct reg_cbs *rscc_es_init(int event_sub_fd) {
 /* It sends the request to the 'server_fd' and it waits the answer. 
  * If the ACK is positive, the informations are store into 'reg_cbs' */
 int rscc_es_send_req(struct reg_cbs *reg_cbs, int server_fd, int event_sub_fd, int how, void (* cb)(), void *arg) {
-  int ret, i;
+  int i, ret = 0;
     
   RSC_DEBUG(RSCD_EVENT_SUB, "send_event_sub_req (fd = %d):", server_fd);
   /* If 'cb' == NULL the previous registration for the callback must be deleted */
@@ -247,7 +247,7 @@ int rscc_es_send_req(struct reg_cbs *reg_cbs, int server_fd, int event_sub_fd, i
 	  req.type = EVENT_SUB_REQ;
 	  req.fd = htonl(event_sub_fd);
 	  req.how = htonl(how);
-    /* I don't had an already registered fd */
+    /* I don't have an already registered fd */
 
 	  RSC_DEBUG(RSCD_EVENT_SUB, "New request: type = %d, fd = %d, how = %d",
         req.type, ntohl(req.fd), ntohl(req.how));
@@ -284,5 +284,5 @@ int rscc_es_send_req(struct reg_cbs *reg_cbs, int server_fd, int event_sub_fd, i
 	  pthread_mutex_unlock(&reg_cbs_mutex);
     return ret;
   } 
-  return 0;
+  return ret;
 }

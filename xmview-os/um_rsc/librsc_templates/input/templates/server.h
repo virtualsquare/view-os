@@ -60,11 +60,7 @@
 
 int rscs_init(enum arch server_arch);
 void rsc_server_teardown();
-void *rscs_manage_request(int client_arch, void *request);
-#ifdef RSCS_FAKE_EXECUTION
-typedef int (*rscs_exec)(void *request);
-rscs_exec rscs_fake_execution;
-#endif
+struct iovec*rscs_manage_request(int client_arch, void *request);
 
 /* Ioctl request registration */
 void rscs_ioctl_register_request(int request, u_int32_t rw, u_int32_t size);
@@ -72,7 +68,6 @@ void rscs_ioctl_register_request(int request, u_int32_t rw, u_int32_t size);
 /*************************************************/
 /*   EVENT SUBSCRIPTION                          */
 /*************************************************/
-void rscs_es_init();
 struct rsc_es_ack *rscs_es_manage_msg(int esfd, void *data);
 struct rsc_es_resp *rscs_es_event_occured(int esfd, int mfd, int event);
 #endif /* __RSC_SERVER_REQ_RESP_H__ */
