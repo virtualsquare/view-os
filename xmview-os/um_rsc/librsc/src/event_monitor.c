@@ -92,6 +92,12 @@ static void print_rscel(void *element) {
 void rscs_es_init() {
   rscs_es_list = init_list(10);
 }
+/* The function takes in input the file descriptor of the connection 
+ * with the client (esfd) and the data read by the server (data), 
+ * then analyzes the kind of message contained in data, executes an 
+ * immediate test using a poll with timeout set to zero, creates a 
+ * acknowledgment message based on the poll result and returns it.
+ * */
 struct rsc_es_ack *rscs_es_manage_msg(int esfd, void *data) {
   struct pollfd testfd[1];
   struct rsc_es_hdr *hdr = (struct rsc_es_hdr *)data;
@@ -188,7 +194,7 @@ struct rsc_es_ack *rscs_es_manage_msg(int esfd, void *data) {
  * returns a response to send back to the event subscriber.
  * If the state was already RSCEM_EV_OCCURRED, NULL is returned.
  * */
-struct rsc_es_resp *rscs_es_event_occured(int esfd, int mfd, int event) {
+struct rsc_es_resp *rscs_es_event_occurred(int esfd, int mfd, int event) {
   struct rscs_es_listel el, *res;
   struct rsc_es_resp *resp;
   int index;

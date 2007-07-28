@@ -652,7 +652,7 @@ main_loop(int listen_fd, int event_sub_fd) {
         struct rsc_es_resp *resp;
         int esfd_index = pfdinfo->clients[i]->esfd_index;
 
-        resp = rscs_es_event_occured(pfdinfo->pollfd[esfd_index].fd, pfdinfo->pollfd[i].fd, pfdinfo->pollfd[i].revents);
+        resp = rscs_es_event_occurred(pfdinfo->pollfd[esfd_index].fd, pfdinfo->pollfd[i].fd, pfdinfo->pollfd[i].revents);
         if(resp != NULL) {
           buff_enq(pfdinfo->clients[esfd_index]->wbuf, resp, sizeof(struct rsc_es_resp)); 
           pfdinfo->pollfd[esfd_index].events |=  POLLOUT;

@@ -59,7 +59,6 @@ enum arch {
 
 /* Return values */
 #define   ACONV_OK           1
-#define   ACONV_OK_SAMESIZE  2
 #define   ACONV_UNNEC        3 
 #define   ACONV_ERROR       -2
 typedef int (* aconv_size_fun)(enum arch from, enum arch to);
