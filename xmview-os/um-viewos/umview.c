@@ -176,7 +176,7 @@ static void usage(char *s)
 			"  -x, --nonesting           do not permit module nesting\n"
 			"  -n, --nokernelpatch       avoid using kernel patches\n"
 			"  --nokmulti                avoid using PTRACE_MULTI\n"
-			"  --nokvm                   avoid using PTRACE_SYSVM\n"
+			"  --noksysvm                avoid using PTRACE_SYSVM\n"
 			"  --nokviewos               avoid using PTRACE_VIEWOS\n\n"
 			"  --noppoll                 avoid using ppoll\n\n",
 			s);
@@ -195,7 +195,7 @@ static struct option long_options[] = {
 	{"nonesting",0,0,'x'},
 	{"nokernelpatch",0,0,'n'},
 	{"nokmulti",0,0,0x100},
-	{"nokvm",0,0,0x101},
+	{"noksysvm",0,0,0x101},
 	{"nokviewos",0,0,0x102},
 	{"noppoll",0,0,0x103},
 	{0,0,0,0}
