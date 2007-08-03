@@ -28,7 +28,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include "v2fuseutils.h"
 
 #define FLRO 1
 #define FLRW 2

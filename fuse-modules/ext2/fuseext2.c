@@ -358,7 +358,7 @@ static int ext2_mknod(const char *path, mode_t mode, dev_t dev)
 		#ifdef DEBUG
 		fprintf(stderr, "Error to allocate inode:%d\n",retval);
 		#endif
-		return -retval;
+		return -ENOSPC;
 	}
 	#ifdef DEBUG
 	printf("\t\tAllocated inode: %u\n", newfile);
@@ -388,7 +388,7 @@ static int ext2_mknod(const char *path, mode_t mode, dev_t dev)
 		if (retval) {
 			fprintf(stderr, "while expanding directory\n");
 			free(path_parent);
-			return retval;
+			return -ENOSPC;
 		}
 		retval = ext2fs_link(e2fs, parent, name, newfile, EXT2_FT_REG_FILE);
 	}
@@ -408,7 +408,7 @@ static int ext2_mknod(const char *path, mode_t mode, dev_t dev)
 	retval = ext2fs_write_new_inode(e2fs, newfile, &inode);
 	if (retval) {
 		fprintf(stderr, "Error while creating inode %u\n", newfile);
-		return retval;
+		return -EIO;
 	}
 	return 0;
 }
@@ -773,11 +773,11 @@ static int kill_file_by_inode(ext2_filsys e2fs, ext2_ino_t inode,int nlink)
 	kill_file_by_inode(e2fs,inode_num,2);
 	if (rds.parent) {
 		if ( retval = ext2fs_read_inode(e2fs, rds.parent, &inode) )
-			return retval;
+			return -EIO;
 		if (inode.i_links_count > 1)
 			inode.i_links_count--;
 		if ( retval = ext2fs_write_inode(e2fs, rds.parent, &inode) )
-			return retval;
+			return -EIO;
 	}
 	return 0;	
 }
@@ -850,7 +850,7 @@ static int ext2_symlink(const char *sourcename, const char *destname)
 #ifdef DEBUG
 		fprintf(stderr, "Error to allocate inode:%d\n",retval);
 #endif
-		return -retval;
+		return -ENOSPC;
 	}
   
 	retval = ext2fs_link(e2fs, dir, dest, ino, EXT2_FT_SYMLINK);
@@ -861,7 +861,7 @@ static int ext2_symlink(const char *sourcename, const char *destname)
 		retval = ext2fs_expand_dir(e2fs, dir);
 		if (retval) {
 			fprintf(stderr, "while expanding directory\n");
-			return -retval;
+			return -ENOSPC;
 		}
 		retval = ext2fs_link(e2fs, dir, dest, ino, EXT2_FT_SYMLINK);
 	}
@@ -956,7 +956,7 @@ static int ext2_link(const char *sourcename, const char *destname)
 	retval = ext2fs_read_inode(e2fs, ino, &inode);
 	if (retval) {
 		fprintf(stderr, "while reading inode %u", ino);
-		return 1;
+		return -EIO;
 	}
 	retval = ext2fs_link(e2fs, dir, dest, ino, ext2_file_type(inode.i_mode));
 	while (retval == EXT2_ET_DIR_NO_SPACE) {
@@ -966,7 +966,7 @@ static int ext2_link(const char *sourcename, const char *destname)
 		retval = ext2fs_expand_dir(e2fs, dir);
 		if (retval) {
 			fprintf(stderr, "while expanding directory\n");
-			return retval;
+			return -ENOSPC;
 		}
 		retval = ext2fs_link(e2fs, dir, dest, ino, ext2_file_type(inode.i_mode));
 	}
