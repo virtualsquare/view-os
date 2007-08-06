@@ -63,30 +63,34 @@
  * Bitmasks:
  *
  *      VNUL 0100 0000
+ *      VDIR 0010 0000
  *      VREM 0000 0001
  *      VADD 0000 0010
  *      VMRG 0000 0100
  *      VMOV 0000 1000
  *      VCOW 0001 0000
- *      VINV 0010 0000
+ *      VINV 1000 0000
  *
- * VNUL must be OR'ed to every flag before using the result
- * as the argument to symlink(). VINV stays for "invalid" and should
- * never be found on the file system but will be returned by read_flags
- * as an error condition.
+ * VNUL must be OR'ed to every flag before using the result as the argument to
+ * symlink(). VDIR tells if the object is a file or a directory. VINV stays
+ * for "invalid" and should never be found on the file system but will be
+ * returned by read_flags as an error condition.
  */
 
 #define VNUL 0x40 // .O......
+#define VDIR 0x20 // ..O.....
 #define VREM 0x01 // .......O
 #define VADD 0x02 // ......O.
 #define VMRG 0x04 // .....O..
 #define VMOV 0x08 // ....O...
 #define VCOW 0x10 // ...O....
-#define VINV 0x20 // ..O.....
+#define VINV 0x80 // O.......
 
 /* VALL does not include VINV, but does include VNUL. It is the set of all
  * valid bits for a symlink. */
-#define VALL (VNUL | VREM | VADD | VMRG | VMOV | VCOW)
+#define VALL (VNUL | VREM | VADD | VMRG | VMOV | VCOW | VDIR)
+
+typedef unsigned char vflag_t;
 
 static struct service s;
 
@@ -193,6 +197,7 @@ static void dellayertab(struct viewfs_layer *layer)
 	if (i < layertabmax)
 		layertab[i] = NULL;
 }
+
 
 static struct viewfs_layer *searchlayer(char *path, int exact)
 {
@@ -369,7 +374,7 @@ static char *extend_path(char *old, char *new, int size, int type)
 }
 
 /*
- * Converts the given path (i.e. /foo/bar) in the DATA path for the vfs tree
+ * Converts the given path (i.e. /foo/bar) in the META path for the vfs tree
  * (e.g. /home/user/.viewfs/data/foo/data/bar) assuming that "bar" is a file
  * and not a directory.
  */
@@ -388,7 +393,8 @@ static void prepare_testpath(struct viewfs_layer *layer, char *path)
 	GDEBUG(2, "path: %s, layer->mountpoint: %s, delta: %d, tmp: %s",
 			path, layer->mountpoint, delta, tmp);
 
-	extend_path(tmp, layer->userpath, (2 * PATH_MAX) - strlen(layer->vfspath), T_DATA);
+	/* META is the same for directories and files */
+	extend_path(tmp, layer->userpath, (2 * PATH_MAX) - strlen(layer->vfspath), T_META);
 
 	GDEBUG(2, "layer->vfspath: %s", layer->vfspath);
 	GDEBUG(2, "extend_path(\"%s\", \"%s\", %d, 0x%02x)", tmp, layer->userpath, (2*PATH_MAX)-strlen(layer->vfspath), T_DATA);
@@ -399,27 +405,124 @@ static void prepare_testpath(struct viewfs_layer *layer, char *path)
 	GDEBUG(2, "asked for ^%s$, will check for ^%s$", path, layer->testpath);
 }
 
-static unsigned char read_flags(char *path)
+static vflag_t read_flags(char *path)
 {
-	char lc;
+	vflag_t lc;
+	int rv;
+
+	GDEBUG(2, "trying to read flags from %s", path);
+
+	rv = readlink(path, &lc, 1);
+
+	if (rv < 0)
+	{
+		GDEBUG(2, "  failed: %s", strerror(errno));
+		return VINV;
+	}
 
 	/* symlink length must be exaclty 1 char */
 	if (readlink(path, &lc, 1) != 1)
+	{
+		GDEBUG(2, "  failed, wrong length: %d", rv);
 		return VINV;
+	}
 
 	/* There must not be invalid bits */
 	if (lc & ~VALL)
+	{
+		GDEBUG(2, "  failed, invalid bits: 0x%02x", lc);
 		return VINV;
+	}
 
 	/* VNUL is used on the file system but not internally */
 	lc &= ~VNUL;
 
+	GDEBUG(2, "  ok, flags: 0x%02x", lc);
 	return lc;
 }
 
-static char make_flags(unsigned char flags)
+static vflag_t make_flags(vflag_t flags)
 {
 	return (flags & VALL) | VNUL;
+}
+
+/**
+ * Find an existing meta file.
+ *
+ * @param path The already expanded path, relative to the start of
+ * the vfs (e.g. /d/dir1/d/dir2/m/file. If this pathname does not exists, it
+ * will be replaced with the deepest existing meta for one of the directories
+ * of path. Else, the function does nothing.
+ * Warning: this function modifies path, so you must take care of strdup()ing
+ * it somewhere else if you want to retain the original one.
+ * @param base_path A pointer to the absolute path. This will be passed to
+ * read_flags after each change made to path. The initial part of base_path
+ * (from the beginning to the string pointed to by path) will not be modified.
+ *
+ * @return The flags associated to the meta (if found), or VINV if not found.
+ */
+static vflag_t find_upper_meta(char *path, char *base_path)
+{
+	int found = 0;
+	vflag_t rv;
+	int sc;
+	int pos;
+
+	if ((rv = read_flags(base_path)) != VINV)
+		return rv;
+
+	pos = strlen(path) - 1;
+
+	/* If the path is /rmeta (or less, though it should never be less than
+	 * this), we cannot go up */
+
+	if (pos <= N_LEN)
+		return VINV;
+
+	for (;;)
+	{
+		// sc is slash count, i.e. the number of slashes we must
+		// traverse to transform /data/name1/meta/name2 into
+		// /meta/name1
+		sc = 4;
+		while ((sc > 2) && (pos >= 0))
+		{
+			if (path[pos] == '/')
+				sc--;
+
+			pos--;
+		}
+
+		if (pos < 0)
+		{
+			if (strlen(path) < (N_LEN + 1))
+				return VINV;
+			strncpy(&(path[1]), N_RMETA, N_LEN + 1);
+			if ((rv = read_flags(base_path)) != VINV)
+				return rv;
+			return VINV;
+		}
+
+		path[pos + 1] = '\0';
+
+		while ((sc > 0) && (pos >= 0))
+		{
+			if (path[pos] == '/')
+				sc--;
+
+			pos--;
+		}
+
+
+		// Replace data with meta (the ending / is already there)
+		memcpy(&(path[pos+2]), N_META, N_LEN - 1);
+
+		if ((rv = read_flags(base_path)) != VINV)
+			return rv;
+
+		// Put back things as they were? I think we don't need this.
+	}
+
 }
 
 
@@ -453,6 +556,20 @@ static epoch_t check_open(char *path, int flags, int umpid)
 
 }
 
+static epoch_t check_stat64(char *path, struct stat64 *buf, int umpid)
+{
+	struct viewfs_layer *l = searchlayer(path, FALSE);
+	if (!l)
+		return 0;
+
+	prepare_testpath(l, path);
+	
+	find_upper_meta(l->userpath, l->testpath);
+
+	return 0;
+
+}
+
 static epoch_t wrap_check_path(char* path)
 {
 	int sc = um_mod_getsyscallno();
@@ -462,10 +579,12 @@ static epoch_t wrap_check_path(char* path)
 
 	GDEBUG(2, "%s(\"%s\", ...)", SYSCALLNAME(sc), path);
 
+	/*
 	layer = searchlayer(path, FALSE);
 	
 	if (layer)
 		prepare_testpath(layer, path);
+	*/
 
 	switch(sc)
 	{
@@ -512,6 +631,10 @@ static epoch_t wrap_check_path(char* path)
 			break;
 
 */
+		case __NR_stat64:
+			retval = check_stat64(path, (struct stat64*)(um_mod_getargs()[1]), umpid);
+			break;
+
 		case __NR_open:
 		case __NR_creat:
 			retval = check_open(path, (int)(um_mod_getargs()[1]) |
