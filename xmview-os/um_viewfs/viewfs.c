@@ -60,31 +60,20 @@
 #define T_DIR  0x04
 
 /*
- * Bitmasks:
- *
- *      VNUL 0100 0000
- *      VDIR 0010 0000
- *      VREM 0000 0001
- *      VADD 0000 0010
- *      VMRG 0000 0100
- *      VMOV 0000 1000
- *      VCOW 0001 0000
- *      VINV 1000 0000
- *
  * VNUL must be OR'ed to every flag before using the result as the argument to
  * symlink(). VDIR tells if the object is a file or a directory. VINV stays
  * for "invalid" and should never be found on the file system but will be
  * returned by read_flags as an error condition.
  */
 
-#define VNUL 0x40 // .O......
-#define VDIR 0x20 // ..O.....
-#define VREM 0x01 // .......O
-#define VADD 0x02 // ......O.
-#define VMRG 0x04 // .....O..
-#define VMOV 0x08 // ....O...
-#define VCOW 0x10 // ...O....
-#define VINV 0x80 // O.......
+#define VDIR 0x01 // .......o
+#define VCOW 0x02 // ......o.
+#define VMOV 0x04 // .....o..
+#define VMRG 0x08 // ....o...
+#define VADD 0x10 // ...o....
+#define VREM 0x20 // ..o.....
+#define VNUL 0x40 // .o......
+#define VINV 0x80 // o.......
 
 /* VALL does not include VINV, but does include VNUL. It is the set of all
  * valid bits for a symlink. */
@@ -96,8 +85,7 @@ static struct service s;
 
 struct viewfs_proc
 {
-	
-
+	struct viewfs_layer *l;
 };
 
 static struct viewfs_proc **proctab = NULL;
@@ -124,6 +112,100 @@ struct viewfs_layer
 
 static struct viewfs_layer **layertab = NULL;
 static int layertabmax = 0;
+
+static long action_path_enoent()
+{
+	errno = ENOENT;
+	return -1;
+}
+
+static long action_path_invalid()
+{
+	return -1;
+}
+
+static long action_stat64_data()
+{
+	return 0;
+}
+
+static long action_stat64_link()
+{
+	return 0;
+}
+
+
+/* Action to take based on the flags found in the meta. NULL means
+ * "do the real syscall". Else, the function is called. The parameters
+ * depend on the system call, it's up to the caller and the callee agree on
+ * them. */
+
+static sysfun action_map_stat64[] = {
+/*                                         */ NULL,
+/*                                    VDIR */ NULL,
+/*                             VCOW |      */ NULL,
+/*                             VCOW | VDIR */ NULL,
+/*                      VMOV |             */ action_stat64_link,
+/*                      VMOV |        VDIR */ action_stat64_link,
+/*                      VMOV | VCOW |      */ action_stat64_link,
+/*                      VMOV | VCOW | VDIR */ action_stat64_link,
+/*               VMRG |                    */ action_path_invalid,
+/*               VMRG |               VDIR */ NULL,
+/*               VMRG |        VCOW |      */ action_path_invalid,
+/*               VMRG |        VCOW | VDIR */ NULL,
+/*               VMRG | VMOV |             */ action_path_invalid,
+/*               VMRG | VMOV |        VDIR */ NULL,
+/*               VMRG | VMOV | VCOW |      */ action_path_invalid,
+/*               VMRG | VMOV | VCOW | VDIR */ NULL,
+/*        VADD |                           */ action_stat64_data,
+/*        VADD |                      VDIR */ action_stat64_data,
+/*        VADD |               VCOW |      */ action_stat64_data,
+/*        VADD |               VCOW | VDIR */ action_stat64_data,
+/*        VADD |        VMOV |             */ action_path_invalid,
+/*        VADD |        VMOV |        VDIR */ action_path_invalid,
+/*        VADD |        VMOV | VCOW |      */ action_path_invalid,
+/*        VADD |        VMOV | VCOW | VDIR */ action_path_invalid,
+/*        VADD | VMRG |                    */ action_path_invalid,
+/*        VADD | VMRG |               VDIR */ action_stat64_data,
+/*        VADD | VMRG |        VCOW |      */ action_path_invalid,
+/*        VADD | VMRG |        VCOW | VDIR */ action_stat64_data,
+/*        VADD | VMRG | VMOV |             */ action_path_invalid,
+/*        VADD | VMRG | VMOV |        VDIR */ action_path_invalid,
+/*        VADD | VMRG | VMOV | VCOW |      */ action_path_invalid,
+/*        VADD | VMRG | VMOV | VCOW | VDIR */ action_path_invalid,
+/* VREM |                                  */ action_path_enoent,
+/* VREM |                             VDIR */ action_path_enoent,
+/* VREM |                      VCOW |      */ action_stat64_data,
+/* VREM |                      VCOW | VDIR */ action_stat64_data,
+/* VREM |               VMOV |             */ action_path_invalid,
+/* VREM |               VMOV |        VDIR */ action_path_invalid,
+/* VREM |               VMOV | VCOW |      */ action_path_invalid,
+/* VREM |               VMOV | VCOW | VDIR */ action_path_invalid,
+/* VREM |        VMRG |                    */ action_path_invalid,
+/* VREM |        VMRG |               VDIR */ action_path_invalid,
+/* VREM |        VMRG |        VCOW |      */ action_path_invalid,
+/* VREM |        VMRG |        VCOW | VDIR */ action_path_invalid,
+/* VREM |        VMRG | VMOV |             */ action_path_invalid,
+/* VREM |        VMRG | VMOV |        VDIR */ action_path_invalid,
+/* VREM |        VMRG | VMOV | VCOW |      */ action_path_invalid,
+/* VREM |        VMRG | VMOV | VCOW | VDIR */ action_path_invalid,
+/* VREM | VADD |                           */ action_stat64_data,
+/* VREM | VADD |                      VDIR */ action_stat64_data,
+/* VREM | VADD |               VCOW |      */ action_stat64_data,
+/* VREM | VADD |               VCOW | VDIR */ action_stat64_data,
+/* VREM | VADD |        VMOV |             */ action_path_invalid,
+/* VREM | VADD |        VMOV |        VDIR */ action_path_invalid,
+/* VREM | VADD |        VMOV | VCOW |      */ action_path_invalid,
+/* VREM | VADD |        VMOV | VCOW | VDIR */ action_path_invalid,
+/* VREM | VADD | VMRG |                    */ action_path_invalid,
+/* VREM | VADD | VMRG |               VDIR */ action_path_invalid,
+/* VREM | VADD | VMRG |        VCOW |      */ action_path_invalid,
+/* VREM | VADD | VMRG |        VCOW | VDIR */ action_path_invalid,
+/* VREM | VADD | VMRG | VMOV |             */ action_path_invalid,
+/* VREM | VADD | VMRG | VMOV |        VDIR */ action_path_invalid,
+/* VREM | VADD | VMRG | VMOV | VCOW |      */ action_path_invalid,
+/* VREM | VADD | VMRG | VMOV | VCOW | VDIR */ action_path_invalid
+};
 
 static void cutdots(char *path)
 {
@@ -570,8 +652,8 @@ static epoch_t check_stat64(char *path, struct stat64 *buf, int umpid)
 	if (flags & VINV)
 		return 0;
 
-	
-
+	if (action_map_stat64[flags])
+		return l->tst.epoch;
 
 	return 0;
 
@@ -771,6 +853,13 @@ static long viewfs_umount2(char *target, int flags)
 	}
 }
 
+static long viewfs_stat64(char *path, struct stat64 *buf, int umpid)
+{
+
+	errno = EBADF;
+	return -1;
+}
+
 static long addproc(int id, int pumpid, int max)
 {
 	GDEBUG(2, "new process, id: %d, pumpid: %d, max: %d, array size: %d",
@@ -779,10 +868,10 @@ static long addproc(int id, int pumpid, int max)
 	if (max > proctabmax)
 	{
 		proctabmax = (max + TABSTEP) & ~(TABSTEP -1);
-		proctab = realloc(layertab, proctabmax * sizeof(struct viewfs_layer *));
+		proctab = realloc(proctab, proctabmax * sizeof(struct viewfs_proc *));
 	}
 
-	proctab[id] = malloc(sizeof(struct viewfs_layer));
+	proctab[id] = malloc(sizeof(struct viewfs_proc));
 
 	return 0;
 }
@@ -817,7 +906,7 @@ static void __attribute__ ((constructor)) init(void)
 
 	SERVICESYSCALL(s, umount2, viewfs_umount2);
 	SERVICESYSCALL(s, mount, viewfs_mount);
-
+	SERVICESYSCALL(s, stat64, viewfs_stat64);
 	add_service(&s);
 
 
