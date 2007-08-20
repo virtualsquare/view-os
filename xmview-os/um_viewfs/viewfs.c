@@ -449,19 +449,20 @@ static vflag_t make_flags(vflag_t flags)
 /**
  * Find an existing meta file.
  *
- * @param path The already expanded path, relative to the start of
+ * @param path The already meta-expanded path, relative to the start of
  * the vfs (e.g. /d/dir1/d/dir2/m/file. If this pathname does not exists, it
  * will be replaced with the deepest existing meta for one of the directories
  * of path. Else, the function does nothing.
  * Warning: this function modifies path, so you must take care of strdup()ing
  * it somewhere else if you want to retain the original one.
- * @param base_path A pointer to the absolute path. This will be passed to
+ * @param base_path A pointer to the absolute pathi (e.g. a pointer to
+ * /home/user/.viewfs/test/d/dir1/d/dir2/m/file). This will be passed to
  * read_flags after each change made to path. The initial part of base_path
  * (from the beginning to the string pointed to by path) will not be modified.
  *
  * @return The flags associated to the meta (if found), or VINV if not found.
  */
-static vflag_t find_upper_meta(char *path, char *base_path)
+static vflag_t find_deepest_meta(char *path, char *base_path)
 {
 	int found = 0;
 	vflag_t rv;
@@ -559,12 +560,18 @@ static epoch_t check_open(char *path, int flags, int umpid)
 static epoch_t check_stat64(char *path, struct stat64 *buf, int umpid)
 {
 	struct viewfs_layer *l = searchlayer(path, FALSE);
+	vflag_t flags;
 	if (!l)
 		return 0;
 
 	prepare_testpath(l, path);
+	flags = find_deepest_meta(l->userpath, l->testpath);
+
+	if (flags & VINV)
+		return 0;
+
 	
-	find_upper_meta(l->userpath, l->testpath);
+
 
 	return 0;
 
