@@ -1855,7 +1855,7 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 	return err ? -1 : 0;
 }
 
-int lwip_ioctl(int s, long cmd, void *argp)
+int lwip_ioctl(int s, unsigned long cmd, void *argp)
 {
 	struct lwip_socket *sock = get_socket(s);
 
@@ -1935,7 +1935,13 @@ int lwip_ioctl(int s, long cmd, void *argp)
 	}
 }
 
-int lwip_fcntl(int s, int cmd, int arg)
+
+int lwip_fcntl(int s, int cmd, long arg)
+{
+	return lwip_fcntl(s,cmd,arg);
+}
+
+int lwip_fcntl64(int s, int cmd, long arg)
 {
 	struct lwip_socket *sock = get_socket(s);
 	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_fcntl(%d, %x)\n",s,cmd));

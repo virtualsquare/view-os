@@ -433,10 +433,9 @@ int lwip_socket(int domain, int type, int protocol);
 int lwip_write(int s, void *dataptr, int size);
 int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
                 struct timeval *timeout);
-int lwip_ioctl(int s, long cmd, void *argp);
-
-
-
+int lwip_ioctl(int s, unsigned long cmd, void *argp);
+int lwip_fcntl64(int s, int cmd, long arg);
+int lwip_fcntl(int s, int cmd, long arg);
 
 /*
  * Taken from sys/uio.h and bits/uio.h
