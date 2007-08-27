@@ -129,44 +129,13 @@ nr_ppc.arch = Syscall::Arch.new(:ppc)
 $:.unshift @template_dir
 template_dir = Dir.new(@template_dir)
 
-# Freezing object used in templates
-=begin
-nr_x86.freeze
-nr_x86_64.freeze
-nr_ppc.freeze
-nr_all.freeze
-=end
-
 umview_rscs = Parser::parse_syslist(@syscall_list_file)
-=begin
-umview_rscs.each { |k, v|
-  puts "### #{k} =>\n"
-  puts "    Headers: #{v.headers.join(', ')}"
-  puts "    Arguments:\n"
-  puts "#{v.args.join("\n")}"
-}
-=end
 # Setting which syscall are used in umview and which not
 nr_x86.set_used_by_umview(umview_rscs)
 nr_x86_64.set_used_by_umview(umview_rscs)
 nr_ppc.set_used_by_umview(umview_rscs)
 nr_all.set_used_by_umview(umview_rscs)
 nr_all_umview = nr_all.select{ |el| el.used_by_umview? }
-=begin
-# Debug: Test if there are some umview_rsc constant
-#         that are not in nr_all
-if(nr_all_umview.length != umview_rscs.length)
-	not_found = []
-	umview_rscs.keys.each { |rsc_const|
-	  found = false
-	  nr_all_umview.each { |el|
-	    found = true if el.rsc == rsc_const
-	  }
-	  not_found << rsc_const unless found
-	}
-	$stderr.puts "RSC constant in 'umview_rscs' but not found in 'nr_all' are: #{not_found.join(", ")}"
-end
-=end
 
 # Template parsing
 num_created_files = 0

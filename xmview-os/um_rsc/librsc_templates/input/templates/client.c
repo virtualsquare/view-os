@@ -18,8 +18,15 @@
      with this program; if not, write to the Free Software Foundation, Inc.,
      51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
 %>
+
+<%# These first two lines initialize two global variable used by the stub controller 
+  # to know:
+  # - the relative path respect the base directory taken in input by the compiler
+  # - the output filename
+  # For example the output file of this template must be saved as "src/rsc_client.c". %>
 <% @@librsc_relative_path = "/src/" %>
 <% @@filename = "rsc_client.c" %>
+<%# This instruction includes an external Ruby file, it's like the C #include directive %>
 <% require "common_code.rb" %>
 /*   
  *   This is part of Remote System Call (RSC) Library.
@@ -63,14 +70,25 @@
 #include <stdarg.h>
 
 
+<%# Creates the list of headers "header".  %>
 <%
   headers = []
+  # For each system call, its header list is added to "headers" array
   nr_all.each_umview { |syscall| headers << syscall.headers }
+
+  # headers is now an "array of array", the "flatten!" method transforms "headers"
+  # in a flatted array. Then its contents are sorted, the duplicates and 
+  # "utime.h" header are removed (this header is removed for some conflicts created
+  # by the inclusion of another header defining the same data types.)
   headers.flatten!.sort!.uniq!.delete("utime.h")
+
+  # Each entry inside "headers" is transformed into the C string: "#include <header name>"
   headers.collect!{ |hd| "#include <#{hd}>" }
 %>
+<%# The content of "header" is output in the final file, after each entry a '\n' is outputted %>
 <%= headers.join("\n") %>
 
+<%# This is normal C code, outputted as is into the final file %>
 #ifndef RSCDEBUG
 struct ioctl_cache_el {
   int request;
@@ -139,21 +157,44 @@ int rscc_init(int client_fd, int event_sub_fd, struct reg_cbs **rc, enum arch c_
 /*##  REQUEST CREATION FUNCTIONS                          ##*/
 /*##                                                      ##*/
 /*##########################################################*/
+<%# From here stats the main loop. The stub compiler provides to each template an array called "nr_all", 
+  # containing all the system calls gathered from the parsing of the four unistd.h files. 
+  # The method "each_umview" is an iterator, it iterates over the only system call supported by UMView;
+  # the list of these system call is provided by the parsing of the IDL file.
+  # Inside the block of the iterator (after the "do" keyword) the current system call is provided.
+  # In conclusion, the list of all the system call supported by UMView is iterated, for each iteration 
+  # the current element ("syscall") is provided inside the block %>
 
 <% nr_all.each_umview do |syscall| %>
+<%# This is an example of the use of the syscall object: the system call name is
+  # generate inside a C comment%>
 /* This function build the request for the system call '<%= syscall.name %>' */
+<%# Here the system call name is used to generate the name of the specific function.
+  # The "syscall.args" expression returns the system call specific arguments, they are joined by a comma and outputted into
+  # the function argument list %>
 struct iovec *rscc_create_<%= syscall.name %>_request(int *total_size, int *iovec_count, <%= syscall.args.join(', ') %>) {
   struct <%=syscall.name%>_req *req;
   enum rsc_constant rsc_const;
   int req_size;
+<%# If the system call has some read pointer arguments, the "int i" is defined %>
 <%  if syscall.has_read_args? %>
   int i;
 <%  end %>
   struct iovec *v;
   size_t vcount;
 
-<% if @@special_syscall[syscall.rsc] 
+<%# This was a hack added recently. @@special_syscall is a hash table defined into the
+  # "common_code.rb" file, they keys are the __RSC_* constants of some system calls 
+  # not supported in all the architectures, they values are arrays listing in which 
+  # architectures the system call is NOT supported.
+  # If the syscall.rsc constant is defined inside the hash table, the following code 
+  # generates a string saved inside the variable "cond". This string is a set of 
+  # or-separated equality tests. %>
+<%  # Tests if the syscall.rsc constant is defined inside the hash table
+    if @@special_syscall[syscall.rsc] 
     cond =  @@special_syscall[syscall.rsc].collect { |cost|
+              # Each constant inside the array associated with the "syscall.rsc" key
+              # is converted into the correspondent LibAConv architecture constant
               if cost == "__powerpc__"
                 next "ACONV_PPC"
               elsif cost == "__x86_64__"
@@ -161,30 +202,48 @@ struct iovec *rscc_create_<%= syscall.name %>_request(int *total_size, int *iove
               elsif cost == "__powerpc64__"
                 next "ACONV_PPC_64"
               end
+              # The next collect transforms the constant into an equality, and these 
+              # equalities are joined by an "or" operator.
               }.collect{|aconv| "server_arch == #{aconv}"}.join(" || ")
   %>
   /* If the destination architecture doesn't support this syscall, I return immediately */
+  <%# Print the conditions inside the "if" %> 
   if(<%=cond %>)
     return NULL;
-
 <%  end %>
 
-<%  if syscall.has_read_args? %>
-<% # I had the variables containing the size of the buffers, for the management of NULL values 
+<%# Here there is some code to manage the read pointer arguments, if they exist. %>
+<%  if syscall.has_read_args?
+      ### If the system call has some read pointers, I define one auxiliary C variable
+      ### for each of them; the name of these variables is:  
+      ### <original name of the variable containing the size of the pointed read memory>_value
+      ### These variables are defined to manage NULL read pointers.
+
+      # I iterate over the read pointers
       syscall.read_args.each do |arg| 
+      # I define the variable only of those pointer for which 
+      # there is a variable containing their size. 
+      # The method "is_size_a_var?" returns true if exists for the given 
+      # read pointer argument "arg" a "size variable"
         if(arg.is_size_a_var?) 
-          if(arg.size_var.type.pointer?)%> 
+          # If the "size variable" is a pointer, it's necessary to remove the '*' character
+          # from the type outputted. For this reason there is an if, and in the true-branch 
+          # there is a "sub(/\*/, '')" is called; The "strip" method removes the 
+          # leading and trailing white spaces.
+          if(arg.size_var.type.pointer?) %> 
   <%= arg.size_var.type.type.sub(/\*/, '').strip%> <%=arg.size_var.name%>_value;
 <%        else %>
   <%= arg.size_var.type.type %> <%=arg.size_var.name%>_value;
 <%        end %>
 <%      else %>
+  <%# If "arg" has not a "size variable" (maybe "arg" is a string), a int variable is defined %>
   int <%=arg.name%>_size_value;
 <%      end
-      end
+      end  # end of "syscall.read_args.each do |arg|" %>
+<%
+      ### If the pointed memory size is contained in another variable, which is a pointer 
+      ### and this pointer is NULL, there is an error.
       syscall.args.each do |arg| 
-        # It the buffer's size is contained in another variable, which is a pointer and this pointer
-        # is NULL, there is an error
         if(arg.type.pointer? && arg.is_size_a_var? && arg.size_var.type.pointer?) %>
   /* The size of '<%=arg.name%>' is contained in the memory pointed by '<%=arg.size_var.name%>',
    * but if the latter is NULL I cannot know the size of '<%=arg.name%>'. */
@@ -193,37 +252,51 @@ struct iovec *rscc_create_<%= syscall.name %>_request(int *total_size, int *iove
 <%
         end
       end
-    end
+    end # end of "if syscall.has_read_args?"
 %>
   
 
   req_size = sizeof(struct <%=syscall.name%>_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
-<%  syscall.args.each do |arg|
-      #req_size += aconv_array_size(my_arch, server_arch, 2, aconv_struct_timeval_size);
-  %>
+
+<%# For each argument, I call the function "aconv_size" defined into "common_code.rb" file.
+  # This function returns a string with the calling of the right LibAConv size function for
+  # the type of "arg". %>
+<%  syscall.args.each do |arg| %>
     req_size += <%=aconv_size(arg, "my_arch", "server_arch")%>;
 <%  end %>
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
-<%  if @@special_syscall[syscall.rsc] 
+<%# Another hack added to support the special system calls %>
+<%  if @@special_syscall[syscall.rsc]
+      # I get the values given the "syscall.rsc" key. For each value,
+      # I save the macro string into "str".
       @@special_syscall[syscall.rsc].each_with_index do |c, i| 
         str = "#ifdef #{c}"
         str = "#elif defined #{c}" if i != 0 %>
+<%# I print the string  %>
 <%=str%> 
+  /* The system call is not defined in this architecture, so I return NULL */
   return NULL;
 <%    end %>
 #else
-<%  end %> 
+<%  end # end of "if @@special_syscall[syscall.rsc]" %> 
+
+/* I get the __RSC_* constant */
+<%# If it's a network system call the "sys?" methods returns true because a SYS_* constant is defined %>
 <%  if syscall.sys? %>
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_<%=syscall.name%>, <%= syscall.sys? ? syscall.sys : NO_VALUE %>, my_arch)) == __RSC_ERROR ) {
 #else
 	if( (rsc_const = nr2rsc(__NR_socketcall, <%= syscall.sys? ? syscall.sys : NO_VALUE %>, my_arch)) == __RSC_ERROR ) {
 #endif
+<%# The array "@@x86_64_without64" is defined into the "common_code.rb" file. If syscall.nr is contained into that
+  # list I need to remove the trailing "64" before print the constant. %>
 <%  elsif @@x86_64_without64.include?(syscall.nr) %>
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_<%=syscall.name.sub(/64/, '')%>, <%= syscall.sys? ? syscall.sys : NO_VALUE %>, my_arch)) == __RSC_ERROR ) {
@@ -237,6 +310,7 @@ struct iovec *rscc_create_<%= syscall.name %>_request(int *total_size, int *iove
     free(req);
 	  return NULL;
   }
+<%# I print the closing #endif %>
 <% if @@special_syscall[syscall.rsc] %>
 #endif
 <%  end %>
@@ -245,20 +319,29 @@ struct iovec *rscc_create_<%= syscall.name %>_request(int *total_size, int *iove
   req->req_size = req_size;
 
 <%  if(syscall.has_read_args?) 
+      # For each read pointer argument "arg" I initialize two variables used some rows below.
       syscall.read_args.each do |arg| 
+        # I save the size variable name defined before into "size_arg_name" argument.
         size_arg_name = arg.is_size_a_var? ? "#{arg.size_var.name}_value" :  "#{arg.name}_size_value"
+        # If save the size value of the pointer into "size_arg_value".
         if(arg.is_size_a_var? && arg.size_var.type.pointer?)
           size_arg_value = "*#{arg.size_var.name}"
         else
-        size_arg_value = aconv_size(arg, "my_arch", "server_arch", true)
+          size_arg_value = aconv_size(arg, "my_arch", "server_arch", true)
         end
 %>
+  /* I manage the case in which the read pointer is NULL*/
+  <%# I use the "name" method on "arg" to get the name of the argument.
+    # I use the previously defined "size_arg_name" and "size_arg_value" to initialize
+    # the size variables %>
   if(<%=arg.name%> == NULL)
     <%=size_arg_name%> = 0;
   else
     <%=size_arg_name%> = <%=size_arg_value%>;
 <%    end 
     end %>
+<%# I create a list of all the size variable. To do so I select only the read arguments
+  # and I generate the variable names %>
 <%  size_list = syscall.args.select{|arg| arg.read?}.collect do |arg| 
                                                       if(arg.is_size_a_var?)
                                                         "#{arg.size_var.name}_value"
@@ -267,12 +350,20 @@ struct iovec *rscc_create_<%= syscall.name %>_request(int *total_size, int *iove
                                                       end 
                                                      end
 %>
+
+<%# If the list isn't empty, I print it. To do so I append a '+' sign after each element 
+  # using the "join" method %>
 <% if not size_list.empty? %>
   req->req_size += <%="#{size_list.join(' + ')}"%>;
 <%  end   %>
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
+<%# I iterate over all the arguments to generate the assignment code %>
 <%  syscall.args.each do |arg| 
+      # If "arg" is an array, I generate the assignment code for each item
       if arg.type.array? %>
     if(<%=arg.name%> != NULL) {
 <%      arg.type.array_size.times do |i| %>
@@ -286,19 +377,23 @@ struct iovec *rscc_create_<%= syscall.name %>_request(int *total_size, int *iove
 %>
   } else {
     void *mem = (void *)req + sizeof(struct sys_req_header);
+<%# I define some new variables %>
 <%  syscall.args.each do |arg| 
+      # If the argument IS a "size variable" and it's not a pointer, I save
+      # into "parg" the argument for which it is the "size variable".
       if (arg.is_a_size_var? and not arg.type.pointer?)
         parg = arg.pointer_arg
+        # If "parg" is a pointer and it's type is different from "void *" or "char *",
+        # I define the new C variable
         if(parg.type.pointer? and (parg.type.type !~ /void \*/ and parg.type.type !~ /char \*/)) %>
     <%=arg.type%> <%=arg.name%>_new = <%=arg.name%>;
 <%      end
       end 
     end%>
-<%    
-    syscall.args.each do |arg| 
+<%# For each argument I call the LibAConv functions  %>
+<%  syscall.args.each do |arg| 
       if arg.type.array? %>
     if(<%=arg.name%> != NULL) {
-<% # /* aconv_array(tv, my_arch, server_arch, 2, mem, aconv_struct_timeval_size, aconv_struct_timeval); */ %> 
       <%=aconv(arg, "my_arch", "server_arch", "mem")%>;
     }
 <%    else %>
@@ -319,8 +414,12 @@ struct iovec *rscc_create_<%= syscall.name %>_request(int *total_size, int *iove
 	  end
 %>
   }
-  <% # I manage read pointers 
-    if syscall.has_read_args?
+<%# I calculate the value of the Vector Vount "vcount", used to allocate
+  # the right memory area for the iovec structure. If there aren't read pointer
+  # "vcount" is equal to 1 because there is only the request header, otherwise I
+  # have to add the number of read pointers; to do so I select them from the argument
+  # list and I get the size of the resulting array.%>
+<%  if syscall.has_read_args?
       # the +1 is for the request structure  
       vcount = 1 + syscall.args.select{|arg| arg.read?}.length 
     else
@@ -329,6 +428,7 @@ struct iovec *rscc_create_<%= syscall.name %>_request(int *total_size, int *iove
       
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
+<%# Here I save the value of the Ruby "vcount" into the C "vcount" %>
   vcount = <%=vcount%>;
 <%    syscall.read_args.each do |arg| %>
   if(<%=arg.name%> == NULL)
@@ -344,6 +444,7 @@ struct iovec *rscc_create_<%= syscall.name %>_request(int *total_size, int *iove
   v[0].iov_base = req;
   v[0].iov_len = req_size;
   *total_size = v[0].iov_len;
+<%# I assign to the iovec elements the read pointers %>
 <%  if syscall.has_read_args? %>
   i = 1;
 <%  end%>
@@ -379,6 +480,7 @@ struct iovec *rscc_create_<%= syscall.name %>_request(int *total_size, int *iove
 <%    end %>
     }
     *total_size += v[i].iov_len;
+    <%# the following line prints a 'i++' if and only if the is not the last iteration %>
     <%= (i == (syscall.read_args.size - 1)) ? '' : 'i++;' %> 
   }
 <%    end %> 
@@ -389,6 +491,8 @@ struct iovec *rscc_create_<%= syscall.name %>_request(int *total_size, int *iove
       sizeof(struct <%=syscall.name%>_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
+  <%# The "list_str" and "list_arg" contain, respectively, the formatted string to print and
+    # the list of arguments. %>
   <% list_str = syscall.args.collect {|arg| "#{arg.name} = #{arg.type.printf_conv_spec} (0x%lX)"} 
     list_arg = syscall.args.collect {|arg| name = "req->#{arg.name}"; [name, name] }.flatten%>  
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: <%= list_str.join('; ') %>", <%= list_arg.join(', ')%>);
@@ -396,13 +500,17 @@ struct iovec *rscc_create_<%= syscall.name %>_request(int *total_size, int *iove
   return v;
 }
 
+<%# Here ends the iteration of over all the system calls supported by UMView to produce
+  # the definitions of the rscc_create_<system call name>_request() functions %>
 <% end %>
 
 /*##########################################################*/
 /*##                                                      ##*/
 /*##  RESPONSE MANAGEMENT FUNCTIONS                       ##*/
-/*##                                                      ##*/
+/*##                                                      ##*/ 
 /*##########################################################*/
+<%# Here the iteration over the system calls supported by UMView starts again, to produce
+  # the code for the rscc_manage_<system call name>_response() functions %>
 <% nr_all.each_umview do |syscall| %>
 struct iovec *rscc_manage_<%=syscall.name%>_response(struct sys_resp_header *resp_header, int *iovec_count, int *nbytes, <%= syscall.args.join(', ')%>) {
   struct iovec *v = NULL;
@@ -423,6 +531,7 @@ struct iovec *rscc_manage_<%=syscall.name%>_response(struct sys_resp_header *res
       resp_header->resp_retval, resp_header->resp_retval, 
       resp_header->resp_errno, resp_header->resp_errno);
 
+<%# I insert the code to manage write arguments, if they exist %>
 <%  if syscall.has_write_args?%>  
   /* I read the buffers */
   if(resp_header->resp_size > sizeof(struct sys_resp_header)) {
@@ -443,8 +552,11 @@ struct iovec *rscc_manage_<%=syscall.name%>_response(struct sys_resp_header *res
 	
 	    *nbytes = 0;
 	    i = 0;
-	  <%  read_sizes = []
-	      syscall.each_write_arg_with_index do |arg, j|
+    <%  read_sizes = []
+        # This iterator iterates over the write arguments and provides,
+        # inside the block, of the index besides of the argument
+        syscall.each_write_arg_with_index do |arg, j|
+          # Here I control if the write pointer "arg" has the <retval> tag.
 	        if(arg.size_retval?) 
 	  %> 
 	    if(<%=arg.name%> != NULL && resp_header->resp_retval > 0) {
@@ -481,6 +593,8 @@ struct iovec *rscc_manage_<%=syscall.name%>_response(struct sys_resp_header *res
 /*##  RSCC FUNCTIONS                                      ##*/
 /*##                                                      ##*/
 /*##########################################################*/
+<%# Here the iteration over the system calls supported by UMView starts again, to produce
+  # the code for the rscc_<system call name>() functions %>
 <% nr_all.each_umview do |syscall| %>
 int rscc_<%= syscall.name %>(<%= syscall.args.join(', ') %>) {
   struct sys_resp_header resp_header;

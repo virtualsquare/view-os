@@ -15,9 +15,17 @@
 #   GNU General Public License for more details.
 #
 
-# Returns the string to us in aconv functions:
+# This is a file grouping some functions and global variables used by 
+# different templates
+
+# It takes in input the argument "arg" and returns the name of the
+# LibAConv function to use to convert the element. 
+# The function doesn't return all the name of the LibAConv function,
+# but only the part depending on the specific type of are:
+#
 # aconv_<returned string>() and aconv_<returned string>_size()
-# If pointed == true and the type of "arg" is apointer, 
+#
+# If pointed == true and the type of "arg" is a pointer, 
 # the functions returns the name or the function
 # that manage the pointed memory, not the pointer it-self.
 def arg2aconv(arg, pointed = false)
@@ -66,7 +74,6 @@ def aconv(arg, a1, a2, pointer, pointed = false, prefix = "", arg_postfix = "")
   str += ")"
   
   if(typename == "array") 
-    # FIXME se the FIXME on aconv_size
     str = "aconv_#{typename}(#{arg.name}, #{a1}, #{a2}, #{arg.type.array_size}, #{pointer}, aconv_struct_timeval_size, aconv_struct_timeval)"
   end
   return str
@@ -100,7 +107,10 @@ def aconv_size(arg, a1, a2, pointed = false, prefix = "")
   return str
 end
 
-# Patch for 
+# The has table contains as keys the __RSC_* constants of some
+# system calls that are not defined in all the four architectures.
+# For each key, the value is an array the architecture constants 
+# where the system call is NOT defined.
 @@special_syscall = {
   "__RSC_chown32" => ["__powerpc__", "__x86_64__"],
   "__RSC_lchown32" => ["__powerpc__", "__x86_64__"],
@@ -110,6 +120,9 @@ end
   "__RSC_send" => ["__x86_64__"]
 }
 
+# It's a list of __NR_* constants of 64bit system calls. 
+# Into x86_64 architecture, these constants are defined without
+# the trailing "64".
 @@x86_64_without64 = [
 	'__NR_fstat64',
 	'__NR_fstatfs64',

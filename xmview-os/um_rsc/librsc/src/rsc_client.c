@@ -1,3 +1,4 @@
+
 /*   
  *   This is part of Remote System Call (RSC) Library.
  *
@@ -136,15 +137,18 @@ struct iovec *rscc_create__llseek_request(int *total_size, int *iovec_count, uns
   size_t vcount;
 
   /* If the destination architecture doesn't support this syscall, I return immediately */
+   
   if(server_arch == ACONV_X86_64)
     return NULL;
-
 
   
 
   req_size = sizeof(struct _llseek_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_u_int_size(my_arch, server_arch);
     req_size += aconv_u_long_size(my_arch, server_arch);
     req_size += aconv_u_long_size(my_arch, server_arch);
@@ -155,9 +159,11 @@ struct iovec *rscc_create__llseek_request(int *total_size, int *iovec_count, uns
   if(req == NULL)
     return NULL;
 #ifdef __x86_64__ 
+  /* The system call is not defined in this architecture, so I return NULL */
   return NULL;
 #else
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR__llseek, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -167,6 +173,10 @@ struct iovec *rscc_create__llseek_request(int *total_size, int *iovec_count, uns
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -187,7 +197,7 @@ struct iovec *rscc_create__llseek_request(int *total_size, int *iovec_count, uns
     aconv_u_int(&whence, my_arch, server_arch, mem); mem += aconv_u_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -209,7 +219,7 @@ struct iovec *rscc_create__llseek_request(int *total_size, int *iovec_count, uns
       sizeof(struct _llseek_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %u (0x%lX); offset_high = %lu (0x%lX); offset_low = %lu (0x%lX); result = %p (0x%lX); whence = %u (0x%lX)", req->fd, req->fd, req->offset_high, req->offset_high, req->offset_low, req->offset_low, req->result, req->result, req->whence, req->whence);
 
   return v;
@@ -225,7 +235,7 @@ struct iovec *rscc_create_accept_request(int *total_size, int *iovec_count, int 
   size_t vcount;
 
 
-  int addrlen_size_value;
+    int addrlen_size_value;
   /* The size of 'addr' is contained in the memory pointed by 'addrlen',
    * but if the latter is NULL I cannot know the size of 'addr'. */
   if(addr != NULL && addrlen == NULL)
@@ -233,8 +243,11 @@ struct iovec *rscc_create_accept_request(int *total_size, int *iovec_count, int 
   
 
   req_size = sizeof(struct accept_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
@@ -242,7 +255,8 @@ struct iovec *rscc_create_accept_request(int *total_size, int *iovec_count, int 
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_accept, SYS_ACCEPT, my_arch)) == __RSC_ERROR ) {
 #else
@@ -255,11 +269,16 @@ struct iovec *rscc_create_accept_request(int *total_size, int *iovec_count, int 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(addrlen == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(addrlen == NULL)
     addrlen_size_value = 0;
   else
     addrlen_size_value = aconv_socklen_t_size(my_arch, server_arch);
+
   req->req_size += addrlen_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->sockfd = sockfd; 
@@ -274,7 +293,7 @@ struct iovec *rscc_create_accept_request(int *total_size, int *iovec_count, int 
     aconv_pointer(addrlen, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -307,7 +326,7 @@ struct iovec *rscc_create_accept_request(int *total_size, int *iovec_count, int 
       aconv_socklen_t(&addrlen_new, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -317,7 +336,7 @@ struct iovec *rscc_create_accept_request(int *total_size, int *iovec_count, int 
       sizeof(struct accept_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: sockfd = %ld (0x%lX); addr = %p (0x%lX); addrlen = %p (0x%lX)", req->sockfd, req->sockfd, req->addr, req->addr, req->addrlen, req->addrlen);
 
   return v;
@@ -333,19 +352,23 @@ struct iovec *rscc_create_access_request(int *total_size, int *iovec_count, char
   size_t vcount;
 
 
-  int pathname_size_value;
+    int pathname_size_value;
   
 
   req_size = sizeof(struct access_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_int_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_access, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -354,11 +377,16 @@ struct iovec *rscc_create_access_request(int *total_size, int *iovec_count, char
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(pathname == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(pathname == NULL)
     pathname_size_value = 0;
   else
     pathname_size_value = aconv_string_size(pathname, my_arch, server_arch);
+
   req->req_size += pathname_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->pathname = pathname; 
@@ -370,7 +398,7 @@ struct iovec *rscc_create_access_request(int *total_size, int *iovec_count, char
     aconv_int(&mode, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -400,7 +428,7 @@ struct iovec *rscc_create_access_request(int *total_size, int *iovec_count, char
       aconv_string(pathname, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -410,7 +438,7 @@ struct iovec *rscc_create_access_request(int *total_size, int *iovec_count, char
       sizeof(struct access_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: pathname = %p (0x%lX); mode = %ld (0x%lX)", req->pathname, req->pathname, req->mode, req->mode);
 
   return v;
@@ -426,18 +454,22 @@ struct iovec *rscc_create_adjtimex_request(int *total_size, int *iovec_count, st
   size_t vcount;
 
 
-  int buf_size_value;
+    int buf_size_value;
   
 
   req_size = sizeof(struct adjtimex_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_adjtimex, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -446,11 +478,16 @@ struct iovec *rscc_create_adjtimex_request(int *total_size, int *iovec_count, st
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(buf == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(buf == NULL)
     buf_size_value = 0;
   else
     buf_size_value = aconv_struct_timex_size(my_arch, server_arch);
+
   req->req_size += buf_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->buf = buf; 
@@ -459,7 +496,7 @@ struct iovec *rscc_create_adjtimex_request(int *total_size, int *iovec_count, st
     aconv_pointer(buf, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -489,7 +526,7 @@ struct iovec *rscc_create_adjtimex_request(int *total_size, int *iovec_count, st
       aconv_struct_timex(buf, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -499,7 +536,7 @@ struct iovec *rscc_create_adjtimex_request(int *total_size, int *iovec_count, st
       sizeof(struct adjtimex_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: buf = %p (0x%lX)", req->buf, req->buf);
 
   return v;
@@ -519,8 +556,11 @@ struct iovec *rscc_create_bind_request(int *total_size, int *iovec_count, int so
   
 
   req_size = sizeof(struct bind_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_socklen_t_size(my_arch, server_arch);
@@ -528,7 +568,8 @@ struct iovec *rscc_create_bind_request(int *total_size, int *iovec_count, int so
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_bind, SYS_BIND, my_arch)) == __RSC_ERROR ) {
 #else
@@ -541,11 +582,16 @@ struct iovec *rscc_create_bind_request(int *total_size, int *iovec_count, int so
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(my_addr == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(my_addr == NULL)
     addrlen_value = 0;
   else
     addrlen_value = aconv_struct_sockaddr_size(my_arch, server_arch);
+
   req->req_size += addrlen_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->sockfd = sockfd; 
@@ -562,7 +608,7 @@ struct iovec *rscc_create_bind_request(int *total_size, int *iovec_count, int so
       addrlen_new = aconv_struct_sockaddr_size(my_arch, server_arch);
     aconv_socklen_t(&addrlen_new, my_arch, server_arch, mem); mem += aconv_socklen_t_size(my_arch, server_arch);
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -592,7 +638,7 @@ struct iovec *rscc_create_bind_request(int *total_size, int *iovec_count, int so
       aconv_struct_sockaddr(my_addr, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -602,7 +648,7 @@ struct iovec *rscc_create_bind_request(int *total_size, int *iovec_count, int so
       sizeof(struct bind_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: sockfd = %ld (0x%lX); my_addr = %p (0x%lX); addrlen = %ld (0x%lX)", req->sockfd, req->sockfd, req->my_addr, req->my_addr, req->addrlen, req->addrlen);
 
   return v;
@@ -618,18 +664,22 @@ struct iovec *rscc_create_chdir_request(int *total_size, int *iovec_count, char 
   size_t vcount;
 
 
-  int path_size_value;
+    int path_size_value;
   
 
   req_size = sizeof(struct chdir_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_chdir, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -638,11 +688,16 @@ struct iovec *rscc_create_chdir_request(int *total_size, int *iovec_count, char 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(path == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(path == NULL)
     path_size_value = 0;
   else
     path_size_value = aconv_string_size(path, my_arch, server_arch);
+
   req->req_size += path_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->path = path; 
@@ -651,7 +706,7 @@ struct iovec *rscc_create_chdir_request(int *total_size, int *iovec_count, char 
     aconv_pointer(path, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -681,7 +736,7 @@ struct iovec *rscc_create_chdir_request(int *total_size, int *iovec_count, char 
       aconv_string(path, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -691,7 +746,7 @@ struct iovec *rscc_create_chdir_request(int *total_size, int *iovec_count, char 
       sizeof(struct chdir_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: path = %p (0x%lX)", req->path, req->path);
 
   return v;
@@ -707,19 +762,23 @@ struct iovec *rscc_create_chmod_request(int *total_size, int *iovec_count, char 
   size_t vcount;
 
 
-  int path_size_value;
+    int path_size_value;
   
 
   req_size = sizeof(struct chmod_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_mode_t_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_chmod, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -728,11 +787,16 @@ struct iovec *rscc_create_chmod_request(int *total_size, int *iovec_count, char 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(path == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(path == NULL)
     path_size_value = 0;
   else
     path_size_value = aconv_string_size(path, my_arch, server_arch);
+
   req->req_size += path_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->path = path; 
@@ -744,7 +808,7 @@ struct iovec *rscc_create_chmod_request(int *total_size, int *iovec_count, char 
     aconv_mode_t(&mode, my_arch, server_arch, mem); mem += aconv_mode_t_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -774,7 +838,7 @@ struct iovec *rscc_create_chmod_request(int *total_size, int *iovec_count, char 
       aconv_string(path, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -784,7 +848,7 @@ struct iovec *rscc_create_chmod_request(int *total_size, int *iovec_count, char 
       sizeof(struct chmod_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: path = %p (0x%lX); mode = %ld (0x%lX)", req->path, req->path, req->mode, req->mode);
 
   return v;
@@ -800,12 +864,15 @@ struct iovec *rscc_create_chown_request(int *total_size, int *iovec_count, char 
   size_t vcount;
 
 
-  int path_size_value;
+    int path_size_value;
   
 
   req_size = sizeof(struct chown_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_uid_t_size(my_arch, server_arch);
     req_size += aconv_gid_t_size(my_arch, server_arch);
@@ -813,7 +880,8 @@ struct iovec *rscc_create_chown_request(int *total_size, int *iovec_count, char 
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_chown, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -822,11 +890,16 @@ struct iovec *rscc_create_chown_request(int *total_size, int *iovec_count, char 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(path == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(path == NULL)
     path_size_value = 0;
   else
     path_size_value = aconv_string_size(path, my_arch, server_arch);
+
   req->req_size += path_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->path = path; 
@@ -841,7 +914,7 @@ struct iovec *rscc_create_chown_request(int *total_size, int *iovec_count, char 
     aconv_gid_t(&group, my_arch, server_arch, mem); mem += aconv_gid_t_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -871,7 +944,7 @@ struct iovec *rscc_create_chown_request(int *total_size, int *iovec_count, char 
       aconv_string(path, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -881,7 +954,7 @@ struct iovec *rscc_create_chown_request(int *total_size, int *iovec_count, char 
       sizeof(struct chown_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: path = %p (0x%lX); owner = %ld (0x%lX); group = %ld (0x%lX)", req->path, req->path, req->owner, req->owner, req->group, req->group);
 
   return v;
@@ -897,16 +970,19 @@ struct iovec *rscc_create_chown32_request(int *total_size, int *iovec_count, cha
   size_t vcount;
 
   /* If the destination architecture doesn't support this syscall, I return immediately */
+   
   if(server_arch == ACONV_PPC || server_arch == ACONV_X86_64)
     return NULL;
 
-
-  int path_size_value;
+    int path_size_value;
   
 
   req_size = sizeof(struct chown32_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_uid_t_size(my_arch, server_arch);
     req_size += aconv_gid_t_size(my_arch, server_arch);
@@ -915,11 +991,14 @@ struct iovec *rscc_create_chown32_request(int *total_size, int *iovec_count, cha
   if(req == NULL)
     return NULL;
 #ifdef __powerpc__ 
+  /* The system call is not defined in this architecture, so I return NULL */
   return NULL;
 #elif defined __x86_64__ 
+  /* The system call is not defined in this architecture, so I return NULL */
   return NULL;
 #else
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_chown32, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -929,11 +1008,16 @@ struct iovec *rscc_create_chown32_request(int *total_size, int *iovec_count, cha
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(path == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(path == NULL)
     path_size_value = 0;
   else
     path_size_value = aconv_string_size(path, my_arch, server_arch);
+
   req->req_size += path_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->path = path; 
@@ -948,7 +1032,7 @@ struct iovec *rscc_create_chown32_request(int *total_size, int *iovec_count, cha
     aconv_gid_t(&group, my_arch, server_arch, mem); mem += aconv_gid_t_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -978,7 +1062,7 @@ struct iovec *rscc_create_chown32_request(int *total_size, int *iovec_count, cha
       aconv_string(path, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -988,7 +1072,7 @@ struct iovec *rscc_create_chown32_request(int *total_size, int *iovec_count, cha
       sizeof(struct chown32_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: path = %p (0x%lX); owner = %ld (0x%lX); group = %ld (0x%lX)", req->path, req->path, req->owner, req->owner, req->group, req->group);
 
   return v;
@@ -1006,15 +1090,19 @@ struct iovec *rscc_create_clock_getres_request(int *total_size, int *iovec_count
   
 
   req_size = sizeof(struct clock_getres_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_clockid_t_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_clock_getres, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -1023,6 +1111,10 @@ struct iovec *rscc_create_clock_getres_request(int *total_size, int *iovec_count
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->clk_id = clk_id; 
@@ -1034,7 +1126,7 @@ struct iovec *rscc_create_clock_getres_request(int *total_size, int *iovec_count
     aconv_pointer(res, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -1056,7 +1148,7 @@ struct iovec *rscc_create_clock_getres_request(int *total_size, int *iovec_count
       sizeof(struct clock_getres_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: clk_id = %ld (0x%lX); res = %p (0x%lX)", req->clk_id, req->clk_id, req->res, req->res);
 
   return v;
@@ -1074,15 +1166,19 @@ struct iovec *rscc_create_clock_gettime_request(int *total_size, int *iovec_coun
   
 
   req_size = sizeof(struct clock_gettime_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_clockid_t_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_clock_gettime, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -1091,6 +1187,10 @@ struct iovec *rscc_create_clock_gettime_request(int *total_size, int *iovec_coun
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->clk_id = clk_id; 
@@ -1102,7 +1202,7 @@ struct iovec *rscc_create_clock_gettime_request(int *total_size, int *iovec_coun
     aconv_pointer(tp, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -1124,7 +1224,7 @@ struct iovec *rscc_create_clock_gettime_request(int *total_size, int *iovec_coun
       sizeof(struct clock_gettime_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: clk_id = %ld (0x%lX); tp = %p (0x%lX)", req->clk_id, req->clk_id, req->tp, req->tp);
 
   return v;
@@ -1140,19 +1240,23 @@ struct iovec *rscc_create_clock_settime_request(int *total_size, int *iovec_coun
   size_t vcount;
 
 
-  int tp_size_value;
+    int tp_size_value;
   
 
   req_size = sizeof(struct clock_settime_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_clockid_t_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_clock_settime, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -1161,11 +1265,16 @@ struct iovec *rscc_create_clock_settime_request(int *total_size, int *iovec_coun
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(tp == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(tp == NULL)
     tp_size_value = 0;
   else
     tp_size_value = aconv_struct_timespec_size(my_arch, server_arch);
+
   req->req_size += tp_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->clk_id = clk_id; 
@@ -1177,7 +1286,7 @@ struct iovec *rscc_create_clock_settime_request(int *total_size, int *iovec_coun
     aconv_pointer(tp, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -1207,7 +1316,7 @@ struct iovec *rscc_create_clock_settime_request(int *total_size, int *iovec_coun
       aconv_struct_timespec(tp, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -1217,7 +1326,7 @@ struct iovec *rscc_create_clock_settime_request(int *total_size, int *iovec_coun
       sizeof(struct clock_settime_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: clk_id = %ld (0x%lX); tp = %p (0x%lX)", req->clk_id, req->clk_id, req->tp, req->tp);
 
   return v;
@@ -1235,14 +1344,18 @@ struct iovec *rscc_create_close_request(int *total_size, int *iovec_count, int f
   
 
   req_size = sizeof(struct close_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_close, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -1251,6 +1364,10 @@ struct iovec *rscc_create_close_request(int *total_size, int *iovec_count, int f
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -1259,7 +1376,7 @@ struct iovec *rscc_create_close_request(int *total_size, int *iovec_count, int f
     aconv_int(&fd, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -1281,7 +1398,7 @@ struct iovec *rscc_create_close_request(int *total_size, int *iovec_count, int f
       sizeof(struct close_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %ld (0x%lX)", req->fd, req->fd);
 
   return v;
@@ -1301,8 +1418,11 @@ struct iovec *rscc_create_connect_request(int *total_size, int *iovec_count, int
   
 
   req_size = sizeof(struct connect_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_socklen_t_size(my_arch, server_arch);
@@ -1310,7 +1430,8 @@ struct iovec *rscc_create_connect_request(int *total_size, int *iovec_count, int
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_connect, SYS_CONNECT, my_arch)) == __RSC_ERROR ) {
 #else
@@ -1323,11 +1444,16 @@ struct iovec *rscc_create_connect_request(int *total_size, int *iovec_count, int
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(serv_addr == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(serv_addr == NULL)
     addrlen_value = 0;
   else
     addrlen_value = aconv_struct_sockaddr_size(my_arch, server_arch);
+
   req->req_size += addrlen_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->sockfd = sockfd; 
@@ -1344,7 +1470,7 @@ struct iovec *rscc_create_connect_request(int *total_size, int *iovec_count, int
       addrlen_new = aconv_struct_sockaddr_size(my_arch, server_arch);
     aconv_socklen_t(&addrlen_new, my_arch, server_arch, mem); mem += aconv_socklen_t_size(my_arch, server_arch);
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -1374,7 +1500,7 @@ struct iovec *rscc_create_connect_request(int *total_size, int *iovec_count, int
       aconv_struct_sockaddr(serv_addr, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -1384,7 +1510,7 @@ struct iovec *rscc_create_connect_request(int *total_size, int *iovec_count, int
       sizeof(struct connect_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: sockfd = %ld (0x%lX); serv_addr = %p (0x%lX); addrlen = %ld (0x%lX)", req->sockfd, req->sockfd, req->serv_addr, req->serv_addr, req->addrlen, req->addrlen);
 
   return v;
@@ -1402,14 +1528,18 @@ struct iovec *rscc_create_dup_request(int *total_size, int *iovec_count, int old
   
 
   req_size = sizeof(struct dup_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_dup, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -1418,6 +1548,10 @@ struct iovec *rscc_create_dup_request(int *total_size, int *iovec_count, int old
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->oldfd = oldfd; 
@@ -1426,7 +1560,7 @@ struct iovec *rscc_create_dup_request(int *total_size, int *iovec_count, int old
     aconv_int(&oldfd, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -1448,7 +1582,7 @@ struct iovec *rscc_create_dup_request(int *total_size, int *iovec_count, int old
       sizeof(struct dup_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: oldfd = %ld (0x%lX)", req->oldfd, req->oldfd);
 
   return v;
@@ -1466,15 +1600,19 @@ struct iovec *rscc_create_dup2_request(int *total_size, int *iovec_count, int ol
   
 
   req_size = sizeof(struct dup2_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_int_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_dup2, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -1483,6 +1621,10 @@ struct iovec *rscc_create_dup2_request(int *total_size, int *iovec_count, int ol
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->oldfd = oldfd; 
@@ -1494,7 +1636,7 @@ struct iovec *rscc_create_dup2_request(int *total_size, int *iovec_count, int ol
     aconv_int(&newfd, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -1516,7 +1658,7 @@ struct iovec *rscc_create_dup2_request(int *total_size, int *iovec_count, int ol
       sizeof(struct dup2_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: oldfd = %ld (0x%lX); newfd = %ld (0x%lX)", req->oldfd, req->oldfd, req->newfd, req->newfd);
 
   return v;
@@ -1534,14 +1676,18 @@ struct iovec *rscc_create_fchdir_request(int *total_size, int *iovec_count, int 
   
 
   req_size = sizeof(struct fchdir_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_fchdir, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -1550,6 +1696,10 @@ struct iovec *rscc_create_fchdir_request(int *total_size, int *iovec_count, int 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -1558,7 +1708,7 @@ struct iovec *rscc_create_fchdir_request(int *total_size, int *iovec_count, int 
     aconv_int(&fd, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -1580,7 +1730,7 @@ struct iovec *rscc_create_fchdir_request(int *total_size, int *iovec_count, int 
       sizeof(struct fchdir_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %ld (0x%lX)", req->fd, req->fd);
 
   return v;
@@ -1598,15 +1748,19 @@ struct iovec *rscc_create_fchmod_request(int *total_size, int *iovec_count, int 
   
 
   req_size = sizeof(struct fchmod_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_mode_t_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_fchmod, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -1615,6 +1769,10 @@ struct iovec *rscc_create_fchmod_request(int *total_size, int *iovec_count, int 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fildes = fildes; 
@@ -1626,7 +1784,7 @@ struct iovec *rscc_create_fchmod_request(int *total_size, int *iovec_count, int 
     aconv_mode_t(&mode, my_arch, server_arch, mem); mem += aconv_mode_t_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -1648,7 +1806,7 @@ struct iovec *rscc_create_fchmod_request(int *total_size, int *iovec_count, int 
       sizeof(struct fchmod_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fildes = %ld (0x%lX); mode = %ld (0x%lX)", req->fildes, req->fildes, req->mode, req->mode);
 
   return v;
@@ -1666,8 +1824,11 @@ struct iovec *rscc_create_fchown_request(int *total_size, int *iovec_count, int 
   
 
   req_size = sizeof(struct fchown_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_uid_t_size(my_arch, server_arch);
     req_size += aconv_gid_t_size(my_arch, server_arch);
@@ -1675,7 +1836,8 @@ struct iovec *rscc_create_fchown_request(int *total_size, int *iovec_count, int 
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_fchown, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -1684,6 +1846,10 @@ struct iovec *rscc_create_fchown_request(int *total_size, int *iovec_count, int 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -1698,7 +1864,7 @@ struct iovec *rscc_create_fchown_request(int *total_size, int *iovec_count, int 
     aconv_gid_t(&group, my_arch, server_arch, mem); mem += aconv_gid_t_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -1720,7 +1886,7 @@ struct iovec *rscc_create_fchown_request(int *total_size, int *iovec_count, int 
       sizeof(struct fchown_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %ld (0x%lX); owner = %ld (0x%lX); group = %ld (0x%lX)", req->fd, req->fd, req->owner, req->owner, req->group, req->group);
 
   return v;
@@ -1735,15 +1901,18 @@ struct iovec *rscc_create_fchown32_request(int *total_size, int *iovec_count, in
   size_t vcount;
 
   /* If the destination architecture doesn't support this syscall, I return immediately */
+   
   if(server_arch == ACONV_PPC || server_arch == ACONV_X86_64)
     return NULL;
-
 
   
 
   req_size = sizeof(struct fchown32_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_uid_t_size(my_arch, server_arch);
     req_size += aconv_gid_t_size(my_arch, server_arch);
@@ -1752,11 +1921,14 @@ struct iovec *rscc_create_fchown32_request(int *total_size, int *iovec_count, in
   if(req == NULL)
     return NULL;
 #ifdef __powerpc__ 
+  /* The system call is not defined in this architecture, so I return NULL */
   return NULL;
 #elif defined __x86_64__ 
+  /* The system call is not defined in this architecture, so I return NULL */
   return NULL;
 #else
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_fchown32, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -1766,6 +1938,10 @@ struct iovec *rscc_create_fchown32_request(int *total_size, int *iovec_count, in
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -1780,7 +1956,7 @@ struct iovec *rscc_create_fchown32_request(int *total_size, int *iovec_count, in
     aconv_gid_t(&group, my_arch, server_arch, mem); mem += aconv_gid_t_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -1802,7 +1978,7 @@ struct iovec *rscc_create_fchown32_request(int *total_size, int *iovec_count, in
       sizeof(struct fchown32_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %ld (0x%lX); owner = %ld (0x%lX); group = %ld (0x%lX)", req->fd, req->fd, req->owner, req->owner, req->group, req->group);
 
   return v;
@@ -1820,14 +1996,18 @@ struct iovec *rscc_create_fdatasync_request(int *total_size, int *iovec_count, i
   
 
   req_size = sizeof(struct fdatasync_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_fdatasync, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -1836,6 +2016,10 @@ struct iovec *rscc_create_fdatasync_request(int *total_size, int *iovec_count, i
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -1844,7 +2028,7 @@ struct iovec *rscc_create_fdatasync_request(int *total_size, int *iovec_count, i
     aconv_int(&fd, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -1866,7 +2050,7 @@ struct iovec *rscc_create_fdatasync_request(int *total_size, int *iovec_count, i
       sizeof(struct fdatasync_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %ld (0x%lX)", req->fd, req->fd);
 
   return v;
@@ -1882,12 +2066,15 @@ struct iovec *rscc_create_fgetxattr_request(int *total_size, int *iovec_count, i
   size_t vcount;
 
 
-  int name_size_value;
+    int name_size_value;
   
 
   req_size = sizeof(struct fgetxattr_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
@@ -1896,7 +2083,8 @@ struct iovec *rscc_create_fgetxattr_request(int *total_size, int *iovec_count, i
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_fgetxattr, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -1905,11 +2093,16 @@ struct iovec *rscc_create_fgetxattr_request(int *total_size, int *iovec_count, i
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(name == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(name == NULL)
     name_size_value = 0;
   else
     name_size_value = aconv_string_size(name, my_arch, server_arch);
+
   req->req_size += name_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->filedes = filedes; 
@@ -1926,7 +2119,7 @@ struct iovec *rscc_create_fgetxattr_request(int *total_size, int *iovec_count, i
     
     aconv_size_t(&size, my_arch, server_arch, mem); mem += aconv_size_t_size(my_arch, server_arch);
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -1956,7 +2149,7 @@ struct iovec *rscc_create_fgetxattr_request(int *total_size, int *iovec_count, i
       aconv_string(name, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -1966,7 +2159,7 @@ struct iovec *rscc_create_fgetxattr_request(int *total_size, int *iovec_count, i
       sizeof(struct fgetxattr_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: filedes = %ld (0x%lX); name = %p (0x%lX); value = %p (0x%lX); size = %ld (0x%lX)", req->filedes, req->filedes, req->name, req->name, req->value, req->value, req->size, req->size);
 
   return v;
@@ -1984,15 +2177,19 @@ struct iovec *rscc_create_fstat64_request(int *total_size, int *iovec_count, int
   
 
   req_size = sizeof(struct fstat64_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_fstat, NO_VALUE, my_arch)) == __RSC_ERROR ) {
 #else
@@ -2006,6 +2203,10 @@ struct iovec *rscc_create_fstat64_request(int *total_size, int *iovec_count, int
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->filedes = filedes; 
@@ -2017,7 +2218,7 @@ struct iovec *rscc_create_fstat64_request(int *total_size, int *iovec_count, int
     aconv_pointer(buf, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -2039,7 +2240,7 @@ struct iovec *rscc_create_fstat64_request(int *total_size, int *iovec_count, int
       sizeof(struct fstat64_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: filedes = %ld (0x%lX); buf = %p (0x%lX)", req->filedes, req->filedes, req->buf, req->buf);
 
   return v;
@@ -2057,15 +2258,19 @@ struct iovec *rscc_create_fstatfs64_request(int *total_size, int *iovec_count, u
   
 
   req_size = sizeof(struct fstatfs64_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_u_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_fstatfs, NO_VALUE, my_arch)) == __RSC_ERROR ) {
 #else
@@ -2079,6 +2284,10 @@ struct iovec *rscc_create_fstatfs64_request(int *total_size, int *iovec_count, u
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -2090,7 +2299,7 @@ struct iovec *rscc_create_fstatfs64_request(int *total_size, int *iovec_count, u
     aconv_pointer(buf, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -2112,7 +2321,7 @@ struct iovec *rscc_create_fstatfs64_request(int *total_size, int *iovec_count, u
       sizeof(struct fstatfs64_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %u (0x%lX); buf = %p (0x%lX)", req->fd, req->fd, req->buf, req->buf);
 
   return v;
@@ -2130,14 +2339,18 @@ struct iovec *rscc_create_fsync_request(int *total_size, int *iovec_count, int f
   
 
   req_size = sizeof(struct fsync_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_fsync, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -2146,6 +2359,10 @@ struct iovec *rscc_create_fsync_request(int *total_size, int *iovec_count, int f
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -2154,7 +2371,7 @@ struct iovec *rscc_create_fsync_request(int *total_size, int *iovec_count, int f
     aconv_int(&fd, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -2176,7 +2393,7 @@ struct iovec *rscc_create_fsync_request(int *total_size, int *iovec_count, int f
       sizeof(struct fsync_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %ld (0x%lX)", req->fd, req->fd);
 
   return v;
@@ -2194,15 +2411,19 @@ struct iovec *rscc_create_ftruncate64_request(int *total_size, int *iovec_count,
   
 
   req_size = sizeof(struct ftruncate64_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv___off64_t_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_ftruncate, NO_VALUE, my_arch)) == __RSC_ERROR ) {
 #else
@@ -2216,6 +2437,10 @@ struct iovec *rscc_create_ftruncate64_request(int *total_size, int *iovec_count,
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -2227,7 +2452,7 @@ struct iovec *rscc_create_ftruncate64_request(int *total_size, int *iovec_count,
     aconv___off64_t(&length, my_arch, server_arch, mem); mem += aconv___off64_t_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -2249,7 +2474,7 @@ struct iovec *rscc_create_ftruncate64_request(int *total_size, int *iovec_count,
       sizeof(struct ftruncate64_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %ld (0x%lX); length = %ld (0x%lX)", req->fd, req->fd, req->length, req->length);
 
   return v;
@@ -2267,8 +2492,11 @@ struct iovec *rscc_create_getdents64_request(int *total_size, int *iovec_count, 
   
 
   req_size = sizeof(struct getdents64_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_u_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_u_int_size(my_arch, server_arch);
@@ -2276,7 +2504,8 @@ struct iovec *rscc_create_getdents64_request(int *total_size, int *iovec_count, 
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_getdents64, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -2285,6 +2514,10 @@ struct iovec *rscc_create_getdents64_request(int *total_size, int *iovec_count, 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -2301,7 +2534,7 @@ struct iovec *rscc_create_getdents64_request(int *total_size, int *iovec_count, 
       count_new = aconv_struct_dirent64_size(my_arch, server_arch);
     aconv_u_int(&count_new, my_arch, server_arch, mem); mem += aconv_u_int_size(my_arch, server_arch);
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -2323,7 +2556,7 @@ struct iovec *rscc_create_getdents64_request(int *total_size, int *iovec_count, 
       sizeof(struct getdents64_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %u (0x%lX); dirp = %p (0x%lX); count = %u (0x%lX)", req->fd, req->fd, req->dirp, req->dirp, req->count, req->count);
 
   return v;
@@ -2339,7 +2572,7 @@ struct iovec *rscc_create_getpeername_request(int *total_size, int *iovec_count,
   size_t vcount;
 
 
-  int namelen_size_value;
+    int namelen_size_value;
   /* The size of 'name' is contained in the memory pointed by 'namelen',
    * but if the latter is NULL I cannot know the size of 'name'. */
   if(name != NULL && namelen == NULL)
@@ -2347,8 +2580,11 @@ struct iovec *rscc_create_getpeername_request(int *total_size, int *iovec_count,
   
 
   req_size = sizeof(struct getpeername_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
@@ -2356,7 +2592,8 @@ struct iovec *rscc_create_getpeername_request(int *total_size, int *iovec_count,
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_getpeername, SYS_GETPEERNAME, my_arch)) == __RSC_ERROR ) {
 #else
@@ -2369,11 +2606,16 @@ struct iovec *rscc_create_getpeername_request(int *total_size, int *iovec_count,
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(namelen == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(namelen == NULL)
     namelen_size_value = 0;
   else
     namelen_size_value = aconv_socklen_t_size(my_arch, server_arch);
+
   req->req_size += namelen_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->s = s; 
@@ -2388,7 +2630,7 @@ struct iovec *rscc_create_getpeername_request(int *total_size, int *iovec_count,
     aconv_pointer(namelen, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -2421,7 +2663,7 @@ struct iovec *rscc_create_getpeername_request(int *total_size, int *iovec_count,
       aconv_socklen_t(&namelen_new, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -2431,7 +2673,7 @@ struct iovec *rscc_create_getpeername_request(int *total_size, int *iovec_count,
       sizeof(struct getpeername_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: s = %ld (0x%lX); name = %p (0x%lX); namelen = %p (0x%lX)", req->s, req->s, req->name, req->name, req->namelen, req->namelen);
 
   return v;
@@ -2447,7 +2689,7 @@ struct iovec *rscc_create_getsockname_request(int *total_size, int *iovec_count,
   size_t vcount;
 
 
-  int namelen_size_value;
+    int namelen_size_value;
   /* The size of 'name' is contained in the memory pointed by 'namelen',
    * but if the latter is NULL I cannot know the size of 'name'. */
   if(name != NULL && namelen == NULL)
@@ -2455,8 +2697,11 @@ struct iovec *rscc_create_getsockname_request(int *total_size, int *iovec_count,
   
 
   req_size = sizeof(struct getsockname_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
@@ -2464,7 +2709,8 @@ struct iovec *rscc_create_getsockname_request(int *total_size, int *iovec_count,
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_getsockname, SYS_GETSOCKNAME, my_arch)) == __RSC_ERROR ) {
 #else
@@ -2477,11 +2723,16 @@ struct iovec *rscc_create_getsockname_request(int *total_size, int *iovec_count,
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(namelen == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(namelen == NULL)
     namelen_size_value = 0;
   else
     namelen_size_value = aconv_socklen_t_size(my_arch, server_arch);
+
   req->req_size += namelen_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->s = s; 
@@ -2496,7 +2747,7 @@ struct iovec *rscc_create_getsockname_request(int *total_size, int *iovec_count,
     aconv_pointer(namelen, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -2529,7 +2780,7 @@ struct iovec *rscc_create_getsockname_request(int *total_size, int *iovec_count,
       aconv_socklen_t(&namelen_new, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -2539,7 +2790,7 @@ struct iovec *rscc_create_getsockname_request(int *total_size, int *iovec_count,
       sizeof(struct getsockname_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: s = %ld (0x%lX); name = %p (0x%lX); namelen = %p (0x%lX)", req->s, req->s, req->name, req->name, req->namelen, req->namelen);
 
   return v;
@@ -2555,7 +2806,7 @@ struct iovec *rscc_create_getsockopt_request(int *total_size, int *iovec_count, 
   size_t vcount;
 
 
-  int optlen_size_value;
+    int optlen_size_value;
   /* The size of 'optval' is contained in the memory pointed by 'optlen',
    * but if the latter is NULL I cannot know the size of 'optval'. */
   if(optval != NULL && optlen == NULL)
@@ -2563,8 +2814,11 @@ struct iovec *rscc_create_getsockopt_request(int *total_size, int *iovec_count, 
   
 
   req_size = sizeof(struct getsockopt_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_int_size(my_arch, server_arch);
@@ -2574,7 +2828,8 @@ struct iovec *rscc_create_getsockopt_request(int *total_size, int *iovec_count, 
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_getsockopt, SYS_GETSOCKOPT, my_arch)) == __RSC_ERROR ) {
 #else
@@ -2587,11 +2842,16 @@ struct iovec *rscc_create_getsockopt_request(int *total_size, int *iovec_count, 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(optlen == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(optlen == NULL)
     optlen_size_value = 0;
   else
     optlen_size_value = aconv_socklen_t_size(my_arch, server_arch);
+
   req->req_size += optlen_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->s = s; 
@@ -2612,7 +2872,7 @@ struct iovec *rscc_create_getsockopt_request(int *total_size, int *iovec_count, 
     aconv_pointer(optlen, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -2642,7 +2902,7 @@ struct iovec *rscc_create_getsockopt_request(int *total_size, int *iovec_count, 
       aconv_socklen_t(optlen, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -2652,7 +2912,7 @@ struct iovec *rscc_create_getsockopt_request(int *total_size, int *iovec_count, 
       sizeof(struct getsockopt_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: s = %ld (0x%lX); level = %ld (0x%lX); optname = %ld (0x%lX); optval = %p (0x%lX); optlen = %p (0x%lX)", req->s, req->s, req->level, req->level, req->optname, req->optname, req->optval, req->optval, req->optlen, req->optlen);
 
   return v;
@@ -2670,15 +2930,19 @@ struct iovec *rscc_create_gettimeofday_request(int *total_size, int *iovec_count
   
 
   req_size = sizeof(struct gettimeofday_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_gettimeofday, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -2687,6 +2951,10 @@ struct iovec *rscc_create_gettimeofday_request(int *total_size, int *iovec_count
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->tv = tv; 
@@ -2698,7 +2966,7 @@ struct iovec *rscc_create_gettimeofday_request(int *total_size, int *iovec_count
     aconv_pointer(tz, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -2720,7 +2988,7 @@ struct iovec *rscc_create_gettimeofday_request(int *total_size, int *iovec_count
       sizeof(struct gettimeofday_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: tv = %p (0x%lX); tz = %p (0x%lX)", req->tv, req->tv, req->tz, req->tz);
 
   return v;
@@ -2736,13 +3004,16 @@ struct iovec *rscc_create_getxattr_request(int *total_size, int *iovec_count, ch
   size_t vcount;
 
 
-  int path_size_value;
-  int name_size_value;
+    int path_size_value;
+    int name_size_value;
   
 
   req_size = sizeof(struct getxattr_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
@@ -2751,7 +3022,8 @@ struct iovec *rscc_create_getxattr_request(int *total_size, int *iovec_count, ch
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_getxattr, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -2760,15 +3032,21 @@ struct iovec *rscc_create_getxattr_request(int *total_size, int *iovec_count, ch
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(path == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(path == NULL)
     path_size_value = 0;
   else
     path_size_value = aconv_string_size(path, my_arch, server_arch);
-  if(name == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(name == NULL)
     name_size_value = 0;
   else
     name_size_value = aconv_string_size(name, my_arch, server_arch);
+
   req->req_size += path_size_value + name_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->path = path; 
@@ -2785,7 +3063,7 @@ struct iovec *rscc_create_getxattr_request(int *total_size, int *iovec_count, ch
     
     aconv_size_t(&size, my_arch, server_arch, mem); mem += aconv_size_t_size(my_arch, server_arch);
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 3;
@@ -2817,7 +3095,7 @@ struct iovec *rscc_create_getxattr_request(int *total_size, int *iovec_count, ch
       aconv_string(path, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-    i++; 
+        i++; 
   }
  
   if(name != NULL) {
@@ -2832,7 +3110,7 @@ struct iovec *rscc_create_getxattr_request(int *total_size, int *iovec_count, ch
       aconv_string(name, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -2842,7 +3120,7 @@ struct iovec *rscc_create_getxattr_request(int *total_size, int *iovec_count, ch
       sizeof(struct getxattr_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: path = %p (0x%lX); name = %p (0x%lX); value = %p (0x%lX); size = %ld (0x%lX)", req->path, req->path, req->name, req->name, req->value, req->value, req->size, req->size);
 
   return v;
@@ -2858,12 +3136,15 @@ struct iovec *rscc_create_lchown_request(int *total_size, int *iovec_count, char
   size_t vcount;
 
 
-  int path_size_value;
+    int path_size_value;
   
 
   req_size = sizeof(struct lchown_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_uid_t_size(my_arch, server_arch);
     req_size += aconv_gid_t_size(my_arch, server_arch);
@@ -2871,7 +3152,8 @@ struct iovec *rscc_create_lchown_request(int *total_size, int *iovec_count, char
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_lchown, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -2880,11 +3162,16 @@ struct iovec *rscc_create_lchown_request(int *total_size, int *iovec_count, char
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(path == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(path == NULL)
     path_size_value = 0;
   else
     path_size_value = aconv_string_size(path, my_arch, server_arch);
+
   req->req_size += path_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->path = path; 
@@ -2899,7 +3186,7 @@ struct iovec *rscc_create_lchown_request(int *total_size, int *iovec_count, char
     aconv_gid_t(&group, my_arch, server_arch, mem); mem += aconv_gid_t_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -2929,7 +3216,7 @@ struct iovec *rscc_create_lchown_request(int *total_size, int *iovec_count, char
       aconv_string(path, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -2939,7 +3226,7 @@ struct iovec *rscc_create_lchown_request(int *total_size, int *iovec_count, char
       sizeof(struct lchown_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: path = %p (0x%lX); owner = %ld (0x%lX); group = %ld (0x%lX)", req->path, req->path, req->owner, req->owner, req->group, req->group);
 
   return v;
@@ -2955,16 +3242,19 @@ struct iovec *rscc_create_lchown32_request(int *total_size, int *iovec_count, ch
   size_t vcount;
 
   /* If the destination architecture doesn't support this syscall, I return immediately */
+   
   if(server_arch == ACONV_PPC || server_arch == ACONV_X86_64)
     return NULL;
 
-
-  int path_size_value;
+    int path_size_value;
   
 
   req_size = sizeof(struct lchown32_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_uid_t_size(my_arch, server_arch);
     req_size += aconv_gid_t_size(my_arch, server_arch);
@@ -2973,11 +3263,14 @@ struct iovec *rscc_create_lchown32_request(int *total_size, int *iovec_count, ch
   if(req == NULL)
     return NULL;
 #ifdef __powerpc__ 
+  /* The system call is not defined in this architecture, so I return NULL */
   return NULL;
 #elif defined __x86_64__ 
+  /* The system call is not defined in this architecture, so I return NULL */
   return NULL;
 #else
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_lchown32, NO_VALUE, my_arch)) == __RSC_ERROR ) {
 #else
@@ -2992,11 +3285,16 @@ struct iovec *rscc_create_lchown32_request(int *total_size, int *iovec_count, ch
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(path == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(path == NULL)
     path_size_value = 0;
   else
     path_size_value = aconv_string_size(path, my_arch, server_arch);
+
   req->req_size += path_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->path = path; 
@@ -3011,7 +3309,7 @@ struct iovec *rscc_create_lchown32_request(int *total_size, int *iovec_count, ch
     aconv_gid_t(&group, my_arch, server_arch, mem); mem += aconv_gid_t_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -3041,7 +3339,7 @@ struct iovec *rscc_create_lchown32_request(int *total_size, int *iovec_count, ch
       aconv_string(path, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -3051,7 +3349,7 @@ struct iovec *rscc_create_lchown32_request(int *total_size, int *iovec_count, ch
       sizeof(struct lchown32_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: path = %p (0x%lX); owner = %ld (0x%lX); group = %ld (0x%lX)", req->path, req->path, req->owner, req->owner, req->group, req->group);
 
   return v;
@@ -3067,13 +3365,16 @@ struct iovec *rscc_create_lgetxattr_request(int *total_size, int *iovec_count, c
   size_t vcount;
 
 
-  int path_size_value;
-  int name_size_value;
+    int path_size_value;
+    int name_size_value;
   
 
   req_size = sizeof(struct lgetxattr_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
@@ -3082,7 +3383,8 @@ struct iovec *rscc_create_lgetxattr_request(int *total_size, int *iovec_count, c
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_lgetxattr, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -3091,15 +3393,21 @@ struct iovec *rscc_create_lgetxattr_request(int *total_size, int *iovec_count, c
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(path == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(path == NULL)
     path_size_value = 0;
   else
     path_size_value = aconv_string_size(path, my_arch, server_arch);
-  if(name == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(name == NULL)
     name_size_value = 0;
   else
     name_size_value = aconv_string_size(name, my_arch, server_arch);
+
   req->req_size += path_size_value + name_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->path = path; 
@@ -3116,7 +3424,7 @@ struct iovec *rscc_create_lgetxattr_request(int *total_size, int *iovec_count, c
     
     aconv_size_t(&size, my_arch, server_arch, mem); mem += aconv_size_t_size(my_arch, server_arch);
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 3;
@@ -3148,7 +3456,7 @@ struct iovec *rscc_create_lgetxattr_request(int *total_size, int *iovec_count, c
       aconv_string(path, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-    i++; 
+        i++; 
   }
  
   if(name != NULL) {
@@ -3163,7 +3471,7 @@ struct iovec *rscc_create_lgetxattr_request(int *total_size, int *iovec_count, c
       aconv_string(name, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -3173,7 +3481,7 @@ struct iovec *rscc_create_lgetxattr_request(int *total_size, int *iovec_count, c
       sizeof(struct lgetxattr_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: path = %p (0x%lX); name = %p (0x%lX); value = %p (0x%lX); size = %ld (0x%lX)", req->path, req->path, req->name, req->name, req->value, req->value, req->size, req->size);
 
   return v;
@@ -3189,20 +3497,24 @@ struct iovec *rscc_create_link_request(int *total_size, int *iovec_count, char *
   size_t vcount;
 
 
-  int oldpath_size_value;
-  int newpath_size_value;
+    int oldpath_size_value;
+    int newpath_size_value;
   
 
   req_size = sizeof(struct link_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_link, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -3211,15 +3523,21 @@ struct iovec *rscc_create_link_request(int *total_size, int *iovec_count, char *
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(oldpath == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(oldpath == NULL)
     oldpath_size_value = 0;
   else
     oldpath_size_value = aconv_string_size(oldpath, my_arch, server_arch);
-  if(newpath == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(newpath == NULL)
     newpath_size_value = 0;
   else
     newpath_size_value = aconv_string_size(newpath, my_arch, server_arch);
+
   req->req_size += oldpath_size_value + newpath_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->oldpath = oldpath; 
@@ -3231,7 +3549,7 @@ struct iovec *rscc_create_link_request(int *total_size, int *iovec_count, char *
     aconv_pointer(newpath, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 3;
@@ -3263,7 +3581,7 @@ struct iovec *rscc_create_link_request(int *total_size, int *iovec_count, char *
       aconv_string(oldpath, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-    i++; 
+        i++; 
   }
  
   if(newpath != NULL) {
@@ -3278,7 +3596,7 @@ struct iovec *rscc_create_link_request(int *total_size, int *iovec_count, char *
       aconv_string(newpath, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -3288,7 +3606,7 @@ struct iovec *rscc_create_link_request(int *total_size, int *iovec_count, char *
       sizeof(struct link_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: oldpath = %p (0x%lX); newpath = %p (0x%lX)", req->oldpath, req->oldpath, req->newpath, req->newpath);
 
   return v;
@@ -3306,15 +3624,19 @@ struct iovec *rscc_create_listen_request(int *total_size, int *iovec_count, int 
   
 
   req_size = sizeof(struct listen_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_int_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_listen, SYS_LISTEN, my_arch)) == __RSC_ERROR ) {
 #else
@@ -3327,6 +3649,10 @@ struct iovec *rscc_create_listen_request(int *total_size, int *iovec_count, int 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->sockfd = sockfd; 
@@ -3338,7 +3664,7 @@ struct iovec *rscc_create_listen_request(int *total_size, int *iovec_count, int 
     aconv_int(&backlog, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -3360,7 +3686,7 @@ struct iovec *rscc_create_listen_request(int *total_size, int *iovec_count, int 
       sizeof(struct listen_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: sockfd = %ld (0x%lX); backlog = %ld (0x%lX)", req->sockfd, req->sockfd, req->backlog, req->backlog);
 
   return v;
@@ -3378,8 +3704,11 @@ struct iovec *rscc_create_lseek_request(int *total_size, int *iovec_count, int f
   
 
   req_size = sizeof(struct lseek_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_off_t_size(my_arch, server_arch);
     req_size += aconv_int_size(my_arch, server_arch);
@@ -3387,7 +3716,8 @@ struct iovec *rscc_create_lseek_request(int *total_size, int *iovec_count, int f
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_lseek, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -3396,6 +3726,10 @@ struct iovec *rscc_create_lseek_request(int *total_size, int *iovec_count, int f
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fildes = fildes; 
@@ -3410,7 +3744,7 @@ struct iovec *rscc_create_lseek_request(int *total_size, int *iovec_count, int f
     aconv_int(&whence, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -3432,7 +3766,7 @@ struct iovec *rscc_create_lseek_request(int *total_size, int *iovec_count, int f
       sizeof(struct lseek_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fildes = %ld (0x%lX); offset = %ld (0x%lX); whence = %ld (0x%lX)", req->fildes, req->fildes, req->offset, req->offset, req->whence, req->whence);
 
   return v;
@@ -3448,19 +3782,23 @@ struct iovec *rscc_create_lstat64_request(int *total_size, int *iovec_count, cha
   size_t vcount;
 
 
-  int path_size_value;
+    int path_size_value;
   
 
   req_size = sizeof(struct lstat64_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_lstat, NO_VALUE, my_arch)) == __RSC_ERROR ) {
 #else
@@ -3474,11 +3812,16 @@ struct iovec *rscc_create_lstat64_request(int *total_size, int *iovec_count, cha
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(path == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(path == NULL)
     path_size_value = 0;
   else
     path_size_value = aconv_string_size(path, my_arch, server_arch);
+
   req->req_size += path_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->path = path; 
@@ -3490,7 +3833,7 @@ struct iovec *rscc_create_lstat64_request(int *total_size, int *iovec_count, cha
     aconv_pointer(buf, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -3520,7 +3863,7 @@ struct iovec *rscc_create_lstat64_request(int *total_size, int *iovec_count, cha
       aconv_string(path, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -3530,7 +3873,7 @@ struct iovec *rscc_create_lstat64_request(int *total_size, int *iovec_count, cha
       sizeof(struct lstat64_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: path = %p (0x%lX); buf = %p (0x%lX)", req->path, req->path, req->buf, req->buf);
 
   return v;
@@ -3546,19 +3889,23 @@ struct iovec *rscc_create_mkdir_request(int *total_size, int *iovec_count, char 
   size_t vcount;
 
 
-  int pathname_size_value;
+    int pathname_size_value;
   
 
   req_size = sizeof(struct mkdir_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_mode_t_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_mkdir, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -3567,11 +3914,16 @@ struct iovec *rscc_create_mkdir_request(int *total_size, int *iovec_count, char 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(pathname == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(pathname == NULL)
     pathname_size_value = 0;
   else
     pathname_size_value = aconv_string_size(pathname, my_arch, server_arch);
+
   req->req_size += pathname_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->pathname = pathname; 
@@ -3583,7 +3935,7 @@ struct iovec *rscc_create_mkdir_request(int *total_size, int *iovec_count, char 
     aconv_mode_t(&mode, my_arch, server_arch, mem); mem += aconv_mode_t_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -3613,7 +3965,7 @@ struct iovec *rscc_create_mkdir_request(int *total_size, int *iovec_count, char 
       aconv_string(pathname, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -3623,7 +3975,7 @@ struct iovec *rscc_create_mkdir_request(int *total_size, int *iovec_count, char 
       sizeof(struct mkdir_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: pathname = %p (0x%lX); mode = %ld (0x%lX)", req->pathname, req->pathname, req->mode, req->mode);
 
   return v;
@@ -3639,15 +3991,18 @@ struct iovec *rscc_create_mount_request(int *total_size, int *iovec_count, char 
   size_t vcount;
 
 
-  int source_size_value;
-  int target_size_value;
-  int filesystemtype_size_value;
-  int data_size_value;
+    int source_size_value;
+    int target_size_value;
+    int filesystemtype_size_value;
+    int data_size_value;
   
 
   req_size = sizeof(struct mount_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
@@ -3657,7 +4012,8 @@ struct iovec *rscc_create_mount_request(int *total_size, int *iovec_count, char 
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_mount, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -3666,23 +4022,31 @@ struct iovec *rscc_create_mount_request(int *total_size, int *iovec_count, char 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(source == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(source == NULL)
     source_size_value = 0;
   else
     source_size_value = aconv_string_size(source, my_arch, server_arch);
-  if(target == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(target == NULL)
     target_size_value = 0;
   else
     target_size_value = aconv_string_size(target, my_arch, server_arch);
-  if(filesystemtype == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(filesystemtype == NULL)
     filesystemtype_size_value = 0;
   else
     filesystemtype_size_value = aconv_string_size(filesystemtype, my_arch, server_arch);
-  if(data == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(data == NULL)
     data_size_value = 0;
   else
     data_size_value = aconv_string_size(data, my_arch, server_arch);
+
   req->req_size += source_size_value + target_size_value + filesystemtype_size_value + data_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->source = source; 
@@ -3703,7 +4067,7 @@ struct iovec *rscc_create_mount_request(int *total_size, int *iovec_count, char 
     aconv_pointer(data, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 5;
@@ -3739,7 +4103,7 @@ struct iovec *rscc_create_mount_request(int *total_size, int *iovec_count, char 
       aconv_string(source, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-    i++; 
+        i++; 
   }
  
   if(target != NULL) {
@@ -3754,7 +4118,7 @@ struct iovec *rscc_create_mount_request(int *total_size, int *iovec_count, char 
       aconv_string(target, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-    i++; 
+        i++; 
   }
  
   if(filesystemtype != NULL) {
@@ -3769,7 +4133,7 @@ struct iovec *rscc_create_mount_request(int *total_size, int *iovec_count, char 
       aconv_string(filesystemtype, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-    i++; 
+        i++; 
   }
  
   if(data != NULL) {
@@ -3784,7 +4148,7 @@ struct iovec *rscc_create_mount_request(int *total_size, int *iovec_count, char 
       aconv_string(data, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -3794,7 +4158,7 @@ struct iovec *rscc_create_mount_request(int *total_size, int *iovec_count, char 
       sizeof(struct mount_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: source = %p (0x%lX); target = %p (0x%lX); filesystemtype = %p (0x%lX); mountflags = %lu (0x%lX); data = %p (0x%lX)", req->source, req->source, req->target, req->target, req->filesystemtype, req->filesystemtype, req->mountflags, req->mountflags, req->data, req->data);
 
   return v;
@@ -3810,19 +4174,23 @@ struct iovec *rscc_create_open_request(int *total_size, int *iovec_count, char *
   size_t vcount;
 
 
-  int pathname_size_value;
+    int pathname_size_value;
   
 
   req_size = sizeof(struct open_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_int_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_open, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -3831,11 +4199,16 @@ struct iovec *rscc_create_open_request(int *total_size, int *iovec_count, char *
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(pathname == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(pathname == NULL)
     pathname_size_value = 0;
   else
     pathname_size_value = aconv_string_size(pathname, my_arch, server_arch);
+
   req->req_size += pathname_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->pathname = pathname; 
@@ -3847,7 +4220,7 @@ struct iovec *rscc_create_open_request(int *total_size, int *iovec_count, char *
     aconv_int(&flags, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -3877,7 +4250,7 @@ struct iovec *rscc_create_open_request(int *total_size, int *iovec_count, char *
       aconv_string(pathname, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -3887,7 +4260,7 @@ struct iovec *rscc_create_open_request(int *total_size, int *iovec_count, char *
       sizeof(struct open_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: pathname = %p (0x%lX); flags = %ld (0x%lX)", req->pathname, req->pathname, req->flags, req->flags);
 
   return v;
@@ -3905,8 +4278,11 @@ struct iovec *rscc_create_pread64_request(int *total_size, int *iovec_count, int
   
 
   req_size = sizeof(struct pread64_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_size_t_size(my_arch, server_arch);
@@ -3915,7 +4291,8 @@ struct iovec *rscc_create_pread64_request(int *total_size, int *iovec_count, int
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_pread64, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -3924,6 +4301,10 @@ struct iovec *rscc_create_pread64_request(int *total_size, int *iovec_count, int
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -3940,7 +4321,7 @@ struct iovec *rscc_create_pread64_request(int *total_size, int *iovec_count, int
     aconv_off_t(&offset, my_arch, server_arch, mem); mem += aconv_off_t_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -3962,7 +4343,7 @@ struct iovec *rscc_create_pread64_request(int *total_size, int *iovec_count, int
       sizeof(struct pread64_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %ld (0x%lX); buf = %p (0x%lX); count = %ld (0x%lX); offset = %ld (0x%lX)", req->fd, req->fd, req->buf, req->buf, req->count, req->count, req->offset, req->offset);
 
   return v;
@@ -3982,8 +4363,11 @@ struct iovec *rscc_create_pwrite64_request(int *total_size, int *iovec_count, in
   
 
   req_size = sizeof(struct pwrite64_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_size_t_size(my_arch, server_arch);
@@ -3992,7 +4376,8 @@ struct iovec *rscc_create_pwrite64_request(int *total_size, int *iovec_count, in
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_pwrite64, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -4001,11 +4386,16 @@ struct iovec *rscc_create_pwrite64_request(int *total_size, int *iovec_count, in
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(buf == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(buf == NULL)
     count_value = 0;
   else
     count_value = aconv_bytes_size(count, my_arch, server_arch);
+
   req->req_size += count_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -4022,7 +4412,7 @@ struct iovec *rscc_create_pwrite64_request(int *total_size, int *iovec_count, in
     aconv_off_t(&offset, my_arch, server_arch, mem); mem += aconv_off_t_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -4052,7 +4442,7 @@ struct iovec *rscc_create_pwrite64_request(int *total_size, int *iovec_count, in
       aconv_bytes(buf, my_arch, server_arch, v[i].iov_base, count);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -4062,7 +4452,7 @@ struct iovec *rscc_create_pwrite64_request(int *total_size, int *iovec_count, in
       sizeof(struct pwrite64_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %ld (0x%lX); buf = %p (0x%lX); count = %ld (0x%lX); offset = %ld (0x%lX)", req->fd, req->fd, req->buf, req->buf, req->count, req->count, req->offset, req->offset);
 
   return v;
@@ -4080,8 +4470,11 @@ struct iovec *rscc_create_read_request(int *total_size, int *iovec_count, int fd
   
 
   req_size = sizeof(struct read_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_size_t_size(my_arch, server_arch);
@@ -4089,7 +4482,8 @@ struct iovec *rscc_create_read_request(int *total_size, int *iovec_count, int fd
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_read, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -4098,6 +4492,10 @@ struct iovec *rscc_create_read_request(int *total_size, int *iovec_count, int fd
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -4111,7 +4509,7 @@ struct iovec *rscc_create_read_request(int *total_size, int *iovec_count, int fd
     
     aconv_size_t(&count, my_arch, server_arch, mem); mem += aconv_size_t_size(my_arch, server_arch);
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -4133,7 +4531,7 @@ struct iovec *rscc_create_read_request(int *total_size, int *iovec_count, int fd
       sizeof(struct read_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %ld (0x%lX); buf = %p (0x%lX); count = %ld (0x%lX)", req->fd, req->fd, req->buf, req->buf, req->count, req->count);
 
   return v;
@@ -4149,12 +4547,15 @@ struct iovec *rscc_create_readlink_request(int *total_size, int *iovec_count, ch
   size_t vcount;
 
 
-  int path_size_value;
+    int path_size_value;
   
 
   req_size = sizeof(struct readlink_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_size_t_size(my_arch, server_arch);
@@ -4162,7 +4563,8 @@ struct iovec *rscc_create_readlink_request(int *total_size, int *iovec_count, ch
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_readlink, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -4171,11 +4573,16 @@ struct iovec *rscc_create_readlink_request(int *total_size, int *iovec_count, ch
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(path == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(path == NULL)
     path_size_value = 0;
   else
     path_size_value = aconv_string_size(path, my_arch, server_arch);
+
   req->req_size += path_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->path = path; 
@@ -4189,7 +4596,7 @@ struct iovec *rscc_create_readlink_request(int *total_size, int *iovec_count, ch
     
     aconv_size_t(&bufsiz, my_arch, server_arch, mem); mem += aconv_size_t_size(my_arch, server_arch);
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -4219,7 +4626,7 @@ struct iovec *rscc_create_readlink_request(int *total_size, int *iovec_count, ch
       aconv_string(path, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -4229,7 +4636,7 @@ struct iovec *rscc_create_readlink_request(int *total_size, int *iovec_count, ch
       sizeof(struct readlink_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: path = %p (0x%lX); buf = %p (0x%lX); bufsiz = %ld (0x%lX)", req->path, req->path, req->buf, req->buf, req->bufsiz, req->bufsiz);
 
   return v;
@@ -4244,15 +4651,18 @@ struct iovec *rscc_create_recv_request(int *total_size, int *iovec_count, int s,
   size_t vcount;
 
   /* If the destination architecture doesn't support this syscall, I return immediately */
+   
   if(server_arch == ACONV_X86_64)
     return NULL;
-
 
   
 
   req_size = sizeof(struct recv_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_size_t_size(my_arch, server_arch);
@@ -4262,9 +4672,11 @@ struct iovec *rscc_create_recv_request(int *total_size, int *iovec_count, int s,
   if(req == NULL)
     return NULL;
 #ifdef __x86_64__ 
+  /* The system call is not defined in this architecture, so I return NULL */
   return NULL;
 #else
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_recv, SYS_RECV, my_arch)) == __RSC_ERROR ) {
 #else
@@ -4278,6 +4690,10 @@ struct iovec *rscc_create_recv_request(int *total_size, int *iovec_count, int s,
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->s = s; 
@@ -4294,7 +4710,7 @@ struct iovec *rscc_create_recv_request(int *total_size, int *iovec_count, int s,
     aconv_int(&flags, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -4316,7 +4732,7 @@ struct iovec *rscc_create_recv_request(int *total_size, int *iovec_count, int s,
       sizeof(struct recv_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: s = %ld (0x%lX); buf = %p (0x%lX); len = %ld (0x%lX); flags = %ld (0x%lX)", req->s, req->s, req->buf, req->buf, req->len, req->len, req->flags, req->flags);
 
   return v;
@@ -4332,7 +4748,7 @@ struct iovec *rscc_create_recvfrom_request(int *total_size, int *iovec_count, in
   size_t vcount;
 
 
-  int fromlen_size_value;
+    int fromlen_size_value;
  
   socklen_t fromlen_value;
   /* The size of 'from' is contained in the memory pointed by 'fromlen',
@@ -4342,8 +4758,11 @@ struct iovec *rscc_create_recvfrom_request(int *total_size, int *iovec_count, in
   
 
   req_size = sizeof(struct recvfrom_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_size_t_size(my_arch, server_arch);
@@ -4354,7 +4773,8 @@ struct iovec *rscc_create_recvfrom_request(int *total_size, int *iovec_count, in
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_recvfrom, SYS_RECVFROM, my_arch)) == __RSC_ERROR ) {
 #else
@@ -4367,15 +4787,21 @@ struct iovec *rscc_create_recvfrom_request(int *total_size, int *iovec_count, in
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(fromlen == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(fromlen == NULL)
     fromlen_size_value = 0;
   else
     fromlen_size_value = aconv_socklen_t_size(my_arch, server_arch);
-  if(from == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(from == NULL)
     fromlen_value = 0;
   else
     fromlen_value = *fromlen;
+
   req->req_size += fromlen_value + fromlen_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->s = s; 
@@ -4398,7 +4824,7 @@ struct iovec *rscc_create_recvfrom_request(int *total_size, int *iovec_count, in
     aconv_pointer(fromlen, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 3;
@@ -4433,7 +4859,7 @@ struct iovec *rscc_create_recvfrom_request(int *total_size, int *iovec_count, in
       aconv_socklen_t(&fromlen_new, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-    i++; 
+        i++; 
   }
  
   if(from != NULL) {
@@ -4448,7 +4874,7 @@ struct iovec *rscc_create_recvfrom_request(int *total_size, int *iovec_count, in
       aconv_struct_sockaddr(from, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -4458,7 +4884,7 @@ struct iovec *rscc_create_recvfrom_request(int *total_size, int *iovec_count, in
       sizeof(struct recvfrom_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: s = %ld (0x%lX); buf = %p (0x%lX); len = %ld (0x%lX); flags = %ld (0x%lX); from = %p (0x%lX); fromlen = %p (0x%lX)", req->s, req->s, req->buf, req->buf, req->len, req->len, req->flags, req->flags, req->from, req->from, req->fromlen, req->fromlen);
 
   return v;
@@ -4474,20 +4900,24 @@ struct iovec *rscc_create_rename_request(int *total_size, int *iovec_count, char
   size_t vcount;
 
 
-  int oldpath_size_value;
-  int newpath_size_value;
+    int oldpath_size_value;
+    int newpath_size_value;
   
 
   req_size = sizeof(struct rename_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_rename, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -4496,15 +4926,21 @@ struct iovec *rscc_create_rename_request(int *total_size, int *iovec_count, char
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(oldpath == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(oldpath == NULL)
     oldpath_size_value = 0;
   else
     oldpath_size_value = aconv_string_size(oldpath, my_arch, server_arch);
-  if(newpath == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(newpath == NULL)
     newpath_size_value = 0;
   else
     newpath_size_value = aconv_string_size(newpath, my_arch, server_arch);
+
   req->req_size += oldpath_size_value + newpath_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->oldpath = oldpath; 
@@ -4516,7 +4952,7 @@ struct iovec *rscc_create_rename_request(int *total_size, int *iovec_count, char
     aconv_pointer(newpath, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 3;
@@ -4548,7 +4984,7 @@ struct iovec *rscc_create_rename_request(int *total_size, int *iovec_count, char
       aconv_string(oldpath, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-    i++; 
+        i++; 
   }
  
   if(newpath != NULL) {
@@ -4563,7 +4999,7 @@ struct iovec *rscc_create_rename_request(int *total_size, int *iovec_count, char
       aconv_string(newpath, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -4573,7 +5009,7 @@ struct iovec *rscc_create_rename_request(int *total_size, int *iovec_count, char
       sizeof(struct rename_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: oldpath = %p (0x%lX); newpath = %p (0x%lX)", req->oldpath, req->oldpath, req->newpath, req->newpath);
 
   return v;
@@ -4589,18 +5025,22 @@ struct iovec *rscc_create_rmdir_request(int *total_size, int *iovec_count, char 
   size_t vcount;
 
 
-  int pathname_size_value;
+    int pathname_size_value;
   
 
   req_size = sizeof(struct rmdir_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_rmdir, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -4609,11 +5049,16 @@ struct iovec *rscc_create_rmdir_request(int *total_size, int *iovec_count, char 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(pathname == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(pathname == NULL)
     pathname_size_value = 0;
   else
     pathname_size_value = aconv_string_size(pathname, my_arch, server_arch);
+
   req->req_size += pathname_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->pathname = pathname; 
@@ -4622,7 +5067,7 @@ struct iovec *rscc_create_rmdir_request(int *total_size, int *iovec_count, char 
     aconv_pointer(pathname, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -4652,7 +5097,7 @@ struct iovec *rscc_create_rmdir_request(int *total_size, int *iovec_count, char 
       aconv_string(pathname, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -4662,7 +5107,7 @@ struct iovec *rscc_create_rmdir_request(int *total_size, int *iovec_count, char 
       sizeof(struct rmdir_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: pathname = %p (0x%lX)", req->pathname, req->pathname);
 
   return v;
@@ -4678,16 +5123,19 @@ struct iovec *rscc_create_send_request(int *total_size, int *iovec_count, int s,
   size_t vcount;
 
   /* If the destination architecture doesn't support this syscall, I return immediately */
+   
   if(server_arch == ACONV_X86_64)
     return NULL;
-
 
   size_t len_value;
   
 
   req_size = sizeof(struct send_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_size_t_size(my_arch, server_arch);
@@ -4697,9 +5145,11 @@ struct iovec *rscc_create_send_request(int *total_size, int *iovec_count, int s,
   if(req == NULL)
     return NULL;
 #ifdef __x86_64__ 
+  /* The system call is not defined in this architecture, so I return NULL */
   return NULL;
 #else
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_send, SYS_SEND, my_arch)) == __RSC_ERROR ) {
 #else
@@ -4713,11 +5163,16 @@ struct iovec *rscc_create_send_request(int *total_size, int *iovec_count, int s,
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(buf == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(buf == NULL)
     len_value = 0;
   else
     len_value = aconv_bytes_size(len, my_arch, server_arch);
+
   req->req_size += len_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->s = s; 
@@ -4734,7 +5189,7 @@ struct iovec *rscc_create_send_request(int *total_size, int *iovec_count, int s,
     aconv_int(&flags, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -4764,7 +5219,7 @@ struct iovec *rscc_create_send_request(int *total_size, int *iovec_count, int s,
       aconv_bytes(buf, my_arch, server_arch, v[i].iov_base, len);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -4774,7 +5229,7 @@ struct iovec *rscc_create_send_request(int *total_size, int *iovec_count, int s,
       sizeof(struct send_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: s = %ld (0x%lX); buf = %p (0x%lX); len = %ld (0x%lX); flags = %ld (0x%lX)", req->s, req->s, req->buf, req->buf, req->len, req->len, req->flags, req->flags);
 
   return v;
@@ -4795,8 +5250,11 @@ struct iovec *rscc_create_sendto_request(int *total_size, int *iovec_count, int 
   
 
   req_size = sizeof(struct sendto_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_size_t_size(my_arch, server_arch);
@@ -4807,7 +5265,8 @@ struct iovec *rscc_create_sendto_request(int *total_size, int *iovec_count, int 
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_sendto, SYS_SENDTO, my_arch)) == __RSC_ERROR ) {
 #else
@@ -4820,15 +5279,21 @@ struct iovec *rscc_create_sendto_request(int *total_size, int *iovec_count, int 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(buf == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(buf == NULL)
     len_value = 0;
   else
     len_value = aconv_bytes_size(len, my_arch, server_arch);
-  if(to == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(to == NULL)
     tolen_value = 0;
   else
     tolen_value = aconv_struct_sockaddr_size(my_arch, server_arch);
+
   req->req_size += len_value + tolen_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->s = s; 
@@ -4853,7 +5318,7 @@ struct iovec *rscc_create_sendto_request(int *total_size, int *iovec_count, int 
       tolen_new = aconv_struct_sockaddr_size(my_arch, server_arch);
     aconv_socklen_t(&tolen_new, my_arch, server_arch, mem); mem += aconv_socklen_t_size(my_arch, server_arch);
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 3;
@@ -4885,7 +5350,7 @@ struct iovec *rscc_create_sendto_request(int *total_size, int *iovec_count, int 
       aconv_bytes(buf, my_arch, server_arch, v[i].iov_base, len);
     }
     *total_size += v[i].iov_len;
-    i++; 
+        i++; 
   }
  
   if(to != NULL) {
@@ -4900,7 +5365,7 @@ struct iovec *rscc_create_sendto_request(int *total_size, int *iovec_count, int 
       aconv_struct_sockaddr(to, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -4910,7 +5375,7 @@ struct iovec *rscc_create_sendto_request(int *total_size, int *iovec_count, int 
       sizeof(struct sendto_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: s = %ld (0x%lX); buf = %p (0x%lX); len = %ld (0x%lX); flags = %ld (0x%lX); to = %p (0x%lX); tolen = %ld (0x%lX)", req->s, req->s, req->buf, req->buf, req->len, req->len, req->flags, req->flags, req->to, req->to, req->tolen, req->tolen);
 
   return v;
@@ -4930,15 +5395,19 @@ struct iovec *rscc_create_setdomainname_request(int *total_size, int *iovec_coun
   
 
   req_size = sizeof(struct setdomainname_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_size_t_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_setdomainname, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -4947,11 +5416,16 @@ struct iovec *rscc_create_setdomainname_request(int *total_size, int *iovec_coun
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(name == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(name == NULL)
     len_value = 0;
   else
     len_value = len;
+
   req->req_size += len_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->name = name; 
@@ -4962,7 +5436,7 @@ struct iovec *rscc_create_setdomainname_request(int *total_size, int *iovec_coun
     
     aconv_size_t(&len, my_arch, server_arch, mem); mem += aconv_size_t_size(my_arch, server_arch);
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -4992,7 +5466,7 @@ struct iovec *rscc_create_setdomainname_request(int *total_size, int *iovec_coun
       aconv_string(name, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -5002,7 +5476,7 @@ struct iovec *rscc_create_setdomainname_request(int *total_size, int *iovec_coun
       sizeof(struct setdomainname_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: name = %p (0x%lX); len = %ld (0x%lX)", req->name, req->name, req->len, req->len);
 
   return v;
@@ -5022,15 +5496,19 @@ struct iovec *rscc_create_sethostname_request(int *total_size, int *iovec_count,
   
 
   req_size = sizeof(struct sethostname_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_size_t_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_sethostname, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -5039,11 +5517,16 @@ struct iovec *rscc_create_sethostname_request(int *total_size, int *iovec_count,
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(name == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(name == NULL)
     len_value = 0;
   else
     len_value = len;
+
   req->req_size += len_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->name = name; 
@@ -5054,7 +5537,7 @@ struct iovec *rscc_create_sethostname_request(int *total_size, int *iovec_count,
     
     aconv_size_t(&len, my_arch, server_arch, mem); mem += aconv_size_t_size(my_arch, server_arch);
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -5084,7 +5567,7 @@ struct iovec *rscc_create_sethostname_request(int *total_size, int *iovec_count,
       aconv_string(name, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -5094,7 +5577,7 @@ struct iovec *rscc_create_sethostname_request(int *total_size, int *iovec_count,
       sizeof(struct sethostname_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: name = %p (0x%lX); len = %ld (0x%lX)", req->name, req->name, req->len, req->len);
 
   return v;
@@ -5114,8 +5597,11 @@ struct iovec *rscc_create_setsockopt_request(int *total_size, int *iovec_count, 
   
 
   req_size = sizeof(struct setsockopt_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_int_size(my_arch, server_arch);
@@ -5125,7 +5611,8 @@ struct iovec *rscc_create_setsockopt_request(int *total_size, int *iovec_count, 
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_setsockopt, SYS_SETSOCKOPT, my_arch)) == __RSC_ERROR ) {
 #else
@@ -5138,11 +5625,16 @@ struct iovec *rscc_create_setsockopt_request(int *total_size, int *iovec_count, 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(optval == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(optval == NULL)
     optlen_value = 0;
   else
     optlen_value = aconv_bytes_size(optlen, my_arch, server_arch);
+
   req->req_size += optlen_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->s = s; 
@@ -5162,7 +5654,7 @@ struct iovec *rscc_create_setsockopt_request(int *total_size, int *iovec_count, 
     
     aconv_socklen_t(&optlen, my_arch, server_arch, mem); mem += aconv_socklen_t_size(my_arch, server_arch);
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -5192,7 +5684,7 @@ struct iovec *rscc_create_setsockopt_request(int *total_size, int *iovec_count, 
       aconv_bytes(optval, my_arch, server_arch, v[i].iov_base, optlen);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -5202,7 +5694,7 @@ struct iovec *rscc_create_setsockopt_request(int *total_size, int *iovec_count, 
       sizeof(struct setsockopt_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: s = %ld (0x%lX); level = %ld (0x%lX); optname = %ld (0x%lX); optval = %p (0x%lX); optlen = %ld (0x%lX)", req->s, req->s, req->level, req->level, req->optname, req->optname, req->optval, req->optval, req->optlen, req->optlen);
 
   return v;
@@ -5218,20 +5710,24 @@ struct iovec *rscc_create_settimeofday_request(int *total_size, int *iovec_count
   size_t vcount;
 
 
-  int tv_size_value;
-  int tz_size_value;
+    int tv_size_value;
+    int tz_size_value;
   
 
   req_size = sizeof(struct settimeofday_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_settimeofday, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -5240,15 +5736,21 @@ struct iovec *rscc_create_settimeofday_request(int *total_size, int *iovec_count
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(tv == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(tv == NULL)
     tv_size_value = 0;
   else
     tv_size_value = aconv_struct_timeval_size(my_arch, server_arch);
-  if(tz == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(tz == NULL)
     tz_size_value = 0;
   else
     tz_size_value = aconv_struct_timezone_size(my_arch, server_arch);
+
   req->req_size += tv_size_value + tz_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->tv = tv; 
@@ -5260,7 +5762,7 @@ struct iovec *rscc_create_settimeofday_request(int *total_size, int *iovec_count
     aconv_pointer(tz, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 3;
@@ -5292,7 +5794,7 @@ struct iovec *rscc_create_settimeofday_request(int *total_size, int *iovec_count
       aconv_struct_timeval(tv, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-    i++; 
+        i++; 
   }
  
   if(tz != NULL) {
@@ -5307,7 +5809,7 @@ struct iovec *rscc_create_settimeofday_request(int *total_size, int *iovec_count
       aconv_struct_timezone(tz, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -5317,7 +5819,7 @@ struct iovec *rscc_create_settimeofday_request(int *total_size, int *iovec_count
       sizeof(struct settimeofday_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: tv = %p (0x%lX); tz = %p (0x%lX)", req->tv, req->tv, req->tz, req->tz);
 
   return v;
@@ -5335,15 +5837,19 @@ struct iovec *rscc_create_shutdown_request(int *total_size, int *iovec_count, in
   
 
   req_size = sizeof(struct shutdown_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_int_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_shutdown, SYS_SHUTDOWN, my_arch)) == __RSC_ERROR ) {
 #else
@@ -5356,6 +5862,10 @@ struct iovec *rscc_create_shutdown_request(int *total_size, int *iovec_count, in
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->s = s; 
@@ -5367,7 +5877,7 @@ struct iovec *rscc_create_shutdown_request(int *total_size, int *iovec_count, in
     aconv_int(&how, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -5389,7 +5899,7 @@ struct iovec *rscc_create_shutdown_request(int *total_size, int *iovec_count, in
       sizeof(struct shutdown_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: s = %ld (0x%lX); how = %ld (0x%lX)", req->s, req->s, req->how, req->how);
 
   return v;
@@ -5407,8 +5917,11 @@ struct iovec *rscc_create_socket_request(int *total_size, int *iovec_count, int 
   
 
   req_size = sizeof(struct socket_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_int_size(my_arch, server_arch);
@@ -5416,7 +5929,8 @@ struct iovec *rscc_create_socket_request(int *total_size, int *iovec_count, int 
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_socket, SYS_SOCKET, my_arch)) == __RSC_ERROR ) {
 #else
@@ -5429,6 +5943,10 @@ struct iovec *rscc_create_socket_request(int *total_size, int *iovec_count, int 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->domain = domain; 
@@ -5443,7 +5961,7 @@ struct iovec *rscc_create_socket_request(int *total_size, int *iovec_count, int 
     aconv_int(&protocol, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -5465,7 +5983,7 @@ struct iovec *rscc_create_socket_request(int *total_size, int *iovec_count, int 
       sizeof(struct socket_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: domain = %ld (0x%lX); type = %ld (0x%lX); protocol = %ld (0x%lX)", req->domain, req->domain, req->type, req->type, req->protocol, req->protocol);
 
   return v;
@@ -5481,19 +5999,23 @@ struct iovec *rscc_create_stat64_request(int *total_size, int *iovec_count, char
   size_t vcount;
 
 
-  int path_size_value;
+    int path_size_value;
   
 
   req_size = sizeof(struct stat64_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_stat, NO_VALUE, my_arch)) == __RSC_ERROR ) {
 #else
@@ -5507,11 +6029,16 @@ struct iovec *rscc_create_stat64_request(int *total_size, int *iovec_count, char
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(path == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(path == NULL)
     path_size_value = 0;
   else
     path_size_value = aconv_string_size(path, my_arch, server_arch);
+
   req->req_size += path_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->path = path; 
@@ -5523,7 +6050,7 @@ struct iovec *rscc_create_stat64_request(int *total_size, int *iovec_count, char
     aconv_pointer(buf, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -5553,7 +6080,7 @@ struct iovec *rscc_create_stat64_request(int *total_size, int *iovec_count, char
       aconv_string(path, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -5563,7 +6090,7 @@ struct iovec *rscc_create_stat64_request(int *total_size, int *iovec_count, char
       sizeof(struct stat64_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: path = %p (0x%lX); buf = %p (0x%lX)", req->path, req->path, req->buf, req->buf);
 
   return v;
@@ -5579,19 +6106,23 @@ struct iovec *rscc_create_statfs64_request(int *total_size, int *iovec_count, ch
   size_t vcount;
 
 
-  int path_size_value;
+    int path_size_value;
   
 
   req_size = sizeof(struct statfs64_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_statfs, NO_VALUE, my_arch)) == __RSC_ERROR ) {
 #else
@@ -5605,11 +6136,16 @@ struct iovec *rscc_create_statfs64_request(int *total_size, int *iovec_count, ch
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(path == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(path == NULL)
     path_size_value = 0;
   else
     path_size_value = aconv_string_size(path, my_arch, server_arch);
+
   req->req_size += path_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->path = path; 
@@ -5621,7 +6157,7 @@ struct iovec *rscc_create_statfs64_request(int *total_size, int *iovec_count, ch
     aconv_pointer(buf, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -5651,7 +6187,7 @@ struct iovec *rscc_create_statfs64_request(int *total_size, int *iovec_count, ch
       aconv_string(path, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -5661,7 +6197,7 @@ struct iovec *rscc_create_statfs64_request(int *total_size, int *iovec_count, ch
       sizeof(struct statfs64_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: path = %p (0x%lX); buf = %p (0x%lX)", req->path, req->path, req->buf, req->buf);
 
   return v;
@@ -5677,20 +6213,24 @@ struct iovec *rscc_create_symlink_request(int *total_size, int *iovec_count, cha
   size_t vcount;
 
 
-  int oldpath_size_value;
-  int newpath_size_value;
+    int oldpath_size_value;
+    int newpath_size_value;
   
 
   req_size = sizeof(struct symlink_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_symlink, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -5699,15 +6239,21 @@ struct iovec *rscc_create_symlink_request(int *total_size, int *iovec_count, cha
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(oldpath == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(oldpath == NULL)
     oldpath_size_value = 0;
   else
     oldpath_size_value = aconv_string_size(oldpath, my_arch, server_arch);
-  if(newpath == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(newpath == NULL)
     newpath_size_value = 0;
   else
     newpath_size_value = aconv_string_size(newpath, my_arch, server_arch);
+
   req->req_size += oldpath_size_value + newpath_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->oldpath = oldpath; 
@@ -5719,7 +6265,7 @@ struct iovec *rscc_create_symlink_request(int *total_size, int *iovec_count, cha
     aconv_pointer(newpath, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 3;
@@ -5751,7 +6297,7 @@ struct iovec *rscc_create_symlink_request(int *total_size, int *iovec_count, cha
       aconv_string(oldpath, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-    i++; 
+        i++; 
   }
  
   if(newpath != NULL) {
@@ -5766,7 +6312,7 @@ struct iovec *rscc_create_symlink_request(int *total_size, int *iovec_count, cha
       aconv_string(newpath, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -5776,7 +6322,7 @@ struct iovec *rscc_create_symlink_request(int *total_size, int *iovec_count, cha
       sizeof(struct symlink_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: oldpath = %p (0x%lX); newpath = %p (0x%lX)", req->oldpath, req->oldpath, req->newpath, req->newpath);
 
   return v;
@@ -5792,19 +6338,23 @@ struct iovec *rscc_create_truncate64_request(int *total_size, int *iovec_count, 
   size_t vcount;
 
 
-  int path_size_value;
+    int path_size_value;
   
 
   req_size = sizeof(struct truncate64_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv___off64_t_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 #ifdef __x86_64__
 	if( (rsc_const = nr2rsc(__NR_truncate, NO_VALUE, my_arch)) == __RSC_ERROR ) {
 #else
@@ -5818,11 +6368,16 @@ struct iovec *rscc_create_truncate64_request(int *total_size, int *iovec_count, 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(path == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(path == NULL)
     path_size_value = 0;
   else
     path_size_value = aconv_string_size(path, my_arch, server_arch);
+
   req->req_size += path_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->path = path; 
@@ -5834,7 +6389,7 @@ struct iovec *rscc_create_truncate64_request(int *total_size, int *iovec_count, 
     aconv___off64_t(&length, my_arch, server_arch, mem); mem += aconv___off64_t_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -5864,7 +6419,7 @@ struct iovec *rscc_create_truncate64_request(int *total_size, int *iovec_count, 
       aconv_string(path, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -5874,7 +6429,7 @@ struct iovec *rscc_create_truncate64_request(int *total_size, int *iovec_count, 
       sizeof(struct truncate64_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: path = %p (0x%lX); length = %ld (0x%lX)", req->path, req->path, req->length, req->length);
 
   return v;
@@ -5890,19 +6445,23 @@ struct iovec *rscc_create_umount2_request(int *total_size, int *iovec_count, cha
   size_t vcount;
 
 
-  int target_size_value;
+    int target_size_value;
   
 
   req_size = sizeof(struct umount2_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_int_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_umount2, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -5911,11 +6470,16 @@ struct iovec *rscc_create_umount2_request(int *total_size, int *iovec_count, cha
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(target == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(target == NULL)
     target_size_value = 0;
   else
     target_size_value = aconv_string_size(target, my_arch, server_arch);
+
   req->req_size += target_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->target = target; 
@@ -5927,7 +6491,7 @@ struct iovec *rscc_create_umount2_request(int *total_size, int *iovec_count, cha
     aconv_int(&flags, my_arch, server_arch, mem); mem += aconv_int_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -5957,7 +6521,7 @@ struct iovec *rscc_create_umount2_request(int *total_size, int *iovec_count, cha
       aconv_string(target, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -5967,7 +6531,7 @@ struct iovec *rscc_create_umount2_request(int *total_size, int *iovec_count, cha
       sizeof(struct umount2_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: target = %p (0x%lX); flags = %ld (0x%lX)", req->target, req->target, req->flags, req->flags);
 
   return v;
@@ -5985,14 +6549,18 @@ struct iovec *rscc_create_uname_request(int *total_size, int *iovec_count, struc
   
 
   req_size = sizeof(struct uname_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_uname, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -6001,6 +6569,10 @@ struct iovec *rscc_create_uname_request(int *total_size, int *iovec_count, struc
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
+
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->buf = buf; 
@@ -6009,7 +6581,7 @@ struct iovec *rscc_create_uname_request(int *total_size, int *iovec_count, struc
     aconv_pointer(buf, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 1;
@@ -6031,7 +6603,7 @@ struct iovec *rscc_create_uname_request(int *total_size, int *iovec_count, struc
       sizeof(struct uname_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: buf = %p (0x%lX)", req->buf, req->buf);
 
   return v;
@@ -6047,18 +6619,22 @@ struct iovec *rscc_create_unlink_request(int *total_size, int *iovec_count, char
   size_t vcount;
 
 
-  int pathname_size_value;
+    int pathname_size_value;
   
 
   req_size = sizeof(struct unlink_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_unlink, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -6067,11 +6643,16 @@ struct iovec *rscc_create_unlink_request(int *total_size, int *iovec_count, char
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(pathname == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(pathname == NULL)
     pathname_size_value = 0;
   else
     pathname_size_value = aconv_string_size(pathname, my_arch, server_arch);
+
   req->req_size += pathname_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->pathname = pathname; 
@@ -6080,7 +6661,7 @@ struct iovec *rscc_create_unlink_request(int *total_size, int *iovec_count, char
     aconv_pointer(pathname, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -6110,7 +6691,7 @@ struct iovec *rscc_create_unlink_request(int *total_size, int *iovec_count, char
       aconv_string(pathname, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -6120,7 +6701,7 @@ struct iovec *rscc_create_unlink_request(int *total_size, int *iovec_count, char
       sizeof(struct unlink_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: pathname = %p (0x%lX)", req->pathname, req->pathname);
 
   return v;
@@ -6136,20 +6717,24 @@ struct iovec *rscc_create_utime_request(int *total_size, int *iovec_count, char 
   size_t vcount;
 
 
-  int filename_size_value;
-  int buf_size_value;
+    int filename_size_value;
+    int buf_size_value;
   
 
   req_size = sizeof(struct utime_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_utime, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -6158,15 +6743,21 @@ struct iovec *rscc_create_utime_request(int *total_size, int *iovec_count, char 
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(filename == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(filename == NULL)
     filename_size_value = 0;
   else
     filename_size_value = aconv_string_size(filename, my_arch, server_arch);
-  if(buf == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(buf == NULL)
     buf_size_value = 0;
   else
     buf_size_value = aconv_struct_utimbuf_size(my_arch, server_arch);
+
   req->req_size += filename_size_value + buf_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->filename = filename; 
@@ -6178,7 +6769,7 @@ struct iovec *rscc_create_utime_request(int *total_size, int *iovec_count, char 
     aconv_pointer(buf, my_arch, server_arch, mem); mem += aconv_pointer_size(my_arch, server_arch);
     
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 3;
@@ -6210,7 +6801,7 @@ struct iovec *rscc_create_utime_request(int *total_size, int *iovec_count, char 
       aconv_string(filename, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-    i++; 
+        i++; 
   }
  
   if(buf != NULL) {
@@ -6225,7 +6816,7 @@ struct iovec *rscc_create_utime_request(int *total_size, int *iovec_count, char 
       aconv_struct_utimbuf(buf, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -6235,7 +6826,7 @@ struct iovec *rscc_create_utime_request(int *total_size, int *iovec_count, char 
       sizeof(struct utime_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: filename = %p (0x%lX); buf = %p (0x%lX)", req->filename, req->filename, req->buf, req->buf);
 
   return v;
@@ -6251,19 +6842,23 @@ struct iovec *rscc_create_utimes_request(int *total_size, int *iovec_count, char
   size_t vcount;
 
 
-  int filename_size_value;
+    int filename_size_value;
   
 
   req_size = sizeof(struct utimes_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_array_size(my_arch, server_arch, 2, aconv_struct_timeval_size);
   }
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_utimes, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -6272,11 +6867,16 @@ struct iovec *rscc_create_utimes_request(int *total_size, int *iovec_count, char
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(filename == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(filename == NULL)
     filename_size_value = 0;
   else
     filename_size_value = aconv_string_size(filename, my_arch, server_arch);
+
   req->req_size += filename_size_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->filename = filename; 
@@ -6292,7 +6892,7 @@ struct iovec *rscc_create_utimes_request(int *total_size, int *iovec_count, char
       aconv_array(tv, my_arch, server_arch, 2, mem, aconv_struct_timeval_size, aconv_struct_timeval);
     }
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -6322,7 +6922,7 @@ struct iovec *rscc_create_utimes_request(int *total_size, int *iovec_count, char
       aconv_string(filename, my_arch, server_arch, v[i].iov_base);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -6332,7 +6932,7 @@ struct iovec *rscc_create_utimes_request(int *total_size, int *iovec_count, char
       sizeof(struct utimes_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: filename = %p (0x%lX); tv = %p (0x%lX)", req->filename, req->filename, req->tv, req->tv);
 
   return v;
@@ -6352,8 +6952,11 @@ struct iovec *rscc_create_write_request(int *total_size, int *iovec_count, int f
   
 
   req_size = sizeof(struct write_req);
+  /* If the server and mine architectures are different, I need to calculate the 
+   * total request size adding the size of each argument type in the server architecture. */
   if(my_arch != server_arch) {
     req_size = sizeof(struct sys_req_header);
+
     req_size += aconv_int_size(my_arch, server_arch);
     req_size += aconv_pointer_size(my_arch, server_arch);
     req_size += aconv_size_t_size(my_arch, server_arch);
@@ -6361,7 +6964,8 @@ struct iovec *rscc_create_write_request(int *total_size, int *iovec_count, int f
   req = calloc(1, req_size);
   if(req == NULL)
     return NULL;
- 
+
+/* I get the __RSC_* constant */
 	if( (rsc_const = nr2rsc(__NR_write, NO_VALUE, my_arch)) == __RSC_ERROR ) {
     free(req);
 	  return NULL;
@@ -6370,11 +6974,16 @@ struct iovec *rscc_create_write_request(int *total_size, int *iovec_count, int f
   req->req_rsc_const = htons(rsc_const);
   req->req_size = req_size;
 
-  if(buf == NULL)
+  /* I manage the case in which the read pointer is NULL*/
+    if(buf == NULL)
     count_value = 0;
   else
     count_value = aconv_bytes_size(count, my_arch, server_arch);
+
   req->req_size += count_value;
+  /* I transform 'req_size' in network byte order and I save 
+   * the system call arguments into the request.
+   * If the two architectures are different, the LibAConv functions are called*/
   req->req_size = htonl(req->req_size);
   if(my_arch == server_arch) {
     req->fd = fd; 
@@ -6388,7 +6997,7 @@ struct iovec *rscc_create_write_request(int *total_size, int *iovec_count, int f
     
     aconv_size_t(&count, my_arch, server_arch, mem); mem += aconv_size_t_size(my_arch, server_arch);
   }
-        
+      
   /* There are pointers to buffers used by the system call to read data, so
    * I've to send them. */
   vcount = 2;
@@ -6418,7 +7027,7 @@ struct iovec *rscc_create_write_request(int *total_size, int *iovec_count, int f
       aconv_bytes(buf, my_arch, server_arch, v[i].iov_base, count);
     }
     *total_size += v[i].iov_len;
-     
+         
   }
  
   *iovec_count = vcount;
@@ -6428,7 +7037,7 @@ struct iovec *rscc_create_write_request(int *total_size, int *iovec_count, int f
       sizeof(struct write_req),
       rsc2str(ntohs(req->req_rsc_const)), ntohs(req->req_rsc_const), 
       ntohl(req->req_size), ntohl(req->req_size));
-    
+      
   RSC_DEBUG(RSCD_MINIMAL, "\tArguments: fd = %ld (0x%lX); buf = %p (0x%lX); count = %ld (0x%lX)", req->fd, req->fd, req->buf, req->buf, req->count, req->count);
 
   return v;
@@ -6438,7 +7047,7 @@ struct iovec *rscc_create_write_request(int *total_size, int *iovec_count, int f
 /*##########################################################*/
 /*##                                                      ##*/
 /*##  RESPONSE MANAGEMENT FUNCTIONS                       ##*/
-/*##                                                      ##*/
+/*##                                                      ##*/ 
 /*##########################################################*/
 struct iovec *rscc_manage__llseek_response(struct sys_resp_header *resp_header, int *iovec_count, int *nbytes, unsigned int fd, unsigned long int offset_high, unsigned long int offset_low, loff_t *result, unsigned int whence) {
   struct iovec *v = NULL;
@@ -6477,7 +7086,7 @@ struct iovec *rscc_manage__llseek_response(struct sys_resp_header *resp_header, 
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(result != NULL) {
 	      v[i].iov_base = result;
 	      v[i].iov_len =  sizeof(loff_t);
@@ -6532,7 +7141,7 @@ struct iovec *rscc_manage_accept_response(struct sys_resp_header *resp_header, i
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(addrlen != NULL) {
 	      v[i].iov_base = addrlen;
 	      v[i].iov_len =  sizeof(socklen_t);
@@ -6617,7 +7226,7 @@ struct iovec *rscc_manage_adjtimex_response(struct sys_resp_header *resp_header,
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(buf != NULL) {
 	      v[i].iov_base = buf;
 	      v[i].iov_len =  sizeof(struct timex);
@@ -6795,7 +7404,7 @@ struct iovec *rscc_manage_clock_getres_response(struct sys_resp_header *resp_hea
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(res != NULL) {
 	      v[i].iov_base = res;
 	      v[i].iov_len =  sizeof(struct timespec);
@@ -6848,7 +7457,7 @@ struct iovec *rscc_manage_clock_gettime_response(struct sys_resp_header *resp_he
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(tp != NULL) {
 	      v[i].iov_base = tp;
 	      v[i].iov_len =  sizeof(struct timespec);
@@ -7151,7 +7760,7 @@ struct iovec *rscc_manage_fgetxattr_response(struct sys_resp_header *resp_header
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(value != NULL) {
 	      v[i].iov_base = value;
 	      v[i].iov_len =  size;
@@ -7204,7 +7813,7 @@ struct iovec *rscc_manage_fstat64_response(struct sys_resp_header *resp_header, 
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(buf != NULL) {
 	      v[i].iov_base = buf;
 	      v[i].iov_len =  sizeof(struct stat64);
@@ -7257,7 +7866,7 @@ struct iovec *rscc_manage_fstatfs64_response(struct sys_resp_header *resp_header
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(buf != NULL) {
 	      v[i].iov_base = buf;
 	      v[i].iov_len =  sizeof(struct statfs64);
@@ -7360,7 +7969,7 @@ struct iovec *rscc_manage_getdents64_response(struct sys_resp_header *resp_heade
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(dirp != NULL) {
 	      v[i].iov_base = dirp;
 	      v[i].iov_len =  count;
@@ -7415,7 +8024,7 @@ struct iovec *rscc_manage_getpeername_response(struct sys_resp_header *resp_head
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(namelen != NULL) {
 	      v[i].iov_base = namelen;
 	      v[i].iov_len =  sizeof(socklen_t);
@@ -7477,7 +8086,7 @@ struct iovec *rscc_manage_getsockname_response(struct sys_resp_header *resp_head
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(namelen != NULL) {
 	      v[i].iov_base = namelen;
 	      v[i].iov_len =  sizeof(socklen_t);
@@ -7539,7 +8148,7 @@ struct iovec *rscc_manage_getsockopt_response(struct sys_resp_header *resp_heade
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(optlen != NULL) {
 	      v[i].iov_base = optlen;
 	      v[i].iov_len =  sizeof(socklen_t);
@@ -7601,7 +8210,7 @@ struct iovec *rscc_manage_gettimeofday_response(struct sys_resp_header *resp_hea
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(tv != NULL) {
 	      v[i].iov_base = tv;
 	      v[i].iov_len =  sizeof(struct timeval);
@@ -7661,7 +8270,7 @@ struct iovec *rscc_manage_getxattr_response(struct sys_resp_header *resp_header,
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(value != NULL) {
 	      v[i].iov_base = value;
 	      v[i].iov_len =  size;
@@ -7764,7 +8373,7 @@ struct iovec *rscc_manage_lgetxattr_response(struct sys_resp_header *resp_header
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(value != NULL) {
 	      v[i].iov_base = value;
 	      v[i].iov_len =  size;
@@ -7892,7 +8501,7 @@ struct iovec *rscc_manage_lstat64_response(struct sys_resp_header *resp_header, 
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(buf != NULL) {
 	      v[i].iov_base = buf;
 	      v[i].iov_len =  sizeof(struct stat64);
@@ -8020,7 +8629,7 @@ struct iovec *rscc_manage_pread64_response(struct sys_resp_header *resp_header, 
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(buf != NULL) {
 	      v[i].iov_base = buf;
 	      v[i].iov_len =  count;
@@ -8098,7 +8707,7 @@ struct iovec *rscc_manage_read_response(struct sys_resp_header *resp_header, int
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
 	    if(buf != NULL && resp_header->resp_retval > 0) {
 	      v[i].iov_base = buf;
 	      v[i].iov_len =  resp_header->resp_retval;
@@ -8151,7 +8760,7 @@ struct iovec *rscc_manage_readlink_response(struct sys_resp_header *resp_header,
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(buf != NULL) {
 	      v[i].iov_base = buf;
 	      v[i].iov_len =  bufsiz;
@@ -8204,7 +8813,7 @@ struct iovec *rscc_manage_recv_response(struct sys_resp_header *resp_header, int
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(buf != NULL) {
 	      v[i].iov_base = buf;
 	      v[i].iov_len =  len;
@@ -8259,7 +8868,7 @@ struct iovec *rscc_manage_recvfrom_response(struct sys_resp_header *resp_header,
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(buf != NULL) {
 	      v[i].iov_base = buf;
 	      v[i].iov_len =  len;
@@ -8569,7 +9178,7 @@ struct iovec *rscc_manage_stat64_response(struct sys_resp_header *resp_header, i
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(buf != NULL) {
 	      v[i].iov_base = buf;
 	      v[i].iov_len =  sizeof(struct stat64);
@@ -8622,7 +9231,7 @@ struct iovec *rscc_manage_statfs64_response(struct sys_resp_header *resp_header,
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(buf != NULL) {
 	      v[i].iov_base = buf;
 	      v[i].iov_len =  sizeof(struct statfs64);
@@ -8750,7 +9359,7 @@ struct iovec *rscc_manage_uname_response(struct sys_resp_header *resp_header, in
 	
 	    *nbytes = 0;
 	    i = 0;
-	   
+     
       if(buf != NULL) {
 	      v[i].iov_base = buf;
 	      v[i].iov_len =  sizeof(struct utsname);

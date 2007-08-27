@@ -47,5 +47,5 @@ void rscs_ioctl_register_request(int request, u_int32_t rw, u_int32_t size);
 /*   EVENT SUBSCRIPTION                          */
 /*************************************************/
 struct rsc_es_ack *rscs_es_manage_msg(int esfd, void *data);
-struct rsc_es_resp *rscs_es_event_occurred(int esfd, int mfd, int event);
+struct rsc_es_resp *rscs_es_event_occured(int esfd, int mfd, int event);
 #endif /* __RSC_SERVER_REQ_RESP_H__ */
