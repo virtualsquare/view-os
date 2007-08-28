@@ -97,7 +97,8 @@ AC_CONFIG_FILES([Makefile
                  um_viewfs/Makefile
                  ummisc/Makefile
                  ummisc_modules/Makefile
-                 um-viewos/Makefile])
+                 um-viewos/Makefile
+                 xmview/Makefile])
 AC_OUTPUT
 
 if test x$enable_umdevtap = "xno"
