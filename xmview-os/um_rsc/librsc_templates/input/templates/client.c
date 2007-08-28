@@ -28,6 +28,8 @@
 <% @@filename = "rsc_client.c" %>
 <%# This instruction includes an external Ruby file, it's like the C #include directive %>
 <% require "common_code.rb" %>
+
+<%# This is the license of the outputted file %>
 /*   
  *   This is part of Remote System Call (RSC) Library.
  *
@@ -158,10 +160,12 @@ int rscc_init(int client_fd, int event_sub_fd, struct reg_cbs **rc, enum arch c_
 /*##                                                      ##*/
 /*##########################################################*/
 <%# From here stats the main loop. The stub compiler provides to each template an array called "nr_all", 
-  # containing all the system calls gathered from the parsing of the four unistd.h files. 
+  # containing all the system calls gathered from the parsing of the four unistd.h files. The class of
+  # "nr_all" is Syscall::ConstantList.
   # The method "each_umview" is an iterator, it iterates over the only system call supported by UMView;
   # the list of these system call is provided by the parsing of the IDL file.
-  # Inside the block of the iterator (after the "do" keyword) the current system call is provided.
+  # Inside the block of the iterator (after the "do" keyword) the current system call is provided; its
+  # class is Syscall::Constant.
   # In conclusion, the list of all the system call supported by UMView is iterated, for each iteration 
   # the current element ("syscall") is provided inside the block %>
 

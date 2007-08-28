@@ -143,12 +143,16 @@ template_dir.each { |filename|
   abs_path = File::join(template_dir.path, filename)
 
   if(File.file?(abs_path) && abs_path =~ REGEXP_TEMPLATE_EXT)
+    # I open the template file
     template = File.open(abs_path, "r") { |f| f.read }
+    # I create the parser
     message = ERB.new(template, 0, ">")
+    # Is the template variables to default values
     @@librsc_relative_path = nil
     @@filename = nil
     @@overwrite_existing_copy = true
     begin
+      # I parse the template
       result = message.result(get_binding(nr_x86, nr_x86_64, nr_ppc, nr_all))
     rescue Exception => e
       $stderr.puts "Error occured during the parsing of \"#{abs_path}\":"
