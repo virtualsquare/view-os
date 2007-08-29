@@ -50,10 +50,18 @@
  * does not have a "name"
  */
 
-#define N_DATA  "d/"
-#define N_META  "m/"
-#define N_RMETA "rm"
-#define N_LEN 2
+//#define N_DATA  "d/"
+//#define N_META  "m/"
+//#define N_RMETA "rm"
+//#define N_LEN 2
+
+#define EP_DATA "data"
+#define EP_META "meta"
+#define EP_METAM ".m"
+#define EP_METAC ".c"
+#define EP_METAM_LEN 2
+#define EP_METAC_LEN EP_METAM_LEN
+
 
 #define T_DATA 0x01
 #define T_META 0x02
@@ -89,7 +97,9 @@ struct viewfs_proc
 };
 
 static struct viewfs_proc **proctab = NULL;
-static int proctabmax = 0;
+static int proctabsize = 0;
+
+#define LAYEROF(umpid) (proctab[(umpid)]->l)
 
 static char fnbuf[2*PATH_MAX];
 
@@ -101,35 +111,53 @@ struct viewfs_layer
 	char *vfspath;
 	
 	char *testpath;
-	char *userpath;
+	char *testpath_user;
+
+	char *datapath;
+	char *datapath_user;
 
 	unsigned long mountflags;
 	struct timestamp tst;
 	// Is this layer mounted in maintenance mode?
 	int maint;
 	unsigned long used;
+	// flags from last check
+	vflag_t flags;
 };
 
 static struct viewfs_layer **layertab = NULL;
-static int layertabmax = 0;
+static int layertabsize = 0;
 
-static long action_path_enoent()
+static long action_path_enoent(char *path)
 {
+	GDEBUG(3, "returning ENOENT for %s", path);
 	errno = ENOENT;
 	return -1;
 }
 
-static long action_path_invalid()
+static long action_path_invalid(char *path, struct stat64 *buf, int umpid)
 {
+	GERROR("invalid flags for %s: %02x", path, LAYEROF(umpid)->flags);
+	// XXX how should I set errno here?
 	return -1;
 }
 
-static long action_stat64_data()
+static long action_stat64_data(char *path, struct stat64 *buf, int umpid)
+{
+	return stat64(LAYEROF(umpid)->datapath, buf);
+}
+
+static long action_stat64_link()
 {
 	return 0;
 }
 
-static long action_stat64_link()
+static long action_access_data(char *path, int mode, int umpid)
+{
+	return access(LAYEROF(umpid)->datapath, mode);
+}
+
+static long action_access_link()
 {
 	return 0;
 }
@@ -207,6 +235,73 @@ static sysfun action_map_stat64[] = {
 /* VREM | VADD | VMRG | VMOV | VCOW | VDIR */ action_path_invalid
 };
 
+static sysfun action_map_access[] = {
+/*                                         */ NULL,
+/*                                    VDIR */ NULL,
+/*                             VCOW |      */ NULL,
+/*                             VCOW | VDIR */ NULL,
+/*                      VMOV |             */ action_access_link,
+/*                      VMOV |        VDIR */ action_access_link,
+/*                      VMOV | VCOW |      */ action_access_link,
+/*                      VMOV | VCOW | VDIR */ action_access_link,
+/*               VMRG |                    */ action_path_invalid,
+/*               VMRG |               VDIR */ NULL,
+/*               VMRG |        VCOW |      */ action_path_invalid,
+/*               VMRG |        VCOW | VDIR */ NULL,
+/*               VMRG | VMOV |             */ action_path_invalid,
+/*               VMRG | VMOV |        VDIR */ NULL,
+/*               VMRG | VMOV | VCOW |      */ action_path_invalid,
+/*               VMRG | VMOV | VCOW | VDIR */ NULL,
+/*        VADD |                           */ action_access_data,
+/*        VADD |                      VDIR */ action_access_data,
+/*        VADD |               VCOW |      */ action_access_data,
+/*        VADD |               VCOW | VDIR */ action_access_data,
+/*        VADD |        VMOV |             */ action_path_invalid,
+/*        VADD |        VMOV |        VDIR */ action_path_invalid,
+/*        VADD |        VMOV | VCOW |      */ action_path_invalid,
+/*        VADD |        VMOV | VCOW | VDIR */ action_path_invalid,
+/*        VADD | VMRG |                    */ action_path_invalid,
+/*        VADD | VMRG |               VDIR */ action_access_data,
+/*        VADD | VMRG |        VCOW |      */ action_path_invalid,
+/*        VADD | VMRG |        VCOW | VDIR */ action_access_data,
+/*        VADD | VMRG | VMOV |             */ action_path_invalid,
+/*        VADD | VMRG | VMOV |        VDIR */ action_path_invalid,
+/*        VADD | VMRG | VMOV | VCOW |      */ action_path_invalid,
+/*        VADD | VMRG | VMOV | VCOW | VDIR */ action_path_invalid,
+/* VREM |                                  */ action_path_enoent,
+/* VREM |                             VDIR */ action_path_enoent,
+/* VREM |                      VCOW |      */ action_access_data,
+/* VREM |                      VCOW | VDIR */ action_access_data,
+/* VREM |               VMOV |             */ action_path_invalid,
+/* VREM |               VMOV |        VDIR */ action_path_invalid,
+/* VREM |               VMOV | VCOW |      */ action_path_invalid,
+/* VREM |               VMOV | VCOW | VDIR */ action_path_invalid,
+/* VREM |        VMRG |                    */ action_path_invalid,
+/* VREM |        VMRG |               VDIR */ action_path_invalid,
+/* VREM |        VMRG |        VCOW |      */ action_path_invalid,
+/* VREM |        VMRG |        VCOW | VDIR */ action_path_invalid,
+/* VREM |        VMRG | VMOV |             */ action_path_invalid,
+/* VREM |        VMRG | VMOV |        VDIR */ action_path_invalid,
+/* VREM |        VMRG | VMOV | VCOW |      */ action_path_invalid,
+/* VREM |        VMRG | VMOV | VCOW | VDIR */ action_path_invalid,
+/* VREM | VADD |                           */ action_access_data,
+/* VREM | VADD |                      VDIR */ action_access_data,
+/* VREM | VADD |               VCOW |      */ action_access_data,
+/* VREM | VADD |               VCOW | VDIR */ action_access_data,
+/* VREM | VADD |        VMOV |             */ action_path_invalid,
+/* VREM | VADD |        VMOV |        VDIR */ action_path_invalid,
+/* VREM | VADD |        VMOV | VCOW |      */ action_path_invalid,
+/* VREM | VADD |        VMOV | VCOW | VDIR */ action_path_invalid,
+/* VREM | VADD | VMRG |                    */ action_path_invalid,
+/* VREM | VADD | VMRG |               VDIR */ action_path_invalid,
+/* VREM | VADD | VMRG |        VCOW |      */ action_path_invalid,
+/* VREM | VADD | VMRG |        VCOW | VDIR */ action_path_invalid,
+/* VREM | VADD | VMRG | VMOV |             */ action_path_invalid,
+/* VREM | VADD | VMRG | VMOV |        VDIR */ action_path_invalid,
+/* VREM | VADD | VMRG | VMOV | VCOW |      */ action_path_invalid,
+/* VREM | VADD | VMRG | VMOV | VCOW | VDIR */ action_path_invalid
+};
+
 static void cutdots(char *path)
 {
 	int l = strlen(path);
@@ -251,20 +346,20 @@ static void addlayertab(struct viewfs_layer *new)
 	int i;
 	
 	// Search for an empty slot or end of table
-	for (i = 0; (i < layertabmax) && layertab[i]; i++);
+	for (i = 0; (i < layertabsize) && layertab[i]; i++);
 
-	if (i >= layertabmax)
+	if (i >= layertabsize)
 	{
 		int j;
-		int newmax = (i + TABSTEP) & ~(TABSTEP -1);
+		int newsize = (i + TABSTEP) & ~(TABSTEP -1);
 		
-		layertab = realloc(layertab, newmax * sizeof(struct viewfs_layer *));
+		layertab = realloc(layertab, newsize * sizeof(struct viewfs_layer *));
 		assert(layertab);
 
-		for (j = i; j < newmax; j++)
+		for (j = i; j < newsize; j++)
 			layertab[j] = NULL;
 		
-		layertabmax = newmax;
+		layertabsize = newsize;
 	}
 
 	layertab[i] = new;
@@ -275,8 +370,8 @@ static void addlayertab(struct viewfs_layer *new)
 static void dellayertab(struct viewfs_layer *layer)
 {
 	int i;
-	for (i = 0; (i < layertabmax) && (layer != layertab[i]); i++);
-	if (i < layertabmax)
+	for (i = 0; (i < layertabsize) && (layer != layertab[i]); i++);
+	if (i < layertabsize)
 		layertab[i] = NULL;
 }
 
@@ -298,7 +393,7 @@ static struct viewfs_layer *searchlayer(char *path, int exact)
 
 	if (exact)
 	{
-		for (j = 0; j < layertabmax; j++)
+		for (j = 0; j < layertabsize; j++)
 		{
 			if (!layertab[j])
 				continue;
@@ -318,7 +413,7 @@ static struct viewfs_layer *searchlayer(char *path, int exact)
 	else
 	{
 
-		for (j = 0; j < layertabmax; j++)
+		for (j = 0; j < layertabsize; j++)
 		{
 			if (!layertab[j])
 				continue;
@@ -368,6 +463,73 @@ static struct viewfs_layer *searchlayer(char *path, int exact)
 
 /*
  * Convert the path contained in `old' in a new path. The new one will be stored
+ * in a buffer of size `size' pointed to by `new'. 
+ *
+ * If the given path is the empty string, it is treated as "/".
+ *
+ * type             old           new
+ * T_DATA           /             /data
+ * T_META           /             /rmeta
+ *
+ * T_DATA           /a/b          /data/a/b
+ * T_META           /a/b          /meta/a.c/b.m
+ */
+static char *extend_path(char *old, char *new, int size, int type)
+{
+	int oc, nc, len;
+	if ((old[0] == '\0') || (old[1] == '\0'))
+	{
+		switch (type)
+		{
+			case T_META:
+				snprintf(new, size, "/%s", EP_RMETA);
+				break;
+			case T_DATA:
+				snprintf(new, size, "/%s", EP_RDATA);
+				break;
+			default:
+				abort();
+		}
+	}
+	else
+	{
+		switch (type)
+		{
+			case T_DATA:
+				snprintf(new, size, "/%s%s", EP_DATA, old);
+				break;
+			case T_META:
+				snprintf(new, size, "/%s", EP_META);
+				len = strlen(new);
+				size -= len;
+				for (oc = 0, nc = len; old[oc] && (nc < (size - 1)); oc++, nc++)
+				{
+					new[nc] = old[oc];
+					if (old[oc] == '\0')
+					{
+						if ((nc + EP_METAM_LEN) >= (size - 2))
+							return NULL;
+						
+						memcpy(&new[nc +1], EP_METAM, EP_METAM_LEN);
+						nc += EP_METAM_LEN;
+					}
+					else if (old[oc+1] == '/')
+					{
+						if ((nc + EP_METAC_LEN) >= (size - 2))
+							return NULL;
+						
+						memcpy(&new[nc + 1], EP_METAC, EP_METAC_LEN);
+						nc += EP_METAC_LEN;
+					}
+				}
+				new[nc] = '\0';
+		}
+	}
+
+	GDEBUG(3, "expanded ^%s$ to ^%s$", old, new);
+}
+
+/*
  * in a buffer of size `size' pointed to by `new'. The conversion depends on
  * the value of `type': (let's assume that N_RMETA == "/rmeta", N_DATA ==
  * "/data", N_META == "/meta").
@@ -385,75 +547,75 @@ static struct viewfs_layer *searchlayer(char *path, int exact)
  * T_DATA & T_DIR   /a/b          /data/a/data/b/data
  * T_META & T_DIR   /a/b          /data/a/meta/b (T_DIR has no effect on meta)
  */
-static char *extend_path(char *old, char *new, int size, int type)
-{
-	int oc, nc, lastd;
-
-	/* "/" must be treated in a special way because it has "no name" */
-	if ( (old[0] == '\0') || (old[1] == '\0'))
-	{
-		GDEBUG(3, "old is either empty or root, adding /%s or /%s", N_RMETA, N_DATA);
-		switch (type & (T_META | T_DATA))
-		{
-			case T_META:
-				snprintf(new, size, "/%s", N_RMETA);
-				break;
-
-			case T_DATA:
-				snprintf(new, size, "/%s", N_DATA);
-				break;
-		}
-		return new;
-	}
-
-	for (oc = 0, nc = 0; old[oc] && nc < (size - 1); oc++, nc++)
-	{
-		GDEBUG(3, "copying '%c'@%d on '%c'@%d", old[oc], oc, new[nc], nc);
-		new[nc] = old[oc];
-		if (new[nc] == '/')
-		{
-			if ((nc + N_LEN) >= (size - 2))
-				return NULL;
-			
-			memcpy(&new[nc + 1], N_DATA, N_LEN);
-			lastd = nc + 1;
-
-			nc += N_LEN;
-		}
-	}
-
-	if (nc > size - 1)
-		return NULL;
-
-	/* 
-	 * At this point nc points immediatly after the end of the 
-	 * new path. Usually you should put a \0 at new[nc] now. But that's not
-	 * always the case.
-	 */
-
-	if (type & T_META) // We don't care about T_DIR in this case
-	{
-		/*
-		 * Substitute the last N_DATA with N_META, e.g.
-		 * /a/b/c is now /data/a/data/b/data/c and must become
-		 * /data/a/data/b/meta/c. This does not affect new's length.
-		 */
-		memcpy(&new[lastd], N_META, N_LEN);
-	}
-	else if ((type & T_DATA) && (type & T_DIR))
-	{
-		if ((nc + 1 + N_LEN) > (size - 1))
-			return NULL;
-
-		new[nc++] = '/';
-		memcpy(&new[nc], N_DATA, N_LEN);
-		nc += N_LEN;
-	}
-	
-	new[nc] = '\0';
-
-	return new;
-}
+// static char *extend_path(char *old, char *new, int size, int type)
+// {
+// 	int oc, nc, lastd;
+// 
+// 	/* "/" must be treated in a special way because it has "no name" */
+// 	if ( (old[0] == '\0') || (old[1] == '\0'))
+// 	{
+// 		GDEBUG(3, "old is either empty or root, adding /%s or /%s", N_RMETA, N_DATA);
+// 		switch (type & (T_META | T_DATA))
+// 		{
+// 			case T_META:
+// 				snprintf(new, size, "/%s", N_RMETA);
+// 				break;
+// 
+// 			case T_DATA:
+// 				snprintf(new, size, "/%s", N_DATA);
+// 				break;
+// 		}
+// 		return new;
+// 	}
+// 
+// 	for (oc = 0, nc = 0; old[oc] && nc < (size - 1); oc++, nc++)
+// 	{
+// 		GDEBUG(3, "copying '%c'@%d on '%c'@%d", old[oc], oc, new[nc], nc);
+// 		new[nc] = old[oc];
+// 		if (new[nc] == '/')
+// 		{
+// 			if ((nc + N_LEN) >= (size - 2))
+// 				return NULL;
+// 			
+// 			memcpy(&new[nc + 1], N_DATA, N_LEN);
+// 			lastd = nc + 1;
+// 
+// 			nc += N_LEN;
+// 		}
+// 	}
+// 
+// 	if (nc > size - 1)
+// 		return NULL;
+// 
+// 	/* 
+// 	 * At this point nc points immediatly after the end of the 
+// 	 * new path. Usually you should put a \0 at new[nc] now. But that's not
+// 	 * always the case.
+// 	 */
+// 
+// 	if (type & T_META) // We don't care about T_DIR in this case
+// 	{
+// 		/*
+// 		 * Substitute the last N_DATA with N_META, e.g.
+// 		 * /a/b/c is now /data/a/data/b/data/c and must become
+// 		 * /data/a/data/b/meta/c. This does not affect new's length.
+// 		 */
+// 		memcpy(&new[lastd], N_META, N_LEN);
+// 	}
+// 	else if ((type & T_DATA) && (type & T_DIR))
+// 	{
+// 		if ((nc + 1 + N_LEN) > (size - 1))
+// 			return NULL;
+// 
+// 		new[nc++] = '/';
+// 		memcpy(&new[nc], N_DATA, N_LEN);
+// 		nc += N_LEN;
+// 	}
+// 	
+// 	new[nc] = '\0';
+// 
+// 	return new;
+// }
 
 /*
  * Converts the given path (i.e. /foo/bar) in the META path for the vfs tree
@@ -476,16 +638,38 @@ static void prepare_testpath(struct viewfs_layer *layer, char *path)
 			path, layer->mountpoint, delta, tmp);
 
 	/* META is the same for directories and files */
-	extend_path(tmp, layer->userpath, (2 * PATH_MAX) - strlen(layer->vfspath), T_META);
+	extend_path(tmp, layer->testpath_user, (2 * PATH_MAX) - strlen(layer->vfspath), T_META);
 
 	GDEBUG(2, "layer->vfspath: %s", layer->vfspath);
-	GDEBUG(2, "extend_path(\"%s\", \"%s\", %d, 0x%02x)", tmp, layer->userpath, (2*PATH_MAX)-strlen(layer->vfspath), T_DATA);
+	GDEBUG(2, "extend_path(\"%s\", \"%s\", %d, 0x%02x)", tmp, layer->testpath_user, (2*PATH_MAX)-strlen(layer->vfspath), T_DATA);
 
 	// GDEBUG(2, "tmp: ^%s$, delta: %d", tmp, delta);
-	// GDEBUG(2, "userpath: ^%s$", layer->userpath);
+	// GDEBUG(2, "testpath_user: ^%s$", layer->testpath_user);
 
 	GDEBUG(2, "asked for ^%s$, will check for ^%s$", path, layer->testpath);
 }
+
+static void prepare_datapath(struct viewfs_layer *layer, char *path)
+{
+	char *tmp;
+	int delta = strlen(layer->mountpoint);
+	assert(strncmp(path, layer->mountpoint, strlen(layer->mountpoint)) == 0);
+
+	if (delta == 1)
+		delta--;
+
+	tmp = path + delta;
+
+	if (layer->flags & VDIR)
+		extend_path(tmp, layer->datapath_user, (2 * PATH_MAX) - strlen(layer->vfspath), T_DATA | T_DIR);
+	else
+		extend_path(tmp, layer->datapath_user, (2 * PATH_MAX) - strlen(layer->vfspath), T_DATA);
+
+	GDEBUG(2, "asked for ^%s$, will search data in ^%s$", path, layer->datapath);
+
+}
+
+
 
 static vflag_t read_flags(char *path)
 {
@@ -528,16 +712,96 @@ static vflag_t make_flags(vflag_t flags)
 	return (flags & VALL) | VNUL;
 }
 
+///**
+// * Find an existing meta file.
+// *
+// * @param path The already meta-expanded path, relative to the start of
+// * the vfs (e.g. /d/dir1/d/dir2/m/file. If this pathname does not exists, it
+// * will be replaced with the deepest existing meta for one of the directories
+// * of path. Else, the function does nothing.
+// * Warning: this function modifies path, so you must take care of strdup()ing
+// * it somewhere else if you want to retain the original one.
+// * @param base_path A pointer to the absolute pathi (e.g. a pointer to
+// * /home/user/.viewfs/test/d/dir1/d/dir2/m/file). This will be passed to
+// * read_flags after each change made to path. The initial part of base_path
+// * (from the beginning to the string pointed to by path) will not be modified.
+// *
+// * @return The flags associated to the meta (if found), or VINV if not found.
+// */
+//static vflag_t find_deepest_meta(char *path, char *base_path)
+//{
+//	int found = 0;
+//	vflag_t rv;
+//	int sc;
+//	int pos;
+//
+//	if ((rv = read_flags(base_path)) != VINV)
+//		return rv;
+//
+//	pos = strlen(path) - 1;
+//
+//	/* If the path is /rmeta (or less, though it should never be less than
+//	 * this), we cannot go up */
+//
+//	if (pos <= N_LEN)
+//		return VINV;
+//
+//	for (;;)
+//	{
+//		// sc is slash count, i.e. the number of slashes we must
+//		// traverse to transform /data/name1/meta/name2 into
+//		// /meta/name1
+//		sc = 4;
+//		while ((sc > 2) && (pos >= 0))
+//		{
+//			if (path[pos] == '/')
+//				sc--;
+//
+//			pos--;
+//		}
+//
+//		if (pos < 0)
+//		{
+//			if (strlen(path) < (N_LEN + 1))
+//				return VINV;
+//			strncpy(&(path[1]), N_RMETA, N_LEN + 1);
+//			if ((rv = read_flags(base_path)) != VINV)
+//				return rv;
+//			return VINV;
+//		}
+//
+//		path[pos + 1] = '\0';
+//
+//		while ((sc > 0) && (pos >= 0))
+//		{
+//			if (path[pos] == '/')
+//				sc--;
+//
+//			pos--;
+//		}
+//
+//
+//		// Replace data with meta (the ending / is already there)
+//		memcpy(&(path[pos+2]), N_META, N_LEN - 1);
+//
+//		if ((rv = read_flags(base_path)) != VINV)
+//			return rv;
+//
+//		// Put back things as they were? I think we don't need this.
+//	}
+//
+//}
+
 /**
  * Find an existing meta file.
  *
- * @param path The already meta-expanded path, relative to the start of
- * the vfs (e.g. /d/dir1/d/dir2/m/file. If this pathname does not exists, it
- * will be replaced with the deepest existing meta for one of the directories
- * of path. Else, the function does nothing.
+ * @param path The already meta-expanded path, relative to the root of the
+ * meta subtree (/meta) in the vfs (e.g. dir1.c/dir2.c/dir3.c/file.m.  If this
+ * pathname does not exists, it will be replaced with the deepest existing
+ * meta for one of the directories of path. Else, the function does nothing.
  * Warning: this function modifies path, so you must take care of strdup()ing
- * it somewhere else if you want to retain the original one.
- * @param base_path A pointer to the absolute pathi (e.g. a pointer to
+ * it somewhere else if you want to retain the original one.  @param base_path
+ * A pointer to the absolute pathi (e.g. a pointer to
  * /home/user/.viewfs/test/d/dir1/d/dir2/m/file). This will be passed to
  * read_flags after each change made to path. The initial part of base_path
  * (from the beginning to the string pointed to by path) will not be modified.
@@ -642,17 +906,43 @@ static epoch_t check_open(char *path, int flags, int umpid)
 static epoch_t check_stat64(char *path, struct stat64 *buf, int umpid)
 {
 	struct viewfs_layer *l = searchlayer(path, FALSE);
-	vflag_t flags;
 	if (!l)
 		return 0;
 
-	prepare_testpath(l, path);
-	flags = find_deepest_meta(l->userpath, l->testpath);
+	proctab[umpid]->l = l;
 
-	if (flags & VINV)
+	prepare_testpath(l, path);
+	l->flags = find_deepest_meta(l->testpath_user, l->testpath);
+
+	if (l->flags & VINV)
 		return 0;
 
-	if (action_map_stat64[flags])
+	prepare_datapath(l, path);
+
+	if (action_map_stat64[l->flags])
+		return l->tst.epoch;
+
+	return 0;
+
+}
+
+static epoch_t check_access(char *path, int mode, int umpid)
+{
+	struct viewfs_layer *l = searchlayer(path, FALSE);
+	if (!l)
+		return 0;
+
+	proctab[umpid]->l = l;
+
+	prepare_testpath(l, path);
+	l->flags = find_deepest_meta(l->testpath_user, l->testpath);
+
+	if (l->flags & VINV)
+		return 0;
+
+	prepare_datapath(l, path);
+
+	if (action_map_access[l->flags])
 		return l->tst.epoch;
 
 	return 0;
@@ -722,6 +1012,10 @@ static epoch_t wrap_check_path(char* path)
 */
 		case __NR_stat64:
 			retval = check_stat64(path, (struct stat64*)(um_mod_getargs()[1]), umpid);
+			break;
+
+		case __NR_access:
+			retval = check_access(path, (int)(um_mod_getargs()[1]), umpid);
 			break;
 
 		case __NR_open:
@@ -811,7 +1105,12 @@ static long viewfs_mount(char *source, char *target, char *filesystemtype,
 	new->testpath = malloc(2 * PATH_MAX);
 	memset(new->testpath, 0, 2 * PATH_MAX);
 	strncpy(new->testpath, source, 2 * PATH_MAX);
-	new->userpath = &(new->testpath[strlen(source)]);
+	new->testpath_user = &(new->testpath[strlen(source)]);
+	
+	new->datapath = malloc(2 * PATH_MAX);
+	memset(new->datapath, 0, 2 * PATH_MAX);
+	strncpy(new->datapath, source, 2 * PATH_MAX);
+	new->datapath_user = &(new->datapath[strlen(source)]);
 
 	GDEBUG(2, "vfspath: ^%s$ testpath: ^%s$",
 			new->vfspath, new->testpath);
@@ -848,27 +1147,45 @@ static long viewfs_umount2(char *target, int flags)
 		dellayertab(layer);
 		free(layer->vfspath);
 		free(layer->testpath);
+		free(layer->datapath);
 		free(layer);
 		return 0;
 	}
 }
 
-static long viewfs_stat64(char *path, struct stat64 *buf, int umpid)
+static long viewfs_stat64(char *path, struct stat64 *buf)
 {
+	int umpid = um_mod_getumpid();
+	GDEBUG(2, "path: %s, buf: 0x%p, umpid: %d, LAYEROF(umpid): 0x%p",
+			path, buf, umpid, LAYEROF(umpid));
+	assert(action_map_stat64[LAYEROF(umpid)->flags]);
+	GDEBUG(2, "jumping to place %02x (%d) of action map", LAYEROF(umpid)->flags);
 
-	errno = EBADF;
-	return -1;
+
+	return action_map_stat64[LAYEROF(umpid)->flags](path, buf, umpid);
 }
 
-static long addproc(int id, int pumpid, int max)
+static long viewfs_access(char *path, int mode)
 {
-	GDEBUG(2, "new process, id: %d, pumpid: %d, max: %d, array size: %d",
-			id, pumpid, max, proctabmax);
+	int umpid = um_mod_getumpid();
+	GDEBUG(2, "path: %s, mode: %d, umpid: %d, LAYEROF(umpid): 0x%p",
+			path, mode, umpid, LAYEROF(umpid));
+	assert(action_map_access[LAYEROF(umpid)->flags]);
+	GDEBUG(2, "jumping to place %02x of action map", LAYEROF(umpid)->flags);
 
-	if (max > proctabmax)
+
+	return action_map_access[LAYEROF(umpid)->flags](path, mode, umpid);
+}
+
+static long addproc(int id, int pumpid, int pcbtabsize)
+{
+	GDEBUG(2, "new process, id: %d, pumpid: %d, pcbtabsize: %d, array size: %d",
+			id, pumpid, pcbtabsize, proctabsize);
+
+	if (id >= proctabsize)
 	{
-		proctabmax = (max + TABSTEP) & ~(TABSTEP -1);
-		proctab = realloc(proctab, proctabmax * sizeof(struct viewfs_proc *));
+		proctabsize = (id + 1 + TABSTEP) & ~(TABSTEP -1);
+		proctab = realloc(proctab, proctabsize * sizeof(struct viewfs_proc *));
 	}
 
 	proctab[id] = malloc(sizeof(struct viewfs_proc));
@@ -878,15 +1195,15 @@ static long addproc(int id, int pumpid, int max)
 
 static long ctl(int type, va_list ap)
 {
-	int id, pumpid, max;
+	int id, pumpid, pcbtabsize;
 
 	switch(type)
 	{
 		case MC_PROC | MC_ADD:
 			id = va_arg(ap, int);
 			pumpid = va_arg(ap, int);
-			max = va_arg(ap, int);
-			return addproc(id, pumpid, max);
+			pcbtabsize = va_arg(ap, int);
+			return addproc(id, pumpid, pcbtabsize);
 		
 		default:
 			return -1;
@@ -907,6 +1224,7 @@ static void __attribute__ ((constructor)) init(void)
 	SERVICESYSCALL(s, umount2, viewfs_umount2);
 	SERVICESYSCALL(s, mount, viewfs_mount);
 	SERVICESYSCALL(s, stat64, viewfs_stat64);
+	SERVICESYSCALL(s, access, viewfs_access);
 	add_service(&s);
 
 
