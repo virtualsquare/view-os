@@ -294,7 +294,7 @@ static int handle_new_proc(int pid, struct pcb *pp)
 	struct pcb *oldpc,*pc;
 	long saved_regs[VIEWOS_FRAME_SIZE];
 
-	/* fprint2("handle_new_proc %d %p\n",pid,pp);*/
+	//fprint2("handle_new_proc %d %p\n",pid,pp);
 	if ((oldpc=pc=pid2pcb(pid)) == NULL && (pc = newpcb(pid))== NULL) {
 		fprint2("[pcb table full]\n");
 		if(ptrace(PTRACE_KILL, pid, 0, 0) < 0){

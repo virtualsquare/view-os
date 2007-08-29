@@ -14,6 +14,7 @@ int hasppolltest();
 void bq_add(void (*fun)(struct pcb *), struct pcb *pc);
 void bq_signal(struct pcb *pc);
 int bq_pidwake(long pid,int signum);
+void bq_terminate(struct pcb *pc);
 
 void bq_ppolltry();
 void mp_add(int fd, short events, void (*fun)(void *), void *arg, int persistent);

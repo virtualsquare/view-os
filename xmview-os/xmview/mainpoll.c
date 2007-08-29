@@ -64,9 +64,20 @@ int hasppolltest()
 		return 1;
 }
 
+static int umviewmainpid;
+static void restart_main_loop(void)
+{
+	if (useppoll) {
+		r_kill(umviewmainpid,SIGUSR1);
+	} else {
+		char x = 0;
+		r_write(bqpipe[1], &x, 1);
+	}
+}
+
 void bq_add(void (*fun)(struct pcb *), struct pcb *pc)
 {
-	assert(pc->pollstatus == BLOCKED);
+	assert(pc->pollstatus != READY);
 	if (gnbq >= maxbq) {
 		maxbq += STEP_SIZE_POLLFD_TABLE;
 		blockq = realloc(blockq, maxbq * sizeof(struct blockq *));
@@ -78,18 +89,11 @@ void bq_add(void (*fun)(struct pcb *), struct pcb *pc)
 	gnbq++;
 }
 
-static int umviewmainpid;
 void bq_signal(struct pcb *pc)
 {
 	assert(pc);
-	if (pc->pollstatus == BLOCKED)
-		pc->pollstatus=WAKE_ME_UP;
-	if (useppoll) {
-		r_kill(umviewmainpid,SIGUSR1);
-	} else {
-		char x = 0;
-		r_write(bqpipe[1], &x, 1);
-	}
+	pc->pollstatus=WAKE_ME_UP;
+	restart_main_loop();
 }
 
 int bq_pidwake(long pid,int signum)
@@ -105,19 +109,28 @@ int bq_pidwake(long pid,int signum)
 	return 0;
 }
 
+void bq_terminate(struct pcb *pc)
+{
+	pc->pollstatus=TERMINATED;
+	restart_main_loop();
+}
+
 static void bq_try()
 {
 	int i,j;
 	for (i=0,j=0;i<gnbq;i++)
 	{
-		if (blockq[i]->pc->pollstatus == WAKE_ME_UP) {
-			blockq[i]->fun(blockq[i]->pc);
-			free(blockq[i]);
-		}
-		else {
-			if (j < i)
-				blockq[j]=blockq[i];
-			j++;
+		switch (blockq[i]->pc->pollstatus) {
+			case WAKE_ME_UP:
+				blockq[i]->fun(blockq[i]->pc);
+			case TERMINATED:
+				free(blockq[i]);
+				break;
+			default:
+				if (j < i)
+					blockq[j]=blockq[i];
+				j++;
+				break;
 		}
 	}
 	gnbq=j;

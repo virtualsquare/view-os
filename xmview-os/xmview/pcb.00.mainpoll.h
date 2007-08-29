@@ -6,6 +6,7 @@ void mainpoll_addproc(),mainpoll_delproc(),mainpoll_init();
 #define READY 0
 #define BLOCKED 1
 #define WAKE_ME_UP 2
+#define TERMINATED 3
 
 #define bq_block(pc) ((pc)->pollstatus=BLOCKED)
 #define bq_unblock(pc) ((pc)->pollstatus=READY)

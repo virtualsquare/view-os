@@ -89,6 +89,7 @@ static void cleanup_pending(struct pcb *pc)
 			local_event_subscribe(NULL,pc,sfd,sd->pending[i].how);
 			um_setepoch(oldepoch);
 		}
+		bq_terminate(pc);
 		free(sd->pending);
 		free(sd);
 	}
@@ -102,7 +103,10 @@ static void suspend_signaled(struct pcb *pc)
 {
 	epoch_t oldepoch=um_setepoch(0);
 	struct seldata *sd=pc->selset;
-	assert(sd && sd->pending);
+	if (!sd)
+		printf("UH? %d\n",pc->pid);
+	assert(sd);
+	assert(sd->pending);
 	int sercode=service_fd(pc->fds,sd->pending[0].fd,1);
 	sysfun local_event_subscribe=service_event_subscribe(sercode);
 	int sfd=fd2sfd(pc->fds,sd->pending[0].fd);
