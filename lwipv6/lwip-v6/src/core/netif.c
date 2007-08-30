@@ -77,7 +77,6 @@
 #define NETIF_DEBUG DBG_OFF
 #endif
 
-
 struct netif *netif_list = NULL;
 
 /**
@@ -352,6 +351,7 @@ static int netif_ifconf(struct ifconf *ifc)
 
 	/*printf("-netif_ifconf %d\n",ifc->ifc_len);*/
 	ifc->ifc_len=0;
+	memset(ifr_v, 0, maxlen); /* jjsa clear the memory area */
 	for (nip=netif_list, i=0; nip!=NULL && ifc->ifc_len < maxlen; 
 			nip=nip->next, i++) {
 		ifc->ifc_len += sizeof(struct ifreq);
@@ -364,14 +364,33 @@ static int netif_ifconf(struct ifconf *ifc)
 			ifr_v[i].ifr_name[3]= 0;
 			ifr_v[i].ifr_name[4]= 0;
 			ifr_v[i].ifr_name[5]= 0;
+			{
+				/* jjsa set zhe IPv4 address */
+				struct ip_addr_list *list, *listStart;
+				list = listStart = nip->addrs;
+				while ( list )
+				{
+					if ( list->ipaddr.addr[2] == IP64_PREFIX )
+					{
+						/* put the address idx 3 into our ifr struct */
+						((struct sockaddr_in*)(&ifr_v[i].ifr_addr))->sin_family= AF_INET;
+						memcpy((char*)&((struct sockaddr_in*)(&ifr_v[i].ifr_addr))->sin_addr,
+								(char*)&list->ipaddr.addr[3], 4);
+						break;
+					}
+					list = list->next;
+					if ( list == listStart )
+						list = NULL;
+				}
+			}
 		}
 	}
 	/*{int i;
 		printf("len %d %d\n",ifc->ifc_len,sizeof(struct ifreq));
 		for (i=0;i<ifc->ifc_len;i++) {
-			int c=*(((char *)(ifr_v))+i);
-			printf("%02x%c ",c,(c>=' '&&c<='~')?c:'.');
-			if (i%16 == 15)
+		int c=*(((unsigned char *)(ifr_v))+i);
+		printf("%02x%c ",c,(c>=' '&&c<='~')?c:'.');
+		if (i%16 == 15)
 				printf("\n");
 		}
 		if (i%16 != 15)
