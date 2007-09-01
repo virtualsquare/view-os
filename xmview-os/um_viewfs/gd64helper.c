@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <glib.h>
 #include <string.h>
+#include <unistd.h>
+#include <linux/types.h>
 #include <linux/dirent.h>
 #include <linux/unistd.h>
 #include "gdebug.h"
@@ -23,7 +25,6 @@ struct _telem {
 	struct dirent64 *cur;
 	struct dirent64 *prev;
 	struct dirent64 *next;
-	unsigned char skip;
 };
 
 typedef struct _dirdata dirdata;
@@ -54,7 +55,7 @@ void dirdata_add_dirent(dirdata *dd, struct dirent64 *dent)
 	if (dd->size == dent->d_reclen) // First element
 		dnew = dd->dents;
 	else
-		dnew = dd->last->d_off;
+		dnew = dd->dents + dd->last->d_off;
 
 	memcpy(dnew, dent, dd->size);
 
@@ -70,17 +71,12 @@ void dirdata_add_dirent(dirdata *dd, struct dirent64 *dent)
 	else
 	{
 		tnew->prev = dd->last;
-		dnew->d_off = 
-		dd->end->d_off = dd->last->d_off + dd->end->d_reclen;
-		tnew->prev = dd->last;
+		dnew->d_off = dd->last->d_off + dnew->d_reclen;
 	}
 
-	tnew->skip = 0;
+	dd->last = dd->dents + dnew->d_off;
 
-	dd->last = dd->end;
-	dd->end += dd->size;
-
-	g_tree_insert(dd->tree, (dd->last).d_name, dd->last);
+	g_tree_insert(dd->tree, dd->last->d_name, dd->last);
 }
 
 void dirdata_add_dirents(dirdata *dd, struct dirent64 *dents, unsigned int count)
@@ -103,8 +99,15 @@ int dirdata_remove_dirent(dirdata *dd, char *name)
 	if (!result)
 		return 0;
 
-	result->skip = 1;
-	result->prev->d_off += result->
+	if (result->prev == NULL) // First element
+	{
+
+	}
+
+	if (result->next == NULL) // Last element
+	{
+
+	}
 
 	g_tree_remove(dd->tree, name);
 
