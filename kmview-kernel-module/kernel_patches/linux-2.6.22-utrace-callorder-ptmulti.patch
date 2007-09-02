@@ -1,0 +1,434 @@
+diff -Naur linux-source-2.6.22-utrace/include/linux/mm.h linux-source-2.6.22-utrace-viewos/include/linux/mm.h
+--- linux-source-2.6.22-utrace/include/linux/mm.h	2007-08-14 18:29:47.000000000 +0200
++++ linux-source-2.6.22-utrace-viewos/include/linux/mm.h	2007-08-14 18:29:50.000000000 +0200
+@@ -790,6 +790,7 @@
+ 
+ extern int make_pages_present(unsigned long addr, unsigned long end);
+ extern int access_process_vm(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
++extern int access_process_vm_user(struct task_struct *tsk, unsigned long addr, char __user *ubuf, int len, int write, int string);
+ void install_arg_page(struct vm_area_struct *, struct page *, unsigned long);
+ 
+ int get_user_pages(struct task_struct *tsk, struct mm_struct *mm, unsigned long start,
+diff -Naur linux-source-2.6.22-utrace/include/linux/ptrace.h linux-source-2.6.22-utrace-viewos/include/linux/ptrace.h
+--- linux-source-2.6.22-utrace/include/linux/ptrace.h	2007-08-14 18:29:49.000000000 +0200
++++ linux-source-2.6.22-utrace-viewos/include/linux/ptrace.h	2007-08-14 18:29:53.000000000 +0200
+@@ -20,6 +20,7 @@
+ #define PTRACE_DETACH		  17
+ 
+ #define PTRACE_SYSCALL		  24
++#define PTRACE_SYSVM    33
+ 
+ /* 0x4200-0x4300 are reserved for architecture-independent additions.  */
+ #define PTRACE_SETOPTIONS	0x4200
+@@ -27,6 +28,22 @@
+ #define PTRACE_GETSIGINFO	0x4202
+ #define PTRACE_SETSIGINFO	0x4203
+ 
++#define PTRACE_MULTI            0x4300
++#define PTRACE_PEEKCHARDATA     0x4301
++#define PTRACE_POKECHARDATA     0x4302
++#define PTRACE_PEEKSTRINGDATA   0x4303
++
++#ifdef CONFIG_VIEWOS
++#define PTRACE_VIEWOS   0x4000
++#endif
++
++struct ptrace_multi {
++	long request;
++	long addr;
++	void *localaddr;
++	long length;
++};
++
+ /* options set using PTRACE_SETOPTIONS */
+ #define PTRACE_O_TRACESYSGOOD	0x00000001
+ #define PTRACE_O_TRACEFORK	0x00000002
+@@ -46,6 +63,18 @@
+ #define PTRACE_EVENT_VFORK_DONE	5
+ #define PTRACE_EVENT_EXIT	6
+ 
++/* options for PTRACE_SYSVM */
++#define PTRACE_VM_TEST    0x80000000
++#define PTRACE_VM_SKIPCALL  1
++#define PTRACE_VM_SKIPEXIT  2
++#define PTRACE_VM_MASK    0x00000003
++
++#ifdef CONFIG_VIEWOS
++/* options fpr PTRACE_VIEWOS */
++#define PT_VIEWOS_TEST    0x80000000
++#define PT_VIEWOS_MASK    0x00000000
++#endif
++
+ #include <asm/ptrace.h>
+ 
+ #ifdef __KERNEL__
+diff -Naur linux-source-2.6.22-utrace/kernel/ptrace.c linux-source-2.6.22-utrace-viewos/kernel/ptrace.c
+--- linux-source-2.6.22-utrace/kernel/ptrace.c	2007-08-14 18:29:42.000000000 +0200
++++ linux-source-2.6.22-utrace-viewos/kernel/ptrace.c	2007-08-14 18:29:46.000000000 +0200
+@@ -2,6 +2,7 @@
+  * linux/kernel/ptrace.c
+  *
+  * (C) Copyright 1999 Linus Torvalds
++ * PTRACE_MULTI support 2007 (on utrace) Renzo Davoli
+  *
+  * Common interfaces for "ptrace()" which we do not want
+  * to continually duplicate across every architecture.
+@@ -66,9 +67,13 @@
+ 	unsigned int syscall:1;	/* Reporting for syscall.  */
+ #ifdef PTRACE_SYSEMU
+ 	unsigned int sysemu:1;	/* PTRACE_SYSEMU in progress. */
++	unsigned int sysvm:2;	/* PTRACE_SYSVM bits */
+ #endif
+ 	unsigned int have_eventmsg:1; /* u.eventmsg valid. */
+ 	unsigned int cap_sys_ptrace:1; /* Tracer capable.  */
++#ifdef PTRACE_SYSEMU
++	unsigned long *scno;
++#endif
+ 
+ 	union
+ 	{
+@@ -956,6 +961,7 @@
+ 	case PTRACE_CONT:
+ 	case PTRACE_SYSCALL:
+ #ifdef PTRACE_SYSEMU
++	case PTRACE_SYSVM:
+ 	case PTRACE_SYSEMU:
+ 	case PTRACE_SYSEMU_SINGLESTEP:
+ #endif
+@@ -968,6 +974,12 @@
+ 				break;
+ #endif
+ 	case PTRACE_SINGLESTEP:
++#ifdef PTRACE_SYSEMU
++		if (request == PTRACE_SYSVM && addr == PTRACE_VM_TEST) {
++			ret = PTRACE_VM_MASK;
++			break;
++		}
++#endif
+ #ifdef ARCH_HAS_SINGLE_STEP
+ 		if (! ARCH_HAS_SINGLE_STEP)
+ #endif
+@@ -978,14 +990,20 @@
+ 		if (ret)
+ 			break;
+ 
++#ifdef PTRACE_SYSEMU
++		state->sysemu = is_sysemu(request);
++		if (request == PTRACE_SYSVM) {
++			if (addr & PTRACE_VM_SKIPCALL) *state->scno=-1;
++			state->sysvm = addr & PTRACE_VM_MASK;
++		} else
++			state->sysvm = 0;
++#endif
++		
+ 		/*
+ 		 * Reset the action flags without QUIESCE, so it resumes.
+ 		 */
+ 		flags = 0;
+-#ifdef PTRACE_SYSEMU
+-		state->sysemu = is_sysemu(request);
+-#endif
+-		if (request == PTRACE_SYSCALL || is_sysemu(request))
++		if (request == PTRACE_SYSCALL || request == PTRACE_SYSVM || is_sysemu(request))
+ 			flags |= UTRACE_EVENT_SYSCALL;
+ 		if (is_singlestep(request))
+ 			flags |= UTRACE_ACTION_SINGLESTEP;
+@@ -1018,20 +1036,11 @@
+ }
+ 
+ 
+-asmlinkage long sys_ptrace(long request, long pid, long addr, long data)
++static long ptrace_single(long request, long pid, long addr, long data,
++		struct task_struct *child, struct utrace_attached_engine *engine, struct ptrace_state *state)
+ {
+-	struct task_struct *child = NULL;
+-	struct utrace_attached_engine *engine = NULL;
+-	struct ptrace_state *state = NULL;
+ 	long ret, val;
+ 
+-	pr_debug("%d sys_ptrace(%ld, %ld, %lx, %lx)\n",
+-		 current->pid, request, pid, addr, data);
+-
+-	ret = ptrace_start(pid, request, &child, &engine, &state);
+-	if (ret != -EIO)
+-		goto out;
+-
+ 	val = 0;
+ 	ret = arch_ptrace(&request, child, engine, addr, data, &val);
+ 	if (ret != -ENOSYS) {
+@@ -1093,31 +1102,94 @@
+ 
+ out_tsk:
+ 	NO_LOCKS;
+-	put_task_struct(child);
+-out:
+-	pr_debug("%d ptrace -> %lx\n", current->pid, ret);
+ 	return ret;
+ }
+ 
++static long ptrace_multi(long request, long pid, long addr, long size,
++		struct task_struct *child, struct utrace_attached_engine *engine, struct ptrace_state *state)
++{
++	long i,j,ret=0;
++	if (!access_ok(VERIFY_READ, addr, size*sizeof(struct ptrace_multi))) {
++		ret = -EIO;
++		goto out_multi_ptrace;
++	}
++	for (i=0; i<size && ret==0; i++, addr+=sizeof(struct ptrace_multi)) {
++		unsigned long len;
++		struct ptrace_multi __user pm ;
++		__copy_from_user(&pm, (struct ptrace_multi __user *)addr, sizeof(struct ptrace_multi));
++		len = pm.length;
++
++		switch ( pm.request){
++			case PTRACE_PEEKTEXT:
++			case PTRACE_PEEKDATA:
++			case PTRACE_PEEKUSR:
++			case PTRACE_POKETEXT:
++			case PTRACE_POKEDATA:
++			case PTRACE_POKEUSR:
++				if (len <= 0) len=1;
++				for (j=0; j<len && ret==0; j++)
++					ret=ptrace_single(pm.request, pid, (long) (pm.addr) + j*sizeof(long), (long) (pm.localaddr) + j*sizeof(long), child, engine,state);
++				break;
++			case PTRACE_PEEKCHARDATA:
++				if (access_ok(VERIFY_WRITE, pm.localaddr ,len))
++					ret=access_process_vm_user(child, pm.addr, pm.localaddr, len, 0, 0);
++				else
++					ret= -EIO;
++				break;
++			case PTRACE_POKECHARDATA:
++				if (access_ok(VERIFY_READ, pm.localaddr ,len))
++					ret=access_process_vm_user(child, pm.addr, pm.localaddr, len, 1, 0);
++				else
++					ret= -EIO;
++				break;
++			case PTRACE_PEEKSTRINGDATA:
++				if (access_ok(VERIFY_WRITE, pm.localaddr ,len))
++					ret=access_process_vm_user(child, pm.addr, pm.localaddr, len, 0, 1);
++				else
++					ret= -EIO;
++				break;
++			default:
++				ret=ptrace_single(pm.request, pid, (long) (pm.addr), (long) (pm.localaddr), child, engine,state);
++				break;
++		}
++	}
++out_multi_ptrace:
++	return ret;
++}
++
++asmlinkage long sys_ptrace(long request, long pid, long addr, long data)
++{
++	struct task_struct *child = NULL;
++	struct utrace_attached_engine *engine = NULL;
++	struct ptrace_state *state = NULL;
++	long ret;
++
++	pr_debug("%d sys_ptrace(%ld, %ld, %lx, %lx)\n",
++		 current->pid, request, pid, addr, data);
++
++	ret = ptrace_start(pid, request, &child, &engine, &state);
++	if (ret == -EIO) {
++		if (request == PTRACE_MULTI)
++			ret = ptrace_multi(request, pid, addr, data, child, engine, state);
++		else
++			ret = ptrace_single(request, pid, addr, data, child, engine, state);
++		NO_LOCKS;
++		put_task_struct(child);
++	}
++	pr_debug("%d ptrace -> %lx\n", current->pid, ret);
++	  return ret;
++}
+ 
+ #ifdef CONFIG_COMPAT
+ #include <linux/compat.h>
+ 
+-asmlinkage long compat_sys_ptrace(compat_long_t request, compat_long_t pid,
+-				  compat_ulong_t addr, compat_long_t cdata)
++static long ptrace_compat_single(compat_long_t request, compat_long_t pid,
++				  compat_ulong_t addr, const unsigned long data,
++					struct task_struct *child,struct utrace_attached_engine *engine,
++					struct ptrace_state *state)
+ {
+-	const unsigned long data = (unsigned long) (compat_ulong_t) cdata;
+-	struct task_struct *child;
+-	struct utrace_attached_engine *engine;
+-	struct ptrace_state *state;
+ 	compat_long_t ret, val;
+ 
+-	pr_debug("%d compat_sys_ptrace(%d, %d, %x, %x)\n",
+-		 current->pid, request, pid, addr, cdata);
+-	ret = ptrace_start(pid, request, &child, &engine, &state);
+-	if (ret != -EIO)
+-		goto out;
+-
+ 	val = 0;
+ 	ret = arch_compat_ptrace(&request, child, engine, addr, cdata, &val);
+ 	if (ret != -ENOSYS) {
+@@ -1178,7 +1250,23 @@
+ 
+ out_tsk:
+ 	put_task_struct(child);
+-out:
++	return ret;
++}
++
++asmlinkage long compat_sys_ptrace(compat_long_t request, compat_long_t pid,
++				  compat_ulong_t addr, compat_long_t cdata)
++{
++	const unsigned long data = (unsigned long) (compat_ulong_t) cdata;
++	struct task_struct *child;
++	struct utrace_attached_engine *engine;
++	struct ptrace_state *state;
++	compat_long_t ret;
++
++	pr_debug("%d compat_sys_ptrace(%d, %d, %x, %x)\n",
++		 current->pid, request, pid, addr, cdata);
++	ret = ptrace_start(pid, request, &child, &engine, &state);
++	if (ret == -EIO)
++		ret = ptrace_compat_single(request, pid, addr, data, child, engine, state);
+ 	pr_debug("%d ptrace -> %lx\n", current->pid, (long)ret);
+ 	return ret;
+ }
+@@ -1872,7 +1960,11 @@
+ 		      struct task_struct *tsk, struct pt_regs *regs,
+ 		      int entry)
+ {
++	u32 ret;
+ 	struct ptrace_state *state = get_ptrace_state(engine, tsk);
++#ifdef PTRACE_SYSEMU
++	state->scno = tracehook_syscall_callno(regs);
++#endif
+ 	if (unlikely(state == NULL))
+ 		return UTRACE_ACTION_RESUME;
+ 
+@@ -1891,25 +1983,37 @@
+ 		 * the actual syscall and get to the exit tracing stop.
+ 		 * There, we swap the registers back and do ptrace_report.
+ 		 */
+-
+-		long *scno = tracehook_syscall_callno(regs);
+-		long *retval = tracehook_syscall_retval(regs);
+ 		if (entry) {
+-			*retval = *scno;
+-			*scno = -1;
++			*state->scno = -1;
+ 			return UTRACE_ACTION_RESUME;
+ 		}
+ 		else {
+-			*scno = *retval;
++			long *retval = tracehook_syscall_retval(regs);
+ 			*retval = -ENOSYS;
+ 		}
+ 	}
++
++	if (!entry && (state->sysvm & PTRACE_VM_SKIPEXIT)) {
++		state->sysvm=0;
++		return UTRACE_ACTION_RESUME;
++	}
++
+ #endif
+ 
+ 	state->syscall = 1;
+-	return ptrace_report(engine, tsk, state,
++	ret=ptrace_report(engine, tsk, state,
+ 			     ((state->options & PTRACE_O_TRACESYSGOOD)
+ 			      ? 0x80 : 0) | SIGTRAP);
++#if 0
++#ifdef PTRACE_SYSEMU
++  ret=utrace_quiescent(tsk, NULL); 
++	utrace_set_flags(tsk, engine, engine->flags | UTRACE_ACTION_QUIESCE);
++	if (entry && (state->sysvm & PTRACE_VM_SKIPCALL)) {
++		*state->scno=-1;	
++	}
++#endif
++#endif
++	return ret;
+ }
+ 
+ static u32
+diff -Naur linux-source-2.6.22-utrace/kernel/utrace.c linux-source-2.6.22-utrace-viewos/kernel/utrace.c
+--- linux-source-2.6.22-utrace/kernel/utrace.c	2007-08-14 18:29:41.000000000 +0200
++++ linux-source-2.6.22-utrace-viewos/kernel/utrace.c	2007-08-14 18:29:45.000000000 +0200
+@@ -17,6 +17,7 @@
+ #include <linux/module.h>
+ #include <linux/init.h>
+ #include <linux/slab.h>
++#include <linux/mm.h>
+ #include <asm/tracehook.h>
+ 
+ 
++
+diff -Naur linux-source-2.6.22-utrace/mm/memory.c linux-source-2.6.22-utrace-viewos/mm/memory.c
+--- linux-source-2.6.22-utrace/mm/memory.c	2007-08-14 18:35:21.000000000 +0200
++++ linux-source-2.6.22-utrace-viewos/mm/memory.c	2007-08-14 18:34:17.000000000 +0200
+@@ -2817,3 +2817,68 @@
+ 
+ 	return buf - old_buf;
+ }
++
++/*
++ * Access another process' address space to/from user space
++ * Do not walk the page table directly, use get_user_pages
++ */
++int access_process_vm_user(struct task_struct *tsk, unsigned long addr, char __user *ubuf, int len, int write, int string)
++{
++	struct mm_struct *mm;
++	struct vm_area_struct *vma;
++	struct page *page;
++	char *buf;
++	unsigned long old_addr = addr;
++
++	mm = get_task_mm(tsk);
++	if (!mm)
++		return 0;
++
++	buf=kmalloc(PAGE_SIZE, GFP_KERNEL);
++	down_read(&mm->mmap_sem);
++	/* ignore errors, just check how much was sucessfully transfered */
++	while (len) {
++		int bytes, ret, offset;
++		void *maddr;
++
++		ret = get_user_pages(tsk, mm, addr, 1,
++				write, 1, &page, &vma);
++		if (ret <= 0)
++			break;
++
++		bytes = len;
++		offset = addr & (PAGE_SIZE-1);
++		if (bytes > PAGE_SIZE-offset)
++			bytes = PAGE_SIZE-offset;
++
++		maddr = kmap(page);
++		if (write) {
++			__copy_from_user(buf,ubuf,bytes);
++			copy_to_user_page(vma, page, addr,
++					maddr + offset, buf, bytes);
++			if (!PageCompound(page))
++				set_page_dirty_lock(page);
++		} else {
++			copy_from_user_page(vma, page, addr,
++					buf, maddr + offset, bytes);
++			if (string) {
++				for (offset=0;offset<bytes;offset++)
++					if (buf[offset]==0)
++						break;
++				if (offset < bytes)
++					bytes=len=offset+1;
++			}
++			ret=__copy_to_user(ubuf,buf,bytes);
++		}
++		kunmap(page);
++		page_cache_release(page);
++		len -= bytes;
++		ubuf += bytes;
++		addr += bytes;
++	}
++	up_read(&mm->mmap_sem);
++	mmput(mm);
++
++	kfree(buf);
++	return addr - old_addr;
++}

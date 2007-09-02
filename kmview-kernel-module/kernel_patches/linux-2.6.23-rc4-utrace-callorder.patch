@@ -1,0 +1,119 @@
+diff -Naur linux-2.6.23-rc4-utrace/include/linux/list.h linux-2.6.23-rc4-utrace-callorder/include/linux/list.h
+--- linux-2.6.23-rc4-utrace/include/linux/list.h	2007-08-29 19:11:39.060676197 +0200
++++ linux-2.6.23-rc4-utrace-callorder/include/linux/list.h	2007-08-29 19:16:27.753461650 +0200
+@@ -633,6 +633,24 @@
+ 		pos = n)
+ 
+ /**
++ * list_for_each_safe_rcu_reverse
++ * @pos:	the &struct list_head to use as a loop cursor.
++ * @n:		another &struct list_head to use as temporary storage
++ * @head:	the head for your list.
++ *
++ * Iterate backwards over an rcu-protected list, safe against removal of 
++ * list entry.
++ *
++ * This list-traversal primitive may safely run concurrently with
++ * the _rcu list-mutation primitives such as list_add_rcu()
++ * as long as the traversal is guarded by rcu_read_lock().
++ */
++#define list_for_each_safe_rcu_reverse(pos, n, head) \
++	for (pos = (head)->prev; \
++		n = rcu_dereference(pos)->prev, pos != (head); \
++		pos = n)
++
++/**
+  * list_for_each_entry_rcu	-	iterate over rcu list of given type
+  * @pos:	the type * to use as a loop cursor.
+  * @head:	the head for your list.
+diff -Naur linux-2.6.23-rc4-utrace/include/linux/utrace.h linux-2.6.23-rc4-utrace-callorder/include/linux/utrace.h
+--- linux-2.6.23-rc4-utrace/include/linux/utrace.h	2007-08-29 19:12:05.510931677 +0200
++++ linux-2.6.23-rc4-utrace-callorder/include/linux/utrace.h	2007-08-29 19:16:27.763461746 +0200
+@@ -197,6 +197,7 @@
+ 	struct list_head entry;	/* Entry on thread's utrace.engines list.  */
+ 	struct rcu_head rhead;
+ 	atomic_t check_dead;
++	long saved_scno;
+ 
+ /* public: */
+ 	const struct utrace_engine_ops *ops;
+@@ -432,6 +433,12 @@
+ void utrace_signal_handler_singlestep(struct task_struct *, struct pt_regs *);
+ 
+ /*
++ *   Access another process' address space to/from user space
++ *   Check in with the same rule used for /proc/.../mem
++ */
++int utrace_access_process_vm(struct task_struct *tsk, unsigned long addr, char __user *ubuf, int len, int write, int string);
++
++/*
+  * <linux/tracehook.h> uses these accessors to avoid #ifdef CONFIG_UTRACE.
+  */
+ static inline unsigned long tsk_utrace_flags(struct task_struct *tsk)
+diff -Naur linux-2.6.23-rc4-utrace/kernel/utrace.c linux-2.6.23-rc4-utrace-callorder/kernel/utrace.c
+--- linux-2.6.23-rc4-utrace/kernel/utrace.c	2007-08-29 19:12:05.400930614 +0200
++++ linux-2.6.23-rc4-utrace-callorder/kernel/utrace.c	2007-08-29 19:16:27.783461939 +0200
+@@ -1639,32 +1639,46 @@
+ 	struct utrace *utrace = tsk->utrace;
+ 	struct list_head *pos, *next;
+ 	struct utrace_attached_engine *engine;
+-	unsigned long action, ev;
+-	int killed;
++	unsigned long action;
++	int killed=0;
+ 
+ /*
+   XXX pass syscall # to engine hook directly, let it return inhibit-action
+   to reset to -1
+ 	long syscall = tracehook_syscall_number(regs, is_exit);
+ */
+-
+-	ev = is_exit ? UTRACE_EVENT(SYSCALL_EXIT) : UTRACE_EVENT(SYSCALL_ENTRY);
+-
+-	/* XXX must change for sharing */
++	long *scno = tracehook_syscall_callno(regs);
+ 	action = UTRACE_ACTION_RESUME;
+-	list_for_each_safe_rcu(pos, next, &utrace->engines) {
+-		engine = list_entry(pos, struct utrace_attached_engine, entry);
+-		if (engine->flags & ev) {
+-			if (is_exit)
+-				REPORT(report_syscall_exit, regs);
+-			else
+-				REPORT(report_syscall_entry, regs);
++	if (is_exit) {
++		list_for_each_safe_rcu(pos, next, &utrace->engines) {
++			engine = list_entry(pos, struct utrace_attached_engine, entry);
++			if (engine->flags & UTRACE_EVENT(SYSCALL_EXIT)) {
++				if ((*scno=engine->saved_scno) >= 0) {/*restore scno and call*/
++					REPORT(report_syscall_exit, regs);
++					action = check_detach(tsk, action);
++					if ((killed = check_quiescent(tsk, action)) ||
++							action & UTRACE_ACTION_HIDE)
++						break;
++				}
++			}
++		}
++	} else {
++		list_for_each_safe_rcu_reverse(pos, next, &utrace->engines) {
++			engine = list_entry(pos, struct utrace_attached_engine, entry);
++			if (engine->flags & UTRACE_EVENT(SYSCALL_ENTRY)) {
++				if ((engine->saved_scno=*scno) >= 0) { /* -1 -> skip system call! */
++					REPORT(report_syscall_entry, regs);
++					action = check_detach(tsk, action);
++					if ((killed = check_quiescent(tsk, action)))
++						break;
++
++					/* HIDE is maningless in reverse way
++						 if (action & UTRACE_ACTION_HIDE)
++						 break; */
++				}
++			}
+ 		}
+-		if (action & UTRACE_ACTION_HIDE)
+-			break;
+ 	}
+-	action = check_detach(tsk, action);
+-	killed = check_quiescent(tsk, action);
+ 
+ 	if (!is_exit) {
+ 		if (unlikely(killed))
