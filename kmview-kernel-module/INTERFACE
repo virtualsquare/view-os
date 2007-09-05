@@ -18,7 +18,7 @@ when a process is traced there is no way to exit from the control
 of the tracer.
 
 A tracer process first open a read only connection to /dev/kmview
-(major=10,minor=235, official number assignment is still pending)
+(major=10,minor=233 - officially assinged)
 
 fd=open("/dev/kmview",O_RDONLY);
 

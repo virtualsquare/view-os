@@ -1,6 +1,6 @@
 # If KERNELRELEASE is defined, we've been invoked from the
 # kernel build system and can use its language.
-#KERNELDIR = "/usr/src/experimental/linux-source-2.6.22-utrace-viewos"
+KERNELDIR = "/usr/src/experimental/linux-source-2.6.22-utrace-viewos"
 #KERNELDIR = "/mnt/sorgenti/KernelStuff/kernels/linux-2.6.22.1/"
 
 

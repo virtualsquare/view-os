@@ -37,7 +37,7 @@ make KERNELDIR="/path/to/your/kernel_source/"
 # insmod kmview
 
 8- create the device:
-# mkdev /dev/kmview c 10 235
+# mkdev /dev/kmview c 10 233
 # chmod 666 /dev/kmview
 (official device number assignment requested).
 
