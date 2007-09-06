@@ -82,11 +82,13 @@ void dirdata_add_dirent(dirdata *dd, struct dirent64 *dent)
 void dirdata_add_dirents(dirdata *dd, struct dirent64 *dents, unsigned int count)
 {
 	int pos = 0;
+	struct dirent64 *curdent;
 
 	while (pos < count)
 	{
-		dirdata_add_dirent(dd, dents);
-		pos += dents->d_reclen;
+		curdent = (struct dirent64 *)((char *)dents + pos);
+		dirdata_add_dirent(dd, curdent);
+		pos = dents
 	}
 }
 
