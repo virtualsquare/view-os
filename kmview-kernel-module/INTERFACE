@@ -201,6 +201,7 @@ main(int argc, char *argv[])
 {
 	int fd;
 	struct kmview_event event;
+	fd=open("/dev/kmview",O_RDONLY);
 	signal(SIGCHLD,dowait);
 	if (fork()) {
 		while (1) {
