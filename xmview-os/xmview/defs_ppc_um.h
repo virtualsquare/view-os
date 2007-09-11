@@ -28,6 +28,12 @@
 #define _KERNEL_NSIG   64
 #define _KERNEL_SIGSET_SIZE _KERNEL_NSIG/8
 
+#include <errno.h>
+
+#ifndef PT_ORIG_R3
+#define PT_ORIG_R3 34
+#endif
+
 static inline long getregs(struct pcb *pc)
 {
 	if (has_ptrace_multi) {
@@ -94,9 +100,6 @@ static inline long setregs(struct pcb *pc, enum __ptrace_request call,
 #define LONG_LONG(_l,_h) \
     ((long long)((unsigned long long)(unsigned)(_h) | ((unsigned long long)(_l)<<32)))
 
-#ifndef PT_ORIG_R3
-#define PT_ORIG_R3 34
-#endif
 
 #define __NR_setpgrp __NR_doesnotexist
 #endif // _DEFS_PPC 
