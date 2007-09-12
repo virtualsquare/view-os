@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <linux/fs.h>
 #include <linux/hdreg.h>
+#include <sys/ioctl.h>
 #include <config.h>
 
 #define STD_SIZE 64*1024

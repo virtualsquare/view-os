@@ -27,6 +27,7 @@
 #include <string.h>
 #include <linux/fs.h>
 #include <config.h>
+#include <sys/ioctl.h>
 #include "mbr.h"
 #define IDE_HEADER_OFFSET 446
 

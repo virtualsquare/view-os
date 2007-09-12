@@ -29,6 +29,7 @@
 #include <linux/fs.h>
 #include <linux/hdreg.h>
 #include <config.h>
+#include <sys/ioctl.h>
 #include "mbr.h"
 
 //char readonly=0;
