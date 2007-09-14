@@ -1,8 +1,11 @@
-This is LWIPV6a - Light weight IP v 6 A
+
+LWIPV6a - Light weight IP v 6 A
+===============================
 
 LWIPV6a has been completely rewritten, it is based on LWIPv.1.1.0 
 (by Adam Dunkels).
-V6a includes also the management of PF_PACKET (e.g. ethereal and
+
+LWIPV6a includes also the management of PF_PACKET (e.g. ethereal and
 DHCP user level management).
 
 Copyright 2004 Renzo Davoli University of Bologna - Italy
@@ -46,17 +49,6 @@ The TCP-IP stack is based on lwip by Adam Dunkels <adam@sics.se>
 *    You should have received a copy of the GNU General Public License along
 *    with this program; if not, write to the Free Software Foundation, Inc.,
 *    51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-
-Install
--------
-
-cd to the distribution dir and type
-
-% make
-
-You can install the library with the following command:
-
-# make install
 
 
 Use LwIPv6a with View-OS project
