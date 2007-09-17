@@ -203,8 +203,8 @@ int wrap_in_chroot(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	if (pc->erno == 0) {
-		free(pc->fdfs->root);
-		pc->fdfs->root=strdup(pc->path);
+		/* free(pc->fdfs->root);
+		pc->fdfs->root=strdup(pc->path); */
 		/* TODO management of chroot */
 		/*pc->erno = pc->retval = 0;*/
 		pc->retval = -1;
