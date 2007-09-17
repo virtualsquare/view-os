@@ -183,7 +183,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		//putargn(0,sp-filenamelen,pc);
 		pc->sysargs[0]=sp-filenamelen;
 		larg0=sp-filenamelen-arg0len;
-		ustorestr(pc,larg0,arg0len,umbinfmtarg0);
+		ustoren(pc,larg0,arg0len,umbinfmtarg0);
 		ustoren(pc,largv,sizeof(char *),&larg0);
 		//fprint2("%s %s\n",UMBINWRAP,umbinfmtarg0);
 		free(umbinfmtarg0);
@@ -223,7 +223,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 				/* remember to clean up the copy as soon as possible */
 				pc->tmpfile2unlink_n_free=filename;
 				ustoren(pc,sp-filenamelen,filenamelen,filename);
-				putargn(0,sp-filenamelen,pc);
+				pc->sysargs[0]=sp-filenamelen;
 				return SC_CALLONXIT;
 			} else {
 				/* something went wrong during the copy */
