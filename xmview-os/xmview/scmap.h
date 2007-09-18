@@ -74,15 +74,13 @@ struct sc_map {
 };
 
 extern struct sc_map scmap[];
-extern struct sc_map sockmap[];
-extern struct sc_map virscmap[];
 extern int scmap_scmapsize;
-extern int scmap_sockmapsize;
+extern struct sc_map virscmap[];
 extern int scmap_virscmapsize;
 
-//#define CB_R 0x1
-//#define CB_W 0x2
-//#define CB_X 0x4
+extern struct sc_map sockmap[];
+extern int scmap_sockmapsize;
+
 #define CB_R POLLIN|POLLHUP
 #define CB_W POLLOUT
 

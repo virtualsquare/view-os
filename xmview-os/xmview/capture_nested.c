@@ -172,7 +172,11 @@ service_t nchoice_link2(int sc_number,struct npcb *npc) {
 
 /* choice function for nested calls: socket */
 service_t nchoice_socket(int sc_number,struct npcb *npc) {
-	return service_check(CHECKSOCKET, &(npc->sysargs[2]),1);
+	/* This is the real statement for socket call nesting,
+	 * it has been commented out as um_lwipv6 soes not support
+	 * multistack and nestine yet. To be restored asap */
+	/*return service_check(CHECKSOCKET, &(npc->sysargs[0]),1);*/
+	return UM_NONE;
 }
 
 /* call the implementation */
@@ -311,7 +315,11 @@ int nw_sockfd_std(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
 	int fd=npc->sysargs[0];
 	npc->sysargs[0]=fd2sfd(&umview_file,fd);
+#if __NR_socketcall != __NR_doesnotexist
 	return do_nested_call(um_syscall,&(npc->sysargs[0]),sockmap[scno].nargs);
+#else
+	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+#endif
 }
 
 /* nested wrapper for not supported call */
@@ -327,11 +335,14 @@ static int nested_sysindex(struct npcb *npc, int scno)
 	  return uscno(scno);
 }
 
+#if __NR_socketcall != __NR_doesnotexist
 /* dcif (index) for sockets */
 static int nested_sockindex(struct npcb *npc, int scno)
 {
-	  return npc->sysargs[0];
+	  //return npc->sysargs[0];
+	  return scno;
 }
+#endif
 
 /* do_kernel_call for syscalls */
 static int nested_call_syscall (int sysno, struct npcb *npc)
@@ -340,11 +351,13 @@ static int nested_call_syscall (int sysno, struct npcb *npc)
 			      npc->sysargs[3], npc->sysargs[4], npc->sysargs[5]);
 }
 
+#if __NR_socketcall != __NR_doesnotexist
 /* do_kernel_call for sockets */
 static int nested_call_sockcall (int sysno, struct npcb *npc)
 {
 	return native_syscall(__NR_socketcall,sysno,npc->sysargs);
 }
+#endif
 
 /* COMMON WRAP FOR NESTED CALLS */
 typedef int (*nested_commonwrap_index_function)(struct npcb *pc, int scno);
@@ -406,6 +419,7 @@ static void nsaveargs(struct pcb *caller,struct npcb *callee,long int sysno){
 static void nrestoreargs(struct pcb *caller,struct npcb *callee){
 }
 
+#if __NR_socketcall != __NR_doesnotexist
 /* management of module generated socket calls */
 static long int capture_nested_socketcall(long int sysno, ...){
 	va_list ap;
@@ -441,6 +455,7 @@ static long int capture_nested_socketcall(long int sysno, ...){
 #endif
 	return rv;
 }
+#endif
 
 /* management of module generated syscalls */
 static long int capture_nested_syscall(long int sysno, ...)
@@ -548,7 +563,9 @@ int __clone (int (*fn) (void *arg), void *child_stack,
 void capture_nested_init()
 {
 	sfun *_pure_syscall;
+#if __NR_socketcall != __NR_doesnotexist
 	sfun *_pure_socketcall;
+#endif
 	/* thread creation must be traced */
 	libc__clone = dlsym (RTLD_NEXT, "__clone");
 	/* fake pcb for path management */
@@ -566,9 +583,11 @@ void capture_nested_init()
 			fprint2("pure_libc library found: module nesting allowed\n\n");
 		*_pure_syscall=capture_nested_syscall;
 	}
+#if __NR_socketcall != __NR_doesnotexist
 	if ((_pure_socketcall=dlsym(RTLD_DEFAULT,"_pure_socketcall")) != NULL) {
 		*_pure_socketcall=capture_nested_socketcall;
 	}
+#endif
 }
 
 
