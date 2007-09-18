@@ -379,8 +379,6 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 		/* rewrite the syscall parms: it is a mmap2, using the secret file
 		 * at the correct offset */
 		putscno(__NR_mmap2,pc);
-		//putargn(4,um_mmap_secret,pc);
-		//putargn(5,sf_entry->pgoffset+offset,pc);
 		pc->sysargs[4]=um_mmap_secret;
 		pc->sysargs[5]=sf_entry->pgoffset+offset;
 		//fprint2("MMAP2 path %s epoch %lld %ld %ld %ld\n", path, nestepoch, sf_entry->pgoffset, offset,pgsize);

@@ -78,8 +78,6 @@ int wrap_in_socket(int sc_number,struct pcb *pc,
 		 * "type" of the file connected to the fd */
 		ustorestr(pc,sp-filenamelen,filenamelen,filename); /*socket?*/
 		putscno(__NR_open,pc);
-		//putargn(0,sp-filenamelen,pc);
-		//putargn(1,O_RDONLY,pc);
 		pc->sysargs[0]=sp-filenamelen;
 		pc->sysargs[1]=O_RDONLY;
 		return SC_CALLONXIT;
@@ -131,8 +129,6 @@ int wrap_in_accept(int sc_number,struct pcb *pc,
 			int sp=getsp(pc);
 			ustorestr(pc,sp-filenamelen,filenamelen,filename); /*socket?*/
 			putscno(__NR_open,pc);
-			//putargn(0,sp-filenamelen,pc);
-			//putargn(1,O_RDONLY,pc);
 			pc->sysargs[0]=sp-filenamelen;
 			pc->sysargs[1]=O_RDONLY;
 			return SC_CALLONXIT;
@@ -153,13 +149,6 @@ int wrap_out_socket(int sc_number,struct pcb *pc) {
 		if (fd >= 0) {
 			/* update open file table*/
 			lfd_register(pc->fds,fd,pc->retval);
-			/* restore parms*/
-#if 0
-			putscno(pc->scno,pc);
-			putargn(0,pc->sysargs[0],pc);
-			putargn(1,pc->sysargs[1],pc);
-			putrv(fd,pc);
-#endif
 		} else {
 			putrv(pc->retval,pc);
 			puterrno(pc->erno,pc);

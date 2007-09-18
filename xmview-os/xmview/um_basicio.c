@@ -78,8 +78,6 @@ int wrap_in_open(int sc_number,struct pcb *pc,
 			long sp=getsp(pc);
 			ustoren(pc,sp-filenamelen,filenamelen,filename);
 			putscno(__NR_open,pc);
-			//putargn(0,sp-filenamelen,pc);
-			//putargn(1,O_RDONLY,pc);
 			pc->sysargs[0]=sp-filenamelen;
 			pc->sysargs[1]=O_RDONLY;
 			return SC_CALLONXIT;
@@ -104,15 +102,6 @@ int wrap_out_open(int sc_number,struct pcb *pc) {
 				 || addfd(pc,fd) == 0)) {
 			/* update open file table*/
 			lfd_register(pc->fds,fd,pc->retval);
-			/* restore parms*/
-#if 0
-			if (lfd_getservice(pc->retval) != UM_NONE) {
-				putscno(pc->scno,pc);
-				putargn(0,pc->sysargs[0],pc);
-				putargn(1,pc->sysargs[1],pc);
-				putrv(fd,pc);
-			}
-#endif
 		} else {
 #if 0
 			if (lfd_getservice(pc->retval) != UM_NONE) {

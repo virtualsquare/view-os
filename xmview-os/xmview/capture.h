@@ -29,7 +29,7 @@
 #elif defined _VIEWOS_UM
 #	include "capture_um.h"
 #else
-#	error "Undefined mode (UM/KM)
+#	error "Undefined mode (UM/KM)"
 #endif
 
 #endif

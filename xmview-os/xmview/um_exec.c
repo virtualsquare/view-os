@@ -180,7 +180,6 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		arg0len=WORDALIGN(strlen(umbinfmtarg0));
 		pc->retval=0;
 		ustorestr(pc,sp-filenamelen,filenamelen,UMBINWRAP);
-		//putargn(0,sp-filenamelen,pc);
 		pc->sysargs[0]=sp-filenamelen;
 		larg0=sp-filenamelen-arg0len;
 		ustoren(pc,larg0,arg0len,umbinfmtarg0);

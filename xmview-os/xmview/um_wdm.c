@@ -106,7 +106,6 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,
 			pathlen = WORDALIGN(strlen(pc->path));
 			ustoren(pc, sp-pathlen, pathlen, pc->path);
 		}
-		//putargn(0,sp-pathlen,pc);
 		pc->sysargs[0]=sp-pathlen;
 		return SC_CALLONXIT;
 	} else {
@@ -155,7 +154,6 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 		{
 			pathlen = WORDALIGN(strlen(pc->path));
 			ustoren(pc, sp - pathlen, pathlen, pc->path);
-			//putargn(0, sp - pathlen, pc);
 			pc->sysargs[0]=sp-pathlen;
 			putscno(__NR_chdir, pc);
 			GDEBUG(4, "FCHDIR making fake chdir to real %s", pc->path);
@@ -175,7 +173,6 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 					pathlen = WORDALIGN(strlen(pc->path));
 					ustoren(pc, sp-pathlen, pathlen, pc->path);
 				}
-				//putargn(0,sp-pathlen,pc);
 				pc->sysargs[0]=sp-pathlen;
 				putscno(__NR_chdir,pc);
 				return SC_CALLONXIT;

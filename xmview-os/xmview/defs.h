@@ -66,9 +66,6 @@
 #	define sysscno event.scno
 #	define getscno(PC) ( (PC)->event.scno )
 #	define putscno(X,PC) ( (PC)->event.scno = (X) )
-#	define getargn(N,PC) ( (PC)->event.args[(N)] )
-#	define getargp(PC) ( (PC)->event.args )
-#	define putargn(N,X,PC) ( (PC)->event.args[(N)]=(X) )
 #	define getrv(PC) ( (PC)->outevent.retval) 
 #	define putrv(RV,PC) ( (PC)->outevent.retval = (RV) )
 #	define geterrno(PC) ( (PC)->outevent.erno )
