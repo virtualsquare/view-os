@@ -44,9 +44,12 @@ char *
 um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollowlink,void *xpc)
 {
 	char *dest, extra_buf[PATH_MAX];
-	const char *start, *end, *resolved_limit;
+	const char *start, *end, *resolved_limit; 
+	char *resolved_root;
 	int num_links = 0;
 	int validstat = 0;
+	char *root=um_getroot(xpc);
+	int rootlen=strlen(root);
 
 	if (!resolved)
 		return NULL;
@@ -78,13 +81,25 @@ um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollo
 			resolved[0] = '\0';
 			goto error;
 		}
+		/* if the cwd is inside the chroot cage, set the unchangeable
+		 * part of the path */
+		if (strncmp(root,resolved,rootlen) == 0)
+			resolved_root=resolved+rootlen;
+		else
+			resolved_root = resolved+1;
 		dest = strchr (resolved, '\0');
 	}
 	else
 	{
 	/* absolute path */
+		if (rootlen > PATH_MAX) {
+			um_set_errno (xpc,ENAMETOOLONG);
+			goto error;
+		}
+		dest=resolved;
+		/* '/' is converted to the current root */
+		dest=resolved_root=mempcpy(dest,root,rootlen);
 		resolved[0] = '/';
-		dest = resolved + 1;
 		/* special case "/" */
 		if (name[1] == 0) {
 			*dest='\0';
@@ -118,7 +133,7 @@ um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollo
 		{
 			/* Back up to previous component, ignore if at root already.  */
 			validstat = 0;
-			if (dest > resolved + 1)
+			if (dest > resolved_root)
 				while ((--dest)[-1] != '/');
 		}
 		else
@@ -129,7 +144,7 @@ um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollo
 			if (dest + (end - start) >= resolved_limit)
 			{
 				um_set_errno (xpc,ENAMETOOLONG);
-				if (dest > resolved + 1)
+				if (dest > resolved_root)
 					dest--;
 				*dest = '\0';
 				goto error;
@@ -183,7 +198,7 @@ um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollo
 					name = end = memcpy (extra_buf, buf, n);
 
 					if (buf[0] == '/')
-						dest = resolved + 1;	/* It's an absolute symlink */
+						dest = resolved_root;	/* It's an absolute symlink */
 					else
 						/* Back up to previous component, ignore if at root already: */
 						if (dest > resolved + 1)

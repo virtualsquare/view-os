@@ -75,6 +75,15 @@ char *um_getcwd(struct pcb *pc,char *buf,int size) {
 		return NULL;
 }
 
+char *um_getroot(struct pcb *pc)
+{
+	if (pc->flags && PCB_INUSE) 
+		return pc->fdfs->root;
+	else
+		/* nested chroot: TODO */
+		return "/";
+}
+
 /* internal call: get the timestamp */
 struct timestamp *um_x_gettst()
 {
@@ -165,7 +174,6 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
 	return retval;
 }
 
-
 /* one word string used as a tag for mistaken paths */
 char um_patherror[]="PE";
 
@@ -187,6 +195,7 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink
 	char newpath[PATH_MAX];
 	if (umovestr(pc,laddr,PATH_MAX,path) == 0) {
 			um_realpath(path,newpath,pst,dontfollowlink,pc);
+			//fprint2("PATH %s (%s,%s) NEWPATH %s\n",path,um_getroot(pc),pc->fdfs->cwd,newpath);
 		if (pc->erno)
 			return um_patherror;	//error
 		else
@@ -472,25 +481,24 @@ void pcb_plus(struct pcb *pc,int flags,int npcflag)
 		} else {
 			pc->fdfs =  (struct pcb_fs *) malloc(sizeof (struct pcb_fs));
 			pc->fdfs->count=1;
-		}
 		/* ROOT process: the first one activated by umview */
-		if (rootprocess) {
-			char *path=malloc(PATH_MAX);
-			r_getcwd(path,PATH_MAX);
-			pc->fdfs->cwd=realloc(path,strlen(path));
-			pc->fdfs->root=strdup("/");
-			/*pc->fdfs->mask=local_getumask();*/
-			pc->fdfs->mask=r_umask(0);
-			r_umask(pc->fdfs->mask);
-			/* create the root of the treepoch */
-			pc->tst=tst_newfork(NULL);
-			pc->tst=tst_newproc(&(pc->tst));
-		} else {
-			pc->fdfs->cwd=strdup(pc->pp->fdfs->cwd);
-			pc->fdfs->root=strdup(pc->pp->fdfs->root);
-			pc->fdfs->mask=pc->pp->fdfs->mask;
-			pc->tst=tst_newproc(&(pc->pp->tst));
+			if (rootprocess) {
+				char *path=malloc(PATH_MAX);
+				r_getcwd(path,PATH_MAX);
+				pc->fdfs->cwd=realloc(path,strlen(path)+1);
+				pc->fdfs->root=strdup("/");
+				/*pc->fdfs->mask=local_getumask();*/
+				pc->fdfs->mask=r_umask(0);
+				r_umask(pc->fdfs->mask);
+				/* create the root of the treepoch */
+				pc->tst=tst_newfork(NULL);
+			} else {
+				pc->fdfs->cwd=strdup(pc->pp->fdfs->cwd);
+				pc->fdfs->root=strdup(pc->pp->fdfs->root);
+				pc->fdfs->mask=pc->pp->fdfs->mask;
+			}
 		}
+		pc->tst=tst_newproc(&(pc->pp->tst));
 #if 0
 		/* if CLONE_FILES, file descriptor table is shared */
 		if (flags & CLONE_FILES)

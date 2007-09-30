@@ -74,6 +74,7 @@ wrapoutfun wrap_out_execve;
 wrapoutfun wrap_out_mmap,wrap_out_mremap,wrap_out_munmap;
 #endif
 wrapoutfun wrap_out_kill;
+wrapoutfun wrap_out_chroot;
 
 serfunt nchoice_fd, nchoice_sfd, nchoice_sc, nchoice_mount, nchoice_path, nchoice_link, nchoice_link2, nchoice_socket;
 wrapfun nw_syspath_std,nw_sysfd_std,nw_sockfd_std,nw_sysopen,nw_syslink,nw_syspath2_std, nw_notsupp;
@@ -159,7 +160,7 @@ struct sc_map scmap[]={
 	{__NR_pselect6,	always_umnone,	wrap_in_select,	wrap_out_select,always_umnone,	NULL, ALWAYS,	6, SOC_FILE|SOC_NET},
 	{__NR_ppoll,	always_umnone,	wrap_in_poll,	wrap_out_poll,  always_umnone,	NULL, ALWAYS,	4, SOC_FILE|SOC_NET},
 	{__NR_umask,	always_umnone,	wrap_in_umask,  wrap_out_std,	always_umnone,	NULL, ALWAYS,	1, SOC_FILE|SOC_NET},
-	{__NR_chroot,	always_umnone,	wrap_in_chroot, wrap_out_std,	always_umnone,	NULL, ALWAYS,	1, SOC_FILE|SOC_NET},
+	{__NR_chroot,	choice_path,	wrap_in_chroot, wrap_out_chroot,	always_umnone,	NULL, ALWAYS,	1, SOC_FILE|SOC_NET},
 	{__NR_dup,	choice_fd,	wrap_in_dup,	wrap_out_dup,	nchoice_fd, nw_sysdup, ALWAYS,	1, SOC_FILE|SOC_NET},
 	{__NR_dup2,	choice_fd,	wrap_in_dup,	wrap_out_dup,	nchoice_fd, nw_sysdup, ALWAYS,	2, SOC_FILE|SOC_NET},
 	{__NR_mount,	choice_mount,	wrap_in_mount,	wrap_out_std,	always_umnone,	NULL, 0,	5, SOC_FILE},

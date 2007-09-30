@@ -68,6 +68,7 @@ void pcb_setviewname(struct pcb *pc,char *name);
 
 void um_set_errno(struct pcb *pc,int i);
 char *um_getcwd(struct pcb *pc,char *buf,int size);
+char *um_getroot(struct pcb *pc);
 int um_x_access(char *filename,int mode, struct pcb *pc);
 int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc);
 int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc);
