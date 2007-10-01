@@ -281,7 +281,7 @@ alloc_socket(struct netconn *newconn,u16_t family)
 				sys_sem_signal(socksem);
 				return -1;
 			} 
-			//printf("alloc_socket %d %d %d\n",i,fd,NUM_SOCKETS);
+			/*printf("alloc_socket %d %d %d\n",i,fd,NUM_SOCKETS);*/
 			sockets[i].fdfake=fd;
 			lwip_sockmap[fd]=i+1;
 			return fd;
@@ -934,6 +934,7 @@ lwip_socket(int domain, int type, int protocol)
 					set_errno(EINVAL);
 					return -1;
 			}
+			break;
 		default:
 			LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_socket(%d/UNKNOWN, %d, %d) = -1\n", domain, type, protocol));
 			
@@ -1097,7 +1098,7 @@ static struct um_sel_wait *um_sel_rec_signal(struct um_sel_wait *p,int fd, int e
 
 static void um_sel_signal(int fd, int events)
 {
-	//printf("UMSELECT SIGNAL fd %d events %x\n",fd,events);
+	/* printf("UMSELECT SIGNAL fd %d events %x\n",fd,events);*/
 	um_sel_head=um_sel_rec_signal(um_sel_head,fd,events);
 }
 
@@ -1110,9 +1111,9 @@ int lwip_event_subscribe(void (* cb)(), void *arg, int fd, int events)
 {
 	struct lwip_socket *psock=get_socket(fd);
 	int rv=0;
-	/*printf("UMSELECT REGISTER %s %d events %x arg %x psock %x\n",
+	/* printf("UMSELECT REGISTER %s %d events %x arg %x psock %x\n",
 			(cb != NULL)?"REG" : "DEL" ,
-			fd,events,arg,psock); */
+			fd,events,arg,psock);  */
 	if (!selectsem)
 		selectsem = sys_sem_new(1);
 	sys_sem_wait(selectsem);
@@ -1142,7 +1143,7 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 	struct lwip_socket *sock;
 	struct lwip_select_cb *scb;
 
-	//printf("event_callback %p \n",conn);
+	/*printf("event_callback %p %p\n",conn,event_callback);*/
 	/* Get socket */
 	if (conn)
 	{
@@ -1193,7 +1194,7 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 	um_sel_signal(sock->fdfake, 
 			POLLIN * (sock->rcvevent || sock->lastdata || sock->conn->recv_avail) +
 			POLLOUT * sock->sendevent);
-	/*printf("EVENT fd %d R%d S%d\n",s,sock->rcvevent,sock->sendevent);*/
+	/*printf("EVENT fd %d R%d S%d\n",sock->fdfake,sock->rcvevent,sock->sendevent);*/
 	sys_sem_signal(selectsem);
 
 	/* Now decide if anyone is waiting for this socket */
@@ -1619,8 +1620,8 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 						err = EINVAL;
 					}
 					break;
-				case SO_ATTACH_FILTER:
-					break;
+				/*case SO_ATTACH_FILTER:
+					break;*/
 				default:
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_setsockopt(%d, SOL_SOCKET, UNIMPL: optname=0x%x, ..)\n", s, optname));
 					err = ENOPROTOOPT;
@@ -1635,6 +1636,10 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 				/* UNIMPL case IP_RCVIF: */
 				case IP_TTL:
 				case IP_TOS:
+				case IP_MTU_DISCOVER:
+				case IP_RECVERR:
+				case IP_RECVTTL:
+				case IP_RECVTOS:
 					if( optlen < sizeof(int) ) {
 						err = EINVAL;
 					}
@@ -1717,6 +1722,7 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 						if (optlen < sizeof(struct packet_mreq)) {
 							err = EINVAL;
 						} else {
+							/* XXX Membership has not been managed yet */
 							printf("PACKET_MEMBERSHIP %d %d %d %d\n",
 									optname,pm->mr_ifindex,pm->mr_type,pm->mr_alen);
 						}

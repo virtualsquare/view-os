@@ -207,6 +207,11 @@ struct linger {
 #define IP_TOS       1
 #define IP_TTL       2
 #define IP_HDRINCL   3
+#define IP_MTU_DISCOVER    10 /* int */
+#define IP_RECVERR         11 /* bool */
+#define IP_RECVTTL         12 /* bool */
+#define IP_RECVTOS         13 /* bool */
+
 
 /*
  * Options for level IPPROTO_RAW

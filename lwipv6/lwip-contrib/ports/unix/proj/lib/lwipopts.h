@@ -58,7 +58,7 @@
  * Some of these are necessary if you are going to
  * use Lwipv6a as UMVIEWOS module (lwipv6.so).
  */
-//#define LWIP_DEBUG
+/*#define LWIP_DEBUG*/
 
 /* Enable NETLINK sockets to support network configuration by using iproute2 tools */
 #define LWIP_NL                        1

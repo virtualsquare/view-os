@@ -130,7 +130,7 @@ packet_input(struct pbuf *p,struct sockaddr_ll *sll,u16_t link_header_size)
     if (
 				(IPSADDR_IFINDEX(pcb->local_ip) == 0 ||
 				 IPSADDR_IFINDEX(pcb->local_ip) == sll->sll_ifindex) &&
-				(pcb->in_protocol == htons(ETH_P_ALL) || pcb->in_protocol == sll->sll_protocol)
+				(pcb->in_protocol == ETH_P_ALL || pcb->in_protocol == sll->sll_protocol)
 			 ) {
       /* receive callback function available? */
       if (pcb->recv != NULL) {
