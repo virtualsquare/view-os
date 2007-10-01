@@ -895,6 +895,10 @@ int capture_main(char **argv,int has_ppoll)
 			if (!has_ppoll) {
 				close(tracerpipe[0]);
 				close(tracerpipe[1]);
+			} else {
+				sigset_t unblockall;
+				sigemptyset(&unblockall);
+				r_sigprocmask(SIG_SETMASK,&unblockall,NULL);
 			}
 			unsetenv("LD_PRELOAD");
 			/* try to set process priority back to standard prio (effective only when 
