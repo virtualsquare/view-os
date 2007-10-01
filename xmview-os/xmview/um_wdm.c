@@ -150,7 +150,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 	char *path;
 
 	if ((path=fd_getpath(pc->fds,pc->sysargs[0])) != NULL) {
-		//printf("fchdir to %s\n",path);
+		//fprint2("fchdir to %s\n",path);
 		pc->path=strdup(path);
 		um_x_lstat64(pc->path, &(pc->pathstat), pc);
 		/* If there is a real directory with this name, and it is chdir-able,
@@ -163,7 +163,6 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 			pc->sysargs[0]=sp-pathlen;
 			putscno(__NR_chdir, pc);
 			GDEBUG(4, "FCHDIR making fake chdir to real %s", pc->path);
-			//fprint2("FCHDIR making fake chdir to real %s", pc->path);
 			return SC_CALLONXIT;
 		}
 		else
@@ -173,12 +172,10 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 				if (sercode != UM_NONE) {
 					char *chdir_fake_dir= um_proc_fakecwd();
 					GDEBUG(4, "FCHDIR making chdir to %s (instead of %s)", chdir_fake_dir, pc->path);
-					//fprint2("FCHDIR making chdir to %s (instead of %s)", chdir_fake_dir, pc->path);
 					pathlen = WORDALIGN(strlen(chdir_fake_dir));
 					ustoren(pc, sp-pathlen, pathlen, chdir_fake_dir);
 				} else {
 					GDEBUG(4, "FCHDIR making chdir to unmanaged %s", pc->path);
-					//fprint2("FCHDIR making chdir to unmanaged %s", pc->path);
 					pathlen = WORDALIGN(strlen(pc->path));
 					ustoren(pc, sp-pathlen, pathlen, pc->path);
 				}
@@ -187,7 +184,6 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 				return SC_CALLONXIT;
 			} else {
 				GDEBUG(4, "FCHDIR ENOTDIR for %s", pc->path);
-				//fprint2("FCHDIR ENOTDIR for %s", pc->path);
 				pc->retval = -1;
 				pc->erno=ENOTDIR;
 				return SC_FAKE;
@@ -195,7 +191,6 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 		}
 	} else {
 		GDEBUG(4, "FCHDIR EBADF for %s", pc->path);
-		//fprint2("FCHDIR EBADF for %s", pc->path);
 		pc->retval = -1;
 		pc->erno = EBADF; 
 		return SC_FAKE;
@@ -213,7 +208,7 @@ int wrap_in_umask(int sc_number,struct pcb *pc,
 int wrap_in_chroot(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	fprint2("CHROOT %s\n",pc->path);
+	//fprint2("CHROOT %s\n",pc->path);
 	if (pc->erno != 0) {
 		/* TODO management of chroot */
 		/*free(pc->fdfs->root);

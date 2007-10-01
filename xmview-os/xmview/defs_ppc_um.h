@@ -64,7 +64,7 @@ static inline long setregs(struct pcb *pc, enum __ptrace_request call,
 		struct ptrace_multi req[] = {{PTRACE_POKEUSER, 0, pc->saved_regs, 10},
 			{PTRACE_POKEUSER, 4*PT_NIP, &(pc->saved_regs[10]), 1},
 			{PTRACE_POKEUSER, 4*PT_CCR, &(pc->saved_regs[12]), 1},
-			{call, op, 0, sig}};
+			{call, op, (void *) sig, 0}};
 		return ptrace(PTRACE_MULTI,pc->pid,req,4); 
 	} else {
 		int rv,count;

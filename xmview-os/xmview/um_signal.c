@@ -30,9 +30,11 @@ int wrap_in_kill(int sc_number,struct pcb *pc,
 		    service_t sercode, sysfun um_syscall)
 {
 	long pid=pc->sysargs[0];
-	if (bq_pidwake(pid,pc->sysargs[1])) 
+	if (bq_pidwake(pid,pc->sysargs[1])) {
 		putscno(__NR_getpid,pc);
-	return SC_MODICALL;
+		return SC_MODICALL;
+	} else
+		return STD_BEHAVIOR;
 }
 
 int wrap_out_kill(int sc_number,struct pcb *pc)
