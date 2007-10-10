@@ -16,7 +16,8 @@ bin_PROGRAMS = \
 	um_ls_service \
 	um_mov_service \
 	vuname \
-	viewname
+	viewname \
+	umshutdown
 
 debug release: all
 

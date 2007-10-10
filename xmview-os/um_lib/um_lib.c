@@ -80,3 +80,8 @@ int um_setviewname(char *name)
 {
 	return virsyscall2(VIRUMSERVICE,UMVIEW_SETVIEWNAME,name);
 }
+
+int um_killall(int signo)
+{
+	return virsyscall2(VIRUMSERVICE,UMVIEW_KILLALL,signo);
+}

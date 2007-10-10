@@ -81,6 +81,11 @@ int um_add_service(char* path,int position){
 }
 #endif
 
+static void killone(struct pcb *pc, int *sigp)
+{
+	kill(pc->pid,*sigp);
+}
+
 int wrap_in_umservice(int sc_number,struct pcb *pc,
 		    service_t sercode, sysfun um_syscall)
 {
@@ -171,6 +176,9 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 				pc->retval=0;
 				pc->erno = 0;
 			}
+			break;
+		case UMVIEW_KILLALL: 
+			forallpcbdo(killone,&(pc->sysargs[1]));
 			break;
 		default:
 			pc->retval = -1;

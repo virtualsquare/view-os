@@ -41,6 +41,8 @@ typedef unsigned long viewid_t;
 #define UMVIEW_GETINFO     0x101
 #define UMVIEW_SETVIEWNAME 0x102
 
+#define UMVIEW_KILLALL  0x103
+
 extern long (*virnsyscall)();
 
 #define virsyscall0(virscno,a1) virnsyscall(virscno,0,0,0,0,0,0,0);

@@ -268,5 +268,6 @@ struct viewinfo {
 #define RECURSIVE_UMVIEW   0x100
 #define UMVIEW_GETINFO     0x101
 #define UMVIEW_SETVIEWNAME 0x102
+#define UMVIEW_KILLALL     0x103
 
 #endif // _DEFS_H
