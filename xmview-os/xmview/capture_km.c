@@ -288,13 +288,12 @@ void tracehand(void *useless)
 #endif
 						pc->behavior=fun(scno,IN,pc);
 					}
-					if (pc->behavior == SC_FAKE)
-						fun(scno,OUT,pc);
 					switch(pc->behavior) {
 						case STD_BEHAVIOR:
 							r_ioctl(kmviewfd,KMVIEW_SYSRESUME,pc->kmpid);
 							break;
 						case SC_FAKE:
+							fun(scno,OUT,pc);
 							pc->outevent.x.kmpid=pc->kmpid;
 							r_ioctl(kmviewfd,KMVIEW_SYSVIRTUALIZED,&pc->outevent);
 							break;

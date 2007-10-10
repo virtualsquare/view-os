@@ -69,7 +69,7 @@
 #	define getrv(PC) ( (PC)->outevent.retval) 
 #	define putrv(RV,PC) ( (PC)->outevent.retval = (RV) )
 #	define geterrno(PC) ( (PC)->outevent.erno )
-#	define puterrno(ERR,PC) ({ if(((PC)->outevent.erno = (ERR)) != 0) (PC)->outevent.retval = -1; })
+#	define puterrno(ERR,PC) ( (PC)->outevent.erno = (ERR) )
 #	define getsp(PC) ((PC)->event.sp)
 #	define getpc(PC) ((PC)->event.pc)
 #	define putsp(RV,PC) ( (PC)->event.sp=(RV) )

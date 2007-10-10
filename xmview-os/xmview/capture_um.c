@@ -439,7 +439,11 @@ void tracehand()
 			//printregs(pc);
 			scno=getscno(pc);
 			/* execve does not return */
-			if (pc->sockaddr == 0 && pc->sysscno == __NR_execve && scno != __NR_execve){
+			if (
+#if __NR_socketcall != __NR_doesnotexist
+					pc->sockaddr == 0 && 
+#endif
+					pc->sysscno == __NR_execve && scno != __NR_execve){
 				pc->sysscno = NOSC;
 			}
 			isreproducing=(scno == __NR_fork ||
@@ -448,10 +452,15 @@ void tracehand()
 			/* sigreturn and rt_sigreturn give random "OUT" values, maybe 0.
 			 * this is a workaroud */
 #if defined(__x86_64__) //sigreturn and signal aren't defineed in amd64
-			if (pc->sockaddr == 0 && pc->sysscno == __NR_rt_sigreturn )
+			/* x86_64 has not the single socketcall */
+			if (pc->sysscno == __NR_rt_sigreturn )
 				pc->sysscno = NOSC;
 #else
-			if (pc->sockaddr == 0 && (pc->sysscno == __NR_rt_sigreturn || pc->sysscno == __NR_sigreturn)) 
+			if (
+#if __NR_socketcall != __NR_doesnotexist
+					pc->sockaddr == 0 && 
+#endif
+					(pc->sysscno == __NR_rt_sigreturn || pc->sysscno == __NR_sigreturn)) 
 				pc->sysscno = NOSC;
 			/*0 is READ for x86_84*/
 			else if (scno == 0) {

@@ -55,7 +55,9 @@
 #	ifdef _VIEWOS_UM
 		long sysscno;              /* System call number */
 		unsigned long sysargs[6];
+#if __NR_socketcall != __NR_doesnotexist
 		long sockaddr;
+#endif
 		unsigned long erno;
 #	endif
 #endif

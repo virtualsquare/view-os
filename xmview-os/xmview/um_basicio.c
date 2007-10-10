@@ -102,16 +102,8 @@ int wrap_out_open(int sc_number,struct pcb *pc) {
 				 || addfd(pc,fd) == 0)) {
 			/* update open file table*/
 			lfd_register(pc->fds,fd,pc->retval);
-		} else {
-#if 0
-			if (lfd_getservice(pc->retval) != UM_NONE) {
-				putrv(pc->retval,pc);
-				if (pc->retval<0)
-					puterrno(pc->erno,pc);
-			}
-#endif
+		} else 
 			lfd_close(pc->retval);
-		}
 	} else {
 		putrv(pc->retval,pc);
 		puterrno(pc->erno,pc);
@@ -425,7 +417,7 @@ int wrap_in_fstat64(int sc_number,struct pcb *pc,
 {
 	long pbuf=pc->sysargs[1];
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	//printf("wrap_in_fstat: %d",sfd);
+	/*fprint2("wrap_in_fstat: %d\n",sfd);*/
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;

@@ -195,7 +195,7 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink
 	char newpath[PATH_MAX];
 	if (umovestr(pc,laddr,PATH_MAX,path) == 0) {
 			um_realpath(path,newpath,pst,dontfollowlink,pc);
-			//fprint2("PATH %s (%s,%s) NEWPATH %s\n",path,um_getroot(pc),pc->fdfs->cwd,newpath);
+			//fprint2("PATH %s (%s,%s) NEWPATH %s (%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->erno);
 		if (pc->erno)
 			return um_patherror;	//error
 		else
@@ -245,6 +245,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 	if (inout == IN) {
 		service_t sercode;
 		int index;
+		puterrno(0,pc);
 		/* timestamp the call */
 		pc->tst.epoch=pc->nestepoch=get_epoch();
 		/* extract argument */
@@ -263,7 +264,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 			return SC_FAKE;
 		}
 #ifdef _UM_MMAP
-		/* it returns EBADF when sombody tries to access 
+		/* it returns EBADF when somebody tries to access 
 		 * secret files (mmap_secret) */
 		if (sercode == UM_ERR) {
 			pc->path = um_patherror;
@@ -272,7 +273,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 			return SC_FAKE;
 		}
 #endif
-		//fprint2("nested_commonwrap choice %d -> %lld %x\n",sc_number,pc->tst.epoch,sercode);
+		//fprint2("commonwrap choice %d -> %lld %x\n",sc_number,pc->tst.epoch,sercode);
 		/* if some service want to manage the syscall (or the ALWAYS
 		 * flag is set), we process it */
 		if (sercode != UM_NONE || (sm[index].flags & ALWAYS)) {
@@ -298,7 +299,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 			else
 				/* normal management: call the wrapin function,
 				 * with the correct service syscall function */
-			return sm[index].wrapin(sc_number,pc,sercode,sc(sercode,index));
+				return sm[index].wrapin(sc_number,pc,sercode,sc(sercode,index));
 #if 0
 			int retval;
 			errno=0;
