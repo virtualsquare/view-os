@@ -110,7 +110,7 @@ static void setbit(unsigned long *v,short b,int val)
 }
 
 /* TRUE if two strings differs up to the "len"th element */
-static int diffbitstr(unsigned long *a,unsigned long *b,short len)
+static inline int diffbitstr(unsigned long *a,unsigned long *b,short len)
 {
 	int i;
 	int w=len >> __LOG_WORDSIZE;
@@ -366,11 +366,13 @@ void tst_delproc(struct timestamp *tst)
 	te_delproc(tst->treepoch);
 }
 
-viewid_t te_getviewid_t(struct treepoch *te)
+/* return the view_id of the current view */
+viewid_t te_getviewid(struct treepoch *te)
 {
 	return(te->viewid);
 }
 
+/* set the view name of the current view */
 void te_setviewname(struct treepoch *te,char *name)
 {
 	if (te->viewname != NULL)
@@ -378,8 +380,20 @@ void te_setviewname(struct treepoch *te,char *name)
 	te->viewname=strndup(name,_UTSNAME_LENGTH-1);
 }
 
+/* return the view name of the current view */
 char *te_getviewname(struct treepoch *te)
 {
 	return(te->viewname);
 }
 
+/* boolean: return true if both te refer to the same view */
+int te_sameview(struct treepoch *te1,struct treepoch *te2) {
+	return te1->len == te2->len && 
+		diffbitstr(te1->bitstr,te2->bitstr,te1->len) == 0;
+}
+
+/* boolean: return true if both te refer to the same view or te2
+ * refer to a subview of te1*/
+int te_sameview_or_next(struct treepoch *te1,struct treepoch *te2) {
+	return diffbitstr(te1->bitstr,te2->bitstr,te1->len) == 0;
+}

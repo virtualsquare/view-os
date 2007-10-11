@@ -54,6 +54,13 @@
 #include "capture_nested.h"
 #include "gdebug.h"
 
+static const char *const _sys_sigabbrev[NSIG] =
+{
+#define init_sig(sig, abbrev, desc)   [sig] = abbrev,
+#include <siglist.h>
+#undef init_sig
+};
+
 /* set the errno */
 void um_set_errno(struct pcb *pc,int i) {
 	if (pc->flags && PCB_INUSE) 
@@ -552,8 +559,8 @@ void pcb_getviewinfo(struct pcb *pc,struct viewinfo *vi)
 {
 	char *viewname;
 	uname(&(vi->uname));
-	vi->serverid=getpid();
-	vi->viewid=te_getviewid_t(pc->tst.treepoch);
+	vi->serverid=r_getpid();
+	vi->viewid=te_getviewid(pc->tst.treepoch);
 	viewname=te_getviewname(pc->tst.treepoch);
 	if (viewname != NULL)
 		strncpy(vi->viewname,viewname,_UTSNAME_LENGTH-1);
@@ -566,6 +573,30 @@ void pcb_setviewname(struct pcb *pc,char *name)
 	te_setviewname(pc->tst.treepoch,name);
 }
 
+struct killstruct {
+	int signo;
+	struct treepoch *te;
+};
+
+static void killone(struct pcb *pc, struct killstruct *ks)
+{
+	if (te_sameview_or_next(ks->te,pc->tst.treepoch))
+	  kill(pc->pid,ks->signo);
+}
+
+void killall(struct pcb *pc, int signo)
+{
+	struct killstruct ks={signo, pc->tst.treepoch};
+	char *viewname=te_getviewname(pc->tst.treepoch);
+	viewid_t viewid=te_getviewid(pc->tst.treepoch);
+	
+	if (viewname)
+		fprint2("View %d (%s): Sending processes the %s signal\n",viewid,viewname,_sys_sigabbrev[signo]);
+	else
+		fprint2("View %d: Sending processes the %s signal\n",viewid,_sys_sigabbrev[signo]);
+	forallpcbdo(killone,&ks);
+}
+	
 #if 0
 int dsys_dummy(int sc_number,int inout,struct pcb *pc)
 {

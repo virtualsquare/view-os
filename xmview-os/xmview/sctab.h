@@ -65,6 +65,7 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink
 int pcb_newfork(struct pcb *pc);
 void pcb_getviewinfo(struct pcb *pc,struct viewinfo *vi);
 void pcb_setviewname(struct pcb *pc,char *name);
+void killall(struct pcb *pc, int signo);
 
 void um_set_errno(struct pcb *pc,int i);
 char *um_getcwd(struct pcb *pc,char *buf,int size);

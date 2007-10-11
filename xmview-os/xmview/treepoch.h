@@ -49,9 +49,13 @@ struct timestamp tst_newproc(struct timestamp *parent_tst);
 	
 void tst_delproc(struct timestamp *tst);
 
-viewid_t te_getviewid_t(struct treepoch *te);
+viewid_t te_getviewid(struct treepoch *te);
 
 void te_setviewname(struct treepoch *te,char *name);
 
 char *te_getviewname(struct treepoch *te);
+
+int te_sameview(struct treepoch *te1,struct treepoch *te2);
+int te_sameview_or_next(struct treepoch *te1,struct treepoch *te2);
+
 #endif
