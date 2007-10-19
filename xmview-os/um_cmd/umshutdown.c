@@ -33,7 +33,7 @@
 void usage()
 {
 	fprintf(stderr, 
-			"Usage: umshutdown [grace]\n"
+			"Usage: umshutdown [time]\n"
 		  "Shutdown of xmview.\n"
 			"\n");
 }
@@ -44,15 +44,17 @@ void termhandler(int signo)
 
 main(int argc, char *argv[])
 {
-	int grace;
+	int wtime;
+	if (argc == 0)
+		wtime=30;
+	else if (argc==1)
+		wtime=atoi(argv[1]);
+	else
+		usage();
 	daemon(1,1);
 	signal(SIGTERM,termhandler);
-	if (argc > 1)
-		grace=atoi(argv[1]);
-	else
-		grace=30;
 	um_killall(SIGTERM);
-	if (grace>0)
-		sleep(grace);
+	if (wtime>0)
+		sleep(wtime);
 	um_killall(SIGKILL);
 }
