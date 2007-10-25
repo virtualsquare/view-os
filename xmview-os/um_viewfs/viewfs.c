@@ -50,10 +50,11 @@
  * does not have a "name"
  */
 
-//#define N_DATA  "d/"
-//#define N_META  "m/"
-//#define N_RMETA "rm"
-//#define N_LEN 2
+/// XXX DECOMMENTED IN ORDER TO COMPILE --- BUT WRONG!
+#define N_DATA  "d/"
+#define N_META  "m/"
+#define N_RMETA "rm"
+#define N_LEN 2
 
 #define EP_DATA "data"
 #define EP_META "meta"
@@ -62,6 +63,8 @@
 #define EP_METAM_LEN 2
 #define EP_METAC_LEN EP_METAM_LEN
 
+#define EP_RMETA "rmeta"
+#define EP_RDATA EP_DATA
 
 #define T_DATA 0x01
 #define T_META 0x02

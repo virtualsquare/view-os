@@ -70,6 +70,8 @@ AC_FUNC_UTIME_NULL
 AC_FUNC_VPRINTF
 AC_CHECK_FUNCS([atexit ftruncate lchown memmove mempcpy memset mkdir mkfifo rmdir setenv strchr strdup strerror strrchr utime],, AC_MSG_ERROR([required functions missing]))
 
+PKG_CHECK_MODULES([GLIB20], [glib-2.0])
+
 AC_ARG_ENABLE([debug],
 	AS_HELP_STRING([--enable-debug],
 		[Enable debug functionalities]),
