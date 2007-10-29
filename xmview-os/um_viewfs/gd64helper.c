@@ -26,8 +26,8 @@ struct _ddreq {
 
 
 struct _dirdata {
-	long pos;
-	long size;
+	off_t pos;
+	off_t size;
 
 	/* If true, it means that the first getdents64 must take care of
 	 * populating this structure with the data from the real getdents.
@@ -90,9 +90,11 @@ static int dirdata_add_dirent(dirdata *dd, struct dirent64 *dent)
 	telem *tnew;
 	struct dirent64 *dnew;
 
-	printf("adding %s, len=%d\n", dent->d_name, dent->d_reclen);
+	printf("adding %s, len=%d. oldsize=%lld\n", dent->d_name, dent->d_reclen, dd->size);
 
 	dd->size += dent->d_reclen;
+
+	printf("  newsize=%lld\n", dd->size);
 	
 	/* dents might be moved forward when the first element is removed, but
 	 * d_off is always relative to the initial dents position, so we save it
@@ -112,9 +114,12 @@ static int dirdata_add_dirent(dirdata *dd, struct dirent64 *dent)
 
 	printf("offset is %d\n", (char*)dnew-(char*)dd->origdents);
 
-	printf("memcpying %d bytes\n", dent->d_reclen);
+	printf("memcpying %hd bytes\n", dent->d_reclen);
+	printf("*** d_reclen starts at byte %d and is %d bytes long.\n", 
+			(char*) &(dent->d_reclen) - (char*) &(*dent), sizeof(dent->d_reclen));
 	memcpy(dnew, dent, dent->d_reclen);
 	
+	printf("*** comparing reclens: dent=%hd, dnew=%hd\n", dent->d_reclen, dnew->d_reclen);
 
 	tnew = malloc(sizeof(telem));
 	tnew->cur = dnew;
@@ -122,7 +127,7 @@ static int dirdata_add_dirent(dirdata *dd, struct dirent64 *dent)
 
 	if (dd->size == dent->d_reclen) // First element
 	{
-		printf("first element, prev will be null and off will be %d\n", dnew->d_reclen);
+		printf("first element, prev will be null and off will be %hd\n", dnew->d_reclen);
 		tnew->prev = NULL;
 		dnew->d_off = dnew->d_reclen;
 	}
@@ -131,7 +136,7 @@ static int dirdata_add_dirent(dirdata *dd, struct dirent64 *dent)
 		tnew->prev = dd->last;
 		tnew->prev->next = tnew;
 		dnew->d_off = dd->last->cur->d_off + dnew->d_reclen;
-		printf("not first element, prev=%p, prev->next=%p, d_off=%d, d_reclen=%d\n",
+		printf("not first element, prev=%p, prev->next=%p, d_reclen=%lld, d_reclen=%hd\n",
 				tnew->prev, tnew->prev->next, dnew->d_off, dnew->d_reclen);
 	}
 
@@ -174,12 +179,15 @@ static int dirdata_remove_dirent(dirdata *dd, char *name)
 	result = g_tree_lookup(dd->tree, name);
 	
 	if (!result)
+	{
+		printf("g_tree_lookup(%p, \"%s\") is null, ignoring request...\n", dd->tree, name);
 		return 0;
+	}
 
 	printf("asked to remove %s, lookup result: %p %p\n", name, result, result->cur);
 	printf("prev=%p next=%p\n", result->prev, result->next);
 
-	printf("result: name=%s, inode=%d, reclen=%d, off=%d\n",
+	printf("result: name=%s, inode=%lld, reclen=%d, off=%lld\n",
 			result->cur->d_name, result->cur->d_ino, result->cur->d_reclen,
 			result->cur->d_off);
 
@@ -202,15 +210,16 @@ static int dirdata_remove_dirent(dirdata *dd, char *name)
 	else if (result->prev && !result->next) // Last element
 	{
 		assert(result->cur == dd->last->cur);
-		printf("last element. old values: size=%d, last=%p last->next=%p last->cur->d_off=%ld last->cur->d_reclen=%d\n", 
-				dd->size, dd->last, dd->last->next, dd->last->cur->d_off, dd->last->cur->d_reclen);
+		printf("last element. old values: size=%lld, last=%p last->next=%p last->cur->d_off=%lld last->cur->d_reclen=%d\n", 
+				dd->size, dd->last->cur, dd->last->next, dd->last->cur->d_off, dd->last->cur->d_reclen);
+		printf("                          origdents=%p, diff=%d\n", dd->origdents, (char*)dd->last->cur - (char*)dd->origdents);
 		dd->last = result->prev;
 		dd->last->next = NULL;
-		dd->last->cur->d_off = ((char*)dd->last - (char*)dd->origdents) + dd->last->cur->d_reclen;
+		dd->last->cur->d_off = (char*)(dd->last->cur) - (char*)(dd->origdents) + dd->last->cur->d_reclen;
 		dd->last->cur->d_reclen += result->cur->d_reclen;
 		dd->size = dd->last->cur->d_off;
-		printf("              NEW values: size=%d, last=%p last->next=%p last->cur->d_off=%d last->cur->d_reclen=%d\n", 
-				dd->size, dd->last, dd->last->next, dd->last->cur->d_off, dd->last->cur->d_reclen);
+		printf("              NEW values: size=%lld, last=%p last->next=%p last->cur->d_off=%lld last->cur->d_reclen=%d\n", 
+				dd->size, dd->last->cur, dd->last->next, dd->last->cur->d_off, dd->last->cur->d_reclen);
 	}
 	else if (!result->prev && result->next) // First element
 	{
@@ -270,13 +279,21 @@ static int apply_pending(dirdata *dd)
 {
 	ddreq *cur;
 	int i = 0;
+	int last = 2;
 
 	if (dd->empty)
-		return -1;
-
-	while (cur = dd->pending)
 	{
-		printf("applying type %d on %s\n", cur->type, cur->d_name);
+		printf("dd is empty, not applying pending requests\n");
+		return -1;
+	}
+
+	if (!dd->pending)
+		return 0;
+
+	do
+	{
+		cur = dd->pending->next;
+		printf("####### applying type %d on %s\n", cur->type, cur->d_name);
 		switch(cur->type)
 		{
 			case ddadd:
@@ -288,9 +305,18 @@ static int apply_pending(dirdata *dd)
 				break;
 		}
 		i++;
-		dd->pending = cur->next;
+		dd->pending->next = cur->next;
+		printf(">>>>>>>>> done (freeing) with %s, dd->pending becomes %s and next %s\n", cur->d_name, dd->pending->d_name, dd->pending->next->d_name);
+		if (dd->pending->next != dd->pending)
+			last++;
+		else
+			printf("not increasing last!\n");
+
 		free(cur);
 	}
+	while(--last);
+
+	dd->pending = NULL;
 
 	return i;
 
@@ -372,12 +398,19 @@ int dirdata_transform_add(dirdata *dd, long d_ino, char *d_name, int replace)
 	new->type = ddadd;
 	new->d_ino = d_ino;
 	new->d_name = d_name;
-	new->next = NULL;
 
 	if (!dd->pending)
+	{
+		new->next = new;
 		dd->pending = new;
+	}
 	else
+	{
+		new->next = dd->pending->next;
 		dd->pending->next = new;
+		dd->pending = new;
+	}
+		
 
 	apply_pending(dd);
 }
@@ -391,12 +424,18 @@ int dirdata_transform_remove(dirdata *dd, char *d_name)
 
 	new->type = ddrem;
 	new->d_name = d_name;
-	new->next = NULL;
 	
 	if (!dd->pending)
+	{
+		new->next = new;
 		dd->pending = new;
+	}
 	else
+	{
+		new->next = dd->pending->next;
 		dd->pending->next = new;
+		dd->pending = new;
+	}
 
 	apply_pending(dd);
 }
@@ -435,8 +474,12 @@ int main()
 	dirp=malloc(1024);
 
 	dirdata_transform_remove(dd, "gd64helper.c");
-	dirdata_transform_remove(dd, "gd64helper");
 	dirdata_transform_add(dd, 0, "passwd", 0);
+	dirdata_transform_remove(dd, "gd64helper");
+	dirdata_transform_add(dd, 0, "shadow", 0);
+	dirdata_transform_add(dd, 0, "group", 0);
+	dirdata_transform_add(dd, 0, "gd65helper.c", 0);
+	dirdata_transform_remove(dd, "core");
 	
 	count=dirdata_getdents64(dd, fd, dirp, 1024);
 
