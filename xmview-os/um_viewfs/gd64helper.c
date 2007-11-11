@@ -198,14 +198,12 @@ static int dirdata_remove_dirent(dirdata *dd, char *name)
 		
 		memset(result->cur->d_name, 'A', strlen(result->cur->d_name));
 
-		result->prev->next = result->next;
-		result->next->prev = result->prev;
 		printf("  -- old reclen: %d\n", result->prev->cur->d_reclen);
 		result->prev->cur->d_reclen += result->cur->d_reclen;
 		printf("  ++ new reclen: %d\n", result->prev->cur->d_reclen);
-		printf("  -- old offset: %d\n", result->prev->cur->d_off);
+		printf("  -- old offset: %lld\n", result->prev->cur->d_off);
 		result->prev->cur->d_off = (char*)result->next->cur - (char*)dd->origdents;
-		printf("  ++ new offset: %d\n", result->prev->cur->d_off);
+		printf("  ++ new offset: %lld\n", result->prev->cur->d_off);
 	}
 	else if (result->prev && !result->next) // Last element
 	{
@@ -225,7 +223,6 @@ static int dirdata_remove_dirent(dirdata *dd, char *name)
 	{
 		printf("first element\n");
 		dd->dents = DCAST(dd->origdents + result->cur->d_off);
-		result->next->prev = NULL;
 	}
 	else // only one element
 	{
@@ -234,6 +231,13 @@ static int dirdata_remove_dirent(dirdata *dd, char *name)
 		dd->size = 0;
 		dd->last = NULL;
 	}
+
+	if (result->prev)
+		result->prev->next = result->next;
+
+	if (result->next)
+		result->next->prev = result->prev;
+
 	g_tree_remove(dd->tree, name);
 	
 	printf("end remove\n");
@@ -452,7 +456,20 @@ void dirdata_free(dirdata *dd)
        #include <sys/stat.h>
        #include <fcntl.h>
 
+void dirdata_dump(dirdata *dd)
+{
+	telem *cur;
+	if (!dd->last)
+		return;
+	cur = dd->last;
 
+	do
+	{
+		printf("[dump] %s\n", cur->cur->d_name);
+	}
+	while (cur = cur->prev);
+
+}
 
 
 int main()
@@ -492,6 +509,8 @@ int main()
 		dirp = (struct dirent64*)((char*)dirp + len);
 		pos += len;
 	}
+
+	dirdata_dump(dd);
 }
 
 
