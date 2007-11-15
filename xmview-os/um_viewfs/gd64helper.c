@@ -1,3 +1,27 @@
+/*   This is part of um-ViewOS
+ *   The user-mode implementation of OSVIEW -- A Process with a View
+ *
+ *   Helper for getdents64
+ *
+ *   Copyright 2007 Ludovico Gardenghi
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License, version 2, as
+ *   published by the Free Software Foundation.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
+ *
+ *   $Id$
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,7 +51,6 @@ struct _ddreq {
 
 struct _dirdata {
 	off_t pos;
-	off_t size;
 
 	/* If true, it means that the first getdents64 must take care of
 	 * populating this structure with the data from the real getdents.
@@ -36,20 +59,24 @@ struct _dirdata {
 	 * an empty structure (i.e. for showing no elements but one or two
 	 * inside a directory) */
 	int empty;
+
+
+	/* Array of pointers to buffers filled by getdents64 */
+	struct dirent64 **dents;
+	unsigned long dents_size;
+	/* Array which keeps count of how many non-removed items are in each
+	 * buffer of dents. */
+	unsigned long *dents_usage;
+
+	telem **dents_index;
+	unsigned long dents_index_size;
 	
-	/* dents is a flat "array" with variable sized elements */
-	struct dirent64 *dents;
-
-	/* The initial starting address must be saved if we want to correctly
-	 * free() it at the end */
-	struct dirent64 *origdents;
-
 	/* tree is a tree of telem which contains a pointer to a dirent
 	 * in dents */
 	GTree *tree;
 	
-	/* Pointer to the last element of dents, via the tree (so we can navigate) */
-	telem *last;
+	/* telem of the first and last elements */
+	telem *first, *last;
 
 	/* List of pending requests (additions or removals of files) */
 	ddreq *pending;
@@ -63,6 +90,9 @@ struct _telem {
 	/* Pointers to prev/next elements of dents, via telem so we can navigate */
 	telem *prev;
 	telem *next;
+
+	unsigned long index;
+	int slot;
 };
 
 
@@ -74,9 +104,13 @@ dirdata *dirdata_new()
 	dirdata *new = malloc(sizeof(dirdata));
 
 	new->dents = NULL;
-	new->origdents = NULL;
+	new->dents_index = NULL;
+	new->dents_index_size = 0;
+	new->dents_size = 0;
+	new->dents_usage = NULL;
+
+	new->first = NULL;
 	new->last = NULL;
-	new->size = 0;
 	new->tree = g_tree_new((GCompareFunc)*strcmp);
 	new->pos = 0;
 	new->empty = 1;
@@ -85,173 +119,168 @@ dirdata *dirdata_new()
 	return new;
 }
 
-static int dirdata_add_dirent(dirdata *dd, struct dirent64 *dent)
-{
-	telem *tnew;
-	struct dirent64 *dnew;
 
-	printf("adding %s, len=%d. oldsize=%lld\n", dent->d_name, dent->d_reclen, dd->size);
-
-	dd->size += dent->d_reclen;
-
-	printf("  newsize=%lld\n", dd->size);
-	
-	/* dents might be moved forward when the first element is removed, but
-	 * d_off is always relative to the initial dents position, so we save it
-	 */
-	dd->origdents = realloc(dd->origdents, dd->size);
-
-	printf("realloc ok\n");
-
-	if (!dd->dents)
-		dd->dents = dd->origdents;
-
-	if (dd->size == dent->d_reclen) // First element
-		dnew = dd->dents;
-	else
-		dnew = DCAST(dd->origdents + dd->last->cur->d_off);
-
-
-	printf("offset is %d\n", (char*)dnew-(char*)dd->origdents);
-
-	printf("memcpying %hd bytes\n", dent->d_reclen);
-	printf("*** d_reclen starts at byte %d and is %d bytes long.\n", 
-			(char*) &(dent->d_reclen) - (char*) &(*dent), sizeof(dent->d_reclen));
-	memcpy(dnew, dent, dent->d_reclen);
-	
-	printf("*** comparing reclens: dent=%hd, dnew=%hd\n", dent->d_reclen, dnew->d_reclen);
-
-	tnew = malloc(sizeof(telem));
-	tnew->cur = dnew;
-	tnew->next = NULL;
-
-	if (dd->size == dent->d_reclen) // First element
-	{
-		printf("first element, prev will be null and off will be %hd\n", dnew->d_reclen);
-		tnew->prev = NULL;
-		dnew->d_off = dnew->d_reclen;
-	}
-	else
-	{
-		tnew->prev = dd->last;
-		tnew->prev->next = tnew;
-		dnew->d_off = dd->last->cur->d_off + dnew->d_reclen;
-		printf("not first element, prev=%p, prev->next=%p, d_reclen=%lld, d_reclen=%hd\n",
-				tnew->prev, tnew->prev->next, dnew->d_off, dnew->d_reclen);
-	}
-
-	dd->last = tnew;
-
-	g_tree_insert(dd->tree, dnew->d_name, tnew);
-	
-	printf("name in dnew@%p: %s\n", tnew->cur,tnew->cur->d_name);
-	printf(" off=%d reclen=%d\n", tnew->cur->d_off, tnew->cur->d_reclen);
-	printf(" prev=%p next=%p\n", tnew->prev, tnew->next);
-	if (tnew->prev)
-		printf("  prev->cur=%p (%s)\n", tnew->prev->cur, tnew->prev->cur->d_name);
-	if (tnew->next)
-		printf("  next->cur=%p\n", tnew->next->cur);
-
-	return dd->last->cur->d_off;
-}
-
-static int dirdata_add_dirents(dirdata *dd, struct dirent64 *dents, unsigned int count)
+static unsigned long dirdata_add_dirents(dirdata *dd, struct dirent64 *dents, unsigned int count, int copy)
 {
 	int pos = 0;
 	struct dirent64 *curdent;
-	int last_d_off;
+	telem *first, *new, *cur;
+	int i, nelem;
+
+	dd->dents_size++;
+
+	dd->dents = realloc(dd->dents, dd->dents_size * sizeof(struct dirent64*));
+	dd->dents_usage = realloc(dd->dents_usage, dd->dents_size * sizeof(long));
+	if (copy)
+	{
+		GDEBUG(10, "allocating %u bytes in slot %ld", count, dd->dents_size - 1);
+		dd->dents[dd->dents_size - 1] = malloc(count);
+		memcpy(dd->dents[dd->dents_size-1], dents, count);
+	}
+	else
+		dd->dents[dd->dents_size - 1] = dents;
+	
+	nelem = 0;
+	first = NULL;
+
 
 	while (pos < count)
 	{
-		printf("pos: %d, count: %d\n", pos, count);
-		curdent = DCAST(dents + pos);
-		last_d_off = dirdata_add_dirent(dd, curdent);
+		curdent = (struct dirent64*)((char*)(dd->dents[dd->dents_size-1]) + pos);
+
+		new = malloc(sizeof(telem));
+		GDEBUG(10, " ++ adding %s, pos: %d, count: %d, telem@%p, dent@%p", curdent->d_name, pos, count, new, curdent);
+
+		new->cur = curdent;
+		new->next = NULL;
+		new->prev = dd->last;
+		new->slot = dd->dents_size - 1;
+
+		if (dd->last)
+			dd->last->next = new;
+
+		dd->last = new;
+
+		if (!dd->first)
+			dd->first = new;
+
+		if (!first)
+		{
+			first = new;
+			nelem = 0;
+		}
+
+		nelem++;
+		GDEBUG(10, "nelem == %d", nelem);
+		
+		g_tree_insert(dd->tree, curdent->d_name, new);
 		pos = pos + curdent->d_reclen;
 	}
 
-	return last_d_off;
+	dd->dents_index_size += nelem;
+	GDEBUG(10, "dis == %lu", dd->dents_index_size);
+	dd->dents_usage[dd->dents_size - 1] = nelem;
+	dd->dents_index = realloc(dd->dents_index, dd->dents_index_size * sizeof(telem*));
+
+	cur = first;
+
+	for (i = dd->dents_index_size - nelem; i < dd->dents_index_size; i++)
+	{
+		assert(cur);
+		dd->dents_index[i] = cur;
+		cur->index = i;
+		cur->cur->d_off = i+1;
+		GDEBUG(10, "i == %d, cur == %p, d_off = %lld", i, cur, cur->cur->d_off);
+		cur = cur->next;
+	}
+
+	return i-1;
 }
 
-static int dirdata_remove_dirent(dirdata *dd, char *name)
+static unsigned long dirdata_add_dirent(dirdata *dd, struct dirent64 *dent, int copy)
+{
+	return dirdata_add_dirents(dd, dent, dent->d_reclen, copy);
+}
+
+static unsigned long dirdata_remove_dirent(dirdata *dd, char *name)
 {
 	telem *result;
+	int slot;
+	enum position_e { only = 0, first = 1, last = 2, inside = 3 } position;
 
 	result = g_tree_lookup(dd->tree, name);
-	
+
 	if (!result)
 	{
-		printf("g_tree_lookup(%p, \"%s\") is null, ignoring request...\n", dd->tree, name);
+		GDEBUG(10, "g_tree_lookup(%p, \"%s\") is null, ignoring request...", dd->tree, name);
 		return 0;
 	}
 
-	printf("asked to remove %s, lookup result: %p %p\n", name, result, result->cur);
-	printf("prev=%p next=%p\n", result->prev, result->next);
+	position = (result->prev ? 1 : 0) | (result->next ? 2 : 0);
+	slot = result->slot;
 
-	printf("result: name=%s, inode=%lld, reclen=%d, off=%lld\n",
-			result->cur->d_name, result->cur->d_ino, result->cur->d_reclen,
-			result->cur->d_off);
-
-
-	if (result->prev && result->next) // Inside element
-	{
-		printf("inside element\n");
-		
-		memset(result->cur->d_name, 'A', strlen(result->cur->d_name));
-
-		printf("  -- old reclen: %d\n", result->prev->cur->d_reclen);
-		result->prev->cur->d_reclen += result->cur->d_reclen;
-		printf("  ++ new reclen: %d\n", result->prev->cur->d_reclen);
-		printf("  -- old offset: %lld\n", result->prev->cur->d_off);
-		result->prev->cur->d_off = (char*)result->next->cur - (char*)dd->origdents;
-		printf("  ++ new offset: %lld\n", result->prev->cur->d_off);
-	}
-	else if (result->prev && !result->next) // Last element
-	{
-		assert(result->cur == dd->last->cur);
-		printf("last element. old values: size=%lld, last=%p last->next=%p last->cur->d_off=%lld last->cur->d_reclen=%d\n", 
-				dd->size, dd->last->cur, dd->last->next, dd->last->cur->d_off, dd->last->cur->d_reclen);
-		printf("                          origdents=%p, diff=%d\n", dd->origdents, (char*)dd->last->cur - (char*)dd->origdents);
-		dd->last = result->prev;
-		dd->last->next = NULL;
-		dd->last->cur->d_off = (char*)(dd->last->cur) - (char*)(dd->origdents) + dd->last->cur->d_reclen;
-		dd->last->cur->d_reclen += result->cur->d_reclen;
-		dd->size = dd->last->cur->d_off;
-		printf("              NEW values: size=%lld, last=%p last->next=%p last->cur->d_off=%lld last->cur->d_reclen=%d\n", 
-				dd->size, dd->last->cur, dd->last->next, dd->last->cur->d_off, dd->last->cur->d_reclen);
-	}
-	else if (!result->prev && result->next) // First element
-	{
-		printf("first element\n");
-		dd->dents = DCAST(dd->origdents + result->cur->d_off);
-	}
-	else // only one element
-	{
-		printf("only element\n");
-		dd->dents = dd->origdents;
-		dd->size = 0;
-		dd->last = NULL;
-	}
-
-	if (result->prev)
-		result->prev->next = result->next;
-
-	if (result->next)
-		result->next->prev = result->prev;
+	GDEBUG(10, "removing %s from tree...", name);
 
 	g_tree_remove(dd->tree, name);
-	
-	printf("end remove\n");
+
+	GDEBUG(10, "removed. position is %d, slot is %d (old usage: %ld)", position, slot, dd->dents_usage[slot]);
+
+
+	dd->dents_index[result->index] = NULL;
+
+	switch(position)
+	{
+		case only:
+			dd->first = NULL;
+			dd->last = NULL;
+			break;
+
+		case first:
+			result->next->prev = NULL;
+			dd->first = result->next;
+			break;
+
+		case last:
+			result->prev->next = NULL;
+			result->prev->cur->d_off++;
+			dd->last = result->prev;
+			break;
+
+		case inside:
+			result->prev->next = result->next;
+			result->prev->cur->d_off++;
+			result->next->prev = result->prev;
+			break;
+	}
+
+	dd->dents_usage[slot]--;
+
+
+	if (dd->dents_usage[slot] == 0)
+	{
+		GDEBUG(10, "slot %d is empty, freeing", slot);
+		free(dd->dents[slot]);
+		dd->dents[slot] = NULL;
+		if (slot == (dd->dents_size - 1))
+			dd->dents_size--;
+	}
 
 	return 1;
-
 }
 
 int dirdata_seek(dirdata *dd, int where)
 {
-	int min = (char*)dd->dents - (char*)dd->origdents;
+	int min = dd->first->index;
+	int max = dd->last->index;
 	if (where < min)
 		dd->pos = min;
-	dd->pos = where;
+	else if (where > max)
+		dd->pos = max;
+	else
+		dd->pos = where;
+
+	while (!dd->dents_index[dd->pos] && (dd->pos <= max))
+		dd->pos++;
 
 	return dd->pos;
 }
@@ -267,14 +296,15 @@ static struct dirent64 *build_dirent(long d_ino, char *d_name)
 	if (newsize % RLROUND)
 		newsize += RLROUND - (newsize % RLROUND);
 	
-	printf("sizes: %d %d %d %d\n", sizeof(struct dirent64) ,NAME_MAX , strlen(d_name), newsize);
+	GDEBUG(10, "sizes: %d %d %d %d", sizeof(struct dirent64) ,NAME_MAX , strlen(d_name), newsize);
 
 	new = malloc(newsize);
 	new->d_ino = d_ino;
 	strcpy(new->d_name, d_name);
 	new->d_reclen = newsize;
-	new->d_off = newsize;
+	new->d_off = 1;
 
+	return new;
 
 }
 
@@ -287,7 +317,7 @@ static int apply_pending(dirdata *dd)
 
 	if (dd->empty)
 	{
-		printf("dd is empty, not applying pending requests\n");
+		GDEBUG(10, "dd is empty, not applying pending requests");
 		return -1;
 	}
 
@@ -297,11 +327,11 @@ static int apply_pending(dirdata *dd)
 	do
 	{
 		cur = dd->pending->next;
-		printf("####### applying type %d on %s\n", cur->type, cur->d_name);
+		GDEBUG(10, "####### applying type %d on %s", cur->type, cur->d_name);
 		switch(cur->type)
 		{
 			case ddadd:
-				dirdata_add_dirent(dd, build_dirent(cur->d_ino, cur->d_name));
+				dirdata_add_dirent(dd, build_dirent(cur->d_ino, cur->d_name), 0);
 				break;
 
 			case ddrem:
@@ -310,11 +340,11 @@ static int apply_pending(dirdata *dd)
 		}
 		i++;
 		dd->pending->next = cur->next;
-		printf(">>>>>>>>> done (freeing) with %s, dd->pending becomes %s and next %s\n", cur->d_name, dd->pending->d_name, dd->pending->next->d_name);
+		GDEBUG(10, ">>>>>>>>> done (freeing) with %s, dd->pending becomes %s and next %s", cur->d_name, dd->pending->d_name, dd->pending->next->d_name);
 		if (dd->pending->next != dd->pending)
 			last++;
 		else
-			printf("not increasing last!\n");
+			GDEBUG(10, "not increasing last!");
 
 		free(cur);
 	}
@@ -335,21 +365,22 @@ static int getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count
 int dirdata_getdents64(dirdata *dd, unsigned int fd, struct dirent64 *dirp, unsigned int count)
 {
 	int curcount, nextcount;
-	struct dirent64 *startdent, *curdent, *nextdent;
+	//struct dirent64 *startdent, *curdent, *nextdent;
+	telem *cur;
 
 	if (dd->empty)
 	{
 		// Fill the dirdata structure
-		printf("filling dirdata structure\n");
+		GDEBUG(10, "filling dirdata structure");
 
 		int rv;
 		do
 		{
-			printf("calling getdents... ");
+			GDEBUG(10, "calling getdents... ");
 			rv = getdents64(fd, dirp, count);
-			printf("returns %d\n", rv);
+			GDEBUG(10, "returns %d", rv);
 			if (rv > 0)
-				dirdata_add_dirents(dd, dirp, rv);
+				dirdata_add_dirents(dd, dirp, rv, 1);
 		}
 		while (rv > 0);
 
@@ -358,38 +389,85 @@ int dirdata_getdents64(dirdata *dd, unsigned int fd, struct dirent64 *dirp, unsi
 
 		dd->empty = 0;
 	}
+	else
+		GDEBUG(10, "not filling, already full, pos is %ld", dd->pos);
 
 	apply_pending(dd);
 
-	if (dd->size == 0)
+	GDEBUG(10, "all pending requests applied");
+
+	if (!dd->first)
 		return 0;
 
-	startdent = curdent = DCAST(dd->origdents + dd->pos);
-	curcount = 0;
-	nextcount = curdent->d_off - dd->pos;
+	cur = dd->dents_index[dd->pos];
 
-	while ((nextcount < count) && (curdent <= dd->last->cur))
+	if (!cur)
 	{
-		printf("iterating. curcount=%d, nextcount=%d, count=%d\n", curcount, nextcount, count);
-		curcount = nextcount;
-		curdent = DCAST(dd->origdents + curdent->d_off);
-		if (curdent <= dd->last->cur)
-			nextcount = curdent->d_off - dd->pos;
+		GDEBUG(10, "end of directory, returning 0");
+		return 0;
 	}
 
-	memcpy(dirp, startdent, curcount);
-	dd->pos += curcount;
+	curcount = 0;
+	GDEBUG(10, "calculating nextcount, cur == %p...", cur);
+	nextcount = cur->cur->d_reclen;
+	GDEBUG(10, "                         is %d", nextcount);
+	
+	while (cur && (nextcount <= count))
+	{
+		GDEBUG(10, " + copying %s (ino %llu) at %p+%08x, len %d/%d", cur->cur->d_name, cur->cur->d_ino, dirp, curcount, cur->cur->d_reclen, count);
+		memcpy(((char *)dirp) + curcount, cur->cur, cur->cur->d_reclen);
+		curcount = nextcount;
+		dd->pos = cur->cur->d_off;
+		if (cur->next)
+		{
+			GDEBUG(10, "2 calculating nextcount, cur == %p, cur->cur == %p...", cur, cur->cur);
+			nextcount += cur->next->cur->d_reclen;
+			GDEBUG(10, "                           is %d", nextcount);
+			GDEBUG(10, "  pos set to %ld", dd->pos);
+		}
+		cur = cur->next;
+		GDEBUG(10, "   curcount at end is %d, cur is %p", curcount, cur);
+	}
+
+	
 
 	return curcount;
 
 }
+
+void dirdata_transform_remove(dirdata *dd, char *d_name)
+{
+	ddreq *new;
+	assert(dd);
+
+	new = malloc(sizeof(ddreq));
+
+	new->type = ddrem;
+	new->d_name = d_name;
+	
+	if (!dd->pending)
+	{
+		new->next = new;
+		dd->pending = new;
+	}
+	else
+	{
+		new->next = dd->pending->next;
+		dd->pending->next = new;
+		dd->pending = new;
+	}
+
+	apply_pending(dd);
+}
+
+
 
 /*
  * If replace is non-zero, an existing file with the same name will be
  * replaced. If replace is zero, and a file with the same file exists, this
  * call will result in a no-op. 
  */
-int dirdata_transform_add(dirdata *dd, long d_ino, char *d_name, int replace)
+void dirdata_transform_add(dirdata *dd, long d_ino, char *d_name, int replace)
 {
 	ddreq *new;
 	assert(dd);
@@ -419,99 +497,32 @@ int dirdata_transform_add(dirdata *dd, long d_ino, char *d_name, int replace)
 	apply_pending(dd);
 }
 
-int dirdata_transform_remove(dirdata *dd, char *d_name)
-{
-	ddreq *new;
-	assert(dd);
-
-	new = malloc(sizeof(ddreq));
-
-	new->type = ddrem;
-	new->d_name = d_name;
-	
-	if (!dd->pending)
-	{
-		new->next = new;
-		dd->pending = new;
-	}
-	else
-	{
-		new->next = dd->pending->next;
-		dd->pending->next = new;
-		dd->pending = new;
-	}
-
-	apply_pending(dd);
-}
-
-
 
 void dirdata_free(dirdata *dd)
 {
+	ddreq *req;
+	int i;
 	g_tree_destroy(dd->tree);
+
+	if (dd->pending)
+	{
+		req = dd->pending->next;
+		dd->pending->next = NULL;
+		dd->pending = req;
+		while (dd->pending)
+		{
+			req = dd->pending;
+			dd->pending = req->next;
+			free(req);
+		}
+	}
+
+	for (i = 0; i < dd->dents_size; i++)
+		if (dd->dents[i])
+			free(dd->dents[i]);
+
+	free(dd->dents_index);
+	free(dd->dents_usage);
 	free(dd->dents);
+	free(dd);
 }
-
-       #include <sys/types.h>
-       #include <sys/stat.h>
-       #include <fcntl.h>
-
-void dirdata_dump(dirdata *dd)
-{
-	telem *cur;
-	if (!dd->last)
-		return;
-	cur = dd->last;
-
-	do
-	{
-		printf("[dump] %s\n", cur->cur->d_name);
-	}
-	while (cur = cur->prev);
-
-}
-
-
-int main()
-{
-	struct dirent64 *dirp;
-	int pos = 0;
-	int count;
-	int fd=open(".", O_RDONLY);
-	int len;
-
-	
-	dirdata *dd = dirdata_new();
-
-	setlinebuf(stdout);
-	
-	if (!fd)
-		exit(1);
-
-	dirp=malloc(1024);
-
-	dirdata_transform_remove(dd, "gd64helper.c");
-	dirdata_transform_add(dd, 0, "passwd", 0);
-	dirdata_transform_remove(dd, "gd64helper");
-	dirdata_transform_add(dd, 0, "shadow", 0);
-	dirdata_transform_add(dd, 0, "group", 0);
-	dirdata_transform_add(dd, 0, "gd65helper.c", 0);
-	dirdata_transform_remove(dd, "core");
-	
-	count=dirdata_getdents64(dd, fd, dirp, 1024);
-
-
-
-	while (pos<count)
-	{
-		printf("%s\n", dirp->d_name);
-		len = dirp->d_reclen;
-		dirp = (struct dirent64*)((char*)dirp + len);
-		pos += len;
-	}
-
-	dirdata_dump(dd);
-}
-
-
-
