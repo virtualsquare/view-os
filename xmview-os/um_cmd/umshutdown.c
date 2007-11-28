@@ -45,9 +45,9 @@ void termhandler(int signo)
 main(int argc, char *argv[])
 {
 	int wtime;
-	if (argc == 0)
+	if (argc == 1)
 		wtime=30;
-	else if (argc==1)
+	else if (argc==2)
 		wtime=atoi(argv[1]);
 	else
 		usage();
