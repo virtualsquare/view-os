@@ -57,6 +57,8 @@ void gdebug_set_ofile(char* new_ofile)
 	if (!gdebug_ofile)
 		libc_fprintf(stderr, "gdebug: can't open log file %s: %s. Using stderr.\n",
 				new_ofile, strerror(errno));
+	else
+		setlinebuf(gdebug_ofile);
 }
 
 void fgdebug(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, const char *fmt, ...)
