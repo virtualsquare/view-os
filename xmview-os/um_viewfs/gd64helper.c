@@ -32,72 +32,17 @@
 #include <glib.h>
 #include <assert.h>
 #include "gdebug.h"
+#include "gd64helper.h"
 
 #define DCAST(x) (struct dirent64 *)((char *) x )
 
-typedef struct _telem telem;
-typedef struct _ddreq ddreq;
-typedef struct _dirdata dirdata;
+/* Size (bytes) for alignment of returned dirents */
+#define RLROUND 8
 
-enum ddreqtype { ddadd, ddrem };
-
-struct _ddreq {
-	enum ddreqtype type;
-	char *d_name;
-	long d_ino;
-	ddreq *next;
-};
-
-
-struct _dirdata {
-	off_t pos;
-
-	/* If true, it means that the first getdents64 must take care of
-	 * populating this structure with the data from the real getdents.
-	 * It is turned off in 2 ways: either when dirdata is populated by
-	 * a getdents, or when the user manually wants to add elements to
-	 * an empty structure (i.e. for showing no elements but one or two
-	 * inside a directory) */
-	int empty;
-
-
-	/* Array of pointers to buffers filled by getdents64 */
-	struct dirent64 **dents;
-	unsigned long dents_size;
-	/* Array which keeps count of how many non-removed items are in each
-	 * buffer of dents. */
-	unsigned long *dents_usage;
-
-	telem **dents_index;
-	unsigned long dents_index_size;
-	
-	/* tree is a tree of telem which contains a pointer to a dirent
-	 * in dents */
-	GTree *tree;
-	
-	/* telem of the first and last elements */
-	telem *first, *last;
-
-	/* List of pending requests (additions or removals of files) */
-	ddreq *pending;
-};
-
-struct _telem {
-
-	/* Pointer to the element in dents */
-	struct dirent64 *cur;
-
-	/* Pointers to prev/next elements of dents, via telem so we can navigate */
-	telem *prev;
-	telem *next;
-
-	unsigned long index;
-	int slot;
-};
-
-
-
-
+/* buffer size for getdents64 when calling is due to a non-getdents call (i.e.
+ * a lseek64 made before the first getdents64). 4096 seems to be the value
+ * used by readdir. */
+#define GDDEFAULTBUF 4096
 
 dirdata *dirdata_new()
 {
@@ -268,24 +213,7 @@ static unsigned long dirdata_remove_dirent(dirdata *dd, char *name)
 	return 1;
 }
 
-int dirdata_seek(dirdata *dd, int where)
-{
-	int min = dd->first->index;
-	int max = dd->last->index;
-	if (where < min)
-		dd->pos = min;
-	else if (where > max)
-		dd->pos = max;
-	else
-		dd->pos = where;
 
-	while (!dd->dents_index[dd->pos] && (dd->pos <= max))
-		dd->pos++;
-
-	return dd->pos;
-}
-
-#define RLROUND 8
 
 static struct dirent64 *build_dirent(long d_ino, char *d_name)
 {
@@ -313,7 +241,7 @@ static int apply_pending(dirdata *dd)
 {
 	ddreq *cur;
 	int i = 0;
-	int last = 2;
+	int last = 1;
 
 	if (dd->empty)
 	{
@@ -327,7 +255,7 @@ static int apply_pending(dirdata *dd)
 	do
 	{
 		cur = dd->pending->next;
-		GDEBUG(10, "####### applying type %d on %s", cur->type, cur->d_name);
+		GDEBUG(10, "####### applying type %d on %s (cur == %p)", cur->type, cur->d_name, cur);
 		switch(cur->type)
 		{
 			case ddadd:
@@ -352,28 +280,31 @@ static int apply_pending(dirdata *dd)
 
 	dd->pending = NULL;
 
+	GDEBUG(10, "%d pending requests applied", i);
+
 	return i;
-
-
 }
+
 static int getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
 {
 	return syscall(__NR_getdents64, fd, dirp, count);
 }
 
 
-int dirdata_getdents64(dirdata *dd, unsigned int fd, struct dirent64 *dirp, unsigned int count)
+static int fill_dirdata(dirdata *dd, int fd, struct dirent64 *dirp, unsigned int count)
 {
-	int curcount, nextcount;
-	//struct dirent64 *startdent, *curdent, *nextdent;
-	telem *cur;
+	int rv = 0;
 
 	if (dd->empty)
 	{
+		struct dirent64 *dirp_orig = dirp;
+
 		// Fill the dirdata structure
 		GDEBUG(10, "filling dirdata structure");
 
-		int rv;
+		if (!dirp)
+			dirp = malloc(count);
+
 		do
 		{
 			GDEBUG(10, "calling getdents... ");
@@ -384,6 +315,9 @@ int dirdata_getdents64(dirdata *dd, unsigned int fd, struct dirent64 *dirp, unsi
 		}
 		while (rv > 0);
 
+		if (!dirp_orig)
+			free(dirp);
+
 		if (rv < 0)
 			return rv;
 
@@ -392,26 +326,37 @@ int dirdata_getdents64(dirdata *dd, unsigned int fd, struct dirent64 *dirp, unsi
 	else
 		GDEBUG(10, "not filling, already full, pos is %ld", dd->pos);
 
-	apply_pending(dd);
+	return rv;
+}
 
-	GDEBUG(10, "all pending requests applied");
+int dirdata_getdents64(dirdata *dd, unsigned int fd, struct dirent64 *dirp, unsigned int count)
+{
+	int curcount, nextcount, rv;
+	//struct dirent64 *startdent, *curdent, *nextdent;
+	telem *cur;
+
+	if ((rv = fill_dirdata(dd, fd, dirp, count)) < 0)
+		return rv;
+
+	apply_pending(dd);
 
 	if (!dd->first)
 		return 0;
 
-	cur = dd->dents_index[dd->pos];
-
-	if (!cur)
+	if (dd->pos > dd->last->index)
+//	if (!cur)
 	{
 		GDEBUG(10, "end of directory, returning 0");
 		return 0;
 	}
+	
+	cur = dd->dents_index[dd->pos];
 
 	curcount = 0;
 	GDEBUG(10, "calculating nextcount, cur == %p...", cur);
 	nextcount = cur->cur->d_reclen;
 	GDEBUG(10, "                         is %d", nextcount);
-	
+
 	while (cur && (nextcount <= count))
 	{
 		GDEBUG(10, " + copying %s (ino %llu) at %p+%08x, len %d/%d", cur->cur->d_name, cur->cur->d_ino, dirp, curcount, cur->cur->d_reclen, count);
@@ -429,10 +374,44 @@ int dirdata_getdents64(dirdata *dd, unsigned int fd, struct dirent64 *dirp, unsi
 		GDEBUG(10, "   curcount at end is %d, cur is %p", curcount, cur);
 	}
 
-	
+
 
 	return curcount;
 
+}
+
+int dirdata_lseek(dirdata *dd, int fd, unsigned long long offset, loff_t *result, unsigned int whence)
+{
+	unsigned long long min = dd->first->index;
+	unsigned long long max = dd->last->index;
+
+	fill_dirdata(dd, fd, NULL, GDDEFAULTBUF);
+
+	switch(whence)
+	{
+		case SEEK_CUR:
+			offset += dd->pos;
+			break;
+
+		case SEEK_END:
+			offset += max;
+			break;
+	}
+
+	if (offset < min)
+		dd->pos = min;
+	else if (offset > max)
+		dd->pos = max;
+	else
+		dd->pos = offset;
+
+	while (!dd->dents_index[dd->pos] && (dd->pos <= max))
+		dd->pos++;
+
+	if (result)
+		*result = dd->pos;
+
+	return dd->pos;
 }
 
 void dirdata_transform_remove(dirdata *dd, char *d_name)
@@ -456,6 +435,8 @@ void dirdata_transform_remove(dirdata *dd, char *d_name)
 		dd->pending->next = new;
 		dd->pending = new;
 	}
+
+	GDEBUG(10, "enqueued request for removal of %s, applying", d_name);
 
 	apply_pending(dd);
 }
