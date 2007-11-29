@@ -42,12 +42,7 @@
 #define SERVICE_CODE 0x31
 #define FS_TYPE "modifshide"
 
-#ifndef TRUE
-#define TRUE (0 == 0)
-#endif
-#ifndef FALSE
-#define FALSE (!TRUE)
-#endif
+enum slmode { SL_EXACT, SL_PARENT, SL_SUBTREE };
 
 static struct service s;
 
@@ -241,75 +236,94 @@ static long delproc(int id)
 }
 
 
-static modifs_layer *searchlayer(char *path, int parent)
+static modifs_layer *searchlayer(char *path, enum slmode mode)
 {
 	modifs_layer *result = NULL;
 	int bestmatch = -1;
 	int i, j;
 	epoch_t e, maxe = 0;
-	char oldp;
+	// char oldp;
 
 	if (!path || !path[0])
 		return NULL;
 
 	cutdots(path);
 
-	GDEBUG(9, "trying to match path %s, parent == %d", path, parent);
+	GDEBUG(9, "trying to match path %s, mode == %d", path, mode);
 
 
-	if (parent)
+	switch (mode)
 	{
-		for (j = 0; j < layertabsize; j++)
-		{
-			if (!layertab[j])
-				continue;
-
-			GDEBUG(9, " - comparing with %s", layertab[j]->target_parent);
-			if ((strcmp(path, layertab[j]->target_parent) == 0) &&
-					((e = tst_matchingepoch(&(layertab[j]->tst))) > maxe))
+		case SL_EXACT:
+			for (j = 0; j < layertabsize; j++)
 			{
-				bestmatch = j;
-				maxe = e;
-				GDEBUG(9, " + match! bestmatch = %d, maxe = %llu", bestmatch, maxe);
-			}
-		}
-	}
-	else
-	{
-		for (j = 0; j < layertabsize; j++)
-		{
-			if (!layertab[j])
-				continue;
+				if (!layertab[j])
+					continue;
 
-			GDEBUG(9, " - comparing with %s", layertab[j]->target);
-
-			// Search for longest common subsection starting from 1st char
-			i = -1;
-			do
-			{
-				i++;
-				if ((path[i] != layertab[j]->target[i]) && layertab[j]->target[i])
-					break;
-
-				if (((path[i] == '/') || !path[i]) && (!layertab[j]->target[i]))
+				GDEBUG(9, " - comparing with %s", layertab[j]->target);
+				if ((strcmp(path, layertab[j]->target) == 0) &&
+						((e = tst_matchingepoch(&(layertab[j]->tst))) > maxe))
 				{
-					/**** Debug statements */
-					oldp = path[i];
-					path[i] = 0;
-					GDEBUG(9, "   - looking for epoch for match %s", path);
-					path[i] = oldp;
-					/**** End of debug statements */
-
-					if ((e = tst_matchingepoch(&(layertab[j]->tst))) > maxe)
-					{
-						bestmatch = j;
-						maxe = e;
-						GDEBUG(9, "   + match! bestmatch = %d, maxe = %d", bestmatch, maxe);
-					}
+					bestmatch = j;
+					maxe = e;
+					GDEBUG(9, " + match! bestmatch = %d, maxe = %llu", bestmatch, maxe);
 				}
 			}
-			while (path[i] && layertab[j]->target[i]);
-		}
+			break;
+
+		case SL_PARENT:
+			for (j = 0; j < layertabsize; j++)
+			{
+				if (!layertab[j])
+					continue;
+
+				GDEBUG(9, " - comparing with %s", layertab[j]->target_parent);
+				if ((strcmp(path, layertab[j]->target_parent) == 0) &&
+						((e = tst_matchingepoch(&(layertab[j]->tst))) > maxe))
+				{
+					bestmatch = j;
+					maxe = e;
+					GDEBUG(9, " + match! bestmatch = %d, maxe = %llu", bestmatch, maxe);
+				}
+			}
+			break;
+
+		case SL_SUBTREE:
+			for (j = 0; j < layertabsize; j++)
+			{
+				if (!layertab[j])
+					continue;
+
+				GDEBUG(9, " - comparing with %s", layertab[j]->target);
+
+				// Search for longest common subsection starting from 1st char
+				i = -1;
+				do
+				{
+					i++;
+					if ((path[i] != layertab[j]->target[i]) && layertab[j]->target[i])
+						break;
+
+					if (((path[i] == '/') || !path[i]) && (!layertab[j]->target[i]))
+					{
+						/**** Debug statements */
+						// oldp = path[i];
+						// path[i] = 0;
+						// GDEBUG(9, "   - looking for epoch for match %s", path);
+						// path[i] = oldp;
+						/**** End of debug statements */
+
+						if ((e = tst_matchingepoch(&(layertab[j]->tst))) > maxe)
+						{
+							bestmatch = j;
+							maxe = e;
+							GDEBUG(9, "   + match! bestmatch = %d, maxe = %d", bestmatch, maxe);
+						}
+					}
+				}
+				while (path[i] && layertab[j]->target[i]);
+			}
+			break;
 	}
 
 
@@ -375,7 +389,7 @@ static long modifs_umount2(char *target, int flags)
 {
 	modifs_layer *layer;
 
-	layer = searchlayer(target, TRUE);
+	layer = searchlayer(target, SL_EXACT);
 	if (!layer)
 	{
 		errno = EINVAL;
@@ -399,12 +413,12 @@ static long modifs_umount2(char *target, int flags)
 static epoch_t check_open(char *path, int flags, int umpid)
 {
 	modifs_layer *layer;
-	if ((layer = searchlayer(path, TRUE)))
+	if ((layer = searchlayer(path, SL_PARENT)))
 	{
 		GDEBUG(9, "parent found, returning %llu", layer->tst.epoch);
 		return layer->tst.epoch;
 	}
-	else if ((layer = searchlayer(path, FALSE)))
+	else if ((layer = searchlayer(path, SL_SUBTREE)))
 	{
 		GDEBUG(9, "non-parent found, returning %llu", layer->tst.epoch);
 		return layer->tst.epoch;
@@ -449,14 +463,14 @@ static epoch_t wrap_check_path(char* path)
 		case __NR_symlink:
 		case __NR_chdir:
 		case __NR_mkdir:
-			layer = searchlayer(path, FALSE);
+			layer = searchlayer(path, SL_SUBTREE);
 			if (layer)
 				retval = layer->tst.epoch;
 			break;
 
 		case __NR_umount:
 		case __NR_umount2:
-			layer = searchlayer(path, TRUE);
+			layer = searchlayer(path, SL_EXACT);
 			if (layer)
 				retval = layer->tst.epoch;
 			break;
@@ -527,7 +541,7 @@ static long modifs_open(char *pathname, int flags, mode_t mode)
 	long i, fd;
 
 	GDEBUG(9, "OPEN");
-	if ((layer = searchlayer(pathname, TRUE)))
+	if ((layer = searchlayer(pathname, SL_PARENT)))
 	{
 		fd = open(pathname, flags, mode);
 		if (fd > 0)
