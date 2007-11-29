@@ -268,7 +268,7 @@ static void droppcb(struct pcb *pc)
 	nprocs--;
 	forallpcbdo(_cut_pp,pc);
 	pcb_destructor(pc,0/*flags*/,0);
-	if (nprocs > 1)
+	if (nprocs > 0)
 		pc->flags = 0; /*NOT PCB_INUSE */;
 }
 
