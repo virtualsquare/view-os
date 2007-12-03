@@ -1461,6 +1461,19 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 			}  /* switch */
 			break;
 
+#ifdef LWIP_PACKET
+		case SOL_PACKET:
+			switch( optname ) {
+				case PACKET_STATISTICS:
+					if( *optlen < sizeof(struct tpacket_stats) ) 
+						err = EINVAL;
+					break;
+				default:
+					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_getsockopt(%d, SOL_PACKET, UNIMPL: optname=0x%x, ..)\n", s, optname));
+					err = ENOPROTOOPT;
+			}  /* switch */
+			break;
+#endif
 			/* UNDEFINED LEVEL */
 		default:
 			LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_getsockopt(%d, level=0x%x, UNIMPL: optname=0x%x, ..)\n", s, level, optname));
@@ -1557,9 +1570,21 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 					break;
 			}  /* switch */
 			break;
+#ifdef LWIP_PACKET
+		case SOL_PACKET:
+			switch( optname ) {
+				case PACKET_STATISTICS:
+					{
+						/* XXX statistics return 0 - for now */
+						struct tpacket_stats *st=(struct tpacket_stats *)optval;;
+						st->tp_packets=0;
+						st->tp_drops=0;
+					}
+					break;
+			}  /* switch */
+			break;
+#endif
 	}
-
-
 	sock_set_errno(sock, err);
 	return err ? -1 : 0;
 }
@@ -1730,7 +1755,7 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 					break;
 					//case PACKET_RECV_OUTPUT:
 					//case PACKET_RX_RING:
-					//case PACKET_STATISTICS:
+					//break;
 				default:
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_setsockopt(%d, IPPROTO_RAW, UNIMPL: optname=0x%x, ..)\n", s, optname));
 					err = ENOPROTOOPT;

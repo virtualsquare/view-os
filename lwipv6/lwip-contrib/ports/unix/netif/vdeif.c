@@ -87,9 +87,11 @@
 #include <sys/uio.h>
 #include <stdint.h>
 #include <libgen.h>
-#include "vde.h"
+#include "libvdeplug_dyn.h"
 #include <sys/poll.h>
 #include <pwd.h>
+
+struct vdepluglib vdeplug;
 
 #endif /* linux */
 
@@ -109,11 +111,8 @@ static const struct eth_addr ethbroadcast = { {0xff, 0xff, 0xff, 0xff, 0xff, 0xf
 struct vdeif {
 	struct eth_addr *ethaddr;
 	/* Add whatever per-interface state that is needed here. */
-	int connected_fd;
-	int fddata;
-	struct sockaddr_un dataout;
-	struct sockaddr_un datain;
 	int intno;
+	VDECONN *vdefd;
 
 	u8_t       active;
 	sys_sem_t  cleanup_mutex;
@@ -125,130 +124,8 @@ static err_t vdeif_output(struct netif *netif, struct pbuf *p, struct ip_addr *i
 
 static void vdeif_thread(void *data);
 
-#define SWITCH_MAGIC   0xfeedface
 #define BUFSIZE        2048
 #define ETH_ALEN       6
-
-enum request_type { REQ_NEW_CONTROL, REQ_NEW_PORT0 };
-
-#define MAXDESCR 128
-struct request_v3 {
-	uint32_t magic;
-	uint32_t version;
-	enum request_type type;
-	struct sockaddr_un sock;
-	char description[MAXDESCR];
-};
-
-
-static int send_fd(char *name, int fddata, struct sockaddr_un *datasock, struct sockaddr_un *datain, int intno, int ifnum)
-{
-	int pid = getpid();
-	struct request_v3 req;
-	int fdctl;
-	struct passwd *callerpwd;
-	int port = 0;
-	enum request_type rtype = REQ_NEW_CONTROL;
-	struct sockaddr_un sock;
-
-	callerpwd = getpwuid(getuid());
-
-	if ((fdctl = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-		return ERR_IF;
-	}
-
-	if (name == NULL)
-		name = VDESTDSOCK;
-	else {
-		char *split;
-
-		if (name[strlen(name) - 1] == ']' && (split = rindex(name, '[')) != NULL) {
-			*split = 0;
-			split++;
-			port = atoi(split);
-			if (port == 0)
-				rtype = REQ_NEW_PORT0;
-			if (*name == 0)
-				name = VDESTDSOCK;
-		}
-	}
-
-	sock.sun_family = AF_UNIX;
-	snprintf(sock.sun_path, sizeof(sock.sun_path), "%s/ctl", name);
-	LWIP_DEBUGF(VDEIF_DEBUG, ("vdeif: connecting to '%s'.\n", sock.sun_path));
-	if (connect(fdctl, (struct sockaddr *) &sock, sizeof(sock))) {
-		if (name == VDESTDSOCK) {
-			name = VDETMPSOCK;
-			snprintf(sock.sun_path, sizeof(sock.sun_path), "%s/ctl", name);
-			LWIP_DEBUGF(VDEIF_DEBUG, ("vdeif: connecting to '%s'.\n", sock.sun_path));
-			if (connect(fdctl, (struct sockaddr *) &sock, sizeof(sock))) {
-				snprintf(sock.sun_path, sizeof(sock.sun_path), "%s", name);
-				if (connect(fdctl, (struct sockaddr *) &sock, sizeof(sock))) {
-					return ERR_IF;
-				}
-			}
-		}
-		/* added for compatibility with old versions of vde_switch */
-		else {
-			snprintf(sock.sun_path, sizeof(sock.sun_path), "%s", name);
-			LWIP_DEBUGF(VDEIF_DEBUG, ("vdeif: connecting to '%s'.\n", sock.sun_path));
-			if (connect(fdctl, (struct sockaddr *) &sock, sizeof(sock))) {
-				return ERR_IF;
-			}
-		}
-
-	}
-
-	req.magic = SWITCH_MAGIC;
-	req.version = 3;
-	req.type = rtype + (port << 8);
-	req.sock.sun_family = AF_UNIX;
-	snprintf(req.description, MAXDESCR, "%sLWIPv6 user=%s PID=%d if=vd%c", 
-		(getenv("_INSIDE_UMVIEW_MODULE") != NULL) ? "UMVIEW-" : "", 
-		(callerpwd != NULL)?callerpwd->pw_name:"??",
-		getpid(), ifnum + '0');
-
-	/* First choice, return socket from the switch close to the control dir */
-	memset(req.sock.sun_path, 0, sizeof(req.sock.sun_path));
-	sprintf(req.sock.sun_path, "%s.%05d-%02d", name, pid, intno);
-	if (bind(fddata, (struct sockaddr *) &req.sock, sizeof(req.sock)) < 0) {
-		/* if it is not possible -> /tmp */
-		memset(req.sock.sun_path, 0, sizeof(req.sock.sun_path));
-		sprintf(req.sock.sun_path, "/tmp/vde.%05d-%02d", pid, intno);
-		if (bind(fddata, (struct sockaddr *) &req.sock, sizeof(req.sock)) < 0)
-			return ERR_IF;
-	}
-	memcpy(datain, &req.sock, sizeof(struct sockaddr_un));
-
-	if (send(fdctl, &req, sizeof(req) - MAXDESCR + strlen(req.description), 0) < 0) {
-		return ERR_IF;
-	}
-
-	if (recv(fdctl, datasock, sizeof(struct sockaddr_un), 0) < 0) {
-		return ERR_IF;
-	}
-
-	return fdctl;
-}
-
-#if 0
-static char *mem_strdup(const char *s)
-{
-	if (s == NULL)
-		return NULL;
-	else {
-		int l = strlen(s);
-		char *rv;
-
-		if ((rv = mem_malloc(l + 1)) == NULL)
-			return NULL;
-		else {
-			strcpy(rv, s);
-			return rv;
-		}
-	}
-}
-#endif
 
 /*-----------------------------------------------------------------------------------*/
 
@@ -259,11 +136,18 @@ arp_timer(void *arg)
 	sys_timeout(ARP_TMR_INTERVAL, (sys_timeout_handler)arp_timer, arg);
 }
 
+#define MAXDESCR 128
 /*-----------------------------------------------------------------------------------*/
 static int low_level_init(struct netif *netif, char *path)
 {
 	struct vdeif *vdeif;
 	int randaddr;
+	char descr[MAXDESCR+1];
+
+	libvdeplug_dynopen(vdeplug);
+
+	if (!vdeplug.vde_close)
+		return ERR_IF;
 
 	vdeif = netif->state;
 
@@ -281,13 +165,12 @@ static int low_level_init(struct netif *netif, char *path)
 
 	/* Do whatever else is needed to initialize interface. */
 
+	snprintf(descr, MAXDESCR, "%sLWIPv6 if=vd%c", 
+		(getenv("_INSIDE_UMVIEW_MODULE") != NULL) ? "UMVIEW-" : "", 
+		netif->num + '0');
 	vdeif->intno = netif->num;
-	if ((vdeif->fddata = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
-		return ERR_IF;
-	}
-	vdeif->connected_fd = send_fd(path, vdeif->fddata, &(vdeif->dataout), &(vdeif->datain), vdeif->intno, netif->num);
-
-	if (vdeif->connected_fd >= 0) {
+	vdeif->vdefd=vdeplug.vde_open(path,"",NULL);
+	if (vdeif->vdefd) {
 
 		vdeif->active = 1;
 		vdeif->cleanup_mutex = sys_sem_new(0);
@@ -306,8 +189,7 @@ static err_t cleanup(struct netif *netif)
 	struct vdeif *vdeif = netif->state;
 
 	if (vdeif) {
-		unlink(vdeif->datain.sun_path);
-		close(vdeif->fddata);
+		vdeplug.vde_close(vdeif->vdefd);
 
 		/* Unset ARP timeout on this interface */
 		sys_untimeout((sys_timeout_handler)arp_timer, netif);
@@ -315,6 +197,7 @@ static err_t cleanup(struct netif *netif)
 
 		/* Stop interface thread and wait until it exits */
 		vdeif->active = 0;
+		libvdeplug_dynclose(vdeplug);
 		sys_sem_wait_timeout(vdeif->cleanup_mutex, 0); 
 		sys_sem_free(vdeif->cleanup_mutex);
 	}
@@ -360,7 +243,7 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
 	}
 
 	/* signal that packet should be sent(); */
-	if (sendto(vdeif->fddata, buf, p->tot_len, 0, (struct sockaddr *) &(vdeif->dataout), sizeof(struct sockaddr_un)) == -1) {
+	if (vdeplug.vde_send(vdeif->vdefd, buf, p->tot_len, 0) == -1) {
 	}
 
 	LWIP_DEBUGF(VDEIF_DEBUG, ("%s: end\n", __func__));
@@ -389,7 +272,7 @@ static struct pbuf *low_level_input(struct vdeif *vdeif, u16_t ifflags)
 	LWIP_DEBUGF(VDEIF_DEBUG, ("%s: reading...\n", __func__));
 
 	/* Obtain the size of the packet and put it into the "len" variable. */
-	len = recvfrom(vdeif->fddata, buf, sizeof(buf), 0, (struct sockaddr *) &datain, &datainsize);
+	len = vdeplug.vde_recv(vdeif->vdefd, buf, sizeof(buf), 0);
 
 	LWIP_DEBUGF(VDEIF_DEBUG, ("%s: read %d bytes (is UP? = %d)\n", __func__, len, ifflags & NETIF_FLAG_UP));
 
@@ -447,15 +330,16 @@ static void vdeif_thread(void *arg)
 
 	/* Check if we have to exit and wait 100ms for new data */
 	while (vdeif->active) {
+		int datafd=vdeplug.vde_datafd(vdeif->vdefd);
 
 		FD_ZERO(&fdset);
-		FD_SET(vdeif->fddata, &fdset);
+		FD_SET(datafd, &fdset);
 
 		tv.tv_sec = 0;
 		tv.tv_usec = 100000;
 
 		/* Wait for a packet to arrive. */
-		ret = select(vdeif->fddata + 1, &fdset, NULL, NULL, &tv);
+		ret = select(datafd+1, &fdset, NULL, NULL, &tv);
 		if (ret == 1) {
 			/* Handle incoming packet. */
 			vdeif_input(netif);

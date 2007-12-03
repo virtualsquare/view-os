@@ -39,7 +39,8 @@
 #include "lwip/ip.h"
 #include "lwip/raw.h"
 
-#include <netpacket/packet.h>
+//#include <netpacket/packet.h>
+#include <linux/if_packet.h>
 
 #define ETH_P_ALL  0x0003    /* Every packet (be careful!!!) */
 
