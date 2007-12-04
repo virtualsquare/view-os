@@ -192,8 +192,6 @@ static void droppcb(struct pcb *pc)
 	 * the termination of all modules */
 	/* otherwise the "nesting" mechanism misunderstands
 	 * the pcb by a npcb */
-	if (nprocs > 1)
-		pc->flags = 0; /*NOT PCB_INUSE */;
 #ifdef _PROC_MEM_TEST
 	if (pc->memfd >= 0)
 		close(pc->memfd);
@@ -201,6 +199,8 @@ static void droppcb(struct pcb *pc)
 	nprocs--;
 	forallpcbdo(_cut_pp,pc);
 	pcb_destructor(pc,0/*flags*/,0);
+	if (nprocs > 0)
+		pc->flags = 0; /*NOT PCB_INUSE */;
 }
 
 /* initial PCB table allocation */
