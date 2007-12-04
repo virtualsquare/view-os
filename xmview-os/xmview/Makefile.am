@@ -41,7 +41,7 @@ COMMON_SOURCES = \
 # kmview.h must be removed, it will part of the dev package of the
 # kmview.ko kernel module
 
-noinst_PROGRAMS = kmview umview
+bin_PROGRAMS = kmview umview
 
 kmview_SOURCES = \
 	$(COMMON_SOURCES) \

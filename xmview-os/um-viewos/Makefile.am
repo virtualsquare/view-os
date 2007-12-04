@@ -8,7 +8,10 @@ PCB_MODULES = \
 	pcb.03.mmap.h \
 	pcb.04.select.h
 
-bin_PROGRAMS = umview
+noinst_PROGRAMS = umview umbinwrap
+noinst_MANS = umview.1
+
+# bin_PROGRAMS = umview
 umview_SOURCES = \
 	canonicalize.c canonicalize.h \
 	capture_nested.c capture_nested.h \
@@ -51,11 +54,11 @@ umview_LDADD = -ldl -lpthread
 BUILT_SOURCES = pcb-all.h
 CLEANFILES = pcb-all.h
 
-libexec_PROGRAMS = umbinwrap
+# libexec_PROGRAMS = umbinwrap
 umbinwrap_SOURCES = \
 	umbinwrap.c
 
-dist_man1_MANS = umview.1
+# dist_man1_MANS = umview.1
 
 CBASEFLAGS =
 CDEBUGFLAGS = -g3 -ggdb3
