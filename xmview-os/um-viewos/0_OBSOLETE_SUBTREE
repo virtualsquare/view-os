@@ -1,0 +1,14 @@
+...These aren't the files you're looking for...
+
+This subtree has been obsoleted by the xmview/ subdirectory, that contains the
+most recent versions of both umview (the 100% userland implementation of
+View-OS) and kmview (utrace kernel-based View-OS). As we want to keep the
+codebase as unified as possible, the umview source code has been partially
+restructured in order to simplify the merging with kmview.
+
+New features, bugfixes and improvements WILL NOT BE BACKPORTED to this
+subtree. Please don't use this version unless you've really good reasons.
+
+This subtree is DEPRECATED and will be removed in future.
+
+Thanks.
