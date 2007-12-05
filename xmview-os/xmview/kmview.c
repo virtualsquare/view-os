@@ -299,6 +299,7 @@ static int test_recursion(int argc,char *argv[])
 static void root_process_init()
 {
 	capture_nested_init();
+	setenv("_INSIDE_UMVIEW_MODULE","",1);
 	do_preload(prehead);
 	do_set_viewname(viewname);
 }
