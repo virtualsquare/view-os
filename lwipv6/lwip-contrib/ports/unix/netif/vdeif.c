@@ -169,7 +169,7 @@ static int low_level_init(struct netif *netif, char *path)
 		(getenv("_INSIDE_UMVIEW_MODULE") != NULL) ? "UMVIEW-" : "", 
 		netif->num + '0');
 	vdeif->intno = netif->num;
-	vdeif->vdefd=vdeplug.vde_open(path,"",NULL);
+	vdeif->vdefd=vdeplug.vde_open(path,descr,NULL);
 	if (vdeif->vdefd) {
 
 		vdeif->active = 1;
