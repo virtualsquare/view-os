@@ -80,6 +80,10 @@
 #endif
 
 #include "lwip/native_syscalls.h"
+#ifndef OPEN_MAX
+#define OPEN_MAX NR_OPEN
+#endif
+
 #define NUM_SOCKETS MEMP_NUM_NETCONN
 
 #define SOCK_IP64_CONV(ipaddr, ip4)  do { \
