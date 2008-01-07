@@ -74,6 +74,7 @@ void netlink_ackerror(void *msg,int ackerr,void *buf,int *offset);
  * void netif_netlink_addlink(struct nlmsghdr *msg,void * buf,int *offset);
  * void netif_netlink_dellink(struct nlmsghdr *msg,void * buf,int *offset);
  */
+void netif_netlink_adddellink(struct nlmsghdr *msg,void * buf,int *offset);
 void netif_netlink_getlink(struct nlmsghdr *msg,void * buf,int *offset);
 
 /*

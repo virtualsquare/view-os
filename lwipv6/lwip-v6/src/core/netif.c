@@ -637,6 +637,17 @@ static void netif_netlink_link_out(struct nlmsghdr *msg,struct netif *nip,void *
 	netlink_addanswer(buf,&myoffset,msg,sizeof (struct nlmsghdr));
 }
 
+void netif_netlink_adddellink(struct nlmsghdr *msg,void * buf,int *offset)
+{
+	struct ifinfomsg *ifi=(struct ifinfomsg *)(msg+1);
+	struct netif *nip;
+	int lenrestore=msg->nlmsg_len;
+	int flag=msg->nlmsg_flags;
+
+	/*printf("netif_netlink_adddellink %d\n",msg->nlmsg_type);*/
+	netlink_ackerror(msg,-EOPNOTSUPP,buf,offset);
+}
+
 void netif_netlink_getlink(struct nlmsghdr *msg,void * buf,int *offset)
 {
 	struct ifinfomsg *ifi=(struct ifinfomsg *)(msg+1);

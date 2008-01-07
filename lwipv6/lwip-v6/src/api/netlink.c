@@ -107,7 +107,7 @@ typedef void (*netlink_mgmt)(struct nlmsghdr *msg,void * buf,int *offset);
 
 static netlink_mgmt mgmt_table[]={
 	/* NEW/DEL/GET/SET link */
-	NULL, NULL, netif_netlink_getlink,  NULL,
+	netif_netlink_adddellink, netif_netlink_adddellink, netif_netlink_getlink,  NULL,
 	/* NEW/DEL/GET addr */
 	netif_netlink_adddeladdr, netif_netlink_adddeladdr, netif_netlink_getaddr, NULL,
 	/* NEW/DEL/GET route */
@@ -178,7 +178,7 @@ static void dump(char *data,int size)
 	for (i=0; i<(size+15)/16; i++) {
 		for (j=0; j<16; j++) 
 			if (i*16+j < size)
-				printf("%02x ",data[i*16+j]);
+				printf("%02x ",(unsigned char) data[i*16+j]);
 			else
 				printf("   ");
 		for (j=0; j<16; j++) 
@@ -266,7 +266,7 @@ netlink_recvfrom(void *sock, void *mem, int len, unsigned int flags,
 			pbuf_free(nl->answer[1]);
 			nl->answer[1]=NULL;
 		}
-		//printf("LEN %d\n",len);
+		/*printf("LEN %d\n",len);*/
 		return 0;
 	} 
 	else {
