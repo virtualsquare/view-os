@@ -7,6 +7,9 @@ AM_INIT_AUTOMAKE([foreign])
 AC_CONFIG_SRCDIR([purelibc.h])
 AC_CONFIG_HEADER([config.h])
 
+AC_GNU_SOURCE
+AC_USE_SYSTEM_EXTENSIONS
+
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_INSTALL
