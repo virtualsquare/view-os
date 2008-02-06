@@ -1,1 +1,0 @@
-gcc --shared -nostartfiles -Wall -g -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -D_FILE_OFFSET_BITS=64 -g -O2 -g -o umfusecram fusecram.o cramfs.o  /usr/lib/libfuse.so -lpthread /usr/lib/libglib-2.0.so -lz
