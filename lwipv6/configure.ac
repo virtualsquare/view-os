@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.60)
 AC_INIT([lwipv6], [1.1a], [osd@cs.unibo.it])
-AM_INIT_AUTOMAKE([foreign])
+AM_INIT_AUTOMAKE([foreign dist-bzip2])
 AC_CONFIG_SRCDIR([lwip-contrib/ports/unix/include/lwipv6.h])
 AC_CONFIG_HEADER([config.h])
 
