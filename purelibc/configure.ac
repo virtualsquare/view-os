@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.60)
 AC_INIT([purelibc], [0.3], [info@v2.cs.unibo.it])
-AM_INIT_AUTOMAKE([foreign])
+AM_INIT_AUTOMAKE([foreign dist-bzip2])
 AC_CONFIG_SRCDIR([purelibc.h])
 AC_CONFIG_HEADER([config.h])
 
