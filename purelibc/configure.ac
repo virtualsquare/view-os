@@ -2,13 +2,12 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.60)
-AC_INIT([purelibc], [0.3], [osd@cs.unibo.it])
+AC_INIT([purelibc], [0.3], [info@v2.cs.unibo.it])
 AM_INIT_AUTOMAKE([foreign])
 AC_CONFIG_SRCDIR([purelibc.h])
 AC_CONFIG_HEADER([config.h])
 
 # Checks for programs.
-AC_PROG_CXX
 AC_PROG_CC
 AC_PROG_INSTALL
 AC_PROG_LN_S

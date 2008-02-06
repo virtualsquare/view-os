@@ -291,7 +291,7 @@ int access(const char* pathname,int mode){
 	return _pure_syscall(__NR_access,pathname,mode);
 }
 
-int readlink(const char* pathname,char* buf, size_t bufsize){
+ssize_t readlink(const char* pathname,char* buf, size_t bufsize){
 	return _pure_syscall(__NR_readlink,pathname,buf,bufsize);
 }
 
@@ -1033,15 +1033,20 @@ int fstatvfs(int fd, struct statvfs *buf){
 void *mmap(void  *start, size_t length, int prot, int flags, int fd,
 		       off_t offset)
 {
+#if __WORDSIZE != 64
 		return (void *) _pure_syscall(__NR_mmap2,start,length,prot,flags,fd,offset>> _pageshift());
-		//return (void *) _pure_syscall(__NR_mmap,start,length,prot,flags,fd,offset);
+#else
+		return (void *) _pure_syscall(__NR_mmap,start,length,prot,flags,fd,offset);
+#endif
 }
 
+#if __WORDSIZE != 64
 void *mmap2(void  *start, size_t length, int prot, int flags, int fd,
 		       off_t pgoffset)
 {
 		return (void *) _pure_syscall(__NR_mmap2,start,length,prot,flags,fd,pgoffset);
 }
+#endif
 
 int munmap(void *start, size_t length)
 {
