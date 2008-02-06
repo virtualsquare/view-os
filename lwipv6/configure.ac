@@ -14,10 +14,9 @@ AC_PROG_MAKE_SET
 AC_PROG_LIBTOOL
 
 # Checks for libraries.
-# FIXME: Replace `main' with a function in `-lpcap':
-AC_CHECK_LIB([pcap], [pcap_open_offline])
-# FIXME: Replace `main' with a function in `-lutil':
-AC_CHECK_LIB([util], [forkpty])
+AC_CHECK_LIB([pcap], [pcap_open_offline],,AC_MSG_ERROR([libpcap missing]))
+AC_CHECK_LIB([util], [forkpty],,AC_MSG_ERROR([libutil missing]))
+AC_CHECK_LIB([vdeplug], [vde_close],,AC_MSG_ERROR([libvdeplug missing]))
 
 # Checks for header files.
 AC_HEADER_STDC
