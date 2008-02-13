@@ -35,14 +35,14 @@ static char mbrsignature[2]={0x55,0xAA};
 
 struct mbr_header {
 	struct mbrpart {
-		char flags;
-		char chs_begin[3];
-		char type;
-		char chs_end[3];
-		char lba_begin[4];
-		char lba_noblocks[4];
+		unsigned char flags;
+		unsigned char chs_begin[3];
+		unsigned char type;
+		unsigned char chs_end[3];
+		unsigned char lba_begin[4];
+		unsigned char lba_noblocks[4];
 	} mbrpart[4];
-	char signature[2];
+	unsigned char signature[2];
 };
 
 #define LE32_INT(X) (((X)[0])+(((X)[1])<<8)+(((X)[2])<<16)+(((X)[3])<<24))
@@ -98,7 +98,7 @@ static void mbr_read(struct mbr *mbr)
 		mbr->geometry.cylinders = (mbr->size >> IDE_BLOCKSIZE_LOG) / (mbr->geometry.heads * mbr->geometry.sectors);
 
 
-		/* Read the chain of logical partitions insmbr the extended partition */
+		/* Read the chain of logical partitions inside the extended partition */
 		while (ext_part_base > 0) {
 			off_t base=((off_t)(ext_part_base+offset)) << IDE_BLOCKSIZE_LOG;
 			pread64(mbr->fd, &mbr_header, sizeof(mbr_header), (base+IDE_HEADER_OFFSET));
