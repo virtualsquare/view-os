@@ -167,29 +167,6 @@ FILE *fopen64 (const char *filename, const char *modes){
 	return _pure_fopen(filename, modes, _pure_parse_mode(modes)|O_LARGEFILE);
 }
 
-/*
-	 static FILE *_pure_freopen (const char *filename, const char *modes, int flags, FILE *stream){
-	 if (stream == NULL) {
-	 errno=EINVAL;
-	 } else {
-	 fclose(stream);
-	 if ((*fd=open(filename,flags,0666)) < 0)
-	 return NULL;
-	 else
-	 return new_pure_file(fd,modes);
-	 }
-	 return stream;
-	 }
-
-	 FILE *freopen (const char *filename, const char *modes, FILE *stream){
-	 return _pure_freopen(filename, _pure_parse_mode(modes), stream);
-	 }
-
-	 FILE *freopen64 (const char *filename, const char *modes, FILE *stream){
-	 return _pure_freopen(filename, _pure_parse_mode(modes)|O_LARGEFILE, stream);
-	 }
-	 */
-
 FILE *fdopen (int fd, const char *modes){
 	return new_pure_file(fd,modes);
 }
@@ -260,4 +237,102 @@ FILE *tmpfile64 (void){
 		unlink(template);
 		return new_pure_file(fd,"rw");
 	}
+}
+
+static FILE *_pure_freopen (const char *filename, const char *modes, FILE *stream){
+	if (stream == NULL) {
+		errno=EINVAL;
+		return NULL;
+	} else {
+	 FILE *newstream=NULL;
+	 int fd= -1;
+	 int fdtmp=dup(fileno(stream));
+	 if (fdtmp >= 0) {
+		 if (stream == stdout)
+			 fd=STDOUT_FILENO;
+		 else if (stream == stdin)
+			 fd=STDIN_FILENO;
+		 else if (stream == stderr)
+			 fd=STDERR_FILENO;
+		 fclose(stream);
+		 if (fd>=0)
+			 fd=dup2(fdtmp,fd);
+		 else
+			 fd=fdtmp;
+		 if (fd) 
+			 newstream=fdopen(fd,modes);
+		 if (isatty(fd))
+			 setlinebuf(newstream);
+		 close(fdtmp);
+		 if (fd==STDOUT_FILENO) {
+			 stdout=newstream;
+			 return stdout;
+		 } else if (fd==STDIN_FILENO) {
+			 stdin=newstream;
+			 return stdin;
+		 } else if (fd==STDERR_FILENO) {
+			 stderr=newstream;
+			 return stderr;
+		 } else
+			 return newstream;
+	 }
+	 return newstream;
+	}
+}
+
+FILE *freopen (const char *filename, const char *modes, FILE *stream){
+	return _pure_freopen(filename, modes, stream);
+}
+
+FILE *freopen64 (const char *filename, const char *modes, FILE *stream){
+	return _pure_freopen(filename, modes, stream);
+}
+
+int printf (const char *format, ...)
+{
+	va_list arg;
+	int done;
+
+	va_start (arg, format);
+	done = vfprintf (stdout, format, arg);
+	va_end (arg);
+
+	return done;
+}
+
+int putchar (c)
+	int c;
+{
+	return putc (c, stdout);
+}
+
+int scanf (const char *format, ...)
+{
+	va_list arg;
+	int done;
+
+	va_start (arg, format);
+	done = vfscanf (stdin, format, arg);
+	va_end (arg);
+
+	return done;
+}
+
+int getchar (void)
+{
+	return getc(stdin);
+}
+
+char *gets(char *s)
+{
+	return fgets(s,(-1)>>1,stdin);
+}
+
+int puts(const char *s)
+{
+	int rv;
+	rv=fputs(s,stdout);
+	if (rv!=EOF)
+		rv=putc('\n',stdout);
+	return rv;
 }

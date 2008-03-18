@@ -2,7 +2,12 @@
 #define _PURELIBC_H
 
 typedef long int (*sfun)(long int __sysno, ...);
-extern sfun _pure_syscall;
-extern sfun _pure_socketcall;
-extern sfun _pure_native_syscall;
+
+#define PUREFLAG_STDIN (1<<STDIN_FILENO)
+#define PUREFLAG_STDOUT (1<<STDOUT_FILENO)
+#define PUREFLAG_STDERR (1<<STDERR_FILENO)
+#define PUREFLAG_STDALL (PUREFLAG_STDIN|PUREFLAG_STDOUT|PUREFLAG_STDERR)
+
+sfun _pure_start(sfun pure_syscall,sfun pure_socketcall,int flags);
+
 #endif

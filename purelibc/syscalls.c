@@ -61,6 +61,7 @@
 
 sfun _pure_syscall=syscall;
 sfun _pure_native_syscall=syscall;
+extern sfun _pure_socketcall;
 
 static int _pageshift()
 {
@@ -1082,6 +1083,7 @@ int ftime(struct timeb *tp){
 	return rv;
 }
 
+static void init(void);
 long int syscall(long int n,...)
 {
 	long int arg0,arg1,arg2,arg3,arg4,arg5;
@@ -1095,9 +1097,55 @@ long int syscall(long int n,...)
 	arg5=va_arg(ap, long int);
 	va_end(ap);
 	if (__builtin_expect(_pure_native_syscall == syscall,0))
-		_pure_native_syscall=dlsym(RTLD_NEXT,"syscall");
+		init();
 	if (__builtin_expect(_pure_syscall == syscall,0))
 		return _pure_native_syscall(n,arg0,arg1,arg2,arg3,arg4,arg5);
 	else
 		return _pure_syscall(n,arg0,arg1,arg2,arg3,arg4,arg5);
 }
+
+sfun _pure_start(sfun pure_syscall,sfun pure_socketcall,int flags)
+{
+	int fdtmp;
+	if (__builtin_expect(_pure_native_syscall == syscall,0))
+		init();
+	if (flags & PUREFLAG_STDIN) {
+		fdtmp=dup(fileno(stdin));
+		dup2(fdtmp,STDIN_FILENO);
+		stdin=fdopen(STDIN_FILENO,"r");
+		if (isatty(STDIN_FILENO))
+			setlinebuf(stdin);
+		close(fdtmp);
+	}
+
+	if (flags & PUREFLAG_STDOUT) {
+		fdtmp=dup(fileno(stdout));
+		dup2(fdtmp,STDOUT_FILENO);
+		stdout=fdopen(STDOUT_FILENO,"w");
+		if (isatty(STDOUT_FILENO))
+			setlinebuf(stdout);
+		close(fdtmp);
+	}
+
+	if (flags & PUREFLAG_STDERR) {
+		fdtmp=dup(fileno(stderr));
+		dup2(fdtmp,STDERR_FILENO);
+		stderr=fdopen(STDERR_FILENO,"a");
+		if (isatty(STDERR_FILENO))
+			setlinebuf(stderr);
+		close(fdtmp);
+	}
+	_pure_syscall=pure_syscall;
+	if (pure_socketcall)
+		_pure_socketcall=pure_socketcall;
+	return _pure_native_syscall;
+}
+
+	static void
+	__attribute__ ((constructor))
+init (void)
+{
+	if (__builtin_expect(_pure_native_syscall == syscall,0))
+		_pure_native_syscall=dlsym(RTLD_NEXT,"syscall");
+}
+

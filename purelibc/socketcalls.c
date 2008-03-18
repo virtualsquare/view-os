@@ -30,6 +30,7 @@
 
 static long int pure_int_socketcall(long int, ...);
 sfun _pure_socketcall=pure_int_socketcall;
+extern sfun _pure_syscall;
 static char sockargc[]={0,3,3,3,2,3,3,3,4,4,4,6,6,2,5,5,3,3};
 
 #if defined(__x86_64__) || defined(__ia64__) || defined(__alpha__) || defined(__hppa__)
@@ -46,8 +47,8 @@ static struct socket64_mapping{
 /* 6*/  {SYS_GETSOCKNAME,	__NR_getsockname},
 /* 7*/  {SYS_GETPEERNAME,	__NR_getpeername},
 /* 8*/  {SYS_SOCKETPAIR,	__NR_socketpair},
-/* 9*/  {SYS_SEND,      	__NR_sendto}, // NOOOO???
-/*10*/  {SYS_RECV,      	__NR_recvfrom},
+/* 9*/  {SYS_SEND,      	__NR_sendto}, // not used, converted to sendto
+/*10*/  {SYS_RECV,      	__NR_recvfrom}, //converted to recvfrom
 /*11*/  {SYS_SENDTO,		__NR_sendto},
 /*12*/  {SYS_RECVFROM,  	__NR_recvfrom},
 /*13*/  {SYS_SHUTDOWN,		__NR_shutdown},
@@ -62,14 +63,12 @@ static long int pure_int_socketcall(long int sockcallno, ...){
 	register int i;
 	register int narg = sockargc[sockcallno];
 	int sysno = sock64_map[sockcallno].syscallno;
-	long int *args;
-	args=alloca(narg*sizeof(long int));
+	long int args[6];
 	va_start(ap, sockcallno);
 	for (i=0; i<narg;i++)
 		args[i]=va_arg(ap,long int);
 	va_end(ap);
-	
-	return _pure_syscall(sysno,args);
+	return _pure_syscall(sysno,args[0],args[1],args[2],args[3],args[4],args[5]);
 }
 #else
 static long int pure_int_socketcall(long int sysno, ...){
