@@ -652,7 +652,11 @@ pid_t fork(void){
 }
 
 pid_t vfork(void){
-	return _pure_syscall(__NR_vfork);
+	 /*The  BSD  man  page  states:  "This system call will be eliminated when
+	 * proper system sharing mechanisms are  implemented.   Users  should  not
+	 * depend  on  the memory sharing semantics of vfork() as it will, in that
+	 * case, be made synonymous to fork(2)." */
+	return _pure_syscall(__NR_fork);
 }
 
 time_t time(time_t *t){
