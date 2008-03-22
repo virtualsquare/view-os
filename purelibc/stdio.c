@@ -245,8 +245,8 @@ static FILE *_pure_freopen (const char *filename, const char *modes, FILE *strea
 		return NULL;
 	} else {
 	 FILE *newstream=NULL;
-	 int fd= -1;
-	 int fdtmp=dup(fileno(stream));
+	 int fd=-1;
+	 int fdtmp=open(filename,_pure_parse_mode(modes),0666);
 	 if (fdtmp >= 0) {
 		 if (stream == stdout)
 			 fd=STDOUT_FILENO;
@@ -259,7 +259,7 @@ static FILE *_pure_freopen (const char *filename, const char *modes, FILE *strea
 			 fd=dup2(fdtmp,fd);
 		 else
 			 fd=fdtmp;
-		 if (fd) 
+		 if (fd>=0) 
 			 newstream=fdopen(fd,modes);
 		 if (isatty(fd))
 			 setlinebuf(newstream);
