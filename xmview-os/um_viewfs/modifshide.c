@@ -643,7 +643,7 @@ static long modifs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned i
 
 	if (!ditab[umpid][di]->dd)
 	{
-		ditab[umpid][di]->dd = dirdata_new();
+		ditab[umpid][di]->dd = dirdata_new(DDFULL);
 		dirdata_transform_remove(ditab[umpid][di]->dd, ditab[umpid][di]->path);
 	}
 
@@ -657,7 +657,7 @@ static long modifs_lseek(int fd, off_t offset, int whence)
 	assert(ditab[umpid][di]);
 
 	if (!ditab[umpid][di]->dd)
-		ditab[umpid][di]->dd = dirdata_new();
+		ditab[umpid][di]->dd = dirdata_new(DDFULL);
 	
 	return dirdata_lseek(ditab[umpid][di]->dd, fd, offset, NULL, whence);
 }
@@ -669,7 +669,7 @@ static long modifs__llseek(int fd, unsigned long offset_high, unsigned long offs
 	assert(ditab[umpid][di]);
 
 	if (!ditab[umpid][di]->dd)
-		ditab[umpid][di]->dd = dirdata_new();
+		ditab[umpid][di]->dd = dirdata_new(DDFULL);
 	
 	return dirdata_lseek(ditab[umpid][di]->dd, fd, ((unsigned long long)(offset_high) << sizeof(long)) | offset_low, result, whence);
 }
