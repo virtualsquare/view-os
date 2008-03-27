@@ -1,4 +1,4 @@
-include $(top_srcdir)/Makefile.modules.common
+include $(top_srcdir)/modules-common.mk
 
 mod_LTLIBRARIES = umdevtap.la
 

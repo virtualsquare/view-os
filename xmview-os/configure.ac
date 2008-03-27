@@ -4,7 +4,7 @@
 AC_PREREQ(2.60)
 AC_INIT([UMView], [0.4a], [info@v2.cs.unibo.it], [umview])
 AM_INIT_AUTOMAKE([foreign dist-bzip2 1.10])
-AC_CONFIG_SRCDIR([um-viewos/umview.c])
+AC_CONFIG_SRCDIR([xmview/umview.c])
 AC_CONFIG_HEADER([config.h])
 
 AC_GNU_SOURCE
@@ -99,7 +99,6 @@ AC_CONFIG_FILES([Makefile
                  um_viewfs/Makefile
                  ummisc/Makefile
                  ummisc_modules/Makefile
-                 um-viewos/Makefile
                  xmview/Makefile])
 AC_OUTPUT
 

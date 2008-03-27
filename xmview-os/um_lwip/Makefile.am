@@ -1,4 +1,4 @@
-include $(top_srcdir)/Makefile.modules.common
+include $(top_srcdir)/modules-common.mk
 
 dist_man1_MANS = lwipv6.1viewos
 dist_man5_MANS = lwip_radv.conf.5
