@@ -79,7 +79,6 @@ static void cleanup_pending(struct pcb *pc)
   struct seldata *sd=pc->selset;
 	if (sd) {
 		int i;
-		pc->selset=NULL;
 		assert(sd->pending);
 		for (i=0; i<sd->len; i++) {
 			int sercode=service_fd(pc->fds,sd->pending[i].fd,1);
@@ -89,6 +88,7 @@ static void cleanup_pending(struct pcb *pc)
 			local_event_subscribe(NULL,pc,sfd,sd->pending[i].how);
 			um_setepoch(oldepoch);
 		}
+		pc->selset=NULL;
 		bq_terminate(pc);
 		free(sd->pending);
 		free(sd);
@@ -182,8 +182,10 @@ static void selectpoll_signal(struct pcb *pc)
 		fprint2("sd err %p\n",sd);
 	else if (sd->lfd <= 0)
 		fprint2("lfd err\n",sd->lfd);
-	assert(pc && sd && sd->lfd >= 0);
-	lfd_signal(sd->lfd);
+	else {
+		assert(sd->lfd >= 0);
+		lfd_signal(sd->lfd);
+	}
 }
 
 static short select2poll[]={POLLIN,POLLOUT,POLLPRI};
@@ -235,6 +237,8 @@ int wrap_in_select(int sc_number,struct pcb *pc,
 		int signaled=0;
 		sd->pending=malloc(sizeof(struct pendingdata) * count);
 		sd->len=count;
+		sd->lfd=-1;
+		pc->selset=sd;
 		for(fd=0,count=0;fd<n;fd++) {
 			short how;
 			for (i=0,how=0;i<3;i++) {
@@ -254,7 +258,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,
 						int lfd=fd2lfd(pc->fds,fd);
 						sd->pending[count].fd = fd;
 						sd->pending[count].how = how;
-						sd->lfd = lfd;
+						if (sd->lfd < 0) sd->lfd = lfd;
 						FD_SET(fd,&wfds[RX]);
 						FD_CLR(fd,&wfds[WX]); /* needed? maybe no*/
 						FD_CLR(fd,&wfds[XX]); /* needed? maybe no*/
@@ -272,7 +276,6 @@ int wrap_in_select(int sc_number,struct pcb *pc,
 		}
 		for (i=0;i<3;i++)  
 			putfdset(pfds[i],pc,n,&wfds[i]);
-		pc->selset=sd;
 		return SC_CALLONXIT;
 	}
 }
@@ -287,7 +290,6 @@ int wrap_out_select(int sc_number,struct pcb *pc)
 		fd_set lfds[3]; /* local copy of the signaled SC fds */
 		int i,j,fd;
 		pc->retval=getrv(pc);
-		pc->selset=NULL;
 		if (pc->retval >= 0) {
 			for (i=0;i<3;i++) {
 				pfds[i]=pc->sysargs[i+1];
@@ -311,6 +313,7 @@ int wrap_out_select(int sc_number,struct pcb *pc)
 			}
 			um_setepoch(oldepoch);
 		}
+		pc->selset=NULL;
 		/* retval must be evaluated again */
 		if (pc->retval >= 0) {
 			for(fd=0,pc->retval=0;fd<n;fd++) {
@@ -357,6 +360,8 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 		int signaled=0;
 		sd->pending=malloc(sizeof(struct pendingdata) * count);
 		sd->len=count;
+		sd->lfd= -1;
+		pc->selset=sd;
 		for(i=0,count=0;i<nfds;i++) {
 			if (ufds[i].events) {
 				int fd=ufds[i].fd;
@@ -366,7 +371,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 					sysfun local_event_subscribe=service_event_subscribe(sercode);
 					if (sfd >= 0 && local_event_subscribe) {
 						int lfd=fd2lfd(pc->fds,fd);
-						sd->lfd=lfd;
+						if (sd->lfd < 0) sd->lfd=lfd;
 						sd->pending[count].fd = fd;
 						sd->pending[count].how = ufds[i].events;
 						ufds[i].events=POLLIN;
@@ -382,7 +387,6 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 			}
 		}
 		ustoren(pc,pufds,nfds*sizeof(struct pollfd),ufds);
-		pc->selset=sd;
 		return SC_CALLONXIT;
 	}
 }
@@ -400,7 +404,6 @@ int wrap_out_poll(int sc_number,struct pcb *pc)
 		ufds=alloca(nfds*sizeof(struct pollfd));
 		umoven(pc,pufds,nfds*sizeof(struct pollfd),ufds);
 		if (pc->retval >= 0) {
-			pc->selset=NULL;
 			pc->retval=0;
 			for(i=0,j=0;i<nfds;i++) {
 				if(j<sd->len && ufds[i].fd == sd->pending[j].fd) {/* virtual file */
@@ -421,6 +424,7 @@ int wrap_out_poll(int sc_number,struct pcb *pc)
 				if (ufds[i].revents)
 					pc->retval++;
 			}
+			pc->selset=NULL;
 			ustoren(pc,pufds,nfds*sizeof(struct pollfd),ufds);
 			putrv(pc->retval,pc);
 			free(sd->pending);
