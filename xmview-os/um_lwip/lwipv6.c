@@ -203,7 +203,7 @@ static long lwip_event_subscribe2v1(void (* cb)(), void *arg, int fd, int how)
 
 static void openlwiplib()
 {
-	lwiphandle=dlopen("liblwipv6.so",RTLD_NOW);
+	lwiphandle=dlopen("liblwipv6.so.1",RTLD_NOW);
 	if (lwiphandle==NULL)
 		fprint2("error loading liblwipv6: %s\n", dlerror());
 	else {
