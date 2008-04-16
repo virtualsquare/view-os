@@ -19,6 +19,7 @@ COMMON_SOURCES = \
 	pcb.c pcb.h \
 	scmap.c scmap.h \
 	sctab.c sctab.h \
+	siglist.h \
 	services.c services.h \
 	treepoch.c treepoch.h \
 	uid16to32.h \
