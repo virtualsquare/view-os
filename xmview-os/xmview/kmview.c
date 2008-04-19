@@ -388,8 +388,10 @@ int main(int argc,char *argv[])
 	sigset_t unblockchild;
 	sigprocmask(SIG_BLOCK,NULL,&unblockchild);
 	pcb_inits(0);
-	if (capture_main(argv+optind,root_process_init) < 0)
+	if (capture_main(argv+optind,root_process_init) < 0) {
 		fprint2("Kmview: kernel module not loaded\n");
+		exit(1);
+	}
 	mp_add(kmviewfd,POLLIN,tracehand,NULL,1);
 	GDEBUG(3,"ENTERING %d ",kmviewfd);
 	do {

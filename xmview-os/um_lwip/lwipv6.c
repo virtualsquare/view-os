@@ -41,6 +41,7 @@
 #include <poll.h>
 #include <config.h>
 
+#define UMLWIPV6_SERVICE_CODE 0x02
 
 static long lwip_version;
 static struct service s;
@@ -424,7 +425,7 @@ void _um_mod_init(char *initargs)
 	if (initflag) {
 		fprint2("lwipv6 init\n");
 		s.name="light weight ipv6 stack";
-		s.code=0x02;
+		s.code=UMLWIPV6_SERVICE_CODE;
 		s.checkfun=checksock;
 		s.syscall=(sysfun *)calloc(scmap_scmapsize, sizeof(sysfun));
 		s.socket=(sysfun *)calloc(scmap_sockmapsize, sizeof(sysfun));

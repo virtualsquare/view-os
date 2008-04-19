@@ -57,6 +57,7 @@
 #include <sys/statvfs.h>
 #include <config.h>
 
+#define UMFUSE_SERVICE_CODE 0x01
 #define FUSE_SUPER_MAGIC 0x65735546
 
 /* Enable Experimental code */
@@ -2296,7 +2297,7 @@ init (void)
 {
 	GMESSAGE("umfuse init");
 	s.name="umfuse fuse ";
-	s.code=0x01;
+	s.code=UMFUSE_SERVICE_CODE;
 	s.checkfun=fuse_path;
 	pthread_key_create(&context_key,NULL);
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
