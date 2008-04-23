@@ -189,6 +189,9 @@ char *um_proc_tmpname()
 /* set up the umproc data structure needed by a new process */
 void umproc_addproc(struct pcb *pc,int flags,int npcbflag)
 {
+	//fprint2("umproc_addproc %d %x %x %d\n", npcbflag, flags, pc->pp, pc->pp->fds);
+	if (pc)
+		//fprint2("umproc_addproc %d(%d) %d %x\n", pc->pid, (pc->pp)?pc->pp->pid:0, npcbflag, flags);
 	if (!npcbflag) {
 		if (flags & CLONE_FILES) {
 			pc->fds=pc->pp->fds;
@@ -196,8 +199,21 @@ void umproc_addproc(struct pcb *pc,int flags,int npcbflag)
 		} else {
 			struct pcb_file *p=pc->fds=(struct pcb_file *)malloc(sizeof(struct pcb_file));
 			p->count=1;
-			p->nolfd=0;
-			p->lfdlist=NULL;
+			if (pc->pp->fds == NULL) {
+				p->nolfd=0;
+				p->lfdlist=NULL;
+			} else {
+				p->nolfd=pc->pp->fds->nolfd;
+				if (p->nolfd > 0) {
+					int i;
+					p->lfdlist=(int *)malloc(p->nolfd * sizeof(int));
+					memcpy(p->lfdlist,pc->pp->fds->lfdlist,p->nolfd * sizeof(int));
+					for (i=0; i<p->nolfd; i++) {
+						if (p->lfdlist[i] >=0 )
+							++lfd_tab[p->lfdlist[i]]->count;
+					}
+				}
+			}
 		}
 	}
 }
@@ -220,7 +236,7 @@ void umproc_delproc(struct pcb *pc,int flags,int npcbflag)
 					 *       service_syscall(service,uscno(__NR_close))(lfd_tab[lfd]->sfd);
 					 *   }
 					 *  } */
-					//printf("CLOSE LFD %d\n",lfd);
+					//fprint2("DELPROCclose LFD %d\n",lfd);
 					lfd_close(lfd);
 				}
 			}
@@ -242,7 +258,7 @@ int lfd_open (service_t service, int sfd, char *path, int flags, int nested)
 {
 	int lfd,fifo;
 	GDEBUG(3, "lfd_open sfd %d, path %s, nested %d", sfd, path, nested);
-	//printf("lfd_open %x sfd %d %s",service,sfd,(path==NULL)?"<null>":path);
+	//fprint2("lfd_open %x sfd %d %s",service,sfd,(path==NULL)?"<null>":path);
 	/* looks for a free local file descriptor */
 	for (lfd=0; lfd<um_maxlfd && lfd_tab[lfd] != NULL ; lfd++)
 		;
@@ -303,6 +319,7 @@ void lfd_close (int lfd)
 {
 	int rv;
 	GDEBUG(5, "close %d %x",lfd,lfd_tab[lfd]);
+	//fprint2("lfd close %d %d %x\n",lfd,um_maxlfd,lfd_tab[lfd]);
 	assert (lfd < 0 || (lfd < um_maxlfd && lfd_tab[lfd] != NULL));
 	/* if this is the last reference to the lfd 
 	 * close everything*/
@@ -471,10 +488,10 @@ int fd2sfd(struct pcb_file *p, int fd)
  * service handle it */
 service_t service_fd(struct pcb_file *p, int fd, int setepoch)
 {
-	//printf("service fd p=%x\n",p);
-	//if (p != NULL)
-	//	printf("service fd p->lfdlist=%x\n",p->lfdlist);
-	/*if (fd < p->nolfd)
+	/*printf("service fd p=%x\n",p);
+	if (p != NULL)
+		printf("service fd p->lfdlist=%x\n",p->lfdlist);
+	if (fd < p->nolfd)
 		printf("service fd p=%d %x\n",fd, p->lfdlist[fd]);
 	else
 		printf("service fd p=%d xxx\n",fd); */
@@ -528,6 +545,7 @@ void lfd_deregister_n_close(struct pcb_file *p, int fd)
 	//fprint2("lfd_deregister_n_close %d %d %d\n",fd,p->nolfd,p->lfdlist[fd]);
 	//assert(fd < p->nolfd && p->lfdlist[fd] != -1);
 	if (p->lfdlist != NULL && fd < p->nolfd && p->lfdlist[fd] >= 0) {
+		//fprint2("lfd_deregister_n_close LFD %d\n",FD2LFD(p,fd));
 		lfd_close(FD2LFD(p,fd));
 		p->lfdlist[fd] = -1;
 	}

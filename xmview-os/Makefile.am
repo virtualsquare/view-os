@@ -3,7 +3,7 @@
 
 DEBUGLEVEL = 3
 
-SUBDIRS = doc include um_lib um_cmd um_testmodule umdev umdev_testmodules umdevmbr umbinfmt xmview ummisc ummisc_modules um_viewfs
+SUBDIRS = doc include um_lib um_cmd um_testmodule umdev umdev_testmodules umdevmbr umbinfmt xmview ummisc ummisc_modules um_viewfs umnet umnet_modules
 
 if ENABLE_UMDEVTAP
 SUBDIRS += umdevtap
@@ -14,7 +14,7 @@ SUBDIRS += umfuse
 endif
 
 if ENABLE_UM_LWIP
-SUBDIRS += um_lwip
+SUBDIRS += um_lwip umnetlwipv6
 endif
 
 tags:

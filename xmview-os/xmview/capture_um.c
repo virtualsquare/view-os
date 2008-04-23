@@ -372,7 +372,7 @@ void offspring_enter(struct pcb *pc)
 	//printf("offspring_enter:%d\n",pc->pid);
 	pc->sysargs[0]=getargn(0,pc);
 	pc->sysargs[1]=getargn(1,pc);
-	////fprint2("offspring_enter %x %x\n",pc->sysargs[0],pc->sysargs[1]);
+	//fprint2("offspring_enter %x %x\n",pc->sysargs[0],pc->sysargs[1]);
 	if (pc->sysscno == __NR_fork || pc->sysscno == __NR_vfork) {
 		putscno(__NR_clone,pc);
 		putargn(0,CLONE_PTRACE|SIGCHLD, pc);

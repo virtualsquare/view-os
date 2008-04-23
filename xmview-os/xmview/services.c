@@ -30,6 +30,7 @@
 #include <dlfcn.h>
 #include <config.h>
 #include <stdarg.h>
+#include <linux/net.h>
 #include "services.h"
 #include "defs.h"
 #include "sctab.h"
@@ -133,6 +134,25 @@ void modify_um_syscall(struct service *s)
 		s->um_syscall[uscno(scunify[i].proc_sc)] = s->um_syscall[uscno(scunify[i].mod_sc)];
 	}
 	GDEBUG(9, "i = %d >= %d", i, SIZESCUNIFY);
+	if (s->um_virsc && s->um_virsc[VIRSYS_MSOCKET]) {
+		if
+#if (__NR_socketcall != __NR_doesnotexist)
+			(s->um_socket[SYS_SOCKET])
+#else
+				(s->um_socket[__NR_socket])
+#endif
+				{
+					GERROR("WARNING: a module has defined syscall socket that will not be used");
+					GERROR("         socket will be managed by the module function for msocket.");
+				}
+#if 0
+#if (__NR_socketcall != __NR_doesnotexist)
+		s->um_socket[SYS_SOCKET]=s->um_virsc[VIRSYS_MSOCKET];
+#else
+		s->um_syscall[SYS_SOCKET]=s->um_virsc[VIRSYS_MSOCKET];
+#endif
+#endif
+	}
 }
 
 /* add a new service module */
@@ -544,8 +564,21 @@ sysfun service_socketcall(service_t code, int scno)
 	else {
 		int pos=servmap[code]-1;
 		struct service *s=services[pos];
+		assert(s != NULL);
+		return (s->um_socket[scno] == NULL) ? errnosys : s->um_socket[scno];
+	}
+}
+
+sysfun service_virsyscall(service_t code, int scno)
+{
+	if(code == UM_NONE)
+		return NULL;
+	else {
+		int pos=servmap[code]-1;
+		struct service *s=services[pos];
 		assert( s != NULL );
-		return (s->socket[scno] == NULL) ? errnosys : s->socket[scno];
+		return (s->um_virsc == NULL || s->um_virsc[scno] == NULL) 
+			? errnosys : s->um_virsc[scno];
 	}
 }
 

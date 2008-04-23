@@ -118,6 +118,11 @@ from the current working directory.
 
 .\" -------------------------------------------------------------------
 
+.SH IMPORTANT NOTICE
+
+This module is deprecated and will be eliminated soon.
+Please use umnet(1viewos), and umnetlwipv6 instead.
+
 .SH AUTHORS
 View-OS is a project of the Computer Science Department, University of Bologna. 
 .br
@@ -126,7 +131,7 @@ Project Leader: Renzo Davoli.
 Project Team: Alberto Bacchelli, Andrea Forni, Andrea Gasparini, Andrea Seraghiti, Christian Martellini, 
 Daniele Lacamera, Diego Billi, Ludovico Gardenghi, Mattia Belletti, Paolo Angelelli, Paolo Beverini
 
-<http://savannah.nongnu.org/projects/view-os>.
+<http://wiki.virtualsquare.org/>
 .\" -------------------------------------------------------------------
 
 .SH HISTORY

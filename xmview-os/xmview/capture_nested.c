@@ -150,6 +150,22 @@ service_t nchoice_path(int sc_number,struct npcb *npc) {
 		return service_check(CHECKPATH,npc->path,1);
 }
 
+/* choice function for nested msocket calls: path (1st arg) */
+service_t nchoice_sockpath(int sc_number,struct npcb *npc) {
+	if (npc->sysargs[0]) {
+		fprint2("nchoice_path %s %lld\n",(char *)(npc->sysargs[0]),npc->tst.epoch);
+		npc->path=nest_abspath(npc->sysargs[0],npc,&(npc->pathstat),0);
+		fprint2("nchoice_abspath %s %lld\n",npc->path,npc->tst.epoch);
+		if(npc->path==um_patherror)
+			return UM_NONE;
+		else
+			return service_check(CHECKPATH,npc->path,1);
+	} else {
+		//fprint2("nchoice_abspath SOCK %ld\n",npc->sysargs[1]);
+		return service_check(CHECKSOCKET, &(npc->sysargs[1]),1);
+	}
+}
+
 /* choice function for nested calls: link (1st arg) */
 service_t nchoice_link(int sc_number,struct npcb *npc) {
 	//fprint2("nchoice_link %s\n",(char *)(npc->sysargs[0]));
@@ -172,11 +188,8 @@ service_t nchoice_link2(int sc_number,struct npcb *npc) {
 
 /* choice function for nested calls: socket */
 service_t nchoice_socket(int sc_number,struct npcb *npc) {
-	/* This is the real statement for socket call nesting,
-	 * it has been commented out as um_lwipv6 soes not support
-	 * multistack and nestine yet. To be restored asap */
-	/*return service_check(CHECKSOCKET, &(npc->sysargs[0]),1);*/
-	return UM_NONE;
+	//fprint2("nchoice_abspath SOCK %ld\n",npc->sysargs[0]);
+	return service_check(CHECKSOCKET, &(npc->sysargs[0]),1);
 }
 
 /* call the implementation */

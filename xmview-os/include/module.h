@@ -27,6 +27,10 @@
 #include <unistd.h>
 #include <stdarg.h>
 //#include <sys/socket.h>
+/* VIRTUAL SYSCALLS */
+#define VIRSYS_UMSERVICE 1
+#define VIRSYS_MSOCKET 2
+#define __NR_msocket VIRSYS_MSOCKET
 
 extern int _umview_version;
 
@@ -181,11 +185,15 @@ struct service {
 
 	/* the socket call table, the arguments are the same of the "real world" syscalls,*/
 	sysfun *socket;
+
+  /* the virtual call table, the arguments are the same of the "real world" syscalls,*/
+	sysfun *virsc;
 };
 
 extern int _lwip_version;
 extern int scmap_scmapsize;
 extern int scmap_sockmapsize;
+extern int scmap_virscmapsize;
 
 extern int um_mod_getpid(void);
 extern int um_mod_umoven(long addr, int len, void *_laddr);
@@ -248,6 +256,7 @@ extern int vfprint2(const char *fmt, va_list ap);
 #define __NR_sendmsg    SYS_SENDMSG
 #define __NR_recvmsg    SYS_RECVMSG
 #endif
+#define __NR_msocket	  VIRSYS_MSOCKET
 
 #define INTERNAL_MAKE_NAME(a, b) a ## b
 #define MAKE_NAME(a, b) INTERNAL_MAKE_NAME(a, b)
@@ -259,3 +268,4 @@ extern int vfprint2(const char *fmt, va_list ap);
 #define SERVICESOCKET(s, scno, sfun) ((s).socket[MAKE_NAME(__NR_, scno)] = (sysfun) (sfun))
 #endif
 #endif
+#define SERVICEVIRSYSCALL(s, scno, sfun) ((s).virsc[MAKE_NAME(__NR_, scno)] = (sysfun) (sfun))

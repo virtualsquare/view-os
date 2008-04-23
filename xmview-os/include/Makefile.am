@@ -9,7 +9,8 @@ dist_pkginclude_HEADERS = \
 	gdebug.h \
 	libummod.h \
 	module.h \
-	um_lib.h
+	um_lib.h \
+	msocket.h
 
 dist_noinst_SCRIPTS = \
 	syscallnames.sh

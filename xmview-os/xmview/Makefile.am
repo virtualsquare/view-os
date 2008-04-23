@@ -77,7 +77,8 @@ libexec_PROGRAMS = umbinwrap
 umbinwrap_SOURCES = \
 	umbinwrap.c
 
-dist_man1_MANS = kmview.1 umview.1
+dist_man1_MANS = kmview.1 umview.1 
+dist_man2_MANS = msocket.2viewos
 
 CBASEFLAGS =
 CDEBUGFLAGS = -g3 -ggdb3

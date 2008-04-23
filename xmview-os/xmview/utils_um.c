@@ -123,8 +123,12 @@ umovestr(struct pcb *pc, long addr, int len, void *_laddr)
 	/* quick solution: ptrace_multi is available */
 	if (has_ptrace_multi) {
 		struct ptrace_multi req[] = {{PTRACE_PEEKSTRINGDATA, addr, _laddr, len}};
-		ptrace(PTRACE_MULTI, pc->pid, req, 1); 
-		return 0;
+		long rv=ptrace(PTRACE_MULTI, pc->pid, req, 1); 
+		//fprint2("umovestr %d\n",rv);
+		if (rv >= 0)
+			return 0;
+		else
+			return -1;
 	}
 	else {
 #ifdef _PROC_MEM_TEST

@@ -202,7 +202,7 @@ char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink
 	char newpath[PATH_MAX];
 	if (umovestr(pc,laddr,PATH_MAX,path) == 0) {
 			um_realpath(path,newpath,pst,dontfollowlink,pc);
-			//fprint2("PATH %s (%s,%s) NEWPATH %s (%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->erno);
+			/*fprint2("PATH %s (%s,%s) NEWPATH %s (%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->erno);*/
 		if (pc->erno)
 			return um_patherror;	//error
 		else
@@ -413,7 +413,7 @@ int dsys_um_sysctl(int sc_number,int inout,struct pcb *pc)
 {
 	return dsys_commonwrap(sc_number, inout, pc,
 			dsys_um_sysctl_parse_arguments,
-			dsys_um_sysctl_index_function, service_syscall,
+			dsys_um_sysctl_index_function, service_virsyscall,
 			virscmap);
 }
 
@@ -662,6 +662,24 @@ service_t choice_path(int sc_number,struct pcb *pc)
 	}
 	else
 		return service_check(CHECKPATH,pc->path,1);
+}
+
+/* choice sockpath (filename can be NULL) */
+service_t choice_sockpath(int sc_number,struct pcb *pc)
+{
+	if (pc->sysargs[0] != 0) {
+		pc->path=um_abspath(pc->sysargs[0],pc,&(pc->pathstat),0); 
+
+		if (pc->path==um_patherror){
+			/*		char buff[PATH_MAX];
+						umovestr(pc,pc->sysargs[0],PATH_MAX,buff);
+						fprintf(stderr,"um_patherror: %s",buff);*/
+			return UM_NONE;
+		}
+		else
+			return service_check(CHECKPATH,pc->path,1);
+	} else 
+		return service_check(CHECKSOCKET, &(pc->sysargs[1]), 1);
 }
 
 /* choice link (dirname must be defined, basename can be non-existent) */

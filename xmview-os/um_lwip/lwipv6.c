@@ -45,6 +45,7 @@
 
 static long lwip_version;
 static struct service s;
+static struct timestamp ts;
 
 static int alwaysfalse()
 {
@@ -120,15 +121,18 @@ static int ioctlparms(struct ioctl_len_req *arg)
 
 static epoch_t checksock(int type, void *arg)
 {
+	epoch_t e=0;
+	if ((e=tst_matchingepoch(&ts)) == 0)
+		return 0;
 	if (type == CHECKSOCKET) {
 		int domain=*((int *) arg);
-		return(domain == AF_INET || domain == PF_INET6 || domain == PF_NETLINK || domain == PF_PACKET);
+		return (domain == AF_INET || domain == PF_INET6 || domain == PF_NETLINK || domain == PF_PACKET)?e:0;
 	} else if (type == CHECKIOCTLPARMS) {
 		//printf("=========lwipv6 %x ioctlparms %x\n",*((int *)arg),ioctlparms(arg));
 		return ioctlparms(arg);
 	} else if (type == CHECKPATH) {
 		char *path=arg;
-		return (strncmp(path,"/proc/net",9) == 0);
+		return (strncmp(path,"/proc/net",9) == 0)?e:0;
 	}
 	else
 		return FALSE;
@@ -142,7 +146,7 @@ static int noprocnetdev()
 
 struct libtab {
 	int tag;
-	enum {SOCK, SYS} choice;
+	enum {SOCK, SYS, VIR} choice;
 	char *funcname;
 } lwiplibtab[] = {
 	{SYS_SOCKET, 	SOCK, 	"lwip_socket"},
@@ -217,8 +221,10 @@ static void openlwiplib()
 			{
 				if (lwiplibtab[i].choice==SOCK)
 					s.socket[lwiplibtab[i].tag]=fun;
-				else
+				else if (lwiplibtab[i].choice==SYS)
 					s.syscall[uscno(lwiplibtab[i].tag)]=fun;
+				else
+					s.virsc[lwiplibtab[i].tag]=fun;
 			}
 		}
 		/* umview and lwip moved to the poll codes for select register,
@@ -324,7 +330,6 @@ static void ifaddname(char type,char num,char *name)
 static void myputenv(char *arg)
 {
 	int i,j;
-	char env[PATH_MAX];
 	for (i=0;i<INTTYPES;i++) {
 		if (strncmp(arg,intname[i],2)==0 && arg[2] >= '0' && arg[2] <= '9') {
 			if (arg[3] == '=') {
@@ -429,6 +434,7 @@ void _um_mod_init(char *initargs)
 		s.checkfun=checksock;
 		s.syscall=(sysfun *)calloc(scmap_scmapsize, sizeof(sysfun));
 		s.socket=(sysfun *)calloc(scmap_sockmapsize, sizeof(sysfun));
+//		s.virsc=(sysfun *)calloc(scmap_virscmapsize, sizeof(sysfun));
 		openlwiplib();
 		lwipargtoenv(initargs);
 		SERVICESYSCALL(s, _newselect, alwaysfalse);
@@ -438,6 +444,7 @@ void _um_mod_init(char *initargs)
 
 		add_service(&s);
 		initflag=0;
+		ts=tst_timestamp();
 	}
 }
 

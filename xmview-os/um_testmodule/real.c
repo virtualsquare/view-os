@@ -115,7 +115,7 @@ init (void)
 {
 	GMESSAGE("real init");
 	s.name="Identity (server side)";
-	s.code=0xf9;
+	s.code=0xf8;
 	s.checkfun=real_path;
 	s.ctl = ctl;
 

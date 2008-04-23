@@ -120,7 +120,10 @@ struct service {
 	sysfun *um_syscall;
 
 	/* the socket call table, the arguments are the same of the "real world" syscalls,*/
-	sysfun *socket;
+	sysfun *um_socket;
+
+	/* the virtual call table, the arguments are the same of the "real world" syscalls,*/
+	sysfun *um_virsc;
 };
 
 #define UM_NONE 0xff
@@ -140,6 +143,7 @@ void service_ctl(unsigned long type, service_t code, int skip, ...);
 service_t service_check(int type,void *arg,int setepoch);
 sysfun service_syscall(service_t code, int scno);
 sysfun service_socketcall(service_t code, int scno);
+sysfun service_virsyscall(service_t code, int scno);
 epochfun service_checkfun(service_t code);
 sysfun service_event_subscribe(service_t code);
 void _service_init();

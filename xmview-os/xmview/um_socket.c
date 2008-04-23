@@ -45,44 +45,110 @@
 #include "sctab.h"
 #include "scmap.h"
 #include "utils.h"
-#ifndef MULTISTACKFLAG
-#define MULTISTACKFLAG  (1 << ((sizeof(int) * 8) -1))
-#endif
 
 #define umNULL ((int) NULL)
+#define SOCK_DEFAULT 0
 
 /* SOCKET & MSOCKET call management (IN) */
+
+int wrap_in_msocket(int sc_number,struct pcb *pc,
+		service_t sercode, sysfun um_syscall)
+{
+	/* path = pc->sysarg[0] = pc->path */
+	int domain  =pc->sysargs[1];
+	int type    =pc->sysargs[2];
+	int protocol=pc->sysargs[3];
+	/* msocket is ALWAYS called: msocket(NULL...) calls must be converted
+	 * into socket(...) syscalls */
+	if (sercode != UM_NONE) {
+		if (type == SOCK_DEFAULT) {
+			if (pc->path == NULL) {
+				pc->retval = -1;
+				pc->erno = EINVAL;
+			} else {
+				if ((pc->retval = um_syscall(pc->path,domain,type,protocol)) < 0) {
+					pc->erno = errno;
+				}
+				//fprint2("SOCK_DEFAULT %s %d\n",pc->path,domain);
+			}
+			return SC_FAKE;
+		} else {
+			if ((pc->retval = um_syscall(pc->path,domain,type,protocol)) < 0) {
+				if (errno == ENOSYS && pc->path==NULL) {
+					/* backward compatibility:
+					 * modules implementing only "socket". 
+					 * the code reaches this case only from wrap_in_socket */
+#if (__NR_socketcall != __NR_doesnotexist)
+					um_syscall=service_socketcall(sercode,SYS_SOCKET);
+#else
+					um_syscall=service_syscall(sercode,uscno(__NR_socket));
+#endif
+					if ((pc->retval = um_syscall(domain,type,protocol)) < 0) {
+						pc->erno = errno;
+					}
+				} else
+					pc->erno = errno;
+			}
+			/* create the comm fifo with the user process */
+			if (pc->retval >= 0 &&
+					(pc->retval=lfd_open(sercode,pc->retval,NULL,O_RDWR,0)) >= 0) {
+				char *filename=lfd_getfilename(pc->retval);
+				int filenamelen=WORDALIGN(strlen(filename));
+				long sp=getsp(pc);
+				/* change the system call arguments (open the fifo) */
+				/* could give some trouble if a process tests the
+				 * "type" of the file connected to the fd and the
+				 * module does not give the right answer!*/
+				ustoren(pc,sp-filenamelen,filenamelen,filename); /*socket?*/
+				putscno(__NR_open,pc);
+				pc->sysargs[0]=sp-filenamelen;
+				pc->sysargs[1]=O_RDONLY;
+				return SC_CALLONXIT;
+			} else
+				return SC_FAKE;
+		} 
+	} else {
+		/* msocket -> socket translation for native system calls
+		 * just for the case path=NULL */
+		if (pc->sysargs[0]==umNULL) {
+#if (__NR_socketcall != __NR_doesnotexist)
+			struct {
+				long domain;
+				long type;
+				long protocol;
+			} socketcallparms = {domain,type,protocol};
+			long sp=getsp(pc);
+			ustoren(pc,sp-sizeof(socketcallparms),
+					sizeof(socketcallparms),&socketcallparms);
+			pc->sysargs[0]=SYS_SOCKET;
+			pc->sysargs[1]=sp-sizeof(socketcallparms);
+			putscno(__NR_socketcall,pc);
+			return SC_MODICALL;
+#else
+			pc->sysargs[0]=domain;
+			pc->sysargs[1]=type;
+			pc->sysargs[2]=protocol;
+			putscno(__NR_socket,pc);
+			return SC_MODICALL;
+#endif
+		} else {
+			pc->retval = -1;
+			pc->erno = ENOTSUP;
+			return SC_FAKE;
+		}
+	}
+}
+
 int wrap_in_socket(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int domain  =pc->sysargs[0];
-	int type    =pc->sysargs[1];
-	int protocol=pc->sysargs[2];
-	char *stack=NULL;
-	struct stat64 sourcest;
-	if (domain & MULTISTACKFLAG)
-		stack=um_abspath(pc->sysargs[0],pc,&sourcest,0);
-
-	/* for all the internal calls socket has four arguments (including
-	 * the new one of msocket) */
-	if ((pc->retval = um_syscall(domain,type,protocol,stack)) < 0)
-		pc->erno = errno;
-	/* create the comm fifo with the user process */
-	if (pc->retval >= 0 && 
-			(pc->retval=lfd_open(sercode,pc->retval,NULL,O_RDWR,0)) >= 0) {
-		char *filename=lfd_getfilename(pc->retval);
-		int filenamelen=WORDALIGN(strlen(filename));
-		long sp=getsp(pc);
-		/* change the system call arguments (open the fifo) */
-		/* could give some trouble if a process tests the
-		 * "type" of the file connected to the fd */
-		ustorestr(pc,sp-filenamelen,filenamelen,filename); /*socket?*/
-		putscno(__NR_open,pc);
-		pc->sysargs[0]=sp-filenamelen;
-		pc->sysargs[1]=O_RDONLY;
-		return SC_CALLONXIT;
-	} else
-		return SC_FAKE;
+	pc->sysargs[3]=pc->sysargs[2];
+	pc->sysargs[2]=pc->sysargs[1];
+	pc->sysargs[1]=pc->sysargs[0];
+	pc->sysargs[0]=umNULL;
+	pc->path=NULL;
+	return wrap_in_msocket(__NR_msocket,pc,sercode,
+			service_virsyscall(sercode,VIRSYS_MSOCKET));
 }
 
 #define MAX_SOCKLEN 1024
@@ -109,8 +175,8 @@ int wrap_in_accept(int sc_number,struct pcb *pc,
 			long sock_addr=pc->sysargs[1];
 			char *sock=(char *)alloca(sock_len);
 			/* get the sock_addr */
-			umoven(pc,sock_addr,sock_len,sock);
-			/* virtual syscall */
+				umoven(pc,sock_addr,sock_len,sock);
+				/* virtual syscall */
 			if ((pc->retval = um_syscall(sfd,sock,&sock_len)) < 0)
 				pc->erno=errno;
 			else {
@@ -141,9 +207,9 @@ int wrap_in_accept(int sc_number,struct pcb *pc,
 /* SOCKET & MSOCKET & ACCEPT wrap out */
 int wrap_out_socket(int sc_number,struct pcb *pc) {
 	/*int lerno=errno;*/
-	//fprint2("wrap_out_socket\n");
+	//fprint2("wrap_out_socket %d %d\n",pc->behavior,SC_FAKE);
 	/* if everything was okay for the virtual call */
-	if (pc->retval >= 0) {
+	if (pc->behavior==SC_CALLONXIT && pc->retval >= 0) {
 		int fd=getrv(pc);	
 		/* if the syscall issued by the process was also okay */
 		if (fd >= 0) {
@@ -152,6 +218,7 @@ int wrap_out_socket(int sc_number,struct pcb *pc) {
 		} else {
 			putrv(pc->retval,pc);
 			puterrno(pc->erno,pc);
+			//fprint2("wrap_out_socket!!\n");
 			lfd_close(pc->retval);
 		}
 	} else {

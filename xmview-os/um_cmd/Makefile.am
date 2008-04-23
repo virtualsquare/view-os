@@ -6,7 +6,8 @@ dist_man1_MANS = \
 	um_mov_service.1 \
 	vuname.1 \
 	viewname.1 \
-	umshutdown.1 
+	umshutdown.1 \
+	mstack.1
 
 CPPFLAGS = -I../include
 
@@ -18,7 +19,8 @@ bin_PROGRAMS = \
 	um_mov_service \
 	vuname \
 	viewname \
-	umshutdown
+	umshutdown \
+	mstack
 
 debug release: all
 

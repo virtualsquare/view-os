@@ -26,6 +26,10 @@
 #include <poll.h>
 #include "services.h"
 
+#define VIRSYS_UMSERVICE 1
+#define VIRSYS_MSOCKET 2
+#define __NR_msocket VIRSYS_MSOCKET
+
 //typedef struct service *sss;
 typedef service_t (* serfun)();
 typedef service_t serfunt();
