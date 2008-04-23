@@ -74,9 +74,11 @@
 
 #ifndef __LWIP_IP_FRAG_H__
 #define __LWIP_IP_FRAG_H__
+struct stack;
 
 /* Module init */
-void ip_frag_reass_init(void);
+void ip_frag_reass_init(struct stack *stack);
+void ip_frag_reass_shutdown(struct stack *stack);
 
 
 #if IPv4_FRAGMENTATION
@@ -84,9 +86,9 @@ void ip_frag_reass_init(void);
 /* 
  * IPv4 Frag/Defrag functions 
  */
-struct pbuf *ip4_reass(struct pbuf *p);
+struct pbuf *ip4_reass(struct stack *stack, struct pbuf *p);
 
-err_t ip4_frag(struct pbuf *, struct netif *, struct ip_addr *);
+err_t ip4_frag(struct stack *stack, struct pbuf *, struct netif *, struct ip_addr *);
 
 #endif /* IPv4_FRAGMENTATION */
 
@@ -124,12 +126,29 @@ PACK_STRUCT_END
 /* Lenght in bytes of the fragmentation header.  */
 #define IP_EXTFRAG_LEN    8
 
-struct pbuf *ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_exthdr *lastext);
+struct pbuf *ip6_reass(struct stack *stack, struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_exthdr *lastext);
 
-err_t ip6_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest);
+err_t ip6_frag(struct stack *stack, struct pbuf *p, struct netif *netif, struct ip_addr *dest);
 
 #endif /* IPv6_FRAGMENTATION */
 
+/* Max IP Payload len */
+#define IP_REASS_BUFSIZE         65535
+
+/* Reassembly buffer */
+struct ip_reassbuf {
+	u8_t  ipv;     /* ip version (4, 6).  0 if the entry is empty */
+	u32_t id;      /* fragmentation id (16bit Ipv4, 32bit Ipv6) */
+
+	u8_t  age;     /* seconds */
+	u8_t  flags;   /* entry's state */
+	u32_t len;
+
+	u8_t  buf[IP_REASS_BUFSIZE];
+
+#define IP4_REASS_BITMAP_SIZE  (IP_REASS_BUFSIZE / (8 * 8))
+	u8_t  bitmap[IP4_REASS_BITMAP_SIZE];
+};
 
 
 #endif /* __LWIP_IP_FRAG_H__ */

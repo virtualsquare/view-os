@@ -32,6 +32,8 @@
 #ifndef __LWIP_STATS_H__
 #define __LWIP_STATS_H__
 
+/* FIX: add MULTISTACK support. Race condition on counters!! */
+
 #include "lwip/opt.h"
 #include "arch/cc.h"
 

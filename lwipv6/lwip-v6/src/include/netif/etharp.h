@@ -72,10 +72,10 @@ PACK_STRUCT_END
 #include "lwip/packet.h"
 #define ARPHRD_ETHER 1
 #define ETH_CHECK_PACKET_IN(NETIF,P) ({ \
-		if (active_pfpacket) eth_packet_mgmt((NETIF),(P),0) ; \
+		if ((NETIF)->stack->active_pfpacket) eth_packet_mgmt((NETIF),(P),0) ; \
 		})
 #define ETH_CHECK_PACKET_OUT(NETIF,P) ({ \
-		if (active_pfpacket) eth_packet_mgmt((NETIF),(P),PACKET_OUTGOING) ; \
+		if ((NETIF)->stack->active_pfpacket) eth_packet_mgmt((NETIF),(P),PACKET_OUTGOING) ; \
 		})
 void eth_packet_mgmt(struct netif *netif, struct pbuf *p,u8_t pkttype);
 u16_t eth_packet_out(struct netif *netif, struct pbuf *p, struct sockaddr_ll *sll, u16_t protocol, u16_t dgramflag);

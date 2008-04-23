@@ -49,8 +49,8 @@
  * Author: Adam Dunkels <adam@sics.se>
  *
  */
-#include "lwip/debug.h"
 #include "lwip/opt.h"
+#include "lwip/debug.h"
 
 #include "lwip/sys.h"
 
@@ -77,7 +77,7 @@
  * 	  |
  * 	tcpip_init()---------------> *new*              
  * 	  |                            |
- *  tcpip_netif_add()....msg.....> |-------------------> *new*
+ * 	tcpip_netif_add()....msg.....> |-------------------> *new*
  * 	  |                            |                       |
  * 	 ...                          ...                     ...
  * 	  |                            | <.......msg...... tcpip_input()
@@ -95,52 +95,36 @@
 
 /*---------------------------------------------------------------------------*/
 
-/* called after stack initialization */
-static void (* tcpip_init_done)(void *arg) = NULL;
-static void *tcpip_init_done_arg;
-
-/* called before stack thread termination  */
-static void (* tcpip_shutdown_done)(void *arg) = NULL;
-static void *tcpip_shutdown_done_arg;
-
-/* 1 = tcpip_thread is running, 0 = shutting down */
-static u8_t  tcpip_mainthread_run = 0;
-sys_sem_t    tcpip_mutex;  /* Protect  tcpip_mainthread_run variabile */
-
-/* Stack message queue */
-static sys_mbox_t mbox;
-
-/*---------------------------------------------------------------------------*/
-
 #if LWIP_TCP
-static int tcpip_tcp_timer_active = 0;
-
 static void
 tcpip_tcp_timer(void *arg)
 {
-	(void)arg;
+	//(void)arg;
+	struct stack *stack = (struct stack *) arg;
 	
 	/* call TCP timer handler */
-	tcp_tmr();
+	tcp_tmr(stack);
+	
 	/* timer still needed? */
-	if (tcp_active_pcbs || tcp_tw_pcbs) {
+	if (stack->tcp_active_pcbs || stack->tcp_tw_pcbs) {
 		/* restart timer */
-		sys_timeout(TCP_TMR_INTERVAL, tcpip_tcp_timer, NULL);
+		sys_timeout(TCP_TMR_INTERVAL, tcpip_tcp_timer, (void*)stack);
 	} else {
 		/* disable timer */
-		tcpip_tcp_timer_active = 0;
+		stack->tcpip_tcp_timer_active = 0;
 	}
 }
 
 #if !NO_SYS
 void
-tcp_timer_needed(void)
+tcp_timer_needed(struct stack *stack)
 {
 	/* timer is off but needed again? */
-	if (!tcpip_tcp_timer_active && (tcp_active_pcbs || tcp_tw_pcbs)) {
+	if (!stack->tcpip_tcp_timer_active && 
+	    (stack->tcp_active_pcbs || stack->tcp_tw_pcbs)) {
 		/* enable and start timer */
-		tcpip_tcp_timer_active = 1;
-		sys_timeout(TCP_TMR_INTERVAL, tcpip_tcp_timer, NULL);
+		stack->tcpip_tcp_timer_active = 1;
+		sys_timeout(TCP_TMR_INTERVAL, tcpip_tcp_timer, (void*)stack);
 	}
 }
 #endif /* !NO_SYS */
@@ -148,11 +132,11 @@ tcp_timer_needed(void)
 
 /*--------------------------------------------------------------------------*/
 
-static void tcpip_set_down_interfaces(void)
+static void tcpip_set_down_interfaces(struct stack *stack)
 {
 	struct netif *nip;
 		
-	for (nip=netif_list; nip!=NULL; nip=nip->next) {
+	for (nip=stack->netif_list; nip!=NULL; nip=nip->next) {
 		ip_notify(nip, NETIF_CHANGE_DOWN);
 		netif_set_down_low(nip);
 	}
@@ -160,66 +144,103 @@ static void tcpip_set_down_interfaces(void)
 
 /*--------------------------------------------------------------------------*/
 
+static void 
+init_layers(struct stack *stack)
+{
+	netif_init(stack);
+	
+	ip_init(stack);
+	
+#if LWIP_UDP  
+	udp_init(stack);
+#endif
+#if LWIP_TCP
+	tcp_init(stack);
+#endif
+}
+
+static void 
+shutdown_layers(struct stack *stack)
+{
+#if LWIP_UDP  
+	udp_shutdown(stack);
+#endif
+#if LWIP_TCP
+	tcp_shutdown(stack);
+#endif
+	/* Handle special transport/network protocol tasks */
+	tcpip_set_down_interfaces(stack);
+
+	ip_shutdown(stack);
+
+	netif_shutdown(stack);
+}
+
+
+
 static void
 tcpip_thread(void *arg)
 {
+	struct stack *stack;
 	int loop;
 	struct tcpip_msg *msg;
-	
-	(void)arg;
-	
-	ip_init();
-	
-#if LWIP_UDP  
-	udp_init();
-#endif
-#if LWIP_TCP
-	tcp_init();
-#endif
+		
+	//(void)arg;
+	stack = (struct stack *) arg;
 
-	/* Now the main thread is ready */
-	tcpip_mainthread_run = 1;
-	
-	if (tcpip_init_done != NULL) {
-		tcpip_init_done(tcpip_init_done_arg);
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] starting...\n", stack));
+
+	/* Initialize network layers */
+	init_layers(stack);
+
+
+	/* Create stack event queue */
+	stack->stack_queue = sys_mbox_new();
+
+	/* Signal tcp_init() function */
+	sys_sem_signal(stack->tcpip_init_sem);
+
+	/* Call user defined callback */        
+	if (stack->tcpip_init_done != NULL) {
+		stack->tcpip_init_done(stack->tcpip_init_done_arg);
 	}
+	
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] started\n", stack));
 
 	loop = 1;
 	while (loop) {                          /* MAIN Loop */
 
-		LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: waiting4message\n"));
-		sys_mbox_fetch(mbox, (void *)&msg);
-
+		LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread:  [%d] waiting.\n", stack));
+		
+		sys_mbox_fetch(stack->stack_queue, (void *)&msg);
 		if (msg==NULL) {
 			printf("tcpip NULL MSG, this should not happen!\n");
 		} else {                    
 
 			switch (msg->type) {
 				case TCPIP_MSG_INPUT:
-					//LWIP_DEBUGF(TCPIP_DEBUG, ("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"));
 					//printf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
-					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: IP packet %p\n", (void *)msg));
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] IP packet %p\n", stack, (void *)msg));
 					ip_input(msg->msg.inp.p, msg->msg.inp.netif);
 
 					//printf("----------------------------------------------------------------------------\n");
-					//LWIP_DEBUGF(TCPIP_DEBUG, ("----------------------------------------------------------------------------\n"));
 					break;
 
 				case TCPIP_MSG_API:
-					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: API message %p %p\n", (void *)msg, (void *)msg->msg.apimsg));
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] API message %p %p\n", stack, (void *)msg, (void *)msg->msg.apimsg));
 					api_msg_input(msg->msg.apimsg);
 					break;
 
 				case TCPIP_MSG_CALLBACK:
-					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: callback %p\n", (void *)msg));
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] callback %p\n", stack, (void *)msg));
 					msg->msg.cb.f(msg->msg.cb.ctx);
 					break;
 
 				case TCPIP_MSG_NETIFADD:
-					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: add netif %p\n", (void *)msg));
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] add netif %p START\n", stack, (void *)msg));
 
-					*msg->msg.netif.retval = netif_add(msg->msg.netif.netif,
+					*msg->msg.netif.retval = netif_add(stack, msg->msg.netif.netif,
 						msg->msg.netif.state,
 						msg->msg.netif.init,
 						msg->msg.netif.input,
@@ -228,10 +249,12 @@ tcpip_thread(void *arg)
 					/* signal interface creation */
 					sys_sem_signal(* msg->msg.netif.sem);   
 
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] add netif %p DONE!\n", stack, (void *)msg));
+
 					break;
 
 				case TCPIP_MSG_NETIF_NOTIFY:
-					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: netif state change! %p\n", (void *)msg));
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] netif state change! %p\n", stack, (void *)msg));
 
 					ip_notify(msg->msg.netif_notify.netif, msg->msg.netif_notify.type);
 
@@ -240,191 +263,264 @@ tcpip_thread(void *arg)
 					break;
 
 				case TCPIP_MSG_SHUTDOWN:
-					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: SHUTDOWN! %p\n", (void *)msg));
-
-					tcpip_set_down_interfaces();
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] SHUTDOWN! %p\n", stack, (void *)msg));
 
 					loop = 0;
 					break;
 
 				default:
-					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: UNKNOWN MSGTYPE %d\n", msg->type));
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] UNKNOWN MSGTYPE %d\n", stack, msg->type));
 					break;
 			}
 			memp_free(MEMP_TCPIP_MSG, msg);
 		}
 	}
 
-	// FIX: this is not enough, after this call netif threads are still alive
-	netif_cleanup();
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] cleaning up interfaces.\n", stack));
 
-	if (tcpip_shutdown_done != NULL) {
-		tcpip_shutdown_done(tcpip_shutdown_done_arg);
+	/* Shutdown network layers */
+	shutdown_layers(stack);
+
+	/* Signal tcp_shutdown() function */
+	sys_sem_signal(stack->tcpip_shutdown_sem);
+
+	/* Call user defined callback */
+	if (stack->tcpip_shutdown_done != NULL) {
+		stack->tcpip_shutdown_done(stack->tcpip_shutdown_done_arg);
 	}
+
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] exit.\n", stack));
 }
 
-#define TCPIP_LOCK    sys_sem_wait_timeout(tcpip_mutex, 0)
-#define TCPIP_UNLOCK  sys_sem_signal(tcpip_mutex)
+/*---------------------------------------------------------------------------*/
 
+static struct stack *current_stack;
+
+int
+tcpip_init(void)
+{
+	current_stack = NULL;
+
+	LWIP_DEBUGF(TCPIP_DEBUG, ("%s: done\n",__func__));
+	return 0;
+}
+
+static struct stack *tcpip_alloc(void)
+{
+	int i;
+
+	struct stack *new=mem_malloc(sizeof(struct stack));
+	if (new) 
+		memset(new,0,sizeof(struct stack));
+	return new;
+}
+
+static void tcpip_free(struct stack *stack)
+{
+	mem_free(stack);
+}
+
+struct stack *
+tcpip_start(tcpip_handler init_func, void *arg)
+{
+	struct stack *stack;
+
+	stack = tcpip_alloc();
+	if (stack == NULL) {
+		LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_start: unable to create a new stack!!\n"));
+		return NULL;
+	}
+	
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_start: new stack %d\n",stack));
+
+	stack->tcpip_init_sem      = sys_sem_new(0);
+	stack->tcpip_init_done     = init_func;
+	stack->tcpip_init_done_arg = arg;
+
+	sys_thread_new(tcpip_thread, (void*)stack, TCPIP_THREAD_PRIO);
+
+	/* Wait for stack initialization */
+	sys_sem_wait(stack->tcpip_init_sem);
+	sys_sem_free(stack->tcpip_init_sem);
+
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_start: stack %p running.\n",stack));
+
+	return stack;
+}
+
+
+struct stack *tcpip_stack_get(void)
+{
+    return current_stack;
+}
+
+struct stack *tcpip_stack_set(struct stack * id)
+{
+	current_stack = id;
+	return id;
+}
+
+/*---------------------------------------------------------------------------*/
+
+void 
+tcpip_shutdown(struct stack *stack, tcpip_handler shutdown_func, void *arg)
+{
+	struct tcpip_msg *msg;
+
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_shutdown: %d ...\n",stack));
+
+	/* Inform to the thread to shutdown */
+	msg = memp_malloc(MEMP_TCPIP_MSG);
+	if (msg == NULL) 
+		return;
+
+	stack->tcpip_shutdown_sem      = sys_sem_new(0);
+	stack->tcpip_shutdown_done     = shutdown_func;
+	stack->tcpip_shutdown_done_arg = arg;
+
+	msg->type  = TCPIP_MSG_SHUTDOWN;
+	
+	sys_mbox_post(stack->stack_queue, msg);
+
+	/* Wait for stack Shutdown */
+	sys_sem_wait(stack->tcpip_shutdown_sem);
+	sys_sem_free(stack->tcpip_shutdown_sem);
+
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_shutdown: %d stopped.\n",stack));
+
+	/* Stack no more active for sure */
+	tcpip_free(stack);
+}
+
+
+/*---------------------------------------------------------------------------*/
+
+err_t
+tcpip_callback(struct stack *stack, void (*f)(void *ctx), void *ctx)
+{
+	struct tcpip_msg *msg;
+
+	/* Check if the stack is valid */
+	if (stack==NULL) {
+		LWIP_DEBUGF(TCPIP_DEBUG,("%s: stack %d does not exist!\n", __func__, stack));
+		return -1;
+	}
+
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_callback %p \n", f));
+
+	msg = memp_malloc(MEMP_TCPIP_MSG);
+	if (msg == NULL)
+		return ERR_MEM;  
+	
+	msg->type = TCPIP_MSG_CALLBACK;
+	msg->msg.cb.f = f;
+	msg->msg.cb.ctx = ctx;
+	
+	sys_mbox_post(stack->stack_queue, msg);
+
+	return ERR_OK;
+}
+
+/*---------------------------------------------------------------------------*/
+
+void
+tcpip_apimsg(struct stack *stack, struct api_msg *apimsg)
+{
+	struct tcpip_msg *msg;
+
+	msg = memp_malloc(MEMP_TCPIP_MSG);
+	while (msg == NULL) {
+		sys_msleep(API_MSG_RETRY_DELAY);
+		msg = memp_malloc(MEMP_TCPIP_MSG);
+	}
+
+	msg->type = TCPIP_MSG_API;
+	msg->msg.apimsg = apimsg;
+
+	sys_mbox_post(stack->stack_queue, msg);
+}
+
+/*---------------------------------------------------------------------------*/
 
 err_t
 tcpip_input(struct pbuf *p, struct netif *inp)
 {
+	struct stack *stack = inp->stack;
+
 	struct tcpip_msg *msg;
-
-	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_input %p %p\n", (void *)p, (void *) inp));
-
-	// Exit if the main thread is shutting down
-	//sys_sem_wait_timeout(tcpip_mutex, 0); 
-	//if (tcpip_mainthread_run == 0) {
-	//	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
-	//	pbuf_free(p);
-	//	sys_sem_signal(tcpip_mutex);   
-	//	return ERR_OK;
-	//}
+	
+	//LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_input %p %p\n", (void *)p, (void *) inp));
 
 	msg = memp_malloc(MEMP_TCPIP_MSG);
 	if (msg == NULL) {
 		pbuf_free(p);  
-		sys_sem_signal(tcpip_mutex);   
 		return ERR_MEM;  
 	}
 	
 	msg->type = TCPIP_MSG_INPUT;
 	msg->msg.inp.p = p;
 	msg->msg.inp.netif = inp;
-	sys_mbox_post(mbox, msg);
-
-	//sys_sem_signal(tcpip_mutex);   
+	sys_mbox_post(stack->stack_queue, msg);
 
 	return ERR_OK;
-}
-
-err_t
-tcpip_callback(void (*f)(void *ctx), void *ctx)
-{
-	struct tcpip_msg *msg;
-
-	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_callback %p \n", f));
-
-	// Exit if the main thread is shutting down
-	//sys_sem_wait_timeout(tcpip_mutex, 0); 
-	//if (tcpip_mainthread_run == 0) {
-	//	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
-	//	sys_sem_signal(tcpip_mutex);   
-	//	return ERR_OK;
-	//}
-	
-	msg = memp_malloc(MEMP_TCPIP_MSG);
-	if (msg == NULL) {
-		sys_sem_signal(tcpip_mutex);
-		return ERR_MEM;  
-	}
-	
-	msg->type = TCPIP_MSG_CALLBACK;
-	msg->msg.cb.f = f;
-	msg->msg.cb.ctx = ctx;
-	sys_mbox_post(mbox, msg);
-
-	//sys_sem_signal(tcpip_mutex);   
-
-	return ERR_OK;
-}
-
-void
-tcpip_apimsg(struct api_msg *apimsg)
-{
-	struct tcpip_msg *msg;
-
-	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_apimsg %p\n", apimsg));
-
-	// Exit if the main thread is shutting down
-	//sys_sem_wait_timeout(tcpip_mutex, 0); 
-	//if (tcpip_mainthread_run == 0) {
-	//	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
-	//	// FIX: free apimsg? 
-	//	sys_sem_signal(tcpip_mutex);   
-	//	return;
-	//}
-
-	msg = memp_malloc(MEMP_TCPIP_MSG);
-	/*if (msg == NULL) {
-	memp_free(MEMP_API_MSG, apimsg);
-	return;
-	}*/
-	while (msg == NULL) {
-		sys_msleep(API_MSG_RETRY_DELAY);
-		msg = memp_malloc(MEMP_TCPIP_MSG);
-	}
-	msg->type = TCPIP_MSG_API;
-	msg->msg.apimsg = apimsg;
-	sys_mbox_post(mbox, msg);
-
-	//sys_sem_signal(tcpip_mutex);   
 }
 
 /*---------------------------------------------------------------------------*/
 
 void
-tcpip_init(void (* initfunc)(void *), void *arg)
+tcpip_notify(struct netif *netif, u32_t type)
 {
-	tcpip_init_done = initfunc;
-	tcpip_init_done_arg = arg;
+	/* Get stack number from interface */
+	struct stack *stack = netif->stack;
 
-	mbox = sys_mbox_new();
-
-	tcpip_mutex = sys_sem_new(1);
-
-	sys_thread_new(tcpip_thread, NULL, TCPIP_THREAD_PRIO);
-}
-
-void
-tcpip_shutdown(void (* shutdown_fun)(void *), void *arg)
-{
-	struct tcpip_msg *msg;
-
-	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread shutdown!\n"));
-
-	//sys_sem_wait_timeout(tcpip_mutex, 0); 
-
-	tcpip_shutdown_done = shutdown_fun;
-	tcpip_shutdown_done_arg = arg;
-
-	tcpip_mainthread_run = 0;
-
-
-	// Inform to the thread to shutdown
-	msg = memp_malloc(MEMP_TCPIP_MSG);
-	if (msg != NULL) {
-		msg->type = TCPIP_MSG_SHUTDOWN;
-		sys_mbox_post(mbox, msg);
-	}
-
-	//sys_sem_signal(tcpip_mutex);   
-}
-
-
-struct netif * tcpip_netif_add(struct netif *netif, 
-      void *state,
-      err_t (* init)(struct netif *netif),
-      err_t (* input)(struct pbuf *p, struct netif *netif),
-      void (* change)(struct netif *netif, u32_t type))
-{
-	struct netif *retval;
 	struct tcpip_msg *msg;
 	sys_sem_t         msg_wait;
 
-	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_netif_add!\n"));
-
-	//sys_sem_wait_timeout(tcpip_mutex, 0); 
+	//LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_change %c%c%d type %d (stack=%d)\n", 
+	//	netif->name[0],
+	//	netif->name[1],
+	//	netif->num,
+	//	(int)type,
+	//	stack));
 
 	msg = memp_malloc(MEMP_TCPIP_MSG);
-	if (msg == NULL) {
-		sys_sem_signal(tcpip_mutex);
-		return NULL;  
-	}
+	if (msg == NULL)
+		return;  
+	
+	msg->type  = TCPIP_MSG_NETIF_NOTIFY;
+	msg->msg.netif_notify.netif = netif;
+	msg->msg.netif_notify.type  = type;
 
-	/* Fill message data */	
+	msg_wait = sys_sem_new(0);
+	msg->msg.netif_notify.sem = &msg_wait;
+
+	sys_mbox_post(stack->stack_queue, msg);
+
+	/* Make this function syncronous. Wait until interface creation */
+	sys_sem_wait_timeout(msg_wait, 0); 
+	sys_sem_free(msg_wait);
+}
+
+/*---------------------------------------------------------------------------*/
+
+struct netif * tcpip_netif_add(
+      struct stack *stack, 
+      struct netif *netif, 
+      void *state,
+      err_t (* init)  (struct netif *netif),
+      err_t (* input) (struct pbuf *p, struct netif *netif),
+      void  (* change)(struct netif *netif, u32_t type))
+{
+	struct netif     *retval;
+	struct tcpip_msg *msg;
+	sys_sem_t         msg_wait;
+
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_netif_add: (stack=%d)!\n", stack));
+
+	msg = memp_malloc(MEMP_TCPIP_MSG);
+	if (msg == NULL) 
+		return NULL;  
+
 	msg->type = TCPIP_MSG_NETIFADD;
 	msg->msg.netif.netif = netif;
 	msg->msg.netif.state = state;
@@ -436,58 +532,18 @@ struct netif * tcpip_netif_add(struct netif *netif,
 	msg_wait = sys_sem_new(0);
 	msg->msg.netif.sem = &msg_wait;
 
-	sys_mbox_post(mbox, msg);
+	sys_mbox_post(stack->stack_queue, msg);
 
+
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_netif_add: (stack=%d) wait!\n", stack));
+		
 	/* Make this function syncronous. Wait until interface creation */
 	sys_sem_wait_timeout(msg_wait, 0); 
 	sys_sem_free(msg_wait);
 
-	//sys_sem_signal(tcpip_mutex);   
+	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_netif_add: (stack=%d) ok!\n", stack));
 
 	return retval;
 }
 
-
-void
-tcpip_notify(struct netif *netif, u32_t type)
-{
-	struct tcpip_msg *msg;
-	sys_sem_t         msg_wait;
-
-	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: tcpip_change %c%c%d type %d\n", 
-		netif->name[0],
-		netif->name[1],
-		netif->num,
-		(int)type));
-
-	// Exit if the main thread is shutting down
-	//sys_sem_wait_timeout(tcpip_mutex, 0); 
-	//if (tcpip_mainthread_run == 0) {
-	//	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip: main thread no more. Exit!\n"));
-	//	sys_sem_signal(tcpip_mutex);   
-	//	return;
-	//}
-	
-	msg = memp_malloc(MEMP_TCPIP_MSG);
-	if (msg == NULL) {
-		sys_sem_signal(tcpip_mutex);   
-		return;  
-	}
-	
-	msg->type = TCPIP_MSG_NETIF_NOTIFY;
-	msg->msg.netif_notify.netif = netif;
-	msg->msg.netif_notify.type  = type;
-
-	msg_wait = sys_sem_new(0);
-	msg->msg.netif_notify.sem = &msg_wait;
-
-	sys_mbox_post(mbox, msg);
-
-	/* Make this function syncronous. Wait until interface creation */
-	sys_sem_wait_timeout(msg_wait, 0); 
-	sys_sem_free(msg_wait);
-
-
-	//sys_sem_signal(tcpip_mutex);   
-}
 

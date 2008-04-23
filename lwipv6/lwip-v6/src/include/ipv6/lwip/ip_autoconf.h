@@ -139,7 +139,9 @@ struct addr_info {
 #define AUTOCONF_TMR_INTERVAL    1000 
 
 /* Called by ip_init() */
-void ip_autoconf_init(void);
+void ip_autoconf_init(struct stack *stack);
+void ip_autoconf_shutdown(struct stack *stack);
+
 
 /* Called by netif_add() */
 void ip_autoconf_netif_init(struct netif *netif);

@@ -127,7 +127,7 @@ PACK_STRUCT_END
 #endif
 
 
-void dhcp_init(void);
+void dhcp_init(struct stack *stack);
 
 /** start DHCP configuration */
 err_t dhcp_start(struct netif *netif);

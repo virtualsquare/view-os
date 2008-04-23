@@ -37,6 +37,7 @@
 #include "lwip/pbuf.h"
 ///#include "lwip/inet.h"
 #include "lwip/ip.h"
+struct stack;
 
 #define UDP_HLEN 8
 
@@ -71,7 +72,7 @@ struct udp_pcb {
 
 /* The following functions is the application layer interface to the
    UDP code. */
-struct udp_pcb * udp_new        (void);
+struct udp_pcb * udp_new        (struct stack *stack);
 void             udp_remove     (struct udp_pcb *pcb);
 err_t            udp_bind       (struct udp_pcb *pcb, struct ip_addr *ipaddr, u16_t port);
 err_t            udp_connect    (struct udp_pcb *pcb, struct ip_addr *ipaddr, u16_t port);
@@ -92,7 +93,9 @@ err_t            udp_send       (struct udp_pcb *pcb, struct pbuf *p);
 
 /* The following functions are the lower layer interface to UDP. */
 void             udp_input      (struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr);
-void             udp_init       (void);
+
+void             udp_init       (struct stack *stack);
+void             udp_shutdown   (struct stack *stack);
 
 
 #if UDP_DEBUG

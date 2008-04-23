@@ -64,8 +64,11 @@
  * changes to this common part are made in one location instead of
  * having to change all PCB structs. */
 #define IP_PCB \
-    struct ip_addr local_ip;  \
-    struct ip_addr remote_ip; \
+	/* Stack */               \
+	struct stack *stack;          \
+	/* IP tuple */            \
+	struct ip_addr local_ip;  \
+	struct ip_addr remote_ip; \
 	/* Socket options */      \
 	u16_t so_options;         \
 	/* Type Of Service */     \
@@ -285,19 +288,20 @@ PACK_STRUCT_END
 
 /* Fragmentation IDs */
 /* FIX: race condition between ipv4 and ipv6 fragmentation code */
-extern u16_t ip_id;
 
+void ip_init(struct stack *stack);
 
-void ip_init(void);
+void ip_shutdown(struct stack *stack);
+
 
 /* Input functions for netif interfaces */
 void ip_input(struct pbuf *p, struct netif *inp);
 
 /* source and destination addresses in network byte order, please */
-err_t ip_output(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
+err_t ip_output(struct stack *stack, struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 		unsigned char ttl, unsigned char tos, unsigned char proto);
 
-err_t ip_output_if(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
+err_t ip_output_if(struct stack *stack, struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 		unsigned char ttl, unsigned char tos, unsigned char proto,
 		struct netif *netif, struct ip_addr *nexthop, int flags);
 

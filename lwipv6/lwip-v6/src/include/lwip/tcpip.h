@@ -32,9 +32,9 @@
 #ifndef __LWIP_TCPIP_H__
 #define __LWIP_TCPIP_H__
 
-#include "lwip/api_msg.h"
+//#include "lwip/api_msg.h"
 #include "lwip/pbuf.h"
-
+#include "lwip/stack.h"
 
 enum tcpip_msg_type {
 
@@ -50,8 +50,10 @@ enum tcpip_msg_type {
 };
 
 struct tcpip_msg {
+
   enum tcpip_msg_type type;
   sys_sem_t *sem;                  // FIX: for what?????????
+
   union {
 
     struct api_msg *apimsg;
@@ -89,32 +91,45 @@ struct tcpip_msg {
 
 };
 
+int tcpip_init(void);
 
-void tcpip_init(void (* tcpip_init_done)(void *), void *arg);
+typedef void (* tcpip_handler)(void *arg);
+
+/* Alloc a new stack thread and return stack number */
+struct stack *tcpip_start(tcpip_handler init_func, void *arg);
+
+/* Signal to the stack to shutdown */
+void tcpip_shutdown(struct stack *stack, tcpip_handler shutdown_func, void *arg);
+
+/* Get "current" stack */
+struct stack *tcpip_stack_get(void);
+
+/* Set "current" stack */
+struct stack *tcpip_stack_set(struct stack *id);
+
 
 /* These functions send messages to the stack thread.
    After tcpip_shutdown() they are unuseful. */
-void tcpip_apimsg(struct api_msg *apimsg);
+void  tcpip_apimsg(struct stack *stack, struct api_msg *apimsg);
 err_t tcpip_input(struct pbuf *p, struct netif *inp);
-err_t tcpip_callback(void (*f)(void *ctx), void *ctx);
+err_t tcpip_callback(struct stack *stack, void (*f)(void *ctx), void *ctx);
 
-void tcpip_tcp_timer_needed(void);
+void tcpip_tcp_timer_needed(struct stack *stack);
 
 /* Tell to the stack to create a new interface. This function
    should be used only when you can't create interfaces before
    the launch of the stack thread. 
    N.B: this functions has been created for the ViewOS project. */
-struct netif * tcpip_netif_add(struct netif *netif, 
+struct netif * tcpip_netif_add(
+      struct stack *stack, 
+      struct netif *netif, 
       void *state,
       err_t (* init)(struct netif *netif),
       err_t (* input)(struct pbuf *p, struct netif *netif),
       void  (* change)(struct netif *netif, u32_t type));
 
-
-/* Signal to the stack to shutdown */
-void tcpip_shutdown(void (* tcpip_shutdown_done)(void *), void *arg);
-
 /* Signal to the stack the interface's state is changed */
 void tcpip_notify(struct netif *netif, u32_t type);
+
 
 #endif /* __LWIP_TCPIP_H__ */

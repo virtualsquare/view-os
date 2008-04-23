@@ -86,15 +86,11 @@
 #define TOS_DGRAM 1
 #define TOS_RAW 0
 
-u16_t active_pfpacket;
-/** The list of PACKET PCBs */
-static struct packet_pcb *packet_pcbs = NULL;
-
 void
-packet_init(void)
+packet_init(struct stack *stack)
 {
-	active_pfpacket=0;
-  packet_pcbs = NULL;
+  stack->active_pfpacket = 0;
+  stack->packet_pcbs = NULL;
 }
 
 /**
@@ -115,7 +111,7 @@ packet_init(void)
  *
  */
 u8_t
-packet_input(struct pbuf *p,struct sockaddr_ll *sll,u16_t link_header_size)
+packet_input(struct stack *stack, struct pbuf *p,struct sockaddr_ll *sll,u16_t link_header_size)
 {
   struct packet_pcb *pcb;
   u8_t eaten = 0;
@@ -123,7 +119,7 @@ packet_input(struct pbuf *p,struct sockaddr_ll *sll,u16_t link_header_size)
 
   LWIP_DEBUGF(PACKET_DEBUG, ("packet_input\n"));
 
-  pcb = packet_pcbs;
+  pcb = stack->packet_pcbs;
   /* loop through all packet pcbs until the packet is eaten by one */
   /* this allows multiple pcbs to match against the packet by design */
   while (pcb != NULL) {
@@ -242,13 +238,15 @@ packet_recv(struct packet_pcb *pcb,
 err_t
 packet_sendto(struct packet_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr, u16_t protocol)
 {
+	struct stack *stack = pcb->stack;
+	
 	struct sockaddr_ll sll;
 
 	IPADDR2SALL(*ipaddr, sll);
   struct netif *netif;
   
 	/*netif search*/
-	if ((netif = netif_find_id(IPSADDR_IFINDEX(*ipaddr))) != NULL)
+	if ((netif = netif_find_id(stack, IPSADDR_IFINDEX(*ipaddr))) != NULL)
 		return eth_packet_out (netif, p, &sll, protocol, pcb->tos);
 	else
 		return ERR_IF;
@@ -279,13 +277,15 @@ packet_send(struct packet_pcb *pcb, struct pbuf *p)
 void
 packet_remove(struct packet_pcb *pcb)
 {
+  struct stack *stack = pcb->stack;
+  
   struct packet_pcb *pcb2;
   /* pcb to be removed is first in list? */
-  if (packet_pcbs == pcb) {
+  if (stack->packet_pcbs == pcb) {
     /* make list start at 2nd pcb */
-    packet_pcbs = packet_pcbs->next;
+    stack->packet_pcbs = stack->packet_pcbs->next;
     /* pcb not 1st in list */
-  } else for(pcb2 = packet_pcbs; pcb2 != NULL; pcb2 = pcb2->next) {
+  } else for(pcb2 = stack->packet_pcbs; pcb2 != NULL; pcb2 = pcb2->next) {
     /* find pcb in packet_pcbs list */
     if (pcb2->next != NULL && pcb2->next == pcb) {
       /* remove pcb from list */
@@ -293,7 +293,7 @@ packet_remove(struct packet_pcb *pcb)
     }
   }
   memp_free(MEMP_PACKET_PCB, pcb);
-	active_pfpacket=(packet_pcbs!=NULL);
+	stack->active_pfpacket = (stack->packet_pcbs != NULL);	
 }
 
 /**
@@ -307,7 +307,7 @@ packet_remove(struct packet_pcb *pcb)
  * @see packet_remove()
  */
 struct packet_pcb *
-packet_new(u16_t proto,u16_t dgramflag) {
+packet_new(struct stack *stack, u16_t proto,u16_t dgramflag) {
   struct packet_pcb *pcb;
 
   LWIP_DEBUGF(PACKET_DEBUG | DBG_TRACE | 3, ("packet_new\n"));
@@ -317,11 +317,12 @@ packet_new(u16_t proto,u16_t dgramflag) {
   if (pcb != NULL) {
     /* initialize PCB to all zeroes */
     memset(pcb, 0, sizeof(struct packet_pcb));
+    pcb->stack = stack;
     pcb->in_protocol = proto;
-    pcb->next = packet_pcbs;
+    pcb->next = stack->packet_pcbs;
 		pcb->tos = dgramflag; /* override type of service dgram (1) or raw (0) */
-    packet_pcbs = pcb;
-		active_pfpacket=1;
+    stack->packet_pcbs = pcb;
+		stack->active_pfpacket=1;
   }
   return pcb;
 }

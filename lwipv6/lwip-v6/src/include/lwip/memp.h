@@ -58,6 +58,10 @@ typedef enum {
 
   MEMP_SYS_TIMEOUT,
 
+	MEMP_ROUTE,
+	MEMP_ADDR,
+	MEMP_REASS,
+
 /* added by Diego Billi */  
 #if LWIP_USERFILTER && LWIP_NAT
   MEMP_NAT_PCB,

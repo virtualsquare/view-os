@@ -74,16 +74,14 @@
 
 #include "arch/perf.h"
 #include "lwip/snmp.h"
+#include "lwip/stack.h"
 
 #if LWIP_RAW
 
-/** The list of RAW PCBs */
-static struct raw_pcb *raw_pcbs = NULL;
-
 void
-raw_init(void)
+raw_init(struct stack *stack)
 {
-  raw_pcbs = NULL;
+  stack->raw_pcbs = NULL;
 }
 
 /**
@@ -109,10 +107,13 @@ raw_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr
   struct raw_pcb *pcb;
   u16_t proto;
 
+  struct netif  *netif = inad->netif;
+  struct stack *stack = netif->stack;  
+
   LWIP_DEBUGF(RAW_DEBUG, ("raw_input\n"));
 	proto = piphdr->proto;
 
-  pcb = raw_pcbs;
+  pcb = stack->raw_pcbs;
   /* loop through all raw pcbs */
   /* this allows multiple pcbs to match against the packet by design */
   while ( (pcb != NULL)) {
@@ -231,8 +232,10 @@ raw_sendto(struct raw_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr)
   struct netif *netif;
   struct ip_addr *src_ip;
   struct pbuf *q; /* q will be sent down the stack */
-	struct ip_addr *nexthop;
-	int flags;
+  struct ip_addr *nexthop;
+  int flags;
+  
+  struct stack *stack = pcb->stack;
 
   
   LWIP_DEBUGF(RAW_DEBUG | DBG_TRACE | 3, ("raw_sendto\n"));
@@ -274,7 +277,7 @@ raw_sendto(struct raw_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr)
   
   ip_addr_debug_print(IP_DEBUG, ipaddr);
 
-  if(ip_route_findpath(ipaddr,&nexthop,&netif,&flags) != ERR_OK) {
+  if(ip_route_findpath(stack, ipaddr,&nexthop,&netif,&flags) != ERR_OK) {
     LWIP_DEBUGF(RAW_DEBUG | 1, ("raw_sendto: No route to %p\n", ipaddr->addr));
 #if RAW_STATS
     /*    ++lwip_stats.raw.rterr;*/
@@ -327,7 +330,7 @@ raw_sendto(struct raw_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr)
 
   }
 
-  err = ip_output_if (q, src_ip, 
+  err = ip_output_if (stack, q, src_ip, 
 			  (pcb->so_options & SOF_HDRINCL)?IP_LWHDRINCL:ipaddr, 
 				pcb->ttl, pcb->tos, pcb->in_protocol, netif, nexthop, flags);
 
@@ -364,13 +367,15 @@ raw_send(struct raw_pcb *pcb, struct pbuf *p)
 void
 raw_remove(struct raw_pcb *pcb)
 {
+  struct stack *stack = pcb->stack;
+  
   struct raw_pcb *pcb2;
   /* pcb to be removed is first in list? */
-  if (raw_pcbs == pcb) {
+  if (stack->raw_pcbs == pcb) {
     /* make list start at 2nd pcb */
-    raw_pcbs = raw_pcbs->next;
+    stack->raw_pcbs = stack->raw_pcbs->next;
     /* pcb not 1st in list */
-  } else for(pcb2 = raw_pcbs; pcb2 != NULL; pcb2 = pcb2->next) {
+  } else for(pcb2 = stack->raw_pcbs; pcb2 != NULL; pcb2 = pcb2->next) {
     /* find pcb in raw_pcbs list */
     if (pcb2->next != NULL && pcb2->next == pcb) {
       /* remove pcb from list */
@@ -391,7 +396,7 @@ raw_remove(struct raw_pcb *pcb)
  * @see raw_remove()
  */
 struct raw_pcb *
-raw_new(u16_t proto) {
+raw_new(struct stack *stack, u16_t proto) {
   struct raw_pcb *pcb;
 
   LWIP_DEBUGF(RAW_DEBUG | DBG_TRACE | 3, ("raw_new\n"));
@@ -401,11 +406,14 @@ raw_new(u16_t proto) {
   if (pcb != NULL) {
     /* initialize PCB to all zeroes */
     memset(pcb, 0, sizeof(struct raw_pcb));
+    
+    pcb->stack = stack;    
+    
     pcb->in_protocol = proto;
     pcb->ttl = RAW_TTL;
-    pcb->next = raw_pcbs;
+    pcb->next = stack->raw_pcbs;
     //pcb->checksumoffset=0; //already 0 for memset
-    raw_pcbs = pcb;
+    stack->raw_pcbs = pcb;
   }
   return pcb;
 }

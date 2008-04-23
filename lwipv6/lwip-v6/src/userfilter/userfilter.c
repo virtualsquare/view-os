@@ -20,13 +20,14 @@
  */
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 #include "lwip/debug.h"
 #include "lwip/sys.h"
 #include "lwip/netif.h"
 
-#include "lwip/userfilter.h"
-
 #if LWIP_USERFILTER
+
+#include "lwip/userfilter.h"
 
 //#ifndef USERFILTER_DEBUG
 //#define USERFILTER_DEBUG     DBG_OFF

@@ -451,7 +451,6 @@ static void vdeif_input(struct netif *netif)
 err_t vdeif_init(struct netif * netif)
 {
 	struct vdeif *vdeif;
-	static u8_t num = 0;
 	char *path;
 
 	vdeif = mem_malloc(sizeof(struct vdeif));
@@ -463,7 +462,7 @@ err_t vdeif_init(struct netif * netif)
 	netif->state = vdeif;
 	netif->name[0] = IFNAME0;
 	netif->name[1] = IFNAME1;
-	netif->num = num++;
+	netif->num=netif_next_num(netif,NETIF_VDEIF);
 	netif->output = vdeif_output;
 	netif->linkoutput = low_level_output;
 	netif->cleanup = cleanup;

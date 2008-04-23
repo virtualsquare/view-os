@@ -55,6 +55,7 @@
  * original reassembly code by Adam Dunkels <adam@sics.se>
  * 
  */
+/* TODO  ip_reassembly_pools using memp_alloc */
 
 #include "lwip/opt.h"
 
@@ -67,6 +68,7 @@
 #include "lwip/netif.h"
 #include "lwip/ip.h"
 #include "lwip/ip_frag.h"
+#include "lwip/stack.h"
 
 /*---------------------------------------------------------------------------*/
 
@@ -116,29 +118,11 @@ static const u8_t bitmap_bits[8] = { 0xff, 0x7f, 0x3f, 0x1f, 0x0f, 0x07, 0x03, 0
 /* IPv4 reassembly timer timeout */
 #define IP_REASS_TIMER_TIMEOUT  1000
 
-/* Max IP Payload len */
-#define IP_REASS_BUFSIZE         65535
-
 /* Expire time of a fragmented packet */
 #define IP4_REASS_MAX_AGE         5
 
 #define IP4_REASS_FLAG_USED       0x40
 #define IP4_REASS_FLAG_LASTFRAG   0x01
-
-/* Reassembly buffer */
-struct ip_reassbuf {
-	u8_t  ipv;     /* ip version (4, 6).  0 if the entry is empty */
-	u32_t id;      /* fragmentation id (16bit Ipv4, 32bit Ipv6) */
-
-	u8_t  age;     /* seconds */
-	u8_t  flags;   /* entry's state */
-	u32_t len;
-
-	u8_t  buf[IP_REASS_BUFSIZE]; 
-
-#define IP4_REASS_BITMAP_SIZE  (IP_REASS_BUFSIZE / (8 * 8))
-	u8_t  bitmap[IP4_REASS_BITMAP_SIZE];
-};
 
 #define CLEAR_ENTRY(e) \
 	do { \
@@ -160,19 +144,18 @@ struct ip_reassbuf {
 	} while (0); 
 
 
-/* Number of fragmented packets we can reassembly */
-#define IP_REASS_POOL_SIZE     5
-static struct ip_reassbuf ip_reassembly_pool[IP_REASS_POOL_SIZE];
-
-
 /* Costants for fragmentation buffers */
 #define MAX_MTU 1500
+
 
 /* Reassembly timer */
 INLINE static void 
 ip_reass_tmr(void *arg)
 {
 	int i;
+	struct stack *stack = (struct stack *) arg;
+
+	struct ip_reassbuf *ip_reassembly_pool = stack->ip_reassembly_pools;
 
 	for (i=0; i < IP_REASS_POOL_SIZE; i++) {
 		/* If this entry is used increment entry age */
@@ -186,7 +169,7 @@ ip_reass_tmr(void *arg)
 		}
 	}
 
-	sys_timeout(IP_REASS_TIMER_TIMEOUT, ip_reass_tmr, NULL);
+	sys_timeout(IP_REASS_TIMER_TIMEOUT, ip_reass_tmr, arg);
 }
 
 #if 0
@@ -209,10 +192,10 @@ static void ip_reass_expire_tm(void *arg)
 
 /* Initialize IPv4 Reassembly cache */
 void 
-ip_frag_reass_init(void)
+ip_frag_reass_init(struct stack *stack)
 {
 	/* FIX: rough init, change it? */
-	bzero(ip_reassembly_pool, IP_REASS_POOL_SIZE * sizeof(struct ip_reassbuf));
+	bzero(stack->ip_reassembly_pools, IP_REASS_POOL_SIZE * sizeof(struct ip_reassbuf));
 
 #if IPv4_FRAGMENTATION
 	LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: IPv4 fragmentation enabled.\n", __func__));
@@ -221,7 +204,15 @@ ip_frag_reass_init(void)
 	LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: IPv6 fragmentation enabled.\n", __func__));
 #endif
 
-	sys_timeout(IP_REASS_TIMER_TIMEOUT, (sys_timeout_handler) ip_reass_tmr, NULL);
+	sys_timeout(IP_REASS_TIMER_TIMEOUT, (sys_timeout_handler) ip_reass_tmr, (void*)stack);
+}
+
+void 
+ip_frag_reass_shutdown(struct stack *stack)
+{
+  /* FIX: TODO */
+    
+  sys_untimeout((sys_timeout_handler) ip_reass_tmr, (void*)stack);
 }
 
 
@@ -231,13 +222,15 @@ ip_frag_reass_init(void)
 
 #if IPv4_FRAGMENTATION
 
-struct pbuf *ip4_reass(struct pbuf *p)
+struct pbuf *ip4_reass(struct stack *stack, struct pbuf *p)
 {
 	struct pbuf *q;
 	struct ip4_hdr *fragment_hdr, *entry_iphdr;
 	u32_t offset, len;
 	u16_t i;
 	u16_t pos;
+
+	struct ip_reassbuf *ip_reassembly_pool = stack->ip_reassembly_pools;
 
 	IPFRAG_STATS_INC(ip_frag.recv);
 	LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: start\n"));
@@ -420,7 +413,7 @@ nullreturn:
  * by using a fixed size static memory buffer (PBUF_ROM)
  */
 err_t 
-ip4_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest)
+ip4_frag(struct stack *stack, struct pbuf *p, struct netif *netif, struct ip_addr *dest)
 {
 	u8_t buf[MAX_MTU];
 
@@ -508,7 +501,7 @@ ip4_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest)
 #if IPv6_FRAGMENTATION
 
 struct pbuf *
-ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_exthdr *lastext)
+ip6_reass(struct stack *stack, struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_exthdr *lastext)
 {
 	struct pbuf *q;
 	struct ip_hdr      *entry_iphdr;
@@ -518,6 +511,9 @@ ip6_reass(struct pbuf *p, struct ip6_fraghdr *fragext, struct ip_exthdr *lastext
 	u16_t pos;
 
 	u16_t unfragpart_len; /* length of unfragmentable part */
+	
+	struct ip_reassbuf *ip_reassembly_pool = stack->ip_reassembly_pools;
+	
 
 	IPFRAG_STATS_INC(ip_frag.recv);
 	LWIP_DEBUGF(IP_REASS_DEBUG, ("ip6_reass: start\n"));
@@ -717,7 +713,7 @@ nullreturn:
  * by using a fixed size static memory buffer (PBUF_ROM)
  */
 err_t 
-ip6_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest)
+ip6_frag(struct stack *stack, struct pbuf *p, struct netif *netif, struct ip_addr *dest)
 {
 	u8_t buf6[MAX_MTU];
 
@@ -807,7 +803,7 @@ ip6_frag(struct pbuf *p, struct netif *netif, struct ip_addr *dest)
 	/* Fill Frag header's fields common to all fragments */
 	fraghdr = (struct ip6_fraghdr *) (((char *)iphdr) + unfragpart_len);
 	fraghdr->nexthdr = nexthdr;
-	fraghdr->id      = htonl(ip_id++);
+	fraghdr->id      = htonl(stack->ip_id++);
 
 	LWIP_DEBUGF(IP_REASS_DEBUG, ("%s: id = %d\n", __func__, UINT fraghdr->id));
 

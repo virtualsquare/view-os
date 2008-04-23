@@ -346,7 +346,10 @@ static err_t dhcp_select(struct netif *netif)
  */
 void dhcp_coarse_tmr(void *arg)
 {
-  struct netif *netif = netif_list;
+  struct stack *stack = (struct stack *) arg;
+
+  struct netif *netif = stack->netif_list;
+
 
   LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE, ("dhcp_coarse_tmr()\n"));
 
@@ -386,7 +389,9 @@ void dhcp_coarse_tmr(void *arg)
  */
 void dhcp_fine_tmr(void *arg)
 {
-  struct netif *netif = netif_list;
+  struct stack *stack = (struct stack *)arg;
+
+  struct netif *netif = stack->netif_list;
 
   //printf("dhcp fine\n");
 
@@ -411,10 +416,10 @@ void dhcp_fine_tmr(void *arg)
 
 
 
-void dhcp_init(void)
+void dhcp_init(struct stack *stack)
 {
-	sys_timeout(DHCP_FINE_TIMER_MSECS        , dhcp_fine_tmr  , NULL);
-	sys_timeout(DHCP_COARSE_TIMER_SECS * 1000, dhcp_coarse_tmr  , NULL);
+	sys_timeout(DHCP_FINE_TIMER_MSECS        , dhcp_fine_tmr    , (void*)stack);
+	sys_timeout(DHCP_COARSE_TIMER_SECS * 1000, dhcp_coarse_tmr  , (void*)stack);
 }
 
 
@@ -625,6 +630,8 @@ static void dhcp_handle_ack(struct netif *netif)
  */
 err_t dhcp_start(struct netif *netif)
 {
+  struct stack *stack = netif->stack;
+  
   struct dhcp *dhcp = netif->dhcp;
   err_t result = ERR_OK;
 
@@ -664,7 +671,7 @@ err_t dhcp_start(struct netif *netif)
   /* clear data structure */
   memset(dhcp, 0, sizeof(struct dhcp));
   /* allocate UDP PCB */
-  dhcp->pcb = udp_new();
+  dhcp->pcb = udp_new(stack);
   if (dhcp->pcb == NULL) {
     LWIP_DEBUGF(DHCP_DEBUG  | DBG_TRACE, ("dhcp_start(): could not obtain pcb\n"));
     mem_free((void *)dhcp);
@@ -695,6 +702,8 @@ err_t dhcp_start(struct netif *netif)
  */
 void dhcp_inform(struct netif *netif)
 {
+  struct stack *stack = netif->stack;
+  
   struct dhcp *dhcp;
   err_t result = ERR_OK;
 
@@ -707,7 +716,7 @@ void dhcp_inform(struct netif *netif)
   memset(dhcp, 0, sizeof(struct dhcp));
 
   LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE, ("dhcp_inform(): allocated dhcp\n"));
-  dhcp->pcb = udp_new();
+  dhcp->pcb = udp_new(stack);
   if (dhcp->pcb == NULL) {
     LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE | 2, ("dhcp_inform(): could not obtain pcb"));
     mem_free((void *)dhcp);
@@ -920,6 +929,8 @@ static err_t dhcp_discover(struct netif *netif)
  */
 static void dhcp_bind(struct netif *netif)
 {
+  struct stack *stack = netif->stack;
+  
   struct dhcp *dhcp = netif->dhcp;
   //struct ip4_addr sn_mask, gw_addr;
   struct ip_addr ip;
@@ -999,7 +1010,8 @@ static void dhcp_bind(struct netif *netif)
   netif_add_addr(netif, &ip, &sn_mask);
   IP64_ADDR(&ip, 0,0,0,0);
   IP64_MASKADDR(&sn_mask, 0,0,0,0);
-  ip_route_list_add(&ip, &sn_mask, &gw_addr, netif, 0);
+  
+  ip_route_list_add(stack, &ip, &sn_mask, &gw_addr, netif, 0);
 
 
 
@@ -1145,6 +1157,8 @@ static err_t dhcp_rebind(struct netif *netif)
  */
 err_t dhcp_release(struct netif *netif)
 {
+  struct stack *stack = netif->stack;
+  
   struct dhcp *dhcp = netif->dhcp;
   err_t result;
   u16_t msecs;
@@ -1227,7 +1241,7 @@ err_t dhcp_release(struct netif *netif)
   struct ip_addr ip2, netmask2;
   IP64_ADDR(&ip2, 0,0,0,0);
   IP64_MASKADDR(&netmask2, 0,0,0,0);
-  ip_route_list_del(&ip2, &netmask2, &gw, netif, 0);
+  ip_route_list_del(stack, &ip2, &netmask2, &gw, netif, 0);
   }
   netif_del_addr(netif, &ip, &netmask);
 
@@ -1745,6 +1759,8 @@ static u32_t dhcp_get_option_long(u8_t *ptr)
 err_t
 udp_send_netif(struct udp_pcb *pcb, struct pbuf *p, struct netif *netif)
 {
+  struct stack *stack = pcb->stack;
+  
   struct udp_hdr *udphdr;
   struct ip_addr *src_ip;
   err_t err;
@@ -1824,7 +1840,7 @@ udp_send_netif(struct udp_pcb *pcb, struct pbuf *p, struct netif *netif)
     if (udphdr->chksum == 0x0000) udphdr->chksum = 0xffff;
     LWIP_DEBUGF(UDP_DEBUG, ("udp_send: ip_output_if (,,,,IP_PROTO_UDPLITE,)\n"));
     
-	err = ip_output_if (q, src_ip, &pcb->remote_ip, pcb->ttl, pcb->tos, IP_PROTO_UDPLITE, netif, &pcb->remote_ip, flags);    
+	err = ip_output_if (stack, q, src_ip, &pcb->remote_ip, pcb->ttl, pcb->tos, IP_PROTO_UDPLITE, netif, &pcb->remote_ip, flags);    
   } 
   else {
     LWIP_DEBUGF(UDP_DEBUG, ("udp_send: UDP packet length %u\n", q->tot_len));
@@ -1837,7 +1853,7 @@ udp_send_netif(struct udp_pcb *pcb, struct pbuf *p, struct netif *netif)
     LWIP_DEBUGF(UDP_DEBUG, ("udp_send: ip_output_if (,,,,IP_PROTO_UDP,)\n"));
 
     /* output to IP */
-    err = ip_output_if(q, src_ip, &pcb->remote_ip, pcb->ttl, pcb->tos, IP_PROTO_UDP, netif, &pcb->remote_ip, flags);    
+    err = ip_output_if(stack, q, src_ip, &pcb->remote_ip, pcb->ttl, pcb->tos, IP_PROTO_UDP, netif, &pcb->remote_ip, flags);    
   }
 
   /* did we chain a seperate header pbuf earlier? */

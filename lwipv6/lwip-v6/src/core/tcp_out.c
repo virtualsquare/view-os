@@ -399,6 +399,8 @@ memerr:
 err_t
 tcp_output(struct tcp_pcb *pcb)
 {
+  struct stack *stack = pcb->stack;
+  
   struct pbuf *p;
   struct tcp_hdr *tcphdr;
   struct tcp_seg *seg, *useg;
@@ -411,7 +413,7 @@ tcp_output(struct tcp_pcb *pcb)
      code. If so, we do not output anything. Instead, we rely on the
      input processing code to call us when input processing is done
      with. */
-  if (tcp_input_pcb == pcb) {
+  if (stack->tcp_input_pcb == pcb) {
     return ERR_OK;
   }
 
@@ -454,10 +456,9 @@ tcp_output(struct tcp_pcb *pcb)
     TCPH_HDRLEN_SET(tcphdr, 5);
 
     tcphdr->chksum = 0;
-    tcphdr->chksum = inet6_chksum_pseudo(p, &(pcb->local_ip), &(pcb->remote_ip),
-          IP_PROTO_TCP, p->tot_len);
-    ip_output(p, &(pcb->local_ip), &(pcb->remote_ip), pcb->ttl, pcb->tos,
-        IP_PROTO_TCP);
+    tcphdr->chksum = inet6_chksum_pseudo(p, &(pcb->local_ip), &(pcb->remote_ip), IP_PROTO_TCP, p->tot_len);
+	  
+    ip_output(stack, p, &(pcb->local_ip), &(pcb->remote_ip), pcb->ttl, pcb->tos, IP_PROTO_TCP);
     pbuf_free(p);
 
     return ERR_OK;
@@ -541,6 +542,8 @@ tcp_output(struct tcp_pcb *pcb)
 static void
 tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb)
 {
+  struct stack *stack = pcb->stack;
+  
   u16_t len;
   struct netif *netif;
 
@@ -564,7 +567,7 @@ tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb)
     int flags;
 
     /* Get outgoing interface and next hop */
-    if (ip_route_findpath(&(pcb->remote_ip), &nexthop, &netif, &flags) != ERR_OK)
+    if (ip_route_findpath(stack, &(pcb->remote_ip), &nexthop, &netif, &flags) != ERR_OK)
 		return;
 
 	/* Get source IP address */
@@ -577,7 +580,7 @@ tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb)
   pcb->rtime = 0;
 
   if (pcb->rttest == 0) {
-    pcb->rttest = tcp_ticks;
+    pcb->rttest = stack->tcp_ticks;
     pcb->rtseq = ntohl(seg->tcphdr->seqno);
 
     LWIP_DEBUGF(TCP_RTO_DEBUG, ("tcp_output_segment: rtseq %lu\n", pcb->rtseq));
@@ -600,14 +603,13 @@ tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb)
              IP_PROTO_TCP, seg->p->tot_len);
   TCP_STATS_INC(tcp.xmit);
 
-  ip_output(seg->p, &(pcb->local_ip), &(pcb->remote_ip), pcb->ttl, pcb->tos,
-      IP_PROTO_TCP);
+  ip_output(stack, seg->p, &(pcb->local_ip), &(pcb->remote_ip), pcb->ttl, pcb->tos, IP_PROTO_TCP);
 }
 
 void
-tcp_rst(u32_t seqno, u32_t ackno,
-  struct ip_addr *local_ip, struct ip_addr *remote_ip,
-  u16_t local_port, u16_t remote_port)
+tcp_rst(struct stack *stack, u32_t seqno, u32_t ackno,
+        struct ip_addr *local_ip, struct ip_addr *remote_ip,
+        u16_t local_port, u16_t remote_port)
 {
   struct pbuf *p;
   struct tcp_hdr *tcphdr;
@@ -633,7 +635,7 @@ tcp_rst(u32_t seqno, u32_t ackno,
 
   TCP_STATS_INC(tcp.xmit);
    /* Send output with hardcoded TTL since we have no access to the pcb */
-  ip_output(p, local_ip, remote_ip, TCP_TTL, 0, IP_PROTO_TCP);
+  ip_output(stack, p, local_ip, remote_ip, TCP_TTL, 0, IP_PROTO_TCP);
   pbuf_free(p);
   LWIP_DEBUGF(TCP_RST_DEBUG, ("tcp_rst: seqno %lu ackno %lu.\n", seqno, ackno));
 }
@@ -699,6 +701,8 @@ tcp_rexmit(struct tcp_pcb *pcb)
 void
 tcp_keepalive(struct tcp_pcb *pcb)
 {
+   struct stack *stack = pcb->stack;
+   
    struct pbuf *p;
    struct tcp_hdr *tcphdr;
 
@@ -708,7 +712,7 @@ tcp_keepalive(struct tcp_pcb *pcb)
                            ip4_addr3(&pcb->remote_ip), ip4_addr4(&pcb->remote_ip)));
 #endif
 
-   LWIP_DEBUGF(TCP_DEBUG, ("tcp_keepalive: tcp_ticks %lu   pcb->tmr %lu  pcb->keep_cnt %u\n", tcp_ticks, pcb->tmr, pcb->keep_cnt));
+   LWIP_DEBUGF(TCP_DEBUG, ("tcp_keepalive: tcp_ticks %lu   pcb->tmr %lu  pcb->keep_cnt %u\n", stack->tcp_ticks, pcb->tmr, pcb->keep_cnt));
    
    p = pbuf_alloc(PBUF_IP, TCP_HLEN, PBUF_RAM);
 
@@ -732,7 +736,7 @@ tcp_keepalive(struct tcp_pcb *pcb)
   TCP_STATS_INC(tcp.xmit);
 
    /* Send output to IP */
-  ip_output(p, &pcb->local_ip, &pcb->remote_ip, pcb->ttl, 0, IP_PROTO_TCP);
+  ip_output(stack, p, &pcb->local_ip, &pcb->remote_ip, pcb->ttl, 0, IP_PROTO_TCP);
 
   pbuf_free(p);
 

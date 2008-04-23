@@ -95,21 +95,20 @@ enum icmp_te_type {
   ICMP_TE_FRAG = 1     /* fragment reassembly time exceeded */
 };
 
-void icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr);
+void icmp_input(struct stack *stack, struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr);
 
-void icmp_send_dad(struct ip_addr_list *targetip, struct netif *srcnetif);
+void icmp_send_dad(struct stack *stack, struct ip_addr_list *targetip, struct netif *srcnetif);
 
+void icmp_neighbor_solicitation(struct stack *stack, struct ip_addr *ipaddr, struct ip_addr_list *inad);
+void icmp_router_solicitation(struct stack *stack, struct ip_addr *ipaddr, struct ip_addr_list *inad);
 
-void icmp_neighbor_solicitation(struct ip_addr *ipaddr, struct ip_addr_list *inad);
-void icmp_router_solicitation(struct ip_addr *ipaddr, struct ip_addr_list *inad);
+void icmp_dest_unreach(struct stack *stack, struct pbuf *p, enum icmp_dur_type t);
+void icmp_time_exceeded(struct stack *stack, struct pbuf *p, enum icmp_te_type t);
 
-void icmp_dest_unreach(struct pbuf *p, enum icmp_dur_type t);
-void icmp_time_exceeded(struct pbuf *p, enum icmp_te_type t);
+void icmp_packet_too_big(struct stack *stack, struct pbuf *p, u16_t mtu);
 
-void icmp_packet_too_big(struct pbuf *p, u16_t mtu);
-
-void icmp4_dest_unreach(struct pbuf *p, enum icmp_dur_type t, u16_t nextmtu );
-void icmp4_time_exceeded(struct pbuf *p, enum icmp_te_type t);
+void icmp4_dest_unreach(struct stack *stack, struct pbuf *p, enum icmp_dur_type t, u16_t nextmtu );
+void icmp4_time_exceeded(struct stack *stack, struct pbuf *p, enum icmp_te_type t);
 
 /*
  * ICMP Headers used for IPv4 and IPv6

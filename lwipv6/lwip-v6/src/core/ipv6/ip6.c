@@ -103,9 +103,8 @@
 
 /* IPv4 ID counter */
 /* FIX: race condition with fragmentation code */
-u16_t ip_id = 0;
 
-INLINE static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pbuf **p, struct pseudo_iphdr *piphdr);
+INLINE static int ip_process_exthdr(struct stack *stack, u8_t hdr, char *exthdr, u8_t hpos, struct pbuf **p, struct pseudo_iphdr *piphdr);
 
 /*--------------------------------------------------------------------------*/
                      
@@ -114,16 +113,21 @@ INLINE static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pb
  * Initializes the IP layer.
  */
 void
-ip_init(void)
+ip_init(struct stack *stack)
 {
+  ip_route_list_init(stack); 
+
 #if IPv4_FRAGMENTATION || IPv6_FRAGMENTATION
-  /* init IP de/fragmentation code  */
-  ip_frag_reass_init();
+  ip_frag_reass_init(stack);
 #endif
 
 #if IPv6_AUTO_CONFIGURATION
-  ip_autoconf_init();
+  ip_autoconf_init(stack);
 #endif 
+
+#if LWIP_DHCP
+  dhcp_init(stack);
+#endif
 
 #if IPv6_ROUTER_ADVERTISEMENT
   ip_radv_init();
@@ -138,12 +142,22 @@ ip_init(void)
 #endif
 
 #endif
+}
 
-#if LWIP_DHCP
-	dhcp_init();
+void 
+ip_shutdown(struct stack *stack)
+{
+#if IPv6_AUTO_CONFIGURATION
+  ip_autoconf_shutdown(stack);
+#endif 
+
+#if IPv4_FRAGMENTATION || IPv6_FRAGMENTATION
+  ip_frag_reass_shutdown(stack);
 #endif
 
+  ip_route_list_shutdown(stack);
 }
+
 
 
 /*--------------------------------------------------------------------------*/
@@ -157,8 +171,8 @@ ip_init(void)
  */
 
 INLINE static void
-ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif, 
-		struct netif *netif, struct ip_addr *nexthop,  struct pseudo_iphdr *piphdr)
+ip_forward(struct stack *stack, struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif, 
+           struct netif *netif, struct ip_addr *nexthop,  struct pseudo_iphdr *piphdr)
 {
   struct ip4_hdr *ip4hdr;
 
@@ -180,7 +194,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
       LWIP_DEBUGF(IP_DEBUG, ("ip_forward: dropped packet! TTL <= 0 "));
       /* Don't send ICMP messages in response to ICMP messages */
       if (piphdr->proto != IP_PROTO_ICMP4) 
-        icmp4_time_exceeded(p, ICMP_TE_TTL);
+        icmp4_time_exceeded(stack, p, ICMP_TE_TTL);
       pbuf_free(p);
       return;
     }
@@ -199,7 +213,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
       LWIP_DEBUGF(IP_DEBUG, ("ip_forward: dropped packet! HOPLIMIT <= 0 "));
       /* Don't send ICMP messages in response to ICMP messages */
       if (IPH_NEXTHDR(iphdr) != IP_PROTO_ICMP)
-        icmp_time_exceeded(p, ICMP_TE_TTL);
+        icmp_time_exceeded(stack, p, ICMP_TE_TTL);
       pbuf_free(p);
       return;
     }
@@ -228,7 +242,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
 
       if (IPH4_OFFSET(ip4hdr) & htons(IP_MF)) {
         LWIP_DEBUGF(IP_DEBUG, ("ip_forward: IPv4 DF bit set. Don't fragment!"));
-        icmp4_dest_unreach(p, ICMP_DUR_FRAG, netif->mtu);
+        icmp4_dest_unreach(stack, p, ICMP_DUR_FRAG, netif->mtu);
         pbuf_free(p);
         return;
       }
@@ -237,7 +251,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
         IP_STATS_INC(ip.fw);
         IP_STATS_INC(ip.xmit);
 
-        ip4_frag(p , netif, nexthop);
+        ip4_frag(stack, p , netif, nexthop);
       }
 #else
       LWIP_DEBUGF(IP_DEBUG, ("ip_forward: fragmentation on forwarded packets not implemented!"));
@@ -247,7 +261,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
     } 
     else if (IPH_V(iphdr) == 6) {
       /* IPv6 doesn't fragment forwarded packets  */
-      icmp_packet_too_big(p, netif->mtu);
+      icmp_packet_too_big(stack, p, netif->mtu);
       pbuf_free(p);
       return;
     }
@@ -275,7 +289,7 @@ ip_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif,
  * Finally, the packet is sent to the upper layer protocol input function.
  */
 INLINE static void
-ip_inpacket(struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piphdr) 
+ip_inpacket(struct stack *stack, struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piphdr) 
 {
 
 #if LWIP_USERFILTER
@@ -296,7 +310,7 @@ ip_inpacket(struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piph
 
       LWIP_DEBUGF(IP_DEBUG, ("IPv4 packet is a fragment (id=0x%04x tot_len=%u len=%u MF=%u offset=%u), calling ip_reass()\n",ntohs(IPH4_ID(ip4hdr)), p->tot_len, ntohs(IPH4_LEN(ip4hdr)), !!(IPH4_OFFSET(ip4hdr) & htons(IP_MF)), (ntohs(IPH4_OFFSET(ip4hdr)) & IP_OFFMASK)*8));
       /* reassemble the packet*/
-      p = ip4_reass(p);
+      p = ip4_reass(stack, p);
       /* packet not fully reassembled yet? */
       if (p == NULL) {
         LWIP_DEBUGF(IP_DEBUG,("%s: packet cached p=%p\n", __func__, p));
@@ -326,14 +340,14 @@ ip_inpacket(struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piph
     /* Process extension headers before upper-layers protocols */
     if (is_ipv6_exthdr(piphdr->proto)) {
       char *ehp = ((char *) p->payload) + piphdr->iphdrlen;
-      if (ip_process_exthdr(piphdr->proto, ehp, 0, &p, piphdr) < 0)
+      if (ip_process_exthdr(stack, piphdr->proto, ehp, 0, &p, piphdr) < 0)
         /* an error occurred. Stop */
         return;
     }
   }
 
 #if LWIP_RAW
-  raw_input(p, addr, piphdr);
+  raw_input(p, addr, piphdr); /* FIX MULTISTACK */
 #endif /* LWIP_RAW */
 
 
@@ -361,12 +375,12 @@ ip_inpacket(struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piph
     case IP_PROTO_ICMP + (6 << 8):
     case IP_PROTO_ICMP4 + (4 << 8):
       LWIP_DEBUGF(IP_DEBUG,("->ICMP\n"));
-      icmp_input(p, addr, piphdr);
+      icmp_input(stack, p, addr, piphdr);
       break;
     default:
       LWIP_DEBUGF(IP_DEBUG, ("Unsupported transport protocol %u\n", piphdr->proto));
       /* send ICMP destination protocol unreachable */
-      icmp_dest_unreach(p, ICMP_DUR_PROTO);
+      icmp_dest_unreach(stack, p, ICMP_DUR_PROTO);
       /*discard*/  
       IP_STATS_INC(ip.proterr);
       IP_STATS_INC(ip.drop);
@@ -377,7 +391,8 @@ ip_inpacket(struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piph
 /*--------------------------------------------------------------------------*/
 
 void
-ip_input(struct pbuf *p, struct netif *inp) {
+ip_input(struct pbuf *p, struct netif *inp) 
+{
   struct ip_hdr *iphdr;
   struct ip4_hdr *ip4hdr;
   struct netif *netif;
@@ -388,6 +403,9 @@ ip_input(struct pbuf *p, struct netif *inp) {
 #endif
   struct pseudo_iphdr piphdr;
   struct ip_addr src4,dest4;
+  
+  /* Get stack id from network interface */
+  struct stack *stack = inp->stack;
 
   PERF_START;
 
@@ -447,7 +465,7 @@ ip_input(struct pbuf *p, struct netif *inp) {
     else
       pbuf_realloc(p, ntohs(IPH4_LEN(ip4hdr)));
 
-    ip_inpacket(addrel, p, &piphdr);
+    ip_inpacket(stack, addrel, p, &piphdr);
 	goto ip_input_end;
   }
 
@@ -462,7 +480,7 @@ ip_input(struct pbuf *p, struct netif *inp) {
     tmpaddr.flags = 0;
     IP6_ADDR_LINKSCOPE(&tmpaddr.ipaddr, inp->hwaddr);
 
-    ip_inpacket(&tmpaddr, p, &piphdr);
+    ip_inpacket(stack, &tmpaddr, p, &piphdr);
 	goto ip_input_end;
   }
 
@@ -485,7 +503,7 @@ ip_input(struct pbuf *p, struct netif *inp) {
       tmpaddr.netif = inp;
       tmpaddr.flags = 0;
 
-      ip_inpacket(&tmpaddr, p, &piphdr);
+      ip_inpacket(stack, &tmpaddr, p, &piphdr);
       goto ip_input_end;
     }
   }
@@ -494,10 +512,10 @@ ip_input(struct pbuf *p, struct netif *inp) {
 
 
 #if IP_FORWARD
-  else if (ip_route_findpath(piphdr.dest, &nexthop, &netif, &fwflags) == ERR_OK && netif != inp)
+  else if (ip_route_findpath(stack, piphdr.dest, &nexthop, &netif, &fwflags) == ERR_OK && netif != inp)
   { 
     /* forwarding */
-    ip_forward(p, iphdr, inp, netif, nexthop, &piphdr);
+    ip_forward(stack, p, iphdr, inp, netif, nexthop, &piphdr);
     goto ip_input_end;
   }
 #endif
@@ -520,9 +538,9 @@ ip_input_end:
  * the IP address of the outgoing network interface is filled in as source address.
  */
 err_t
-ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
-       u8_t ttl, u8_t tos,
-       u8_t proto, struct netif *netif, struct ip_addr *nexthop, int flags)
+ip_output_if (struct stack *stack, struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
+              u8_t ttl, u8_t tos, u8_t proto, 
+              struct netif *netif, struct ip_addr *nexthop, int flags)
 {
   err_t  ret = ERR_OK; /* default return value */
   struct ip_hdr *iphdr;
@@ -536,8 +554,8 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
 	/*fprintf(stderr, "ip_output_if %p\n", src);*/
 	if (src == NULL) {
 		fprintf(stderr, "*^*^*^ ip_output_if NULL!\n");
-	  return ERR_BUF;
-  }
+		return ERR_BUF;
+	}
 
   PERF_START;
 
@@ -578,8 +596,8 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
       IPH4_VHLTOS_SET(ip4hdr, 4, IP4_HLEN / 4, tos);
       IPH4_LEN_SET(ip4hdr, htons(p->tot_len));
       IPH4_OFFSET_SET(ip4hdr, htons(IP_DF));
-      IPH4_ID_SET(ip4hdr, htons(ip_id));
-      ++ip_id;
+      IPH4_ID_SET(ip4hdr, htons(stack->ip_id));
+      ++stack->ip_id;
       ip64_addr_set(&(ip4hdr->src), src);
       IPH4_CHKSUM_SET(ip4hdr, 0);
       IPH4_CHKSUM_SET(ip4hdr, inet_chksum(ip4hdr, IP4_HLEN));
@@ -668,13 +686,13 @@ ip_output_if (struct pbuf *p, struct ip_addr *src, struct ip_addr *dest,
       LWIP_DEBUGF(IP_DEBUG, ("ip_output_if: packet need fragmentation (len=%d, mtu=%d)\n",p->tot_len,netif->mtu));
 #if IPv4_FRAGMENTATION 
       if (version == 4) {
-        ret = ip4_frag(p , netif, nexthop);
+        ret = ip4_frag(stack, p , netif, nexthop);
         goto end_ip_output_if;
       }
 #endif
 #if IPv6_FRAGMENTATION 
       if (version == 6) {
-        ret = ip6_frag(p , netif, nexthop);
+        ret = ip6_frag(stack, p , netif, nexthop);
         goto end_ip_output_if;
       }
 #endif
@@ -712,7 +730,8 @@ end_ip_output_if:
  * calls upon ip_output_if to do the actual work.
  */
 err_t
-ip_output(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest, u8_t ttl, u8_t tos, u8_t proto)
+ip_output(struct stack *stack, struct pbuf *p, struct ip_addr *src, struct ip_addr *dest, 
+          u8_t ttl, u8_t tos, u8_t proto)
 {                      
   struct netif *netif;
   struct ip_addr *nexthop;
@@ -727,13 +746,13 @@ ip_output(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest, u8_t ttl, u
   LWIP_DEBUGF(IP_DEBUG, ("  ttl=%d", ttl));
   LWIP_DEBUGF(IP_DEBUG, ("  proto=%d\n", proto));
 
-  if (ip_route_findpath(dest, &nexthop, &netif, &flags) != ERR_OK) {
+  if (ip_route_findpath(stack, dest, &nexthop, &netif, &flags) != ERR_OK) {
     LWIP_DEBUGF(IP_DEBUG, ("ip_output: No route to XXX \n" ));
     IP_STATS_INC(ip.rterr);
     return ERR_RTE;
   }
   else {
-    return ip_output_if (p, src, dest, ttl, tos, proto, netif, nexthop, flags);
+    return ip_output_if (stack, p, src, dest, ttl, tos, proto, netif, nexthop, flags);
   }
 }
 
@@ -746,6 +765,8 @@ ip_output(struct pbuf *p, struct ip_addr *src, struct ip_addr *dest, u8_t ttl, u
 void 
 ip_notify(struct netif *netif, u32_t type)
 {
+  struct stack *stack = netif->stack;
+
   switch(type) {
 
     case NETIF_CHANGE_UP:
@@ -912,8 +933,9 @@ ip_debug_print(int how, struct pbuf *p)
  * It returns 1 if the pseudo header is fill without error,
  * 0 if the the packet contains a bad IP version number.
  */
-int ip_build_piphdr(struct pseudo_iphdr *piphdr, struct pbuf *p, 
-    struct ip_addr *src4, struct ip_addr *dest4) 
+int 
+ip_build_piphdr(struct pseudo_iphdr *piphdr, struct pbuf *p, 
+                struct ip_addr *src4, struct ip_addr *dest4) 
 {
   struct ip_hdr *iphdr;
   struct ip4_hdr *ip4hdr;
@@ -951,13 +973,12 @@ int ip_build_piphdr(struct pseudo_iphdr *piphdr, struct pbuf *p,
   }
 }
 
-
-
-
 /*
  * Process Extension headers of IPv6.
  */
-INLINE static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pbuf **p, struct pseudo_iphdr *piphdr)
+INLINE static int 
+ip_process_exthdr(struct stack *stack, u8_t hdr, char *exthdr, u8_t hpos, 
+                  struct pbuf **p, struct pseudo_iphdr *piphdr)
 {
   struct ip_exthdr *prevhdr; /* previous ext header */
   u8_t loop = 1;
@@ -988,7 +1009,7 @@ INLINE static int ip_process_exthdr(u8_t hdr, char *exthdr, u8_t hpos, struct pb
         struct ip6_fraghdr *fhdr = (struct ip6_fraghdr *) exthdr;
         LWIP_DEBUGF(IP_DEBUG, ("Fragment Header\n"));
 
-        *p = ip6_reass(*p, fhdr, prevhdr); 
+        *p = ip6_reass(stack, *p, fhdr, prevhdr); 
         if (*p == NULL) {
           /* Don't free 'p'. Fragmentation code has "stolen" the packet */
           LWIP_DEBUGF(IP_DEBUG,("\tpacket cached p=%p\n", *p));

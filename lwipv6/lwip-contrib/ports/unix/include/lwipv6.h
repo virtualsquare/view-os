@@ -88,17 +88,31 @@ struct ip_addr {
 
 
 #ifndef LWIPV6DL
+typedef void (*lwipvoidfun)();
 extern const struct ip_addr ip_addr_any;
 #define IP_ADDR_ANY ((struct ip_addr *)&ip_addr_any)
+struct netif;
+struct sockaddr;
+struct stack;
 
 void lwip_initstack(void);
 void lwip_stopstack(void);
 
-struct netif;
-struct sockaddr;
+void lwip_init(void);
+
+void lwip_thread_new(void (* thread)(void *arg), void *arg);
+struct stack *lwip_stack_new(void);
+void lwip_stack_free(struct stack *stackid);
+
+struct stack *lwip_stack_get(void);
+void lwip_stack_set(struct stack *stackid);
+
 struct netif *lwip_vdeif_add(void *arg);
 struct netif *lwip_tapif_add(void *arg);
 struct netif *lwip_tunif_add(void *arg);
+struct netif *lwip_vdeif_madd(struct stack *stackid, void *arg);
+struct netif *lwip_tapif_madd(struct stack *stackid, void *arg);
+struct netif *lwip_tunif_madd(struct stack *stackid, void *arg);
 
 int lwip_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
 int lwip_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
@@ -124,11 +138,13 @@ int lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 int lwip_send(int s, void *dataptr, int size, unsigned int flags);
 int lwip_sendto(int s, void *dataptr, int size, unsigned int flags,
 		    struct sockaddr *to, socklen_t tolen);
+int lwip_msocket(struct stack *stackid, int domain, int type, int protocol);
 int lwip_socket(int domain, int type, int protocol);
 int lwip_write(int s, void *dataptr, int size);
 int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
 		                struct timeval *timeout);
 int lwip_ioctl(int s, long cmd, void *argp);
+
 
 
 struct iovec;
@@ -138,6 +154,9 @@ int lwip_readv(int s, struct iovec *vector, int count);
 
 int lwip_radv_load_configfile(void *arg);
 
+int lwip_event_subscribe(lwipvoidfun cb, void *arg, int fd, int how);
+
+
 #else   /* Dynamic Loading */
 #include <dlfcn.h>
 
@@ -146,13 +165,22 @@ struct ip_addr *pip_addr_any;
 
 struct netif;
 typedef struct netif *pnetif;
+typedef struct stack *pstack;
 typedef pnetif (*pnetiffun)();
+typedef pstack (*pstackfun)();
 typedef int (*lwiplongfun)();
 typedef void (*lwipvoidfun)();
 
 lwipvoidfun lwip_initstack,  lwip_stopstack;
+lwipvoidfun lwip_init;
+pstackfun lwip_stack_new;
+lwipvoidfun lwip_stack_free;
+pstackfun lwip_stack_get;
+lwipvoidfun lwip_stack_set;
+lwipvoidfun lwip_thread_new;
 
 pnetiffun lwip_vdeif_add, lwip_tapif_add, lwip_tunif_add;
+pnetiffun lwip_vdeif_madd, lwip_tapif_madd, lwip_tunif_madd;
 
 lwiplongfun lwip_add_addr,
 lwip_del_addr,
@@ -182,61 +210,79 @@ lwip_select,
 lwip_ioctl,
 
 lwip_writev,
-lwip_readv
+lwip_readv,
+
+lwip_msocket,
+lwip_event_subscribe
 ;
 
 /* Added by Diego Billi */
 lwiplongfun lwip_radv_load_configfile;
 
-#define LOADLWIPV6DL ({ \
-	struct lwipname2fun {\
-		char *funcname;\
-		lwiplongfun *f;\
-	} lwiplibtab[] = {\
-		{"lwip_initstack", (lwiplongfun*)&lwip_initstack},\
-		{"lwip_stopstack", (lwiplongfun*)&lwip_stopstack},\
-		{"lwip_add_addr", &lwip_add_addr},\
-		{"lwip_del_addr", &lwip_del_addr},\
-		{"lwip_add_route", &lwip_add_route},\
-		{"lwip_del_route", &lwip_del_route},\
-		{"lwip_ifup", &lwip_ifup}, \
-		{"lwip_ifdown", &lwip_ifdown},\
-		{"lwip_accept", &lwip_accept},\
-		{"lwip_bind", &lwip_bind}, \
-		{"lwip_shutdown", &lwip_shutdown},\
-		{"lwip_getpeername", &lwip_getpeername},\
-		{"lwip_getsockname", &lwip_getsockname},\
-		{"lwip_getsockopt", &lwip_getsockopt},\
-		{"lwip_setsockopt", &lwip_setsockopt},\
-		{"lwip_close", &lwip_close},\
-		{"lwip_connect", &lwip_connect},\
-		{"lwip_listen", &lwip_listen},\
-		{"lwip_recv", &lwip_recv}, \
-		{"lwip_read", &lwip_read}, \
-		{"lwip_recvfrom", &lwip_recvfrom},\
-		{"lwip_send", &lwip_send}, \
-		{"lwip_sendto", &lwip_sendto},\
-		{"lwip_socket", &lwip_socket},\
-		{"lwip_write", &lwip_write},\
-		{"lwip_select", &lwip_select},\
-		{"lwip_ioctl", &lwip_ioctl},\
-		{"lwip_readv", &lwip_readv},\
-		{"lwip_writev", &lwip_writev},\
-		{"lwip_vdeif_add", (lwiplongfun *)(&lwip_vdeif_add)},\
-		{"lwip_tapif_add", (lwiplongfun *)(&lwip_tapif_add)},\
-		{"lwip_tunif_add", (lwiplongfun *)(&lwip_tunif_add)}, \
-		{"lwip_radv_load_configfile", (lwiplongfun *)(&lwip_radv_load_configfile)} \
-	};\
-	int i;\
-	void *lwiphandle = dlopen("liblwipv6.so",RTLD_NOW); \
-	if(lwiphandle == NULL) { \
-		fprintf(stderr,"lwiplib not found %s\n",dlerror());\
-		exit(-1);\
-	}\
-	for (i=0; i<(sizeof(lwiplibtab)/sizeof(struct lwipname2fun)); i++) \
-		*lwiplibtab[i].f = dlsym(lwiphandle,lwiplibtab[i].funcname);\
-	pip_addr_any = dlsym(lwiphandle,"ip_addr_any");\
-})
+
+
+#define LOADLWIPV6DL (loadlwipv6dl())
+static inline void loadlwipv6dl()
+{
+	struct lwipname2fun {
+		char *funcname;
+		lwiplongfun *f;
+	} lwiplibtab[] = {
+		{"lwip_initstack", (lwiplongfun*)&lwip_initstack},
+		{"lwip_stopstack", (lwiplongfun*)&lwip_stopstack},
+		{"lwip_init", (lwiplongfun*)&lwip_init},
+		{"lwip_stack_new", (lwiplongfun*)&lwip_stack_new},
+		{"lwip_stack_free", (lwiplongfun*)&lwip_stack_free},
+		{"lwip_stack_get", (lwiplongfun*)&lwip_stack_get},
+		{"lwip_stack_set", (lwiplongfun*)&lwip_stack_set}, 
+		{"lwip_add_addr", &lwip_add_addr},
+		{"lwip_del_addr", &lwip_del_addr},
+		{"lwip_add_route", &lwip_add_route},
+		{"lwip_del_route", &lwip_del_route},
+		{"lwip_ifup", &lwip_ifup}, 
+		{"lwip_ifdown", &lwip_ifdown},
+		{"lwip_accept", &lwip_accept},
+		{"lwip_bind", &lwip_bind}, 
+		{"lwip_shutdown", &lwip_shutdown},
+		{"lwip_getpeername", &lwip_getpeername},
+		{"lwip_getsockname", &lwip_getsockname},
+		{"lwip_getsockopt", &lwip_getsockopt},
+		{"lwip_setsockopt", &lwip_setsockopt},
+		{"lwip_close", &lwip_close},
+		{"lwip_connect", &lwip_connect},
+		{"lwip_listen", &lwip_listen},
+		{"lwip_recv", &lwip_recv}, 
+		{"lwip_read", &lwip_read}, 
+		{"lwip_recvfrom", &lwip_recvfrom},
+		{"lwip_send", &lwip_send}, 
+		{"lwip_sendto", &lwip_sendto},
+		{"lwip_socket", &lwip_socket},
+		{"lwip_write", &lwip_write},
+		{"lwip_select", &lwip_select},
+		{"lwip_ioctl", &lwip_ioctl},
+		{"lwip_readv", &lwip_readv},
+		{"lwip_writev", &lwip_writev},
+		{"lwip_msocket", &lwip_msocket},
+		{"lwip_vdeif_add", (lwiplongfun *)(&lwip_vdeif_add)},
+		{"lwip_tapif_add", (lwiplongfun *)(&lwip_tapif_add)},
+		{"lwip_tunif_add", (lwiplongfun *)(&lwip_tunif_add)}, 
+		{"lwip_vdeif_madd", (lwiplongfun *)(&lwip_vdeif_madd)},
+		{"lwip_tapif_madd", (lwiplongfun *)(&lwip_tapif_madd)},
+		{"lwip_tunif_madd", (lwiplongfun *)(&lwip_tunif_madd)}, 
+		{"lwip_radv_load_configfile", (lwiplongfun *)(&lwip_radv_load_configfile)},
+		{"lwip_thread_new", (lwipvoidfun*) (&lwip_thread_new)},
+		{"lwip_event_subscribe", (lwipvoidfun*) (&lwip_event_subscribe)}
+	};
+	int i;
+	void *lwiphandle = dlopen("liblwipv6.so",RTLD_NOW); 
+	if(lwiphandle == NULL) { 
+		fprintf(stderr,"lwiplib not found %s\n",dlerror());
+		exit(-1);
+	}
+	for (i=0; i<(sizeof(lwiplibtab)/sizeof(struct lwipname2fun)); i++) 
+		*lwiplibtab[i].f = dlsym(lwiphandle,lwiplibtab[i].funcname);
+	pip_addr_any = dlsym(lwiphandle,"ip_addr_any");
+}
 
 #endif
 #endif

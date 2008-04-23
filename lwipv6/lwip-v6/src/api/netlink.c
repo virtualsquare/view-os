@@ -43,6 +43,9 @@ struct netlinkbuf {
 };
 
 struct netlink {
+
+	struct stack *stack;
+
 	char flags;
 	int proto;
 	u32_t pid;
@@ -103,15 +106,24 @@ void prefix2mask(int prefix,struct ip_addr *netmask)
 	}
 }
 			
-typedef void (*netlink_mgmt)(struct nlmsghdr *msg,void * buf,int *offset);
+typedef void (*netlink_mgmt)(struct stack *stack, struct nlmsghdr *msg,void * buf,int *offset);
 
 static netlink_mgmt mgmt_table[]={
 	/* NEW/DEL/GET/SET link */
-	netif_netlink_adddellink, netif_netlink_adddellink, netif_netlink_getlink,  NULL,
+	netif_netlink_adddellink,
+	netif_netlink_adddellink,
+	netif_netlink_getlink,
+	NULL,
 	/* NEW/DEL/GET addr */
-	netif_netlink_adddeladdr, netif_netlink_adddeladdr, netif_netlink_getaddr, NULL,
+	netif_netlink_adddeladdr, 
+	netif_netlink_adddeladdr, 
+	netif_netlink_getaddr, 
+	NULL,
 	/* NEW/DEL/GET route */
-	ip_route_netlink_adddelroute, ip_route_netlink_adddelroute, ip_route_netlink_getroute, NULL
+	ip_route_netlink_adddelroute, 
+	ip_route_netlink_adddelroute, 
+	ip_route_netlink_getroute, 
+	NULL
 };
 #define MGMT_TABLE_SIZE (sizeof(mgmt_table)/sizeof(netlink_mgmt))
 
@@ -130,8 +142,8 @@ void netlink_ackerror(void *msg,int ackerr,void *buf,int *offset)
 	netlink_addanswer(buf,&myoffset,msg,sizeof(struct nlmsghdr));
 	h->nlmsg_len=restorelen;
 }
-			
-static void netlink_decode (void *msg,int size,int bufsize,struct pbuf **out,u32_t pid)
+
+static void netlink_decode (struct stack *stack, void *msg,int size,int bufsize,struct pbuf **out,u32_t pid)
 {
 	//char buf[BUF_MAXLEN];
 	struct netlinkbuf nlbuf;
@@ -153,10 +165,9 @@ static void netlink_decode (void *msg,int size,int bufsize,struct pbuf **out,u32
 			return;
 		type=h->nlmsg_type - RTM_BASE;
 		h->nlmsg_pid=pid;
-		if (type >= 0 && type < MGMT_TABLE_SIZE &&
-				mgmt_table[type] != NULL)
-			mgmt_table[type](h,&nlbuf,&offset);
-		
+		if (type >= 0 && type < MGMT_TABLE_SIZE && mgmt_table[type] != NULL)
+			mgmt_table[type](stack, h,&nlbuf,&offset);
+
 		h = NLMSG_NEXT(h, size);
 	}
 	if (size) {
@@ -178,13 +189,13 @@ static void dump(char *data,int size)
 	for (i=0; i<(size+15)/16; i++) {
 		for (j=0; j<16; j++) 
 			if (i*16+j < size)
-				printf("%02x ",(unsigned char) data[i*16+j]);
+				printf("%02x ",data[i*16+j]);
 			else
 				printf("   ");
 		for (j=0; j<16; j++) 
 			if (i*16+j < size)
 				printf("%c ",(data[i*16+j]>=' ' &&
-						data[i*16+j] <= '~')?
+							data[i*16+j] <= '~')?
 						data[i*16+j]:'.');
 			else
 				printf("   ");
@@ -193,8 +204,8 @@ static void dump(char *data,int size)
 }
 #endif
 
-struct netconn *
-netlink_open(int type,int proto)
+	struct netconn *
+netlink_open(struct stack *stack, int type,int proto)
 {
 	register int i;
 	for (i=0;i<MAX_NL && (nl_t[i].flags & NL_ALLOC);i++)
@@ -202,6 +213,8 @@ netlink_open(int type,int proto)
 	if (i == MAX_NL)
 		return (NULL);
 	else  {
+		nl_t[i].stack  = stack;
+
 		nl_t[i].flags |= NL_ALLOC;
 		nl_t[i].proto=proto;
 		nl_t[i].pid=++pid_counter;
@@ -213,14 +226,14 @@ netlink_open(int type,int proto)
 	}
 }
 
-int
+	int
 netlink_accept(void *sock, struct sockaddr *addr, socklen_t *addrlen)
 {
 	/*printf("netlink_accept\n");*/
 	return 0;
 }
 
-int
+	int
 netlink_bind(void *sock, struct sockaddr *name, socklen_t namelen)
 {
 	struct netlink *nl=sock;
@@ -230,7 +243,7 @@ netlink_bind(void *sock, struct sockaddr *name, socklen_t namelen)
 	return 0;
 }
 
-int
+	int
 netlink_close(void *sock)
 {
 	struct netlink *nl=sock;
@@ -239,18 +252,21 @@ netlink_close(void *sock)
 	return 0;
 }
 
-int
+	int
 netlink_connect(void *sock, struct sockaddr *name, socklen_t namelen)
 {
 	/*printf("netlink_connect\n");*/
 	return 0;
 }
 
-int
+	int
 netlink_recvfrom(void *sock, void *mem, int len, unsigned int flags,
-        struct sockaddr *from, socklen_t *fromlen)
+		struct sockaddr *from, socklen_t *fromlen)
 {
 	struct netlink *nl=sock;
+
+	struct stack *stack = nl->stack;	
+
 	/*printf("netlink_recvfrom\n");*/
 	memset(from,0,*fromlen);
 	from->sa_family=PF_NETLINK;
@@ -266,7 +282,7 @@ netlink_recvfrom(void *sock, void *mem, int len, unsigned int flags,
 			pbuf_free(nl->answer[1]);
 			nl->answer[1]=NULL;
 		}
-		/*printf("LEN %d\n",len);*/
+		//printf("LEN %d\n",len);
 		return 0;
 	} 
 	else {
@@ -280,31 +296,34 @@ netlink_recvfrom(void *sock, void *mem, int len, unsigned int flags,
 	}
 }
 
-int
+	int
 netlink_send(void *sock, void *data, int size, unsigned int flags)
 {
 	struct netlink *nl=sock;
+
+	struct stack *stack = nl->stack;
+
 	/*printf("netlink_send\n"); dump(data,size);*/
 	/* one single answer pending, multiple requests return one long answer */
 	/*if (0 && nl->answer[0] != NULL)
 		return (-1);
-	else { */
-		netlink_decode(data,size,nl->rcvbufsize,nl->answer,nl->pid);
-		memcpy(&(nl->hdr),data,sizeof(struct nlmsghdr));
-		return 0;
+		else { */
+	netlink_decode(stack, data,size,nl->rcvbufsize,nl->answer,nl->pid);
+	memcpy(&(nl->hdr),data,sizeof(struct nlmsghdr));
+	return 0;
 	/*}*/
 }
 
-int
+	int
 netlink_sendto(void *sock, void *data, int size, unsigned int flags,
-       struct sockaddr *to, socklen_t tolen)
+		struct sockaddr *to, socklen_t tolen)
 {
 	/*printf("netlink_sendto\n");*/
 	netlink_send(sock,data,size,flags);
 	return 0;
 }
 
-int
+	int
 netlink_getsockname (void *sock, struct sockaddr *name, socklen_t *namelen)
 {
 	struct netlink *nl=sock;
@@ -319,7 +338,7 @@ netlink_getsockname (void *sock, struct sockaddr *name, socklen_t *namelen)
 	return(0);
 }
 
-int 
+	int 
 netlink_getsockopt (void *sock, int level, int optname, void *optval, socklen_t *optlen)
 {
 	struct netlink *nl=sock;
@@ -343,7 +362,7 @@ netlink_getsockopt (void *sock, int level, int optname, void *optval, socklen_t 
 	}  /* switch */
 
 	if( err != 0 ) {
-		    return err;
+		return err;
 	} else
 	{
 
@@ -364,7 +383,7 @@ netlink_getsockopt (void *sock, int level, int optname, void *optval, socklen_t 
 	}
 }
 
-int 
+	int 
 netlink_setsockopt (void *sock, int level, int optname, const void *optval, socklen_t optlen)
 {
 	struct netlink *nl=sock;

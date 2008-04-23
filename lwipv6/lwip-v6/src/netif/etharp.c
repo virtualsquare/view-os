@@ -65,6 +65,7 @@
 */
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 
 #include "lwip/inet.h"
 #include "netif/etharp.h"
@@ -962,7 +963,10 @@ err_t etharp_query(struct ip_addr_list *al, struct ip_addr *ipaddr, struct pbuf 
 
 err_t etharp_request(struct ip_addr_list *al, struct ip_addr *ipaddr)
 {
-	struct netif *netif=al->netif;
+	struct netif *netif = al->netif;
+	
+	struct stack *stack = netif->stack;
+	
 	struct eth_addr * srcaddr = (struct eth_addr *)netif->hwaddr;
 	err_t result = ERR_OK;
 	u8_t k; /* ARP entry index */
@@ -1009,7 +1013,7 @@ err_t etharp_request(struct ip_addr_list *al, struct ip_addr *ipaddr)
 			LWIP_DEBUGF(ETHARP_DEBUG | DBG_TRACE | 2, ("etharp_request: could not allocate pbuf for ARP request.\n"));
 		}
 	} else {
-		icmp_neighbor_solicitation(ipaddr, al);
+		icmp_neighbor_solicitation(stack, ipaddr, al);
 	}
   return result;
 }
@@ -1017,6 +1021,8 @@ err_t etharp_request(struct ip_addr_list *al, struct ip_addr *ipaddr)
 #if LWIP_PACKET
 void eth_packet_mgmt(struct netif *netif, struct pbuf *p,u8_t pkttype)
 {
+	struct stack *stack = netif->stack;
+	
 	struct sockaddr_ll sll;
 	struct eth_hdr *eh=p->payload;
 	memset(&sll, 0, sizeof(struct sockaddr_ll));
@@ -1036,7 +1042,8 @@ void eth_packet_mgmt(struct netif *netif, struct pbuf *p,u8_t pkttype)
 		else
 			sll.sll_pkttype = PACKET_OTHERHOST;
 	}
-  packet_input(p,&sll,sizeof(struct eth_hdr));
+	
+	packet_input(stack, p,&sll,sizeof(struct eth_hdr));
 }
 
 u16_t eth_packet_out(struct netif *netif, struct pbuf *p, struct sockaddr_ll *sll, u16_t protocol, u16_t dgramflag)

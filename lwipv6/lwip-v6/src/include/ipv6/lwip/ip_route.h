@@ -25,6 +25,8 @@
 #include "lwip/ip_addr.h"
 #include "lwip/err.h"
 
+struct stack;
+
 #if 0
 #ifdef IPv6_PMTU_DISCOVERY
 struct pmtu_info;
@@ -49,18 +51,17 @@ struct ip_route_list {
 
 };
 
-/* routing table. Please use it read-only! */
-extern struct ip_route_list *ip_route_head;
+void ip_route_list_init(struct stack *stack);
+void ip_route_list_shutdown(struct stack *stack);
 
-void ip_route_list_init();
 
-err_t ip_route_list_add(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags);
+err_t ip_route_list_add(struct stack *stack, struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags);
 
-err_t ip_route_list_del(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags);
+err_t ip_route_list_del(struct stack *stack, struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags);
 
-err_t ip_route_findpath(struct ip_addr *addr, struct ip_addr **pnexthop, struct netif **pnetif, int *flags);
+err_t ip_route_findpath(struct stack *stack, struct ip_addr *addr, struct ip_addr **pnexthop, struct netif **pnetif, int *flags);
 
-err_t ip_route_list_delnetif(struct netif *netif);
+err_t ip_route_list_delnetif(struct stack *stack, struct netif *netif);
 
 
 /* Select the source address for the given destination IP "dst" and the outgoing interface "outif"  */

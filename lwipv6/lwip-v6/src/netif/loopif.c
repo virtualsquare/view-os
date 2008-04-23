@@ -33,6 +33,8 @@
 
 #if LWIP_HAVE_LOOPIF
 
+#include "lwip/def.h"
+
 #include "netif/loopif.h"
 #include "lwip/mem.h"
 
@@ -47,6 +49,7 @@
 #include "lwip/arphdr.h"
 #endif
 
+#include "lwip/stack.h"
 #if 0
 static void
 loopif_input( void * arg )
@@ -116,10 +119,11 @@ loopif_output(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr)
 err_t
 loopif_init(struct netif *netif)
 {
-  static int num=0;
+  struct stack *stack = netif->stack;
+  
   netif->name[0] = 'l';
   netif->name[1] = 'o';
-  netif->num = num++;
+	netif->num = netif_next_num(netif,NETIF_LOOPIF);
   netif->output = loopif_output;
   netif->flags |= NETIF_FLAG_UP | NETIF_FLAG_LOOPBACK;
 #if LWIP_NL

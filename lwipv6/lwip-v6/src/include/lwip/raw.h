@@ -33,10 +33,12 @@
 #define __LWIP_RAW_H__
 
 #include "lwip/arch.h"
+#include "lwip/stack.h"
 
 #include "lwip/pbuf.h"
 ///#include "lwip/inet.h"
 #include "lwip/ip.h"
+struct stack;
 
 struct raw_pcb {
 /* Common members of all PCB types */
@@ -55,25 +57,23 @@ struct raw_pcb {
 
 /* The following functions is the application layer interface to the
    RAW code. */
-struct raw_pcb * raw_new        (u16_t proto);
+struct raw_pcb * raw_new        (struct stack *stack, u16_t proto);
 void             raw_remove     (struct raw_pcb *pcb);
-err_t            raw_bind       (struct raw_pcb *pcb, struct ip_addr *ipaddr, 
-		u16_t protocol);
-err_t            raw_connect    (struct raw_pcb *pcb, struct ip_addr *ipaddr, 
-		u16_t protocol);
+err_t            raw_bind       (struct raw_pcb *pcb, struct ip_addr *ipaddr, u16_t protocol);
+err_t            raw_connect    (struct raw_pcb *pcb, struct ip_addr *ipaddr, u16_t protocol);
 
 void             raw_recv       (struct raw_pcb *pcb,
                                  void (* recv)(void *arg, struct raw_pcb *pcb,
                                               struct pbuf *p,
                                               struct ip_addr *addr,
-																							u16_t protocol),
+                                              u16_t protocol),
                                  void *recv_arg);
-err_t            raw_sendto    (struct raw_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr);
+err_t            raw_sendto     (struct raw_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr);
 err_t            raw_send       (struct raw_pcb *pcb, struct pbuf *p);
 
 /* The following functions are the lower layer interface to RAW. */
-u8_t              raw_input      (struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr);
-void             raw_init       (void);
+u8_t             raw_input      (struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr);
+void             raw_init       (struct stack *stack);
 
 
 #endif /* __LWIP_RAW_H__ */

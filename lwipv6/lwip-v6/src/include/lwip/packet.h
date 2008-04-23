@@ -38,6 +38,7 @@
 ///#include "lwip/inet.h"
 #include "lwip/ip.h"
 #include "lwip/raw.h"
+struct stack;
 
 //#include <netpacket/packet.h>
 #include <linux/if_packet.h>
@@ -47,11 +48,9 @@
 #define packet_pcb raw_pcb
 #define MEMP_PACKET_PCB MEMP_RAW_PCB
 
-extern u16_t active_pfpacket;
-
 /* The following functions is the application layer interface to the
    PACKET code. */
-struct packet_pcb * packet_new        (u16_t proto,u16_t dgramflag);
+struct packet_pcb * packet_new     (struct stack *stack, u16_t proto,u16_t dgramflag);
 void             packet_remove     (struct packet_pcb *pcb);
 err_t            packet_bind       (struct packet_pcb *pcb, struct ip_addr *ipaddr,
 		u16_t protocol);
@@ -59,17 +58,17 @@ err_t            packet_connect    (struct packet_pcb *pcb, struct ip_addr *ipad
 		u16_t protocol);
 
 void             packet_recv       (struct packet_pcb *pcb,
-                                 void (* recv)(void *arg, struct packet_pcb *pcb,
-                                              struct pbuf *p,
-                                              struct ip_addr *addr,
-																							u16_t proto),
-                                 void *recv_arg);
-err_t            packet_sendto    (struct packet_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr, u16_t protocol);
+                                    void (* recv)(void *arg, struct packet_pcb *pcb,
+                                                  struct pbuf *p,
+                                                  struct ip_addr *addr,
+                                                  u16_t proto),
+                                    void *recv_arg);
+err_t            packet_sendto     (struct packet_pcb *pcb, struct pbuf *p, struct ip_addr *ipaddr, u16_t protocol);
 err_t            packet_send       (struct packet_pcb *pcb, struct pbuf *p);
 
 /* The following functions are the lower layer interface to PACKET. */
-u8_t              packet_input      (struct pbuf *p,struct sockaddr_ll *sll,u16_t link_header_size);
-void             packet_init       (void);
+u8_t             packet_input      (struct stack *stack, struct pbuf *p,struct sockaddr_ll *sll,u16_t link_header_size);
+void             packet_init       (struct stack *stack);
 
 
 #endif /* __LWIP_PACKET_H__ */

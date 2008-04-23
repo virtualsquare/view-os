@@ -25,10 +25,13 @@
  */
 #include "lwip/debug.h"
 #include "lwip/opt.h"
+#include "lwip/def.h"
 
 #include "lwip/ip_route.h"
 #include "lwip/inet.h"
 #include "lwip/netlink.h"
+#include "lwip/stack.h"
+#include "lwip/memp.h"
 
 /*--------------------------------------------------------------------------*/
 
@@ -51,10 +54,6 @@ static void ip_pmtu_free_list(struct pmtu_info  *head);
 #endif
 #endif
 
-
-static struct ip_route_list ip_route_pool[IP_ROUTE_POOL_SIZE];
-static struct ip_route_list *ip_route_freelist;
-struct ip_route_list *ip_route_head;
 
 /*---------------------------------------------------------------------------*/
 
@@ -90,10 +89,10 @@ sprintf_ip(char *str, struct ip_addr *addr)
 }
 
 
-void ip_route_debug_list(void)
+void ip_route_debug_list(struct stack *stack)
 {
 	char ip_tmp[40];
-	struct ip_route_list *r = ip_route_head;
+	struct ip_route_list *r = stack->ip_route_head;
 
 	if (r != NULL)
 		LWIP_DEBUGF(ROUTE_DEBUG, ("Destination                             Gateway                                 Genmask                                 Iface\n"));
@@ -116,15 +115,8 @@ void ip_route_debug_list(void)
 void ip_route_policy_table_init(void);
 
 
-void ip_route_list_init(void)
+void ip_route_list_init(struct stack *stack)
 {
-	register int i;
-	for (i=0;i<IP_ROUTE_POOL_SIZE-1;i++)
-		ip_route_pool[i].next=ip_route_pool+(i+1);
-	ip_route_pool[i].next=NULL;
-	ip_route_freelist=ip_route_pool;
-	ip_route_head=NULL;
-
 #if 0
 #ifdef IPv6_PMTU_DISCOVERY
 	ip_pmtu_init();
@@ -134,6 +126,15 @@ void ip_route_list_init(void)
 	ip_route_policy_table_init();
 }
 
+void ip_route_list_shutdown(struct stack *stack)
+{
+  /* FIX: TODO */
+
+  LWIP_DEBUGF(ROUTE_DEBUG, ("ip_route_list_shutdown: done!\n"));
+}
+
+/*---------------------------------------------------------------------------*/
+
 #define mask_wider(x,y) \
 	(((y)->addr[0] & ~((x)->addr[0])) | \
 	((y)->addr[1] & ~((x)->addr[1])) | \
@@ -141,17 +142,17 @@ void ip_route_list_init(void)
 	((y)->addr[3] & ~((x)->addr[3])))
 
 
-err_t ip_route_list_add(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags)
+err_t ip_route_list_add(struct stack *stack, struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags)
 {
+	struct ip_route_list *el  = memp_malloc(MEMP_ROUTE);
 	LWIP_ASSERT("ip_route_list_add NULL addr",addr != NULL);
 	LWIP_ASSERT("ip_route_list_add NULL netmask",netmask != NULL);
 	LWIP_ASSERT("ip_route_list_add NULL netif",netif != NULL);
-	if(ip_route_freelist == NULL)
+	if(el == NULL)
 		return ERR_MEM;
 	else {
-		struct ip_route_list **dp=(&ip_route_head);
-		struct ip_route_list *el=ip_route_freelist;
-
+		struct ip_route_list **dp = (&stack->ip_route_head);
+		
 		/* Find duplicate */
 		while (*dp != NULL && 
 			((!ip_addr_cmp(&((*dp)->addr),addr)) || 
@@ -162,15 +163,13 @@ err_t ip_route_list_add(struct ip_addr *addr, struct ip_addr *netmask, struct ip
 		if (*dp != NULL)
 			return ERR_CONN;
 
-		
-		dp=(&ip_route_head);
+		dp=(&stack->ip_route_head);
 
-		ip_route_freelist=ip_route_freelist->next;
 		ip_addr_set_mask(&(el->addr),addr,netmask);
-		ip_addr_set(&(el->netmask),netmask);
-		ip_addr_set(&(el->nexthop),nexthop);
-		el->netif=netif;
-		el->flags=flags;
+		ip_addr_set(&(el->netmask), netmask);
+		ip_addr_set(&(el->nexthop), nexthop);
+		el->netif = netif;
+		el->flags = flags;
 
 		/* ordered insert */
 		while (*dp != NULL && !mask_wider(&((*dp)->netmask),netmask)) {
@@ -179,18 +178,21 @@ err_t ip_route_list_add(struct ip_addr *addr, struct ip_addr *netmask, struct ip
 		el->next= *dp;
 		*dp=el;
 
-		ip_route_debug_list();
+		ip_route_debug_list(stack);
 
 		return ERR_OK;
 	}
 }
 
-err_t ip_route_list_del(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags)
+err_t ip_route_list_del(struct stack *stack, struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags)
 {
-	struct ip_route_list **dp=(&ip_route_head);
+	struct ip_route_list **dp=(&stack->ip_route_head);
+	
 	LWIP_ASSERT("ip_route_list_del NULL addr",addr != NULL);
 	/*LWIP_ASSERT("ip_route_list_del NULL netmask",netmask != NULL);*/
-	if (nexthop==NULL) nexthop=IP_ADDR_ANY;
+	
+	if (nexthop == NULL) nexthop = IP_ADDR_ANY;
+	
 	while (*dp != NULL && (
 	/* addr and mask must be compared separately because 
 	 * netmask can be NULL */
@@ -212,24 +214,24 @@ err_t ip_route_list_del(struct ip_addr *addr, struct ip_addr *netmask, struct ip
 #endif
 #endif
 
-		el->next=ip_route_freelist;
-		ip_route_freelist=el;
+		memp_free(MEMP_ROUTE,el);
 
-		ip_route_debug_list();
+		ip_route_debug_list(stack);
 
 		return ERR_OK;
 	}
 }
 
-err_t ip_route_list_delnetif(struct netif *netif)
+err_t ip_route_list_delnetif(struct stack *stack, struct netif *netif)
 {
-	struct ip_route_list **dp=(&ip_route_head);
+	struct ip_route_list **dp=(&stack->ip_route_head);
+	
 	if (netif == NULL)
 		return ERR_OK;
 	else {
 		while (*dp != NULL) {
 			if ((*dp)->netif == netif) {
-				struct ip_route_list *el=*dp;
+				struct ip_route_list *el = *dp;
 				*dp = el->next;
 
 #if 0
@@ -238,33 +240,35 @@ err_t ip_route_list_delnetif(struct netif *netif)
 #endif
 #endif
 
-				el->next=ip_route_freelist;
-				ip_route_freelist=el;
+				memp_free(MEMP_ROUTE,el);
 			} else
 				dp = &((*dp)->next);
 		}
 
-		ip_route_debug_list();
+		ip_route_debug_list(stack);
 	}
 	return ERR_OK;
 }
 
-err_t ip_route_findpath(struct ip_addr *addr, struct ip_addr **pnexthop, struct netif **pnetif, int *flags)
+err_t ip_route_findpath(struct stack *stack, struct ip_addr *addr, struct ip_addr **pnexthop, struct netif **pnetif, int *flags)
 {
-	struct ip_route_list *dp=ip_route_head;
+	struct ip_route_list *dp = stack->ip_route_head;
+	
 	LWIP_ASSERT("ip_route_findpath NULL addr",addr != NULL);
 	LWIP_ASSERT("ip_route_findpath NULL pnetif",pnetif != NULL);
 	LWIP_ASSERT("ip_route_findpath NULL pnexthop",pnexthop != NULL);
+	
 	while (dp != NULL &&
 			!ip_addr_maskcmp(addr,&(dp->addr),&(dp->netmask))) 
 		dp = dp->next;
+		
 	if (dp==NULL) {
 		*pnetif=NULL;
 		*pnexthop=NULL;
 		return ERR_RTE;
 	}
 	else {
-		*pnetif=dp->netif;
+		*pnetif = dp->netif;
 		if (ip_addr_isany(&(dp->nexthop))) {
 			//LWIP_DEBUGF(ROUTE_DEBUG, ("DIRECTLY CONNECTED %x\n",(*pnexthop)->addr[3]));
 			*pnexthop=addr;
@@ -424,7 +428,7 @@ static void ip_route_netlink_out_route(struct nlmsghdr *msg,struct ip_route_list
 	}
 }
 
-void ip_route_netlink_getroute(struct nlmsghdr *msg,void * buf,int *offset)
+void ip_route_netlink_getroute(struct stack *stack, struct nlmsghdr *msg,void * buf,int *offset)
 {
 	struct rtmsg *rtm=(struct rtmsg *)(msg+1);
 	struct rtattr *opt=(struct rtattr *)(rtm+1);
@@ -441,14 +445,14 @@ void ip_route_netlink_getroute(struct nlmsghdr *msg,void * buf,int *offset)
 	if (msg->nlmsg_len > sizeof (struct nlmsghdr)) 
 		family=rtm->rtm_family;
 	if ((flag & NLM_F_DUMP) == NLM_F_DUMP) {
-		struct ip_route_list *dp=ip_route_head;
+		struct ip_route_list *dp = stack->ip_route_head;
 		while (dp != NULL) {
 			ip_route_netlink_out_route(msg,dp,family,NULL,NULL,buf,offset);
 			dp=dp->next;
 		}
 	} else if (size > 0){
 		struct ip_addr ipaddr,netmask;
-		struct ip_route_list *dp=ip_route_head;
+		struct ip_route_list *dp = stack->ip_route_head;
 		memcpy(&ipaddr,IP_ADDR_ANY,sizeof(struct ip_addr));
 		prefix2mask((int)(rtm->rtm_dst_len)+(rtm->rtm_family == PF_INET?(32*3):0),&netmask);
 		while (RTA_OK(opt,size)) {
@@ -490,7 +494,7 @@ void ip_route_netlink_getroute(struct nlmsghdr *msg,void * buf,int *offset)
 	/*printf("FAMILY=%d\n",family);*/
 }
 
-void ip_route_netlink_adddelroute(struct nlmsghdr *msg,void * buf,int *offset)
+void ip_route_netlink_adddelroute(struct stack *stack, struct nlmsghdr *msg,void * buf,int *offset)
 {
 	struct rtmsg *rtm=(struct rtmsg *)(msg+1);
 	struct rtattr *opt=(struct rtattr *)(rtm+1);
@@ -560,7 +564,7 @@ void ip_route_netlink_adddelroute(struct nlmsghdr *msg,void * buf,int *offset)
 				} else
 				{
 					netid=(*((int *)(opt+1)));
-					nip=netif_find_id(netid);
+					nip=netif_find_id(stack, netid);
 					if (nip == NULL) {
 						fprintf(stderr,"Route add/deladdr id error %d \n",netid);
 						netlink_ackerror(msg,-ENODEV,buf,offset);
@@ -578,7 +582,7 @@ void ip_route_netlink_adddelroute(struct nlmsghdr *msg,void * buf,int *offset)
 
 	if (nip==NULL) {
 		/* XXX search the interface */
-		nip=netif_find_direct_destination(&nexthop);
+		nip=netif_find_direct_destination(stack, &nexthop);
 	}
 	if (nip == NULL) {
 		fprintf(stderr,"Gateway unreachable\n");
@@ -587,9 +591,9 @@ void ip_route_netlink_adddelroute(struct nlmsghdr *msg,void * buf,int *offset)
 	}
 
 	if (msg->nlmsg_type == RTM_NEWROUTE) {
-		err=ip_route_list_add(&ipaddr,&netmask,&nexthop,nip,flags);
+		err=ip_route_list_add(stack, &ipaddr,&netmask,&nexthop,nip,flags);
 	} else {
-		err=ip_route_list_del(&ipaddr,&netmask,&nexthop,nip,flags);
+		err=ip_route_list_del(stack, &ipaddr,&netmask,&nexthop,nip,flags);
 	}
 	/* XXX convert error */
 	netlink_ackerror(msg,err,buf,offset);
@@ -646,23 +650,23 @@ ip_route_policy_table_init(void)
 
 	IP6_ADDR( &ip_policy_table[1].ip     , 0,0,0,0,0,0,0,0);
 	IP6_ADDR( &ip_policy_table[1].prefix , 0,0,0,0,0,0,0,0);
-	ip_policy_table[0].precedence = 40;
-	ip_policy_table[0].label      =  1;
+	ip_policy_table[1].precedence = 40;
+	ip_policy_table[1].label      =  1;
 
 	IP6_ADDR( &ip_policy_table[2].ip     , 0x2002,0,0,0,0,0,0,0);
 	IP6_ADDR( &ip_policy_table[2].prefix , 0xffff,0,0,0,0,0,0,0);
-	ip_policy_table[0].precedence = 30;
-	ip_policy_table[0].label      =  2;
+	ip_policy_table[2].precedence = 30;
+	ip_policy_table[2].label      =  2;
 
 	IP6_ADDR( &ip_policy_table[3].ip     , 0,0,0,0,0,0,0,0);
 	IP6_ADDR( &ip_policy_table[3].prefix , 0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0,0);
-	ip_policy_table[0].precedence = 20;
-	ip_policy_table[0].label      =  3;
+	ip_policy_table[3].precedence = 20;
+	ip_policy_table[3].label      =  3;
 
 	IP6_ADDR( &ip_policy_table[4].ip     , 0,0,0,0,0,0xffff,0,0);
 	IP6_ADDR( &ip_policy_table[4].prefix , 0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0,0);
-	ip_policy_table[0].precedence = 10;
-	ip_policy_table[0].label      =  4;
+	ip_policy_table[4].precedence = 10;
+	ip_policy_table[4].label      =  4;
 
 	LWIP_DEBUGF(ROUTE_DEBUG, ("%s: done\n", __func__));
 }

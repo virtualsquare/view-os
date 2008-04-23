@@ -65,12 +65,14 @@
 #include "lwip/tcpip.h"
 #include "lwip/netif.h"
 #include "lwip/stats.h"
+#include "lwip/stack.h"
 
 #include "netif/vdeif.h"
 #include "netif/tunif.h"
 #include "netif/tapif.h"
 #include "netif/loopif.h"
 
+#include "lwip/sockets.h"
 
 #if IPv6_RADVCONF
 #include "lwip/radvconf.h"
@@ -78,12 +80,17 @@
 
 #define IFF_RUNNING 0x40
 
+/* #define MULTISTACKDEBUG*/
+
+static void multistack_daemon(void *argv);
 
 /*--------------------------------------------------------------------------*/
 
 extern int _nofdfake;
 
-static void lwip_loopif_add();
+static struct stack *mainstack;
+
+static void lwip_loopif_add(struct stack *stack);
 
 static void
 init_done(void *arg)
@@ -113,13 +120,14 @@ shutdown_done(void *arg)
  *
  * @note The dynamic linker call this function when the dynamic library is loaded.
  */
-void lwip_initstack(void)
+void lwip_init(void)
 {
 	sys_sem_t sem;
 	
 	if (getenv("_INSIDE_UMVIEW_MODULE") != NULL) {
 		_nofdfake = 1;
 	}
+	
 	srand(getpid()+time(NULL));
 	
 	/* Init stack's structures */
@@ -128,17 +136,10 @@ void lwip_initstack(void)
 	mem_init();
 	memp_init();
 	pbuf_init();
-	netif_init();
-	
-	sem = sys_sem_new(0);
-	tcpip_init(init_done, &sem);
-	sys_sem_wait(sem);
-	sys_sem_free(sem);
-	
-	/* Add loop interface at least */       
-	lwip_loopif_add();
-}
 
+	tcpip_init();
+}
+	
 
 /**
  * Shutdown the LwIPv6 Stack.
@@ -153,10 +154,70 @@ void lwip_stopstack(void)
 	sys_sem_t sem;
 
 	sem = sys_sem_new(0);
-	tcpip_shutdown(shutdown_done, &sem);
+	tcpip_shutdown(mainstack, shutdown_done, &sem);
 	sys_sem_wait(sem);
 	sys_sem_free(sem);
+
+#ifdef MULTISTACKDEBUG
+	printf("Main TCP/IP stack: %p stopped\n", mainstack);
+#endif
 }
+
+struct stack *lwip_stack_new(void)
+{
+	sys_sem_t sem;
+	struct stack *newstack;  
+
+	/* Start the main stack */
+	sem = sys_sem_new(0);
+	newstack = tcpip_start(init_done, &sem);
+	
+	sys_sem_wait(sem);
+	sys_sem_free(sem);
+	
+	/* Add loop interface at least */       
+	lwip_loopif_add(newstack);
+
+#ifdef MULTISTACKDEBUG
+	printf("%s: new %p\n", __func__, newstack);
+#endif
+
+	return newstack;
+}
+
+void lwip_initstack(void)
+{
+	lwip_init();
+	mainstack=lwip_stack_new();
+	tcpip_stack_set(mainstack);
+}
+
+struct stack *lwip_stack_get(void)
+{
+    return  tcpip_stack_get();
+}
+
+void lwip_stack_set(struct stack *stackid)
+{
+#ifdef MULTISTACKDEBUG
+    printf("%s: %p\n", __func__, stackid);
+#endif
+    tcpip_stack_set(stackid);
+}
+
+void lwip_stack_free(struct stack * stackid)
+{
+#ifdef MULTISTACKDEBUG
+    printf("%s: %p...\n", __func__, stackid);
+#endif
+    tcpip_shutdown(stackid, NULL, NULL);
+#ifdef MULTISTACKDEBUG
+    printf("%s: %p done!\n", __func__, stackid);
+#endif
+}
+
+
+
 
 static char *nullstring="";
 /*--------------------------------------------------------------------------*/
@@ -175,15 +236,16 @@ static char *nullstring="";
  * @note If IPv6 Stateless Autoconfiguration Protocol is not enabled,
  *       a Link-scope IPv6 address will be assigned to the new interface.
  */
-struct netif *lwip_vdeif_add(void *arg)
+struct netif *lwip_vdeif_madd(struct stack *stack, void *arg)
 {
 #if !IPv6_AUTO_CONFIGURATION
 	struct ip_addr ipaddr, netmask;
 #endif
 	struct netif *pnetif;
-	pnetif=mem_malloc(sizeof (struct netif));
-
-	if (tcpip_netif_add(pnetif, arg, vdeif_init, tcpip_input, tcpip_notify) == NULL) {
+	pnetif = mem_malloc(sizeof (struct netif));
+	
+	if (arg == NULL) arg = nullstring;
+	if (tcpip_netif_add(stack, pnetif, arg, vdeif_init, tcpip_input, tcpip_notify) == NULL) {
 		mem_free(pnetif);
 		return NULL;
 	}
@@ -206,6 +268,10 @@ struct netif *lwip_vdeif_add(void *arg)
 	return(pnetif);
 }
 
+struct netif *lwip_vdeif_add(void *arg)
+{
+	return lwip_vdeif_madd(tcpip_stack_get(),arg);
+}
 /**
  * Creates and adds a new TAP network interface to the stack. 
  *
@@ -222,16 +288,20 @@ struct netif *lwip_vdeif_add(void *arg)
  *
  * @note You need to configure the host side of the TAP link.
  */
-struct netif *lwip_tapif_add(void *arg)
+struct netif *lwip_tapif_madd(struct stack *stack, void *arg)
 {
 #if !IPv6_AUTO_CONFIGURATION
 	struct ip_addr ipaddr, netmask;
 #endif
 	struct netif *pnetif;
-	pnetif=mem_malloc(sizeof (struct netif));
+	pnetif = mem_malloc(sizeof (struct netif));
+	if (pnetif == NULL) {
+		printf("VDEIF NULL!");
+		return NULL;
+	}
 
-	if (arg==NULL) arg=nullstring;
-	if (tcpip_netif_add(pnetif, arg, tapif_init, tcpip_input, tcpip_notify) == NULL) {
+	if (arg == NULL) arg = nullstring;
+	if (tcpip_netif_add(stack, pnetif, arg, tapif_init, tcpip_input, tcpip_notify) == NULL) {
 		mem_free(pnetif);
 		return NULL;
 	}
@@ -253,6 +323,10 @@ struct netif *lwip_tapif_add(void *arg)
 
 	return(pnetif);
 }
+struct netif *lwip_tapif_add(void *arg)
+{
+	return lwip_tapif_madd(tcpip_stack_get(),arg);
+}
 
 /**
  * Creates and adds a new TUN network interface to the stack. 
@@ -268,21 +342,19 @@ struct netif *lwip_tapif_add(void *arg)
  *
  * @note You need to configure the host side of the TUN link.
  */
-struct netif *lwip_tunif_add(void *arg)
+struct netif *lwip_tunif_madd(struct stack *stack, void *arg)
 {
 #if ! IPv6_AUTO_CONFIGURATION
 	struct ip_addr ipaddr, netmask;
 #endif	
 	struct netif *pnetif;
-	pnetif=mem_malloc(sizeof (struct netif));
+	pnetif = mem_malloc(sizeof (struct netif));
 
-	if (arg==NULL) arg=nullstring;
-	if (tcpip_netif_add(pnetif, arg, tunif_init, tcpip_input, tcpip_notify) == NULL) {
+	if (arg == NULL) arg = nullstring;
+	if (tcpip_netif_add(stack, pnetif, arg, tunif_init, tcpip_input, tcpip_notify) == NULL) {
 		mem_free(pnetif);
 		return NULL;
 	}
-
-	/* missing? */
 
 	/* Link-scope address */
 #if !IPv6_AUTO_CONFIGURATION
@@ -294,21 +366,28 @@ struct netif *lwip_tunif_add(void *arg)
 	return(pnetif);
 }
 
-static void lwip_loopif_add()
+struct netif *lwip_tunif_add(void *arg)
 {
-	static struct netif loopif;
+	return lwip_tunif_madd(tcpip_stack_get(),arg);
+}
+
+static void lwip_loopif_add(struct stack *stack)
+{
+	struct netif *loopif;
 	struct ip_addr ipaddr, netmask;
 
-	//tcpip_netif_add(&loopif,NULL, loopif_init, tcpip_input, tcpip_notify);
-	tcpip_netif_add(&loopif,NULL, loopif_init, tcpip_input, NULL);
+	loopif = mem_malloc(sizeof (struct netif));
+        bzero(loopif, sizeof(struct netif) );
+
+	tcpip_netif_add(stack, loopif,NULL, loopif_init, tcpip_input, NULL);
 
 	IP6_ADDR(&ipaddr, 0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x1);
 	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff);
-	netif_add_addr(&loopif,&ipaddr, &netmask);
+	netif_add_addr(loopif,&ipaddr, &netmask);
 
 	IP64_ADDR(&ipaddr, 127,0,0,1);
 	IP64_MASKADDR(&netmask, 255,0,0,0);
-	netif_add_addr(&loopif,&ipaddr, &netmask);
+	netif_add_addr(loopif,&ipaddr, &netmask);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -401,12 +480,12 @@ int lwip_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *ne
  */
 int lwip_add_route(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags)
 {
-	if (netif==NULL) 
-		netif=netif_find_direct_destination(nexthop);
-	if (netif==NULL)
+	if (netif == NULL) 
+		netif = netif_find_direct_destination(mainstack, nexthop);
+	if (netif == NULL)
 		return -ENETUNREACH;
 	else
-		return ip_route_list_add(addr,netmask,nexthop,netif,flags);
+		return ip_route_list_add(mainstack, addr,netmask,nexthop,netif,flags);
 }
 
 /**
@@ -425,12 +504,12 @@ int lwip_add_route(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr
  */
 int lwip_del_route(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags)
 {
-	if (netif==NULL) 
-		netif=netif_find_direct_destination(nexthop);
-	if (netif==NULL)
+	if (netif == NULL) 
+		netif = netif_find_direct_destination(mainstack, nexthop);
+	if (netif == NULL)
 		return -ENETUNREACH;
 	else
-		return ip_route_list_del(addr,netmask,nexthop,netif,flags);
+		return ip_route_list_del(mainstack, addr,netmask,nexthop,netif,flags);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -453,74 +532,16 @@ int lwip_del_route(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr
 int lwip_radv_load_configfile(void *arg)
 {
 #if IPv6_RADVCONF
+	/* FIX: add MULTISTACK */
 	return radv_load_configfile((char*)arg);
 #endif
 	return -1;
 }
 
 
-
-#if 0
-
-
-//extern int _nofdfake;
-
-static void
-init_done(void *arg)
+void lwip_thread_new(void (* thread)(void *arg), void *arg)
 {
-	sys_sem_t *sem;
-	sem = arg;
-	
-	if (!_nofdfake) /* no extra messages for umview! */
-		printf("unixlib: lwip init done\n");
-	
-	sys_sem_signal(*sem);
-}
-
-static void
-shutdown_done(void *arg)
-{
-	sys_sem_t *sem;
-	sem = arg;
-	
-	if (!_nofdfake) /* no extra messages for umview! */
-		printf("unixlib: lwip shutdown done\n");
-	
-	sys_sem_signal(*sem);
+	sys_thread_new(thread, arg, DEFAULT_THREAD_PRIO);
 }
 
 
-void _init(void){
-	sys_sem_t sem;
-
-	if (getenv("_INSIDE_UMVIEW_MODULE") != NULL)
-		_nofdfake=1;
-	srand(getpid()+time(NULL));
-	
-	/* Init stack's structures */
-	stats_init();
-	sys_init();
-	mem_init();
-	memp_init();
-	pbuf_init();
-	netif_init();
-
-	sem = sys_sem_new(0);
-	tcpip_init(init_done, &sem);
-	sys_sem_wait(sem);
-	sys_sem_free(sem);
-
-	/* Add loop interface at least */	
-	lwip_loopif_add();
-}
-
-void _fini(void){
-	sys_sem_t sem;
-
-	sem = sys_sem_new(0);
-	tcpip_shutdown(shutdown_done, &sem);
-	sys_sem_wait(sem);
-	sys_sem_free(sem);
-}
-
-#endif

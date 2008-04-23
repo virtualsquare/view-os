@@ -70,14 +70,36 @@
 #include "lwip/ip_route.h"
 #include "lwip/netif.h"
 #include "lwip/tcp.h"
-
-
+#include "lwip/stack.h"
 
 #ifndef NETIF_DEBUG
 #define NETIF_DEBUG DBG_OFF
 #endif
 
-struct netif *netif_list = NULL;
+void
+netif_init(struct stack *stack)
+{
+	/* FIX: move ip_addr_list_init() to ip6.c? */
+
+	//ip_addr_list_init();
+	ip_addr_list_init(stack);
+
+	//ip_route_list_init(stack); 
+	
+	stack->netif_list = NULL;
+}
+
+void
+netif_shutdown(struct stack *stack)
+{
+  netif_cleanup(stack);
+  
+  /* FIX: TODO */
+
+  LWIP_DEBUGF( NETIF_DEBUG, ("netif_shutdown: done!\n") );
+}
+
+
 
 /**
  * Add a network interface to the list of lwIP netifs.
@@ -92,16 +114,24 @@ struct netif *netif_list = NULL;
  *
  * @return netif, or NULL if failed.
  */
-struct netif *
-netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
+struct netif * netif_add(
+  struct stack *stack,
+  struct netif *netif, 
+  void *state, 
+  err_t (* init)(struct netif *netif),
   err_t (* input)(struct pbuf *p, struct netif *netif),
   void (* change)(struct netif *netif, u32_t type))
 {
-  static u16_t uniqueid=0;
 	struct netif *nip;
 	struct netif *lastnip;
-	for (nip=netif_list; nip!=NULL; lastnip=nip,nip=nip->next)
+
+
+	for (nip=stack->netif_list; nip!=NULL; lastnip=nip,nip=nip->next) 
 		;
+		
+
+	/* Link this new interface with the stack */
+	netif->stack = stack;
 
 #if LWIP_DHCP
   /* netif not under DHCP control by default */
@@ -117,14 +147,14 @@ netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
   netif->cleanup = NULL;
   netif->change = change;
 
-  netif->id = ++uniqueid;
+  netif->id = ++stack->uniqueid;
 
   netif->flags = NETIF_RUNNING;
   /* printf("netif_add %x netif->input %x\n",netif,netif->input); */
 
   /* call user specified initialization function for netif */
   if (init(netif) != ERR_OK) {
-    ip_addr_list_freelist(netif->addrs);
+    ip_addr_list_freelist(stack, netif->addrs);
     return NULL;
   }
 
@@ -136,26 +166,37 @@ netif_add(struct netif *netif, void *state, err_t (* init)(struct netif *netif),
   ip_radv_netif_init(netif);
 #endif
 
-  if (netif_list == NULL)
-	  netif_list = netif;
+  if (stack->netif_list == NULL)
+	  stack->netif_list = netif;
   else
-	  lastnip->next=netif;
+	  lastnip->next = netif;
   netif->next=NULL;
-  LWIP_DEBUGF(NETIF_DEBUG, ("netif: added interface %c%c%d\n", netif->name[0], netif->name[1], netif->num));
+
+  LWIP_DEBUGF(NETIF_DEBUG, ("netif: added interface %c%c%d (stack %d) \n", netif->name[0], netif->name[1], netif->num, stack));
   return netif;
+}
+
+u8_t netif_next_num(struct netif *netif,int netif_model)
+{
+	return netif->stack->netif_num[netif_model]++;
 }
 
 int
 netif_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask)
 {
+	struct stack *stack = netif->stack;
+	
 	/* XXX check if this address is compatible */
 	struct ip_addr_list *add;
+	
+	LWIP_ASSERT("netif_add_addr stack mismatch", stack == netif->stack);
+	
 	
 	if (ip_addr_list_find(netif->addrs, ipaddr, netmask) != NULL) {
 		LWIP_DEBUGF( NETIF_DEBUG, ("netif_add_addr: Address already exists\n") );
 		return -EADDRINUSE;
 	} else {
-		add=ip_addr_list_alloc();
+		add=ip_addr_list_alloc(stack);
 		if (add==NULL) {
 			LWIP_DEBUGF( NETIF_DEBUG, ("netif_add_addr: NO more available addresses\n") );
 			return -ENOMEM;
@@ -177,18 +218,19 @@ netif_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netma
 #endif
 			add->netif=netif;
 			ip_addr_list_add(&(netif->addrs),add);
-			ip_route_list_add(ipaddr,netmask,NULL,netif,0);
+			ip_route_list_add(stack, ipaddr, netmask, NULL, netif, 0);
+			
 			return 0;
 		}
 	}
 }
 
-static void ip_addr_close(struct ip_addr *ipaddr)
+static void ip_addr_close(struct stack *stack, struct ip_addr *ipaddr)
 {
 #if LWIP_TCP
 	 struct tcp_pcb *pcb;
 	 /* struct tcp_pcb_listen *lpcb; */
-	 pcb = tcp_active_pcbs;
+	 pcb = stack->tcp_active_pcbs;
 	 while (pcb != NULL) {
 		 /* PCB bound to current local interface address? */
 		 if (ip_addr_cmp(&(pcb->local_ip), ipaddr)) {
@@ -218,6 +260,7 @@ static void ip_addr_close(struct ip_addr *ipaddr)
 int
 netif_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask)
 {
+	struct stack *stack = netif->stack;
 	struct ip_addr_list *el;
 	
 	if ((el=ip_addr_list_find(netif->addrs, ipaddr, netmask)) == NULL) {
@@ -233,8 +276,8 @@ netif_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netma
 		/*printf("netif_del_addr %p %x %x\n",netif,
 				(ipaddr)?ipaddr->addr[3]:0,
 				(netmask)?netmask->addr[3]:0);*/
-		ip_addr_close(ipaddr);
-		ip_route_list_del(ipaddr,netmask,NULL,netif,0);
+		ip_addr_close(stack, ipaddr);
+		ip_route_list_del(stack, ipaddr,netmask,NULL,netif,0);
 		ip_addr_list_del(&(netif->addrs),el);	 
 		return 0;
 	}
@@ -242,38 +285,45 @@ netif_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netma
 
 void netif_remove(struct netif * netif)
 {
+  struct stack *stack;
   if ( netif == NULL ) return;
+  
+  stack = netif->stack;
 
   /*  is it the first netif? */
-  if (netif_list == netif) {
-    netif_list = netif->next;
+  if (stack->netif_list == netif) {
+    stack->netif_list = netif->next;
   }
   else {
     /*  look for netif further down the list */
     struct netif * tmpNetif;
-    for (tmpNetif = netif_list; tmpNetif != NULL; tmpNetif = tmpNetif->next) {
+    
+    for (tmpNetif = stack->netif_list; tmpNetif != NULL; tmpNetif = tmpNetif->next) {
       if (tmpNetif->next == netif) {
-	struct ip_addr_list *el;
+        struct ip_addr_list *el;
         tmpNetif->next = netif->next;
-	while (netif->addrs != NULL) {
-		el=ip_addr_list_first(netif->addrs);
-		ip_addr_close(&(el->ipaddr));
-		ip_addr_list_del(&(netif->addrs),el);
-	}
-        break;
+        while (netif->addrs != NULL) {
+          el = ip_addr_list_first(netif->addrs);
+          ip_addr_close(stack, &(el->ipaddr));
+          ip_addr_list_del(&(netif->addrs),el);
         }
+        break;
+      }
     }
     if (tmpNetif == NULL)
       return; /*  we didn't find any netif today */
   }
-  ip_route_list_delnetif(netif);
-	if(netif->cleanup)
-		netif->cleanup(netif);
+  
+  ip_route_list_delnetif(stack, netif);
+  
+  if(netif->cleanup)
+    netif->cleanup(netif);
+    
   LWIP_DEBUGF( NETIF_DEBUG, ("netif_remove: removed netif\n") );
 }
 
 struct netif *
-netif_find(char *name)
+netif_find(struct stack *stack, char *name)
 {
 	struct netif *netif;
 	u8_t num;
@@ -287,7 +337,7 @@ netif_find(char *name)
 	else
 		num = 0;
 	
-	for(netif = netif_list; netif != NULL; netif = netif->next) {
+	for(netif = stack->netif_list; netif != NULL; netif = netif->next) {
 		if (num == netif->num && 
 		    name[0] == netif->name[0] && name[1] == netif->name[1]) {
 			LWIP_DEBUGF(NETIF_DEBUG, ("netif_find: found %c%c\n", name[0], name[1]));
@@ -299,48 +349,41 @@ netif_find(char *name)
 }
 
 struct netif *
-netif_find_id(int id)
+netif_find_id(struct stack *stack, int id)
 {
 	struct netif *nip;
 	
-	for (nip=netif_list; nip!=NULL && nip->id != id; nip=nip->next)
+	for (nip=stack->netif_list; nip!=NULL && nip->id != id; nip=nip->next)
 		;
 	
 	return nip;
 }
 
 struct netif *
-netif_find_direct_destination(struct ip_addr *addr)
+netif_find_direct_destination(struct stack *stack, struct ip_addr *addr)
 {
 	struct netif *nip;
-	for (nip=netif_list; 
+	for (nip=stack->netif_list; 
 		nip!=NULL && ip_addr_list_maskfind(nip->addrs,addr) == NULL;
 			nip=nip->next)
 		;
 	return nip;
 }
 
-void
-netif_init(void)
-{
-	ip_addr_list_init();
-	ip_route_list_init();
-	netif_list = NULL;
-}
 
 void
-netif_cleanup(void)
+netif_cleanup(struct stack *stack)
 {
 	struct netif *nip;
 	
-	for (nip=netif_list; nip!=NULL; nip=nip->next)
+	for (nip=stack->netif_list; nip!=NULL; nip=nip->next)
 		// FIX: shutdown interface? RA needs this.
 		if (nip->cleanup)
 			nip->cleanup(nip);
 }
 
 
-static int netif_ifconf(struct ifconf *ifc) 
+static int netif_ifconf(struct stack *stack, struct ifconf *ifc) 
 {
 	struct netif *nip;
 	register int i;
@@ -352,7 +395,7 @@ static int netif_ifconf(struct ifconf *ifc)
 	/*printf("-netif_ifconf %d\n",ifc->ifc_len);*/
 	ifc->ifc_len=0;
 	memset(ifr_v, 0, maxlen); /* jjsa clear the memory area */
-	for (nip=netif_list, i=0; nip!=NULL && ifc->ifc_len < maxlen; 
+	for (nip=stack->netif_list, i=0; nip!=NULL && ifc->ifc_len < maxlen; 
 			nip=nip->next, i++) {
 		ifc->ifc_len += sizeof(struct ifreq);
 		if (ifc->ifc_len > maxlen)
@@ -401,7 +444,7 @@ static int netif_ifconf(struct ifconf *ifc)
 #undef ifr_v
 }
 
-int netif_ioctl(int cmd,struct ifreq *ifr)
+int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr)
 {
 	u16_t oldflags;
 	int retval;
@@ -412,11 +455,11 @@ int netif_ioctl(int cmd,struct ifreq *ifr)
 		retval=EFAULT;
 	else {
 		if (cmd == SIOCGIFCONF) {
-			retval=netif_ifconf((struct ifconf *)ifr);
+			retval=netif_ifconf(stack, (struct ifconf *)ifr);
 		} else {
 #define ifrname ifr->ifr_name
 			ifrname[4]=ifrname[5]=0;
-			if (ifrname[3] != 0 || (nip = netif_find(ifrname)) == NULL) {
+			if (ifrname[3] != 0 || (nip = netif_find(stack, ifrname)) == NULL) {
 				retval=EINVAL;
 			}
 			else {
@@ -637,7 +680,7 @@ static void netif_netlink_link_out(struct nlmsghdr *msg,struct netif *nip,void *
 	netlink_addanswer(buf,&myoffset,msg,sizeof (struct nlmsghdr));
 }
 
-void netif_netlink_adddellink(struct nlmsghdr *msg,void * buf,int *offset)
+void netif_netlink_adddellink(struct stack *stack, struct nlmsghdr *msg,void * buf,int *offset)
 {
 	struct ifinfomsg *ifi=(struct ifinfomsg *)(msg+1);
 	struct netif *nip;
@@ -648,7 +691,7 @@ void netif_netlink_adddellink(struct nlmsghdr *msg,void * buf,int *offset)
 	netlink_ackerror(msg,-EOPNOTSUPP,buf,offset);
 }
 
-void netif_netlink_getlink(struct nlmsghdr *msg,void * buf,int *offset)
+void netif_netlink_getlink(struct stack *stack, struct nlmsghdr *msg,void * buf,int *offset)
 {
 	struct ifinfomsg *ifi=(struct ifinfomsg *)(msg+1);
 	struct netif *nip;
@@ -660,11 +703,11 @@ void netif_netlink_getlink(struct nlmsghdr *msg,void * buf,int *offset)
 		netlink_ackerror(msg,-ENXIO,buf,offset);
 		return;
 	}
-	for (nip=netif_list; nip!=NULL; nip=nip->next)
+	for (nip=stack->netif_list; nip!=NULL; nip=nip->next)
 	{
 		if ((flag & NLM_F_DUMP) == NLM_F_DUMP ||
 				ifi->ifi_index == nip->id)
-			 netif_netlink_link_out(msg,nip,buf,offset);
+			netif_netlink_link_out(msg,nip,buf,offset);
 	}
 	msg->nlmsg_type = NLMSG_DONE;
 	msg->nlmsg_flags = 0;
@@ -736,7 +779,7 @@ static void netif_netlink_out_addr(struct nlmsghdr *msg,struct netif *nip,struct
 	netlink_addanswer(buf,&myoffset,msg,sizeof (struct nlmsghdr));
 }
 
-void netif_netlink_getaddr(struct nlmsghdr *msg,void * buf,int *offset)
+void netif_netlink_getaddr(struct stack *stack, struct nlmsghdr *msg,void * buf,int *offset)
 {
 	struct ifaddrmsg *ifa=(struct ifaddrmsg *)(msg+1);
 	/*char *opt=(char *)(ifa+1);*/
@@ -749,7 +792,7 @@ void netif_netlink_getaddr(struct nlmsghdr *msg,void * buf,int *offset)
 		netlink_ackerror(msg,-1,buf,offset);
 		return;
 	}
-	for (nip=netif_list; nip!=NULL; nip=nip->next)
+	for (nip=stack->netif_list; nip!=NULL; nip=nip->next)
 	{
 		if ((flag & NLM_F_DUMP) == NLM_F_DUMP ||
 				ifa->ifa_index == nip->id) {
@@ -775,7 +818,7 @@ void netif_netlink_getaddr(struct nlmsghdr *msg,void * buf,int *offset)
 	msg->nlmsg_len=lenrestore;
 }
 
-void netif_netlink_adddeladdr(struct nlmsghdr *msg,void * buf,int *offset)
+void netif_netlink_adddeladdr(struct stack *stack, struct nlmsghdr *msg,void * buf,int *offset)
 {
 	struct ifaddrmsg *ifa=(struct ifaddrmsg *)(msg+1);
 	struct rtattr *opt=(struct rtattr *)(ifa+1);
@@ -790,7 +833,7 @@ void netif_netlink_adddeladdr(struct nlmsghdr *msg,void * buf,int *offset)
 		netlink_ackerror(msg,-ENXIO,buf,offset);
 		return;
 	}
-	nip=netif_find_id(ifa->ifa_index);
+	nip=netif_find_id(stack, ifa->ifa_index);
 	if (nip == NULL) {
 		fprintf(stderr,"Netlink add/deladdr id error\n");
 		netlink_ackerror(msg,-ENODEV,buf,offset);
@@ -837,19 +880,19 @@ void netif_netlink_adddeladdr(struct nlmsghdr *msg,void * buf,int *offset)
 
 
 #if 0
-					case SIOCSIFADDR:
-					{
-						struct  sockaddr_in *addr = (struct  sockaddr_in *) &ifr->ifr_addr;
-						if (addr->sin_family == AF_INET) {
-							struct ip_addr ip;
-							printf("IPv4\n");
-							IP64_CONV( &ip, (struct ip4_addr *) &addr->sin_addr);
-							ip_addr_debug_print(NETIF_DEBUG, &ip);
-						}
-						else 
-						if (addr->sin_family == AF_INET) {
-							printf("IPv6\n");
-						}
-					}
+case SIOCSIFADDR:
+{
+	struct  sockaddr_in *addr = (struct  sockaddr_in *) &ifr->ifr_addr;
+	if (addr->sin_family == AF_INET) {
+		struct ip_addr ip;
+		printf("IPv4\n");
+		IP64_CONV( &ip, (struct ip4_addr *) &addr->sin_addr);
+		ip_addr_debug_print(NETIF_DEBUG, &ip);
+	}
+	else 
+		if (addr->sin_family == AF_INET) {
+			printf("IPv6\n");
+		}
+}
 
 #endif

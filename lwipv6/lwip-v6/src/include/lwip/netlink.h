@@ -27,7 +27,7 @@
 #include "lwip/if.h"
 
 struct netconn *
-netlink_open(int type,int proto);
+netlink_open(struct stack *stack, int type,int proto);
 
 int
 netlink_accept(void *sock, struct sockaddr *addr, socklen_t *addrlen);
@@ -70,24 +70,14 @@ int mask2prefix (struct ip_addr *netmask);
 void prefix2mask(int prefix,struct ip_addr *netmask);
 void netlink_ackerror(void *msg,int ackerr,void *buf,int *offset);
 
-/*
- * void netif_netlink_addlink(struct nlmsghdr *msg,void * buf,int *offset);
- * void netif_netlink_dellink(struct nlmsghdr *msg,void * buf,int *offset);
- */
-void netif_netlink_adddellink(struct nlmsghdr *msg,void * buf,int *offset);
-void netif_netlink_getlink(struct nlmsghdr *msg,void * buf,int *offset);
+void netif_netlink_adddellink(struct stack *stack, struct nlmsghdr *msg, void * buf,int *offset);
+void netif_netlink_getlink(struct stack *stack, struct nlmsghdr *msg, void * buf,int *offset);
 
-/*
- * void netif_netlink_addaddr(struct nlmsghdr *msg,void * buf,int *offset);
- * void netif_netlink_deladdr(struct nlmsghdr *msg,void * buf,int *offset);
- */
-void netif_netlink_adddeladdr(struct nlmsghdr *msg,void * buf,int *offset);
-void netif_netlink_getaddr(struct nlmsghdr *msg,void * buf,int *offset);
+void netif_netlink_adddeladdr(struct stack *stack, struct nlmsghdr *msg, void * buf, int *offset);
+void netif_netlink_getaddr(struct stack *stack, struct nlmsghdr *msg, void * buf, int *offset);
 
-/*void ip_route_netlink_addroute(struct nlmsghdr *msg,void * buf,int *offset);
-void ip_route_netlink_delroute(struct nlmsghdr *msg,void * buf,int *offset);*/
-void ip_route_netlink_adddelroute(struct nlmsghdr *msg,void * buf,int *offset);
-void ip_route_netlink_getroute(struct nlmsghdr *msg,void * buf,int *offset);
+void ip_route_netlink_adddelroute(struct stack *stack, struct nlmsghdr *msg, void * buf, int *offset);
+void ip_route_netlink_getroute(struct stack *stack, struct nlmsghdr *msg, void * buf, int *offset);
 #endif
 
 

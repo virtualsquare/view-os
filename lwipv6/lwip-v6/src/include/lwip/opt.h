@@ -36,6 +36,8 @@
 #include "lwipopts.h"
 #include "lwip/debug.h"
 
+/*----------------------------------------------------------------------*/
+
 /* Define default values for unconfigured parameters. */
 
 /* Platform specific locking */
@@ -167,10 +169,17 @@ a lot of data that needs to be copied, this should be set high. */
 #ifndef IP_ADDR_POOL_SIZE
 #define IP_ADDR_POOL_SIZE     16
 #endif
+#define MEMP_NUM_ADDRS IP_ADDR_POOL_SIZE
 
 #ifndef IP_ROUTE_POOL_SIZE
 #define IP_ROUTE_POOL_SIZE    16
 #endif
+#define MEMP_NUM_ROUTES IP_ROUTE_POOL_SIZE
+
+#ifndef IP_REASS_POOL_SIZE
+#define IP_REASS_POOL_SIZE	8
+#endif
+#define MEMP_NUM_REASS IP_REASS_POOL_SIZE
 
 /*----------------------------------------------------------------------*/
 /* ARP Options  */

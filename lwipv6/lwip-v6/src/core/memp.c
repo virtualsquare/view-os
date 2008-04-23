@@ -71,6 +71,9 @@ static const u16_t memp_sizes[MEMP_MAX] = {
   sizeof(struct api_msg),
   sizeof(struct tcpip_msg),
   sizeof(struct sys_timeout)
+  sizeof(struct ip_route_list),
+  sizeof(struct ip_addr_list),
+  sizeof(struct ip_reassbuf)
 
 /* added by Diego Billi */
 #if LWIP_USERFILTER && LWIP_NAT
@@ -92,7 +95,10 @@ static const u16_t memp_num[MEMP_MAX] = {
   MEMP_NUM_NETCONN,
   MEMP_NUM_API_MSG,
   MEMP_NUM_TCPIP_MSG,
-  MEMP_NUM_SYS_TIMEOUT
+  MEMP_NUM_SYS_TIMEOUT,
+	MEMP_NUM_ROUTES,
+	MEMP_NUM_ADDRS,
+	MEMP_NUM_REASS
 
 /* added by Diego Billi */
 #if LWIP_USERFILTER && LWIP_NAT

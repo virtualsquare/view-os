@@ -47,46 +47,44 @@ struct tcp_pcb;
 /* Functions for interfacing with TCP: */
 
 /* Lower layer interface to TCP: */
-void             tcp_init    (void);  /* Must be called first to
+void             tcp_init    (struct stack *stack);  /* Must be called first to
            initialize TCP. */
-void             tcp_tmr     (void);  /* Must be called every
+void             tcp_tmr     (struct stack *stack);  /* Must be called every
            TCP_TMR_INTERVAL
            ms. (Typically 250 ms). */
 /* Application program's interface: */
-struct tcp_pcb * tcp_new     (void);
-struct tcp_pcb * tcp_alloc   (u8_t prio);
+struct tcp_pcb * tcp_new     (struct stack *stack);
+struct tcp_pcb * tcp_alloc   (struct stack *stack, u8_t prio);
 
 void             tcp_arg     (struct tcp_pcb *pcb, void *arg);
 void             tcp_accept  (struct tcp_pcb *pcb,
-            err_t (* accept)(void *arg, struct tcp_pcb *newpcb,
+                              err_t (* accept)(void *arg, struct tcp_pcb *newpcb,
                  err_t err));
 void             tcp_recv    (struct tcp_pcb *pcb,
-            err_t (* recv)(void *arg, struct tcp_pcb *tpcb,
-          struct pbuf *p, err_t err));
+                              err_t (* recv)(void *arg, struct tcp_pcb *tpcb,
+                                             struct pbuf *p, err_t err));
 void             tcp_sent    (struct tcp_pcb *pcb,
-            err_t (* sent)(void *arg, struct tcp_pcb *tpcb,
-               u16_t len));
+                              err_t (* sent)(void *arg, struct tcp_pcb *tpcb,
+                                             u16_t len));
 void             tcp_poll    (struct tcp_pcb *pcb,
-            err_t (* poll)(void *arg, struct tcp_pcb *tpcb),
-            u8_t interval);
+                              err_t (* poll)(void *arg, struct tcp_pcb *tpcb),
+                                             u8_t interval);
 void             tcp_err     (struct tcp_pcb *pcb,
-            void (* err)(void *arg, err_t err));
+                              void (* err)(void *arg, err_t err));
 
 #define          tcp_mss(pcb)      ((pcb)->mss)
 #define          tcp_sndbuf(pcb)   ((pcb)->snd_buf)
 
 void             tcp_recved  (struct tcp_pcb *pcb, u16_t len);
-err_t            tcp_bind    (struct tcp_pcb *pcb, struct ip_addr *ipaddr,
-            u16_t port);
-err_t            tcp_connect (struct tcp_pcb *pcb, struct ip_addr *ipaddr,
-            u16_t port, err_t (* connected)(void *arg,
-                    struct tcp_pcb *tpcb,
-                    err_t err));
+err_t            tcp_bind    (struct tcp_pcb *pcb, struct ip_addr *ipaddr, u16_t port);
+err_t            tcp_connect (struct tcp_pcb *pcb, struct ip_addr *ipaddr, u16_t port, 
+                              err_t (* connected)(void *arg,
+                                                  struct tcp_pcb *tpcb,
+                                                  err_t err));
 struct tcp_pcb * tcp_listen  (struct tcp_pcb *pcb);
 void             tcp_abort   (struct tcp_pcb *pcb);
 err_t            tcp_close   (struct tcp_pcb *pcb);
-err_t            tcp_write   (struct tcp_pcb *pcb, const void *dataptr, u16_t len,
-            u8_t copy);
+err_t            tcp_write   (struct tcp_pcb *pcb, const void *dataptr, u16_t len, u8_t copy);
 
 void             tcp_setprio (struct tcp_pcb *pcb, u8_t prio);
 
@@ -96,8 +94,8 @@ void             tcp_setprio (struct tcp_pcb *pcb, u8_t prio);
 
 /* It is also possible to call these two functions at the right
    intervals (instead of calling tcp_tmr()). */
-void             tcp_slowtmr (void);
-void             tcp_fasttmr (void);
+void             tcp_slowtmr (struct stack *stack);
+void             tcp_fasttmr (struct stack *stack);
 
 
 /* Only used by IP to pass a TCP segment to TCP: */
@@ -423,16 +421,13 @@ err_t tcp_enqueue(struct tcp_pcb *pcb, void *dataptr, u16_t len,
 
 void tcp_rexmit_seg(struct tcp_pcb *pcb, struct tcp_seg *seg);
 
-void tcp_rst(u32_t seqno, u32_t ackno,
+void tcp_rst(struct stack *stack, u32_t seqno, u32_t ackno,
        struct ip_addr *local_ip, struct ip_addr *remote_ip,
        u16_t local_port, u16_t remote_port);
 
-u32_t tcp_next_iss(void);
+u32_t tcp_next_iss(struct stack *stack);
 
 void tcp_keepalive(struct tcp_pcb *pcb);
-
-extern struct tcp_pcb *tcp_input_pcb;
-extern u32_t tcp_ticks;
 
 #if TCP_DEBUG || TCP_INPUT_DEBUG || TCP_OUTPUT_DEBUG
 void tcp_debug_print(struct tcp_hdr *tcphdr);
@@ -451,7 +446,7 @@ int tcp_pcbs_sane(void);
 #if NO_SYS
 #define tcp_timer_needed()
 #else
-void tcp_timer_needed(void);
+void tcp_timer_needed(struct stack *stack);
 #endif
 
 /* The TCP PCB lists. */
@@ -459,6 +454,8 @@ union tcp_listen_pcbs_t { /* List of all TCP PCBs in LISTEN state. */
 	struct tcp_pcb_listen *listen_pcbs; 
 	struct tcp_pcb *pcbs;
 };
+#if 0
+/* in the struct stack! */
 extern union tcp_listen_pcbs_t tcp_listen_pcbs;
 extern struct tcp_pcb *tcp_active_pcbs;  /* List of all TCP PCBs that are in a
               state in which they accept or send
@@ -466,6 +463,7 @@ extern struct tcp_pcb *tcp_active_pcbs;  /* List of all TCP PCBs that are in a
 extern struct tcp_pcb *tcp_tw_pcbs;      /* List of all TCP PCBs in TIME-WAIT. */
 
 extern struct tcp_pcb *tcp_tmp_pcb;      /* Only used for temporary storage. */
+#endif
 
 /* Axioms about the above lists:   
    1) Every TCP PCB that is not CLOSED is in one of the lists.
@@ -511,16 +509,19 @@ extern struct tcp_pcb *tcp_tmp_pcb;      /* Only used for temporary storage. */
 #define TCP_REG(pcbs, npcb) do { \
                             npcb->next = *pcbs; \
                             *(pcbs) = npcb; \
-              tcp_timer_needed(); \
+              tcp_timer_needed((npcb)->stack); \
                             } while(0)
 #define TCP_RMV(pcbs, npcb) do { \
                             if(*(pcbs) == npcb) { \
                                (*(pcbs)) = (*pcbs)->next; \
-                            } else for(tcp_tmp_pcb = *pcbs; tcp_tmp_pcb != NULL; tcp_tmp_pcb = tcp_tmp_pcb->next) { \
-                               if(tcp_tmp_pcb->next != NULL && tcp_tmp_pcb->next == npcb) { \
-                                  tcp_tmp_pcb->next = npcb->next; \
+                            } else \
+                              for((npcb)->stack->tcp_tmp_pcb = *pcbs; \
+                                  (npcb)->stack->tcp_tmp_pcb != NULL; \
+                                  (npcb)->stack->tcp_tmp_pcb = (npcb)->stack->tcp_tmp_pcb->next) { \
+                                if((npcb)->stack->tcp_tmp_pcb->next != NULL && (npcb)->stack->tcp_tmp_pcb->next == npcb) { \
+                                  (npcb)->stack->tcp_tmp_pcb->next = npcb->next; \
                                   break; \
-                               } \
+                                } \
                             } \
                             npcb->next = NULL; \
                             } while(0)

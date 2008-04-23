@@ -221,7 +221,7 @@ netbuf_fromport(struct netbuf *buf)
 }
 
 struct
-netconn *netconn_new_with_proto_and_callback(enum netconn_type t, u16_t proto,
+netconn *netconn_new_with_proto_and_callback(struct stack *stack, enum netconn_type t, u16_t proto,
                                    void (*callback)(struct netconn *, enum netconn_evt, u16_t len))
 {
   struct netconn *conn;
@@ -231,6 +231,8 @@ netconn *netconn_new_with_proto_and_callback(enum netconn_type t, u16_t proto,
   if (conn == NULL) {
     return NULL;
   }
+  
+  conn->stack = stack;
   
   conn->err = ERR_OK;
   conn->type = t;
@@ -260,7 +262,9 @@ netconn *netconn_new_with_proto_and_callback(enum netconn_type t, u16_t proto,
   msg->type = API_MSG_NEWCONN;
   msg->msg.msg.bc.port = proto; /* misusing the port field */
   msg->msg.conn = conn;
-  api_msg_post(msg);  
+  
+  api_msg_post(conn->stack, msg);  
+  
   sys_mbox_fetch(conn->mbox, NULL);
   memp_free(MEMP_API_MSG, msg);
 
@@ -274,16 +278,16 @@ netconn *netconn_new_with_proto_and_callback(enum netconn_type t, u16_t proto,
 
 
 struct
-netconn *netconn_new(enum netconn_type t)
+netconn *netconn_new(struct stack *stack, enum netconn_type type)
 {
-  return netconn_new_with_proto_and_callback(t,0,NULL);
+  return netconn_new_with_proto_and_callback(stack, type,0,NULL);
 }
 
 struct
-netconn *netconn_new_with_callback(enum netconn_type t,
+netconn *netconn_new_with_callback(struct stack *stack, enum netconn_type type,
                                    void (*callback)(struct netconn *, enum netconn_evt, u16_t len))
 {
-  return netconn_new_with_proto_and_callback(t,0,callback);
+  return netconn_new_with_proto_and_callback(stack, type,0,callback);
 }
 
 
@@ -303,7 +307,9 @@ netconn_delete(struct netconn *conn)
   
   msg->type = API_MSG_DELCONN;
   msg->msg.conn = conn;
-  api_msg_post(msg);  
+  
+  api_msg_post(conn->stack, msg);  
+  
   sys_mbox_fetch(conn->mbox, NULL);
   memp_free(MEMP_API_MSG, msg);
 
@@ -320,7 +326,6 @@ netconn_delete(struct netconn *conn)
     sys_mbox_free(conn->recvmbox);
     conn->recvmbox = SYS_MBOX_NULL;
   }
- 
 
   /* Drain the acceptmbox. */
   if (conn->acceptmbox != SYS_MBOX_NULL) {
@@ -337,6 +342,7 @@ netconn_delete(struct netconn *conn)
   if (conn->sem != SYS_SEM_NULL) {
     sys_sem_free(conn->sem);
   }
+  
   /*  conn->sem = SYS_SEM_NULL;*/
   memp_free(MEMP_NETCONN, conn);
   return ERR_OK;
@@ -346,6 +352,11 @@ enum netconn_type
 netconn_type(struct netconn *conn)
 {
   return conn->type;
+}
+
+struct stack *netconn_stack(struct netconn* conn)
+{
+	return conn->stack;
 }
 
 err_t
@@ -430,7 +441,9 @@ netconn_bind(struct netconn *conn, struct ip_addr *addr,
   msg->msg.conn = conn;
   msg->msg.msg.bc.ipaddr = addr;
   msg->msg.msg.bc.port = port;
-  api_msg_post(msg);
+  
+  api_msg_post(conn->stack, msg);
+  
   sys_mbox_fetch(conn->mbox, NULL);
   memp_free(MEMP_API_MSG, msg);
   return conn->err;
@@ -460,7 +473,9 @@ netconn_connect(struct netconn *conn, struct ip_addr *addr,
   msg->msg.conn = conn;  
   msg->msg.msg.bc.ipaddr = addr;
   msg->msg.msg.bc.port = port;
-  api_msg_post(msg);
+  
+  api_msg_post(conn->stack, msg);
+  
   sys_mbox_fetch(conn->mbox, NULL);
   memp_free(MEMP_API_MSG, msg);
   return conn->err;
@@ -480,7 +495,9 @@ netconn_disconnect(struct netconn *conn)
   }
   msg->type = API_MSG_DISCONNECT;
   msg->msg.conn = conn;  
-  api_msg_post(msg);
+  
+  api_msg_post(conn->stack, msg);
+  
   sys_mbox_fetch(conn->mbox, NULL);
   memp_free(MEMP_API_MSG, msg);
   return conn->err;
@@ -508,7 +525,9 @@ netconn_listen(struct netconn *conn)
   }
   msg->type = API_MSG_LISTEN;
   msg->msg.conn = conn;
-  api_msg_post(msg);
+  
+  api_msg_post(conn->stack, msg);
+  
   sys_mbox_fetch(conn->mbox, NULL);
   memp_free(MEMP_API_MSG, msg);
   return conn->err;
@@ -607,7 +626,7 @@ netconn_recv(struct netconn *conn)
     } else {
       msg->msg.msg.len = 1;
     }
-    api_msg_post(msg);
+    api_msg_post(conn->stack, msg);
 
     sys_mbox_fetch(conn->mbox, NULL);
     memp_free(MEMP_API_MSG, msg);
@@ -631,6 +650,8 @@ netconn_recv(struct netconn *conn)
 err_t
 netconn_send(struct netconn *conn, struct netbuf *buf)
 {
+  struct stack *stack = conn->stack;
+  
   struct api_msg *msg;
 
   if (conn == NULL) {
@@ -649,7 +670,7 @@ netconn_send(struct netconn *conn, struct netbuf *buf)
   msg->type = API_MSG_SEND;
   msg->msg.conn = conn;
   msg->msg.msg.p = buf->p;
-  api_msg_post(msg);
+  api_msg_post(stack, msg);
 
   sys_mbox_fetch(conn->mbox, NULL);
   memp_free(MEMP_API_MSG, msg);
@@ -659,6 +680,8 @@ netconn_send(struct netconn *conn, struct netbuf *buf)
 err_t
 netconn_write(struct netconn *conn, void *dataptr, u16_t size, u8_t copy)
 {
+  struct stack *stack = conn->stack;
+  
   struct api_msg *msg;
   u16_t len;
   
@@ -708,7 +731,7 @@ netconn_write(struct netconn *conn, void *dataptr, u16_t size, u8_t copy)
     
     LWIP_DEBUGF(API_LIB_DEBUG, ("netconn_write: writing %d bytes (%d)\n", len, copy));
     msg->msg.msg.w.len = len;
-    api_msg_post(msg);
+    api_msg_post(stack, msg);
     sys_mbox_fetch(conn->mbox, NULL);    
     if (conn->err == ERR_OK) {
       dataptr = (void *)((char *)dataptr + len);
@@ -735,6 +758,8 @@ ret:
 err_t
 netconn_close(struct netconn *conn)
 {
+  struct stack *stack = conn->stack;
+  
   struct api_msg *msg;
 
   if (conn == NULL) {
@@ -748,7 +773,7 @@ netconn_close(struct netconn *conn)
  again:
   msg->type = API_MSG_CLOSE;
   msg->msg.conn = conn;
-  api_msg_post(msg);
+  api_msg_post(stack, msg);
   sys_mbox_fetch(conn->mbox, NULL);
   if (conn->err == ERR_MEM &&
      conn->sem != SYS_SEM_NULL) {

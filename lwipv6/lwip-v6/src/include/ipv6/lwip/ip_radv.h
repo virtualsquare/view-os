@@ -21,6 +21,8 @@
 
 #if IPv6_ROUTER_ADVERTISEMENT
 
+/* FIX: add MULTISTACK support */
+
 #ifndef __LWIP_IP_RADV_H__
 #define __LWIP_IP_RADV_H__
 

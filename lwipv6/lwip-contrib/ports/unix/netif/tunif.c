@@ -295,7 +295,6 @@ err_t
 tunif_init(struct netif *netif)
 {
   struct tunif *tunif;
-	static u8_t num=0;
 	char *ifname;
     
   tunif = mem_malloc(sizeof(struct tunif));
@@ -305,7 +304,7 @@ tunif_init(struct netif *netif)
   netif->state = tunif;
   netif->name[0] = IFNAME0;
   netif->name[1] = IFNAME1;
-	netif->num=num++;
+	netif->num=netif_next_num(netif,NETIF_TUNIF);
   netif->output = tunif_output;
   
 	if (low_level_init(netif,ifname) < 0) {

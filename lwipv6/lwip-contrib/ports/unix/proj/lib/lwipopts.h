@@ -58,7 +58,13 @@
  * Some of these are necessary if you are going to
  * use Lwipv6a as UMVIEWOS module (lwipv6.so).
  */
-/*#define LWIP_DEBUG*/
+//#define LWIP_DEBUG 
+
+/*
+ * Remove assertions.
+ */
+#define LWIP_NOASSERT
+
 
 /* Enable NETLINK sockets to support network configuration by using iproute2 tools */
 #define LWIP_NL                        1
@@ -175,6 +181,8 @@ a lot of data that needs to be copied, this should be set high. */
    defined to 0, all packets with IP options are dropped. */
 #define IP_OPTIONS              1
 
+/* # of suspended fragments */
+#define IP_REASS_POOL_SIZE     5
 
 /* ---------- ICMP options ---------- */
 
@@ -256,10 +264,14 @@ a lot of data that needs to be copied, this should be set high. */
 //#define DHCP_DEBUG              DBG_ON
 
 //#define IP_DEBUG                DBG_ON
+
 //#define PMTU_DEBUG              DBG_ON
 //#define IPv6_ADDRSELECT_DBG     DBG_ON
+
 //#define IP_REASS_DEBUG          DBG_ON
+
 //#define IP_AUTOCONF_DEBUG       DBG_ON
+
 //#define IP_RADV_DEBUG           DBG_ON
 //#define IP_RADVCONF_DEBUG       DBG_ON
 
@@ -278,9 +290,9 @@ a lot of data that needs to be copied, this should be set high. */
 /* ---------- Debug options for /contrib/port/unix/netif files ------------- */
 
 /* These are not defined in opt.h */
-//#define VDEIF_DEBUG             DBG_ON
-//#define TUNIF_DEBUG             DBG_ON
-//#define TAPIF_DEBUG             DBG_ON
+#define VDEIF_DEBUG             DBG_ON
+#define TUNIF_DEBUG             DBG_ON
+#define TAPIF_DEBUG             DBG_ON
 
 
 #endif /* __LWIPOPTS_H__ */

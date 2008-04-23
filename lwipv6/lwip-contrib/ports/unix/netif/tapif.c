@@ -424,7 +424,6 @@ err_t
 tapif_init(struct netif *netif)
 {
 	struct tapif *tapif;
-	static u8_t num=0;
 	char *ifname;
 	
 	tapif = mem_malloc(sizeof(struct tapif));
@@ -434,7 +433,7 @@ tapif_init(struct netif *netif)
 	netif->state = tapif;
 	netif->name[0] = IFNAME0;
 	netif->name[1] = IFNAME1;
-	netif->num=num++;
+	netif->num=netif_next_num(netif,NETIF_TAPIF);
 	netif->output = tapif_output;
 	netif->linkoutput = low_level_output;
 	netif->cleanup = cleanup;

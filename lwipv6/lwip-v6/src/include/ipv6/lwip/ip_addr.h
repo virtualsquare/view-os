@@ -54,6 +54,7 @@
 
 #include "lwip/opt.h"
 #include "lwip/arch.h"
+struct stack;
 
 
 struct ip_addr {
@@ -304,13 +305,16 @@ void ip_addr_list_add(struct ip_addr_list **ptail, struct ip_addr_list *el);
 
 void ip_addr_list_del(struct ip_addr_list **ptail, struct ip_addr_list *el);
 
-void ip_addr_list_init();
 
-struct ip_addr_list *ip_addr_list_alloc();
+void ip_addr_list_init(struct stack *stack);
+void ip_addr_list_shutdown(struct stack *stack);
 
-void ip_addr_list_free(struct ip_addr_list *el);
 
-void ip_addr_list_freelist(struct ip_addr_list *tail);
+struct ip_addr_list *ip_addr_list_alloc(struct stack *stack);
+
+void ip_addr_list_free(struct stack *stack, struct ip_addr_list *el);
+
+void ip_addr_list_freelist(struct stack *stack, struct ip_addr_list *tail);
 
 struct ip_addr_list *ip_addr_list_find(struct ip_addr_list *tail, struct ip_addr *addr, struct ip_addr *netmask);
 

@@ -298,6 +298,10 @@ accept_function(void *arg, struct tcp_pcb *newpcb, err_t err)
 	  //printf("NO mem?\n");
     return ERR_MEM;
   }
+  
+  /* FIX MULTISTACK: newpcb->stack == conn->stack */
+  newconn->stack = newpcb->stack;  
+  
   newconn->type = NETCONN_TCP;
   newconn->pcb.tcp = newpcb;
   setup_tcp(newconn);
@@ -360,13 +364,13 @@ do_newconn(struct api_msg_msg *msg)
    switch(msg->conn->type) {
 #if LWIP_RAW
    case NETCONN_RAW:
-      msg->conn->pcb.raw = raw_new(msg->msg.bc.port); /* misusing the port field */
+      msg->conn->pcb.raw = raw_new(msg->conn->stack, msg->msg.bc.port); /* misusing the port field */
       raw_recv(msg->conn->pcb.raw, recv_raw, msg->conn);
      break;
 #endif
 #if LWIP_UDP
    case NETCONN_UDPLITE:
-      msg->conn->pcb.udp = udp_new();
+      msg->conn->pcb.udp = udp_new(msg->conn->stack);
       if(msg->conn->pcb.udp == NULL) {
          msg->conn->err = ERR_MEM;
          break;
@@ -375,7 +379,7 @@ do_newconn(struct api_msg_msg *msg)
       udp_recv(msg->conn->pcb.udp, recv_udp, msg->conn);
       break;
    case NETCONN_UDPNOCHKSUM:
-      msg->conn->pcb.udp = udp_new();
+      msg->conn->pcb.udp = udp_new(msg->conn->stack);
       if(msg->conn->pcb.udp == NULL) {
          msg->conn->err = ERR_MEM;
          break;
@@ -384,7 +388,7 @@ do_newconn(struct api_msg_msg *msg)
       udp_recv(msg->conn->pcb.udp, recv_udp, msg->conn);
       break;
    case NETCONN_UDP:
-      msg->conn->pcb.udp = udp_new();
+      msg->conn->pcb.udp = udp_new(msg->conn->stack);
       if(msg->conn->pcb.udp == NULL) {
          msg->conn->err = ERR_MEM;
          break;
@@ -394,7 +398,7 @@ do_newconn(struct api_msg_msg *msg)
 #endif /* LWIP_UDP */
 #if LWIP_TCP
    case NETCONN_TCP:
-      msg->conn->pcb.tcp = tcp_new();
+      msg->conn->pcb.tcp = tcp_new(msg->conn->stack);
       if(msg->conn->pcb.tcp == NULL) {
          msg->conn->err = ERR_MEM;
          break;
@@ -402,8 +406,8 @@ do_newconn(struct api_msg_msg *msg)
       setup_tcp(msg->conn);
       break;
 #endif
-	 default:
-			break;
+    default:
+      break;
    }
    
   
@@ -478,39 +482,39 @@ do_bind(struct api_msg_msg *msg)
     switch (msg->conn->type) {
 #if LWIP_RAW
     case NETCONN_RAW:
-      msg->conn->pcb.raw = raw_new(msg->msg.bc.port); /* misusing the port field as protocol */
+      msg->conn->pcb.raw = raw_new(msg->conn->stack, msg->msg.bc.port); /* misusing the port field as protocol */
       raw_recv(msg->conn->pcb.raw, recv_raw, msg->conn);
       break;
 #endif
 #if LWIP_PACKET
     case NETCONN_PACKET_RAW:
-      msg->conn->pcb.raw = packet_new(msg->msg.bc.port,0); /* misusing the port field as protocol */
+      msg->conn->pcb.raw = packet_new(msg->conn->stack, msg->msg.bc.port,0); /* misusing the port field as protocol */
       raw_recv(msg->conn->pcb.raw, recv_packet, msg->conn);
       break;
     case NETCONN_PACKET_DGRAM:
-      msg->conn->pcb.raw = packet_new(msg->msg.bc.port,1); /* misusing the port field as protocol */
+      msg->conn->pcb.raw = packet_new(msg->conn->stack, msg->msg.bc.port,1); /* misusing the port field as protocol */
       raw_recv(msg->conn->pcb.raw, recv_packet, msg->conn);
       break;
 #endif
 #if LWIP_UDP
     case NETCONN_UDPLITE:
-      msg->conn->pcb.udp = udp_new();
+      msg->conn->pcb.udp = udp_new(msg->conn->stack);
       udp_setflags(msg->conn->pcb.udp, UDP_FLAGS_UDPLITE);
       udp_recv(msg->conn->pcb.udp, recv_udp, msg->conn);
       break;
     case NETCONN_UDPNOCHKSUM:
-      msg->conn->pcb.udp = udp_new();
+      msg->conn->pcb.udp = udp_new(msg->conn->stack);
       udp_setflags(msg->conn->pcb.udp, UDP_FLAGS_NOCHKSUM);
       udp_recv(msg->conn->pcb.udp, recv_udp, msg->conn);
       break;
     case NETCONN_UDP:
-      msg->conn->pcb.udp = udp_new();
+      msg->conn->pcb.udp = udp_new(msg->conn->stack);
       udp_recv(msg->conn->pcb.udp, recv_udp, msg->conn);
       break;
 #endif /* LWIP_UDP */
 #if LWIP_TCP      
     case NETCONN_TCP:
-      msg->conn->pcb.tcp = tcp_new();
+      msg->conn->pcb.tcp = tcp_new(msg->conn->stack);
       setup_tcp(msg->conn);
 #endif /* LWIP_TCP */
     default:  
@@ -578,13 +582,13 @@ do_connect(struct api_msg_msg *msg)
     switch (msg->conn->type) {
 #if LWIP_RAW
     case NETCONN_RAW:
-      msg->conn->pcb.raw = raw_new(msg->msg.bc.port); /* misusing the port field as protocol */
+      msg->conn->pcb.raw = raw_new(msg->conn->stack, msg->msg.bc.port); /* misusing the port field as protocol */
       raw_recv(msg->conn->pcb.raw, recv_raw, msg->conn);
       break;
 #endif
 #if LWIP_UDP
     case NETCONN_UDPLITE:
-      msg->conn->pcb.udp = udp_new();
+      msg->conn->pcb.udp = udp_new(msg->conn->stack);
       if (msg->conn->pcb.udp == NULL) {
 				msg->conn->err = ERR_MEM;
 				sys_mbox_post(msg->conn->mbox, NULL);
@@ -594,7 +598,7 @@ do_connect(struct api_msg_msg *msg)
       udp_recv(msg->conn->pcb.udp, recv_udp, msg->conn);
       break;
     case NETCONN_UDPNOCHKSUM:
-      msg->conn->pcb.udp = udp_new();
+      msg->conn->pcb.udp = udp_new(msg->conn->stack);
       if (msg->conn->pcb.udp == NULL) {
 				msg->conn->err = ERR_MEM;
 				sys_mbox_post(msg->conn->mbox, NULL);
@@ -604,7 +608,7 @@ do_connect(struct api_msg_msg *msg)
       udp_recv(msg->conn->pcb.udp, recv_udp, msg->conn);
       break;
     case NETCONN_UDP:
-      msg->conn->pcb.udp = udp_new();
+      msg->conn->pcb.udp = udp_new(msg->conn->stack);
       if (msg->conn->pcb.udp == NULL) {
 				msg->conn->err = ERR_MEM;
 				sys_mbox_post(msg->conn->mbox, NULL);
@@ -615,7 +619,7 @@ do_connect(struct api_msg_msg *msg)
 #endif /* LWIP_UDP */
 #if LWIP_TCP      
     case NETCONN_TCP:
-      msg->conn->pcb.tcp = tcp_new();      
+      msg->conn->pcb.tcp = tcp_new(msg->conn->stack);      
       if (msg->conn->pcb.tcp == NULL) {
 				msg->conn->err = ERR_MEM;
 				sys_mbox_post(msg->conn->mbox, NULL);
@@ -914,9 +918,9 @@ api_msg_input(struct api_msg *msg)
 }
 
 void
-api_msg_post(struct api_msg *msg)
+api_msg_post(struct stack *stack, struct api_msg *msg)
 {
-  tcpip_apimsg(msg);
+  tcpip_apimsg(stack, msg);
 }
 
 

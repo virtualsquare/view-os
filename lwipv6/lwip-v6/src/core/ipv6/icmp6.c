@@ -57,6 +57,7 @@
 
 #include "lwip/debug.h"
 
+
 #include "lwip/ip.h"
 #include "lwip/icmp.h"
 #include "lwip/inet.h"
@@ -77,7 +78,7 @@
  *   piphdr = IP pseudo header
  */
 void
-icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr)
+icmp_input(struct stack *stack, struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr)
 {
 	struct ip_hdr  *iphdr;
 	struct ip4_hdr *ip4hdr;
@@ -91,6 +92,9 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 	struct ip_addr tmpdest;
 
 	struct netif *inp = inad->netif;
+
+	/* FIX: remove 'stack' and use only inp->stack */
+	LWIP_ASSERT("STACK !=  NETIFSTACK \n", stack == inp->stack); 
 
 
 	ICMP_STATS_INC(icmp.recv);
@@ -139,7 +143,7 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 			ICMP_STATS_INC(icmp.xmit);
 
 			/* XXX ECHO must be routed */
-			ip_output (p, &(inad->ipaddr), &tmpdest, IPH_HOPLIMIT(iphdr), 0, IP_PROTO_ICMP);
+			ip_output (stack, p, &(inad->ipaddr), &tmpdest, IPH_HOPLIMIT(iphdr), 0, IP_PROTO_ICMP);
 			break;
 
 		/*
@@ -217,7 +221,7 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 			LWIP_DEBUGF(ICMP_DEBUG, ("icmp: p->len %u p->tot_len %u\n", p->len, p->tot_len));
 			LWIP_DEBUGF(ICMP_DEBUG, ("icmp: send Neighbor Advertisement\n"));
 
-			ip_output_if (p, &(iphdr->src), IP_LWHDRINCL, IPH_HOPLIMIT(iphdr), 0, IP_PROTO_ICMP, inp, &(iphdr->dest), 0);
+			ip_output_if (stack, p, &(iphdr->src), IP_LWHDRINCL, IPH_HOPLIMIT(iphdr), 0, IP_PROTO_ICMP, inp, &(iphdr->dest), 0);
 			break;
 
 		case ICMP6_NA | (6 << 8):
@@ -248,6 +252,8 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 			}
 
 #if IPv6_AUTO_CONFIGURATION  
+			/* FIX: add MULTISTACK */
+
 			/* Check Target IP for Duplicate Address Detection protocol */
 			ip_autoconf_handle_na(inad->netif, p, iphdr, ina);
 #endif
@@ -283,6 +289,7 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 				return;
 			}
 
+			/* FIX: add MULTISTACK */
 			ip_radv_handle_rs(inad->netif, p, iphdr, irs);
 			}
 #else
@@ -356,7 +363,7 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
 				iecho->chksum += htons(ICMP4_ECHO << 8);
 			}
 			ICMP_STATS_INC(icmp.xmit);
-			ip_output(p, &(inad->ipaddr), &tmpdest,	IPH4_TTL(ip4hdr), 0, IP_PROTO_ICMP4);
+			ip_output(stack, p, &(inad->ipaddr), &tmpdest, IPH4_TTL(ip4hdr), 0, IP_PROTO_ICMP4);
 			break;
 		default:
 			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: ICMP type %d not supported.\n", (int)type));
@@ -372,7 +379,7 @@ icmp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphd
  * See seciont 4.3. of RFC 2461. 
  */
 void
-icmp_send_dad(struct ip_addr_list *targetip, struct netif *srcnetif)
+icmp_send_dad(struct stack *stack, struct ip_addr_list *targetip, struct netif *srcnetif)
 {
 	struct ip_addr_list src;
 
@@ -382,7 +389,7 @@ icmp_send_dad(struct ip_addr_list *targetip, struct netif *srcnetif)
 	IP6_ADDR_UNSPECIFIED(&(src.ipaddr));
 	src.netif = srcnetif;
 
-	icmp_neighbor_solicitation(&(targetip->ipaddr), &src);
+	icmp_neighbor_solicitation(stack, &(targetip->ipaddr), &src);
 }
 
 
@@ -395,7 +402,7 @@ icmp_send_dad(struct ip_addr_list *targetip, struct netif *srcnetif)
  *      when the node seeks to verify the reachability of a neighbor (not yet implemented).
  */
 void
-icmp_neighbor_solicitation(struct ip_addr *ipaddr, struct ip_addr_list *inad)
+icmp_neighbor_solicitation(struct stack *stack, struct ip_addr *ipaddr, struct ip_addr_list *inad)
 {
 	struct pbuf *q;
 
@@ -436,7 +443,7 @@ icmp_neighbor_solicitation(struct ip_addr *ipaddr, struct ip_addr_list *inad)
 	ins->chksum = 0;
 	ins->chksum = inet6_chksum_pseudo(q, &(inad->ipaddr), &(targetaddr), IP_PROTO_ICMP, q->tot_len);
 
-	ip_output_if (q, &(inad->ipaddr), &targetaddr, 255, 0, IP_PROTO_ICMP, inp, &(targetaddr), 0);
+	ip_output_if(stack, q, &(inad->ipaddr), &targetaddr, 255, 0, IP_PROTO_ICMP, inp, &(targetaddr), 0);
 
 	pbuf_free(q);
 }
@@ -446,7 +453,7 @@ icmp_neighbor_solicitation(struct ip_addr *ipaddr, struct ip_addr_list *inad)
  * See seciont 4.3. of RFC 2461. 
  */
 void
-icmp_router_solicitation(struct ip_addr *ipaddr, struct ip_addr_list *inad)
+icmp_router_solicitation(struct stack *stack, struct ip_addr *ipaddr, struct ip_addr_list *inad)
 {
 	struct pbuf *q;
 
@@ -479,13 +486,13 @@ icmp_router_solicitation(struct ip_addr *ipaddr, struct ip_addr_list *inad)
 	irs->chksum = 0;
 	irs->chksum = inet6_chksum_pseudo(q, &(inad->ipaddr), &(targetaddr), IP_PROTO_ICMP, q->tot_len);
 
-	ip_output_if (q, &(inad->ipaddr), &targetaddr, 255, 0, IP_PROTO_ICMP, inp, &(targetaddr), 0);
+	ip_output_if (stack, q, &(inad->ipaddr), &targetaddr, 255, 0, IP_PROTO_ICMP, inp, &(targetaddr), 0);
 
 	pbuf_free(q);
 }
 
 void
-icmp_dest_unreach(struct pbuf *p, enum icmp_dur_type t)
+icmp_dest_unreach(struct stack *stack, struct pbuf *p, enum icmp_dur_type t)
 {
 	struct pbuf *q;
 	struct ip_hdr *iphdr;
@@ -507,13 +514,13 @@ icmp_dest_unreach(struct pbuf *p, enum icmp_dur_type t)
 	idur->chksum = inet_chksum(idur, q->len);
 	ICMP_STATS_INC(icmp.xmit);
 
-	ip_output(q, NULL, (struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
+	ip_output(stack, q, NULL, (struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
 
 	pbuf_free(q);
 }
 
 void
-icmp_time_exceeded(struct pbuf *p, enum icmp_te_type t)
+icmp_time_exceeded(struct stack *stack, struct pbuf *p, enum icmp_te_type t)
 {
 	struct pbuf *q;
 	struct ip_hdr *iphdr;
@@ -536,13 +543,13 @@ icmp_time_exceeded(struct pbuf *p, enum icmp_te_type t)
 	
 	ICMP_STATS_INC(icmp.xmit);
 	
-	ip_output(q, NULL, (struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
+	ip_output(stack, q, NULL, (struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
 
 	pbuf_free(q);
 }
 
 void
-icmp_packet_too_big(struct pbuf *p, u16_t mtu)
+icmp_packet_too_big(struct stack *stack, struct pbuf *p, u16_t mtu)
 {
 	struct pbuf *q;
 	struct ip_hdr *iphdr;
@@ -567,7 +574,7 @@ icmp_packet_too_big(struct pbuf *p, u16_t mtu)
 	ICMP_STATS_INC(icmp.xmit);
 	
 	/* Send */
-	ip_output(q, NULL, (struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
+	ip_output(stack, q, NULL, (struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
 
 	pbuf_free(q);
 }
@@ -576,7 +583,7 @@ icmp_packet_too_big(struct pbuf *p, u16_t mtu)
 /* added by Diego Billi */
 
 void
-icmp4_dest_unreach(struct pbuf *p, enum icmp_dur_type t, u16_t nextmtu )
+icmp4_dest_unreach(struct stack *stack, struct pbuf *p, enum icmp_dur_type t, u16_t nextmtu )
 {
 	struct pbuf *q;
 	struct ip4_hdr *iphdr;
@@ -599,12 +606,13 @@ icmp4_dest_unreach(struct pbuf *p, enum icmp_dur_type t, u16_t nextmtu )
 	ICMP_STATS_INC(icmp.xmit);
 	
 	IP64_CONV(&tmpdest, &iphdr->src);
-	ip_output(q, NULL, &tmpdest, ICMP_TTL, 0, IP_PROTO_ICMP4);
+	ip_output(stack, q, NULL, &tmpdest, ICMP_TTL, 0, IP_PROTO_ICMP4);
+	
 	pbuf_free(q);
 }
 
 void
-icmp4_time_exceeded(struct pbuf *p, enum icmp_te_type t)
+icmp4_time_exceeded(struct stack *stack, struct pbuf *p, enum icmp_te_type t)
 {
 	struct pbuf *q;
 	struct ip4_hdr *iphdr;
@@ -629,7 +637,7 @@ icmp4_time_exceeded(struct pbuf *p, enum icmp_te_type t)
 	
 	IP64_CONV(&tmpdest, &iphdr->src);
 	
-	ip_output(q, NULL, &tmpdest, ICMP_TTL, 0, IP_PROTO_ICMP4);
+	ip_output(stack, q, NULL, &tmpdest, ICMP_TTL, 0, IP_PROTO_ICMP4);
 	
 	pbuf_free(q);
 }

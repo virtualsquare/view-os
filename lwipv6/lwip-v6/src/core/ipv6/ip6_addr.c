@@ -51,9 +51,11 @@
  */
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 #include "lwip/ip_addr.h"
 #include "lwip/inet.h"
-
+#include "lwip/stack.h"
+#include "lwip/memp.h"
 
 /* Added by Diego Billi */
 #define IP4_ADDR_BROADCAST_VALUE 0xffffffffUL
@@ -65,14 +67,6 @@ const struct ip_addr ip4_addr_any = {{0,0,0xffff0000,0}};
 #else
 const struct ip_addr ip4_addr_any = {{0,0,0x0000ffff,0}};
 #endif
-
-
-
-
-
-
-static struct ip_addr_list ip_addr_pool[IP_ADDR_POOL_SIZE];
-static struct ip_addr_list *ip_addr_freelist;
 
 int
 ip_addr_maskcmp(struct ip_addr *addr1, struct ip_addr *addr2,
@@ -162,47 +156,80 @@ ip_addr_debug_print(int debk, struct ip_addr *addr)
 
 /*#endif*/ /* IP_DEBUG */
 
-void ip_addr_list_init()
-{
-	register int i;
-	for (i=0;i<IP_ADDR_POOL_SIZE-1;i++)
-		ip_addr_pool[i].next=ip_addr_pool+(i+1);
+/*---------------------------------------------------------------------------*/
 
-	ip_addr_pool[i].next = NULL;
-	ip_addr_freelist = ip_addr_pool;
+void ip_addr_list_init(struct stack *stack)
+{
+#if 0
+	register int i;
+	
+	struct ip_addr_list *ip_addr_pool     = stack->ip_addr_pools;
+	
+	for (i = 0; i < IP_ADDR_POOL_SIZE-1; i++)
+		ip_addr_pool[i].next = ip_addr_pool+(i+1);
+
+	ip_addr_pool[i].next    = NULL;
+	stack->ip_addr_freelist = ip_addr_pool;
+#endif
 }
 
-struct ip_addr_list *ip_addr_list_alloc()
+void ip_addr_list_shutdown(struct stack *stack)
+{
+    
+}
+
+/*---------------------------------------------------------------------------*/
+
+
+struct ip_addr_list *ip_addr_list_alloc(struct stack *stack)
 {
 	struct ip_addr_list *el;
-	if (ip_addr_freelist == NULL)
+#if 0
+	if (stack->ip_addr_freelist == NULL)
 		return NULL;
 	else {
-		el=ip_addr_freelist;
-		ip_addr_freelist=ip_addr_freelist->next;
+		el = stack->ip_addr_freelist;
+		stack->ip_addr_freelist = stack->ip_addr_freelist->next;
 
 		/* Added by Diego Billi */
 		bzero(el, sizeof (struct ip_addr_list));
+#endif
+		el=memp_malloc(MEMP_ADDR);
+		if (el)
+			memset(el,0,sizeof(struct ip_addr_list));
 
 		return el;
-	}
 }
 
-void ip_addr_list_free(struct ip_addr_list *el)
+void ip_addr_list_free(struct stack *stack, struct ip_addr_list *el)
 {
-	el->next=ip_addr_freelist;
-	ip_addr_freelist=el;
+	memp_free(MEMP_ADDR,el);
+	/*
+	el->next = stack->ip_addr_freelist;
+	stack->ip_addr_freelist = el;
+	*/
 }
 
-void ip_addr_list_freelist(struct ip_addr_list *tail)
+void ip_addr_list_freelist(struct stack *stack, struct ip_addr_list *tail)
 {
-	if (tail==NULL)
+	/*
+	if (tail == NULL)
 		return;
 	else {
-		struct ip_addr_list *tail=tail->next;
-		tail->next=ip_addr_freelist;
-		ip_addr_freelist=tail;
+		struct ip_addr_list *tail = tail->next;
+		tail->next = stack->ip_addr_freelist;
+		stack->ip_addr_freelist = tail;
 	}
+	*/
+	if (tail != NULL) {
+		struct ip_addr_list *next=tail->next;
+		tail->next=NULL;
+		while (tail != NULL) {
+			next=tail->next;
+			ip_addr_list_free(stack,tail);
+			tail=next;
+		}
+  }
 }
 
 #define mask_wider(x,y) \
@@ -221,10 +248,6 @@ void ip_addr_list_add(struct ip_addr_list **ptail, struct ip_addr_list *el)
 		*ptail=(*ptail)->next=el;
 	}
 }
-
-
-
-
 
 void ip_addr_list_del(struct ip_addr_list **ptail, struct ip_addr_list *el)
 {

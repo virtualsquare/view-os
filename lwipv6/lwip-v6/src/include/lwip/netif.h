@@ -43,6 +43,12 @@
 #include "lwip/inet.h"
 #include "lwip/pbuf.h"
 
+#define NETIF_LOOPIF 0
+#define NETIF_TAPIF 1
+#define NETIF_TUNIF 2
+#define NETIF_VDEIF 3
+#define NETIF_NUMIF 4
+
 #if 0
 #if LWIP_DHCP
 #include "lwip/dhcp.h"
@@ -161,26 +167,27 @@ struct netif {
 	/* type */
 #endif
 
+  /* Stack identifier */
+  struct stack *stack;
 };
 
-/** The list of network interfaces. */
-extern struct netif *netif_list;
-/** The default network interface. */
-extern struct netif *netif_default;
-
 /* netif_init() must be called first. */
-void netif_init(void);
+void netif_init(struct stack *stack);
+
+void netif_shutdown(struct stack *stack);
 
 /* netif_cleanup() must be called for a final garbage collection. */
-void netif_cleanup(void);
+void netif_cleanup(struct stack *stack);
 
-struct netif *
-netif_add(struct netif *netif, 
+struct netif * netif_add(
+	struct stack *stack,
+	struct netif *netif, 
 	void *state, 
 	err_t (* init  )(struct netif *netif),
 	err_t (* input )(struct pbuf *p, struct netif *netif),
 	void  (* change)(struct netif *netif, u32_t type) );
 
+u8_t netif_next_num(struct netif *netif,int netif_model);
 
 int
 netif_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
@@ -190,15 +197,15 @@ netif_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netma
 void netif_remove(struct netif * netif);
 
 struct ifreq;
-int netif_ioctl(int cmd,struct ifreq *ifr);
+int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr);
 
 /* Returns a network interface given its name. The name is of the form
    "et0", where the first two letters are the "name" field in the
    netif structure, and the digit is in the num field in the same
    structure. */
-struct netif *netif_find(char *name);
-struct netif *netif_find_id(int id);
-struct netif * netif_find_direct_destination(struct ip_addr *addr);
+struct netif *netif_find(struct stack *stack, char *name);
+struct netif *netif_find_id(struct stack *stack, int id);
+struct netif * netif_find_direct_destination(struct stack *stack, struct ip_addr *addr);
 
 /* These functions change interface state and inform IP layer */
 void netif_set_up(struct netif *netif);

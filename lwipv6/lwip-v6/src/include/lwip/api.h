@@ -84,6 +84,9 @@ struct netbuf {
 };
 
 struct netconn {
+  
+  struct stack *stack;
+
   enum netconn_type type;
   enum netconn_state state;
   union {
@@ -125,15 +128,16 @@ struct ip_addr *  netbuf_fromaddr (struct netbuf *buf);
 u16_t             netbuf_fromport (struct netbuf *buf);
 
 /* Network connection functions: */
-struct netconn *  netconn_new     (enum netconn_type type);
+struct netconn *  netconn_new     (struct stack *stack, enum netconn_type type);
 struct
-netconn *netconn_new_with_callback(enum netconn_type t,
+netconn *netconn_new_with_callback(struct stack *stack, enum netconn_type type,
                                    void (*callback)(struct netconn *, enum netconn_evt, u16_t len));
 struct
-netconn *netconn_new_with_proto_and_callback(enum netconn_type t, u16_t proto,
+netconn *netconn_new_with_proto_and_callback(struct stack *stack, enum netconn_type type, u16_t proto,
                                    void (*callback)(struct netconn *, enum netconn_evt, u16_t len));
 err_t             netconn_delete  (struct netconn *conn);
 enum netconn_type netconn_type    (struct netconn *conn);
+struct stack *					netconn_stack  (struct netconn *conn);
 err_t             netconn_peer    (struct netconn *conn,
            struct ip_addr *addr,
            u16_t *port);
