@@ -27,6 +27,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <sys/syscall.h>
+#include <linux/net.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -44,11 +45,16 @@
 #include "canonicalize.h"
 #include "mainpoll.h"
 
+#define SOCK_DEFAULT 0
+
 #include "gdebug.h"
 //#define _NESTED_CALL_DEBUG_
 #ifdef _NESTED_CALL_DEBUG_
 #include "syscallnames.h"
 #endif
+
+static int nested_call_syscall (int sysno, struct npcb *npc);
+static int nested_call_sockcall (int sysno, struct npcb *npc);
 
 static struct pcb_file umview_file;
 
@@ -153,15 +159,16 @@ service_t nchoice_path(int sc_number,struct npcb *npc) {
 /* choice function for nested msocket calls: path (1st arg) */
 service_t nchoice_sockpath(int sc_number,struct npcb *npc) {
 	if (npc->sysargs[0]) {
-		fprint2("nchoice_path %s %lld\n",(char *)(npc->sysargs[0]),npc->tst.epoch);
+		//fprint2("nchoice_sockpath %s %lld\n",(char *)(npc->sysargs[0]),npc->tst.epoch);
 		npc->path=nest_abspath(npc->sysargs[0],npc,&(npc->pathstat),0);
-		fprint2("nchoice_abspath %s %lld\n",npc->path,npc->tst.epoch);
+		//fprint2("nchoice_sockabspath %s %lld\n",npc->path,npc->tst.epoch);
 		if(npc->path==um_patherror)
 			return UM_NONE;
 		else
 			return service_check(CHECKPATH,npc->path,1);
 	} else {
 		//fprint2("nchoice_abspath SOCK %ld\n",npc->sysargs[1]);
+		npc->path=NULL;
 		return service_check(CHECKSOCKET, &(npc->sysargs[1]),1);
 	}
 }
@@ -188,7 +195,7 @@ service_t nchoice_link2(int sc_number,struct npcb *npc) {
 
 /* choice function for nested calls: socket */
 service_t nchoice_socket(int sc_number,struct npcb *npc) {
-	//fprint2("nchoice_abspath SOCK %ld\n",npc->sysargs[0]);
+	//fprint2("nchoice_socket SOCK %ld %d\n",npc->sysargs[0],um_mod_getumpid());
 	return service_check(CHECKSOCKET, &(npc->sysargs[0]),1);
 }
 
@@ -335,6 +342,67 @@ int nw_sockfd_std(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 #endif
 }
 
+int nw_msocket(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
+{
+	long rv;
+	int domain  =npc->sysargs[1];
+	int type    =npc->sysargs[2];
+	int protocol=npc->sysargs[3];
+	npc->sysargs[0]=(long) npc->path;
+	//fprint2("nw_msocket %s %d %d %d\n",npc->sysargs[0],domain,type,protocol);
+	if (sercode != UM_NONE) {
+		if (type == SOCK_DEFAULT) {
+			/* redefine default for recursive calls.
+			 * it is not clear yet if it does make sense and
+			 * which semantics is has */
+			npc->erno=EOPNOTSUPP;
+			return -1;
+		} else {	
+			if ((rv=do_nested_call(um_syscall,&(npc->sysargs[0]),4)) < 0) {
+				if (errno == ENOSYS && npc->path == NULL) {
+					/* backward compatibility:
+					 * modules implementing only "socket". 
+					 * the code reaches this case only from wrap_in_socket */
+#if (__NR_socketcall != __NR_doesnotexist)
+					um_syscall=service_socketcall(sercode,SYS_SOCKET);
+#else
+					um_syscall=service_syscall(sercode,uscno(__NR_socket));
+#endif
+					return do_nested_call(um_syscall,&(npc->sysargs[0]),3);
+				}
+				else
+					return rv;
+			} else
+				return rv;
+		}
+	} else {
+		/* msocket -> socket translation for native system calls
+		 * just for the case path=NULL */
+		if (npc->path == NULL) {
+			errno=ENOTSUP;
+			return -1;
+		} else {
+			npc->sysargs[0]=npc->sysargs[1];
+			npc->sysargs[1]=npc->sysargs[2];
+			npc->sysargs[2]=npc->sysargs[3];
+#if (__NR_socketcall != __NR_doesnotexist)
+			return nested_call_sockcall(SYS_SOCKET,npc);
+#else
+			return nested_call_syscall(__NR_msocket,npc);
+#endif
+		}
+	}
+}
+
+int nw_socket(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
+{
+	npc->sysargs[3]=npc->sysargs[2];
+	npc->sysargs[2]=npc->sysargs[1];
+	npc->sysargs[1]=npc->sysargs[0];
+	npc->sysargs[0]=(long)NULL;
+	return nw_msocket(__NR_msocket,npc,sercode,service_virsyscall(sercode,VIRSYS_MSOCKET));
+}
+
 /* nested wrapper for not supported call */
 int nw_notsupp(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
@@ -345,7 +413,7 @@ int nw_notsupp(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 /* dcif (index) for syscalls */
 static int nested_sysindex(struct npcb *npc, int scno)
 {
-	  return uscno(scno);
+	return uscno(scno);
 }
 
 #if __NR_socketcall != __NR_doesnotexist

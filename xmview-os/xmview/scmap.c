@@ -82,6 +82,7 @@ serfunt nchoice_sockpath;
 wrapfun nw_syspath_std,nw_sysfd_std,nw_sockfd_std,nw_sysopen,nw_syslink,nw_syspath2_std, nw_notsupp;
 wrapfun nw_sysdup,nw_sysclose;
 wrapfun nw_sysstatfs64,nw_sysfstatfs64;
+wrapfun nw_socket,nw_msocket;
 
 wrapinfun wrap_in_socket, wrap_out_socket;
 wrapinfun wrap_in_bind_connect, wrap_in_listen, wrap_in_getsock, wrap_in_send;
@@ -291,7 +292,7 @@ struct sc_map scmap[]={
 struct sc_map sockmap[]={
 /* 0*/	{__NR_doesnotexist,     always_umnone,          NULL,                   NULL,   always_umnone,  NULL, 0,        0, SOC_NET},
 #endif
-/* 1*/	{__NR_socket,    choice_socket, 	wrap_in_socket,		wrap_out_socket,nchoice_socket,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET}, 
+/* 1*/	{__NR_socket,    choice_socket, 	wrap_in_socket,		wrap_out_socket,nchoice_socket,	nw_socket, 0,	3, SOC_SOCKET|SOC_NET}, 
 /* 2*/	{__NR_bind,      choice_fd,	wrap_in_bind_connect,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
 /* 3*/	{__NR_connect,   choice_fd,	wrap_in_bind_connect,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
 /* 4*/	{__NR_listen,    choice_fd,	wrap_in_listen,		wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	2, SOC_SOCKET|SOC_NET},
@@ -326,7 +327,7 @@ struct sc_map sockmap[]={
 struct sc_map virscmap[]={
 	{__NR_doesnotexist,     always_umnone,          NULL,                   NULL,   always_umnone,  NULL, 0,        0, 0},
 	{VIRSYS_UMSERVICE,	always_umnone, wrap_in_umservice, wrap_out_umservice,   always_umnone,  NULL, ALWAYS, 1, SOC_NONE},
-	{VIRSYS_MSOCKET, choice_sockpath, 	wrap_in_msocket,		wrap_out_socket,nchoice_sockpath,	nw_sockfd_std, ALWAYS,	4, SOC_SOCKET|SOC_NET}, 
+	{VIRSYS_MSOCKET, choice_sockpath, 	wrap_in_msocket,		wrap_out_socket,nchoice_sockpath,	nw_msocket, ALWAYS,	4, SOC_SOCKET|SOC_NET}, 
 };
 
 #define SIZESCMAP (sizeof(scmap)/sizeof(struct sc_map))
