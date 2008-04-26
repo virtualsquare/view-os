@@ -45,6 +45,7 @@
 #include "canonicalize.h"
 #include "mainpoll.h"
 
+
 #define SOCK_DEFAULT 0
 
 #include "gdebug.h"
@@ -55,6 +56,7 @@
 
 static int nested_call_syscall (int sysno, struct npcb *npc);
 static int nested_call_sockcall (int sysno, struct npcb *npc);
+static int nested_call_virsc (int sysno, struct npcb *npc);
 
 static struct pcb_file umview_file;
 
@@ -72,14 +74,10 @@ int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 	sercode=service_fd(&umview_file,fd,1);
 	//fprint2("service %d \n",sercode);
 	if (sercode != UM_NONE) {
+		int sfd=fd2sfd(&umview_file,fd);
 		sysfun local_event_subscribe=service_event_subscribe(sercode);
-		rv=local_event_subscribe(cb,arg,fd,how);
+		rv=local_event_subscribe(cb,arg,sfd,how);
 	} else {
-		/*int newhow=0;
-		if(how & 1) newhow |= POLLIN;
-		if(how & 2) newhow |= POLLOUT;
-		if(how & 4) newhow |= POLLPRI;
-		struct pollfd pdf={fd,newhow,0};*/
 		struct pollfd pdf={fd,how,0};
 		rv=poll(&pdf,1,0);
 		if (cb) {
@@ -89,13 +87,6 @@ int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 			mp_del(fd,arg);
 		if (rv > 0) 
 			rv = pdf.revents ;
-		/*
-		if (rv > 0) {
-			rv=0;
-			if (pdf.revents & POLLIN) rv |= 1;
-			if (pdf.revents & POLLOUT) rv |= 2;
-			if (pdf.revents & POLLPRI) rv |= 4;
-		}*/
   }	
 	pc->nestepoch = nestepoch;
 	pc->tst.epoch = epoch;
@@ -344,21 +335,18 @@ int nw_sockfd_std(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 
 int nw_msocket(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
-	long rv;
-	int domain  =npc->sysargs[1];
-	int type    =npc->sysargs[2];
-	int protocol=npc->sysargs[3];
 	npc->sysargs[0]=(long) npc->path;
-	//fprint2("nw_msocket %s %d %d %d\n",npc->sysargs[0],domain,type,protocol);
+	//fprint2("nw_msocket %s %d\n",npc->sysargs[0],sercode);
 	if (sercode != UM_NONE) {
-		if (type == SOCK_DEFAULT) {
+		if (npc->sysargs[2] /*type*/ == SOCK_DEFAULT) {
 			/* redefine default for recursive calls.
 			 * it is not clear yet if it does make sense and
 			 * which semantics is has */
 			npc->erno=EOPNOTSUPP;
 			return -1;
 		} else {	
-			if ((rv=do_nested_call(um_syscall,&(npc->sysargs[0]),4)) < 0) {
+			int sfd;
+			if ((sfd=do_nested_call(um_syscall,&(npc->sysargs[0]),4)) < 0) {
 				if (errno == ENOSYS && npc->path == NULL) {
 					/* backward compatibility:
 					 * modules implementing only "socket". 
@@ -368,20 +356,23 @@ int nw_msocket(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 #else
 					um_syscall=service_syscall(sercode,uscno(__NR_socket));
 #endif
-					return do_nested_call(um_syscall,&(npc->sysargs[0]),3);
+					sfd=do_nested_call(um_syscall,&(npc->sysargs[0]),3);
 				}
-				else
-					return rv;
+			}
+			if (sfd >= 0) {
+				int lfd;
+				int newfd=r_dup(STDOUT_FILENO); /* fake a file descriptor! */
+				lfd=lfd_open(sercode,sfd,NULL,npc->sysargs[0],1);
+				lfd_register(&umview_file,newfd,lfd);
+				//fprint2("Fake a lfd msocket %s s%d l%d new%d\n",npc->sysargs[0],sfd,lfd,newfd);
+				return newfd;
 			} else
-				return rv;
+				return -1;
 		}
 	} else {
 		/* msocket -> socket translation for native system calls
 		 * just for the case path=NULL */
 		if (npc->path == NULL) {
-			errno=ENOTSUP;
-			return -1;
-		} else {
 			npc->sysargs[0]=npc->sysargs[1];
 			npc->sysargs[1]=npc->sysargs[2];
 			npc->sysargs[2]=npc->sysargs[3];
@@ -390,8 +381,29 @@ int nw_msocket(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 #else
 			return nested_call_syscall(__NR_msocket,npc);
 #endif
+		} else {
+			errno=ENOTSUP;
+			return -1;
 		}
 	}
+}
+
+/* nested wrapper for standard socket calls */
+int nw_accept(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
+{
+	int fd=npc->sysargs[0];
+	int sfd;
+	npc->sysargs[0]=fd2sfd(&umview_file,fd);
+	sfd=do_nested_call(um_syscall,&(npc->sysargs[0]),3);
+	if (sfd >= 0) {
+		int lfd;
+		int newfd=r_dup(STDOUT_FILENO); /* fake a file descriptor! */
+		//fprint2("Fake a accept lfd msocket %d s%d l%d new%d\n",npc->sysargs[0],sfd,lfd,newfd);
+		lfd=lfd_open(sercode,sfd,NULL,npc->sysargs[0],1);
+		lfd_register(&umview_file,newfd,lfd);
+		return newfd;
+	} else
+		return -1;
 }
 
 int nw_socket(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
@@ -440,6 +452,12 @@ static int nested_call_sockcall (int sysno, struct npcb *npc)
 }
 #endif
 
+static int nested_call_virsc (int sysno, struct npcb *npc)
+{
+	npc->erno=EOPNOTSUPP;
+	return -1;
+}
+
 /* COMMON WRAP FOR NESTED CALLS */
 typedef int (*nested_commonwrap_index_function)(struct npcb *pc, int scno);
 typedef int (*nested_commonwrap_call_function)(int sysno,struct npcb *pc);
@@ -472,7 +490,7 @@ int nested_commonwrap(int sc_number,struct npcb *npc,
 		return -1;
 	}
 	//fprint2("nested_commonwrap choice %d -> %lld %x\n",sc_number,npc->tst.epoch,sercode);
-	if (sercode != UM_NONE /* || (sm[index].flags & ALWAYS) */) {
+	if (sercode != UM_NONE || (sm[index].flags & NALWAYS)) {
 		/* SUSPEND MGMT? */
 		rv=sm[index].nestwrap(sc_number,npc,sercode,sc(sercode,index));
 		if (rv<0 && npc->erno > 0)
@@ -500,6 +518,59 @@ static void nsaveargs(struct pcb *caller,struct npcb *callee,long int sysno){
 static void nrestoreargs(struct pcb *caller,struct npcb *callee){
 }
 
+static long int capture_nested_virsc(long int sysno, ...);
+int msocket (char *path, int domain, int type, int protocol)
+{
+	long rv=capture_nested_virsc(VIRSYS_MSOCKET,path,(long)domain,(long)(type),(long)protocol);
+	//fprint2("msocket4modules %s %d -> %d\n",path,domain,rv);
+	return rv;
+}
+
+/* management of module generated virtual system calls */
+static long int capture_nested_virsc(long int sysno, ...){
+	va_list ap;
+	register int i;
+	register int narg=virscmap[sysno].nargs;
+	long rv;
+	struct pcb *caller_pcb=get_pcb();
+	/* this is a new pcb, the actual pcb for syscall evaluation */
+	struct npcb callee_pcb;
+	nsaveargs(caller_pcb, &callee_pcb,__NR_socketcall);
+	set_pcb(&callee_pcb);
+	va_start(ap, sysno);
+	for (i=0; i<narg;i++)
+		callee_pcb.sysargs[i]=va_arg(ap,long int);
+	va_end(ap);
+#ifdef _NESTED_CALL_DEBUG_ 
+	fprint2("SvC=%ld - %p %lld %lld- args: %p %p %p %p %p %p\n",sysno,get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
+			(void*)callee_pcb.sysargs[0],
+			(void*)callee_pcb.sysargs[1],
+			(void*)callee_pcb.sysargs[2],
+			(void*)callee_pcb.sysargs[3],
+			(void*)callee_pcb.sysargs[4],
+			(void*)callee_pcb.sysargs[5]);
+#endif
+	/*
+	 * UMPID4NESTED
+	 * callee_pcb.umpid=caller_pcb->umpid;
+	 */
+	/* commonwrap for nested socket calls, 
+	 * nested_commonwrap sets errno, so the following code should not
+	 * call any system call or errno must be saved*/
+	rv=nested_commonwrap(sysno, &callee_pcb, nested_sockindex, nested_call_virsc, service_virsyscall, virscmap);
+
+	nrestoreargs(caller_pcb, &callee_pcb);
+	set_pcb(caller_pcb);
+#ifdef _NESTED_CALL_DEBUG_ 
+	{ int errno_save=errno;
+		fprint2("->(Sk) %ld: return value:%ld %p\n",
+				sysno,rv,get_pcb());
+		errno=errno_save;
+	}
+#endif
+	return rv;
+}
+
 #if __NR_socketcall != __NR_doesnotexist
 /* management of module generated socket calls */
 static long int capture_nested_socketcall(long int sysno, ...){
@@ -517,7 +588,7 @@ static long int capture_nested_socketcall(long int sysno, ...){
 		callee_pcb.sysargs[i]=va_arg(ap,long int);
 	va_end(ap);
 #ifdef _NESTED_CALL_DEBUG_
-	fprint2(256,"SkC=%ld - %p %lld %lld- parametri: %p %p %p %p %p %p\n",sysno,get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
+	fprint2("SkC=%ld - %p %lld %lld- args: %p %p %p %p %p %p\n",sysno,get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
 					(void*)callee_pcb.sysargs[0],
 					(void*)callee_pcb.sysargs[1],
 					(void*)callee_pcb.sysargs[2],
@@ -525,13 +596,17 @@ static long int capture_nested_socketcall(long int sysno, ...){
 					(void*)callee_pcb.sysargs[4],
 					(void*)callee_pcb.sysargs[5]);
 #endif
+  /*
+	 * UMPID4NESTED
+	 * callee_pcb.umpid=caller_pcb->umpid;
+	 */
 	/* commonwrap for nested socket calls */
 	rv=nested_commonwrap(sysno, &callee_pcb, nested_sockindex, nested_call_sockcall, service_socketcall, sockmap);
 
 	nrestoreargs(caller_pcb, &callee_pcb);
 	set_pcb(caller_pcb);
 #ifdef _NESTED_CALL_DEBUG_
-	fprint2(128,"->(Sk) %ld: return value:%ld %p\n",
+	fprint2("->(Sk) %ld: return value:%ld %p\n",
 				sysno,rv,get_pcb());
 #endif
 	return rv;
@@ -565,7 +640,7 @@ static long int capture_nested_syscall(long int sysno, ...)
 	}
 	va_end(ap);
 #ifdef _NESTED_CALL_DEBUG_
-		fprint2("SyC=%ld - %s %p %lld %lld- parametri: %x %x %x %x %x %x\n",sysno,SYSCALLNAME(sysno),get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
+		fprint2("SyC=%ld - %s %p %lld %lld- args: %x %x %x %x %x %x\n",sysno,SYSCALLNAME(sysno),get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
 					(void*)callee_pcb.sysargs[0],
 					(void*)callee_pcb.sysargs[1],
 					(void*)callee_pcb.sysargs[2],
@@ -573,7 +648,10 @@ static long int capture_nested_syscall(long int sysno, ...)
 					(void*)callee_pcb.sysargs[4],
 					(void*)callee_pcb.sysargs[5]);
 #endif
-
+  /*
+	 * UMPID4NESTED
+   * callee_pcb.umpid=caller_pcb->umpid;
+	 */
 	/* commonwrap for nested calls */
 	rv=nested_commonwrap(sysno, &callee_pcb, nested_sysindex, nested_call_syscall, service_syscall, scmap);
 

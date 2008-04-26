@@ -638,14 +638,14 @@ static long ummisc_mount(char *source, char *target, char *filesystemtype,
 		s64=um_mod_getpathstat();
 		new->path = strdup(target);
 		new->pathlen = strlen(target);
-		new->tst=tst_timestamp();
 		new->dlhandle=dlhandle;
 		setscset(dlhandle,&(new->scset));
 		new->ummisc_ops=ummisc_ops;
 		new->private_data = NULL;
-		addmisctab(new);
 		if (new->ummisc_ops->init) 
 			new->ummisc_ops->init(target,mountflags,data,new);
+		new->tst=tst_timestamp();
+		addmisctab(new);
 		return 0;
 	}
 }

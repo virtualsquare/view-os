@@ -33,7 +33,12 @@
 
 #include "umnet.h"
 
-static int umnetnative_ioctlparms(int fd, int req, struct umnet *nethandle)
+struct umnetlink {
+	char *path;
+	char proto[AF_MAXMAX];
+};
+
+static int umnetlink_ioctlparms(int fd, int req, struct umnet *nethandle)
 {
 	switch (req) {
 		case FIONREAD:
@@ -44,8 +49,6 @@ static int umnetnative_ioctlparms(int fd, int req, struct umnet *nethandle)
 			return sizeof(struct ifconf) | IOCTL_R | IOCTL_W;
 		case SIOCGSTAMP:
 			return sizeof(struct timeval) | IOCTL_W;
-		case SIOCGIFTXQLEN:
-			return sizeof(struct ifreq) | IOCTL_R | IOCTL_W;
 		case SIOCGIFFLAGS:
 		case SIOCGIFADDR:
 		case SIOCGIFDSTADDR:
@@ -56,6 +59,7 @@ static int umnetnative_ioctlparms(int fd, int req, struct umnet *nethandle)
 		case SIOCGIFMTU:
 		case SIOCGIFHWADDR:
 		case SIOCGIFINDEX:
+		case SIOCGIFTXQLEN:
 			return sizeof(struct ifreq) | IOCTL_R | IOCTL_W;
 		case SIOCSIFFLAGS:
 		case SIOCSIFADDR:
@@ -66,28 +70,14 @@ static int umnetnative_ioctlparms(int fd, int req, struct umnet *nethandle)
 		case SIOCSIFMEM:
 		case SIOCSIFMTU:
 		case SIOCSIFHWADDR:
+		case SIOCSIFTXQLEN:
 			return sizeof(struct ifreq) | IOCTL_R;
 		default:
 			return 0;
 	}
 }
 
-int umnetnative_msocket (int domain, int type, int protocol,
-		struct umnet *nethandle){
-	return msocket(NULL,domain, type, protocol);
-}
-
-int umnetnative_init (char *path, unsigned long flags, char *args, struct umnet *nethandle) {
-	return 0;
-}
-
-int umnetnative_fini (struct umnet *nethandle){
-	return 0;
-}
-
-int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
-
-static int umnetnative_ioctl(int d, int request, void *arg)
+static int umnetlink_ioctl(int d, int request, void *arg)
 {
 	if (request == SIOCGIFCONF) {
 		int rv;
@@ -107,8 +97,70 @@ static int umnetnative_ioctl(int d, int request, void *arg)
 	return ioctl(d,request,arg);
 }
 
+int umnetlink_msocket (int domain, int type, int protocol,
+		struct umnet *nethandle){
+	struct umnetlink *umnl=umnet_getprivatedata(nethandle);
+	if (domain > 0 && domain <= AF_MAXMAX && umnl->proto[domain])
+		return msocket(umnl->path,domain, type, protocol);
+	else
+		return msocket(NULL,domain, type, protocol);
+}
+
+static void umnetlink_setproto(char *args,char *proto)
+{
+	while (*args) {
+		switch (*args) {
+			case 'u' : proto[AF_UNIX]=1;args++;break;
+			case '4' : proto[AF_INET]=1;args++;break;
+			case '6' : proto[AF_INET6]=1;args++;break;
+			case 'n' : proto[AF_NETLINK]=1;args++;break;
+			case 'p' : proto[AF_PACKET]=1;args++;break;
+			case 'b' : proto[AF_BLUETOOTH]=1;args++;break;
+			case 'i' : proto[AF_IRDA]=1;args++;break;
+			case 'f' : {
+									 args++;
+									 proto[atoi(args)]=1;
+									 while(*args >= '0' && *args <= '9')
+										 args++;
+									 break;
+								 }
+			case ',' : args++;
+								 break;
+			default: fprint2("umnetlink mount unknown option %c\n",*args);
+							 args++;
+							 break;
+		}
+	}
+}
+
+int umnetlink_init (char *path, unsigned long flags, char *args, struct umnet *nethandle) {
+	if (path != NULL) {
+		struct umnetlink *umnl=calloc(1,sizeof(struct umnetlink));
+		umnl->path=strdup(path);
+		umnet_setprivatedata(nethandle,umnl);
+		if (args) 
+			umnetlink_setproto(args,umnl->proto);
+		else {
+			int i;
+			for (i=0;i<AF_MAXMAX;i++)
+				umnl->proto[i]=1;
+		}
+		return 0;
+	}
+	else
+		return -1;
+}
+
+int umnetlink_fini (struct umnet *nethandle){
+	struct umnetlink *umnl=umnet_getprivatedata(nethandle);
+	free(umnl->path);
+	free(umnl);
+	return 0;
+}
+
+int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
 struct umnet_operations umnet_ops={
-	.msocket=umnetnative_msocket,
+	.msocket=umnetlink_msocket,
 	.bind=bind,
 	.connect=connect,
 	.listen=listen,
@@ -122,11 +174,11 @@ struct umnet_operations umnet_ops={
 	.setsockopt=setsockopt,
 	.read=read,
 	.write=write,
-	.ioctl=umnetnative_ioctl,
+	.ioctl=umnetlink_ioctl,
 	.close=close,
-	.ioctlparms=umnetnative_ioctlparms,
-	.init=umnetnative_init,
-	.fini=umnetnative_fini,
+	.ioctlparms=umnetlink_ioctlparms,
+	.init=umnetlink_init,
+	.fini=umnetlink_fini,
 	.event_subscribe=um_mod_event_subscribe
 };
 

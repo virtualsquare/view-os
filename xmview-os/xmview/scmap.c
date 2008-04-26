@@ -82,7 +82,7 @@ serfunt nchoice_sockpath;
 wrapfun nw_syspath_std,nw_sysfd_std,nw_sockfd_std,nw_sysopen,nw_syslink,nw_syspath2_std, nw_notsupp;
 wrapfun nw_sysdup,nw_sysclose;
 wrapfun nw_sysstatfs64,nw_sysfstatfs64;
-wrapfun nw_socket,nw_msocket;
+wrapfun nw_socket,nw_msocket,nw_accept;
 
 wrapinfun wrap_in_socket, wrap_out_socket;
 wrapinfun wrap_in_bind_connect, wrap_in_listen, wrap_in_getsock, wrap_in_send;
@@ -158,7 +158,7 @@ struct sc_map scmap[]={
 	{__NR_mount,	choice_mount,	wrap_in_mount,	wrap_out_std,	always_umnone,	NULL, 0,	5, SOC_FILE},
 	{__NR_umount,	choice_path,	wrap_in_umount,	wrap_out_std,	always_umnone,	NULL, 0,	1, SOC_FILE},
 	{__NR_umount2,	choice_path,	wrap_in_umount2,wrap_out_std,	always_umnone,	NULL, 0,	2, SOC_FILE},
-	{__NR_ioctl,	choice_fd,	wrap_in_ioctl,	wrap_out_std, 	always_umnone,	NULL, 0,	3, SOC_FILE},
+	{__NR_ioctl,	choice_fd,	wrap_in_ioctl,	wrap_out_std, 	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
 	{__NR_read,	choice_fd,	wrap_in_read,	wrap_out_std,	nchoice_fd,	nw_sysfd_std, CB_R,	3, SOC_FILE|SOC_NET},
 	{__NR_write,	choice_fd,	wrap_in_write,	wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE|SOC_NET},
 	{__NR_readv,	choice_fd,	wrap_in_readv,	wrap_out_std,	nchoice_fd,	nw_sysfd_std, CB_R,	3, SOC_FILE|SOC_NET},
@@ -296,7 +296,7 @@ struct sc_map sockmap[]={
 /* 2*/	{__NR_bind,      choice_fd,	wrap_in_bind_connect,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
 /* 3*/	{__NR_connect,   choice_fd,	wrap_in_bind_connect,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
 /* 4*/	{__NR_listen,    choice_fd,	wrap_in_listen,		wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	2, SOC_SOCKET|SOC_NET},
-/* 5*/	{__NR_accept,    choice_fd,	wrap_in_accept,		wrap_out_socket,nchoice_sfd,	nw_sockfd_std,	CB_R,	3, SOC_SOCKET|SOC_NET},
+/* 5*/	{__NR_accept,    choice_fd,	wrap_in_accept,		wrap_out_socket,nchoice_sfd,	nw_accept,	CB_R,	3, SOC_SOCKET|SOC_NET},
 /* 6*/	{__NR_getsockname,choice_fd,	wrap_in_getsock,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
 /* 7*/	{__NR_getpeername,choice_fd,	wrap_in_getsock,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
 /* 8*/	{__NR_socketpair,always_umnone,		NULL, 			NULL,	always_umnone,	NULL, 0,	4, SOC_SOCKET|SOC_NET}, /* not used */
@@ -327,7 +327,7 @@ struct sc_map sockmap[]={
 struct sc_map virscmap[]={
 	{__NR_doesnotexist,     always_umnone,          NULL,                   NULL,   always_umnone,  NULL, 0,        0, 0},
 	{VIRSYS_UMSERVICE,	always_umnone, wrap_in_umservice, wrap_out_umservice,   always_umnone,  NULL, ALWAYS, 1, SOC_NONE},
-	{VIRSYS_MSOCKET, choice_sockpath, 	wrap_in_msocket,		wrap_out_socket,nchoice_sockpath,	nw_msocket, ALWAYS,	4, SOC_SOCKET|SOC_NET}, 
+	{VIRSYS_MSOCKET, choice_sockpath, 	wrap_in_msocket,		wrap_out_socket,nchoice_sockpath,	nw_msocket, ALWAYS|NALWAYS,	4, SOC_SOCKET|SOC_NET}, 
 };
 
 #define SIZESCMAP (sizeof(scmap)/sizeof(struct sc_map))

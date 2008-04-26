@@ -495,7 +495,6 @@ static long umdev_mount(char *source, char *target, char *filesystemtype,
 		assert(new);
 		s64=um_mod_getpathstat();
 		new->path = strdup(target);
-		new->tst=tst_timestamp();
 		new->mode = S_IFCHR | 0600;
 		new->uid = getuid();
 		new->gid = getgid();
@@ -517,7 +516,6 @@ static long umdev_mount(char *source, char *target, char *filesystemtype,
 			devargs(datacopy, umdevargtab, UMDEVARGTABSIZE, new);
 			free(datacopy);
 		}
-		adddevicetab(new);
 		if (umdev_ops->init) {
 			if (umdev_ops->init(mode2char(new->mode),new->device,source,
 					mountflags,data?data:"", new) < 0) {
@@ -528,6 +526,8 @@ static long umdev_mount(char *source, char *target, char *filesystemtype,
 				return -1;
 			}
 		}
+		new->tst=tst_timestamp();
+		adddevicetab(new);
 		return 0;
 	}
 }

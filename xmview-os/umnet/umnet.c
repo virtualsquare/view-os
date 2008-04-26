@@ -87,7 +87,6 @@ struct fileinfo {
 
 #define EXACT 1
 #define SUBSTR 0
-#define AF_MAXMAX AF_MAX+2
 
 static struct fileinfo **filetab=NULL;
 static int filetabmax=0;
@@ -327,8 +326,9 @@ static struct umnet *umnet_getdefstack(int id, int domain)
 		//fprint2("umnet_getdefstack %d %d\n",id,domain);
 		//fprint2("   %p %p\n",defnet[id],defnet[id]->defstack[domain-1]);
 		return defnet[id]->defstack[domain-1];
-	} else
-		return NULL;
+	} else {
+		return searchnet("/dev/net/default",EXACT);
+	}
 }
 
 static long umnet_ctl(int type, va_list ap)
@@ -372,11 +372,12 @@ static int ioctlparms(struct ioctl_len_req *arg)
 	}
 }
 
+struct timestamp *um_x_gettst();
 static epoch_t umnet_check(int type, void *arg)
 {
 	if (type == CHECKPATH) {
 		char *path=arg;
-		//fprint2("CHECKPATH %s %d\n",path,um_mod_getumpid());
+		//fprint2("CHECKPATH %s %d %lld\n",path,um_mod_getumpid(),um_x_gettst()->epoch);
 		struct umnet *mc=searchnet(path,EXACT);
 		if ( mc != NULL) 
 			return mc->tst.epoch;
@@ -387,8 +388,8 @@ static epoch_t umnet_check(int type, void *arg)
 		return (strncmp(path,"umnet",5) == 0);
 	} else if (type == CHECKSOCKET) {
 		int *sock=arg;
-		//fprint2("CHECKSOCKET %d %d\n",*sock,um_mod_getumpid());
 		struct umnet *mc=umnet_getdefstack(um_mod_getumpid(),*sock);
+		//fprint2("CHECKSOCKET %d %d %p\n",*sock,um_mod_getumpid(),mc);
 		if ( mc != NULL) 
 			return mc->tst.epoch;
 		else
@@ -815,16 +816,16 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 		s64=um_mod_getpathstat();
 		new->path = strdup(target);
 		new->pathlen = strlen(target);
-		new->tst=tst_timestamp();
 		new->dlhandle=dlhandle;
 		new->netops=netops;
 		new->private_data = NULL;
 		new->mode=S_IFSTACK|0777;
 		new->uid=0;
 		new->gid=0;
-		addnettab(new);
 		if (new->netops->init) 
-			new->netops->init(target,mountflags,data,new);
+			new->netops->init(source,mountflags,data,new);
+		addnettab(new);
+		new->tst=tst_timestamp();
 		return 0;
 	}
 }

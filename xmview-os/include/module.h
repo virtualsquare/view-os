@@ -53,6 +53,8 @@ typedef unsigned char service_t;
 
 typedef unsigned long c_set;
 
+extern int msocket (char *path, int domain, int type, int protocol);
+
 #define MC_USER 1
 
 #define MC_CORECTLCLASS(x) ((x) << 1)

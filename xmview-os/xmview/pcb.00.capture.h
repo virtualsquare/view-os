@@ -60,15 +60,21 @@
 #endif
 		unsigned long erno;
 #	endif
+/*
+ * UMPID4NESTED
+ * long umpid;
+ */
 #endif
 
 #ifdef _PCB_ONLY_FIELDS
+	long umpid;
 #	ifdef _VIEWOS_KM
 	long kmpid;
-	long umpid;
+	//long umpid;
 #	endif
 #	ifdef _VIEWOS_UM
-	unsigned short umpid;
+	//unsigned short umpid;
+	//long umpid;
 #	endif
 	int pid;                /* Process Id of this entry */
 	int signum;

@@ -28,6 +28,7 @@
 #include <config.h>
 #include <libgen.h>
 #include <msocket.h>
+#include <string.h>
 
 #define AF_MAXMAX AF_MAX+2
 
@@ -126,6 +127,7 @@ main(int argc, char *argv[])
 		usage();
 	else {
 		int fd;
+		char *cmd;
 		if (all) {
 			if (verbose)
 				fprintf(stderr, "pid %d: stack %s for all supported protocol families\n",getpid(),argv[0]);
@@ -140,13 +142,16 @@ main(int argc, char *argv[])
 					if (verbose)
 						fprintf(stderr, "pid %d: stack %s for %d=%s\n",getpid(),argv[0],i,fname[i]);
 					if ((fd=msocket(argv[0],i,SOCK_DEFAULT,0)) < 0) {
-						perror("mstack");
+						perror("mstack: msocket");
 						exit(-1);
 					}
 				}
 		}
 		argv ++;
 		argc --;
-		execvp(basename(argv[0]),argv);
+		cmd=strdup(argv[0]);
+		argv[0]=basename(cmd);
+		execvp(cmd,argv);
+		perror("mstack: exec");
 	}
 }

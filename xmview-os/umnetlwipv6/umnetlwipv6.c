@@ -51,8 +51,6 @@ static int umnetlwipv6_ioctlparms(int fd, int req, struct umnet *nethandle)
 			return sizeof(struct ifconf) | IOCTL_R | IOCTL_W;
 		case SIOCGSTAMP:
 			return sizeof(struct timeval) | IOCTL_W;
-		case SIOCGIFTXQLEN:
-			return sizeof(struct ifreq) | IOCTL_R | IOCTL_W;
 		case SIOCGIFFLAGS:
 		case SIOCGIFADDR:
 		case SIOCGIFDSTADDR:
@@ -63,6 +61,7 @@ static int umnetlwipv6_ioctlparms(int fd, int req, struct umnet *nethandle)
 		case SIOCGIFMTU:
 		case SIOCGIFHWADDR:
 		case SIOCGIFINDEX:
+		case SIOCGIFTXQLEN:
 			return sizeof(struct ifreq) | IOCTL_R | IOCTL_W;
 		case SIOCSIFFLAGS:
 		case SIOCSIFADDR:
@@ -73,6 +72,7 @@ static int umnetlwipv6_ioctlparms(int fd, int req, struct umnet *nethandle)
 		case SIOCSIFMEM:
 		case SIOCSIFMTU:
 		case SIOCSIFHWADDR:
+		case SIOCSIFTXQLEN:
 			return sizeof(struct ifreq) | IOCTL_R;
 		default:
 			return 0;
@@ -316,7 +316,6 @@ init (void)
 		UMNETLWIPV6(setsockopt);
 		UMNETLWIPV6(read);
 		UMNETLWIPV6(write);
-		UMNETLWIPV6(ioctl);
 		UMNETLWIPV6(close);
 		UMNETLWIPV6(event_subscribe);
 		//UMNETLWIPV6(fcntl);

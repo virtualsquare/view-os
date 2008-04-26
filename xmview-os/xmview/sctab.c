@@ -867,7 +867,13 @@ unsigned long *um_mod_getargs(void)
 int um_mod_getumpid(void)
 {
 	struct pcb *pc=get_pcb();
+	/* this returns 0 for nested calls */
 	return ((pc && (pc->flags & PCB_INUSE))?pc->umpid:0);
+	/* this returns the id of the caller process that originally made the
+	 * call
+	 * UMPID4NESTED
+	 * return pc->umpid;
+	 */
 }
 
 /* for modules: get the stat info for the current path */ 

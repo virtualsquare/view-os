@@ -92,8 +92,8 @@ extern int scmap_sockmapsize;
  * function tell noone is interested - useful for some system call we must
  * process internally, e.g. to keep fd table updated, or mmap mappings,
  * etc... */
-//#define ALWAYS 0x10
 #define ALWAYS 0x8000
+#define NALWAYS 0x4000
 
 #define USC_TYPE(X) (scmap[(X)].setofcall)
 #define SOC_NONE	0x00

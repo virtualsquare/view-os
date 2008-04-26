@@ -43,11 +43,9 @@ now there are two services loaded, the fuse gateway and a networking stack.
 
 $ ip addr
 ip addr
-SIOCGIFXQLEN: Invalid argument
 1: vd0: <BROADCAST> mtu 1500 
    link/ether 01:02:7d:3c:a0:06 brd ff:ff:ff:ff:ff:ff
    inet6 fe80::102:7dff:fe3c:a006/64 scope link 
-SIOCGIFXQLEN: Invalid argument
 2: lo0: <LOOPBACK,UP> mtu 0 
    link/loopback 
    inet6 ::1/128 scope host 
