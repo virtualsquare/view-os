@@ -33,8 +33,11 @@
 
 #include "umnet.h"
 
+#define UMNETLINK_OVERRIDE 1
 struct umnetlink {
-	char *path;
+	char *source;
+	char *mountpoint;
+	char flags;
 	char proto[AF_MAXMAX];
 };
 
@@ -101,12 +104,16 @@ int umnetlink_msocket (int domain, int type, int protocol,
 		struct umnet *nethandle){
 	struct umnetlink *umnl=umnet_getprivatedata(nethandle);
 	if (domain > 0 && domain <= AF_MAXMAX && umnl->proto[domain])
-		return msocket(umnl->path,domain, type, protocol);
-	else
-		return msocket(NULL,domain, type, protocol);
+		return msocket(umnl->source,domain, type, protocol);
+	else {
+		if (umnl->flags & UMNETLINK_OVERRIDE) 
+			return msocket(umnl->mountpoint,domain, type, protocol);
+		else
+			return msocket(NULL,domain, type, protocol);
+	}
 }
 
-static void umnetlink_setproto(char *args,char *proto)
+static void umnetlink_setproto(char *args,char *proto,char *flags)
 {
 	while (*args) {
 		switch (*args) {
@@ -117,6 +124,7 @@ static void umnetlink_setproto(char *args,char *proto)
 			case 'p' : proto[AF_PACKET]=1;args++;break;
 			case 'b' : proto[AF_BLUETOOTH]=1;args++;break;
 			case 'i' : proto[AF_IRDA]=1;args++;break;
+			case 'o' : *flags |= UMNETLINK_OVERRIDE;
 			case 'f' : {
 									 args++;
 									 proto[atoi(args)]=1;
@@ -133,13 +141,14 @@ static void umnetlink_setproto(char *args,char *proto)
 	}
 }
 
-int umnetlink_init (char *path, unsigned long flags, char *args, struct umnet *nethandle) {
-	if (path != NULL) {
+int umnetlink_init (char *source, char *mountpoint, unsigned long flags, char *args, struct umnet *nethandle) {
+	if (source != NULL) {
 		struct umnetlink *umnl=calloc(1,sizeof(struct umnetlink));
-		umnl->path=strdup(path);
+		umnl->source=strdup(source);
+		umnl->mountpoint=strdup(mountpoint);
 		umnet_setprivatedata(nethandle,umnl);
 		if (args) 
-			umnetlink_setproto(args,umnl->proto);
+			umnetlink_setproto(args,umnl->proto,&(umnl->flags));
 		else {
 			int i;
 			for (i=0;i<AF_MAXMAX;i++)
@@ -153,7 +162,8 @@ int umnetlink_init (char *path, unsigned long flags, char *args, struct umnet *n
 
 int umnetlink_fini (struct umnet *nethandle){
 	struct umnetlink *umnl=umnet_getprivatedata(nethandle);
-	free(umnl->path);
+	free(umnl->source);
+	free(umnl->mountpoint);
 	free(umnl);
 	return 0;
 }

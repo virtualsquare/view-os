@@ -192,6 +192,14 @@ struct service {
 	sysfun *virsc;
 };
 
+/* 
+ * #define ESCNO_SOCKET is defined 0x40000000 or 0x0
+ * depending on the presence of the single socketcall system call
+ * or one syscall for each socket call*/
+#define ESCNO_VIRSC 0x80000000
+#define ESCNO_MASK  0x3fffffff
+#define ESCNO_MAP   0xC0000000
+
 extern int _lwip_version;
 extern int scmap_scmapsize;
 extern int scmap_sockmapsize;
@@ -207,7 +215,7 @@ extern int um_mod_getumpid(void);
 extern long* um_mod_getargs(void);
 extern struct stat64 *um_mod_getpathstat(void);
 char *um_mod_getpath(void);
-extern int um_mod_getsyscalltype(int scno);
+extern int um_mod_getsyscalltype(int escno);
 int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
 int um_mod_nrsyscalls(void);
 
@@ -257,7 +265,11 @@ extern int vfprint2(const char *fmt, va_list ap);
 #define __NR_getsockopt SYS_GETSOCKOPT
 #define __NR_sendmsg    SYS_SENDMSG
 #define __NR_recvmsg    SYS_RECVMSG
+#define ESCNO_SOCKET  0x40000000
+#else
+#define ESCNO_SOCKET  0x00000000
 #endif
+
 #define __NR_msocket	  VIRSYS_MSOCKET
 
 #define INTERNAL_MAKE_NAME(a, b) a ## b

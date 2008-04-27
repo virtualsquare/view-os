@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <dlfcn.h>
+#include <time.h>
 #include <pthread.h>
 #include <sys/mount.h>
 #include <linux/net.h>
@@ -43,6 +44,7 @@
 #define FALSE 0
 
 #define UMNET_SERVICE_CODE 0x07
+#define DEFAULT_NET_PATH "/dev/net/default"
 
 #ifndef __UMNET_DEBUG_LEVEL__
 #define __UMNET_DEBUG_LEVEL__ 0
@@ -67,6 +69,8 @@ struct umnet {
 	long mode;
 	uid_t uid;
 	gid_t gid;
+	time_t mounttime;
+	time_t sockettime;
 	void *private_data;
 };
 
@@ -327,7 +331,7 @@ static struct umnet *umnet_getdefstack(int id, int domain)
 		//fprint2("   %p %p\n",defnet[id],defnet[id]->defstack[domain-1]);
 		return defnet[id]->defstack[domain-1];
 	} else {
-		return searchnet("/dev/net/default",EXACT);
+		return searchnet(DEFAULT_NET_PATH,EXACT);
 	}
 }
 
@@ -377,7 +381,13 @@ static epoch_t umnet_check(int type, void *arg)
 {
 	if (type == CHECKPATH) {
 		char *path=arg;
-		//fprint2("CHECKPATH %s %d %lld\n",path,um_mod_getumpid(),um_x_gettst()->epoch);
+		/*fprint2("CHECKPATH %s %d %lld\n",path,um_mod_getumpid(),um_x_gettst()->epoch);*/
+#if 0
+		int escno=um_mod_getsyscallno();
+		if (escno&ESCNO_MAP)
+		fprint2("CHECKPATH %s %x %d %x\n",path,escno&ESCNO_MAP,escno&0x3fffffff,
+				um_mod_getsyscalltype(escno));
+#endif
 		struct umnet *mc=searchnet(path,EXACT);
 		if ( mc != NULL) 
 			return mc->tst.epoch;
@@ -430,6 +440,7 @@ static long umnet_msocket(char *path, int domain, int type, int protocol)
 			filetab[fi]->umnet = mh;
 			mh->count++;
 			rv=fi;
+			mh->sockettime=time(NULL);
 		}
 		return rv;
 	} else {
@@ -732,6 +743,8 @@ static setstat64(struct stat64 *buf64, struct umnet *um)
 	buf64->st_mode=um->mode;
 	buf64->st_uid=um->uid;
 	buf64->st_gid=um->gid;
+	buf64->st_mtime=buf64->st_ctime=um->mounttime;
+	buf64->st_atime=um->sockettime;
 }
 
 static long umnet_fstat64(int fd, struct stat64 *buf64)
@@ -820,10 +833,11 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 		new->netops=netops;
 		new->private_data = NULL;
 		new->mode=S_IFSTACK|0777;
+		new->mounttime=new->sockettime=time(NULL);
 		new->uid=0;
 		new->gid=0;
 		if (new->netops->init) 
-			new->netops->init(source,mountflags,data,new);
+			new->netops->init(source,new->path,mountflags,data,new);
 		addnettab(new);
 		new->tst=tst_timestamp();
 		return 0;

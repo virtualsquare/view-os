@@ -242,7 +242,7 @@ static void lwipargtoenv(struct stack *s,char *initargs)
 }
 
 
-int umnetlwipv6_init (char *path, unsigned long flags, char *args, struct umnet *nethandle) {
+int umnetlwipv6_init (char *source, char *mountpoint, unsigned long flags, char *args, struct umnet *nethandle) {
 	struct stack *s=lwip_stack_new();
 	if (s) {
 		lwipargtoenv(s,args);

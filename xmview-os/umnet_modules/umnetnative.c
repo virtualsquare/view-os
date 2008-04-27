@@ -77,7 +77,7 @@ int umnetnative_msocket (int domain, int type, int protocol,
 	return msocket(NULL,domain, type, protocol);
 }
 
-int umnetnative_init (char *path, unsigned long flags, char *args, struct umnet *nethandle) {
+int umnetnative_init (char *source, char *mountpoint, unsigned long flags, char *args, struct umnet *nethandle) {
 	return 0;
 }
 

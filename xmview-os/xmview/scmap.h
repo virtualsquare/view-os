@@ -25,10 +25,22 @@
 #define _SCMAP_H
 #include <poll.h>
 #include "services.h"
+#include "defs.h"
 
 #define VIRSYS_UMSERVICE 1
 #define VIRSYS_MSOCKET 2
 #define __NR_msocket VIRSYS_MSOCKET
+
+/* macro for privatescno (as viewed by modules)
+ * E-xtended scno */
+#if __NR_socketcall != __NR_doesnotexist
+#define ESCNO_SOCKET	0x40000000
+#else
+#define ESCNO_SOCKET	0x00000000
+#endif
+#define ESCNO_VIRSC		0x80000000
+#define ESCNO_MASK	0x3fffffff
+#define ESCNO_MAP		0xC0000000
 
 //typedef struct service *sss;
 typedef service_t (* serfun)();
@@ -74,7 +86,7 @@ struct sc_map {
 	 * optimizations */
 	char nargs;
 	/* set of calls, for a better selection (choice fun)*/
-	char setofcall;
+	unsigned char setofcall;
 };
 
 extern struct sc_map scmap[];
@@ -95,7 +107,20 @@ extern int scmap_sockmapsize;
 #define ALWAYS 0x8000
 #define NALWAYS 0x4000
 
-#define USC_TYPE(X) (scmap[(X)].setofcall)
+static inline struct sc_map *escmapentry(long esysno)
+{
+	long index=esysno & ESCNO_MASK;
+	switch (esysno & ESCNO_MAP)
+	{
+#if __NR_socketcall != __NR_doesnotexist
+		case ESCNO_SOCKET: return &(sockmap[index]);
+#endif
+		case ESCNO_VIRSC: return &(virscmap[index]);
+		default: return &(scmap[uscno(index)]);
+	}
+}
+
+/* #define USC_TYPE(X) (scmap[(X)].setofcall)*/
 #define SOC_NONE	0x00
 #define SOC_SOCKET	0x80
 #define SOC_FILE	0x40

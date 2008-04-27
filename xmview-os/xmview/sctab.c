@@ -358,6 +358,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
  * caller process memory */
 void dsys_socketwrap_parse_arguments(struct pcb *pc, int scno)
 {
+	pc->private_scno = pc->sysscno | ESCNO_SOCKET;
 	pc->path = NULL;
 }
 
@@ -394,7 +395,7 @@ void dsys_um_sysctl_parse_arguments(struct pcb *pc, int scno)
 				sysctlargs.newlen <= 6)
 			umoven(pc,(long)(sysctlargs.newval),sysctlargs.newlen * sizeof(long), pc->sysargs);
 		/* the private system call number is encoded in the nlen field */
-		pc->private_scno = sysctlargs.nlen;
+		pc->private_scno = sysctlargs.nlen | ESCNO_VIRSC;
 	} else {
 		/* real sysctl, mapped on 0 */
 		pc->sysargs[1] = 0;
@@ -405,7 +406,7 @@ void dsys_um_sysctl_parse_arguments(struct pcb *pc, int scno)
  * number of syscall in sysargs[1]*/
 int dsys_um_sysctl_index_function(struct pcb *pc, int scno)
 {
-	return pc->private_scno;
+	return (pc->private_scno & 0x3fffffff);
 }
 
 /* megawrap for sysctl */
@@ -743,6 +744,7 @@ char always_umnone(int sc_number,struct pcb *pc)
  * ordinary system calls */
 void dsys_megawrap_parse_arguments(struct pcb *pc, int scno)
 {
+	pc->private_scno = pc->sysscno;
 	pc->path = NULL;
 }
 
@@ -837,10 +839,10 @@ int um_mod_getsyscallno(void)
 	struct pcb *pc=get_pcb();
 	if (pc) {
 		if (pc->flags && PCB_INUSE)
-			return (pc->sysscno);
+			return (pc->private_scno);
 		else {
 			struct npcb *npc=(struct npcb *)pc;
-			return (npc->sysscno);
+			return (npc->private_scno);
 		}
 	} else 
 		return 0;
@@ -901,13 +903,15 @@ char *um_mod_getpath(void)
 }
 
 /* for modules: get the system call type*/ 
-int um_mod_getsyscalltype(int scno)
+int um_mod_getsyscalltype(int escno)
 {
+	return escmapentry(escno)->setofcall;
+	/*
 	int usc=uscno(scno);
 	if (usc >= 0) 
 		return USC_TYPE(usc);
 	else
-		return -1;
+		return -1;*/
 }
 
 /* for modules: get the number of syscall for this architecture

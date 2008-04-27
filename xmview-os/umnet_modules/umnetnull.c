@@ -32,7 +32,7 @@ int umnetnull_msocket (int domain, int type, int protocol,
 	return -1;
 }
 
-int umnetnull_init (char *path, unsigned long flags, char *args, struct umnet *nethandle) {
+int umnetnull_init (char *source, char *mountpoint, unsigned long flags, char *args, struct umnet *nethandle) {
 	return 0;
 }
 

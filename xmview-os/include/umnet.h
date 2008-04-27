@@ -65,7 +65,7 @@ struct umnet_operations {
 	int (*event_subscribe) (voidfun cb, void *arg, int fd, int how);
 
 	int (*ioctlparms) (int, int req, struct umnet *nethandle);
-	int (*init) (char *path, unsigned long flags, char *args, struct umnet *nethandle);
+	int (*init) (char *source, char *mountpoint, unsigned long flags, char *args, struct umnet *nethandle);
 	int (*fini) (struct umnet *nethandle);
 };	
 
