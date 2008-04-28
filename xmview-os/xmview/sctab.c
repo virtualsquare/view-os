@@ -71,6 +71,7 @@ void um_set_errno(struct pcb *pc,int i) {
 	}
 }
 
+#if 0
 /*  get the current working dir */
 char *um_getcwd(struct pcb *pc,char *buf,int size) {
 	if (pc->flags && PCB_INUSE) {
@@ -81,6 +82,7 @@ char *um_getcwd(struct pcb *pc,char *buf,int size) {
 		 * relative paths*/ 
 		return NULL;
 }
+#endif
 
 char *um_getroot(struct pcb *pc)
 {
@@ -196,12 +198,17 @@ char *um_getpath(long laddr,struct pcb *pc)
 
 /* get a path, convert it as an absolute path (and strdup it) 
  * from the process address space */
-char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink)
+char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink)
 {
 	char path[PATH_MAX];
 	char newpath[PATH_MAX];
 	if (umovestr(pc,laddr,PATH_MAX,path) == 0) {
-			um_realpath(path,newpath,pst,dontfollowlink,pc);
+		char *cwd;
+		if (dirfd==AT_FDCWD)
+			cwd=pc->fdfs->cwd;
+		else
+			cwd=fd_getpath(pc->fds,dirfd);
+		um_realpath(path,cwd,newpath,pst,dontfollowlink,pc);
 			/*fprint2("PATH %s (%s,%s) NEWPATH %s (%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->erno);*/
 		if (pc->erno)
 			return um_patherror;	//error
@@ -635,7 +642,7 @@ service_t choice_sc(int sc_number,struct pcb *pc)
  * instead of the pathname for service selection) */
 service_t choice_mount(int sc_number,struct pcb *pc)
 {
-	pc->path=um_abspath(pc->sysargs[1],pc,&(pc->pathstat),0); 
+	pc->path=um_abspath(AT_FDCWD,pc->sysargs[1],pc,&(pc->pathstat),0); 
 
 	if (pc->path!=um_patherror) {
 		char filesystemtype[PATH_MAX];
@@ -652,7 +659,7 @@ service_t choice_mount(int sc_number,struct pcb *pc)
 /* choice path (filename must be defined) */
 service_t choice_path(int sc_number,struct pcb *pc)
 {
-	pc->path=um_abspath(pc->sysargs[0],pc,&(pc->pathstat),0); 
+	pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),0); 
 	//printf("choice_path %d %s\n",sc_number,pc->path);
 
 	if (pc->path==um_patherror){
@@ -665,11 +672,21 @@ service_t choice_path(int sc_number,struct pcb *pc)
 		return service_check(CHECKPATH,pc->path,1);
 }
 
+/* choice pathat (filename must be defined) */
+service_t choice_pathat(int sc_number,struct pcb *pc)
+{
+	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),0);
+	if (pc->path==um_patherror)
+		return UM_NONE;
+	else
+		return service_check(CHECKPATH,pc->path,1);
+}
+
 /* choice sockpath (filename can be NULL) */
 service_t choice_sockpath(int sc_number,struct pcb *pc)
 {
 	if (pc->sysargs[0] != 0) {
-		pc->path=um_abspath(pc->sysargs[0],pc,&(pc->pathstat),0); 
+		pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),0); 
 
 		if (pc->path==um_patherror){
 			/*		char buff[PATH_MAX];
@@ -686,8 +703,52 @@ service_t choice_sockpath(int sc_number,struct pcb *pc)
 /* choice link (dirname must be defined, basename can be non-existent) */
 char choice_link(int sc_number,struct pcb *pc)
 {
-	pc->path=um_abspath(pc->sysargs[0],pc,&(pc->pathstat),1); 
+	pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),1); 
 	//printf("choice_path %d %s\n",sc_number,pc->path);
+	if (pc->path==um_patherror)
+		return UM_NONE;
+	else
+		return service_check(CHECKPATH,pc->path,1);
+}
+
+/* choice linkat (dirname must be defined, basename can be non-existent) */
+service_t choice_linkat(int sc_number,struct pcb *pc)
+{
+	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),1);
+	if (pc->path==um_patherror)
+		return UM_NONE;
+	else
+		return service_check(CHECKPATH,pc->path,1);
+}
+
+/* choice unlinkat (unlink = rmdir or unlink depending on flag) */
+service_t choice_unlinkat(int sc_number,struct pcb *pc)
+{
+	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),
+			!(pc->sysargs[2] & AT_REMOVEDIR));
+	if (pc->path==um_patherror)
+		return UM_NONE;
+	else
+		return service_check(CHECKPATH,pc->path,1);
+}
+
+/* choice path or link at (filename must be defined or can be non-existent) */
+/* depending on AT_SYMLINK_NOFOLLOW on the 4th parameter */
+service_t choice_pl4at(int sc_number,struct pcb *pc)
+{
+	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),
+			pc->sysargs[3] & AT_SYMLINK_NOFOLLOW);
+	if (pc->path==um_patherror)
+		return UM_NONE;
+	else
+		return service_check(CHECKPATH,pc->path,1);
+}
+
+/* depending on AT_SYMLINK_NOFOLLOW on the 5th parameter */
+service_t choice_pl5at(int sc_number,struct pcb *pc)
+{
+	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),
+			pc->sysargs[4] & AT_SYMLINK_NOFOLLOW);
 	if (pc->path==um_patherror)
 		return UM_NONE;
 	else
@@ -697,7 +758,36 @@ char choice_link(int sc_number,struct pcb *pc)
 /* choice link (dirname must be defined, basename can be non-existent second arg)*/
 char choice_link2(int sc_number,struct pcb *pc)
 {
-	pc->path=um_abspath(pc->sysargs[1],pc,&(pc->pathstat),1); 
+	int link;
+	/* is this the right semantics? */
+#ifdef __NR_linkat
+	if (sc_number == __NR_linkat)
+		link=pc->sysargs[3] & AT_SYMLINK_NOFOLLOW;
+	else
+#endif
+		link=1;
+
+	pc->path=um_abspath(AT_FDCWD,pc->sysargs[1],pc,&(pc->pathstat),link); 
+	//printf("choice_path %d %s\n",sc_number,pc->path);
+	if (pc->path==um_patherror)
+		return UM_NONE;
+	else
+		return service_check(CHECKPATH,pc->path,1);
+}
+
+char choice_link2at(int sc_number,struct pcb *pc)
+{
+	pc->path=um_abspath(pc->sysargs[1],pc->sysargs[2],pc,&(pc->pathstat),1); 
+	//printf("choice_path %d %s\n",sc_number,pc->path);
+	if (pc->path==um_patherror)
+		return UM_NONE;
+	else
+		return service_check(CHECKPATH,pc->path,1);
+}
+
+char choice_link3at(int sc_number,struct pcb *pc)
+{
+	pc->path=um_abspath(pc->sysargs[2],pc->sysargs[3],pc,&(pc->pathstat),1); 
 	//printf("choice_path %d %s\n",sc_number,pc->path);
 	if (pc->path==um_patherror)
 		return UM_NONE;
@@ -710,16 +800,6 @@ char choice_socket(int sc_number,struct pcb *pc)
 {
 	return service_check(CHECKSOCKET, &(pc->sysargs[0]),1);
 }
-
-#if 0
-/* choice device through major and minor number... it's a try, don't use it yet */
-char choice_device(int sc_number,struct pcb *pc)
-{
-	pc->path=um_abspath(pc->sysargs[1],pc,&(pc->pathstat),1);
-	// CHECK is really st_rdev? it seems...
-	return service_check(CHECKDEVICE, &((pc->pathstat).st_rdev),1);
-}
-#endif
 
 /* choice function for mmap: only *non anonymous* mmap must be mapped
  * depending on the service responsible for the fd. */

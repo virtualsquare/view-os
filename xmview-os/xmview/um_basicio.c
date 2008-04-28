@@ -61,6 +61,11 @@ int wrap_in_open(int sc_number,struct pcb *pc,
 	if (sc_number== __NR_open) {
 		flags=pc->sysargs[1];
 		mode=pc->sysargs[2];
+#ifdef __NR_openat
+	} else if (sc_number == __NR_openat) {
+		flags=pc->sysargs[2];
+		mode=pc->sysargs[3];
+#endif
 	} else {
 		flags=O_CREAT|O_WRONLY|O_TRUNC;
 		mode=pc->sysargs[1];
@@ -403,8 +408,20 @@ int wrap_in_fstat(int sc_number,struct pcb *pc,
 int wrap_in_stat64(int sc_number,struct pcb *pc,
 		                service_t sercode, sysfun um_syscall)
 {
-	long pbuf=pc->sysargs[1];
+	long pbuf;
 	struct stat64 buf;
+#ifdef __NR_fstatat64
+	if (sc_number == __NR_fstatat64)
+		pbuf=pc->sysargs[2];
+	else
+#else
+#ifdef __NR_newfstatat
+	if (sc_number == __NR_newfstatat)
+		pbuf=pc->sysargs[2];
+	else
+#endif
+#endif
+	pbuf=pc->sysargs[1];
 	if ((pc->retval = um_syscall(pc->path,&buf)) >= 0)
 		ustoren(pc,pbuf,sizeof(struct stat64),&buf);
 	else
@@ -450,9 +467,20 @@ int wrap_in_getxattr(int sc_number, struct pcb *pc,
 int wrap_in_readlink(int sc_number,struct pcb *pc,
 		                service_t sercode, sysfun um_syscall)
 {
-	unsigned long pbuf=pc->sysargs[1];
-	unsigned long bufsiz=pc->sysargs[2];
-	char *lbuf=(char *)alloca(bufsiz);
+	unsigned long pbuf;
+	unsigned long bufsiz;
+	char *lbuf;
+#ifdef __NR_readlinkat
+	if (sc_number == __NR_readlinkat) {
+		pbuf=pc->sysargs[2];
+		bufsiz=pc->sysargs[3];
+	} else 
+#endif 
+	{
+		pbuf=pc->sysargs[1];
+		bufsiz=pc->sysargs[2];
+	}
+	lbuf=(char *)alloca(bufsiz);
 	if ((pc->retval = (long) um_syscall(pc->path,lbuf,bufsiz)) >= 0)
 		ustoren(pc,pbuf,pc->retval,lbuf);
 	else
@@ -529,12 +557,23 @@ int wrap_in_getdents64(int sc_number,struct pcb *pc,
 int wrap_in_access(int sc_number,struct pcb *pc,
 		                service_t sercode, sysfun um_syscall)
 {
-	unsigned long mode=pc->sysargs[1];
-	if ((pc->retval = um_syscall(pc->path,mode)) < 0)
+	unsigned long mode;
+	long flags;
+#ifdef __NR_faccessat
+	if (sc_number == __NR_faccessat) {
+		mode=pc->sysargs[2];
+		flags=pc->sysargs[3];
+	}
+	else
+#endif
+	{
+		mode=pc->sysargs[1];
+		flags=0;
+	}
+	if ((pc->retval = um_syscall(pc->path,mode,flags)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }
-
 
 int wrap_in_lseek(int sc_number,struct pcb *pc,
 		                service_t sercode, sysfun um_syscall)

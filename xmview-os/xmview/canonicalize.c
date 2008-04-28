@@ -41,7 +41,7 @@
 	 holds the same value as the value returned.  */
 
 char *
-um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollowlink,void *xpc)
+um_realpath (const char *name, const char *cwd, char *resolved, struct stat64 *pst, int dontfollowlink,void *xpc)
 {
 	char *dest, extra_buf[PATH_MAX];
 	const char *start, *end, *resolved_limit; 
@@ -76,11 +76,19 @@ um_realpath (const char *name, char *resolved, struct stat64 *pst, int dontfollo
 	/* relative path, the first char is not '/' */
 	if (name[0] != '/')
 	{
+#if 0
 		if (!um_getcwd (xpc,resolved, PATH_MAX))
 		{
 			resolved[0] = '\0';
 			goto error;
 		}
+#endif
+		if (cwd == NULL)
+		{
+			resolved[0] = '\0';
+			goto error;
+		}
+		strncpy(resolved,cwd,PATH_MAX);
 		/* if the cwd is inside the chroot cage, set the unchangeable
 		 * part of the path */
 		if (strncmp(root,resolved,rootlen) == 0)

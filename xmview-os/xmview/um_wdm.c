@@ -128,7 +128,8 @@ int wrap_out_chdir(int sc_number,struct pcb *pc)
 		putrv(pc->retval,pc);
 		puterrno(pc->erno,pc);
 		/* we use pc->path. it has been dup-ped already */
-		pc->path=NULL; /* this prevent pc->path to be free-ed */
+		/* if retval < 0 should be deallocated? isn't it? XXX */ 
+		pc->path=NULL; /* this prevents pc->path to be free-ed */
 		return SC_MODICALL;
 	} else {
 		pc->retval=getrv(pc);

@@ -60,7 +60,7 @@ extern char um_patherror[];
 void scdtab_init();
 
 char *um_getpath(long laddr,struct pcb *pc);
-char *um_abspath(long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink);
+char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink);
 
 int pcb_newfork(struct pcb *pc);
 void pcb_getviewinfo(struct pcb *pc,struct viewinfo *vi);
@@ -68,7 +68,7 @@ void pcb_setviewname(struct pcb *pc,char *name);
 void killall(struct pcb *pc, int signo);
 
 void um_set_errno(struct pcb *pc,int i);
-char *um_getcwd(struct pcb *pc,char *buf,int size);
+//char *um_getcwd(struct pcb *pc,char *buf,int size);
 char *um_getroot(struct pcb *pc);
 int um_x_access(char *filename,int mode, struct pcb *pc);
 int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc);

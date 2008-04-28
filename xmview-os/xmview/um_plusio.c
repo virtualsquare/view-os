@@ -59,8 +59,33 @@ int wrap_in_mkdir(int sc_number,struct pcb *pc,
 		char sercode, sysfun um_syscall)
 {
 	int mode;
-	mode=pc->sysargs[1];
+#ifdef __NR_mkdirat
+	if (sc_number == __NR_mkdirat)
+		mode=pc->sysargs[2];
+	else
+#endif
+		mode=pc->sysargs[1];
 	if ((pc->retval = um_syscall(pc->path,mode & ~ (pc->fdfs->mask))) < 0)
+		pc->erno=errno;
+	return SC_FAKE;
+}
+
+int wrap_in_mknod(int sc_number,struct pcb *pc,
+		char sercode, sysfun um_syscall)
+{
+	int mode;
+	int dev;
+#ifdef __NR_mknodat
+	if (sc_number == __NR_mknodat) {
+		mode=pc->sysargs[2];
+		dev=pc->sysargs[3];
+	} else
+#endif
+	{
+		mode=pc->sysargs[1];
+		dev=pc->sysargs[3];
+	}
+	if ((pc->retval = um_syscall(pc->path,mode & ~ (pc->fdfs->mask),dev)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }
@@ -77,8 +102,16 @@ int wrap_in_chown(int sc_number,struct pcb *pc,
 		char sercode, sysfun um_syscall)
 {
 	unsigned int owner,group;
-	owner=pc->sysargs[1];
-	group=pc->sysargs[2];
+#ifdef __NR_fchownat
+	if (sc_number == __NR_fchownat) {
+		owner=pc->sysargs[2];
+		group=pc->sysargs[3];
+	} else
+#endif
+	{
+		owner=pc->sysargs[1];
+		group=pc->sysargs[2];
+	}
 #if __NR_chown != __NR_chown32
 	if (sc_number == __NR_chown || sc_number == __NR_lchown) {
 		owner=id16to32(owner);
@@ -118,7 +151,12 @@ int wrap_in_chmod(int sc_number,struct pcb *pc,
 		char sercode, sysfun um_syscall)
 {
 	int mode;
-	mode=pc->sysargs[1];
+#ifdef __NR_fchmodat
+	if (sc_number == __NR_fchmodat)
+		mode=pc->sysargs[2];
+	else
+#endif
+		mode=pc->sysargs[1];
 	if ((pc->retval = um_syscall(pc->path,mode)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
@@ -310,7 +348,22 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 		char sercode, sysfun um_syscall)
 {
 	struct stat64 sourcest;
-	char *source=um_abspath(pc->sysargs[0],pc,&sourcest,0);
+	char *source;
+	int olddirfd;
+	long oldpath;
+
+#ifdef __NR_linkat
+	if (sc_number == __NR_linkat || sc_number == __NR_renameat) {
+		olddirfd=pc->sysargs[0];
+		oldpath=pc->sysargs[1];
+	} else
+#endif
+	{
+		olddirfd=AT_FDCWD;
+		oldpath=pc->sysargs[0];
+	} 
+
+	source=um_abspath(olddirfd,oldpath,pc,&sourcest,0);
 
 	if (source==um_patherror) {
 		pc->retval= -1;
@@ -333,7 +386,10 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 int wrap_in_symlink(int sc_number,struct pcb *pc,
 		char sercode, sysfun um_syscall)
 {
-	char *source=um_getpath(pc->sysargs[0],pc);
+	char *source;
+	
+	source=um_getpath(pc->sysargs[0],pc);
+
 	if (source==um_patherror) {
 		pc->retval= -1;
 		pc->erno= ENOENT;
@@ -349,9 +405,15 @@ int wrap_in_symlink(int sc_number,struct pcb *pc,
 int wrap_in_utime(int sc_number,struct pcb *pc,
 		char sercode, sysfun um_syscall)
 {
-	unsigned long argaddr=pc->sysargs[1];
+	unsigned long argaddr;
 	int argsize;
 	char *larg;
+#ifdef __NR_futimes
+	if (sc_number == __NR_futimes)
+		argaddr=pc->sysargs[2];
+	else
+#endif
+		argaddr=pc->sysargs[1];
 	if (argaddr == umNULL) 
 		larg=NULL;
 	else {
@@ -359,7 +421,7 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 			/* UTIME */
 			argsize=sizeof(struct utimbuf);
 		else
-			/* UTIMES */
+			/* UTIMES FUTIMESAT*/
 			argsize=2*sizeof(struct timeval);
 		larg=alloca(argsize);
 		umoven(pc,argaddr,argsize,larg);
@@ -384,7 +446,7 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 	struct stat64 imagestat;
 	epoch_t nestepoch;
 	umovestr(pc,fstype,PATH_MAX,filesystemtype);
-	source = um_abspath(argaddr,pc,&imagestat,0);
+	source = um_abspath(AT_FDCWD,argaddr,pc,&imagestat,0);
 	/*service_check(CHECKPATH,source,1); *//* ??? what is this for? */
 	nestepoch=um_setepoch(0);
 	um_setepoch(nestepoch+1);
