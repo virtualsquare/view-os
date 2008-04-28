@@ -24,7 +24,8 @@ AC_DEFINE_UNQUOTED(MODULES_EXT, "$shrext_cmds", [Extension of shared objects])
 AC_CHECK_LIB([dl], [dlopen],, AC_MSG_ERROR([libdl missing]))
 AC_CHECK_LIB([pthread], [pthread_key_create],, AC_MSG_ERROR([libpthread missing]))
 # Is part of this package
-AC_CHECK_LIB([vdeplug], [vde_recv], [enable_umdevtap=yes], [enable_umdevtap=no])
+AC_CHECK_LIB([vdeplug], [vde_recv], [enable_umdevtap=yes],
+			 [enable_umdevtap=warn])
 
 # Checks for header files.
 AC_FUNC_ALLOCA
@@ -33,11 +34,11 @@ AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS([fcntl.h limits.h stddef.h stdint.h stdlib.h string.h sys/ioctl.h sys/mount.h sys/param.h sys/socket.h sys/statfs.h sys/statvfs.h sys/time.h unistd.h utime.h values.h],, AC_MSG_ERROR([required header file missing]))
 
-AC_CHECK_HEADERS([fuse.h fuse/fuse.h], [enable_umfuse=yes], [enable_umfuse=no], [#define _FILE_OFFSET_BITS 64])
+AC_CHECK_HEADERS([fuse.h fuse/fuse.h], [enable_umfuse=yes], [enable_umfuse=warn], [#define _FILE_OFFSET_BITS 64])
 
-AC_CHECK_HEADER([libvdeplug.h],, [enable_umdevtap=no])
+AC_CHECK_HEADER([libvdeplug.h],, [enable_umdevtap=warn])
 
-AC_CHECK_HEADER([lwipv6.h], [enable_um_lwip=yes], [enable_um_lwip=no])
+AC_CHECK_HEADER([lwipv6.h], [enable_um_lwip=yes], [enable_um_lwip=warn])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -78,6 +79,21 @@ AC_ARG_ENABLE([debug],
 	[if test x$enableval != "xno"; then enable_debug=yes ; else enable_debug=no; fi],
 	[enable_debug=no])
 
+AC_ARG_ENABLE([fuse],
+			  AS_HELP_STRING([--disable-fuse],
+							 [Disable support for FUSE]),
+							 [if test x$enableval = "xno"; then enable_umfuse=no; fi],)
+
+AC_ARG_ENABLE([vde],
+			  AS_HELP_STRING([--disable-vde],
+							 [Disable support for VDE with libvdeplug]),
+							 [if test x$enableval = "xno"; then enable_umdevtap=no; fi],)
+
+AC_ARG_ENABLE([lwip],
+			  AS_HELP_STRING([--disable-lwip],
+							 [Disable support for LWIPv6 networking]),
+							 [if test x$enableval = "xno"; then enable_um_lwip=no; fi],)
+
 AM_CONDITIONAL([ENABLE_UMDEVTAP], [test x$enable_umdevtap = "xyes"])
 AM_CONDITIONAL([ENABLE_UMFUSE], [test x$enable_umfuse = "xyes"])
 AM_CONDITIONAL([ENABLE_UM_LWIP], [test x$enable_um_lwip = "xyes"])
@@ -105,23 +121,22 @@ AC_CONFIG_FILES([Makefile
 								 umnetlwipv6/Makefile])
 AC_OUTPUT
 
-if test x$enable_umdevtap = "xno"
+if test x$enable_umdevtap = "xwarn"
 then
 	AC_MSG_WARN([TAP module for UMDev (umdevtap) will NOT be compiled. You
 need libvdeplug development files installed.])
 fi
 
 
-if test x$enable_umfuse = "xno"
+if test x$enable_umfuse = "xwarn"
 then
 	AC_MSG_WARN([UMView support for FUSE modules (umfuse) will NOT be
 compiled. You need FUSE development files installed.])
 fi
 
-if test x$enable_um_lwip = "xno"
+if test x$enable_um_lwip = "xwarn"
 then
 	AC_MSG_WARN([UMView support for LWIPv6 networking (um_lwip) will NOT be
-compiled. You nedd LWIPv6 development files installed.])
+compiled. You need LWIPv6 development files installed.])
 fi
-
 
