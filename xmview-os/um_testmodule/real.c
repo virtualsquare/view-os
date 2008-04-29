@@ -36,20 +36,22 @@
 #include "libummod.h"
 #include "gdebug.h"
 
-static struct timestamp t1;
-
 // int read(), write(), close();
 
 static struct service s;
+static struct timestamp t1;
 
 static epoch_t real_path(int type, void *arg)
 {
 	if (type == CHECKPATH) {
+		/*char *path=arg;*/
 		epoch_t e=0;
 		e=tst_matchingepoch(&t1);
-		/*char *path=arg;
-		return (strncmp(path,"/lib",4) != 0);*/
-		return e;
+		/*return (strncmp(path,"/lib",4) != 0);*/
+		/*if (strncmp(path,"/tmp",4)!=0)
+			return 0;
+		else */
+			return e;
 	}
 	else
 		return 0;
@@ -118,10 +120,11 @@ init (void)
 	s.code=0xf8;
 	s.checkfun=real_path;
 	s.ctl = ctl;
+	
 
 	MCH_ZERO(&(s.ctlhs));
 	MCH_SET(MC_PROC, &(s.ctlhs));
-	MCH_MODULE(MC_PROC, &(s.ctlhs));
+	MCH_SET(MC_MODULE, &(s.ctlhs));
 
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
