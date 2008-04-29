@@ -190,7 +190,7 @@ char *um_proc_tmpname()
 void umproc_addproc(struct pcb *pc,int flags,int npcbflag)
 {
 	//fprint2("umproc_addproc %d %x %x %d\n", npcbflag, flags, pc->pp, pc->pp->fds);
-	if (pc)
+	//if (pc)
 		//fprint2("umproc_addproc %d(%d) %d %x\n", pc->pid, (pc->pp)?pc->pp->pid:0, npcbflag, flags);
 	if (!npcbflag) {
 		if (flags & CLONE_FILES) {
@@ -199,19 +199,16 @@ void umproc_addproc(struct pcb *pc,int flags,int npcbflag)
 		} else {
 			struct pcb_file *p=pc->fds=(struct pcb_file *)malloc(sizeof(struct pcb_file));
 			p->count=1;
-			if (pc->pp->fds == NULL) {
-				p->nolfd=0;
-				p->lfdlist=NULL;
-			} else {
+			p->nolfd=0;
+			p->lfdlist=NULL;
+			if (pc->pp->fds->nolfd > 0) {
+				int i;
 				p->nolfd=pc->pp->fds->nolfd;
-				if (p->nolfd > 0) {
-					int i;
-					p->lfdlist=(int *)malloc(p->nolfd * sizeof(int));
-					memcpy(p->lfdlist,pc->pp->fds->lfdlist,p->nolfd * sizeof(int));
-					for (i=0; i<p->nolfd; i++) {
-						if (p->lfdlist[i] >=0 )
-							++lfd_tab[p->lfdlist[i]]->count;
-					}
+				p->lfdlist=(int *)malloc(p->nolfd * sizeof(int));
+				memcpy(p->lfdlist,pc->pp->fds->lfdlist,p->nolfd * sizeof(int));
+				for (i=0; i<p->nolfd; i++) {
+					if (p->lfdlist[i] >=0 )
+						++lfd_tab[p->lfdlist[i]]->count;
 				}
 			}
 		}
