@@ -23,6 +23,7 @@
  *   $Id$
  *
  */   
+#include <Python.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -107,35 +108,6 @@ static long delmodule(int code)
 	return 0;
 }
 
-
-static long ctl(int type, va_list ap)
-{
-	int id, ppid, max, code;
-
-	switch(type)
-	{
-		case MC_PROC | MC_ADD:
-			id = va_arg(ap, int);
-			ppid = va_arg(ap, int);
-			max = va_arg(ap, int);
-			return addproc(id, max);
-			
-		case MC_PROC | MC_REM:
-			id = va_arg(ap, int);
-			return delproc(id);
-
-		case MC_MODULE | MC_ADD:
-			code = va_arg(ap, int);
-			return addmodule(code);
-
-		case MC_MODULE | MC_REM:
-			code = va_arg(ap, int);
-			return delmodule(code);
-		
-		default:
-			return -1;
-	}
-}
 
 static char *unwrap(char *path)
 {
@@ -248,6 +220,42 @@ static long unreal_lseek(int fildes, int offset, int whence)
 }
 
 #endif
+
+static epoch_t checkfun(int type, void *arg)
+{
+	return 0;
+}
+
+static long ctl(int type, va_list ap)
+{
+	int id, ppid, max, code;
+
+	switch(type)
+	{
+		case MC_PROC | MC_ADD:
+			id = va_arg(ap, int);
+			ppid = va_arg(ap, int);
+			max = va_arg(ap, int);
+/*            return addproc(id, max);*/
+			
+		case MC_PROC | MC_REM:
+			id = va_arg(ap, int);
+/*            return delproc(id);*/
+
+		case MC_MODULE | MC_ADD:
+			code = va_arg(ap, int);
+/*            return addmodule(code);*/
+
+		case MC_MODULE | MC_REM:
+			code = va_arg(ap, int);
+/*            return delmodule(code);*/
+		
+		default:
+			return -1;
+	}
+
+	return 0;
+}
 
 
 static void
