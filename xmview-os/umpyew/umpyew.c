@@ -24,6 +24,17 @@
  *
  */
 
+/*
+ ***** IMPORTANT NOTICE *****************************************************
+ * Please note: these bindings are still PARTIAL! Take a look to the list of
+ * PYTHON_SYSCALLS invocations in the _um_mod_init function if you want to
+ * know which system calls are currently supported.
+ * Also, the support for upcalls is limited. The list of supported upcalls is
+ * in the array named pEmbMethods. More will follow.
+ * Finally, there is no support for custom ctl commands yet.
+ ****************************************************************************
+ */
+
 #include <Python.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -475,6 +486,13 @@ static ssize_t umpyew_pwrite64(int fd, const void *buf, size_t count, long long 
  * End of system calls definitions.
  */
 
+
+/* This is used if modCtl or modCheckFun are not defined */
+static long umpyew_alwayszero()
+{
+	return 0;
+}
+
 static epoch_t checkfun(int type, void *arg)
 {
 	PyObject *pKw = PyDict_New();
@@ -664,9 +682,9 @@ void _um_mod_init(char *initargs)
 		s.ctl = ctl;
 	else
 	{
-		GERROR("function modCtl not defined in module %s", name);
+		GDEBUG(2, "function modCheckFun not defined in module %s", name);
+		s.ctl = umpyew_alwayszero;
 		Py_XDECREF(ps.ctl);
-		return;
 	}
 
 	/*
@@ -676,10 +694,11 @@ void _um_mod_init(char *initargs)
 		s.checkfun = checkfun;
 	else
 	{
-		GERROR("function modCheckFun not defined in module %s", name);
-		Py_DECREF(ps.ctl);
+		GDEBUG("2, function modCheckFun not defined in module %s", name);
+
+		/* This makes the module almost useless, but we respect its author's will. */
+		s.checkfun = (epoch_t(*)())umpyew_alwayszero;
 		Py_XDECREF(ps.checkfun);
-		return;
 	}
 	
 	/*
@@ -749,18 +768,17 @@ __attribute__ ((destructor))
 fini (void)
 {
 	GBACKTRACE(5,20);
-	free(s.syscall);
-	free(s.socket);
-	
-	/*
-	 * Call modFini, if present
-	 */
+
 	PyObject *pTmpObj = PyObject_GetAttrString(pModule, "modFini");
 	if (pTmpObj && PyCallable_Check(pTmpObj))
 		PyObject_CallObject(pTmpObj, pEmptyTuple);
 	Py_XDECREF(pTmpObj);
 
+	free(s.syscall);
+	free(s.socket);
+
 	/* Finalizing will destroy everything, no need for DECREFs (I think) */
+	PyErr_Clear();
 	Py_Finalize();
 	GMESSAGE("umpyew fini");
 }
