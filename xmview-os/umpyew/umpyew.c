@@ -580,6 +580,34 @@ static long umpyew_utimes(char *path, struct timeval tv[2])
 	return retval;
 }
 
+static long umpyew_read(int fd, void *buf, size_t count)
+{
+	PYINSYS(read);
+	PYARG("fd", PyInt_FromLong(fd));
+	PYARG("count", PyInt_FromLong(count));
+	PYCALL;
+	
+	if (retval >= 0)
+		memcpy(buf, PyString_AsString(PyTuple_GetItem(pRetVal, 2)), retval);
+
+	PYOUT;
+	return retval;
+}
+
+static long umpyew_write(int fd, const void *buf, size_t count)
+{
+	PYINSYS(write);
+	PYARG("fd", PyInt_FromLong(fd));
+	PYARG("buf", PyString_FromStringAndSize(buf, count));
+	PYARG("count", PyInt_FromLong(count));
+	PYCALL;
+	PYOUT;
+	return retval;
+}
+
+/*
+ * End of system calls definitions.
+ */
 
 static epoch_t checkfun(int type, void *arg)
 {
@@ -814,9 +842,8 @@ void _um_mod_init(char *initargs)
 	PYTHON_SYSCALL(lseek, sysLseek);
 	PYTHON_SYSCALL(utime, sysUtime);
 	PYTHON_SYSCALL(utimes, sysUtimes)
-/*    PYTHON_SYSCALL(read, sysRead);*/
-/*    PYTHON_SYSCALL(write, sysWrite);*/
-	SERVICESYSCALL(s, read, read);
+	PYTHON_SYSCALL(read, sysRead);
+	PYTHON_SYSCALL(write, sysWrite);
 
 	add_service(&s);
 

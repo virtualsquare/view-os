@@ -121,6 +121,13 @@ def sysUtimes(path, atime, mtime, **kw):
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
+def sysRead(fd, count, **kw):
+	print "calling read(%d, %d)" % (fd, count)
+	try:
+		rv = os.read(fd, count);
+		return (len(rv), 0, rv)
+	except OSError, (errno, strerror):
+		return (-1, errno)
 
 sysRmdir = sysUnlink = sysString
 sysAccess = sysMkdir = sysChmod = sysStringInt
@@ -128,4 +135,4 @@ sysLink = sysSymlink = sysStringString
 sysStat64 = sysLstat64 = sysStats
 sysUtime = sysUtimes
 
-sysRead = sysWrite = None
+sysWrite = None
