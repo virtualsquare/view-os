@@ -547,6 +547,9 @@ static long ctl(int type, va_list ap)
 static void
 __attribute__ ((constructor))
 init (void)
+{}
+
+void _um_mod_init(char *initargs)
 {
 	const char *name = "umpyew-testmodule";
 	char* tmphs;
@@ -554,7 +557,7 @@ init (void)
 
 	PyObject *pName, *pModule, *pTmpObj, *pTmpFunc, *pTmpDict;
 
-	GMESSAGE("umpyew init");
+	GMESSAGE("umpyew init: %s", initargs);
 	s.name="Prototypal Python bindings for *MView";
 	s.code=0x07;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
