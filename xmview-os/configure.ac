@@ -145,7 +145,7 @@ AC_CONFIG_FILES([Makefile
                  ummisc_modules/Makefile
                  umnet/Makefile
                  umnet_modules/Makefile
-                 umnetlwipv6/Makefile])
+                 umnetlwipv6/Makefile
                  umpyew/Makefile
                  xmview/Makefile])
 AC_OUTPUT
