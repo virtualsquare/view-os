@@ -256,7 +256,6 @@ static epoch_t checkfun(int type, void *arg)
 
 		case CHECKBINFMT:
 			bf = (struct binfmt_req*) arg;
-			GMESSAGE("path: %s", bf->path);
 			pArg = PyTuple_New(3);
 			if (bf->path)
 				PyTuple_SET_ITEM(pArg, 0, PyString_FromString(bf->path));
@@ -292,33 +291,62 @@ static epoch_t checkfun(int type, void *arg)
 
 static long ctl(int type, va_list ap)
 {
-	int id, ppid, max, code;
+	long retval;
+	PyObject *pArg, *pCmdArgs, *pRetVal;
+
+	pArg = PyTuple_New(3);
 
 	switch(type)
 	{
 		case MC_PROC | MC_ADD:
-			id = va_arg(ap, int);
-			ppid = va_arg(ap, int);
-			max = va_arg(ap, int);
-/*            return addproc(id, max);*/
+			PyTuple_SET_ITEM(pArg, 0, PyString_FromString("proc"));
+			PyTuple_SET_ITEM(pArg, 1, PyString_FromString("add"));
+			pCmdArgs = PyTuple_New(3);
+			/* The tuple is (id, ppid, max) */
+			PyTuple_SET_ITEM(pCmdArgs, 0, PyInt_FromLong(va_arg(ap, long)));
+			PyTuple_SET_ITEM(pCmdArgs, 1, PyInt_FromLong(va_arg(ap, long)));
+			PyTuple_SET_ITEM(pCmdArgs, 2, PyInt_FromLong(va_arg(ap, long)));
+			break;
 			
 		case MC_PROC | MC_REM:
-			id = va_arg(ap, int);
-/*            return delproc(id);*/
+			PyTuple_SET_ITEM(pArg, 0, PyString_FromString("proc"));
+			PyTuple_SET_ITEM(pArg, 1, PyString_FromString("rem"));
+			pCmdArgs = PyTuple_New(1);
+			/* The tuple is (id) */
+			PyTuple_SET_ITEM(pCmdArgs, 0, PyInt_FromLong(va_arg(ap, long)));
+			break;
 
 		case MC_MODULE | MC_ADD:
-			code = va_arg(ap, int);
-/*            return addmodule(code);*/
+			PyTuple_SET_ITEM(pArg, 0, PyString_FromString("module"));
+			PyTuple_SET_ITEM(pArg, 1, PyString_FromString("add"));
+			pCmdArgs = PyTuple_New(1);
+			/* The tuple is (code) */
+			PyTuple_SET_ITEM(pCmdArgs, 0, PyInt_FromLong(va_arg(ap, long)));
+			break;
 
 		case MC_MODULE | MC_REM:
-			code = va_arg(ap, int);
-/*            return delmodule(code);*/
+			PyTuple_SET_ITEM(pArg, 0, PyString_FromString("module"));
+			PyTuple_SET_ITEM(pArg, 1, PyString_FromString("rem"));
+			pCmdArgs = PyTuple_New(1);
+			/* The tuple is (code) */
+			PyTuple_SET_ITEM(pCmdArgs, 0, PyInt_FromLong(va_arg(ap, long)));
+			break;
 		
 		default:
+			Py_DECREF(pArg);
 			return -1;
 	}
+	
+	PyTuple_SET_ITEM(pArg, 2, pCmdArgs);
 
-	return 0;
+	pRetVal = PyObject_CallObject(ps.ctl, pArg);
+	Py_DECREF(pCmdArgs);
+	Py_DECREF(pArg);
+
+	retval = PyInt_AsLong(pRetVal);
+	Py_DECREF(pRetVal);
+
+	return retval;
 }
 
 

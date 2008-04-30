@@ -1,5 +1,6 @@
-def modCtl():
-	pass
+def modCtl(cls, cmd, cmdArgs):
+	print "class:", cls, "command:", cmd, "args:", cmdArgs
+	return 0
 
 def modCheckFun(*arg, **kw):
 	if kw.has_key('path'):
