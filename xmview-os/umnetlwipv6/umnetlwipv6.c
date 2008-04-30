@@ -293,33 +293,37 @@ struct umnet_operations umnet_ops={
 
 #define UMNETLWIPV6(X) umnet_ops.X=lwip_##X
 
+static void *lwiphandle;
 	static void
 	__attribute__ ((constructor))
 init (void)
 {
 	//fprint2("umnetlwipv6 constructor\n");
-	loadlwipv6dl();
-	if (lwip_init) {
-		lwip_init();
-		UMNETLWIPV6(bind);
-		UMNETLWIPV6(connect);
-		UMNETLWIPV6(listen);
-		UMNETLWIPV6(accept);
-		UMNETLWIPV6(getsockname);
-		UMNETLWIPV6(getpeername);
-		UMNETLWIPV6(send);
-		UMNETLWIPV6(recv);
-		UMNETLWIPV6(sendto);
-		UMNETLWIPV6(recvfrom);
-		//UMNETLWIPV6(shutdown);
-		UMNETLWIPV6(getsockopt);
-		UMNETLWIPV6(setsockopt);
-		UMNETLWIPV6(read);
-		UMNETLWIPV6(write);
-		UMNETLWIPV6(close);
-		UMNETLWIPV6(event_subscribe);
-		//UMNETLWIPV6(fcntl);
-		//UMNETLWIPV6(fcntl64);
+	if ((lwiphandle=loadlwipv6dl())==NULL)
+		perror("umnet_lwipv6 can't load lwipv6 stack:");
+	else {
+		if (lwip_init) {
+			lwip_init();
+			UMNETLWIPV6(bind);
+			UMNETLWIPV6(connect);
+			UMNETLWIPV6(listen);
+			UMNETLWIPV6(accept);
+			UMNETLWIPV6(getsockname);
+			UMNETLWIPV6(getpeername);
+			UMNETLWIPV6(send);
+			UMNETLWIPV6(recv);
+			UMNETLWIPV6(sendto);
+			UMNETLWIPV6(recvfrom);
+			//UMNETLWIPV6(shutdown);
+			UMNETLWIPV6(getsockopt);
+			UMNETLWIPV6(setsockopt);
+			UMNETLWIPV6(read);
+			UMNETLWIPV6(write);
+			UMNETLWIPV6(close);
+			UMNETLWIPV6(event_subscribe);
+			//UMNETLWIPV6(fcntl);
+			//UMNETLWIPV6(fcntl64);
+		}
 	}
 }
 
@@ -328,4 +332,5 @@ init (void)
 fini (void)
 {
 	//fprint2("umnetlwipv6 destructor\n");
+	dlclose(lwiphandle);
 }
