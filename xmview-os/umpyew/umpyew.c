@@ -3,6 +3,10 @@
  *
  *   Bindings for writing Python modules for *MView
  *
+ *   $ umview -p umpyew,modulename command
+ *
+ *   PYTHONPATH, if unset, will be set to the current working directory.
+ *
  *   Copyright 2008 Ludovico Gardenghi, University of Bologna, Italy
  *
  *   This program is free software; you can redistribute it and/or modify
@@ -48,6 +52,10 @@ struct pService
 
 static struct service s;
 static struct pService ps;
+static PyObject *pModule;
+
+/* Used for calling PyCall with empty arg */
+static PyObject *pEmptyTuple;
 
 #define PYCHKERR {GMESSAGE("testing..."); if (PyErr_Occurred()) PyErr_Print();}
 
@@ -64,174 +72,19 @@ static struct pService ps;
 				PyDict_SetItemString(pTmpDict, "cname", PyString_FromString(#cname)); \
 				PyDict_SetItemString(pTmpDict, "pyname", PyString_FromString(#pyname)); \
 				PyTuple_SET_ITEM(pTmpObj, 1, pTmpDict); \
-				GMESSAGE("found function for system call %s, adding", #cname); \
+				GDEBUG(3, "found function for system call %s, adding", #cname); \
 				GENSERVICESYSCALL(ps, cname, pTmpObj, PyObject*); \
 				SERVICESYSCALL(s, cname, umpyew_##cname); \
 			} \
 			else if (pTmpFunc == Py_None) \
 			{ \
-				GMESSAGE("system call %s is mapped to itself", #cname); \
+				GDEBUG(3, "system call %s is mapped to itself", #cname); \
 				SERVICESYSCALL(s, cname, cname); \
 			} \
 			else \
-				GMESSAGE("python object %s is not Callable!", #pyname); \
+				GERROR("python object %s is not Callable!", #pyname); \
 		} \
 	}
-
-#if 0
-static struct cpymap_s cpymap_syscall[] = {
-	{ "execve", "sysExecve" },
-	{ "chdir", "sysChdir" },
-	{ "fchdir", "sysFchdir" },
-	{ "getcwd", "sysGetcwd" },
-	{ "select", "sysSelect" },
-	{ "poll", "sysPoll" },
-	{ "_newselect", "sys_newselect" },
-	{ "pselect6", "sysPselect6" },
-	{ "ppoll", "sysPpoll" },
-	{ "umask", "sysUmask" },
-	{ "chroot", "sysChroot" },
-	{ "dup", "sysDup" },
-	{ "dup2", "sysDup2" },
-	{ "mount", "sysMount" },
-	{ "umount2", "sysUmount2" },
-	{ "ioctl", "sysIoctl" },
-	{ "fchown", "sysFchown" },
-	{ "chown32", "sysChown32" },
-	{ "lchown32", "sysLchown32" },
-	{ "fchown32", "sysFchown32" },
-	{ "fchmod", "sysFchmod" },
-	{ "getxattr", "sysGetxattr" },
-	{ "lgetxattr", "sysLgetxattr" },
-	{ "fgetxattr", "sysFgetxattr" },
-	{ "readlink", "sysReadlink" },
-	{ "getdents64", "sysGetdents64" },
-	{ "fcntl", "sysFcntl" },
-	{ "fcntl64", "sysFcntl64" },
-	{ "lseek", "sysLseek" },
-	{ "_llseek", "sys_llseek" },
-	{ "rename", "sysRename" },
-	{ "fsync", "sysFsync" },
-	{ "fdatasync", "sysFdatasync" },
-	{ "truncate64", "sysTruncate64" },
-	{ "ftruncate64", "sysFtruncate64" },
-#ifdef _UM_MMAP
-	{ "mmap", "sysMmap" },
-	{ "mmap2", "sysMmap2" },
-	{ "munmap", "sysMunmap" },
-	{ "mremap", "sysMremap" },
-#endif
-	{ "gettimeofday", "sysGettimeofday" },
-	{ "settimeofday", "sysSettimeofday" },
-	{ "adjtimex", "sysAdjtimex" },
-	{ "clock_gettime", "sysClock_gettime" },
-	{ "clock_settime", "sysClock_settime" },
-	{ "clock_getres", "sysClock_getres" },
-	{ "uname", "sysUname" },
-	{ "gethostname", "sysGethostname" },
-	{ "sethostname", "sysSethostname" },
-	{ "getdomainname", "sysGetdomainname" },
-	{ "setdomainname", "sysSetdomainname" },
-	{ "getuid", "sysGetuid" },
-	{ "setuid", "sysSetuid" },
-	{ "geteuid", "sysGeteuid" },
-	{ "setfsuid", "sysSetfsuid" },
-	{ "setreuid", "sysSetreuid" },
-	{ "getresuid", "sysGetresuid" },
-	{ "setresuid", "sysSetresuid" },
-	{ "getgid", "sysGetgid" },
-	{ "setgid", "sysSetgid" },
-	{ "getegid", "sysGetegid" },
-	{ "setfsgid", "sysSetfsgid" },
-	{ "setregid", "sysSetregid" },
-	{ "getresgid", "sysGetresgid" },
-	{ "setresgid", "sysSetresgid" },
-	{ "nice", "sysNice" },
-	{ "getpriority", "sysGetpriority" },
-	{ "setpriority", "sysSetpriority" },
-	{ "getpid", "sysGetpid" },
-	{ "getppid", "sysGetppid" },
-	{ "getpgid", "sysGetpgid" },
-	{ "setpgid", "sysSetpgid" },
-	{ "getsid", "sysGetsid" },
-	{ "setsid", "sysSetsid" },
-#if 0
-	{ "sysctl", "sysSysctl" },
-	{ "ptrace", "sysPtrace" },
-#endif
-	{ "kill", "sysKill" },
-#if (__NR_socketcall != __NR_doesnotexist)
-};
-
-static struct cpymap_s cpymap_socket[] =
-{
-	{ "doesnotexist", "sysDoesnotexist" },
-	{ "socket", "sysSocket" },
-#else 
-	{ "socket", "sysSocket" },
-#endif
-	{ "bind", "sysBind" },
-	{ "connect", "sysConnect" },
-	{ "listen", "sysListen" },
-	{ "accept", "sysAccept" },
-	{ "getsockname", "sysGetsockname" },
-	{ "getpeername", "sysGetpeername" },
-	{ "socketpair", "sysSocketpair" },
-	{ "send", "sysSend" },
-	{ "recv", "sysRecv" },
-	{ "sendto", "sysSendto" },
-	{ "recvfrom", "sysRecvfrom" },
-	{ "shutdown", "sysShutdown" },
-	{ "setsockopt", "sysSetsockopt" },
-	{ "getsockopt", "sysGetsockopt" },
-	{ "sendmsg", "sysSendmsg" },
-	{ "recvmsg", "sysRecvmsg" },
-#if (__NR_socketcall != __NR_doesnotexist)
-	{ "msocket", "sysMsocket" },
-#endif
-};
-
-#endif
-
-/* Used for calling PyCall with empty arg */
-static PyObject *pEmptyTuple;
-
-#if 0
-static struct timestamp t1;
-static struct timestamp t2;
-
-static epoch_t unrealpath(int type,void *arg)
-{
-	/* This is an example that shows how to pick up extra info in the
-	 * calling process. */
-/*	printf("test umph info pid=%d, scno=%d, arg[0]=%d, argv[1]=%d\n",
-			um_mod_getpid(),um_mod_getsyscallno(),
-			um_mod_getargs()[0],um_mod_getargs()[1]); */
-/* NB: DEVELOPMENT PHASE !! */
-	if (type== CHECKPATH) {
-		char *path=arg;
-		epoch_t e=0;
-		if(strncmp(path,"/unreal",7) == 0) {
-			if ((e=tst_matchingepoch(&t2)) == 0)
-				e=tst_matchingepoch(&t1);
-			//fprint2("MATCH e=%lld\n",e);
-		}
-		return e;
-	}
-	else
-		return 0;
-}
-
-static char *unwrap(char *path)
-{
-	char *s;
-	s=&(path[7]);
-	if (*s == 0) s = "/";
-	return (s);
-}
-
-#endif
-
 
 #define PYIN(type, cname) \
 	PyObject *pRetVal; \
@@ -241,18 +94,18 @@ static char *unwrap(char *path)
 
 #define PYCALL \
 	{ \
-		GMESSAGE("calling python..."); \
+		GDEBUG(3, "calling python..."); \
 		pRetVal = PyObject_Call(pFunc, pEmptyTuple, pKw); \
-		GMESSAGE("returned from python"); \
+		GDEBUG(3, "returned from python"); \
 		if (pRetVal) \
 		{ \
 			retval = PyInt_AsLong(PyTuple_GetItem(pRetVal, 0)); \
 			errno = PyInt_AsLong(PyTuple_GetItem(pRetVal, 1)); \
-			GMESSAGE("(retval, errno) == (%d, %d)", retval, errno); \
+			GDEBUG(3, "(retval, errno) == (%d, %d)", retval, errno); \
 		} \
 		else \
 		{ \
-			GMESSAGE("retval is null?"); \
+			GDEBUG(3, "retval is null?"); \
 			PyErr_Print(); \
 			retval = -1; \
 			errno = ENOSYS; \
@@ -266,7 +119,6 @@ static char *unwrap(char *path)
 			Py_DECREF(pRetVal); \
 		} \
 	}
-
 
 #define PYINSYS(cname) PYIN(SYSCALL, cname)
 #define PYINSOCK(cname) PYIN(SOCKET, cname)
@@ -446,7 +298,7 @@ static long umpyew_symlink(char *oldpath, char *newpath)
 		if (retval == 0) \
 		{ \
 			pStatDict = PyTuple_GetItem(pRetVal, 2); \
-			GMESSAGE("%p", pStatDict); \
+			GDEBUG(3, "%p", pStatDict); \
 			PY_COPYSTATFIELD(st_dev); \
 			PY_COPYSTATFIELD(st_ino); \
 			PY_COPYSTATFIELD(st_mode); \
@@ -460,10 +312,10 @@ static long umpyew_symlink(char *oldpath, char *newpath)
 			PY_COPYSTATFIELD(st_atime); \
 			PY_COPYSTATFIELD(st_mtime); \
 			PY_COPYSTATFIELD(st_ctime); \
-			GMESSAGE("ino: %d", buf->st_ino); \
+			GDEBUG(3, "ino: %d", buf->st_ino); \
 		} \
 		 \
-		GMESSAGE("returning %d", retval); \
+		GDEBUG(3, "returning %d", retval); \
 		PYOUT; \
 		return retval; \
 	}
@@ -619,7 +471,6 @@ static ssize_t umpyew_pwrite64(int fd, const void *buf, size_t count, long long 
 	return retval;
 }
 
-
 /*
  * End of system calls definitions.
  */
@@ -761,13 +612,22 @@ init (void)
 
 void _um_mod_init(char *initargs)
 {
-	const char *name = "umpyew-testmodule";
-	char* tmphs;
+	const char *name;
+	char *tmphs, *cwd;
 	int i;
 
-	PyObject *pName, *pModule, *pTmpObj, *pTmpFunc, *pTmpDict;
+	PyObject *pName, *pTmpObj, *pTmpFunc, *pTmpDict;
 
-	GMESSAGE("umpyew init: %s", initargs);
+	GMESSAGE("umpyew init");
+
+	if (!strlen(initargs))
+	{
+		GERROR("You must specify the Python module name.");
+		return;
+	}
+
+	name = initargs;
+	
 	s.name="Prototypal Python bindings for *MView";
 	s.code=0x07;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
@@ -775,21 +635,30 @@ void _um_mod_init(char *initargs)
 
 	Py_Initialize();
 	Py_InitModule("umpyew", pEmbMethods);
+	
 	pEmptyTuple = PyTuple_New(0);
 	pName = PyString_FromString(name);
+
+
+	cwd = getcwd(NULL, 0);
+	if (cwd)
+	{
+		setenv("PYTHONPATH", cwd, 0);
+		free(cwd);
+	}
 
 	pModule = PyImport_Import(pName);
 	Py_DECREF(pName);
 
 	if (!pModule)
 	{
-		GERROR("Error loading Python module %s.", name);
+		GERROR("Error loading Python module %s.\nIt has been searched for in the following path:\n%s", name, getenv("PYTHONPATH"));
 		PyErr_Print();
 		return;
 	}
 
 	/*
-	 * Adding ctl
+	 * Add ctl
 	 */
 	if ((ps.ctl = PyObject_GetAttrString(pModule, "modCtl")) && PyCallable_Check(ps.ctl))
 		s.ctl = ctl;
@@ -801,7 +670,7 @@ void _um_mod_init(char *initargs)
 	}
 
 	/*
-	 * Adding checkfun
+	 * Add checkfun
 	 */
 	if ((ps.checkfun = PyObject_GetAttrString(pModule, "modCheckFun")) && PyCallable_Check(ps.checkfun))
 		s.checkfun = checkfun;
@@ -814,7 +683,7 @@ void _um_mod_init(char *initargs)
 	}
 	
 	/*
-	 * Adding ctlhs
+	 * Add ctlhs
 	 */
 	MCH_ZERO(&(s.ctlhs));
 	pTmpObj = PyObject_GetAttrString(pModule, "modCtlHistorySet");
@@ -834,9 +703,8 @@ void _um_mod_init(char *initargs)
 	Py_XDECREF(pTmpObj);
 
 	/*
-	 * Calling modInit, if present
+	 * Call modInit, if present
 	 */
-
 	pTmpObj = PyObject_GetAttrString(pModule, "modInit");
 	if (pTmpObj && PyCallable_Check(pTmpObj))
 		PyObject_CallObject(pTmpObj, pEmptyTuple);
@@ -844,7 +712,7 @@ void _um_mod_init(char *initargs)
 
 
 	/*
-	 * Adding system calls
+	 * Add system calls
 	 */
 	ps.syscall = calloc(scmap_scmapsize, sizeof(PyObject*));
 
@@ -874,6 +742,32 @@ void _um_mod_init(char *initargs)
 	PYTHON_SYSCALL(pwrite64, sysPwrite64);
 
 	add_service(&s);
+}
+
+static void
+__attribute__ ((destructor))
+fini (void)
+{
+	GBACKTRACE(5,20);
+	free(s.syscall);
+	free(s.socket);
+	
+	/*
+	 * Call modFini, if present
+	 */
+	PyObject *pTmpObj = PyObject_GetAttrString(pModule, "modFini");
+	if (pTmpObj && PyCallable_Check(pTmpObj))
+		PyObject_CallObject(pTmpObj, pEmptyTuple);
+	Py_XDECREF(pTmpObj);
+
+	/* Finalizing will destroy everything, no need for DECREFs (I think) */
+	Py_Finalize();
+	GMESSAGE("umpyew fini");
+}
+
+/*
+ * Development stuff, don't look!
+ */
 
 #if 0	
 #if 0 
@@ -894,17 +788,117 @@ void _um_mod_init(char *initargs)
 	SERVICESYSCALL(s, _newselect, select);
 #endif
 
-}
+#if 0
+static struct cpymap_s cpymap_syscall[] = {
+	{ "execve", "sysExecve" },
+	{ "chdir", "sysChdir" },
+	{ "fchdir", "sysFchdir" },
+	{ "getcwd", "sysGetcwd" },
+	{ "select", "sysSelect" },
+	{ "poll", "sysPoll" },
+	{ "_newselect", "sys_newselect" },
+	{ "pselect6", "sysPselect6" },
+	{ "ppoll", "sysPpoll" },
+	{ "umask", "sysUmask" },
+	{ "chroot", "sysChroot" },
+	{ "dup", "sysDup" },
+	{ "dup2", "sysDup2" },
+	{ "mount", "sysMount" },
+	{ "umount2", "sysUmount2" },
+	{ "ioctl", "sysIoctl" },
+	{ "fchown", "sysFchown" },
+	{ "chown32", "sysChown32" },
+	{ "lchown32", "sysLchown32" },
+	{ "fchown32", "sysFchown32" },
+	{ "fchmod", "sysFchmod" },
+	{ "getxattr", "sysGetxattr" },
+	{ "lgetxattr", "sysLgetxattr" },
+	{ "fgetxattr", "sysFgetxattr" },
+	{ "readlink", "sysReadlink" },
+	{ "getdents64", "sysGetdents64" },
+	{ "fcntl", "sysFcntl" },
+	{ "fcntl64", "sysFcntl64" },
+	{ "lseek", "sysLseek" },
+	{ "_llseek", "sys_llseek" },
+	{ "rename", "sysRename" },
+	{ "fsync", "sysFsync" },
+	{ "fdatasync", "sysFdatasync" },
+	{ "truncate64", "sysTruncate64" },
+	{ "ftruncate64", "sysFtruncate64" },
+#ifdef _UM_MMAP
+	{ "mmap", "sysMmap" },
+	{ "mmap2", "sysMmap2" },
+	{ "munmap", "sysMunmap" },
+	{ "mremap", "sysMremap" },
+#endif
+	{ "gettimeofday", "sysGettimeofday" },
+	{ "settimeofday", "sysSettimeofday" },
+	{ "adjtimex", "sysAdjtimex" },
+	{ "clock_gettime", "sysClock_gettime" },
+	{ "clock_settime", "sysClock_settime" },
+	{ "clock_getres", "sysClock_getres" },
+	{ "uname", "sysUname" },
+	{ "gethostname", "sysGethostname" },
+	{ "sethostname", "sysSethostname" },
+	{ "getdomainname", "sysGetdomainname" },
+	{ "setdomainname", "sysSetdomainname" },
+	{ "getuid", "sysGetuid" },
+	{ "setuid", "sysSetuid" },
+	{ "geteuid", "sysGeteuid" },
+	{ "setfsuid", "sysSetfsuid" },
+	{ "setreuid", "sysSetreuid" },
+	{ "getresuid", "sysGetresuid" },
+	{ "setresuid", "sysSetresuid" },
+	{ "getgid", "sysGetgid" },
+	{ "setgid", "sysSetgid" },
+	{ "getegid", "sysGetegid" },
+	{ "setfsgid", "sysSetfsgid" },
+	{ "setregid", "sysSetregid" },
+	{ "getresgid", "sysGetresgid" },
+	{ "setresgid", "sysSetresgid" },
+	{ "nice", "sysNice" },
+	{ "getpriority", "sysGetpriority" },
+	{ "setpriority", "sysSetpriority" },
+	{ "getpid", "sysGetpid" },
+	{ "getppid", "sysGetppid" },
+	{ "getpgid", "sysGetpgid" },
+	{ "setpgid", "sysSetpgid" },
+	{ "getsid", "sysGetsid" },
+	{ "setsid", "sysSetsid" },
+#if 0
+	{ "sysctl", "sysSysctl" },
+	{ "ptrace", "sysPtrace" },
+#endif
+	{ "kill", "sysKill" },
+#if (__NR_socketcall != __NR_doesnotexist)
+};
 
-static void
-__attribute__ ((destructor))
-fini (void)
+static struct cpymap_s cpymap_socket[] =
 {
-	GBACKTRACE(5,20);
-	free(s.syscall);
-	free(s.socket);
+	{ "doesnotexist", "sysDoesnotexist" },
+	{ "socket", "sysSocket" },
+#else 
+	{ "socket", "sysSocket" },
+#endif
+	{ "bind", "sysBind" },
+	{ "connect", "sysConnect" },
+	{ "listen", "sysListen" },
+	{ "accept", "sysAccept" },
+	{ "getsockname", "sysGetsockname" },
+	{ "getpeername", "sysGetpeername" },
+	{ "socketpair", "sysSocketpair" },
+	{ "send", "sysSend" },
+	{ "recv", "sysRecv" },
+	{ "sendto", "sysSendto" },
+	{ "recvfrom", "sysRecvfrom" },
+	{ "shutdown", "sysShutdown" },
+	{ "setsockopt", "sysSetsockopt" },
+	{ "getsockopt", "sysGetsockopt" },
+	{ "sendmsg", "sysSendmsg" },
+	{ "recvmsg", "sysRecvmsg" },
+#if (__NR_socketcall != __NR_doesnotexist)
+	{ "msocket", "sysMsocket" },
+#endif
+};
 
-	/* Finalizing will destroy everything, no need for DECREFs (I think) */
-	Py_Finalize();
-	GMESSAGE("umpyew fini");
-}
+#endif
