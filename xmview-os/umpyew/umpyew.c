@@ -227,11 +227,10 @@ static long unreal_lseek(int fildes, int offset, int whence)
 static epoch_t checkfun(int type, void *arg)
 {
 	PyObject *pKw = PyDict_New();
-	PyObject *pArg, *pRetVal;
-	epoch_t retval;
+	PyObject *pArg;
+	PyObject *pRetVal;
+	epoch_t retval = -1;
 			struct binfmt_req *bf;
-
-	GMESSAGE("type: %d", type);
 
 	switch(type)
 	{
@@ -251,24 +250,37 @@ static epoch_t checkfun(int type, void *arg)
 			break;
 
 		case CHECKSC:
-			pArg = PyInt_FromLong((long)arg);
+			pArg = PyInt_FromLong(*((long*)arg));
 			PyDict_SetItemString(pKw, "sc", pArg);
 			break;
 
 		case CHECKBINFMT:
+			bf = (struct binfmt_req*) arg;
 			GMESSAGE("path: %s", bf->path);
 			pArg = PyTuple_New(3);
-			PyTuple_SET_ITEM(pArg, 0, PyString_FromString(((struct binfmt_req*)arg)->path));
-			PyTuple_SET_ITEM(pArg, 1, PyString_FromString(((struct binfmt_req*)arg)->interp));
-			PyTuple_SET_ITEM(pArg, 2, PyInt_FromLong(((struct binfmt_req*)arg)->flags));
+			if (bf->path)
+				PyTuple_SET_ITEM(pArg, 0, PyString_FromString(bf->path));
+
+			if (bf->interp)
+				PyTuple_SET_ITEM(pArg, 1, PyString_FromString(bf->interp));
+				
+
+			PyTuple_SET_ITEM(pArg, 2, PyInt_FromLong(bf->flags));
 			PyDict_SetItemString(pKw, "binfmt", pArg);
 			break;
 
 		default:
 			GERROR("Unknown check type %d", type);
+			retval = 0;
 			break;
 	}
-	
+
+	if (!retval)
+	{
+		Py_DECREF(pKw);
+		return retval;
+	}
+
 	Py_DECREF(pArg);
 	pRetVal = PyObject_Call(ps.checkfun, pEmptyTuple, pKw);
 	Py_DECREF(pKw);
@@ -434,5 +446,5 @@ fini (void)
 
 	/* Finalizing will destroy everything, no need for DECREFs (I think) */
 	Py_Finalize();
-	GMESSAGE("unreal fini");
+	GMESSAGE("umpyew fini");
 }
