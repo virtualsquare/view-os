@@ -355,6 +355,8 @@ __attribute__ ((constructor))
 init (void)
 {
 	const char *name = "umpyew-testmodule";
+	char* tmphs;
+	int i;
 
 	PyObject *pName, *pModule, *pTmpObj;
 
@@ -402,20 +404,24 @@ init (void)
 	/* Adding ctlhs */
 	MCH_ZERO(&(s.ctlhs));
 	pTmpObj = PyObject_GetAttrString(pModule, "modCtlHistorySet");
-	if (pTmpObj && PyDict_Check(pTmpObj))
-	{
 
+	if (pTmpObj && PyList_Check(pTmpObj))
+		for (i = 0; i < PyList_Size(pTmpObj); i++)
+			GMESSAGE("item %d", i);
+			if (!(tmphs = PyString_AsString(PyList_GET_ITEM(pTmpObj, i))))
+				continue;
+			else if (!strcmp(tmphs, "proc"))
+				MCH_SET(MC_PROC, &(s.ctlhs));
+			else if (!strcmp(tmphs, "module"))
+				MCH_SET(MC_MODULE, &(s.ctlhs));
+			else if (!strcmp(tmphs, "mount"))
+				MCH_SET(MC_MOUNT, &(s.ctlhs));
 
-
-	}
 	Py_XDECREF(pTmpObj);
 
 	add_service(&s);
 	
 #if 0	
-	MCH_ZERO(&(s.ctlhs));
-	MCH_SET(MC_PROC, &(s.ctlhs));
-	MCH_SET(MC_MODULE, &(s.ctlhs));
 
 	SERVICESYSCALL(s, open, unreal_open);
 	SERVICESYSCALL(s, read, read);

@@ -1,10 +1,17 @@
-modCtlHistorySet = {
-		'module': False,
-		'proc': True,
-		'mount': False }
+
+# This list can contain zero or more of the following:
+# 'proc', 'module', 'mount'.
+modCtlHistorySet = ['proc'];
 
 def modCtl(cls, cmd, cmdArgs):
 	print "class:", cls, "command:", cmd, "args:", cmdArgs
+
+	# Just an example
+	if cls == 'proc':
+		if cmd == 'add':
+			print "New process with id %d" % cmdArgs[0]
+		elif cmd == 'rem':
+			print "Process with id %d removed" % cmdArgs[0]
 	return 0
 
 def modCheckFun(*arg, **kw):
