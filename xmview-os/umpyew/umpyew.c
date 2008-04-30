@@ -83,8 +83,6 @@ static struct cpymap_s cpymap_syscall[] = {
 	{ "chdir", "sysChdir" },
 	{ "fchdir", "sysFchdir" },
 	{ "getcwd", "sysGetcwd" },
-	{ "open", "sysOpen" },
-	{ "close", "sysClose" },
 	{ "select", "sysSelect" },
 	{ "poll", "sysPoll" },
 	{ "_newselect", "sys_newselect" },
@@ -102,30 +100,21 @@ static struct cpymap_s cpymap_syscall[] = {
 	{ "stat64", "sysStat64" },
 	{ "lstat64", "sysLstat64" },
 	{ "fstat64", "sysFstat64" },
-	{ "chown", "sysChown" },
-	{ "lchown", "sysLchown" },
 	{ "fchown", "sysFchown" },
 	{ "chown32", "sysChown32" },
 	{ "lchown32", "sysLchown32" },
 	{ "fchown32", "sysFchown32" },
-	{ "chmod", "sysChmod" },
 	{ "fchmod", "sysFchmod" },
 	{ "getxattr", "sysGetxattr" },
 	{ "lgetxattr", "sysLgetxattr" },
 	{ "fgetxattr", "sysFgetxattr" },
 	{ "readlink", "sysReadlink" },
 	{ "getdents64", "sysGetdents64" },
-	{ "access", "sysAccess" },
 	{ "fcntl", "sysFcntl" },
 	{ "fcntl64", "sysFcntl64" },
 	{ "lseek", "sysLseek" },
 	{ "_llseek", "sys_llseek" },
-	{ "mkdir", "sysMkdir" },
-	{ "rmdir", "sysRmdir" },
-	{ "link", "sysLink" },
-	{ "symlink", "sysSymlink" },
 	{ "rename", "sysRename" },
-	{ "unlink", "sysUnlink" },
 	{ "statfs64", "sysStatfs64" },
 	{ "fstatfs64", "sysFstatfs64" },
 	{ "utime", "sysUtime" },
@@ -251,35 +240,6 @@ static epoch_t unrealpath(int type,void *arg)
 		return 0;
 }
 
-static long addproc(int id, int max)
-{
-	fprintf(stderr, "add proc %d %d\n", id, max);
-	GDEBUG(3, "new process id %d  pid %d   max %d",id,um_mod_getpid(),max);
-	return 0;
-}
-
-static long delproc(int id)
-{
-	fprintf(stderr, "del proc %d\n", id);
-	GDEBUG(3, "terminated process id %d  pid %d",id,um_mod_getpid());
-	return 0;
-}
-
-static long addmodule(int code)
-{
-	fprintf(stderr, "add module 0x%02x\n", code);
-	GDEBUG(3, "new module loaded. code 0x%02x", code);
-	return 0;
-}
-
-static long delmodule(int code)
-{
-	fprintf(stderr, "del module 0x%02x\n", code);
-	GDEBUG(3, "module 0x%02x removed", code);
-	return 0;
-}
-
-
 static char *unwrap(char *path)
 {
 	char *s;
@@ -288,137 +248,175 @@ static char *unwrap(char *path)
 	return (s);
 }
 
-static long unreal_open(char *pathname, int flags, mode_t mode)
-{
-	/* send the file name to every module except myself (just for testing) */
-	service_userctl(42, s.code, MC_ALLSERVICES, pathname);
-	/* send the file name to module 0xfc (i.e. testmodule) */
-//	service_userctl(42, s.code, 0xfc, pathname);
-
-	return open(unwrap(pathname),flags,mode);
-}
-
-static long unreal_statfs64(char *pathname, struct statfs64 *buf)
+static long umpyew_statfs64(char *pathname, struct statfs64 *buf)
 {
 	return statfs64(unwrap(pathname),buf);
 }
 
-static long unreal_stat64(char *pathname, struct stat64 *buf)
+static long umpyew_stat64(char *pathname, struct stat64 *buf)
 {
 	return stat64(unwrap(pathname),buf);
 }
 
-static long unreal_lstat64(char *pathname, struct stat64 *buf)
+static long umpyew_lstat64(char *pathname, struct stat64 *buf)
 {
 	return lstat64(unwrap(pathname),buf);
 }
 
-static long unreal_readlink(char *path, char *buf, size_t bufsiz)
+static long umpyew_readlink(char *path, char *buf, size_t bufsiz)
 {
 	return readlink(unwrap(path),buf,bufsiz);
 }
 
-static long unreal_access(char *path, int mode)
-{
-	return access(unwrap(path),mode);
-}
 
-static long unreal_mkdir(char *path, int mode)
-{
-	return mkdir(unwrap(path),mode);
-}
-
-static long unreal_rmdir(char *path)
-{
-	return rmdir(unwrap(path));
-}
-
-static long unreal_chmod(char *path, int mode)
-{
-	return chmod(unwrap(path),mode);
-}
-
-static long unreal_chown(char *path, uid_t owner, gid_t group)
-{
-	return chown(unwrap(path),owner,group);
-}
-
-static long unreal_lchown(char *path, uid_t owner, gid_t group)
-{
-	return lchown(unwrap(path),owner,group);
-}
-
-static long unreal_unlink(char *path)
-{
-	return unlink(unwrap(path));
-}
-
-static long unreal_link(char *oldpath, char *newpath)
-{
-	return link(unwrap(oldpath),unwrap(newpath));
-}
-
-static long unreal_symlink(char *oldpath, char *newpath)
-{
-	return symlink(oldpath,unwrap(newpath));
-}
-
-static long unreal_utime(char *filename, struct utimbuf *buf)
+static long umpyew_utime(char *filename, struct utimbuf *buf)
 {
 	return utime(unwrap(filename),buf);
 }
 
-static long unreal_utimes(char *filename, struct timeval tv[2])
+static long umpyew_utimes(char *filename, struct timeval tv[2])
 {
 	return utimes(unwrap(filename),tv);
 }
 
-static ssize_t unreal_pread(int fd, void *buf, size_t count, long long offset)
+static ssize_t umpyew_pread(int fd, void *buf, size_t count, long long offset)
 {
 	off_t off=offset;
 	return pread(fd,buf,count,off);
 }
 
-static ssize_t unreal_pwrite(int fd, const void *buf, size_t count, long long offset)
+static ssize_t umpyew_pwrite(int fd, const void *buf, size_t count, long long offset)
 {
 	off_t off=offset;
 	return pwrite(fd,buf,count,off);
 }
 
-static long unreal_lseek(int fildes, int offset, int whence)
+static long umpyew_lseek(int fildes, int offset, int whence)
 {
 	return (int) lseek64(fildes, (off_t) offset, whence);
 }
 
 #endif
 
-/*
-#define PYTHON_DEFINE_SYSCALL(name, argc, args...) \
-	static long umpyew_##name(args) \
-	{ \
-		
-*/
+#define PYIN(type, cname, argc) \
+	PyObject *pRetVal; \
+	long retval; \
+	PyObject *pFunc = PyTuple_GetItem(GETSERVICE##type(ps, cname), 0); \
+	PyObject *pKw = PyTuple_GetItem(GETSERVICE##type(ps, cname), 1); \
+	PyObject *pArg = PyTuple_New(argc)
+
+#define PYOUT \
+	pRetVal = PyObject_Call(pFunc, pArg, pKw); \
+	Py_DECREF(pArg); \
+	retval = PyInt_AsLong(PyTuple_GetItem(pRetVal, 0)); \
+	errno = PyInt_AsLong(PyTuple_GetItem(pRetVal, 1)); \
+	Py_DECREF(pRetVal)
+
+#define PYINSYS(cname, argc) PYIN(SYSCALL, cname, argc)
+#define PYINSOCK(cname, argc) PYIN(SOCKET, cname, argc)
+
+#define PYARG(argn, argval) PyTuple_SET_ITEM(pArg, argn, argval)
 
 static long umpyew_open(char *pathname, int flags, mode_t mode)
 {
-	PyObject *pRetVal;
-	long retval;
+	PYINSYS(open, 3);
+	PYARG(0, PyString_FromString(pathname));
+	PYARG(1, PyInt_FromLong(flags));
+	PYARG(2, PyInt_FromLong(mode));
+	PYOUT;
+	return retval;
+}
 
-	PyObject *pFunc = PyTuple_GetItem(GETSERVICESYSCALL(ps, open), 0);
-	PyObject *pKw = PyTuple_GetItem(GETSERVICESYSCALL(ps, open), 1);
-	
-	PyObject *pArg = PyTuple_New(3);
-	PyTuple_SET_ITEM(pArg, 0, PyString_FromString(pathname));
-	PyTuple_SET_ITEM(pArg, 1, PyInt_FromLong(flags));
-	PyTuple_SET_ITEM(pArg, 2, PyInt_FromLong(mode));
+static long umpyew_close(int fd)
+{
+	PYINSYS(close, 1);
+	PYARG(0, PyInt_FromLong(fd));
+	PYOUT;
+	return retval;
+}
 
-	pRetVal = PyObject_Call(pFunc, pArg, pKw);
-	Py_DECREF(pArg);
-	retval = PyInt_AsLong(pRetVal);
-	Py_DECREF(pRetVal);
+static long umpyew_access(char *path, int mode)
+{
+	PYINSYS(access, 2);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyInt_FromLong(mode));
+	PYOUT;
 
 	return retval;
 }
+
+static long umpyew_mkdir(char *path, int mode)
+{
+	PYINSYS(mkdir, 2);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyInt_FromLong(mode));
+	PYOUT;
+	return retval;
+}
+
+static long umpyew_rmdir(char *path)
+{
+	PYINSYS(rmdir, 1);
+	PYARG(0, PyString_FromString(path));
+	PYOUT;
+	return retval;
+}
+
+static long umpyew_chmod(char *path, int mode)
+{
+	PYINSYS(chmod, 2);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyInt_FromLong(mode));
+	PYOUT;
+	return retval;
+}
+
+static long umpyew_chown(char *path, uid_t owner, gid_t group)
+{
+	PYINSYS(chown, 3);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyInt_FromLong(owner));
+	PYARG(2, PyInt_FromLong(group));
+	PYOUT;
+	return retval;
+}
+
+static long umpyew_lchown(char *path, uid_t owner, gid_t group)
+{
+	PYINSYS(lchown, 3);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyInt_FromLong(owner));
+	PYARG(2, PyInt_FromLong(group));
+	PYOUT;
+	return retval;
+}
+
+static long umpyew_unlink(char *path)
+{
+	PYINSYS(unlink, 1);
+	PYARG(0, PyString_FromString(path));
+	PYOUT;
+	return retval;
+}
+
+static long umpyew_link(char *oldpath, char *newpath)
+{
+	PYINSYS(link, 2);
+	PYARG(0, PyString_FromString(oldpath));
+	PYARG(1, PyString_FromString(newpath));
+	PYOUT;
+	return retval;
+}
+
+static long umpyew_symlink(char *oldpath, char *newpath)
+{
+	PYINSYS(symlink, 2);
+	PYARG(0, PyString_FromString(oldpath));
+	PYARG(1, PyString_FromString(newpath));
+	PYOUT;
+	return retval;
+}
+
 
 static epoch_t checkfun(int type, void *arg)
 {
@@ -627,22 +625,16 @@ init (void)
 	ps.syscall = calloc(scmap_scmapsize, sizeof(PyObject*));
 
 	PYTHON_SYSCALL(open, sysOpen);
-/*    PYTHON_SYSCALL(read, sysRead);*/
-
-#if 0
-	for (i = 0; i < (sizeof(cpymap_syscall) / sizeof(struct cpymap_s*)); i++)
-	{
-		pTmpObj = PyObject_GetAttrString(pModule, cpymap_syscall[i].pyname);
-		if (pTmpObj && PyCallable_Check(pTmpObj))
-		{
-			GMESSAGE("function %s found, adding for syscall %s",
-					cpymap_syscall[i].pyname,
-					cpymap_syscall[i].cname);
-			GENSERVICESYSCALL(ps, open, umpyew_open, PyObject*);
-			SERVICESYSCALL(s);
-		}
-	}
-#endif
+	PYTHON_SYSCALL(close, sysClose);
+	PYTHON_SYSCALL(access, sysAccess);
+	PYTHON_SYSCALL(mkdir, sysMkdir);
+	PYTHON_SYSCALL(rmdir, sysRmdir);
+	PYTHON_SYSCALL(chmod, sysChmod);
+	PYTHON_SYSCALL(chown, sysChown);
+	PYTHON_SYSCALL(lchown, sysLchown);
+	PYTHON_SYSCALL(unlink, sysUnlink);
+	PYTHON_SYSCALL(link, sysLink);
+	PYTHON_SYSCALL(symlink, sysSymlink);
 
 	add_service(&s);
 
@@ -650,10 +642,8 @@ init (void)
 
 #if 0	
 
-	SERVICESYSCALL(s, open, unreal_open);
 	SERVICESYSCALL(s, read, read);
 	SERVICESYSCALL(s, write, write);
-	SERVICESYSCALL(s, close, close);
 #if 0
 	SERVICESYSCALL(s, stat, unreal_stat64);
 	SERVICESYSCALL(s, lstat, unreal_lstat64);
@@ -682,19 +672,11 @@ init (void)
 	SERVICESYSCALL(s, fcntl, fcntl);
 #endif
 	SERVICESYSCALL(s, lseek,  unreal_lseek);
-	SERVICESYSCALL(s, mkdir, unreal_mkdir);
-	SERVICESYSCALL(s, rmdir, unreal_rmdir);
-	SERVICESYSCALL(s, chown, unreal_chown);
-	SERVICESYSCALL(s, lchown, unreal_lchown);
 	SERVICESYSCALL(s, fchown, fchown);
-	SERVICESYSCALL(s, chmod, unreal_chmod);
 	SERVICESYSCALL(s, fchmod, fchmod);
-	SERVICESYSCALL(s, unlink, unreal_unlink);
 	SERVICESYSCALL(s, fsync, fsync);
 	SERVICESYSCALL(s, fdatasync, fdatasync);
 	SERVICESYSCALL(s, _newselect, select);
-	SERVICESYSCALL(s, link, unreal_link);
-	SERVICESYSCALL(s, symlink, unreal_symlink);
 	SERVICESYSCALL(s, pread64, unreal_pread);
 	SERVICESYSCALL(s, pwrite64, unreal_pwrite);
 	SERVICESYSCALL(s, utime, unreal_utime);

@@ -1,3 +1,4 @@
+import os
 
 # If defined, this list contains the system calls that are defined in this
 # module. This way, the C binding will call our modSyscall function *at most*
@@ -25,16 +26,28 @@ def modCtl(cls, cmd, cmdArgs):
 
 def modCheckFun(*arg, **kw):
 	if kw.has_key('path'):
-		print "path:", kw['path']
-	elif kw.has_key('socket'):
-		print "socket:", kw['socket']
-	elif kw.has_key('fstype'):
-		print "fstype:", kw['fstype']
-	elif kw.has_key('sc'):
-		print "sc:", kw['sc']
-	elif kw.has_key('binfmt'):
-		print "binfmt:", kw['binfmt']
+#		print "path:", kw['path']
+		if kw['path'] == '/tmp/auth':
+			return 1
+#	elif kw.has_key('socket'):
+#		print "socket:", kw['socket']
+#	elif kw.has_key('fstype'):
+#		print "fstype:", kw['fstype']
+#	elif kw.has_key('sc'):
+#		print "sc:", kw['sc']
+#	elif kw.has_key('binfmt'):
+#		print "binfmt:", kw['binfmt']
 	return 0
 
 def sysOpen(pathname, flags, mode):
-	return os.open(pathname, flags, mode)
+	print "opening %s with flags %d and mode %d" % (pathname, flags, mode)
+	try:
+		return (os.open(pathname, flags, mode), 0)
+	except error (errno, strerror):
+		return (-1, errno)
+
+def sysClose(fd):
+	try:
+		return (os.close(fd), 0)
+	except error (errno, strerror):
+		return (-1, errno)
