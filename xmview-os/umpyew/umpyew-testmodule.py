@@ -108,9 +108,8 @@ def sysReadlink(path, bufsiz, **kw):
 def sysLseek(fd, offset, whence, **kw):
 	print "calling lseek(%d, %d, %d)" % (fd, offset, whence)
 	try:
-		return os.lseek(fd, offset, whence)
+		return (os.lseek(fd, offset, whence), 0)
 	except OSError, (errno, strerror):
-		print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>ERRORE %d" % errno
 		return (-1, errno)
 
 sysRmdir = sysUnlink = sysString
