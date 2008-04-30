@@ -5,7 +5,6 @@ import os
 modCtlHistorySet = ['proc'];
 
 def modCtl(cls, cmd, cmdArgs):
-	return 0
 	print "class:", cls, "command:", cmd, "args:", cmdArgs
 	# Just an example
 	if cls == 'proc':
@@ -37,10 +36,11 @@ def sysOpen(pathname, flags, mode, **kw):
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-def sysClose(fd=0, **kw):
+def sysClose(fd, **kw):
 	print "closing fd %d" % fd
 	try:
-		return (os.close(fd), 0)
+		os.close(fd)
+		return (0, 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
@@ -66,7 +66,7 @@ def sysStringString(oldpath, newpath, **kw):
 		return (-1, errno)
 
 def sysStats(param, buf, **kw):
-	print "calling %s('%s')" % (kw['cname'], param)
+	print "calling %s" % (kw['cname'])
 	try:
 		os.stat_float_times(False)
 		statinfo = getattr(os, kw['cname'].rstrip('64'))(param)
@@ -77,7 +77,7 @@ def sysStats(param, buf, **kw):
 		return (-1, errno)
 
 def sysStatfs64(path, buf, **kw):
-	print "calling statfs64('%s')" % buf
+	print "calling statfs64('%s')" % path
 	try:
 		statinfo = os.statvfs(path)
 		for field in filter(lambda s:s.startswith('f_') and not s in ['f_frsize', 'f_favail', 'f_flag', 'f_namemax'], dir(statinfo)):

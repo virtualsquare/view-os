@@ -60,6 +60,8 @@ struct cpymap_s
 static struct service s;
 static struct pService ps;
 
+#define PYCHKERR {GMESSAGE("testing..."); if (PyErr_Occurred()) PyErr_Print();}
+
 #define PYTHON_SYSCALL(cname, pyname) \
 	{ \
 		if (PyObject_HasAttrString(pModule, #pyname)) \
@@ -82,6 +84,8 @@ static struct pService ps;
 				GMESSAGE("system call %s is mapped to itself", #cname); \
 				SERVICESYSCALL(s, cname, cname); \
 			} \
+			else \
+				GMESSAGE("python object %s is not Callable!", #pyname); \
 		} \
 	}
 
@@ -291,12 +295,13 @@ static long umpyew_lseek(int fildes, int offset, int whence)
 
 #endif
 
+
 #define PYIN(type, cname, argc) \
 	PyObject *pRetVal; \
 	long retval; \
 	PyObject *pFunc = PyTuple_GetItem(GETSERVICE##type(ps, cname), 0); \
 	PyObject *pKw = PyTuple_GetItem(GETSERVICE##type(ps, cname), 1); \
-	PyObject *pArg = PyTuple_New(argc)
+	PyObject *pArg = PyTuple_New(argc); \
 
 #define PYOUT \
 	GMESSAGE("calling python..."); \
@@ -307,11 +312,13 @@ static long umpyew_lseek(int fildes, int offset, int whence)
 	{ \
 		retval = PyInt_AsLong(PyTuple_GetItem(pRetVal, 0)); \
 		errno = PyInt_AsLong(PyTuple_GetItem(pRetVal, 1)); \
+		GMESSAGE("(retval, errno) == (%d, %d)", retval, errno); \
 		Py_DECREF(pRetVal); \
 	} \
 	else \
 	{ \
 		GMESSAGE("retval is null?"); \
+		PyErr_Print(); \
 		retval = -1; \
 		errno = ENOSYS; \
 	}
@@ -333,7 +340,6 @@ static long umpyew_open(char *pathname, int flags, mode_t mode)
 
 static long umpyew_close(int fd)
 {
-	GMESSAGE("fd is %d", fd);
 	PYINSYS(close, 1);
 	PYARG(0, PyInt_FromLong(fd));
 	PYOUT;
