@@ -54,6 +54,9 @@ struct pService
 static struct service s;
 static struct pService ps;
 
+/* Used for calling PyCall with empty arg */
+static PyObject *pEmptyTuple;
+
 #if 0
 static struct timestamp t1;
 static struct timestamp t2;
@@ -223,7 +226,56 @@ static long unreal_lseek(int fildes, int offset, int whence)
 
 static epoch_t checkfun(int type, void *arg)
 {
-	return 0;
+	PyObject *pKw = PyDict_New();
+	PyObject *pArg, *pRetVal;
+	epoch_t retval;
+			struct binfmt_req *bf;
+
+	GMESSAGE("type: %d", type);
+
+	switch(type)
+	{
+		case CHECKPATH:
+			pArg = PyString_FromString((char*)arg);
+			PyDict_SetItemString(pKw, "path", pArg);
+			break;
+
+		case CHECKSOCKET:
+			pArg = PyInt_FromLong((long)arg);
+			PyDict_SetItemString(pKw, "socket", pArg);
+			break;
+
+		case CHECKFSTYPE:
+			pArg = PyString_FromString((char*)arg);
+			PyDict_SetItemString(pKw, "fstype", pArg);
+			break;
+
+		case CHECKSC:
+			pArg = PyInt_FromLong((long)arg);
+			PyDict_SetItemString(pKw, "sc", pArg);
+			break;
+
+		case CHECKBINFMT:
+			GMESSAGE("path: %s", bf->path);
+			pArg = PyTuple_New(3);
+			PyTuple_SET_ITEM(pArg, 0, PyString_FromString(((struct binfmt_req*)arg)->path));
+			PyTuple_SET_ITEM(pArg, 1, PyString_FromString(((struct binfmt_req*)arg)->interp));
+			PyTuple_SET_ITEM(pArg, 2, PyInt_FromLong(((struct binfmt_req*)arg)->flags));
+			PyDict_SetItemString(pKw, "binfmt", pArg);
+			break;
+
+		default:
+			GERROR("Unknown check type %d", type);
+			break;
+	}
+	
+	Py_DECREF(pArg);
+	pRetVal = PyObject_Call(ps.checkfun, pEmptyTuple, pKw);
+	Py_DECREF(pKw);
+
+	retval = PyInt_AsLong(pRetVal);
+	Py_DECREF(pRetVal);
+	return retval;
 }
 
 static long ctl(int type, va_list ap)
@@ -273,6 +325,7 @@ init (void)
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 
 	Py_Initialize();
+	pEmptyTuple = PyTuple_New(0);
 	pName = PyString_FromString(name);
 
 	pModule = PyImport_Import(pName);
@@ -379,7 +432,7 @@ fini (void)
 	free(s.syscall);
 	free(s.socket);
 
-	
+	/* Finalizing will destroy everything, no need for DECREFs (I think) */
 	Py_Finalize();
 	GMESSAGE("unreal fini");
 }
