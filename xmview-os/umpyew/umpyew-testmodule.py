@@ -1,4 +1,13 @@
 
+# If defined, this list contains the system calls that are defined in this
+# module. This way, the C binding will call our modSyscall function *at most*
+# for these syscalls, avoiding useless invocations. Obviously, in order to be
+# called, the modCheckFun must have returned a non-zero value.
+# If not defined, every time modCheckFun returns non-zero, modSyscall will be
+# called.
+
+# modManagedSyscalls = ['open', 'read', 'write', 'close']
+
 # This list can contain zero or more of the following:
 # 'proc', 'module', 'mount'.
 modCtlHistorySet = ['proc'];
@@ -26,4 +35,5 @@ def modCheckFun(*arg, **kw):
 	elif kw.has_key('binfmt'):
 		print "binfmt:", kw['binfmt']
 	return 0
+
 

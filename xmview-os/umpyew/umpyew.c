@@ -41,18 +41,27 @@
 
 #include "gdebug.h"
 
-// int read(), write(), close();
-
 struct pService
 {
 	PyObject *ctl;
 	PyObject *checkfun;
-	PyObject *syscall;
-	PyObject *socket;
+	PyObject **syscall;
+	PyObject **socket;
+};
+
+struct cpymap_s
+{
+	char *cname;
+	char *pyname;
 };
 
 static struct service s;
 static struct pService ps;
+static struct cpymap_s cpymap[] = {
+	{ "execve", "sysExecve" },
+	{ "chdir", "sysChdir" },
+};
+
 
 /* Used for calling PyCall with empty arg */
 static PyObject *pEmptyTuple;
@@ -224,6 +233,11 @@ static long unreal_lseek(int fildes, int offset, int whence)
 
 #endif
 
+static long umpyew_open(char *pathname, int flags, mode_t mode)
+{
+	return open(pathname,flags,mode);
+}
+
 static epoch_t checkfun(int type, void *arg)
 {
 	PyObject *pKw = PyDict_New();
@@ -380,7 +394,9 @@ init (void)
 		return;
 	}
 
-	/* Adding ctl */
+	/*
+	 * Adding ctl
+	 */
 	if ((ps.ctl = PyObject_GetAttrString(pModule, "modCtl")) && PyCallable_Check(ps.ctl))
 		s.ctl = ctl;
 	else
@@ -390,7 +406,9 @@ init (void)
 		return;
 	}
 
-	/* Adding checkfun */
+	/*
+	 * Adding checkfun
+	 */
 	if ((ps.checkfun = PyObject_GetAttrString(pModule, "modCheckFun")) && PyCallable_Check(ps.checkfun))
 		s.checkfun = checkfun;
 	else
@@ -401,26 +419,39 @@ init (void)
 		return;
 	}
 	
-	/* Adding ctlhs */
+	/*
+	 * Adding ctlhs
+	 */
 	MCH_ZERO(&(s.ctlhs));
 	pTmpObj = PyObject_GetAttrString(pModule, "modCtlHistorySet");
 
 	if (pTmpObj && PyList_Check(pTmpObj))
 		for (i = 0; i < PyList_Size(pTmpObj); i++)
-			GMESSAGE("item %d", i);
-			if (!(tmphs = PyString_AsString(PyList_GET_ITEM(pTmpObj, i))))
-				continue;
-			else if (!strcmp(tmphs, "proc"))
-				MCH_SET(MC_PROC, &(s.ctlhs));
-			else if (!strcmp(tmphs, "module"))
-				MCH_SET(MC_MODULE, &(s.ctlhs));
-			else if (!strcmp(tmphs, "mount"))
-				MCH_SET(MC_MOUNT, &(s.ctlhs));
+			if ((tmphs = PyString_AsString(PyList_GET_ITEM(pTmpObj, i))))
+			{
+				if (!strcmp(tmphs, "proc"))
+					MCH_SET(MC_PROC, &(s.ctlhs));
+				else if (!strcmp(tmphs, "module"))
+					MCH_SET(MC_MODULE, &(s.ctlhs));
+				else if (!strcmp(tmphs, "mount"))
+					MCH_SET(MC_MOUNT, &(s.ctlhs));
+			}
 
 	Py_XDECREF(pTmpObj);
 
-	add_service(&s);
+	/*
+	 * Adding system calls
+	 */
+	ps.syscall = calloc(scmap_scmapsize, sizeof(PyObject*));
 	
+	pTmpObj = PyObject_GetAttrString(pModule, "sysOpen");
+	if (pTmpObj && PyCallable_Check(pTmpObj))
+		GENSERVICESYSCALL(ps, open, umpyew_open, PyObject*);
+
+	add_service(&s);
+
+
+
 #if 0	
 
 	SERVICESYSCALL(s, open, unreal_open);
