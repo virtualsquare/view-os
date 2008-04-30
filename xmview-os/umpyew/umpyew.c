@@ -42,7 +42,18 @@
 
 // int read(), write(), close();
 
+struct pService
+{
+	PyObject *ctl;
+	PyObject *checkfun;
+	PyObject *syscall;
+	PyObject *socket;
+};
+
 static struct service s;
+static struct pService ps;
+
+#if 0
 static struct timestamp t1;
 static struct timestamp t2;
 
@@ -236,13 +247,8 @@ static long unreal_lseek(int fildes, int offset, int whence)
 	return (int) lseek64(fildes, (off_t) offset, whence);
 }
 
-struct pService
-{
-	PyObject *ctl;
-	PyObject *checkfun;
-	PyObject *syscall;
-	PyObject *socket;
-} ps;
+#endif
+
 
 static void
 __attribute__ ((constructor))
@@ -290,7 +296,9 @@ init (void)
 		return;
 	}
 	
+	add_service(&s);
 	
+#if 0	
 	MCH_ZERO(&(s.ctlhs));
 	MCH_SET(MC_PROC, &(s.ctlhs));
 	MCH_SET(MC_MODULE, &(s.ctlhs));
@@ -351,9 +359,8 @@ init (void)
 	SERVICESYSCALL(s, statfs, unreal_statfs64);
 	SERVICESYSCALL(s, fstatfs, fstatfs64);
 #endif
-	add_service(&s);
-	t1=tst_timestamp();
-	t2=tst_timestamp();
+#endif
+
 }
 
 static void
@@ -363,5 +370,8 @@ fini (void)
 	GBACKTRACE(5,20);
 	free(s.syscall);
 	free(s.socket);
+
+	
+	Py_Finalize();
 	GMESSAGE("unreal fini");
 }
