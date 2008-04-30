@@ -231,7 +231,8 @@ int wrap_out_dup(int sc_number,struct pcb *pc)
 					lfd_deregister_n_close(pc->fds,oldfd);
 				}
 			}
-			lfd_register(pc->fds,fd,pc->retval);
+			if (pc->retval >= 0)
+				lfd_register(pc->fds,fd,pc->retval);
 		} else {
 			lfd_close(pc->retval);
 		}

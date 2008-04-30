@@ -90,7 +90,7 @@ void um_proc_open()
 	/* path of the directory umview creates to store temporary and management
 	 * files */
 	snprintf(path,PATH_MAX,"/tmp/.umview%ld",(long int)r_getpid());
-	//printf("um_proc_open %s\n",path);
+	//fprint2("um_proc_open %s\n",path);
 
 	if(r_mkdir(path,0700) < 0) {
 		perror("um_proc mkdir");
@@ -154,7 +154,7 @@ static void rec_rm_all(char *name)
 /* um_proc destructor: all the files get closed and the dir removed */
 void um_proc_close()
 {
-	//printf("um_proc_close %s\n",um_proc_root);
+	/* fprint2("um_proc_close %s\n",um_proc_root);*/
 	lfd_closeall();
 	rec_rm_all(um_proc_root);
 }
@@ -170,7 +170,7 @@ char *um_proc_fakecwd()
 static char *um_proc_tmpfile(service_t service, int lfd)
 {
 	snprintf(um_tmpfile_tail,um_tmpfile_len,"%02x%02d",service,lfd);
-	//printf("um_proc_tmpfile %s\n",um_tmpfile);
+	//fprint2("um_proc_tmpfile %s\n",um_tmpfile);
 	return um_tmpfile;
 }
 
@@ -182,7 +182,7 @@ char *um_proc_tmpname()
 	static int n;
 	n = (n+1) % NMAX;
 	snprintf(um_tmpfile_tail,um_tmpfile_len,"%06d",n);
-	//printf("um_proc_tmpname %s\n",um_tmpfile);
+	//fprint2("um_proc_tmpname %s\n",um_tmpfile);
 	return um_tmpfile;
 }
 
@@ -225,15 +225,9 @@ void umproc_delproc(struct pcb *pc,int flags,int npcbflag)
 		if (p->count == 0) {
 			int i;
 			for (i=0; i<p->nolfd;  i++) {
-				register int lfd=p->lfdlist[i];
+				register int lfd=fd2lfd(p,i);
 				if (lfd >= 0) {
-					/*  if ((--lfd_tab[lfd]->count) == 0) {
-					 *    register int service=lfd_tab[lfd]->service;
-					 *    if (service != UM_NONE) {
-					 *       service_syscall(service,uscno(__NR_close))(lfd_tab[lfd]->sfd);
-					 *   }
-					 *  } */
-					//fprint2("DELPROCclose LFD %d\n",lfd);
+					//fprint2("DELPROCclose pid %d fd %d LFD %d\n",pc->pid,i,lfd);
 					lfd_close(lfd);
 				}
 			}
@@ -255,16 +249,17 @@ int lfd_open (service_t service, int sfd, char *path, int flags, int nested)
 {
 	int lfd,fifo;
 	GDEBUG(3, "lfd_open sfd %d, path %s, nested %d", sfd, path, nested);
-	//fprint2("lfd_open %x sfd %d %s",service,sfd,(path==NULL)?"<null>":path);
+	/*fprint2("lfd_open sfd %d, path %s, nested %d\n", sfd, path, nested);*/
+	/*fprint2("lfd_open %x sfd %d %s",service,sfd,(path==NULL)?"<null>":path);*/
 	/* looks for a free local file descriptor */
 	for (lfd=0; lfd<um_maxlfd && lfd_tab[lfd] != NULL ; lfd++)
 		;
 	/* if there are none, expands the lfd table */
 	if (lfd >= um_maxlfd) {
 		int i=um_maxlfd;
-		//printf("lfd_tab realloc oldndf %d\n",um_maxlfd);
+		//fprint2("lfd_tab realloc oldndf %d\n",um_maxlfd);
 		um_maxlfd = (lfd + OLFD_STEP) & ~OLFD_STEP_1;
-		//printf("lfd_tab realloc newnfd %d\n",um_maxlfd);
+		//fprint2("lfd_tab realloc newnfd %d\n",um_maxlfd);
 		lfd_tab=(struct lfd_table **) realloc (lfd_tab, (um_maxlfd * sizeof (struct lfd_table *)));
 		assert (lfd_tab);
 
@@ -277,7 +272,7 @@ int lfd_open (service_t service, int sfd, char *path, int flags, int nested)
 	assert(lfd_tab[lfd] == NULL);
 	lfd_tab[lfd] = (struct lfd_table *)malloc (sizeof(struct lfd_table));
 	assert(lfd_tab[lfd] != NULL);
-	//printf("LEAK %x %x path=%s\n",lfd_tab,lfd_tab[lfd],path);
+	//fprint2("LEAK %x %x path=%s\n",lfd_tab,lfd_tab[lfd],path);
 	lfd_tab[lfd]->path=(path==NULL)?NULL:strdup(path);
 	lfd_tab[lfd]->service=service;
 	lfd_tab[lfd]->sfd=sfd;
@@ -304,10 +299,10 @@ int lfd_open (service_t service, int sfd, char *path, int flags, int nested)
 		assert(lfd_tab[lfd]->pvtab->ofifo >= 0);
 		lfd_tab[lfd]->pvtab->signaled=0;
 	} else {
-		//printf("add lfd %d file %s\n",lfd,lfd_tab[lfd]->path);
+		//fprint2("add lfd %d file %s\n",lfd,lfd_tab[lfd]->path);
 		lfd_tab[lfd]->pvtab=NULL;
 	}
-	//printf("lfd_open: lfd %d sfd %d file %s\n",lfd,sfd,lfd_tab[lfd]->path);
+	//fprint2("lfd_open: lfd %d sfd %d file %s\n",lfd,sfd,lfd_tab[lfd]->path);
 	return lfd;
 }
 
@@ -316,7 +311,7 @@ void lfd_close (int lfd)
 {
 	int rv;
 	GDEBUG(5, "close %d %x",lfd,lfd_tab[lfd]);
-	//fprint2("lfd close %d %d %x\n",lfd,um_maxlfd,lfd_tab[lfd]);
+	//fprint2("lfd close %d %d %x %d %s\n",lfd_tab[lfd]->count,lfd,um_maxlfd,lfd_tab[lfd],lfd_tab[lfd]->path);
 	assert (lfd < 0 || (lfd < um_maxlfd && lfd_tab[lfd] != NULL));
 	/* if this is the last reference to the lfd 
 	 * close everything*/
@@ -335,7 +330,7 @@ void lfd_close (int lfd)
 			free(lfd_tab[lfd]->pvtab);
 		} 
 		//else
-			//printf("del lfd %d file %s\n",lfd,lfd_tab[lfd]->path);
+			//fprint2("del lfd %d file %s\n",lfd,lfd_tab[lfd]->path);
 		service=lfd_tab[lfd]->service;
 		/* call the close method of the service module */
 		if (service != UM_NONE && lfd_tab[lfd]->sfd >= 0) 
@@ -368,7 +363,7 @@ int lfd_getcount(int lfd)
 /* set sfd to null (to avoid double close) */
 void lfd_nullsfd(int lfd)
 {
-	//printf("lfd_nullsfd %d %d %x\n",
+	//fprint2("lfd_nullsfd %d %d %x\n",
 			//lfd,um_maxlfd,lfd_tab[lfd]);
 	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
 	lfd_tab[lfd]->sfd= -1;
@@ -485,13 +480,13 @@ int fd2sfd(struct pcb_file *p, int fd)
  * service handle it */
 service_t service_fd(struct pcb_file *p, int fd, int setepoch)
 {
-	/*printf("service fd p=%x\n",p);
+	/*fprint2("service fd p=%x\n",p);
 	if (p != NULL)
-		printf("service fd p->lfdlist=%x\n",p->lfdlist);
+		fprint2("service fd p->lfdlist=%x\n",p->lfdlist);
 	if (fd < p->nolfd)
-		printf("service fd p=%d %x\n",fd, p->lfdlist[fd]);
+		fprint2("service fd p=%d %x\n",fd, p->lfdlist[fd]);
 	else
-		printf("service fd p=%d xxx\n",fd); */
+		fprint2("service fd p=%d xxx\n",fd); */
 #ifdef _UM_MMAP
   /* ummap secret file is not accessible by processes, it is just a 
 	 * non-existent descriptor */
@@ -524,7 +519,7 @@ void lfd_register (struct pcb_file *p, int fd, int lfd)
 		p->nolfd = (fd + OLFD_STEP) & ~OLFD_STEP_1;
 		p->lfdlist = (int *) realloc(p->lfdlist, p->nolfd * sizeof(int));
 		assert (p->lfdlist);
-		//printf("lfd_add realloc oldndf %d new %d\n",i,p->nolfd);
+		//fprint2("lfd_add realloc oldndf %d new %d\n",i,p->nolfd);
 		if (p->lfdlist == NULL) {
 			perror("no mem");
 		}
@@ -532,7 +527,7 @@ void lfd_register (struct pcb_file *p, int fd, int lfd)
 			p->lfdlist[i]= -1;
 	}
 	p->lfdlist[fd]=lfd; /* CLOEXEC unset */
-	//printf("lfd_register fd %d lfd %d path %s\n", fd, lfd, lfd_tab[lfd]->path);
+	//fprint2("lfd_register fd %d lfd %d %x\n", fd, lfd, lfd_tab[lfd]);
 }
 
 /* when a process closes a file must be closed (lfd element) and deregistered
