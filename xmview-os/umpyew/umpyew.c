@@ -546,9 +546,9 @@ UMPYEW_STATFSFUNC(fstatfs64, int, fd, PyInt_FromLong);
 /*static long umpyew_readlink(char *path, char *buf, size_t bufsiz)
 {
 	PYINSYS(readlink);
-	PYARG(0, PyString_FromString(path));
-
-	PYARG(2, PyInt_FromLong(bufsiz));
+	PYARG("path", PyString_FromString(path));
+	PYARG("bufsiz", PyInt_FromLong(bufsiz));
+	PYCALL;
 	return readlink(unwrap(path),buf,bufsiz);
 }*/
 
