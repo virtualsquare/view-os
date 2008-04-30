@@ -263,18 +263,6 @@ static char *unwrap(char *path)
 
 
 
-static ssize_t umpyew_pread(int fd, void *buf, size_t count, long long offset)
-{
-	off_t off=offset;
-	return pread(fd,buf,count,off);
-}
-
-static ssize_t umpyew_pwrite(int fd, const void *buf, size_t count, long long offset)
-{
-	off_t off=offset;
-	return pwrite(fd,buf,count,off);
-}
-
 
 #endif
 
@@ -605,6 +593,34 @@ static long umpyew_write(int fd, const void *buf, size_t count)
 	return retval;
 }
 
+static ssize_t umpyew_pread64(int fd, void *buf, size_t count, long long offset)
+{
+	PYINSYS(pread64);
+	PYARG("fd", PyInt_FromLong(fd));
+	PYARG("count", PyInt_FromLong(count));
+	PYARG("offset", PyLong_FromLongLong(offset));
+	PYCALL;
+
+	if (retval >= 0)
+		memcpy(buf, PyString_AsString(PyTuple_GetItem(pRetVal, 2)), retval);
+
+	PYOUT;
+	return retval;
+}
+
+static ssize_t umpyew_pwrite64(int fd, const void *buf, size_t count, long long offset)
+{
+	PYINSYS(write);
+	PYARG("fd", PyInt_FromLong(fd));
+	PYARG("buf", PyString_FromStringAndSize(buf, count));
+	PYARG("count", PyInt_FromLong(count));
+	PYARG("offset", PyLong_FromLongLong(offset));
+	PYCALL;
+	PYOUT;
+	return retval;
+}
+
+
 /*
  * End of system calls definitions.
  */
@@ -844,6 +860,8 @@ void _um_mod_init(char *initargs)
 	PYTHON_SYSCALL(utimes, sysUtimes)
 	PYTHON_SYSCALL(read, sysRead);
 	PYTHON_SYSCALL(write, sysWrite);
+	PYTHON_SYSCALL(pread64, sysPread64);
+	PYTHON_SYSCALL(pwrite64, sysPwrite64);
 
 	add_service(&s);
 
