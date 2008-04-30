@@ -236,6 +236,14 @@ static long unreal_lseek(int fildes, int offset, int whence)
 	return (int) lseek64(fildes, (off_t) offset, whence);
 }
 
+struct pService
+{
+	PyObject *ctl;
+	PyObject *checkfun;
+	PyObject *syscall;
+	PyObject *socket;
+} ps;
+
 static void
 __attribute__ ((constructor))
 init (void)
@@ -263,13 +271,26 @@ init (void)
 		return;
 	}
 
+	if ((ps.ctl = PyObject_GetAttrString(pModule, "modCtl")) && PyCallable_Check(ps.ctl))
+		s.ctl = ctl;
+	else
+	{
+		GERROR("function modCtl not defined in module %s", name);
+		Py_XDECREF(ps.ctl);
+		return;
+	}
+
+	if ((ps.checkfun = PyObject_GetAttrString(pModule, "modCheckFun")) && PyCallable_Check(ps.checkfun))
+		s.checkfun = checkfun;
+	else
+	{
+		GERROR("function modCheckFun not defined in module %s", name);
+		Py_DECREF(ps.ctl);
+		Py_XDECREF(ps.checkfun);
+		return;
+	}
 	
-
 	
-
-	s.checkfun=unrealpath;
-	s.ctl = ctl;
-
 	MCH_ZERO(&(s.ctlhs));
 	MCH_SET(MC_PROC, &(s.ctlhs));
 	MCH_SET(MC_MODULE, &(s.ctlhs));
