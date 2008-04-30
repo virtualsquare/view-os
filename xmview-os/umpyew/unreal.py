@@ -62,7 +62,7 @@ def sysGenericPath(path, *arg, **kw):
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-sysOpen = sysRmdir = sysUnlink = sysAccess = sysMkdir = sysChmod = sysGenericPath
+sysOpen = sysRmdir = sysUnlink = sysAccess = sysMkdir = sysChmod = sysUtime = sysUtimes = sysGenericPath
 
 # Manages also symlink()
 def sysLink(oldpath, newpath, **kw):
@@ -99,13 +99,4 @@ def sysReadlink(path, bufsiz, **kw):
 		return (min(bufsiz, len(tmplink)), 0, tmplink[0:bufsiz])
 	except OSError, (errno, strerror):
 		return (-1, errno)
-
-def sysUtimes(path, atime, mtime, **kw):
-	try:
-		os.utime(unwrap(path), (atime[0] + atime[1]/1000000.0, mtime[0] + mtime[1]/1000000.0))
-		return (0, 0)
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
-sysUtime = sysUtimes
 

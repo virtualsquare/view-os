@@ -27,23 +27,27 @@ import os
 # 
 # - tstTimestamp
 # - tstMatchingEpoch
+#
+# More method will be provided (ideally the final umpyew module will provide
+# all the public functions from module.h)
 import umpyew
 
 # This list can contain zero or more of the following:
-# 'proc', 'module', 'mount'.
+# 'proc', 'module', 'mount' and corresponds to the ctlhs.
 modCtlHistorySet = ['proc'];
 
 # If you have any initalization, put it here.
 def modInit():
 	print "Init!"
-#	global ts
-#	ts = umpyew.tstTimestamp()
+	global ts
+	ts = umpyew.tstTimestamp()
 
 # The same for finalization.
 def modFini():
 	print "Fini!"
-	pass
 
+# This is the same as the ctl function of regular C modules. At present only
+# the standard commands are supported (i.e. not the custom ones).
 def modCtl(cls, cmd, cmdArgs):
 	print "class:", cls, "command:", cmd, "args:", cmdArgs
 	# Just an example
@@ -54,18 +58,26 @@ def modCtl(cls, cmd, cmdArgs):
 			print "Process with id %d removed" % cmdArgs[0]
 	return 0
 
+# This is the standard check function that returns 0 or an epoch. kw
+# contains only one key. Its name is one of 'path', 'socket', 'fstype', 'sc'
+# (system call number) and 'binfmt'. Its value is as in regular C modules.
 def modCheckFun(*arg, **kw):
+	print kw
 	if kw.has_key('path'):
-		print "path:", kw['path']
+		rv = umpyew.tstMatchingEpoch(ts)
+		print "returning", rv
+		return rv
+	# Just examples
 	elif kw.has_key('socket'):
-		print "socket:", kw['socket']
+		pass
 	elif kw.has_key('fstype'):
-		print "fstype:", kw['fstype']
+		pass
 	elif kw.has_key('sc'):
-		print "sc:", kw['sc']
+		pass
 	elif kw.has_key('binfmt'):
-		print "binfmt:", kw['binfmt']
-	return 0 # Or an epoch, if needed
+		pass
+	print "returning 0"
+	return 0
 
 # These functions are called from the umpyew module with the positional
 # parameters corresponding to the parameters of the C system calls (except for
@@ -79,13 +91,17 @@ def modCheckFun(*arg, **kw):
 # errno). Additional items can be inserted for returning additional data (as
 # in stat or readlink syscalls).
 
+# Setting a sysSomething to None is equivalent to calling
+# SERVICESYSCALL(s, something, something)
+# i.e the real system call will be called without accessing Python methods.
+
 # This function manages system calls that does not need to return additional
 # data. It works only for those syscalls whose C prototype matches the
 # corrresponding one in Pyton os module as for parameters type and order.
 # If you want to see how to change the arguments before calling, take a look
 # at the unreal.py module.
 def sysGeneric(*arg, **kw):
-	print "Calling system call", kw['cname'], "with parameters", kw
+	print "Calling system call", kw['cname'], "with parameters", arg
 	try:
 		rv = getattr(os, kw['cname'])(*arg)
 		if rv == None:
@@ -104,8 +120,9 @@ def sysGeneric(*arg, **kw):
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-sysOpen = sysRmdir = sysUnlink = sysAccess = sysMkdir = sysChmod = sysClose =
-sysLink = sysSymlink = sysGeneric
+sysOpen = sysRmdir = sysUnlink = sysAccess = sysMkdir = sysChmod = \
+		sysClose = sysLink = sysSymlink = sysLseek = sysUtime = sysUtimes = \
+		sysGeneric
 
 # The following system calls can't be managed directly by a generic function
 # because they must return some complex structure, so they have their specific
@@ -116,75 +133,32 @@ sysLink = sysSymlink = sysGeneric
 # includes the buffer where the result must be stored), we must call the
 # Python function passing only the first parameter (arg[0]).
 def sysStats(*arg, **kw):
+	print "Calling system call", kw['cname'], "with parameters", arg
 	try:
 		os.stat_float_times(False)
-		return (0, 0, getattr(os, kw['cname'].rstrip('64'))(arg[0])
+		return (0, 0, getattr(os, kw['cname'].rstrip('64'))(arg[0]))
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
 sysStat64 = sysLstat64 = sysFstat64 = sysStats
 
 def sysStatfs64(path, **kw):
+	print "Calling system call", kw['cname'], "with parameters", path
 	try:
-		return (0, 0, os.statvfs(path)))
+		return (0, 0, os.statvfs(path))
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
 def sysReadlink(path, bufsiz, **kw):
+	print "Calling system call", kw['cname'], "with parameters", path, bufsiz
 	try:
 		tmplink = os.readlink(path)
 		return (min(bufsiz, len(tmplink)), 0, tmplink[0:bufsiz])
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
-def sysUtimes(path, atime, mtime, **kw):
-	try:
-		os.utime(unwrap(path), (atime[0] + atime[1]/1000000.0, mtime[0] + mtime[1]/1000000.0))
-		return (0, 0)
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
-sysUtime = sysUtimes
-
-
-def sysStatfs64(**kw):
-	print "calling statfs64('%s')" % path
-	try:
-		statinfo = os.statvfs(path)
-		buf = {}
-		for field in filter(lambda s:s.startswith('f_') and not s in ['f_frsize', 'f_favail', 'f_flag', 'f_namemax'], dir(statinfo)):
-			buf[field] = getattr(statinfo, field)
-		buf['f_namelen'] = statinfo.f_namemax
-		return (0, 0, buf)
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
-def sysReadlink(path, bufsiz, **kw):
-	print "calling readlink('%s')" % path
-	try:
-		tmplink = os.readlink(path)
-		return (min(bufsiz, len(tmplink)), 0, tmplink[0:bufsiz])
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
-def sysLseek(fd, offset, whence, **kw):
-	print "calling lseek(%d, %d, %d)" % (fd, offset, whence)
-	try:
-		return (os.lseek(fd, offset, whence), 0)
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
-def sysUtimes(path, atime, mtime, **kw):
-	print "calling utimes('%s', (%d, %d), (%d, %d))" % (path, atime[0],
-			atime[1], mtime[0], mtime[1])
-	try:
-		os.utime(path, (atime[0] + atime[1]/1000000.0, mtime[0] + mtime[1]/1000000.0))
-		return (0, 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
 def sysRead(fd, count, **kw):
-	print "calling read(%d, %d)" % (fd, count)
+	print "Calling system call", kw['cname'], "with parameters", fd, count
 	try:
 		rv = os.read(fd, count);
 		return (len(rv), 0, rv)
@@ -192,15 +166,9 @@ def sysRead(fd, count, **kw):
 		return (-1, errno)
 
 def sysWrite(fd, buf, count, **kw):
-	print "calling write(%d, ..., %d)" % (fd, count)
+	print "Calling system call", kw['cname'], "with parameters", fd, buf, count
 	try:
 		return (os.write(fd, buf), 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
-
-sysRmdir = sysUnlink = sysString
-sysAccess = sysMkdir = sysChmod = sysStringInt
-sysLink = sysSymlink = sysStringString
-sysStat64 = sysLstat64 = sysStats
-sysUtime = sysUtimes
 

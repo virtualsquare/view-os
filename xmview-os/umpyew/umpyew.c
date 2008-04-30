@@ -410,10 +410,12 @@ static long umpyew_lseek(int fd, int offset, int whence)
 
 static long umpyew_utime(char *path, struct utimbuf *buf)
 {
-	PYINSYS(utime, 3);
+	PYINSYS(utime, 2);
 	PYARG(0, PyString_FromString(path));
-	PYARG(1, PyTuple_Pack(2, PyInt_FromLong(buf->actime), PyInt_FromLong(0)));
-	PYARG(2, PyTuple_Pack(2, PyInt_FromLong(buf->modtime), PyInt_FromLong(0)));
+	if (buf)
+		PYARG(1, PyTuple_Pack(2, PyInt_FromLong(buf->actime), PyInt_FromLong(buf->modtime)));
+	else
+		PYARG(1, Py_None);
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -421,10 +423,18 @@ static long umpyew_utime(char *path, struct utimbuf *buf)
 
 static long umpyew_utimes(char *path, struct timeval tv[2])
 {
-	PYINSYS(utime, 3);
+	PYINSYS(utime, 2);
 	PYARG(0, PyString_FromString(path));
-	PYARG(1, PyTuple_Pack(2, PyInt_FromLong(tv[0].tv_sec), PyInt_FromLong(tv[0].tv_usec)));
-	PYARG(2, PyTuple_Pack(2, PyInt_FromLong(tv[1].tv_sec), PyInt_FromLong(tv[1].tv_usec)));
+	if (tv)
+		PYARG(1, PyTuple_Pack(2, 
+					(tv[0].tv_usec) ?
+					(PyFloat_FromDouble(tv[0].tv_sec + (double)tv[0].tv_usec / 1000000.0)):
+					(PyInt_FromLong(tv[0].tv_sec)),
+					(tv[1].tv_usec) ?
+					(PyFloat_FromDouble(tv[1].tv_sec + (double)tv[1].tv_usec / 1000000.0)):
+					(PyInt_FromLong(tv[1].tv_sec))));
+	else
+		PYARG(1, Py_None);
 	PYCALL;
 	PYOUT;
 	return retval;
