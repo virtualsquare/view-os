@@ -17,6 +17,10 @@ if ENABLE_UM_LWIP
 SUBDIRS += um_lwip umnetlwipv6
 endif
 
+if ENABLE_UMPYEW
+SUBDIRS += umpyew
+endif
+
 tags:
 	ctags -R .
 
