@@ -41,12 +41,12 @@ def unwrap(path):
 		return path
 
 def kw2tuple(kw):
-	return tuple([item[1] for item in kw.items() if item[0] not in ['cname', 'pyname']])
+	return tuple([item[1] for item in kw.items() if item[0] not in ['cname', 'pyname']])[1:]
 
 def sysGenericPath(path, **kw):
 	try:
 		print "calling", getattr(os, kw['cname'])
-		return (getattr(os, kw['cname'])(unwrap(path), **kw), 0)
+		return (getattr(os, kw['cname'])(unwrap(path), kw2tuple(kw)), 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
