@@ -112,6 +112,14 @@ def sysLseek(fd, offset, whence, **kw):
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
+def sysUtimes(path, atime, mtime):
+	print "calling utimes('%s', (%d, %d), (%d, %d))" % (path, atime[0],
+			atime[1], mtime[0], mtime[1])
+	try:
+		return (os.utime(path, (atime[0] + atime[1]/1000000.0, mtime[0] + mtime[1]/1000000.0)), 0)
+	except OSError, (errno, strerror):
+		return (-1, errno)
+
 sysRmdir = sysUnlink = sysString
 sysAccess = sysMkdir = sysChmod = sysStringInt
 sysLink = sysSymlink = sysStringString
