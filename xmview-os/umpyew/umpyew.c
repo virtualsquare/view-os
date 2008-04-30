@@ -260,10 +260,6 @@ static char *unwrap(char *path)
 	return (s);
 }
 
-static long umpyew_readlink(char *path, char *buf, size_t bufsiz)
-{
-	return readlink(unwrap(path),buf,bufsiz);
-}
 
 
 static long umpyew_utime(char *filename, struct utimbuf *buf)
@@ -296,61 +292,79 @@ static long umpyew_lseek(int fildes, int offset, int whence)
 #endif
 
 
-#define PYIN(type, cname, argc) \
+#define PYIN(type, cname) \
 	PyObject *pRetVal; \
 	long retval; \
 	PyObject *pFunc = PyTuple_GetItem(GETSERVICE##type(ps, cname), 0); \
-	PyObject *pKw = PyTuple_GetItem(GETSERVICE##type(ps, cname), 1); \
-	PyObject *pArg = PyTuple_New(argc); \
+	PyObject *pKw = PyTuple_GetItem(GETSERVICE##type(ps, cname), 1);
 
-#define PYOUT \
-	GMESSAGE("calling python..."); \
-	pRetVal = PyObject_Call(pFunc, pArg, pKw); \
-	GMESSAGE("returned from python"); \
-	Py_DECREF(pArg); \
-	if (pRetVal) \
+#define PYCALL \
 	{ \
-		retval = PyInt_AsLong(PyTuple_GetItem(pRetVal, 0)); \
-		errno = PyInt_AsLong(PyTuple_GetItem(pRetVal, 1)); \
-		GMESSAGE("(retval, errno) == (%d, %d)", retval, errno); \
-		Py_DECREF(pRetVal); \
-	} \
-	else \
-	{ \
-		GMESSAGE("retval is null?"); \
-		PyErr_Print(); \
-		retval = -1; \
-		errno = ENOSYS; \
+		GMESSAGE("calling python..."); \
+		pRetVal = PyObject_Call(pFunc, pEmptyTuple, pKw); \
+		GMESSAGE("returned from python"); \
+		if (pRetVal) \
+		{ \
+			retval = PyInt_AsLong(PyTuple_GetItem(pRetVal, 0)); \
+			errno = PyInt_AsLong(PyTuple_GetItem(pRetVal, 1)); \
+			GMESSAGE("(retval, errno) == (%d, %d)", retval, errno); \
+		} \
+		else \
+		{ \
+			GMESSAGE("retval is null?"); \
+			PyErr_Print(); \
+			retval = -1; \
+			errno = ENOSYS; \
+		} \
 	}
 
-#define PYINSYS(cname, argc) PYIN(SYSCALL, cname, argc)
-#define PYINSOCK(cname, argc) PYIN(SOCKET, cname, argc)
+#define PYOUT \
+	{ \
+		if (pRetVal) \
+		{ \
+			Py_DECREF(pRetVal); \
+		} \
+	}
 
-#define PYARG(argn, argval) PyTuple_SET_ITEM(pArg, argn, argval)
 
-static long umpyew_open(char *pathname, int flags, mode_t mode)
+#define PYINSYS(cname) PYIN(SYSCALL, cname)
+#define PYINSOCK(cname) PYIN(SOCKET, cname)
+
+#define PYARG(argname, argval) \
+	{ \
+		PyObject *pTmpDictItem = argval; \
+		PyDict_SetItemString(pKw, argname, argval); \
+		Py_DECREF(pTmpDictItem); \
+	}
+
+
+
+static long umpyew_open(char *path, int flags, mode_t mode)
 {
-	PYINSYS(open, 3);
-	PYARG(0, PyString_FromString(pathname));
-	PYARG(1, PyInt_FromLong(flags));
-	PYARG(2, PyInt_FromLong(mode));
+	PYINSYS(open);
+	PYARG("path", PyString_FromString(path));
+	PYARG("flags", PyInt_FromLong(flags));
+	PYARG("mode", PyInt_FromLong(mode));
+	PYCALL;
 	PYOUT;
 	return retval;
 }
 
 static long umpyew_close(int fd)
 {
-	PYINSYS(close, 1);
-	PYARG(0, PyInt_FromLong(fd));
+	PYINSYS(close);
+	PYARG("fd", PyInt_FromLong(fd));
+	PYCALL;
 	PYOUT;
 	return retval;
 }
 
 static long umpyew_access(char *path, int mode)
 {
-	PYINSYS(access, 2);
-	PYARG(0, PyString_FromString(path));
-	PYARG(1, PyInt_FromLong(mode));
+	PYINSYS(access);
+	PYARG("path", PyString_FromString(path));
+	PYARG("mode", PyInt_FromLong(mode));
+	PYCALL;
 	PYOUT;
 
 	return retval;
@@ -358,97 +372,108 @@ static long umpyew_access(char *path, int mode)
 
 static long umpyew_mkdir(char *path, int mode)
 {
-	PYINSYS(mkdir, 2);
-	PYARG(0, PyString_FromString(path));
-	PYARG(1, PyInt_FromLong(mode));
+	PYINSYS(mkdir);
+	PYARG("path", PyString_FromString(path));
+	PYARG("mode", PyInt_FromLong(mode));
+	PYCALL;
 	PYOUT;
 	return retval;
 }
 
 static long umpyew_rmdir(char *path)
 {
-	PYINSYS(rmdir, 1);
-	PYARG(0, PyString_FromString(path));
+	PYINSYS(rmdir);
+	PYARG("path", PyString_FromString(path));
+	PYCALL;
 	PYOUT;
 	return retval;
 }
 
 static long umpyew_chmod(char *path, int mode)
 {
-	PYINSYS(chmod, 2);
-	PYARG(0, PyString_FromString(path));
-	PYARG(1, PyInt_FromLong(mode));
+	PYINSYS(chmod);
+	PYARG("path", PyString_FromString(path));
+	PYARG("mode", PyInt_FromLong(mode));
+	PYCALL;
 	PYOUT;
 	return retval;
 }
 
 static long umpyew_chown(char *path, uid_t owner, gid_t group)
 {
-	PYINSYS(chown, 3);
-	PYARG(0, PyString_FromString(path));
-	PYARG(1, PyInt_FromLong(owner));
-	PYARG(2, PyInt_FromLong(group));
+	PYINSYS(chown);
+	PYARG("path", PyString_FromString(path));
+	PYARG("owner", PyInt_FromLong(owner));
+	PYARG("group", PyInt_FromLong(group));
+	PYCALL;
 	PYOUT;
 	return retval;
 }
 
 static long umpyew_lchown(char *path, uid_t owner, gid_t group)
 {
-	PYINSYS(lchown, 3);
-	PYARG(0, PyString_FromString(path));
-	PYARG(1, PyInt_FromLong(owner));
-	PYARG(2, PyInt_FromLong(group));
+	PYINSYS(lchown);
+	PYARG("path", PyString_FromString(path));
+	PYARG("owner", PyInt_FromLong(owner));
+	PYARG("group", PyInt_FromLong(group));
+	PYCALL;
 	PYOUT;
 	return retval;
 }
 
 static long umpyew_unlink(char *path)
 {
-	PYINSYS(unlink, 1);
-	PYARG(0, PyString_FromString(path));
+	PYINSYS(unlink);
+	PYARG("path", PyString_FromString(path));
+	PYCALL;
 	PYOUT;
 	return retval;
 }
 
 static long umpyew_link(char *oldpath, char *newpath)
 {
-	PYINSYS(link, 2);
-	PYARG(0, PyString_FromString(oldpath));
-	PYARG(1, PyString_FromString(newpath));
+	PYINSYS(link);
+	PYARG("oldpath", PyString_FromString(oldpath));
+	PYARG("newpath", PyString_FromString(newpath));
+	PYCALL;
 	PYOUT;
 	return retval;
 }
 
 static long umpyew_symlink(char *oldpath, char *newpath)
 {
-	PYINSYS(symlink, 2);
-	PYARG(0, PyString_FromString(oldpath));
-	PYARG(1, PyString_FromString(newpath));
+	PYINSYS(symlink);
+	PYARG("oldpath", PyString_FromString(oldpath));
+	PYARG("newpath", PyString_FromString(newpath));
+	PYCALL;
 	PYOUT;
 	return retval;
 }
 
 #define PY_COPYSTATFIELD(field) \
-	if ((pStatField = PyDict_GetItemString(pStatDict, #field))) \
-		buf->field = PyInt_AsLong(pStatField); \
-	else \
-		buf->field = 0
+	{ \
+		if ((pStatField = PyDict_GetItemString(pStatDict, #field))) \
+			buf->field = PyInt_AsLong(pStatField); \
+		else \
+			buf->field = 0; \
+	}
 
 #define UMPYEW_STATFUNC(name, fptype, fpname, fppycmd) \
 	static long umpyew_##name(fptype fpname, struct stat64 *buf) \
 	{ \
-		PyObject *pStatDict = PyDict_New(); \
+		PyObject *pStatDict; \
 		PyObject *pStatField; \
 		\
-		PYINSYS(name, 2); \
-		PYARG(0, fppycmd(fpname)); \
+		PYINSYS(name); \
+		PYARG(#fpname, fppycmd(fpname)); \
+		PYARG("buf", PyDict_New()); \
 		\
-		Py_INCREF(pStatDict); \
-		PYARG(1, pStatDict); \
-		PYOUT; \
+		PYCALL; \
 		\
 		if (retval == 0) \
 		{ \
+			pStatDict = PyDict_GetItemString(pKw, "buf"); \
+			GMESSAGE("%p", pStatDict); \
 			PY_COPYSTATFIELD(st_dev); \
 			PY_COPYSTATFIELD(st_ino); \
 			PY_COPYSTATFIELD(st_mode); \
@@ -466,28 +491,29 @@ static long umpyew_symlink(char *oldpath, char *newpath)
 		} \
 		 \
 		GMESSAGE("returning %d", retval); \
+		PYOUT; \
 		return retval; \
 	}
 
-UMPYEW_STATFUNC(stat64, char*, pathname, PyString_FromString);
-UMPYEW_STATFUNC(lstat64, char*, pathname, PyString_FromString);
+UMPYEW_STATFUNC(stat64, char*, path, PyString_FromString);
+UMPYEW_STATFUNC(lstat64, char*, path, PyString_FromString);
 UMPYEW_STATFUNC(fstat64, int, fd, PyInt_FromLong);
 
 #define UMPYEW_STATFSFUNC(name, fptype, fpname, fppycmd) \
 	static long umpyew_##name(fptype fpname, struct statfs64 *buf) \
 	{ \
-		PyObject *pStatDict = PyDict_New(); \
+		PyObject *pStatDict; \
 		PyObject *pStatField; \
 	 \
-		PYINSYS(name, 2); \
-		PYARG(0, fppycmd(fpname)); \
+		PYINSYS(name); \
+		PYARG(#fpname, fppycmd(fpname)); \
+		PYARG("buf", PyDict_New()); \
 	 \
-		Py_INCREF(pStatDict); \
-		PYARG(1, pStatDict); \
-		PYOUT; \
+		PYCALL; \
 	 \
 		if (retval == 0) \
 		{ \
+			pStatDict = PyDict_GetItemString(pKw, "buf"); \
 			PY_COPYSTATFIELD(f_type); \
 			PY_COPYSTATFIELD(f_bsize); \
 			PY_COPYSTATFIELD(f_blocks); \
@@ -510,11 +536,21 @@ UMPYEW_STATFUNC(fstat64, int, fd, PyInt_FromLong);
 			 * that python has os.statvfs but not os.statfs. */ \
 		} \
 	 \
+		PYOUT; \
 		return retval; \
 	} \
 
-UMPYEW_STATFSFUNC(statfs64, char*, pathname, PyString_FromString);
+UMPYEW_STATFSFUNC(statfs64, char*, path, PyString_FromString);
 UMPYEW_STATFSFUNC(fstatfs64, int, fd, PyInt_FromLong);
+
+/*static long umpyew_readlink(char *path, char *buf, size_t bufsiz)
+{
+	PYINSYS(readlink);
+	PYARG(0, PyString_FromString(path));
+
+	PYARG(2, PyInt_FromLong(bufsiz));
+	return readlink(unwrap(path),buf,bufsiz);
+}*/
 
 static epoch_t checkfun(int type, void *arg)
 {
