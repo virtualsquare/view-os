@@ -40,116 +40,72 @@ def unwrap(path):
 	else:
 		return path
 
-def kw2tuple(kw):
-	return tuple([item[1] for item in kw.items() if item[0] not in ['cname', 'pyname']])[1:]
+############################
+# System calls definitions #
+############################
 
-def sysGenericPath(path, **kw):
+# These functions can be safely mapped to the corresponding real syscalls.
+sysRead = sysWrite = sysClose = sysFstat64 = sysLseek = None
+
+def sysGenericPath(path, *arg, **kw):
 	try:
-		print "calling", getattr(os, kw['cname'])
-		return (getattr(os, kw['cname'])(unwrap(path), kw2tuple(kw)), 0)
+		rv = getattr(os, kw['cname'])(unwrap(path), *arg)
+		if rv == None:
+			return (0, 0)
+		elif type(rv) == bool:
+			# syscalls like os.access() return True or False. Since True means
+			# success, and for UNIX syscalls succes is 0, we must negate the
+			# value (True is represented as 1 and False as 0).
+			return (not rv, 0)
+		else:
+			return (rv, 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-sysOpen = sysGenericPath
+sysOpen = sysRmdir = sysUnlink = sysAccess = sysMkdir = sysChmod = sysGenericPath
 
-def sysClose(fd, **kw):
-	print "closing fd %d" % fd
+# Manages also symlink()
+def sysLink(oldpath, newpath, **kw):
 	try:
-		os.close(fd)
+		if kw['cname'] == 'symlink':
+			os.symlink(oldpath, unwrap(newpath))
+		else: # link
+			os.link(unwrap(oldpath), unwrap(newpath))
 		return (0, 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-def sysString(path, **kw):
-	print "calling %s('%s')" % (kw['cname'], path)
-	try:
-		return (getattr(os, kw['cname'])(path), 0)
-	except OSError, (errno, strerror):
-		return (-1, errno)
+sysSymlink = sysLink
 
-def sysStringInt(path, mode, **kw):
-	print "calling %s('%s', %d)" % (kw['cname'], path, mode)
-	try:
-		return (getattr(os, kw['cname'])(path, mode), 0)
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
-def sysStringString(oldpath, newpath, **kw):
-	print "calling %s('%s', '%s')" % (kw['cname'], oldpath, newpath)
-	try:
-		return (getattr(os, kw['cname'])(oldpath, newpath), 0)
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
-def sysStats(param="path", **kw):
-	print "calling %s" % (kw['cname'])
+# manages stat64, lstat64()
+def sysStats(path, **kw):
 	try:
 		os.stat_float_times(False)
-		statinfo = getattr(os, kw['cname'].rstrip('64'))(unwrap(kw[param]))
-		buf = {}
-		for field in filter(lambda s:s.startswith('st_'), dir(statinfo)):
-			buf[field] = getattr(statinfo, field)
-		return (0, 0, buf)
+		return (0, 0, getattr(os, kw['cname'].rstrip('64'))(unwrap(path)))
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-def sysFstat64(**kw):
-	return sysStats(param="fd", **kw)
+sysStat64 = sysLstat64 = sysStats
 
 def sysStatfs64(**kw):
-	print "calling statfs64('%s')" % path
 	try:
-		statinfo = os.statvfs(path)
-		buf = {}
-		for field in filter(lambda s:s.startswith('f_') and not s in ['f_frsize', 'f_favail', 'f_flag', 'f_namemax'], dir(statinfo)):
-			buf[field] = getattr(statinfo, field)
-		buf['f_namelen'] = statinfo.f_namemax
-		return (0, 0, buf)
+		return (0, 0, os.statvfs(unwrap(path)))
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
 def sysReadlink(path, bufsiz, **kw):
-	print "calling readlink('%s')" % path
 	try:
-		tmplink = os.readlink(path)
+		tmplink = os.readlink(unwrap(path))
 		return (min(bufsiz, len(tmplink)), 0, tmplink[0:bufsiz])
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-def sysLseek(fd, offset, whence, **kw):
-	print "calling lseek(%d, %d, %d)" % (fd, offset, whence)
-	try:
-		return (os.lseek(fd, offset, whence), 0)
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
 def sysUtimes(path, atime, mtime, **kw):
-	print "calling utimes('%s', (%d, %d), (%d, %d))" % (path, atime[0],
-			atime[1], mtime[0], mtime[1])
 	try:
-		os.utime(path, (atime[0] + atime[1]/1000000.0, mtime[0] + mtime[1]/1000000.0))
+		os.utime(unwrap(path), (atime[0] + atime[1]/1000000.0, mtime[0] + mtime[1]/1000000.0))
 		return (0, 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-def sysRead(fd, count, **kw):
-	print "calling read(%d, %d)" % (fd, count)
-	try:
-		rv = os.read(fd, count);
-		return (len(rv), 0, rv)
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
-def sysWrite(fd, buf, count, **kw):
-	print "calling write(%d, ..., %d)" % (fd, count)
-	try:
-		return (os.write(fd, buf), 0)
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
-sysRmdir = sysUnlink = sysString
-sysAccess = sysMkdir = sysChmod = sysStringInt
-sysLink = sysSymlink = sysStringString
-sysStat64 = sysLstat64 = sysStats
 sysUtime = sysUtimes
 

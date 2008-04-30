@@ -97,16 +97,17 @@ static PyObject *pEmptyTuple;
 		} \
 	}
 
-#define PYIN(type, cname) \
+#define PYIN(type, cname, argc) \
 	PyObject *pRetVal; \
 	long retval; \
 	PyObject *pFunc = PyTuple_GetItem(GETSERVICE##type(ps, cname), 0); \
-	PyObject *pKw = PyTuple_GetItem(GETSERVICE##type(ps, cname), 1);
+	PyObject *pKw = PyTuple_GetItem(GETSERVICE##type(ps, cname), 1); \
+	PyObject *pArg = PyTuple_New(argc);
 
 #define PYCALL \
 	{ \
 		GDEBUG(3, "calling python..."); \
-		pRetVal = PyObject_Call(pFunc, pEmptyTuple, pKw); \
+		pRetVal = PyObject_Call(pFunc, pArg, pKw); \
 		GDEBUG(3, "returned from python"); \
 		if (pRetVal) \
 		{ \
@@ -125,21 +126,18 @@ static PyObject *pEmptyTuple;
 
 #define PYOUT \
 	{ \
+		Py_DECREF(pArg); \
 		if (pRetVal) \
 		{ \
 			Py_DECREF(pRetVal); \
 		} \
 	}
 
-#define PYINSYS(cname) PYIN(SYSCALL, cname)
-#define PYINSOCK(cname) PYIN(SOCKET, cname)
+#define PYINSYS(cname, argc) PYIN(SYSCALL, cname, argc)
+#define PYINSOCK(cname, argc) PYIN(SOCKET, cname, argc)
 
-#define PYARG(argname, argval) \
-	{ \
-		PyObject *pTmpDictItem = argval; \
-		PyDict_SetItemString(pKw, argname, argval); \
-		Py_DECREF(pTmpDictItem); \
-	}
+#define PYARG(argnum, argval) \
+		PyTuple_SET_ITEM(pArg, argnum, argval)
 
 /*
  * Exported functions (Python side). They must be kept update depending on the
@@ -178,10 +176,10 @@ static PyMethodDef pEmbMethods[] = {
 
 static long umpyew_open(char *path, int flags, mode_t mode)
 {
-	PYINSYS(open);
-	PYARG("path", PyString_FromString(path));
-	PYARG("flags", PyInt_FromLong(flags));
-	PYARG("mode", PyInt_FromLong(mode));
+	PYINSYS(open, 3);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyInt_FromLong(flags));
+	PYARG(2, PyInt_FromLong(mode));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -189,8 +187,8 @@ static long umpyew_open(char *path, int flags, mode_t mode)
 
 static long umpyew_close(int fd)
 {
-	PYINSYS(close);
-	PYARG("fd", PyInt_FromLong(fd));
+	PYINSYS(close, 1);
+	PYARG(0, PyInt_FromLong(fd));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -198,9 +196,9 @@ static long umpyew_close(int fd)
 
 static long umpyew_access(char *path, int mode)
 {
-	PYINSYS(access);
-	PYARG("path", PyString_FromString(path));
-	PYARG("mode", PyInt_FromLong(mode));
+	PYINSYS(access, 2);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyInt_FromLong(mode));
 	PYCALL;
 	PYOUT;
 
@@ -209,9 +207,9 @@ static long umpyew_access(char *path, int mode)
 
 static long umpyew_mkdir(char *path, int mode)
 {
-	PYINSYS(mkdir);
-	PYARG("path", PyString_FromString(path));
-	PYARG("mode", PyInt_FromLong(mode));
+	PYINSYS(mkdir, 2);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyInt_FromLong(mode));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -219,8 +217,8 @@ static long umpyew_mkdir(char *path, int mode)
 
 static long umpyew_rmdir(char *path)
 {
-	PYINSYS(rmdir);
-	PYARG("path", PyString_FromString(path));
+	PYINSYS(rmdir, 1);
+	PYARG(0, PyString_FromString(path));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -228,9 +226,9 @@ static long umpyew_rmdir(char *path)
 
 static long umpyew_chmod(char *path, int mode)
 {
-	PYINSYS(chmod);
-	PYARG("path", PyString_FromString(path));
-	PYARG("mode", PyInt_FromLong(mode));
+	PYINSYS(chmod, 2);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyInt_FromLong(mode));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -238,10 +236,10 @@ static long umpyew_chmod(char *path, int mode)
 
 static long umpyew_chown(char *path, uid_t owner, gid_t group)
 {
-	PYINSYS(chown);
-	PYARG("path", PyString_FromString(path));
-	PYARG("owner", PyInt_FromLong(owner));
-	PYARG("group", PyInt_FromLong(group));
+	PYINSYS(chown, 3);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyInt_FromLong(owner));
+	PYARG(2, PyInt_FromLong(group));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -249,10 +247,10 @@ static long umpyew_chown(char *path, uid_t owner, gid_t group)
 
 static long umpyew_lchown(char *path, uid_t owner, gid_t group)
 {
-	PYINSYS(lchown);
-	PYARG("path", PyString_FromString(path));
-	PYARG("owner", PyInt_FromLong(owner));
-	PYARG("group", PyInt_FromLong(group));
+	PYINSYS(lchown, 3);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyInt_FromLong(owner));
+	PYARG(2, PyInt_FromLong(group));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -260,8 +258,8 @@ static long umpyew_lchown(char *path, uid_t owner, gid_t group)
 
 static long umpyew_unlink(char *path)
 {
-	PYINSYS(unlink);
-	PYARG("path", PyString_FromString(path));
+	PYINSYS(unlink, 1);
+	PYARG(0, PyString_FromString(path));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -269,9 +267,9 @@ static long umpyew_unlink(char *path)
 
 static long umpyew_link(char *oldpath, char *newpath)
 {
-	PYINSYS(link);
-	PYARG("oldpath", PyString_FromString(oldpath));
-	PYARG("newpath", PyString_FromString(newpath));
+	PYINSYS(link, 2);
+	PYARG(0, PyString_FromString(oldpath));
+	PYARG(1, PyString_FromString(newpath));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -279,9 +277,9 @@ static long umpyew_link(char *oldpath, char *newpath)
 
 static long umpyew_symlink(char *oldpath, char *newpath)
 {
-	PYINSYS(symlink);
-	PYARG("oldpath", PyString_FromString(oldpath));
-	PYARG("newpath", PyString_FromString(newpath));
+	PYINSYS(symlink, 2);
+	PYARG(0, PyString_FromString(oldpath));
+	PYARG(1, PyString_FromString(newpath));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -289,7 +287,7 @@ static long umpyew_symlink(char *oldpath, char *newpath)
 
 #define PY_COPYSTATFIELD(field) \
 	{ \
-		if ((pStatField = PyDict_GetItemString(pStatDict, #field))) \
+		if ((pStatField = PyObject_GetAttrString(pStatObj, #field))) \
 			buf->field = PyInt_AsLong(pStatField); \
 		else \
 			buf->field = 0; \
@@ -298,18 +296,18 @@ static long umpyew_symlink(char *oldpath, char *newpath)
 #define UMPYEW_STATFUNC(name, fptype, fpname, fppycmd) \
 	static long umpyew_##name(fptype fpname, struct stat64 *buf) \
 	{ \
-		PyObject *pStatDict; \
+		PyObject *pStatObj; \
 		PyObject *pStatField; \
 		\
-		PYINSYS(name); \
-		PYARG(#fpname, fppycmd(fpname)); \
+		PYINSYS(name, 1); \
+		PYARG(0, fppycmd(fpname)); \
 		\
 		PYCALL; \
 		\
 		if (retval == 0) \
 		{ \
-			pStatDict = PyTuple_GetItem(pRetVal, 2); \
-			GDEBUG(3, "%p", pStatDict); \
+			pStatObj = PyTuple_GetItem(pRetVal, 2); \
+			GDEBUG(3, "%p", pStatObj); \
 			PY_COPYSTATFIELD(st_dev); \
 			PY_COPYSTATFIELD(st_ino); \
 			PY_COPYSTATFIELD(st_mode); \
@@ -338,17 +336,17 @@ UMPYEW_STATFUNC(fstat64, int, fd, PyInt_FromLong);
 #define UMPYEW_STATFSFUNC(name, fptype, fpname, fppycmd) \
 	static long umpyew_##name(fptype fpname, struct statfs64 *buf) \
 	{ \
-		PyObject *pStatDict; \
+		PyObject *pStatObj; \
 		PyObject *pStatField; \
 	 \
-		PYINSYS(name); \
-		PYARG(#fpname, fppycmd(fpname)); \
+		PYINSYS(name, 1); \
+		PYARG(0, fppycmd(fpname)); \
 	 \
 		PYCALL; \
 	 \
 		if (retval == 0) \
 		{ \
-			pStatDict = PyTuple_GetItem(pRetVal, 2); \
+			pStatObj = PyTuple_GetItem(pRetVal, 2); \
 			PY_COPYSTATFIELD(f_type); \
 			PY_COPYSTATFIELD(f_bsize); \
 			PY_COPYSTATFIELD(f_blocks); \
@@ -356,12 +354,14 @@ UMPYEW_STATFUNC(fstat64, int, fd, PyInt_FromLong);
 			PY_COPYSTATFIELD(f_bavail); \
 			PY_COPYSTATFIELD(f_files); \
 			PY_COPYSTATFIELD(f_ffree); \
-			PY_COPYSTATFIELD(f_namelen); \
+			/* f_namelen is called f_namemax in the posix.stat_result class */ \
+			if ((pStatField = PyDict_GetItemString(pStatObj, "f_namemax"))) \
+				buf->f_namelen = PyInt_AsLong(pStatField); \
 	 \
 			/* f_fsid seems to be a struct with a 'int __val[2]' inside. So we \
 			 * expect a tuple with the two values. */ \
 	 \
-			if ((pStatField = PyDict_GetItemString(pStatDict, "f_fsid"))) \
+			if ((pStatField = PyDict_GetItemString(pStatObj, "f_fsid"))) \
 			{ \
 				buf->f_fsid.__val[0] = PyInt_AsLong(PyTuple_GetItem(pStatField, 0)); \
 				buf->f_fsid.__val[1] = PyInt_AsLong(PyTuple_GetItem(pStatField, 1)); \
@@ -380,9 +380,9 @@ UMPYEW_STATFSFUNC(fstatfs64, int, fd, PyInt_FromLong);
 
 static long umpyew_readlink(char *path, char *buf, size_t bufsiz)
 {
-	PYINSYS(readlink);
-	PYARG("path", PyString_FromString(path));
-	PYARG("bufsiz", PyInt_FromLong(bufsiz));
+	PYINSYS(readlink, 2);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyInt_FromLong(bufsiz));
 	PYCALL;
 	if (retval >= 0)
 	{
@@ -399,10 +399,10 @@ static long umpyew_readlink(char *path, char *buf, size_t bufsiz)
 
 static long umpyew_lseek(int fd, int offset, int whence)
 {
-	PYINSYS(lseek);
-	PYARG("fd", PyInt_FromLong(fd));
-	PYARG("offset", PyInt_FromLong(offset));
-	PYARG("whence", PyInt_FromLong(whence));
+	PYINSYS(lseek, 3);
+	PYARG(0, PyInt_FromLong(fd));
+	PYARG(1, PyInt_FromLong(offset));
+	PYARG(2, PyInt_FromLong(whence));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -410,10 +410,10 @@ static long umpyew_lseek(int fd, int offset, int whence)
 
 static long umpyew_utime(char *path, struct utimbuf *buf)
 {
-	PYINSYS(utime);
-	PYARG("path", PyString_FromString(path));
-	PYARG("atime", PyTuple_Pack(2, PyInt_FromLong(buf->actime), PyInt_FromLong(0)));
-	PYARG("mtime", PyTuple_Pack(2, PyInt_FromLong(buf->modtime), PyInt_FromLong(0)));
+	PYINSYS(utime, 3);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyTuple_Pack(2, PyInt_FromLong(buf->actime), PyInt_FromLong(0)));
+	PYARG(2, PyTuple_Pack(2, PyInt_FromLong(buf->modtime), PyInt_FromLong(0)));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -421,10 +421,10 @@ static long umpyew_utime(char *path, struct utimbuf *buf)
 
 static long umpyew_utimes(char *path, struct timeval tv[2])
 {
-	PYINSYS(utime);
-	PYARG("path", PyString_FromString(path));
-	PYARG("atime", PyTuple_Pack(2, PyInt_FromLong(tv[0].tv_sec), PyInt_FromLong(tv[0].tv_usec)));
-	PYARG("mtime", PyTuple_Pack(2, PyInt_FromLong(tv[1].tv_sec), PyInt_FromLong(tv[1].tv_usec)));
+	PYINSYS(utime, 3);
+	PYARG(0, PyString_FromString(path));
+	PYARG(1, PyTuple_Pack(2, PyInt_FromLong(tv[0].tv_sec), PyInt_FromLong(tv[0].tv_usec)));
+	PYARG(2, PyTuple_Pack(2, PyInt_FromLong(tv[1].tv_sec), PyInt_FromLong(tv[1].tv_usec)));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -432,9 +432,9 @@ static long umpyew_utimes(char *path, struct timeval tv[2])
 
 static long umpyew_read(int fd, void *buf, size_t count)
 {
-	PYINSYS(read);
-	PYARG("fd", PyInt_FromLong(fd));
-	PYARG("count", PyInt_FromLong(count));
+	PYINSYS(read, 2);
+	PYARG(0, PyInt_FromLong(fd));
+	PYARG(1, PyInt_FromLong(count));
 	PYCALL;
 	
 	if (retval >= 0)
@@ -446,10 +446,10 @@ static long umpyew_read(int fd, void *buf, size_t count)
 
 static long umpyew_write(int fd, const void *buf, size_t count)
 {
-	PYINSYS(write);
-	PYARG("fd", PyInt_FromLong(fd));
-	PYARG("buf", PyString_FromStringAndSize(buf, count));
-	PYARG("count", PyInt_FromLong(count));
+	PYINSYS(write, 3);
+	PYARG(0, PyInt_FromLong(fd));
+	PYARG(1, PyString_FromStringAndSize(buf, count));
+	PYARG(2, PyInt_FromLong(count));
 	PYCALL;
 	PYOUT;
 	return retval;
@@ -457,10 +457,10 @@ static long umpyew_write(int fd, const void *buf, size_t count)
 
 static ssize_t umpyew_pread64(int fd, void *buf, size_t count, long long offset)
 {
-	PYINSYS(pread64);
-	PYARG("fd", PyInt_FromLong(fd));
-	PYARG("count", PyInt_FromLong(count));
-	PYARG("offset", PyLong_FromLongLong(offset));
+	PYINSYS(pread64, 3);
+	PYARG(0, PyInt_FromLong(fd));
+	PYARG(1, PyInt_FromLong(count));
+	PYARG(2, PyLong_FromLongLong(offset));
 	PYCALL;
 
 	if (retval >= 0)
@@ -472,11 +472,11 @@ static ssize_t umpyew_pread64(int fd, void *buf, size_t count, long long offset)
 
 static ssize_t umpyew_pwrite64(int fd, const void *buf, size_t count, long long offset)
 {
-	PYINSYS(write);
-	PYARG("fd", PyInt_FromLong(fd));
-	PYARG("buf", PyString_FromStringAndSize(buf, count));
-	PYARG("count", PyInt_FromLong(count));
-	PYARG("offset", PyLong_FromLongLong(offset));
+	PYINSYS(pwrite64, 4);
+	PYARG(0, PyInt_FromLong(fd));
+	PYARG(1, PyString_FromStringAndSize(buf, count));
+	PYARG(2, PyInt_FromLong(count));
+	PYARG(3, PyLong_FromLongLong(offset));
 	PYCALL;
 	PYOUT;
 	return retval;

@@ -67,60 +67,85 @@ def modCheckFun(*arg, **kw):
 		print "binfmt:", kw['binfmt']
 	return 0 # Or an epoch, if needed
 
+# These functions are called from the umpyew module with the positional
+# parameters corresponding to the parameters of the C system calls (except for
+# pointers to structures to be filled, that are not passed) and with two
+# dictionary parameters: 'cname' which contains the system call name and
+# 'pyname' which contains the name used to call the Python method (e.g.
+# 'sysOpen').
+
 # The return value of the system call management functions must be a tuple
 # with no less than 2 items. The minimal return value is composed by (retval,
 # errno). Additional items can be inserted for returning additional data (as
 # in stat or readlink syscalls).
-def sysOpen(path, flags, mode, **kw):
-	print "opening %s with flags %d and mode %d" % (path, flags, mode)
+
+# This function manages system calls that does not need to return additional
+# data. It works only for those syscalls whose C prototype matches the
+# corrresponding one in Pyton os module as for parameters type and order.
+# If you want to see how to change the arguments before calling, take a look
+# at the unreal.py module.
+def sysGeneric(*arg, **kw):
+	print "Calling system call", kw['cname'], "with parameters", kw
 	try:
-		return (os.open(path, flags, mode), 0)
+		rv = getattr(os, kw['cname'])(*arg)
+		if rv == None:
+			# syscalls like os.mkdir, os.rmdir, os.unlink, os.chmod, os.close...
+			# return None on success and raise an exception in case of error.
+			return (0, 0)
+		elif type(rv) == bool:
+			# syscalls like os.access return True or False. Since True means
+			# success, and for UNIX syscalls succes is 0, we must negate the
+			# value (True is represented as 1 and False as 0).
+			return (not rv, 0)
+		else:
+			# syscalls like os.open return an integer (e.g. a file descriptor)
+			# in case of success.
+			return (rv, 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-def sysClose(fd, **kw):
-	print "closing fd %d" % fd
+sysOpen = sysRmdir = sysUnlink = sysAccess = sysMkdir = sysChmod = sysClose =
+sysLink = sysSymlink = sysGeneric
+
+# The following system calls can't be managed directly by a generic function
+# because they must return some complex structure, so they have their specific
+# functions.
+
+# manages stat64, lstat64, fstat64
+# As the original C system call provides more than one parameter (i.e. it
+# includes the buffer where the result must be stored), we must call the
+# Python function passing only the first parameter (arg[0]).
+def sysStats(*arg, **kw):
 	try:
-		os.close(fd)
+		os.stat_float_times(False)
+		return (0, 0, getattr(os, kw['cname'].rstrip('64'))(arg[0])
+	except OSError, (errno, strerror):
+		return (-1, errno)
+
+sysStat64 = sysLstat64 = sysFstat64 = sysStats
+
+def sysStatfs64(path, **kw):
+	try:
+		return (0, 0, os.statvfs(path)))
+	except OSError, (errno, strerror):
+		return (-1, errno)
+
+def sysReadlink(path, bufsiz, **kw):
+	try:
+		tmplink = os.readlink(path)
+		return (min(bufsiz, len(tmplink)), 0, tmplink[0:bufsiz])
+	except OSError, (errno, strerror):
+		return (-1, errno)
+
+def sysUtimes(path, atime, mtime, **kw):
+	try:
+		os.utime(unwrap(path), (atime[0] + atime[1]/1000000.0, mtime[0] + mtime[1]/1000000.0))
 		return (0, 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-def sysString(path, **kw):
-	print "calling %s('%s')" % (kw['cname'], path)
-	try:
-		return (getattr(os, kw['cname'])(path), 0)
-	except OSError, (errno, strerror):
-		return (-1, errno)
+sysUtime = sysUtimes
 
-def sysStringInt(path, mode, **kw):
-	print "calling %s('%s', %d)" % (cname, path, mode)
-	try:
-		return (getattr(os, kw[cname])(path, mode), 0)
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
-def sysStringString(oldpath, newpath, **kw):
-	print "calling %s('%s', '%s')" % (cname, oldpath, newpath)
-	try:
-		return (getattr(os, kw['cname'])(oldpath, newpath), 0)
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
-def sysStats(param="path", **kw):
-	print "calling %s" % (kw['cname'])
-	try:
-		os.stat_float_times(False)
-		statinfo = getattr(os, kw['cname'].rstrip('64'))(kw[param])
-		buf = {}
-		for field in filter(lambda s:s.startswith('st_'), dir(statinfo)):
-			buf[field] = getattr(statinfo, field)
-		return (0, 0, buf)
-	except OSError, (errno, strerror):
-		return (-1, errno)
-
-def sysFstat64(**kw):
-	return sysStats(param="fd", **kw)
 
 def sysStatfs64(**kw):
 	print "calling statfs64('%s')" % path
