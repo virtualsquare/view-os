@@ -262,15 +262,6 @@ static char *unwrap(char *path)
 
 
 
-static long umpyew_utime(char *filename, struct utimbuf *buf)
-{
-	return utime(unwrap(filename),buf);
-}
-
-static long umpyew_utimes(char *filename, struct timeval tv[2])
-{
-	return utimes(unwrap(filename),tv);
-}
 
 static ssize_t umpyew_pread(int fd, void *buf, size_t count, long long offset)
 {
@@ -567,6 +558,29 @@ static long umpyew_lseek(int fd, int offset, int whence)
 	return retval;
 }
 
+static long umpyew_utime(char *path, struct utimbuf *buf)
+{
+	PYINSYS(utime);
+	PYARG("path", PyString_FromString(path));
+	PYARG("atime", PyTuple_Pack(2, PyInt_FromLong(buf->actime), PyInt_FromLong(0)));
+	PYARG("mtime", PyTuple_Pack(2, PyInt_FromLong(buf->modtime), PyInt_FromLong(0)));
+	PYCALL;
+	PYOUT;
+	return retval;
+}
+
+static long umpyew_utimes(char *path, struct timeval tv[2])
+{
+	PYINSYS(utime);
+	PYARG("path", PyString_FromString(path));
+	PYARG("atime", PyTuple_Pack(2, PyInt_FromLong(tv[0].tv_sec), PyInt_FromLong(tv[0].tv_usec)));
+	PYARG("mtime", PyTuple_Pack(2, PyInt_FromLong(tv[1].tv_sec), PyInt_FromLong(tv[1].tv_usec)));
+	PYCALL;
+	PYOUT;
+	return retval;
+}
+
+
 static epoch_t checkfun(int type, void *arg)
 {
 	PyObject *pKw = PyDict_New();
@@ -798,6 +812,8 @@ void _um_mod_init(char *initargs)
 	PYTHON_SYSCALL(fstatfs64, sysStatfs64);
 	PYTHON_SYSCALL(readlink, sysReadlink);
 	PYTHON_SYSCALL(lseek, sysLseek);
+	PYTHON_SYSCALL(utime, sysUtime);
+	PYTHON_SYSCALL(utimes, sysUtimes)
 /*    PYTHON_SYSCALL(read, sysRead);*/
 /*    PYTHON_SYSCALL(write, sysWrite);*/
 	SERVICESYSCALL(s, read, read);
