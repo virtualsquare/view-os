@@ -1,6 +1,6 @@
-def ctl:
+def modCtl():
 	pass
 
-def checkfun:
+def modCheckFun():
 	pass
 
