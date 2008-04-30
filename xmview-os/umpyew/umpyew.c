@@ -256,21 +256,6 @@ static char *unwrap(char *path)
 	return (s);
 }
 
-static long umpyew_statfs64(char *pathname, struct statfs64 *buf)
-{
-	return statfs64(unwrap(pathname),buf);
-}
-
-static long umpyew_stat64(char *pathname, struct stat64 *buf)
-{
-	return stat64(unwrap(pathname),buf);
-}
-
-static long umpyew_lstat64(char *pathname, struct stat64 *buf)
-{
-	return lstat64(unwrap(pathname),buf);
-}
-
 static long umpyew_readlink(char *path, char *buf, size_t bufsiz)
 {
 	return readlink(unwrap(path),buf,bufsiz);
@@ -348,6 +333,7 @@ static long umpyew_open(char *pathname, int flags, mode_t mode)
 
 static long umpyew_close(int fd)
 {
+	GMESSAGE("fd is %d", fd);
 	PYINSYS(close, 1);
 	PYARG(0, PyInt_FromLong(fd));
 	PYOUT;
@@ -438,7 +424,9 @@ static long umpyew_symlink(char *oldpath, char *newpath)
 
 #define PY_COPYSTATFIELD(field) \
 	if ((pStatField = PyDict_GetItemString(pStatDict, #field))) \
-		buf->field = PyInt_AsLong(pStatField)
+		buf->field = PyInt_AsLong(pStatField); \
+	else \
+		buf->field = 0
 
 #define UMPYEW_STATFUNC(name, fptype, fpname, fppycmd) \
 	static long umpyew_##name(fptype fpname, struct stat64 *buf) \
@@ -479,6 +467,48 @@ UMPYEW_STATFUNC(stat64, char*, pathname, PyString_FromString);
 UMPYEW_STATFUNC(lstat64, char*, pathname, PyString_FromString);
 UMPYEW_STATFUNC(fstat64, int, fd, PyInt_FromLong);
 
+#define UMPYEW_STATFSFUNC(name, fptype, fpname, fppycmd) \
+	static long umpyew_##name(fptype fpname, struct statfs64 *buf) \
+	{ \
+		PyObject *pStatDict = PyDict_New(); \
+		PyObject *pStatField; \
+	 \
+		PYINSYS(name, 2); \
+		PYARG(0, fppycmd(fpname)); \
+	 \
+		Py_INCREF(pStatDict); \
+		PYARG(1, pStatDict); \
+		PYOUT; \
+	 \
+		if (retval == 0) \
+		{ \
+			PY_COPYSTATFIELD(f_type); \
+			PY_COPYSTATFIELD(f_bsize); \
+			PY_COPYSTATFIELD(f_blocks); \
+			PY_COPYSTATFIELD(f_bfree); \
+			PY_COPYSTATFIELD(f_bavail); \
+			PY_COPYSTATFIELD(f_files); \
+			PY_COPYSTATFIELD(f_ffree); \
+			PY_COPYSTATFIELD(f_namelen); \
+	 \
+			/* f_fsid seems to be a struct with a 'int __val[2]' inside. So we \
+			 * expect a tuple with the two values. */ \
+	 \
+			if ((pStatField = PyDict_GetItemString(pStatDict, "f_fsid"))) \
+			{ \
+				buf->f_fsid.__val[0] = PyInt_AsLong(PyTuple_GetItem(pStatField, 0)); \
+				buf->f_fsid.__val[1] = PyInt_AsLong(PyTuple_GetItem(pStatField, 1)); \
+			} \
+			/* statvfs returns also frsize, favail, flag and namemax (instead of \
+			 * namelen), but does not return type. Could they be unified? Mind \
+			 * that python has os.statvfs but not os.statfs. */ \
+		} \
+	 \
+		return retval; \
+	} \
+
+UMPYEW_STATFSFUNC(statfs64, char*, pathname, PyString_FromString);
+UMPYEW_STATFSFUNC(fstatfs64, int, fd, PyInt_FromLong);
 
 static epoch_t checkfun(int type, void *arg)
 {
@@ -610,13 +640,6 @@ static long ctl(int type, va_list ap)
 	return retval;
 }
 
-static long pippo()
-{
-	GMESSAGE("pippo!");
-	errno = EFAULT;
-	return -1;
-}
-
 static void
 __attribute__ ((constructor))
 init (void)
@@ -714,6 +737,8 @@ void _um_mod_init(char *initargs)
 	PYTHON_SYSCALL(stat64, sysStat64);
 	PYTHON_SYSCALL(lstat64, sysLstat64);
 	PYTHON_SYSCALL(fstat64, sysFstat64);
+	PYTHON_SYSCALL(statfs64, sysStatfs64);
+	PYTHON_SYSCALL(fstatfs64, sysStatfs64);
 /*    PYTHON_SYSCALL(read, sysRead);*/
 /*    PYTHON_SYSCALL(write, sysWrite);*/
 	SERVICESYSCALL(s, read, read);

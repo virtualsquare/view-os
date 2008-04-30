@@ -1,14 +1,5 @@
 import os
 
-# If defined, this list contains the system calls that are defined in this
-# module. This way, the C binding will call our modSyscall function *at most*
-# for these syscalls, avoiding useless invocations. Obviously, in order to be
-# called, the modCheckFun must have returned a non-zero value.
-# If not defined, every time modCheckFun returns non-zero, modSyscall will be
-# called.
-
-# modManagedSyscalls = ['open', 'read', 'write', 'close']
-
 # This list can contain zero or more of the following:
 # 'proc', 'module', 'mount'.
 modCtlHistorySet = ['proc'];
@@ -46,7 +37,7 @@ def sysOpen(pathname, flags, mode, **kw):
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-def sysClose(fd, **kw):
+def sysClose(fd=0, **kw):
 	print "closing fd %d" % fd
 	try:
 		return (os.close(fd), 0)
@@ -54,33 +45,44 @@ def sysClose(fd, **kw):
 		return (-1, errno)
 
 def sysString(path, **kw):
-	print "calling %s(%s)" % (kw['cname'], path)
+	print "calling %s('%s')" % (kw['cname'], path)
 	try:
 		return (getattr(os, kw[cname])(path), 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
 def sysStringInt(path, mode, **kw):
-	print "calling %s(%s, %d)" % (kw['cname'], path, mode)
+	print "calling %s('%s', %d)" % (kw['cname'], path, mode)
 	try:
 		return (getattr(os, kw[cname])(path, mode), 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
 def sysStringString(oldpath, newpath, **kw):
-	print "calling %s(%s, %s)" % (kw['cname'], oldpath, newpath)
+	print "calling %s('%s', '%s')" % (kw['cname'], oldpath, newpath)
 	try:
 		return (getattr(os, kw[cname])(oldpath, newpath), 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
 def sysStats(param, buf, **kw):
-	print "calling %s(%s)" % (kw['cname'], param)
+	print "calling %s('%s')" % (kw['cname'], param)
 	try:
 		os.stat_float_times(False)
 		statinfo = getattr(os, kw['cname'].rstrip('64'))(param)
 		for field in filter(lambda s:s.startswith('st_'), dir(statinfo)):
 			buf[field] = getattr(statinfo, field)
+		return (0, 0)
+	except OSError, (errno, strerror):
+		return (-1, errno)
+
+def sysStatfs64(path, buf, **kw):
+	print "calling statfs64('%s')" % buf
+	try:
+		statinfo = os.statvfs(path)
+		for field in filter(lambda s:s.startswith('f_') and not s in ['f_frsize', 'f_favail', 'f_flag', 'f_namemax'], dir(statinfo)):
+			buf[field] = getattr(statinfo, field)
+		buf['f_namelen'] = statinfo.f_namemax
 		return (0, 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
