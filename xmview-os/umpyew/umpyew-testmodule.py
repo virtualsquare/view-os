@@ -29,39 +29,39 @@ def modCheckFun(*arg, **kw):
 #		print "binfmt:", kw['binfmt']
 	return 0
 
-def sysOpen(**kw):
-	print "opening %s with flags %d and mode %d" % (kw['path'], kw['flags'], kw['mode'])
+def sysOpen(path, flags, mode, **kw):
+	print "opening %s with flags %d and mode %d" % (path, flags, mode)
 	try:
-		return (os.open(kw['path'], kw['flags'], kw['mode']), 0)
+		return (os.open(path, flags, mode), 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-def sysClose(**kw):
-	print "closing fd %d" % kw['fd']
+def sysClose(fd, **kw):
+	print "closing fd %d" % fd
 	try:
-		os.close(kw['fd'])
+		os.close(fd)
 		return (0, 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-def sysString(**kw):
-	print "calling %s('%s')" % (kw['cname'], kw['path'])
+def sysString(path, **kw):
+	print "calling %s('%s')" % (kw['cname'], path)
 	try:
-		return (getattr(os, kw[cname])(kw['path']), 0)
+		return (getattr(os, kw['cname'])(path), 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-def sysStringInt(**kw):
-	print "calling %s('%s', %d)" % (kw['cname'], kw['path'], kw['mode'])
+def sysStringInt(path, mode, **kw):
+	print "calling %s('%s', %d)" % (cname, path, mode)
 	try:
-		return (getattr(os, kw[cname])(kw['path'], kw['mode']), 0)
+		return (getattr(os, kw[cname])(path, mode), 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
-def sysStringString(**kw):
-	print "calling %s('%s', '%s')" % (kw['cname'], kw['oldpath'], kw['newpath'])
+def sysStringString(oldpath, newpath, **kw):
+	print "calling %s('%s', '%s')" % (cname, oldpath, newpath)
 	try:
-		return (getattr(os, kw[cname])(kw['oldpath'], kw['newpath']), 0)
+		return (getattr(os, kw['cname'])(oldpath, newpath), 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
@@ -71,8 +71,8 @@ def sysStats(param="path", **kw):
 		os.stat_float_times(False)
 		statinfo = getattr(os, kw['cname'].rstrip('64'))(kw[param])
 		for field in filter(lambda s:s.startswith('st_'), dir(statinfo)):
-			kw['buf'][field] = getattr(statinfo, field)
-		return (0, 0)
+			buf[field] = getattr(statinfo, field)
+		return (0, 0, buf)
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
@@ -80,12 +80,12 @@ def sysFstat64(**kw):
 	return sysStats(param="fd", **kw)
 
 def sysStatfs64(**kw):
-	print "calling statfs64('%s')" % kw['path']
+	print "calling statfs64('%s')" % path
 	try:
-		statinfo = os.statvfs(kw['path'])
+		statinfo = os.statvfs(path)
 		for field in filter(lambda s:s.startswith('f_') and not s in ['f_frsize', 'f_favail', 'f_flag', 'f_namemax'], dir(statinfo)):
-			kw['buf'][field] = getattr(statinfo, field)
-		kw['buf']['f_namelen'] = statinfo.f_namemax
+			buf[field] = getattr(statinfo, field)
+		buf['f_namelen'] = statinfo.f_namemax
 		return (0, 0)
 	except OSError, (errno, strerror):
 		return (-1, errno)

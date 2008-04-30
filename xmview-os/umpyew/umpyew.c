@@ -466,13 +466,12 @@ static long umpyew_symlink(char *oldpath, char *newpath)
 		\
 		PYINSYS(name); \
 		PYARG(#fpname, fppycmd(fpname)); \
-		PYARG("buf", PyDict_New()); \
 		\
 		PYCALL; \
 		\
 		if (retval == 0) \
 		{ \
-			pStatDict = PyDict_GetItemString(pKw, "buf"); \
+			pStatDict = PyTuple_GetItem(pRetVal, 2); \
 			GMESSAGE("%p", pStatDict); \
 			PY_COPYSTATFIELD(st_dev); \
 			PY_COPYSTATFIELD(st_ino); \
@@ -507,13 +506,12 @@ UMPYEW_STATFUNC(fstat64, int, fd, PyInt_FromLong);
 	 \
 		PYINSYS(name); \
 		PYARG(#fpname, fppycmd(fpname)); \
-		PYARG("buf", PyDict_New()); \
 	 \
 		PYCALL; \
 	 \
 		if (retval == 0) \
 		{ \
-			pStatDict = PyDict_GetItemString(pKw, "buf"); \
+			pStatDict = PyTuple_GetItem(pRetVal, 2); \
 			PY_COPYSTATFIELD(f_type); \
 			PY_COPYSTATFIELD(f_bsize); \
 			PY_COPYSTATFIELD(f_blocks); \
@@ -543,14 +541,18 @@ UMPYEW_STATFUNC(fstat64, int, fd, PyInt_FromLong);
 UMPYEW_STATFSFUNC(statfs64, char*, path, PyString_FromString);
 UMPYEW_STATFSFUNC(fstatfs64, int, fd, PyInt_FromLong);
 
-/*static long umpyew_readlink(char *path, char *buf, size_t bufsiz)
+static long umpyew_readlink(char *path, char *buf, size_t bufsiz)
 {
 	PYINSYS(readlink);
 	PYARG("path", PyString_FromString(path));
-	PYARG("bufsiz", PyInt_FromLong(bufsiz));
 	PYCALL;
+	if (retval >= 0)
+	/*{
+		strncpy();
+	}*/
+
 	return readlink(unwrap(path),buf,bufsiz);
-}*/
+}
 
 static epoch_t checkfun(int type, void *arg)
 {
