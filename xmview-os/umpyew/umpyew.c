@@ -545,6 +545,7 @@ static long umpyew_readlink(char *path, char *buf, size_t bufsiz)
 {
 	PYINSYS(readlink);
 	PYARG("path", PyString_FromString(path));
+	PYARG("bufsiz", PyInt_FromLong(bufsiz));
 	PYCALL;
 	if (retval >= 0)
 	{
