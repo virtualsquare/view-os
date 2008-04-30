@@ -129,10 +129,17 @@ def sysRead(fd, count, **kw):
 	except OSError, (errno, strerror):
 		return (-1, errno)
 
+def sysWrite(fd, buf, count, **kw):
+	print "calling write(%d, ..., %d)" % (fd, count)
+	try:
+		return (os.write(fd, buf), 0)
+	except OSError, (errno, strerror):
+		return (-1, errno)
+		
+
 sysRmdir = sysUnlink = sysString
 sysAccess = sysMkdir = sysChmod = sysStringInt
 sysLink = sysSymlink = sysStringString
 sysStat64 = sysLstat64 = sysStats
 sysUtime = sysUtimes
 
-sysWrite = None
