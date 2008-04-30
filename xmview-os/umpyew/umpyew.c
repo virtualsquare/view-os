@@ -1,12 +1,10 @@
-/*   This is part of um-ViewOS
- *   The user-mode implementation of OSVIEW -- A Process with a View
+/*   This is part of UMView
+ *   The user-mode implementation of View-OS: A Process with a View
  *
- *   example of um-ViewOS module:
- *   remap of /unreal onto the real FS
- *   /unreal/XXXX is mapped to XXXX in th real FS
- *   
- *   Copyright 2005 Renzo Davoli University of Bologna - Italy
- *   
+ *   Bindings for writing Python modules for *MView
+ *
+ *   Copyright 2008 Ludovico Gardenghi, University of Bologna, Italy
+ *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License, version 2, as
  *   published by the Free Software Foundation.
@@ -20,9 +18,8 @@
  *   with this program; if not, write to the Free Software Foundation, Inc.,
  *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
  *
- *   $Id$
- *
- */   
+ */
+
 #include <Python.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -48,14 +45,6 @@ struct pService
 	PyObject **syscall;
 	PyObject **socket;
 };
-
-/*
-struct cpymap_s
-{
-	char *cname;
-	char *pyname;
-};
-*/
 
 static struct service s;
 static struct pService ps;
@@ -107,11 +96,6 @@ static struct cpymap_s cpymap_syscall[] = {
 	{ "mount", "sysMount" },
 	{ "umount2", "sysUmount2" },
 	{ "ioctl", "sysIoctl" },
-	{ "read", "sysRead" },
-	{ "write", "sysWrite" },
-	{ "stat64", "sysStat64" },
-	{ "lstat64", "sysLstat64" },
-	{ "fstat64", "sysFstat64" },
 	{ "fchown", "sysFchown" },
 	{ "chown32", "sysChown32" },
 	{ "lchown32", "sysLchown32" },
@@ -127,24 +111,10 @@ static struct cpymap_s cpymap_syscall[] = {
 	{ "lseek", "sysLseek" },
 	{ "_llseek", "sys_llseek" },
 	{ "rename", "sysRename" },
-	{ "statfs64", "sysStatfs64" },
-	{ "fstatfs64", "sysFstatfs64" },
-	{ "utime", "sysUtime" },
-	{ "utimes", "sysUtimes" },
 	{ "fsync", "sysFsync" },
 	{ "fdatasync", "sysFdatasync" },
 	{ "truncate64", "sysTruncate64" },
 	{ "ftruncate64", "sysFtruncate64" },
-#ifdef __NR_pread64
-	{ "pread64", "sysPread64" },
-#else
-	{ "pread", "sysPread" },
-#endif
-#ifdef __NR_pwrite64
-	{ "pwrite64", "sysPwrite64" },
-#else
-	{ "pwrite", "sysPwrite" },
-#endif
 #ifdef _UM_MMAP
 	{ "mmap", "sysMmap" },
 	{ "mmap2", "sysMmap2" },
@@ -260,10 +230,6 @@ static char *unwrap(char *path)
 	return (s);
 }
 
-
-
-
-
 #endif
 
 
@@ -312,7 +278,30 @@ static char *unwrap(char *path)
 		Py_DECREF(pTmpDictItem); \
 	}
 
+/*
+ * Exported functions (Python side). They must be kept update depending on the
+ * evolution of the struct timestamp.
+ */
+static PyObject *umpyew_tst_matchingepoch(PyObject *self, PyObject *args)
+{
+	struct timestamp *ts;
+	PyObject *obj;
+	int len;
 
+	PyArg_ParseTuple(args, "O", &obj);
+	PyObject_AsReadBuffer(obj, (void**) &ts, &len);
+	
+	return PyLong_FromLongLong(tst_matchingepoch(ts));
+}
+
+static PyObject *umpyew_tst_timestamp(PyObject *self, PyObject *args)
+{
+	return PyBuffer_FromMemory(tst_timestamp(), sizeof(struct timestamp));
+}
+
+/*
+ * Begin of system calls definitions (bindings)
+ */
 
 static long umpyew_open(char *path, int flags, mode_t mode)
 {
@@ -865,32 +854,11 @@ void _um_mod_init(char *initargs)
 
 	add_service(&s);
 
-
-
 #if 0	
-
-	SERVICESYSCALL(s, read, read);
-	SERVICESYSCALL(s, write, write);
-#if 0
-	SERVICESYSCALL(s, stat, unreal_stat64);
-	SERVICESYSCALL(s, lstat, unreal_lstat64);
-	SERVICESYSCALL(s, fstat, fstat64);
-#endif
-#if !defined(__x86_64__)
-	SERVICESYSCALL(s, stat64, unreal_stat64);
-	SERVICESYSCALL(s, lstat64, unreal_lstat64);
-	SERVICESYSCALL(s, fstat64, fstat64);
-#else
-	SERVICESYSCALL(s, stat, unreal_stat64);
-	SERVICESYSCALL(s, lstat, unreal_lstat64);
-	SERVICESYSCALL(s, fstat, fstat64);
-#endif
-	SERVICESYSCALL(s, readlink, unreal_readlink);
 #if 0 
 	SERVICESYSCALL(s, getdents, getdents64);
 #endif
 	SERVICESYSCALL(s, getdents64, getdents64);
-	SERVICESYSCALL(s, access, unreal_access);
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, fcntl, fcntl32);
 	SERVICESYSCALL(s, fcntl64, fcntl64);
@@ -898,23 +866,11 @@ void _um_mod_init(char *initargs)
 #else
 	SERVICESYSCALL(s, fcntl, fcntl);
 #endif
-	SERVICESYSCALL(s, lseek,  unreal_lseek);
 	SERVICESYSCALL(s, fchown, fchown);
 	SERVICESYSCALL(s, fchmod, fchmod);
 	SERVICESYSCALL(s, fsync, fsync);
 	SERVICESYSCALL(s, fdatasync, fdatasync);
 	SERVICESYSCALL(s, _newselect, select);
-	SERVICESYSCALL(s, pread64, unreal_pread);
-	SERVICESYSCALL(s, pwrite64, unreal_pwrite);
-	SERVICESYSCALL(s, utime, unreal_utime);
-	SERVICESYSCALL(s, utimes, unreal_utimes);
-#if !defined(__x86_64__)
-	SERVICESYSCALL(s, statfs64, unreal_statfs64);
-	SERVICESYSCALL(s, fstatfs64, fstatfs64);
-#else
-	SERVICESYSCALL(s, statfs, unreal_statfs64);
-	SERVICESYSCALL(s, fstatfs, fstatfs64);
-#endif
 #endif
 
 }
