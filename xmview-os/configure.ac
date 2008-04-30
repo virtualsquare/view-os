@@ -115,10 +115,11 @@ AC_CONFIG_FILES([Makefile
                  um_viewfs/Makefile
                  ummisc/Makefile
                  ummisc_modules/Makefile
-                 xmview/Makefile
-								 umnet/Makefile
-								 umnet_modules/Makefile
-								 umnetlwipv6/Makefile])
+                 umnet/Makefile
+                 umnet_modules/Makefile
+                 umnetlwipv6/Makefile])
+                 umpyew/Makefile
+                 xmview/Makefile])
 AC_OUTPUT
 
 if test x$enable_umdevtap = "xwarn"
