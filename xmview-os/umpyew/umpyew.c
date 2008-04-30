@@ -386,7 +386,9 @@ static long unreal_lseek(int fildes, int offset, int whence)
 
 static long umpyew_open(char *pathname, int flags, mode_t mode)
 {
-	PyObject *pArg = PyTuple_New(3);
+	PyObject *pArg = PyTuple_New(2);
+	
+
 	return open(pathname,flags,mode);
 }
 
