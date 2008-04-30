@@ -36,4 +36,5 @@ def modCheckFun(*arg, **kw):
 		print "binfmt:", kw['binfmt']
 	return 0
 
-
+def sysOpen(pathname, flags, mode):
+	return os.open(pathname, flags, mode)

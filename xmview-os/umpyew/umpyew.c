@@ -49,20 +49,28 @@ struct pService
 	PyObject **socket;
 };
 
+/*
 struct cpymap_s
 {
 	char *cname;
 	char *pyname;
 };
+*/
 
 static struct service s;
 static struct pService ps;
 
 #define PYTHON_SYSCALL(cname, pyname) \
 	{ \
-		pTmpObj = PyObject_GetAttrString(pModule, #pyname); \
-		if (pTmpObj && PyCallable_Check(pTmpObj)) \
+		pTmpFunc = PyObject_GetAttrString(pModule, #pyname); \
+		if (pTmpFunc && PyCallable_Check(pTmpFunc)) \
 		{ \
+			pTmpObj = PyTuple_New(2); \
+			PyTuple_SET_ITEM(pTmpObj, 0, pTmpFunc); \
+			pTmpDict = PyDict_New(); \
+			PyDict_SetItemString(pTmpDict, "cname", PyString_FromString(#cname)); \
+			PyDict_SetItemString(pTmpDict, "pyname", PyString_FromString(#pyname)); \
+			PyTuple_SET_ITEM(pTmpObj, 1, pTmpDict); \
 			GMESSAGE("found function for system call %s, adding", #cname); \
 			GENSERVICESYSCALL(ps, cname, pTmpObj, PyObject*); \
 			SERVICESYSCALL(s, cname, umpyew_##cname); \
@@ -384,12 +392,32 @@ static long unreal_lseek(int fildes, int offset, int whence)
 
 #endif
 
+/*
+#define PYTHON_DEFINE_SYSCALL(name, argc, args...) \
+	static long umpyew_##name(args) \
+	{ \
+		
+*/
+
 static long umpyew_open(char *pathname, int flags, mode_t mode)
 {
-	PyObject *pArg = PyTuple_New(2);
-	
+	PyObject *pRetVal;
+	long retval;
 
-	return open(pathname,flags,mode);
+	PyObject *pFunc = PyTuple_GetItem(GETSERVICESYSCALL(ps, open), 0);
+	PyObject *pKw = PyTuple_GetItem(GETSERVICESYSCALL(ps, open), 1);
+	
+	PyObject *pArg = PyTuple_New(3);
+	PyTuple_SET_ITEM(pArg, 0, PyString_FromString(pathname));
+	PyTuple_SET_ITEM(pArg, 1, PyInt_FromLong(flags));
+	PyTuple_SET_ITEM(pArg, 2, PyInt_FromLong(mode));
+
+	pRetVal = PyObject_Call(pFunc, pArg, pKw);
+	Py_DECREF(pArg);
+	retval = PyInt_AsLong(pRetVal);
+	Py_DECREF(pRetVal);
+
+	return retval;
 }
 
 static epoch_t checkfun(int type, void *arg)
@@ -526,7 +554,7 @@ init (void)
 	char* tmphs;
 	int i;
 
-	PyObject *pName, *pModule, *pTmpObj;
+	PyObject *pName, *pModule, *pTmpObj, *pTmpFunc, *pTmpDict;
 
 	GMESSAGE("umpyew init");
 	s.name="Prototypal Python bindings for *MView";
