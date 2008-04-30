@@ -1,3 +1,8 @@
+modCtlHistorySet = {
+		'module': False,
+		'proc': True,
+		'mount': False }
+
 def modCtl(cls, cmd, cmdArgs):
 	print "class:", cls, "command:", cmd, "args:", cmdArgs
 	return 0

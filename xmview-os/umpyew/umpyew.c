@@ -356,7 +356,7 @@ init (void)
 {
 	const char *name = "umpyew-testmodule";
 
-	PyObject *pName, *pModule;
+	PyObject *pName, *pModule, *pTmpObj;
 
 	GMESSAGE("umpyew init");
 	s.name="Prototypal Python bindings for *MView";
@@ -378,6 +378,7 @@ init (void)
 		return;
 	}
 
+	/* Adding ctl */
 	if ((ps.ctl = PyObject_GetAttrString(pModule, "modCtl")) && PyCallable_Check(ps.ctl))
 		s.ctl = ctl;
 	else
@@ -387,6 +388,7 @@ init (void)
 		return;
 	}
 
+	/* Adding checkfun */
 	if ((ps.checkfun = PyObject_GetAttrString(pModule, "modCheckFun")) && PyCallable_Check(ps.checkfun))
 		s.checkfun = checkfun;
 	else
@@ -397,6 +399,17 @@ init (void)
 		return;
 	}
 	
+	/* Adding ctlhs */
+	MCH_ZERO(&(s.ctlhs));
+	pTmpObj = PyObject_GetAttrString(pModule, "modCtlHistorySet");
+	if (pTmpObj && PyDict_Check(pTmpObj))
+	{
+
+
+
+	}
+	Py_XDECREF(pTmpObj);
+
 	add_service(&s);
 	
 #if 0	
