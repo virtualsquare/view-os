@@ -547,11 +547,16 @@ static long umpyew_readlink(char *path, char *buf, size_t bufsiz)
 	PYARG("path", PyString_FromString(path));
 	PYCALL;
 	if (retval >= 0)
-	/*{
-		strncpy();
-	}*/
-
-	return readlink(unwrap(path),buf,bufsiz);
+	{
+		strncpy(buf, PyString_AsString(PyTuple_GetItem(pRetVal, 2)), bufsiz);
+		PYOUT;
+		if (buf[bufsiz-1])
+			return bufsiz;
+		else
+			return strlen(buf);
+	}
+	PYOUT;
+	return retval;
 }
 
 static epoch_t checkfun(int type, void *arg)
@@ -783,6 +788,7 @@ void _um_mod_init(char *initargs)
 	PYTHON_SYSCALL(fstat64, sysFstat64);
 	PYTHON_SYSCALL(statfs64, sysStatfs64);
 	PYTHON_SYSCALL(fstatfs64, sysStatfs64);
+	PYTHON_SYSCALL(readlink, sysReadlink);
 /*    PYTHON_SYSCALL(read, sysRead);*/
 /*    PYTHON_SYSCALL(write, sysWrite);*/
 	SERVICESYSCALL(s, read, read);

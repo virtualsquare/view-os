@@ -29,6 +29,11 @@ def modCheckFun(*arg, **kw):
 #		print "binfmt:", kw['binfmt']
 	return 0
 
+# The return value of the system call management functions must be a tuple
+# with no less than 2 items. The minimal return value is composed by (retval,
+# errno). Additional items can be inserted for returning additional data (as
+# in stat or readlink syscalls).
+
 def sysOpen(path, flags, mode, **kw):
 	print "opening %s with flags %d and mode %d" % (path, flags, mode)
 	try:
