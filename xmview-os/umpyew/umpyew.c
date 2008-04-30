@@ -57,11 +57,162 @@ struct cpymap_s
 
 static struct service s;
 static struct pService ps;
-static struct cpymap_s cpymap[] = {
+
+#define PYTHON_SYSCALL(cname, pyname) \
+	{ \
+		pTmpObj = PyObject_GetAttrString(pModule, #pyname); \
+		if (pTmpObj && PyCallable_Check(pTmpObj)) \
+		{ \
+			GMESSAGE("found function for system call %s, adding", #cname); \
+			GENSERVICESYSCALL(ps, cname, pTmpObj, PyObject*); \
+			SERVICESYSCALL(s, cname, umpyew_##cname); \
+		} \
+	}
+
+#if 0
+static struct cpymap_s cpymap_syscall[] = {
 	{ "execve", "sysExecve" },
 	{ "chdir", "sysChdir" },
+	{ "fchdir", "sysFchdir" },
+	{ "getcwd", "sysGetcwd" },
+	{ "open", "sysOpen" },
+	{ "close", "sysClose" },
+	{ "select", "sysSelect" },
+	{ "poll", "sysPoll" },
+	{ "_newselect", "sys_newselect" },
+	{ "pselect6", "sysPselect6" },
+	{ "ppoll", "sysPpoll" },
+	{ "umask", "sysUmask" },
+	{ "chroot", "sysChroot" },
+	{ "dup", "sysDup" },
+	{ "dup2", "sysDup2" },
+	{ "mount", "sysMount" },
+	{ "umount2", "sysUmount2" },
+	{ "ioctl", "sysIoctl" },
+	{ "read", "sysRead" },
+	{ "write", "sysWrite" },
+	{ "stat64", "sysStat64" },
+	{ "lstat64", "sysLstat64" },
+	{ "fstat64", "sysFstat64" },
+	{ "chown", "sysChown" },
+	{ "lchown", "sysLchown" },
+	{ "fchown", "sysFchown" },
+	{ "chown32", "sysChown32" },
+	{ "lchown32", "sysLchown32" },
+	{ "fchown32", "sysFchown32" },
+	{ "chmod", "sysChmod" },
+	{ "fchmod", "sysFchmod" },
+	{ "getxattr", "sysGetxattr" },
+	{ "lgetxattr", "sysLgetxattr" },
+	{ "fgetxattr", "sysFgetxattr" },
+	{ "readlink", "sysReadlink" },
+	{ "getdents64", "sysGetdents64" },
+	{ "access", "sysAccess" },
+	{ "fcntl", "sysFcntl" },
+	{ "fcntl64", "sysFcntl64" },
+	{ "lseek", "sysLseek" },
+	{ "_llseek", "sys_llseek" },
+	{ "mkdir", "sysMkdir" },
+	{ "rmdir", "sysRmdir" },
+	{ "link", "sysLink" },
+	{ "symlink", "sysSymlink" },
+	{ "rename", "sysRename" },
+	{ "unlink", "sysUnlink" },
+	{ "statfs64", "sysStatfs64" },
+	{ "fstatfs64", "sysFstatfs64" },
+	{ "utime", "sysUtime" },
+	{ "utimes", "sysUtimes" },
+	{ "fsync", "sysFsync" },
+	{ "fdatasync", "sysFdatasync" },
+	{ "truncate64", "sysTruncate64" },
+	{ "ftruncate64", "sysFtruncate64" },
+#ifdef __NR_pread64
+	{ "pread64", "sysPread64" },
+#else
+	{ "pread", "sysPread" },
+#endif
+#ifdef __NR_pwrite64
+	{ "pwrite64", "sysPwrite64" },
+#else
+	{ "pwrite", "sysPwrite" },
+#endif
+#ifdef _UM_MMAP
+	{ "mmap", "sysMmap" },
+	{ "mmap2", "sysMmap2" },
+	{ "munmap", "sysMunmap" },
+	{ "mremap", "sysMremap" },
+#endif
+	{ "gettimeofday", "sysGettimeofday" },
+	{ "settimeofday", "sysSettimeofday" },
+	{ "adjtimex", "sysAdjtimex" },
+	{ "clock_gettime", "sysClock_gettime" },
+	{ "clock_settime", "sysClock_settime" },
+	{ "clock_getres", "sysClock_getres" },
+	{ "uname", "sysUname" },
+	{ "gethostname", "sysGethostname" },
+	{ "sethostname", "sysSethostname" },
+	{ "getdomainname", "sysGetdomainname" },
+	{ "setdomainname", "sysSetdomainname" },
+	{ "getuid", "sysGetuid" },
+	{ "setuid", "sysSetuid" },
+	{ "geteuid", "sysGeteuid" },
+	{ "setfsuid", "sysSetfsuid" },
+	{ "setreuid", "sysSetreuid" },
+	{ "getresuid", "sysGetresuid" },
+	{ "setresuid", "sysSetresuid" },
+	{ "getgid", "sysGetgid" },
+	{ "setgid", "sysSetgid" },
+	{ "getegid", "sysGetegid" },
+	{ "setfsgid", "sysSetfsgid" },
+	{ "setregid", "sysSetregid" },
+	{ "getresgid", "sysGetresgid" },
+	{ "setresgid", "sysSetresgid" },
+	{ "nice", "sysNice" },
+	{ "getpriority", "sysGetpriority" },
+	{ "setpriority", "sysSetpriority" },
+	{ "getpid", "sysGetpid" },
+	{ "getppid", "sysGetppid" },
+	{ "getpgid", "sysGetpgid" },
+	{ "setpgid", "sysSetpgid" },
+	{ "getsid", "sysGetsid" },
+	{ "setsid", "sysSetsid" },
+#if 0
+	{ "sysctl", "sysSysctl" },
+	{ "ptrace", "sysPtrace" },
+#endif
+	{ "kill", "sysKill" },
+#if (__NR_socketcall != __NR_doesnotexist)
 };
 
+static struct cpymap_s cpymap_socket[] =
+{
+	{ "doesnotexist", "sysDoesnotexist" },
+	{ "socket", "sysSocket" },
+#else 
+	{ "socket", "sysSocket" },
+#endif
+	{ "bind", "sysBind" },
+	{ "connect", "sysConnect" },
+	{ "listen", "sysListen" },
+	{ "accept", "sysAccept" },
+	{ "getsockname", "sysGetsockname" },
+	{ "getpeername", "sysGetpeername" },
+	{ "socketpair", "sysSocketpair" },
+	{ "send", "sysSend" },
+	{ "recv", "sysRecv" },
+	{ "sendto", "sysSendto" },
+	{ "recvfrom", "sysRecvfrom" },
+	{ "shutdown", "sysShutdown" },
+	{ "setsockopt", "sysSetsockopt" },
+	{ "getsockopt", "sysGetsockopt" },
+	{ "sendmsg", "sysSendmsg" },
+	{ "recvmsg", "sysRecvmsg" },
+#if (__NR_socketcall != __NR_doesnotexist)
+	{ "msocket", "sysMsocket" },
+#endif
+};
+
+#endif
 
 /* Used for calling PyCall with empty arg */
 static PyObject *pEmptyTuple;
@@ -235,6 +386,7 @@ static long unreal_lseek(int fildes, int offset, int whence)
 
 static long umpyew_open(char *pathname, int flags, mode_t mode)
 {
+	PyObject *pArg = PyTuple_New(3);
 	return open(pathname,flags,mode);
 }
 
@@ -443,10 +595,24 @@ init (void)
 	 * Adding system calls
 	 */
 	ps.syscall = calloc(scmap_scmapsize, sizeof(PyObject*));
-	
-	pTmpObj = PyObject_GetAttrString(pModule, "sysOpen");
-	if (pTmpObj && PyCallable_Check(pTmpObj))
-		GENSERVICESYSCALL(ps, open, umpyew_open, PyObject*);
+
+	PYTHON_SYSCALL(open, sysOpen);
+/*    PYTHON_SYSCALL(read, sysRead);*/
+
+#if 0
+	for (i = 0; i < (sizeof(cpymap_syscall) / sizeof(struct cpymap_s*)); i++)
+	{
+		pTmpObj = PyObject_GetAttrString(pModule, cpymap_syscall[i].pyname);
+		if (pTmpObj && PyCallable_Check(pTmpObj))
+		{
+			GMESSAGE("function %s found, adding for syscall %s",
+					cpymap_syscall[i].pyname,
+					cpymap_syscall[i].cname);
+			GENSERVICESYSCALL(ps, open, umpyew_open, PyObject*);
+			SERVICESYSCALL(s);
+		}
+	}
+#endif
 
 	add_service(&s);
 

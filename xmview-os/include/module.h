@@ -275,15 +275,22 @@ extern int vfprint2(const char *fmt, va_list ap);
 #define INTERNAL_MAKE_NAME(a, b) a ## b
 #define MAKE_NAME(a, b) INTERNAL_MAKE_NAME(a, b)
 
+
+/* GEN stands for "generic" */
 #define GENSERVICESYSCALL(s, scno, sfun, type) ((s).syscall[uscno(MAKE_NAME(__NR_, scno))] = (type) (sfun))
+#define GETSERVICESYSCALL(s, scno) ((s).syscall[uscno(MAKE_NAME(__NR_, scno))])
+
 #if (__NR_socketcall == __NR_doesnotexist)
-#define GENSERVICESOCKET(s, scno, sfun, type) ((s).syscall[uscno(MAKE_NAME(__NR_, scno))] = (type) (sfun))
+#	define GENSERVICESOCKET(s, scno, sfun, type) ((s).syscall[uscno(MAKE_NAME(__NR_, scno))] = (type) (sfun))
+#	define GETSERVICESOCKET(s, scno) ((s).syscall[uscno(MAKE_NAME(__NR_, scno))])
 #else
-#define GENSERVICESOCKET(s, scno, sfun, type) ((s).socket[MAKE_NAME(__NR_, scno)] = (type) (sfun))
+#	define GENSERVICESOCKET(s, scno, sfun, type) ((s).socket[MAKE_NAME(__NR_, scno)] = (type) (sfun))
+#	define GETSERVICESOCKET(s, scno) ((s).socket[MAKE_NAME(__NR_, scno)])
+#endif
 
 #define SERVICESYSCALL(s, scno, sfun) GENSERVICESYSCALL(s, scno, sfun, sysfun)
 #define SERVICESOCKET(s, scno, sfun) GENSERVICESOCKET(s, scno, sfun, sysfun)
 
-#endif
-#endif
 #define SERVICEVIRSYSCALL(s, scno, sfun) ((s).virsc[MAKE_NAME(__NR_, scno)] = (sysfun) (sfun))
+
+#endif
