@@ -284,10 +284,6 @@ static ssize_t umpyew_pwrite(int fd, const void *buf, size_t count, long long of
 	return pwrite(fd,buf,count,off);
 }
 
-static long umpyew_lseek(int fildes, int offset, int whence)
-{
-	return (int) lseek64(fildes, (off_t) offset, whence);
-}
 
 #endif
 
@@ -560,6 +556,17 @@ static long umpyew_readlink(char *path, char *buf, size_t bufsiz)
 	return retval;
 }
 
+static long umpyew_lseek(int fd, int offset, int whence)
+{
+	PYINSYS(lseek);
+	PYARG("fd", PyInt_FromLong(fd));
+	PYARG("offset", PyInt_FromLong(offset));
+	PYARG("whence", PyInt_FromLong(whence));
+	PYCALL;
+	PYOUT;
+	return retval;
+}
+
 static epoch_t checkfun(int type, void *arg)
 {
 	PyObject *pKw = PyDict_New();
@@ -790,6 +797,7 @@ void _um_mod_init(char *initargs)
 	PYTHON_SYSCALL(statfs64, sysStatfs64);
 	PYTHON_SYSCALL(fstatfs64, sysStatfs64);
 	PYTHON_SYSCALL(readlink, sysReadlink);
+	PYTHON_SYSCALL(lseek, sysLseek);
 /*    PYTHON_SYSCALL(read, sysRead);*/
 /*    PYTHON_SYSCALL(write, sysWrite);*/
 	SERVICESYSCALL(s, read, read);
