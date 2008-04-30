@@ -282,30 +282,32 @@ static char *unwrap(char *path)
  * Exported functions (Python side). They must be kept update depending on the
  * evolution of the struct timestamp.
  */
-/*
+
 static PyObject *umpyew_tst_matchingepoch(PyObject *self, PyObject *args)
 {
-	struct timestamp *ts;
 	PyObject *obj;
-	int len;
-
-	PyArg_ParseTuple(args, "O", &obj);
-	PyObject_AsReadBuffer(obj, (void**) &ts, &len);
+	struct timestamp *ts;
 	
+	PyArg_ParseTuple(args, "O", &obj);
+	ts = PyCObject_AsVoidPtr(obj);
+
 	return PyLong_FromLongLong(tst_matchingepoch(ts));
 }
-*/
+
 static PyObject *umpyew_tst_timestamp(PyObject *self, PyObject *args)
 {
-	PyObject *buf = PyBuffer_New(sizeof(struct timestamp));
-	void *buffer;
-	int len;
-
-	PyObject_AsWriteBuffer(buf, &buffer, &len);
-
-//	ts = tst_timestamp();
-	return buf;
+	struct timestamp *ts = malloc(sizeof(struct timestamp));
+	
+	*ts = tst_timestamp();
+	
+	return PyCObject_FromVoidPtr(ts, free);
 }
+
+static PyMethodDef pEmbMethods[] = {
+	{"tstMatchingEpoch", umpyew_tst_matchingepoch, METH_VARARGS, "Fare clic qui per inserire una descrizione."},
+	{"tstTimestamp", umpyew_tst_timestamp, METH_VARARGS, "Return a new (opaque) timestamp object/"},
+	{NULL, NULL, 0, NULL},
+};
 
 /*
  * Begin of system calls definitions (bindings)
@@ -772,6 +774,7 @@ void _um_mod_init(char *initargs)
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 
 	Py_Initialize();
+	Py_InitModule("umpyew", pEmbMethods);
 	pEmptyTuple = PyTuple_New(0);
 	pName = PyString_FromString(name);
 
@@ -829,6 +832,16 @@ void _um_mod_init(char *initargs)
 			}
 
 	Py_XDECREF(pTmpObj);
+
+	/*
+	 * Calling modInit, if present
+	 */
+
+	pTmpObj = PyObject_GetAttrString(pModule, "modInit");
+	if (pTmpObj && PyCallable_Check(pTmpObj))
+		PyObject_CallObject(pTmpObj, pEmptyTuple);
+	Py_XDECREF(pTmpObj);
+
 
 	/*
 	 * Adding system calls

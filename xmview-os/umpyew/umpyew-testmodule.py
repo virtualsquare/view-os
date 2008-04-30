@@ -1,8 +1,19 @@
 import os
 
+# The module 'umpyew' must be included in order to have access to the
+# following methods:
+# 
+# - tstTimestamp
+# - tstMatchingEpoch
+import umpyew
+
 # This list can contain zero or more of the following:
 # 'proc', 'module', 'mount'.
 modCtlHistorySet = ['proc'];
+
+def modInit():
+	global ts
+	ts = umpyew.tstTimestamp()
 
 def modCtl(cls, cmd, cmdArgs):
 	print "class:", cls, "command:", cmd, "args:", cmdArgs
@@ -18,7 +29,7 @@ def modCheckFun(*arg, **kw):
 	if kw.has_key('path'):
 #		print "path:", kw['path']
 		if kw['path'] == '/tmp/passwd':
-			return 1
+			return umpyew.tstMatchingEpoch(ts)
 #	elif kw.has_key('socket'):
 #		print "socket:", kw['socket']
 #	elif kw.has_key('fstype'):
