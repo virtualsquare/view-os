@@ -62,18 +62,26 @@ static struct pService ps;
 
 #define PYTHON_SYSCALL(cname, pyname) \
 	{ \
-		pTmpFunc = PyObject_GetAttrString(pModule, #pyname); \
-		if (pTmpFunc && PyCallable_Check(pTmpFunc)) \
+		if (PyObject_HasAttrString(pModule, #pyname)) \
 		{ \
-			pTmpObj = PyTuple_New(2); \
-			PyTuple_SET_ITEM(pTmpObj, 0, pTmpFunc); \
-			pTmpDict = PyDict_New(); \
-			PyDict_SetItemString(pTmpDict, "cname", PyString_FromString(#cname)); \
-			PyDict_SetItemString(pTmpDict, "pyname", PyString_FromString(#pyname)); \
-			PyTuple_SET_ITEM(pTmpObj, 1, pTmpDict); \
-			GMESSAGE("found function for system call %s, adding", #cname); \
-			GENSERVICESYSCALL(ps, cname, pTmpObj, PyObject*); \
-			SERVICESYSCALL(s, cname, umpyew_##cname); \
+			pTmpFunc = PyObject_GetAttrString(pModule, #pyname); \
+			if (pTmpFunc && PyCallable_Check(pTmpFunc)) \
+			{ \
+				pTmpObj = PyTuple_New(2); \
+				PyTuple_SET_ITEM(pTmpObj, 0, pTmpFunc); \
+				pTmpDict = PyDict_New(); \
+				PyDict_SetItemString(pTmpDict, "cname", PyString_FromString(#cname)); \
+				PyDict_SetItemString(pTmpDict, "pyname", PyString_FromString(#pyname)); \
+				PyTuple_SET_ITEM(pTmpObj, 1, pTmpDict); \
+				GMESSAGE("found function for system call %s, adding", #cname); \
+				GENSERVICESYSCALL(ps, cname, pTmpObj, PyObject*); \
+				SERVICESYSCALL(s, cname, umpyew_##cname); \
+			} \
+			else if (pTmpFunc == Py_None) \
+			{ \
+				GMESSAGE("system call %s is mapped to itself", #cname); \
+				SERVICESYSCALL(s, cname, cname); \
+			} \
 		} \
 	}
 
@@ -306,11 +314,22 @@ static long umpyew_lseek(int fildes, int offset, int whence)
 	PyObject *pArg = PyTuple_New(argc)
 
 #define PYOUT \
+	GMESSAGE("calling python..."); \
 	pRetVal = PyObject_Call(pFunc, pArg, pKw); \
+	GMESSAGE("returned from python"); \
 	Py_DECREF(pArg); \
-	retval = PyInt_AsLong(PyTuple_GetItem(pRetVal, 0)); \
-	errno = PyInt_AsLong(PyTuple_GetItem(pRetVal, 1)); \
-	Py_DECREF(pRetVal)
+	if (pRetVal) \
+	{ \
+		retval = PyInt_AsLong(PyTuple_GetItem(pRetVal, 0)); \
+		errno = PyInt_AsLong(PyTuple_GetItem(pRetVal, 1)); \
+		Py_DECREF(pRetVal); \
+	} \
+	else \
+	{ \
+		GMESSAGE("retval is null?"); \
+		retval = -1; \
+		errno = ENOSYS; \
+	}
 
 #define PYINSYS(cname, argc) PYIN(SYSCALL, cname, argc)
 #define PYINSOCK(cname, argc) PYIN(SOCKET, cname, argc)
@@ -417,6 +436,49 @@ static long umpyew_symlink(char *oldpath, char *newpath)
 	return retval;
 }
 
+#define PY_COPYSTATFIELD(field) \
+	if ((pStatField = PyDict_GetItemString(pStatDict, #field))) \
+		buf->field = PyInt_AsLong(pStatField)
+
+#define UMPYEW_STATFUNC(name, fptype, fpname, fppycmd) \
+	static long umpyew_##name(fptype fpname, struct stat64 *buf) \
+	{ \
+		PyObject *pStatDict = PyDict_New(); \
+		PyObject *pStatField; \
+		\
+		PYINSYS(name, 2); \
+		PYARG(0, fppycmd(fpname)); \
+		\
+		Py_INCREF(pStatDict); \
+		PYARG(1, pStatDict); \
+		PYOUT; \
+		\
+		if (retval == 0) \
+		{ \
+			PY_COPYSTATFIELD(st_dev); \
+			PY_COPYSTATFIELD(st_ino); \
+			PY_COPYSTATFIELD(st_mode); \
+			PY_COPYSTATFIELD(st_nlink); \
+			PY_COPYSTATFIELD(st_uid); \
+			PY_COPYSTATFIELD(st_gid); \
+			PY_COPYSTATFIELD(st_rdev); \
+			PY_COPYSTATFIELD(st_size); \
+			PY_COPYSTATFIELD(st_blksize); \
+			PY_COPYSTATFIELD(st_blocks); \
+			PY_COPYSTATFIELD(st_atime); \
+			PY_COPYSTATFIELD(st_mtime); \
+			PY_COPYSTATFIELD(st_ctime); \
+			GMESSAGE("ino: %d", buf->st_ino); \
+		} \
+		 \
+		GMESSAGE("returning %d", retval); \
+		return retval; \
+	}
+
+UMPYEW_STATFUNC(stat64, char*, pathname, PyString_FromString);
+UMPYEW_STATFUNC(lstat64, char*, pathname, PyString_FromString);
+UMPYEW_STATFUNC(fstat64, int, fd, PyInt_FromLong);
+
 
 static epoch_t checkfun(int type, void *arg)
 {
@@ -424,7 +486,7 @@ static epoch_t checkfun(int type, void *arg)
 	PyObject *pArg;
 	PyObject *pRetVal;
 	epoch_t retval = -1;
-			struct binfmt_req *bf;
+	struct binfmt_req *bf;
 
 	switch(type)
 	{
@@ -474,11 +536,16 @@ static epoch_t checkfun(int type, void *arg)
 		return retval;
 	}
 
-	Py_DECREF(pArg);
 	pRetVal = PyObject_Call(ps.checkfun, pEmptyTuple, pKw);
-	Py_DECREF(pKw);
+	if (!pRetVal)
+	{
+		PyErr_Print();
+		return 0;
+	}
 
 	retval = PyInt_AsLong(pRetVal);
+	Py_DECREF(pArg);
+	Py_DECREF(pKw);
 	Py_DECREF(pRetVal);
 	return retval;
 }
@@ -543,6 +610,12 @@ static long ctl(int type, va_list ap)
 	return retval;
 }
 
+static long pippo()
+{
+	GMESSAGE("pippo!");
+	errno = EFAULT;
+	return -1;
+}
 
 static void
 __attribute__ ((constructor))
@@ -638,6 +711,12 @@ void _um_mod_init(char *initargs)
 	PYTHON_SYSCALL(unlink, sysUnlink);
 	PYTHON_SYSCALL(link, sysLink);
 	PYTHON_SYSCALL(symlink, sysSymlink);
+	PYTHON_SYSCALL(stat64, sysStat64);
+	PYTHON_SYSCALL(lstat64, sysLstat64);
+	PYTHON_SYSCALL(fstat64, sysFstat64);
+/*    PYTHON_SYSCALL(read, sysRead);*/
+/*    PYTHON_SYSCALL(write, sysWrite);*/
+	SERVICESYSCALL(s, read, read);
 
 	add_service(&s);
 
