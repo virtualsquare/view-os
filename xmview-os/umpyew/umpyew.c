@@ -282,6 +282,7 @@ static char *unwrap(char *path)
  * Exported functions (Python side). They must be kept update depending on the
  * evolution of the struct timestamp.
  */
+/*
 static PyObject *umpyew_tst_matchingepoch(PyObject *self, PyObject *args)
 {
 	struct timestamp *ts;
@@ -293,10 +294,17 @@ static PyObject *umpyew_tst_matchingepoch(PyObject *self, PyObject *args)
 	
 	return PyLong_FromLongLong(tst_matchingepoch(ts));
 }
-
+*/
 static PyObject *umpyew_tst_timestamp(PyObject *self, PyObject *args)
 {
-	return PyBuffer_FromMemory(tst_timestamp(), sizeof(struct timestamp));
+	PyObject *buf = PyBuffer_New(sizeof(struct timestamp));
+	void *buffer;
+	int len;
+
+	PyObject_AsWriteBuffer(buf, &buffer, &len);
+
+//	ts = tst_timestamp();
+	return buf;
 }
 
 /*
