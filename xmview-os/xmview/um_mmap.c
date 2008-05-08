@@ -28,7 +28,6 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/mman.h>
-#include <asm/page.h>
 #include <linux/unistd.h>
 #include <config.h>
 #include "defs.h"
