@@ -97,7 +97,7 @@ init_done(void *arg)
 {
 	sys_sem_t *sem = (sys_sem_t *) arg;
 	//if (!_nofdfake) /* no extra messages for umview! */
-	//      printf("unixlib: lwip init done\n");
+	      //printf("unixlib: lwip init done\n");
 	sys_sem_signal(*sem);
 }
 
@@ -106,7 +106,7 @@ shutdown_done(void *arg)
 {
 	sys_sem_t *sem = (sys_sem_t *) arg;
 	//if (!_nofdfake) /* no extra messages for umview! */
-	//      printf("unixlib: lwip shutdown done\n");
+	      //printf("unixlib: lwip shutdown done\n");
 	sys_sem_signal(*sem);
 }
 

@@ -25,6 +25,7 @@
 #define _LWIPV6_H
 #include <stdlib.h>   /* timeval */ 
 #include <stdint.h>   /* uint32_t */ 
+#include <errno.h>   
 ///#include <unistd.h>
 
 #ifndef AF_UNSPEC
@@ -69,10 +70,10 @@ struct ip_addr {
 #define IP64_PREFIX (htonl(0xffff))
 
 #define IP6_ADDR(ipaddr, a,b,c,d,e,f,g,h) ({  \
-		(ipaddr)->addr[0] = htonl((uint32_t)((a & 0xffff) << 16) | (b & 0xffff)); \
-		(ipaddr)->addr[1] = htonl(((c & 0xffff) << 16) | (d & 0xffff)); \
-		(ipaddr)->addr[2] = htonl(((e & 0xffff) << 16) | (f & 0xffff)); \
-		(ipaddr)->addr[3] = htonl(((g & 0xffff) << 16) | (h & 0xffff)); } )
+		(ipaddr)->addr[0] = htonl((uint32_t)(((a) & 0xffff) << 16) | ((b) & 0xffff)); \
+		(ipaddr)->addr[1] = htonl((((c) & 0xffff) << 16) | ((d) & 0xffff)); \
+		(ipaddr)->addr[2] = htonl((((e) & 0xffff) << 16) | ((f) & 0xffff)); \
+		(ipaddr)->addr[3] = htonl((((g) & 0xffff) << 16) | ((h) & 0xffff)); } )
 
 #define IP64_ADDR(ipaddr, a,b,c,d) ({ \
 	  (ipaddr)->addr[0] = 0; \
@@ -219,10 +220,7 @@ lwip_event_subscribe
 /* Added by Diego Billi */
 lwiplongfun lwip_radv_load_configfile;
 
-
-
-#define LOADLWIPV6DL (loadlwipv6dl())
-static inline void loadlwipv6dl()
+static inline void *loadlwipv6dl()
 {
 	struct lwipname2fun {
 		char *funcname;
@@ -276,12 +274,13 @@ static inline void loadlwipv6dl()
 	int i;
 	void *lwiphandle = dlopen("liblwipv6.so",RTLD_NOW); 
 	if(lwiphandle == NULL) { 
-		fprintf(stderr,"lwiplib not found %s\n",dlerror());
-		exit(-1);
+		errno=ENOENT;
+	} else {
+		for (i=0; i<(sizeof(lwiplibtab)/sizeof(struct lwipname2fun)); i++) 
+			*lwiplibtab[i].f = dlsym(lwiphandle,lwiplibtab[i].funcname);
+		pip_addr_any = dlsym(lwiphandle,"ip_addr_any");
 	}
-	for (i=0; i<(sizeof(lwiplibtab)/sizeof(struct lwipname2fun)); i++) 
-		*lwiplibtab[i].f = dlsym(lwiphandle,lwiplibtab[i].funcname);
-	pip_addr_any = dlsym(lwiphandle,"ip_addr_any");
+	return lwiphandle;
 }
 
 #endif

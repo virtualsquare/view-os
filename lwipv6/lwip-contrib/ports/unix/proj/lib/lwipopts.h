@@ -290,9 +290,9 @@ a lot of data that needs to be copied, this should be set high. */
 /* ---------- Debug options for /contrib/port/unix/netif files ------------- */
 
 /* These are not defined in opt.h */
-#define VDEIF_DEBUG             DBG_ON
-#define TUNIF_DEBUG             DBG_ON
-#define TAPIF_DEBUG             DBG_ON
+//#define VDEIF_DEBUG             DBG_ON
+//#define TUNIF_DEBUG             DBG_ON
+//#define TAPIF_DEBUG             DBG_ON
 
 
 #endif /* __LWIPOPTS_H__ */
