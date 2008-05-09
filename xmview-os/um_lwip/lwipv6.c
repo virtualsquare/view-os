@@ -43,7 +43,6 @@
 
 #define UMLWIPV6_SERVICE_CODE 0x02
 
-static long lwip_version;
 static struct service s;
 static struct timestamp ts;
 
@@ -174,48 +173,28 @@ struct libtab {
 };
 #define SIZEOFLIBTAB (sizeof(lwiplibtab)/sizeof(struct libtab))
 static void *lwiphandle;
+static struct stack *lwipstack;
 
-static sysfun lib_lwip_event_subscribe;
-static long lwip_event_subscribe1v2(void (* cb)(), void *arg, int fd, int how)
-{
-	short newhow=0;
-	int rv;
-	if (how & 0x1) newhow |= POLLIN;
-	if (how & 0x2) newhow |= POLLOUT;
-	if (how & 0x4) newhow |= POLLPRI;
-	rv=lib_lwip_event_subscribe(cb,arg,fd,newhow);
-	newhow=0;
-	if (rv & POLLIN) newhow |= 0x1;
-	if (rv & POLLOUT) newhow |= 0x2;
-	if (rv & POLLPRI) newhow |= 0x4;
-	return newhow;
-}
-
-static long lwip_event_subscribe2v1(void (* cb)(), void *arg, int fd, int how)
-{
-	short newhow=0;
-	int rv;
-	if (how & POLLIN) newhow |= 0x1;
-	if (how & POLLOUT) newhow |= 0x2;
-	if (how & POLLPRI) newhow |= 0x4;
-	rv=lib_lwip_event_subscribe(cb,arg,fd,newhow);
-	newhow=0;
-	if (rv & 0x1) newhow |= POLLIN;
-	if (rv & 0x2) newhow |= POLLOUT;
-	if (rv & 0x4) newhow |= POLLPRI;
-	return newhow;
-}
+typedef struct stack * (* pstackfun)();
+typedef void (*voidfun)();
 
 static void openlwiplib()
 {
+	pstackfun lwip_stack_new;
+	voidfun lwip_stack_set;
+
 	lwiphandle=dlopen("liblwipv6.so.1",RTLD_NOW);
-	if (lwiphandle==NULL)
+	if (lwiphandle!=NULL) {
+		lwip_stack_new=dlsym(lwiphandle,"lwip_stack_new");
+		lwip_stack_set=dlsym(lwiphandle,"lwip_stack_set");
+	}
+	if (lwiphandle==NULL || lwip_stack_new==NULL || lwip_stack_set==NULL)
 		fprint2("error loading liblwipv6: %s\n", dlerror());
 	else {
 		int i;
 		sysfun fun;
-		if((fun=dlsym(lwiphandle,"lwip_version")) != NULL)
-			lwip_version=fun();
+		lwipstack=lwip_stack_new();
+		lwip_stack_set(lwipstack);
 		for (i=0;i<SIZEOFLIBTAB;i++) {
 			if ((fun=dlsym(lwiphandle,lwiplibtab[i].funcname)) != NULL)
 			{
@@ -227,30 +206,7 @@ static void openlwiplib()
 					s.virsc[lwiplibtab[i].tag]=fun;
 			}
 		}
-		/* umview and lwip moved to the poll codes for select register,
-		 * (providing a richer set of possibilities */
-		/* um_lwip is able to provide the suitable conversion to support
-		 * differet versions of lwip/umview */
-		if (_umview_version > 1) {
-			if (lwip_version >= 1) {
-				/* umview interface 2 - lwip interface v1 */
-				s.event_subscribe=dlsym(lwiphandle,"lwip_event_subscribe");
-			} else {
-				/* umview interface 2 - lwip interface v0 */
-				lib_lwip_event_subscribe=dlsym(lwiphandle,"lwip_select_register");
-				s.event_subscribe=lwip_event_subscribe1v2;
-			}
-		}
-		else {
-			if (lwip_version >= 1) {
-				/* umview interface 1 - lwip interface v1 */
-				lib_lwip_event_subscribe=dlsym(lwiphandle,"lwip_event_subscribe");
-				s.event_subscribe=lwip_event_subscribe2v1;
-			} else {
-				/* umview interface 1 - lwip interface v0 */
-				s.event_subscribe=dlsym(lwiphandle,"lwip_select_register");
-			}
-		}
+		s.event_subscribe=dlsym(lwiphandle,"lwip_event_subscribe");
 		real_lwip_ioctl=s.syscall[uscno(__NR_ioctl)];
 		SERVICESYSCALL(s, ioctl, sockioctl);
 		SERVICESYSCALL(s, open, noprocnetdev);
@@ -258,6 +214,20 @@ static void openlwiplib()
 		SERVICESYSCALL(s, access, noprocnetdev);
 	}
 }
+
+static void closelwiplib()
+{
+	if (lwiphandle!=NULL) {
+		if (lwipstack != NULL) {
+			voidfun lwip_stack_free;
+			lwip_stack_free=dlsym(lwiphandle,"lwip_stack_free");
+			if (lwip_stack_free != NULL)
+				lwip_stack_free(lwipstack);
+		}
+		dlclose(lwiphandle);
+	}
+}
+
 
 long lwip_recvmsg(int fd, struct msghdr *msg, int flags) {
 	int rv;
@@ -291,7 +261,7 @@ struct ifname {
 static char *paramname[]={"ra"};
 #define PARAMTYPES (sizeof(paramname)/sizeof(char *))
 char *paramfunname[PARAMTYPES]={"lwip_radv_load_configfile"};
-typedef int *((*paramstarfun)(char *opt));
+typedef int *((*paramstarfun)(struct stack *stack,char *opt));
 static paramstarfun paramfun[PARAMTYPES]; /* parameter handler */
 static char        *paramval[PARAMTYPES]; /* parameter value */
 
@@ -404,7 +374,7 @@ static void lwipargtoenv(char *initargs)
 	for (i=0;i<INTTYPES;i++)
 		for (j=0;j<intnum[i];j++)
 			if (initfun[i] != NULL) {
-				initfun[i](ifname(ifh,i,j));
+				initfun[i](lwipstack,ifname(ifh,i,j));
 			}
 	iffree(ifh);
 
@@ -412,7 +382,7 @@ static void lwipargtoenv(char *initargs)
 	for (i=0;i<PARAMTYPES;i++)
 		if (paramval[i] != NULL)
 			if (paramfun[i] != NULL) {
-				paramfun[i](paramval[i]);
+				paramfun[i](lwipstack,paramval[i]);
 			}
 
 }
@@ -434,7 +404,6 @@ void _um_mod_init(char *initargs)
 		s.checkfun=checksock;
 		s.syscall=(sysfun *)calloc(scmap_scmapsize, sizeof(sysfun));
 		s.socket=(sysfun *)calloc(scmap_sockmapsize, sizeof(sysfun));
-//		s.virsc=(sysfun *)calloc(scmap_virscmapsize, sizeof(sysfun));
 		openlwiplib();
 		lwipargtoenv(initargs);
 		SERVICESYSCALL(s, _newselect, alwaysfalse);
@@ -452,8 +421,7 @@ void _um_mod_init(char *initargs)
 	__attribute__ ((destructor))
 fini (void)
 {
-	if(lwiphandle != NULL)
-		dlclose(lwiphandle);
+	closelwiplib;
 	free(s.syscall);
 	free(s.socket);
 	fprint2("lwipv6 fini\n");

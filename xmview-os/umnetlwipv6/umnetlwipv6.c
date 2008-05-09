@@ -229,16 +229,15 @@ static void lwipargtoenv(struct stack *s,char *initargs)
 	if (totint==0)
 		intnum[0]=1;
 	for (j=0;j<intnum[0];j++)
-		lwip_vdeif_madd(s,ifname(ifh,0,j));
+		lwip_vdeif_add(s,ifname(ifh,0,j));
 	for (j=0;j<intnum[1];j++)
-		lwip_tunif_madd(s,ifname(ifh,1,j));
+		lwip_tunif_add(s,ifname(ifh,1,j));
 	for (j=0;j<intnum[2];j++)
-		lwip_tapif_madd(s,ifname(ifh,2,j));
+		lwip_tapif_add(s,ifname(ifh,2,j));
 	iffree(ifh);
 
-	/* load other parameters (multistack??)*/
 	if (paramval[0] != NULL)
-		lwip_radv_load_configfile(paramval[0]);
+		lwip_radv_load_configfile(s,paramval[0]);
 }
 
 
@@ -302,28 +301,25 @@ init (void)
 	if ((lwiphandle=loadlwipv6dl())==NULL)
 		perror("umnet_lwipv6 can't load lwipv6 stack:");
 	else {
-		if (lwip_init) {
-			lwip_init();
-			UMNETLWIPV6(bind);
-			UMNETLWIPV6(connect);
-			UMNETLWIPV6(listen);
-			UMNETLWIPV6(accept);
-			UMNETLWIPV6(getsockname);
-			UMNETLWIPV6(getpeername);
-			UMNETLWIPV6(send);
-			UMNETLWIPV6(recv);
-			UMNETLWIPV6(sendto);
-			UMNETLWIPV6(recvfrom);
-			//UMNETLWIPV6(shutdown);
-			UMNETLWIPV6(getsockopt);
-			UMNETLWIPV6(setsockopt);
-			UMNETLWIPV6(read);
-			UMNETLWIPV6(write);
-			UMNETLWIPV6(close);
-			UMNETLWIPV6(event_subscribe);
-			//UMNETLWIPV6(fcntl);
-			//UMNETLWIPV6(fcntl64);
-		}
+		UMNETLWIPV6(bind);
+		UMNETLWIPV6(connect);
+		UMNETLWIPV6(listen);
+		UMNETLWIPV6(accept);
+		UMNETLWIPV6(getsockname);
+		UMNETLWIPV6(getpeername);
+		UMNETLWIPV6(send);
+		UMNETLWIPV6(recv);
+		UMNETLWIPV6(sendto);
+		UMNETLWIPV6(recvfrom);
+		//UMNETLWIPV6(shutdown);
+		UMNETLWIPV6(getsockopt);
+		UMNETLWIPV6(setsockopt);
+		UMNETLWIPV6(read);
+		UMNETLWIPV6(write);
+		UMNETLWIPV6(close);
+		UMNETLWIPV6(event_subscribe);
+		//UMNETLWIPV6(fcntl);
+		//UMNETLWIPV6(fcntl64);
 	}
 }
 
