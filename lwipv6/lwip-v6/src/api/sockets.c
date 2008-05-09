@@ -129,6 +129,9 @@ struct lwip_socket {
 	int err;
 };
 
+#define SOCK_ROK(s) ((((s)->flags & O_ACCMODE) + 1) & 1)
+#define SOCK_WOK(s) ((((s)->flags & O_ACCMODE) + 1) & 2)
+
 struct lwip_select_cb
 {
 	struct lwip_select_cb *next;
@@ -300,7 +303,7 @@ alloc_socket(struct netconn *newconn,u16_t family)
 		this->lastoffset = 0;
 		this->rcvevent = 0;
 		this->sendevent = 1; /* TCP send buf is empty */
-		this->flags = 0;
+		this->flags = O_RDWR;
 		this->err = 0;
 
 		/* Protect socket array */
@@ -1296,8 +1299,29 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 int
 lwip_shutdown(int s, int how)
 {
+	struct lwip_socket *sock;
+	int err=0;
+	u16_t perm;
+
 	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_shutdown(%d, how=%d)\n", s, how));
-	return lwip_close(s); /* XXX temporary hack until proper implementation */
+	if (!socksem)
+		socksem = sys_sem_new(1);
+
+	sys_sem_wait(socksem);
+
+	sock = get_socket(s);
+	if (!sock) {
+		sys_sem_signal(socksem);
+		set_errno(EBADF);
+		return -1;
+	}
+
+	perm=(sock->flags & O_ACCMODE)+1;
+	perm &= ~((how & O_ACCMODE)+1);
+	sock->flags = (sock->flags & ~O_ACCMODE) | ((perm - 1) & O_ACCMODE);
+
+	sys_sem_signal(socksem);
+	return 0;
 }
 
 int
