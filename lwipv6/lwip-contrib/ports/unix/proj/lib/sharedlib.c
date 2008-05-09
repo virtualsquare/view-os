@@ -25,17 +25,17 @@
 #define LIB_INIT    __attribute__ ((constructor))
 #define LIB_FINI    __attribute__ ((destructor))
 
-extern void lwip_initstack(void);
-extern void lwip_stopstack(void);
+extern void lwip_init(void);
+extern void lwip_fini(void);
 
 void LIB_INIT
 _init(void)
 {
-	lwip_initstack();
+	lwip_init();
 }
 
 void LIB_FINI 
 _fini(void)
 {
-	lwip_stopstack();
+	lwip_fini();
 }

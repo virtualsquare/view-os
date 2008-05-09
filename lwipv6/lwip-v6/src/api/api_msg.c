@@ -326,23 +326,15 @@ accept_function(void *arg, struct tcp_pcb *newpcb, err_t err)
   newconn->acceptmbox = SYS_MBOX_NULL;
   newconn->err = err;
   newconn->recv_avail = 0;
-  newconn->socket = 0;
+  newconn->socket = conn->socket;
+	newconn->callback = conn->callback;
+	if (newconn->callback) 
+		(*newconn->callback)(newconn, NETCONN_EVT_ACCEPTPLUS, 0);
   //printf("conn->acceptmbox post!\n");
   sys_mbox_post(mbox, newconn);
   /* Register event with callback */
   if (conn->callback)
-  {
     (*conn->callback)(conn, NETCONN_EVT_RCVPLUS, 0);
-    /* We have to set the callback here even though
-     * the new socket is unknown. Mark the socket as -1. */
-    newconn->callback = conn->callback;
-    /* old version: count of lost messages into socket (negative)
-     * it should not been needed with async accept */
-    /* printf("----marked socket -1\n"); */
-     newconn->socket = -1;
-     /* * newconn->socket =0; */
-  }
-  
   return ERR_OK;
 }
 #endif /* LWIP_TCP */

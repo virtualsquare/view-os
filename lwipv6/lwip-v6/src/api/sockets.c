@@ -223,7 +223,7 @@ int lwip_errno;
 
 long lwip_version()
 {
-	return 1;
+	return 2;
 }
 
 static inline int get_lwip_sockmap(int s)
@@ -401,23 +401,14 @@ lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 		memcpy(addr, &sin, *addrlen);
 	}
 
-	newsock = alloc_socket(newconn,sock->family);
+	/* set by the EVT_ACCEPTPLUS event */
+	newsock = newconn->socket;
+	//printf("ACCEPT return %d was %d %p was %p\n",newsock,s,newconn,sock->conn);
 	if (newsock == -1) {
 		netconn_delete(newconn);
 		sock_set_errno(sock, ENOBUFS);
 		return -1;
 	}
-	newconn->callback = event_callback;
-	sock = get_socket(newsock);
-
-	sys_sem_wait(socksem);
-	/* old version (count of lost message in socket -- negative) */
-	/*sock->rcvevent += -1 - newconn->socket;*/
-	//printf("-----sock->rcvevent %d\n",sock->rcvevent);
-	/* with async call it should not be needed */
-	sock->rcvevent =0;
-	newconn->socket = newsock;
-	sys_sem_signal(socksem);
 
 	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_accept(%d) returning new sock=%d addr=", s, newsock));
 	ip_addr_debug_print(SOCKETS_DEBUG, &naddr);
@@ -1207,30 +1198,32 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 	struct lwip_socket *sock;
 	struct lwip_select_cb *scb;
 
-	//printf("event_callback %p \n",conn);
+	//printf("event_callback %p %d\n",conn,evt);
 	/* Get socket */
 	if (conn)
 	{
 		s = conn->socket;
 		if (s < 0)
 		{
-			/* Data comes in right away after an accept, even though
-			 * the server task might not have created a new socket yet.
-			 * Just count down (or up) if that's the case and we
-			 * will use the data later. Note that only receive events
-			 * can happen before the new socket is set up. */
-			/* if should not be needed with async accept 
-			 * I have left a message to see if this event may happen */
-			
-			if (evt == NETCONN_EVT_RCVPLUS)
-				/* conn->socket--;*/
-				/*printf("----socket hack needed %d\n",conn->socket)*/;
+			/* This should never happen! */
+			printf("----socket hack already needed %d\n",conn->socket);
 			return;
 		}
-
 		sock = get_socket(s);
+		//printf("event_callback %p %d %d\n",conn,evt,s);
 		if (!sock)
 			return;
+		if (evt == NETCONN_EVT_ACCEPTPLUS) {
+			int newsock;
+			newsock = alloc_socket(conn,sock->family);
+			if (newsock >= 0) {
+				sock = get_socket(newsock);
+				sock->rcvevent =0;
+			}
+			conn->socket = newsock;
+			//printf("NETCONN_EVT_ACCEPTPLUS %p %d \n",conn,newsock);
+			return;
+		}
 	}
 	else
 		return;

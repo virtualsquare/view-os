@@ -281,13 +281,13 @@ tcpip_thread(void *arg)
 	/* Shutdown network layers */
 	shutdown_layers(stack);
 
-	/* Signal tcp_shutdown() function */
-	sys_sem_signal(stack->tcpip_shutdown_sem);
-
 	/* Call user defined callback */
 	if (stack->tcpip_shutdown_done != NULL) {
 		stack->tcpip_shutdown_done(stack->tcpip_shutdown_done_arg);
 	}
+
+	/* Signal tcp_shutdown() function */
+	sys_sem_signal(stack->tcpip_shutdown_sem);
 
 	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] exit.\n", stack));
 }

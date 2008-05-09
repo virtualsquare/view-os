@@ -462,7 +462,7 @@ int set_netif_parameter(struct netif *netif, char *parameter, char *val, int lin
 
 /*--------------------------------------------------------------------------*/
 
-int radv_load_configfile(char *path)
+int radv_load_configfile(struct stack *stack, char *path)
 {
 	char        lin[ASCIILINESZ+1];
 	char        sec[ASCIILINESZ+1];
@@ -514,7 +514,7 @@ int radv_load_configfile(char *path)
 				// FIX: check values
 			}
 
-			curr_netif = netif_find(sec);
+			curr_netif = netif_find(stack, sec);
 			if (curr_netif == NULL) {
 				LWIP_DEBUGF(IP_RADVCONF_DEBUG, ("%s: netif '%s' not found! (line %d)\n", __func__, sec, lineno));
 			}

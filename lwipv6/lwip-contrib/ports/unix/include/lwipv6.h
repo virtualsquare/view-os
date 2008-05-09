@@ -96,29 +96,27 @@ struct netif;
 struct sockaddr;
 struct stack;
 
-void lwip_initstack(void);
-void lwip_stopstack(void);
-
+/* constructor and destructors are automagically called when lwipv6
+ * gets loaded/unloaded as a shared library.
+ * lwip_init/lwip_fini are for static linking only */
 void lwip_init(void);
+void lwip_fini(void);
 
 void lwip_thread_new(void (* thread)(void *arg), void *arg);
 struct stack *lwip_stack_new(void);
-void lwip_stack_free(struct stack *stackid);
+void lwip_stack_free(struct stack *stack);
 
 struct stack *lwip_stack_get(void);
-void lwip_stack_set(struct stack *stackid);
+void lwip_stack_set(struct stack *stack);
 
-struct netif *lwip_vdeif_add(void *arg);
-struct netif *lwip_tapif_add(void *arg);
-struct netif *lwip_tunif_add(void *arg);
-struct netif *lwip_vdeif_madd(struct stack *stackid, void *arg);
-struct netif *lwip_tapif_madd(struct stack *stackid, void *arg);
-struct netif *lwip_tunif_madd(struct stack *stackid, void *arg);
+struct netif *lwip_vdeif_add(struct stack *stack, void *arg);
+struct netif *lwip_tapif_add(struct stack *stack, void *arg);
+struct netif *lwip_tunif_add(struct stack *stack, void *arg);
 
 int lwip_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
 int lwip_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
-int lwip_add_route(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags);
-int lwip_del_route(struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags);
+int lwip_add_route(struct stack *stack, struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags);
+int lwip_del_route(struct stack *stack, struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags);
 int lwip_ifup(struct netif *netif);
 int lwip_ifdown(struct netif *netif);
 
@@ -139,21 +137,18 @@ int lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 int lwip_send(int s, void *dataptr, int size, unsigned int flags);
 int lwip_sendto(int s, void *dataptr, int size, unsigned int flags,
 		    struct sockaddr *to, socklen_t tolen);
-int lwip_msocket(struct stack *stackid, int domain, int type, int protocol);
+int lwip_msocket(struct stack *stack, int domain, int type, int protocol);
 int lwip_socket(int domain, int type, int protocol);
 int lwip_write(int s, void *dataptr, int size);
 int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
 		                struct timeval *timeout);
 int lwip_ioctl(int s, long cmd, void *argp);
 
-
-
 struct iovec;
 int lwip_writev(int s, struct iovec *vector, int count);
 int lwip_readv(int s, struct iovec *vector, int count);
 
-
-int lwip_radv_load_configfile(void *arg);
+int lwip_radv_load_configfile(struct stack *stack,void *arg);
 
 int lwip_event_subscribe(lwipvoidfun cb, void *arg, int fd, int how);
 
@@ -172,8 +167,6 @@ typedef pstack (*pstackfun)();
 typedef int (*lwiplongfun)();
 typedef void (*lwipvoidfun)();
 
-lwipvoidfun lwip_initstack,  lwip_stopstack;
-lwipvoidfun lwip_init;
 pstackfun lwip_stack_new;
 lwipvoidfun lwip_stack_free;
 pstackfun lwip_stack_get;
@@ -181,7 +174,7 @@ lwipvoidfun lwip_stack_set;
 lwipvoidfun lwip_thread_new;
 
 pnetiffun lwip_vdeif_add, lwip_tapif_add, lwip_tunif_add;
-pnetiffun lwip_vdeif_madd, lwip_tapif_madd, lwip_tunif_madd;
+/*pnetiffun lwip_vdeif_madd, lwip_tapif_madd, lwip_tunif_madd;*/
 
 lwiplongfun lwip_add_addr,
 lwip_del_addr,
@@ -226,9 +219,6 @@ static inline void *loadlwipv6dl()
 		char *funcname;
 		lwiplongfun *f;
 	} lwiplibtab[] = {
-		{"lwip_initstack", (lwiplongfun*)&lwip_initstack},
-		{"lwip_stopstack", (lwiplongfun*)&lwip_stopstack},
-		{"lwip_init", (lwiplongfun*)&lwip_init},
 		{"lwip_stack_new", (lwiplongfun*)&lwip_stack_new},
 		{"lwip_stack_free", (lwiplongfun*)&lwip_stack_free},
 		{"lwip_stack_get", (lwiplongfun*)&lwip_stack_get},
@@ -264,9 +254,6 @@ static inline void *loadlwipv6dl()
 		{"lwip_vdeif_add", (lwiplongfun *)(&lwip_vdeif_add)},
 		{"lwip_tapif_add", (lwiplongfun *)(&lwip_tapif_add)},
 		{"lwip_tunif_add", (lwiplongfun *)(&lwip_tunif_add)}, 
-		{"lwip_vdeif_madd", (lwiplongfun *)(&lwip_vdeif_madd)},
-		{"lwip_tapif_madd", (lwiplongfun *)(&lwip_tapif_madd)},
-		{"lwip_tunif_madd", (lwiplongfun *)(&lwip_tunif_madd)}, 
 		{"lwip_radv_load_configfile", (lwiplongfun *)(&lwip_radv_load_configfile)},
 		{"lwip_thread_new", (lwipvoidfun*) (&lwip_thread_new)},
 		{"lwip_event_subscribe", (lwipvoidfun*) (&lwip_event_subscribe)}
