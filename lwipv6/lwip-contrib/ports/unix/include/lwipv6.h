@@ -26,6 +26,7 @@
 #include <stdlib.h>   /* timeval */ 
 #include <stdint.h>   /* uint32_t */ 
 #include <errno.h>   
+#include <sys/poll.h>   
 ///#include <unistd.h>
 
 #ifndef AF_UNSPEC
@@ -95,6 +96,7 @@ extern const struct ip_addr ip_addr_any;
 struct netif;
 struct sockaddr;
 struct stack;
+struct msghdr;
 
 /* constructor and destructors are automagically called when lwipv6
  * gets loaded/unloaded as a shared library.
@@ -137,11 +139,20 @@ int lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 int lwip_send(int s, void *dataptr, int size, unsigned int flags);
 int lwip_sendto(int s, void *dataptr, int size, unsigned int flags,
 		    struct sockaddr *to, socklen_t tolen);
+int lwip_recvmsg(int fd, struct msghdr *msg, int flags); 
+int lwip_sendmsg(int fd, const struct msghdr *msg, int flags); 
+
 int lwip_msocket(struct stack *stack, int domain, int type, int protocol);
 int lwip_socket(int domain, int type, int protocol);
 int lwip_write(int s, void *dataptr, int size);
 int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
-		                struct timeval *timeout);
+		struct timeval *timeout);
+int lwip_pselect(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
+		const struct timespec *timeout, const sigset_t *sigmask);
+int lwip_poll(struct pollfd *fds, nfds_t nfds, int timeout);
+int lwip_ppoll(struct pollfd *fds, nfds_t nfds,
+		const struct timespec *timeout, const sigset_t *sigmask);
+
 int lwip_ioctl(int s, long cmd, void *argp);
 
 struct iovec;
@@ -197,10 +208,15 @@ lwip_read,
 lwip_recvfrom,
 lwip_send,
 lwip_sendto,
+lwip_recvmsg,
+lwip_sendmsg,
 lwip_socket,
 lwip_write,
 	
 lwip_select,
+lwip_pselect,
+lwip_poll,
+lwip_ppoll,
 lwip_ioctl,
 
 lwip_writev,
@@ -244,9 +260,14 @@ static inline void *loadlwipv6dl()
 		{"lwip_recvfrom", &lwip_recvfrom},
 		{"lwip_send", &lwip_send}, 
 		{"lwip_sendto", &lwip_sendto},
+		{"lwip_recvmsg", &lwip_recvmsg},
+		{"lwip_sendmsg", &lwip_sendmsg},
 		{"lwip_socket", &lwip_socket},
 		{"lwip_write", &lwip_write},
 		{"lwip_select", &lwip_select},
+		{"lwip_pselect", &lwip_pselect},
+		{"lwip_poll", &lwip_poll},
+		{"lwip_ppoll", &lwip_ppoll},
 		{"lwip_ioctl", &lwip_ioctl},
 		{"lwip_readv", &lwip_readv},
 		{"lwip_writev", &lwip_writev},

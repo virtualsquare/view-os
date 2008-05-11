@@ -55,7 +55,7 @@
 #define __LWIP_SOCKETS_H__
 
 #include "lwip/ip_addr.h"
-
+struct stack;
 struct in_addr {
           u32_t s_addr;
 };
@@ -89,6 +89,16 @@ struct sockaddr {
 #ifndef socklen_t
 #  define socklen_t int
 #endif
+
+struct msghdr {
+	void         *msg_name;       /* optional address */
+	socklen_t     msg_namelen;    /* size of address */
+	struct iovec *msg_iov;        /* scatter/gather array */
+	size_t        msg_iovlen;     /* # elements in msg_iov */
+	void         *msg_control;    /* ancillary data, see below */
+	socklen_t     msg_controllen; /* ancillary data buffer len */
+	int           msg_flags;      /* flags on received message */
+};
 
 
 #define SOCK_STREAM     1
@@ -431,9 +441,12 @@ int lwip_recv(int s, void *mem, int len, unsigned int flags);
 int lwip_read(int s, void *mem, int len);
 int lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
       struct sockaddr *from, socklen_t *fromlen);
+int lwip_recvmsg(int fd, struct msghdr *msg, int flags);
 int lwip_send(int s, void *dataptr, int size, unsigned int flags);
 int lwip_sendto(int s, void *dataptr, int size, unsigned int flags,
     struct sockaddr *to, socklen_t tolen);
+int lwip_sendmsg(int fd, struct msghdr *msg, int flags);
+int lwip_msocket(struct stack *stack, int domain, int type, int protocol);
 int lwip_socket(int domain, int type, int protocol);
 int lwip_write(int s, void *dataptr, int size);
 int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
@@ -469,10 +482,6 @@ int lwip_readv(int s, struct iovec *vector, int count);
 int lwip_writev(int s, struct iovec *vectorc, int count);
 
 
-
-
-
-
 #if LWIP_COMPAT_SOCKETS
 #define accept(a,b,c)         lwip_accept(a,b,c)
 #define bind(a,b,c)           lwip_bind(a,b,c)
@@ -496,7 +505,6 @@ int lwip_writev(int s, struct iovec *vectorc, int count);
 
 #define writev(a,b,c)         lwip_writev(a,b,c)
 #define readv(a,b,c)          lwip_readv(a,b,c)
-
 
 #endif /* LWIP_COMPAT_SOCKETS */
 
