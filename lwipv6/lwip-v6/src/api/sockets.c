@@ -68,8 +68,6 @@
 #include "lwip/sys.h"
 #include "lwip/mem.h"
 
-#define NEW_PCALLS
-
 #define LWIP_TIMEVAL_PRIVATE
 #include "lwip/sockets.h"
 
@@ -136,19 +134,6 @@ struct lwip_socket {
 
 static struct lwip_socket **sockets=NULL;
 static int sockets_len=0;
-#ifndef NEW_PCALLS
-struct lwip_select_cb
-{
-	struct lwip_select_cb *next;
-	int sem_signalled;
-	fd_set *readset;
-	fd_set *writeset;
-	fd_set *exceptset;
-	int pipe[2]; 
-};
-
-static struct lwip_select_cb *select_cb_list = 0;
-#endif
 
 #if LWIP_NL
 #define NOT_CONN_SOCKET ((struct netconn *)(-1))
@@ -1174,13 +1159,13 @@ static void um_sel_add(void (* cb)(), void *arg, int fd, int events)
 }
 
 /* recursive is simpler but maybe not optimized */
-static struct um_sel_wait *um_sel_rec_del(struct um_sel_wait *p,void *arg)
+static struct um_sel_wait *um_sel_rec_del(struct um_sel_wait *p,void *arg,int fd)
 {
 	if (p==NULL) 
 		return NULL;
 	else {
-		struct um_sel_wait *next=um_sel_rec_del(p->next,arg);
-		if (p->arg == arg) {
+		struct um_sel_wait *next=um_sel_rec_del(p->next,arg,fd);
+		if (p->arg == arg && p->fd == fd) {
 			free(p);
 			return(next);
 		} else {
@@ -1190,10 +1175,10 @@ static struct um_sel_wait *um_sel_rec_del(struct um_sel_wait *p,void *arg)
 	}
 }
 
-static void um_sel_del(void *arg)
+static void um_sel_del(void *arg, int fd)
 {
 	//printf("UMSELECT DEL arg %x\n",arg);
-	um_sel_head=um_sel_rec_del(um_sel_head,arg);
+	um_sel_head=um_sel_rec_del(um_sel_head,arg,fd);
 }
 
 static struct um_sel_wait *um_sel_rec_signal(struct um_sel_wait *p,int fd, int events)
@@ -1203,7 +1188,7 @@ static struct um_sel_wait *um_sel_rec_signal(struct um_sel_wait *p,int fd, int e
 	else {
 		if (fd == p->fd && (events & p->events) != 0) {
 			/* found */
-			struct um_sel_wait *next=um_sel_rec_del(p->next,p->arg);
+			struct um_sel_wait *next=um_sel_rec_del(p->next,p->arg,fd);
 			//printf("UMSELECT SIGNALED %d\n",fd);
 			p->cb(p->arg);
 			free(p);
@@ -1243,7 +1228,7 @@ int lwip_event_subscribe(void (* cb)(), void *arg, int fd, int events)
 			um_sel_add(cb,arg,fd,events);
 	} 
 	if (cb == NULL || rv>0)
-		um_sel_del(arg);
+		um_sel_del(arg,fd);
 	sys_sem_signal(selectsem);
 	//printf("UMSELECT REGISTER returns %x %p %d %d\n",rv,psock->lastdata , psock->rcvevent , psock->conn->recv_avail);
 	return rv;
@@ -1254,9 +1239,6 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 {
 	int s;
 	struct lwip_socket *sock;
-#ifndef NEW_PCALLS
-	struct lwip_select_cb *scb;
-#endif
 
 	//printf("event_callback %p %d\n",conn,evt);
 	/* Get socket */
@@ -1313,42 +1295,6 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 			POLLOUT * sock->sendevent);
 	/*printf("EVENT fd %d R%d S%d\n",s,sock->rcvevent,sock->sendevent);*/
 	sys_sem_signal(selectsem);
-
-#ifndef NEW_PCALLS
-	/* Now decide if anyone is waiting for this socket */
-	/* NOTE: This code is written this way to protect the select link list
-		 but to avoid a deadlock situation by releasing socksem before
-		 signalling for the select. This means we need to go through the list
-		 multiple times ONLY IF a select was actually waiting. We go through
-		 the list the number of waiting select calls + 1. This list is
-		 expected to be small. */
-	while (1)
-	{
-		sys_sem_wait(selectsem);
-		for (scb = select_cb_list; scb; scb = scb->next)
-		{
-			if (scb->sem_signalled == 0)
-			{
-				/* Test this select call for our socket */
-				if (scb->readset && FD_ISSET(s, scb->readset))
-					if (sock->rcvevent)
-						break;
-				if (scb->writeset && FD_ISSET(s, scb->writeset))
-					if (sock->sendevent)
-						break;
-			}
-		}
-		if (scb)
-		{
-			scb->sem_signalled = 1;
-			write(scb->pipe[1],"\0",1);
-			sys_sem_signal(selectsem);
-		} else {
-			sys_sem_signal(selectsem);
-			break;
-		}
-	}
-#endif
 }
 
 int
@@ -2166,160 +2112,6 @@ static int fdsplit(int max,
 }
 
 
-#ifndef NEW_PCALLS
-int 
-lwip_pselect(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
-		const struct timespec *timeout, const sigset_t *sigmask) 
-{
-	int i;
-	int nready,nready_native,nlwip;
-	fd_set lreadset, lwriteset, lexceptset;
-	fd_set lnreadset, lnwriteset, lnexceptset;
-	int maxfdpipe=maxfdp1;
-	struct lwip_select_cb select_cb;
-	struct lwip_select_cb *p_selcb;
-	struct timespec now={0,0};
-
-	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_select(%d, %p, %p, %p, tvsec=%ld tvusec=%ld)\n", maxfdp1, (void *)readset, (void *) writeset, (void *) exceptset, timeout ? timeout->tv_sec : -1L, timeout ? timeout->tv_nsec : -1L));
-	/*pfdset(maxfdp1,readset);
-		pfdset(maxfdp1,writeset);
-		pfdset(maxfdp1,exceptset);*/
-
-	select_cb.next = 0;
-	select_cb.readset = readset;
-	select_cb.writeset = writeset;
-	select_cb.exceptset = exceptset;
-	select_cb.sem_signalled = 0;
-
-	nlwip = fdsplit (maxfdp1, readset, writeset, exceptset,
-			&lreadset, &lwriteset, &lexceptset,
-			&lnreadset, &lnwriteset, &lnexceptset);
-
-	if (nlwip == 0) {
-		nready_native=pselect(maxfdp1,readset,writeset,exceptset,timeout,sigmask);
-		return nready_native;
-	}
-
-	/* Protect ourselves searching through the list */
-	if (!selectsem)
-		selectsem = sys_sem_new(1);
-	sys_sem_wait(selectsem);
-
-	/* Go through each socket in each list to count number of sockets which
-		 currently match */
-	nready = lwip_selscan(maxfdp1, &lreadset, &lwriteset, &lexceptset);
-	nready_native = pselect(maxfdp1,&lnreadset,&lnwriteset,&lnexceptset, &now, NULL);
-
-	/* If we don't have any current events, then suspend if we are supposed to */
-	if (!(nready+nready_native))
-	{
-		if (timeout && timeout->tv_sec == 0 && timeout->tv_nsec == 0)
-		{
-			sys_sem_signal(selectsem);
-			if (readset)
-				FD_ZERO(readset);
-			if (writeset)
-				FD_ZERO(writeset);
-			if (exceptset)
-				FD_ZERO(exceptset);
-
-			LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_select: no timeout, returning 0\n"));
-			set_errno(0);
-
-			return 0;
-		}
-
-		nlwip = fdsplit (maxfdp1, readset, writeset, exceptset,
-				&lreadset, &lwriteset, &lexceptset,
-				&lnreadset, &lnwriteset, &lnexceptset);
-		/* add our semaphore to list */
-		/* We don't actually need any dynamic memory. Our entry on the
-		 * list is only valid while we are in this function, so it's ok
-		 * to use local variables */
-
-		pipe(select_cb.pipe); 
-		/* Note that we are still protected */
-		/* Put this select_cb on top of list */
-		select_cb.next = select_cb_list;
-		select_cb_list = &select_cb;
-
-		/* Now we can safely unprotect */
-		sys_sem_signal(selectsem);
-
-		FD_SET(select_cb.pipe[0], &lnreadset); 
-		if (select_cb.pipe[0]+1 > maxfdpipe)
-			maxfdpipe = select_cb.pipe[0]+1;
-		nready_native=pselect(maxfdpipe,&lnreadset,&lnwriteset,&lnexceptset,timeout,sigmask); 
-		/* Take us off the list */
-		sys_sem_wait(selectsem);
-		if (select_cb_list == &select_cb)
-			select_cb_list = select_cb.next;
-		else
-			for (p_selcb = select_cb_list; p_selcb; p_selcb = p_selcb->next)
-				if (p_selcb->next == &select_cb)
-				{
-					p_selcb->next = select_cb.next;
-					break;
-				}
-
-		sys_sem_signal(selectsem);
-
-		close(select_cb.pipe[0]);
-		close(select_cb.pipe[1]);
-		if (nready_native == 0)             /* Timeout */
-		{
-			if (readset)
-				FD_ZERO(readset);
-			if (writeset)
-				FD_ZERO(writeset);
-			if (exceptset)
-				FD_ZERO(exceptset);
-
-			LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_select: timeout expired\n"));
-			set_errno(0);
-
-			return 0;
-		}
-
-		if (FD_ISSET(select_cb.pipe[0], &lnreadset)) {
-			nready_native--; 
-			FD_CLR(select_cb.pipe[0], &lnreadset);
-		}
-
-		nready = lwip_selscan(maxfdp1, &lreadset, &lwriteset, &lexceptset);
-
-	}
-	else
-		sys_sem_signal(selectsem);
-
-	if (readset) 
-		FD_ZERO(readset);
-	if (writeset)
-		FD_ZERO(writeset);
-	if (exceptset)
-		FD_ZERO(exceptset);
-	for (i=0;i<maxfdp1;i++) {
-		if (readset) {
-			if (FD_ISSET(i,&lreadset)) FD_SET(i,readset);
-			if (FD_ISSET(i,&lnreadset)) FD_SET(i,readset);
-		}
-		if (writeset) {
-			if (FD_ISSET(i,&lwriteset)) FD_SET(i,writeset);
-			if (FD_ISSET(i,&lnwriteset)) FD_SET(i,writeset);
-		}
-		if (exceptset) {
-			if (FD_ISSET(i,&lexceptset)) FD_SET(i,exceptset);
-			if (FD_ISSET(i,&lnexceptset)) FD_SET(i,exceptset);
-		}
-	}
-
-	LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_select: nready = %d\n", nready+nready_native));
-	if(writeset)
-		set_errno(0);
-
-	return nready+nready_native;
-}
-#else
 void lwip_pipecb(int *fdp)
 {
 	write(fdp[1],"\0",1);
@@ -2395,8 +2187,6 @@ int lwip_pselect(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *excepts
 	close(fdp[1]);
 	return (rv>=0)?count:rv;
 }
-#endif
-
 
 int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
 		struct timeval *timeout) 
@@ -2485,79 +2275,6 @@ static int lwip_pollmerge(struct pollfd *fds, nfds_t nfds, struct pollfd *rfds)
 	return count;
 }
 
-#ifndef NEW_PCALLS
-int lwip_ppoll(struct pollfd *fds, nfds_t nfds,
-		const struct timespec *timeout, const sigset_t *sigmask) {
-	int i;
-	struct lwip_select_cb select_cb;
-	struct lwip_select_cb *p_selcb;
-	struct timespec now={0,0};
-	int nrfds=pollrealfdcount(fds,nfds);
-	struct pollfd *rfds;
-	int nready,nready_native;
-	int maxlfd;
-	fd_set lreadset, lwriteset, lexceptset;
-	if (nrfds==nfds) 
-		return ppoll(fds,nfds,timeout,sigmask);
-	rfds=alloca((nrfds+1)*sizeof(struct pollfd));
-	splitpollfds(fds,nfds,rfds,&lreadset,&lwriteset,&lexceptset);
-	select_cb.next = 0;
-  select_cb.readset = &lreadset;
-  select_cb.writeset = &lwriteset;
-  select_cb.exceptset = &lexceptset;
-	select_cb.sem_signalled = 0;
-	/* Protect ourselves searching through the list */
-	if (!selectsem)
-		selectsem = sys_sem_new(1);
-	sys_sem_wait(selectsem);
-	nready_native=ppoll(rfds,nrfds,&now,NULL);
-	nready=lwip_ppollscan(fds,nfds);
-	if (!(nready+nready_native))
-	{
-		if (timeout && timeout->tv_sec == 0 && timeout->tv_nsec == 0)
-		{
-			sys_sem_signal(selectsem);
-			LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_ppoll: no timeout, returning 0\n"));
-			set_errno(0);
-
-			return 0;
-		}
-		pipe(select_cb.pipe);
-		/* Note that we are still protected */
-		/* Put this select_cb on top of list */
-		select_cb.next = select_cb_list;
-		select_cb_list = &select_cb;
-
-		/* Now we can safely unprotect */
-		sys_sem_signal(selectsem);
-		rfds[nrfds].fd=select_cb.pipe[0];
-		rfds[nrfds].events=POLLIN;
-
-		nready_native=ppoll(rfds,nrfds+1,timeout,sigmask);
-
-		/* Take us off the list */
-		sys_sem_wait(selectsem);
-
-		if (select_cb_list == &select_cb)
-			select_cb_list = select_cb.next;
-		else {
-			for (p_selcb = select_cb_list; p_selcb; p_selcb = p_selcb->next)
-				if (p_selcb->next == &select_cb)
-				{
-					p_selcb->next = select_cb.next;
-					break;
-				}
-		}
-		sys_sem_signal(selectsem);
-		close(select_cb.pipe[0]);
-		close(select_cb.pipe[1]);
-	}
-	else 
-		sys_sem_signal(selectsem);
-  return lwip_pollmerge(fds,nfds,rfds);
-}
-#else
-
 int lwip_ppoll(struct pollfd *fds, nfds_t nfds,
 		const struct timespec *timeout, const sigset_t *sigmask) {
 	int i;
@@ -2606,7 +2323,6 @@ int lwip_ppoll(struct pollfd *fds, nfds_t nfds,
 	close(fdp[1]);
 	return (rv>=0)?count:rv;
 }
-#endif
 
 int lwip_poll(struct pollfd *fds, nfds_t nfds, int timeout) {
 	int rv;
