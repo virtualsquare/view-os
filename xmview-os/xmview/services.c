@@ -95,7 +95,6 @@ static struct syscall_unifier
 	{__NR_statfs,	__NR_statfs64},
 	{__NR_fstatfs,	__NR_fstatfs64},
 #endif 
-#if 0
 	{__NR_openat,	__NR_open},
 	{__NR_mkdirat,	__NR_mkdir},
 	{__NR_mknodat,	__NR_mknod},
@@ -113,7 +112,6 @@ static struct syscall_unifier
 	{__NR_readlinkat,	__NR_readlink},
 	{__NR_fchmodat,	__NR_chmod},
 	{__NR_faccessat,	__NR_access},
-#endif
 };
 
 #define SIZESCUNIFY (sizeof(scunify)/sizeof(struct syscall_unifier))
