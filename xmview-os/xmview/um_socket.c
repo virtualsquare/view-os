@@ -295,14 +295,31 @@ int wrap_in_send(int sc_number,struct pcb *pc,
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
-	} else {
+	} else 
+	{
 		long buf=pc->sysargs[1];
 		int len=pc->sysargs[2];
 		int flags=pc->sysargs[3];
 		char *lbuf=(char *)alloca(len); 
+#ifdef SNDRCVMSGUNIFY
+		struct iovec iov = {lbuf,len};
+		struct msghdr msg = {
+			.msg_name=NULL,
+			.msg_namelen=0,
+			.msg_iov=&iov,
+			.msg_iovlen=1,
+			.msg_control=NULL,
+			.msg_controllen=0,
+			.msg_flags=flags};
+#endif
 		umoven(pc,buf,len,lbuf);
+#ifdef SNDRCVMSGUNIFY
+		if ((pc->retval=um_syscall(sfd,&msg,flags)) < 0)
+			pc->erno=errno;
+#else
 		if ((pc->retval=um_syscall(sfd,lbuf,len,flags)) < 0)
 			pc->erno=errno;
+#endif
 	}
 	return SC_FAKE;
 }
@@ -319,8 +336,22 @@ int wrap_in_recv(int sc_number,struct pcb *pc,
 		int len=pc->sysargs[2];
 		int flags=pc->sysargs[3];
 		char *lbuf=(char *)alloca(len);
+#ifdef SNDRCVMSGUNIFY
+		struct iovec iov = {lbuf,len};
+		struct msghdr msg = {
+			.msg_name=NULL,
+			.msg_namelen=0,
+			.msg_iov=&iov,
+			.msg_iovlen=1,
+			.msg_control=NULL,
+			.msg_controllen=0,
+			.msg_flags=flags};
+		if ((pc->retval=um_syscall(sfd,&msg,flags)) < 0)
+			pc->erno=errno;
+#else
 		if ((pc->retval=um_syscall(sfd,lbuf,len,flags)) < 0)
 			pc->erno=errno;
+#endif
 		if (pc->retval > 0)
 			ustoren(pc,buf,pc->retval,lbuf);
 	}
@@ -342,13 +373,33 @@ int wrap_in_sendto(int sc_number,struct pcb *pc,
 		int tolen=pc->sysargs[5];
 		char *lbuf=(char *)alloca(len); 
 		char *tosock=NULL;
+#ifdef SNDRCVMSGUNIFY
+		struct iovec iov = {lbuf,len};
+		struct msghdr msg = {
+			.msg_name=NULL,
+			.msg_namelen=0,
+			.msg_iov=&iov,
+			.msg_iovlen=1,
+			.msg_control=NULL,
+			.msg_controllen=0,
+			.msg_flags=flags};
+#endif
 		umoven(pc,buf,len,lbuf);
 		if (pto != umNULL) {
 			tosock=alloca(tolen);
 			umoven(pc,pto,tolen,tosock);
+#ifdef SNDRCVMSGUNIFY
+			msg.msg_name=tosock;
+			msg.msg_namelen=tolen;
+#endif
 		}
+#ifdef SNDRCVMSGUNIFY
+		if ((pc->retval=um_syscall(sfd,&msg,flags)) < 0)
+			pc->erno=errno;
+#else
 		if ((pc->retval=um_syscall(sfd,lbuf,len,flags,tosock,tolen)) < 0)
 			pc->erno=errno;
+#endif
 	}
 	return SC_FAKE;
 }
@@ -369,15 +420,35 @@ int wrap_in_recvfrom(int sc_number,struct pcb *pc,
 		int fromlen=0;
 		char *lbuf=(char *)alloca(len);
 		char *fromsock=NULL;
+#ifdef SNDRCVMSGUNIFY
+		struct iovec iov = {lbuf,len};
+		struct msghdr msg = {
+			.msg_name=NULL,
+			.msg_namelen=0,
+			.msg_iov=&iov,
+			.msg_iovlen=1,
+			.msg_control=NULL,
+			.msg_controllen=0,
+			.msg_flags=flags};
+#endif
 		if (pfromlen != umNULL) {
 			umoven(pc,pfromlen,4,(char *)&fromlen);
 			if (pfrom != umNULL && fromlen != 0) {
 				fromsock=alloca(fromlen);
 				umoven(pc,pfrom,fromlen,fromsock);
 			}
+#ifdef SNDRCVMSGUNIFY
+			msg.msg_name=fromsock;
+			msg.msg_namelen=pfromlen;
+#endif
 		}
+#ifdef SNDRCVMSGUNIFY
+		if ((pc->retval=um_syscall(sfd,&msg,flags)) < 0)
+			pc->erno=errno;
+#else
 		if ((pc->retval=um_syscall(sfd,lbuf,len,flags,fromsock,&fromlen)) < 0)
 			pc->erno=errno;
+#endif
 		if (pc->retval > 0) {
 			ustoren(pc,buf,pc->retval,lbuf);
 			if (pfrom != umNULL)

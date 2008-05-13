@@ -64,12 +64,13 @@ static struct service **services=NULL;
 
 static sysfun reg_service[sizeof(c_set)], dereg_service[sizeof(c_set)];
 
-
-static struct syscall_unifier
+struct syscall_unifier
 {
 	long proc_sc; // System call nr. as called by the process
 	long mod_sc;  // System call nr. as seen by the module
-} scunify[] = {
+};
+
+static struct syscall_unifier scunify[] = {
 	{__NR_creat,	__NR_open},
 	{__NR_readv,	__NR_read},
 	{__NR_writev,	__NR_write},
@@ -112,9 +113,31 @@ static struct syscall_unifier
 	{__NR_readlinkat,	__NR_readlink},
 	{__NR_fchmodat,	__NR_chmod},
 	{__NR_faccessat,	__NR_access},
+#ifdef SNDRCVMSGUNIFY
+#if (__NR_socketcall == __NR_doesnotexist)
+	{__NR_send, __NR_sendmsg},
+	{__NR_sendto, __NR_sendmsg},
+	{__NR_recv, __NR_recvmsg},
+	{__NR_recvfrom, __NR_recvmsg},
+#endif
+#endif
 };
 
 #define SIZESCUNIFY (sizeof(scunify)/sizeof(struct syscall_unifier))
+#if (__NR_socketcall != __NR_doesnotexist)
+/*WIP this "unification" is not active yet */
+static struct syscall_unifier sockunify[] = {
+#ifdef SNDRCVMSGUNIFY
+/* unify to *msg */
+	{SYS_SEND, SYS_SENDMSG},
+	{SYS_SENDTO, SYS_SENDMSG},
+	{SYS_RECV, SYS_RECVMSG},
+	{SYS_RECVFROM, SYS_RECVMSG},
+#endif
+};
+
+#define SIZESOCKUNIFY (sizeof(sockunify)/sizeof(struct syscall_unifier))
+#endif
 
 #define OSER_STEP 8 /*only power of 2 values */
 #define OSER_STEP_1 (OSER_STEP - 1)
@@ -147,27 +170,41 @@ void modify_um_syscall(struct service *s)
 			GERROR("         %s will be managed by the module function for %s.", 
 					SYSCALLNAME(scunify[i].proc_sc), SYSCALLNAME(scunify[i].mod_sc));
 		}
-
 		s->um_syscall[uscno(scunify[i].proc_sc)] = s->um_syscall[uscno(scunify[i].mod_sc)];
 	}
-	GDEBUG(9, "i = %d >= %d", i, SIZESCUNIFY);
+#if (__NR_socketcall != __NR_doesnotexist)
+	for (i = 0; i < SIZESOCKUNIFY; i++)
+	{
+		GDEBUG(9, "i = %d < %d", i, SIZESOCKUNIFY);
+		/* The entry in um_syscall is not NULL, so someone has defined a
+		 * manager for this syscall. It won't be used, so print a warning.
+		 * XXX This can cause false positives if the um_syscall is allocated
+		 * with malloc (instead of calloc) and not memset'd to all NULLs. */
+		if (s->um_socket[sockunify[i].proc_sc])
+		{
+			GERROR("WARNING: a module has defined syscall %s that will not be used:",
+					SOCKCALLNAME(sockunify[i].proc_sc));
+			GERROR("         %s will be managed by the module function for %s.",
+					SOCKCALLNAME(sockunify[i].proc_sc), SOCKCALLNAME(sockunify[i].mod_sc));
+		}
+		s->um_socket[sockunify[i].proc_sc] = s->um_socket[sockunify[i].mod_sc];
+	}
+#endif
 	if (s->um_virsc && s->um_virsc[VIRSYS_MSOCKET]) {
 		if
 #if (__NR_socketcall != __NR_doesnotexist)
 			(s->um_socket[SYS_SOCKET])
 #else
-				(s->um_socket[__NR_socket])
+				(s->um_syscall[uscno(__NR_socket)])
 #endif
 				{
 					GERROR("WARNING: a module has defined syscall socket that will not be used");
 					GERROR("         socket will be managed by the module function for msocket.");
 				}
-#if 0
 #if (__NR_socketcall != __NR_doesnotexist)
 		s->um_socket[SYS_SOCKET]=s->um_virsc[VIRSYS_MSOCKET];
 #else
-		s->um_syscall[SYS_SOCKET]=s->um_virsc[VIRSYS_MSOCKET];
-#endif
+		s->um_syscall[uscno(__NR_socket)]=s->um_virsc[VIRSYS_MSOCKET];
 #endif
 	}
 }

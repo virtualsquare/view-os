@@ -22,9 +22,11 @@
 #
 #   $Id$
 #
-
+#set -x
 tmpfile=`mktemp /tmp/scnXXXXXX`
 tmpoutfile=`mktemp /tmp/scnXXXXXX`
+tmpsfile=`mktemp /tmp/scnXXXXXX`
+tmpsoutfile=`mktemp /tmp/scnXXXXXX`
 
 # First step: obtain the total number of system calls
 ### cat > $tmpfile << _END_
@@ -68,14 +70,38 @@ cat >> $tmpfile << _END_
 }
 _END_
 
+cat > $tmpsfile << _END_
+#include <stdio.h>
+#include <linux/net.h>
+
+int main(void)
+{
+_END_
+
+
+cpp -dN /usr/include/linux/net.h | egrep "^#[[:blank:]]*define[[:blank:]]+SYS_" |
+  tr -s "   " " " | cut -d" " -f2 | sed 's/SYS_//g' | sort | uniq | while read
+do
+	cat >> $tmpsfile << _END_
+#ifdef SYS_$REPLY
+		printf("%d\t%s\n", SYS_$REPLY, "$REPLY");
+#endif
+_END_
+done
+
+cat >> $tmpsfile << _END_
+	return 0;
+}
+_END_
+
 gcc -xc -o "$tmpoutfile" "$tmpfile"
+gcc -xc -o "$tmpsoutfile" "$tmpsfile"
 
 lastscno=-1
-
-
 cat > syscallnames.h << _END_
 #ifndef _SYSCALLNAMES_H
 #define _SYSCALLNAMES_H
+#include <asm/unistd.h>
 
 static const char *syscallnames[] = {
 _END_
@@ -108,17 +134,54 @@ static const int syscallnames_size = $scsize;
 
 #define SYSCALLNAME(n) (((n) < syscallnames_size) ? syscallnames[(n)] : "OUTOFBOUNDS")
 
+#ifdef __NR_socketcall
+static const char *sockcallnames[] = {
+_END_
+
+lastscno=-1
+$tmpsoutfile | sort -n | uniq | ( while read scno scname
+do
+		if [[ $scno == $lastscno ]]
+	then
+# Two system calls with the same number
+	continue
+	fi
+
+	if [[ $scno -gt $(($lastscno + 1)) ]] 
+	then
+	for i in `seq $(($lastscno+1)) $(($scno-1))`
+	do
+		echo "  /* $i */ \"UNKNOWN($i)\","
+		done
+	fi
+	echo "  /* $scno */ \"$scname\","
+	lastscno=$scno
+done >> syscallnames.h
+
+socksize=$(($lastscno + 1))
+
+cat >> syscallnames.h << _END_
+};
+static const int sockcallnames_size = $socksize;
+
+#define SOCKCALLNAME(n) (((n) < sockcallnames_size) ? sockcallnames[(n)] : "OUTOFBOUNDS")
+#endif
 #endif
 _END_
 
 cat > nrsyscalls.h << _END_
 #ifndef _NRSYSCALLS_H
 #define _NRSYSCALLS_H
+#include <asm/unistd.h>
 
 #define _UM_NR_syscalls $scsize
+#ifdef __NR_socketcall
+#define _UM_NR_sockcalls $socksize
+#endif
 
 #endif
 _END_
 )
+)
 
-rm -f "$tmpfile" "$tmpoutputfile"
+rm -f "$tmpfile" "$tmpoutfile" "$tmpsfile" "$tmpsoutfile"

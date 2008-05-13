@@ -71,7 +71,7 @@ msocket \- create an endpoint for communication in a multi-stack environment
 .sp
 .BI "int msocket(char * " path ", int " domain ", int " type ", int " protocol );
 .SH DESCRIPTION
-.BR socket ()
+.BR msocket ()
 creates an endpoint for communication and returns a descriptor in a multi-stack
 environment or defines the default stack.
 .PP
@@ -427,6 +427,7 @@ is not implemented yet.
 .\"s shown in
 .\"BR getaddrinfo (3).
 .SH "SEE ALSO"
+.BR socket (2),
 .BR accept (2),
 .BR bind (2),
 .BR connect (2),

@@ -38,6 +38,8 @@
 #include <sys/utsname.h>
 #include <asm/ptrace.h>
 
+#undef SNDRCVMSGUNIFY
+
 #ifdef _VIEWOS_UM
 #	define EUMWOULDBLOCK 1024
 

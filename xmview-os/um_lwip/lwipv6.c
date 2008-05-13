@@ -183,7 +183,7 @@ static void openlwiplib()
 	pstackfun lwip_stack_new;
 	voidfun lwip_stack_set;
 
-	lwiphandle=dlopen("liblwipv6.so.1",RTLD_NOW);
+	lwiphandle=dlopen("liblwipv6.so",RTLD_NOW);
 	if (lwiphandle!=NULL) {
 		lwip_stack_new=dlsym(lwiphandle,"lwip_stack_new");
 		lwip_stack_set=dlsym(lwiphandle,"lwip_stack_set");
@@ -228,8 +228,8 @@ static void closelwiplib()
 	}
 }
 
-/*
-long lwip_recvmsg(int fd, struct msghdr *msg, int flags) {
+#if 0
+long llwip_recvmsg(int fd, struct msghdr *msg, int flags) {
 	int rv;
 	rv=(s.socket[SYS_RECVFROM])(fd,msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
 			msg->msg_name,&msg->msg_namelen);
@@ -237,13 +237,13 @@ long lwip_recvmsg(int fd, struct msghdr *msg, int flags) {
 	return rv;
 }
 
-long lwip_sendmsg(int fd, const struct msghdr *msg, int flags) {
+long llwip_sendmsg(int fd, const struct msghdr *msg, int flags) {
 	int rv;
 	rv=(s.socket[SYS_SENDTO])(fd,msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
 			msg->msg_name,msg->msg_namelen);
 	return rv;
 }
-*/
+#endif
 
 static char *intname[]={"vd","tp","tn"};
 #define INTTYPES (sizeof(intname)/sizeof(char *))
@@ -409,8 +409,8 @@ void _um_mod_init(char *initargs)
 		lwipargtoenv(initargs);
 		SERVICESYSCALL(s, _newselect, alwaysfalse);
 		SERVICESYSCALL(s, poll, alwaysfalse);
-		//s.socket[SYS_SENDMSG]=lwip_sendmsg;
-		//s.socket[SYS_RECVMSG]=lwip_recvmsg;
+		//s.socket[SYS_SENDMSG]=llwip_sendmsg;
+		//s.socket[SYS_RECVMSG]=llwip_recvmsg;
 
 		add_service(&s);
 		initflag=0;
