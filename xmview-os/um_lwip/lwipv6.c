@@ -162,8 +162,8 @@ struct libtab {
 	{SYS_SHUTDOWN,	SOCK,	"lwip_shutdown"},
 	{SYS_SETSOCKOPT,	SOCK,	"lwip_setsockopt"},
 	{SYS_GETSOCKOPT,	SOCK,	"lwip_getsockopt"},
-	//{SYS_SENDMSG,	SOCK,	"lwip_sendmsg"},
-	//{SYS_RECVMSG,	SOCK,	"lwip_recvmsg"},
+	{SYS_SENDMSG,	SOCK,	"lwip_sendmsg"},
+	{SYS_RECVMSG,	SOCK,	"lwip_recvmsg"},
 	{__NR_read,	SYS,	"lwip_read"},
 	{__NR_write,	SYS,	"lwip_write"},
 	{__NR_close,	SYS,	"lwip_close"},
@@ -228,7 +228,7 @@ static void closelwiplib()
 	}
 }
 
-
+/*
 long lwip_recvmsg(int fd, struct msghdr *msg, int flags) {
 	int rv;
 	rv=(s.socket[SYS_RECVFROM])(fd,msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
@@ -243,6 +243,7 @@ long lwip_sendmsg(int fd, const struct msghdr *msg, int flags) {
 			msg->msg_name,msg->msg_namelen);
 	return rv;
 }
+*/
 
 static char *intname[]={"vd","tp","tn"};
 #define INTTYPES (sizeof(intname)/sizeof(char *))
@@ -408,8 +409,8 @@ void _um_mod_init(char *initargs)
 		lwipargtoenv(initargs);
 		SERVICESYSCALL(s, _newselect, alwaysfalse);
 		SERVICESYSCALL(s, poll, alwaysfalse);
-		s.socket[SYS_SENDMSG]=lwip_sendmsg;
-		s.socket[SYS_RECVMSG]=lwip_recvmsg;
+		//s.socket[SYS_SENDMSG]=lwip_sendmsg;
+		//s.socket[SYS_RECVMSG]=lwip_recvmsg;
 
 		add_service(&s);
 		initflag=0;

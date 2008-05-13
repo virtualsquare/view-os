@@ -59,7 +59,7 @@ int execv_nommap(char *cmd,char *argv[]) {
 		if ((pid=fork()) > 0) 
 			execv(cmd,argv);
 		else if (pid==0) {
-			/* watchdog process: if it takes the log it means that
+			/* watchdog process: if it takes the lock it means that
 			 * the parent process has exited */
 			lockf(fdlock,F_LOCK,0);
 			unlink(tempbin);
