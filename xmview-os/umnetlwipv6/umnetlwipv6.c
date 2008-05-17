@@ -105,7 +105,7 @@ static int umnetlwipv6_msocket (int domain, int type, int protocol,
 	return lwip_msocket(s,domain, type, protocol);
 }
 
-static char *intname[]={"vd","tp","tn"};
+static char *intname[]={"vd","tn","tp"};
 #define INTTYPES (sizeof(intname)/sizeof(char *))
 static char *paramname[]={"ra"};
 #define PARAMTYPES (sizeof(paramname)/sizeof(char *))
