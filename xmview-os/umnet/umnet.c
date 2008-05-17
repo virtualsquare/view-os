@@ -806,6 +806,26 @@ static long umnet_chown(char *path, uid_t owner, gid_t group)
 	return 0;
 }
 
+static int isperm(char *opt)
+{
+	while (opt){
+		opt=strstr(opt,"perm");
+		if (opt) {
+			if (opt[4]=='\0'){
+				memmove(opt,opt+4,strlen(opt+4)+1);
+				return 1;
+			}
+			if (opt[4]==',') {
+				memmove(opt,opt+5,strlen(opt+5)+1);
+				return 1;
+			}
+			else
+				opt+=4;
+		}
+	}
+	return 0;
+}
+
 static long umnet_mount(char *source, char *target, char *filesystemtype,
 		unsigned long mountflags, void *data)
 {
@@ -836,6 +856,8 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 		new->mounttime=new->sockettime=time(NULL);
 		new->uid=0;
 		new->gid=0;
+		new->flags=mountflags;
+		new->count=(isperm(data))?1:0;
 		if (new->netops->init) 
 			new->netops->init(source,new->path,mountflags,data,new);
 		addnettab(new);
