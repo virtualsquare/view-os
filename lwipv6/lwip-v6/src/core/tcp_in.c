@@ -334,59 +334,58 @@ tcp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr
        and that the pcb has been freed. If so, we don't do anything. */
     if (err != ERR_ABRT) {
       if (stack->recv_flags & TF_RESET) {
-  /* TF_RESET means that the connection was reset by the other
-     end. We then call the error callback to inform the
-     application that the connection is dead before we
-     deallocate the PCB. */
-  TCP_EVENT_ERR(pcb->errf, pcb->callback_arg, ERR_RST);
-  tcp_pcb_remove(&stack->tcp_active_pcbs, pcb);
-  memp_free(MEMP_TCP_PCB, pcb);
+				/* TF_RESET means that the connection was reset by the other
+					 end. We then call the error callback to inform the
+					 application that the connection is dead before we
+					 deallocate the PCB. */
+				TCP_EVENT_ERR(pcb->errf, pcb->callback_arg, ERR_RST);
+				tcp_pcb_remove(&stack->tcp_active_pcbs, pcb);
+				memp_free(MEMP_TCP_PCB, pcb);
       } else if (stack->recv_flags & TF_CLOSED) {
-  /* The connection has been closed and we will deallocate the
-     PCB. */
-  tcp_pcb_remove(&stack->tcp_active_pcbs, pcb);
-  memp_free(MEMP_TCP_PCB, pcb);
-      } else {
-  err = ERR_OK;
-  /* If the application has registered a "sent" function to be
-     called when new send buffer space is available, we call it
-     now. */
-  if (pcb->acked > 0) {
-    TCP_EVENT_SENT(pcb, pcb->acked, err);
-  }
+				/* The connection has been closed and we will deallocate the
+					 PCB. */
+				tcp_pcb_remove(&stack->tcp_active_pcbs, pcb);
+				memp_free(MEMP_TCP_PCB, pcb);
+			} else {
+				err = ERR_OK;
+				/* If the application has registered a "sent" function to be
+					 called when new send buffer space is available, we call it
+					 now. */
+				if (pcb->acked > 0) {
+					TCP_EVENT_SENT(pcb, pcb->acked, err);
+				}
 
-  if (stack->recv_data != NULL) {
-    /* Notify application that data has been received. */
-    TCP_EVENT_RECV(pcb, stack->recv_data, ERR_OK, err);
-  }
+				if (stack->recv_data != NULL) {
+					/* Notify application that data has been received. */
+					TCP_EVENT_RECV(pcb, stack->recv_data, ERR_OK, err);
+				}
 
-  /* If a FIN segment was received, we call the callback
-     function with a NULL buffer to indicate EOF. */
-  if (stack->recv_flags & TF_GOT_FIN) {
-    TCP_EVENT_RECV(pcb, NULL, ERR_OK, err);
-  }
-  /* If there were no errors, we try to send something out. */
-  if (err == ERR_OK) {
-    tcp_output(pcb);
-  }
-      }
-    }
+				/* If a FIN segment was received, we call the callback
+					 function with a NULL buffer to indicate EOF. */
+				if (stack->recv_flags & TF_GOT_FIN) {
+					TCP_EVENT_RECV(pcb, NULL, ERR_OK, err);
+				}
+				/* If there were no errors, we try to send something out. */
+				if (err == ERR_OK) {
+					tcp_output(pcb);
+				}
+			}
+		}
 
-
-    /* We deallocate the incoming pbuf. If it was buffered by the
-       application, the application should have called pbuf_ref() to
-       increase the reference counter in the pbuf. If so, the buffer
-       isn't actually deallocated by the call to pbuf_free(), only the
-       reference count is decreased. */
-    if (stack->inseg.p != NULL) pbuf_free(stack->inseg.p);
+		/* We deallocate the incoming pbuf. If it was buffered by the
+			 application, the application should have called pbuf_ref() to
+			 increase the reference counter in the pbuf. If so, the buffer
+			 isn't actually deallocated by the call to pbuf_free(), only the
+			 reference count is decreased. */
+		if (stack->inseg.p != NULL) pbuf_free(stack->inseg.p);
 #if TCP_INPUT_DEBUG
 #if TCP_DEBUG
-    tcp_debug_print_state(pcb->state);
+		tcp_debug_print_state(pcb->state);
 #endif /* TCP_DEBUG */
 #endif /* TCP_INPUT_DEBUG */
 #if SO_REUSE
-    /* First socket should receive now */
-    if(reuse_port) {
+		/* First socket should receive now */
+		if(reuse_port) {
       LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: searching next PCB.\n"));
       reuse_port = 0;
       
@@ -420,8 +419,6 @@ tcp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr
 #endif /* SO_REUSE */
   LWIP_ASSERT("tcp_input: tcp_pcbs_sane()", tcp_pcbs_sane());
   PERF_STOP("tcp_input");
-
-
 }
 
 /* tcp_listen_input():

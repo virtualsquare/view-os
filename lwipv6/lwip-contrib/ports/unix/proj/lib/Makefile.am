@@ -188,7 +188,8 @@ NETIFFILES = $(LWIPDIR)/netif/loopif.c \
 # Different implementation of architecture backend
 #
 #ARCHFILES=$(LWIPARCH)/sys_arch_pipe.c 
-ARCHFILES = $(LWIPARCH)/sys_arch.c 
+ARCHFILES=$(LWIPARCH)/sys_arch.2sem.c 
+#ARCHFILES = $(LWIPARCH)/sys_arch.c 
 
 ARCHFILES += $(LWIPARCH)/netif/vdeif.c
 ARCHFILES += $(LWIPARCH)/netif/tapif.c

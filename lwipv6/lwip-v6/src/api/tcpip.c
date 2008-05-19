@@ -216,7 +216,6 @@ tcpip_thread(void *arg)
 		if (msg==NULL) {
 			printf("tcpip NULL MSG, this should not happen!\n");
 		} else {                    
-
 			switch (msg->type) {
 				case TCPIP_MSG_INPUT:
 					//printf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
@@ -439,6 +438,21 @@ tcpip_apimsg(struct stack *stack, struct api_msg *apimsg)
 
 	sys_mbox_post(stack->stack_queue, msg);
 }
+#if 0
+/* this should be the right way! a semaphone should be used instead of 
+ * NULL smgs! */
+void
+tcpip_apimsg(struct stack *stack, struct api_msg *apimsg)
+{
+	struct tcpip_msg msg;
+	msg.type = TCPIP_MSG_API;
+	msg.msg.apimsg = apimsg;
+
+	sys_mbox_post(stack->stack_queue, msg);
+	sys_arch_sem_wait(apimsg->msg.conn->op_completed, 0);
+}
+#endif
+
 
 /*---------------------------------------------------------------------------*/
 

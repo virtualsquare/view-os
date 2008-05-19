@@ -633,7 +633,8 @@ lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 				return -1;
 			}
 
-			/*printf("netconn_recv %p\n",sock->conn);*/
+			/*printf("netconn_recv %p R %d L %p S %d\n", sock->conn, sock->rcvevent, sock->lastdata, sock->sendevent);*/
+
 			/* No data was left from the previous operation, so we try to get
 				 some from the network. */
 			buf = netconn_recv(sock->conn);
@@ -1078,52 +1079,7 @@ lwip_write(int s, void *data, int size)
 	return lwip_send(s, data, size, 0);
 }
 
-static int
-lwip_selscan(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset)
-{
-	int i, nready = 0;
-	fd_set lreadset, lwriteset, lexceptset;
-	struct lwip_socket *p_sock;
-
-	FD_ZERO(&lreadset);
-	FD_ZERO(&lwriteset);
-	FD_ZERO(&lexceptset);
-
-	/* Go through each socket in each list to count number of sockets which
-		 currently match */
-	for(i = 0; i < maxfdp1; i++)
-	{
-		if (FD_ISSET(i, readset))
-		{
-			/* See if netconn of this socket is ready for read */
-			p_sock = get_socket(i);
-			if (p_sock && (p_sock->lastdata || p_sock->rcvevent || p_sock->conn->recv_avail))
-			{
-				FD_SET(i, &lreadset);
-				LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_selscan: fd=%d ready for reading\n", i));
-				nready++;
-			}
-		}
-		if (FD_ISSET(i, writeset))
-		{
-			/* See if netconn of this socket is ready for write */
-			p_sock = get_socket(i);
-			if (p_sock && p_sock->sendevent)
-			{
-				FD_SET(i, &lwriteset);
-				LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_selscan: fd=%d ready for writing\n", i));
-				nready++;
-			}
-		}
-	}
-	*readset = lreadset;
-	*writeset = lwriteset;
-	FD_ZERO(exceptset);
-
-	return nready;
-}
-
-#if 1
+#if 0
 pfdset(int max, fd_set *fds)
 {
 	register int i;
@@ -1210,14 +1166,13 @@ int lwip_event_subscribe(void (* cb)(), void *arg, int fd, int events)
 {
 	struct lwip_socket *psock=get_socket(fd);
 	int rv=0;
-	/*printf("UMSELECT REGISTER %s %d events %x arg %x psock %x\n",
-			(cb != NULL)?"REG" : "DEL" ,
-			fd,events,arg,psock); */
+	//printf("UMSELECT REGISTER %s %d events %x arg %x psock %x\n",
+			//(cb != NULL)?"REG" : "DEL", fd,events,arg,psock); 
 	if (!selectsem)
 		selectsem = sys_sem_new(1);
 	sys_sem_wait(selectsem);
 	if (psock) {
-		//printf("R %d L %d S %d\n", psock->rcvevent, psock->lastdata, psock->sendevent);
+		//printf("R %d L %p S %d\n", psock->rcvevent, psock->lastdata, psock->sendevent);
 #if LWIP_NL
 		if (psock->family == PF_NETLINK)
 			rv=events;
@@ -1229,8 +1184,8 @@ int lwip_event_subscribe(void (* cb)(), void *arg, int fd, int events)
 	} 
 	if (cb == NULL || rv>0)
 		um_sel_del(arg,fd);
-	sys_sem_signal(selectsem);
 	//printf("UMSELECT REGISTER returns %x %p %d %d\n",rv,psock->lastdata , psock->rcvevent , psock->conn->recv_avail);
+	sys_sem_signal(selectsem);
 	return rv;
 }
 
@@ -1293,7 +1248,7 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 	um_sel_signal(sock->fdfake, 
 			POLLIN * (sock->rcvevent || sock->lastdata || sock->conn->recv_avail) +
 			POLLOUT * sock->sendevent);
-	/*printf("EVENT fd %d R%d S%d\n",s,sock->rcvevent,sock->sendevent);*/
+	//printf("EVENT fd %d(%d) R%d S%d\n",s,evt,sock->rcvevent,sock->sendevent);
 	sys_sem_signal(selectsem);
 }
 

@@ -223,9 +223,8 @@ sent_tcp(void *arg, struct tcp_pcb *pcb, u16_t len)
   struct netconn *conn;
 
   conn = arg;
-  if (conn != NULL && conn->sem != SYS_SEM_NULL) {
+  if (conn != NULL && conn->sem != SYS_SEM_NULL) 
     sys_sem_signal(conn->sem);
-  }
 
   if (conn && conn->callback)
       if (tcp_sndbuf(conn->pcb.tcp) > TCP_SNDLOWAT)

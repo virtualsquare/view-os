@@ -343,7 +343,7 @@ netconn_delete(struct netconn *conn)
     sys_sem_free(conn->sem);
   }
   
-  /*  conn->sem = SYS_SEM_NULL;*/
+  conn->sem = SYS_SEM_NULL; /* this should not be commented out!*/
   memp_free(MEMP_NETCONN, conn);
   return ERR_OK;
 }
@@ -747,10 +747,12 @@ netconn_write(struct netconn *conn, void *dataptr, u16_t size, u8_t copy)
 ret:
   memp_free(MEMP_API_MSG, msg);
   conn->state = NETCONN_NONE;
+	/*
   if (conn->sem != SYS_SEM_NULL) {
     sys_sem_free(conn->sem);
     conn->sem = SYS_SEM_NULL;
   }
+	*/
   
   return conn->err;
 }

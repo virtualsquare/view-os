@@ -75,7 +75,6 @@ struct sys_mbox {
   struct sys_sem *notempty;
   struct sys_sem *notfull;
   struct sys_sem *mutex;
-  int wait_send;
 };
 
 struct sys_sem {
@@ -184,9 +183,8 @@ sys_mbox_new()
   mbox = malloc(sizeof(struct sys_mbox));
   mbox->first = mbox->last = 0;
   mbox->notempty = sys_sem_new_(0);
-  mbox->notfull = sys_sem_new_(0);
+  mbox->notfull = sys_sem_new_(SYS_MBOX_SIZE);
   mbox->mutex = sys_sem_new_(1);
-  mbox->wait_send = 0;
   
 #if SYS_STATS
   lwip_stats.sys.mbox.used++;
@@ -205,12 +203,10 @@ sys_mbox_free(struct sys_mbox *mbox)
 #if SYS_STATS
     lwip_stats.sys.mbox.used--;
 #endif /* SYS_STATS */
-    sys_sem_wait(mbox->mutex);
     
     sys_sem_free_(mbox->notempty);
     sys_sem_free_(mbox->notfull);
     sys_sem_free_(mbox->mutex);
-    mbox->mail = mbox->mutex = NULL;
     /*  LWIP_DEBUGF("sys_mbox_free: mbox 0x%lx\n", mbox); */
     free(mbox);
   }
@@ -222,33 +218,19 @@ sys_mbox_post(struct sys_mbox *mbox, void *msg)
 {
   u8_t first;
   
-  sys_sem_wait(mbox->mutex);
+  sys_sem_wait(mbox->notfull);
   
   LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_post: mbox %p msg %p\n", (void *)mbox, (void *)msg));
   
-  while ((mbox->last + 1) >= (mbox->first + SYS_MBOX_SIZE)) {
-    mbox->wait_send++;
-    sys_sem_signal(mbox->mutex);
-    sys_arch_sem_wait(mbox->notfull, 0);
-    sys_arch_sem_wait(mbox->mutex, 0);
-    mbox->wait_send--;
-  }
-  
+  sys_sem_wait(mbox->mutex);
+	//printf("sys_mbox_post %p %d %d %d %d\n",mbox,mbox->notfull->c, mbox->notempty->c,
+			//mbox->first, mbox->last);
+	//fflush(stdout);
   mbox->msgs[mbox->last % SYS_MBOX_SIZE] = msg;
-  
-  if (mbox->last == mbox->first) {
-    first = 1;
-  } else {
-    first = 0;
-  }
-  
   mbox->last++;
-  
-  if (first) {
-    sys_sem_signal(mbox->notempty);
-  }
-
   sys_sem_signal(mbox->mutex);
+  
+	sys_sem_signal(mbox->notempty);
 }
 /*-----------------------------------------------------------------------------------*/
 u32_t
@@ -258,26 +240,17 @@ sys_arch_mbox_fetch(struct sys_mbox *mbox, void **msg, u32_t timeout)
   
   /* The mutex lock is quick so we don't bother with the timeout
      stuff here. */
-  sys_arch_sem_wait(mbox->mutex, 0);
+	//printf("sys_mbox_fetch? %p %d %d\n",mbox,mbox->notfull->c, mbox->notempty->c);
+	//fflush(stdout);
+  time=sys_arch_sem_wait(mbox->notempty, timeout);
+	if ( timeout != 0 && time == SYS_ARCH_TIMEOUT) {
+		return SYS_ARCH_TIMEOUT;
+	}
 
-  while (mbox->first == mbox->last) {
-    sys_sem_signal(mbox->mutex);
-    
-    /* We block while waiting for a mail to arrive in the mailbox. We
-       must be prepared to timeout. */
-    if (timeout != 0) {
-      time = sys_arch_sem_wait(mbox->notempty, timeout);
-      
-      if (time == SYS_ARCH_TIMEOUT) {
-        return SYS_ARCH_TIMEOUT;
-      }
-    } else {
-      sys_arch_sem_wait(mbox->notempty, 0);
-    }
-    
-    sys_arch_sem_wait(mbox->mutex, 0);
-  }
-
+  sys_sem_wait(mbox->mutex);
+	//printf("sys_mbox_fetch %p %d %d %d %d\n",mbox,mbox->notfull->c, mbox->notempty->c,
+			//mbox->first, mbox->last);
+	//fflush(stdout);
   if (msg != NULL) {
     LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_fetch: mbox %p msg %p\n", (void *)mbox, *msg));
     *msg = mbox->msgs[mbox->first % SYS_MBOX_SIZE];
@@ -287,12 +260,8 @@ sys_arch_mbox_fetch(struct sys_mbox *mbox, void **msg, u32_t timeout)
   }
 
   mbox->first++;
-  
-  if (mbox->wait_send) {
-    sys_sem_signal(mbox->notfull);
-  }
-
   sys_sem_signal(mbox->mutex);
+	sys_sem_signal(mbox->notfull);
 
   return time;
 }
@@ -399,9 +368,11 @@ sys_sem_signal(struct sys_sem *sem)
   pthread_mutex_lock(&(sem->mutex));
   sem->c++;
 
+	/*
   if (sem->c > 1) {
     sem->c = 1;
   }
+	*/
 
   pthread_cond_broadcast(&(sem->cond));
   pthread_mutex_unlock(&(sem->mutex));
