@@ -40,18 +40,13 @@ struct ptrace_multi {
 #endif
 
 #ifndef PTRACE_SYSVM	
-#define PTRACE_SYSVM	33
+#define PTRACE_SYSVM1	33
+#define PTRACE_SYSVM2	0x43ff
 /* options for PTRACE_SYSVM */
 #define PTRACE_VM_TEST          0x80000000
 #define PTRACE_VM_SKIPCALL      1
 #define PTRACE_VM_SKIPEXIT      2
 #endif
 #define PTRACE_VM_SKIPOK        (PTRACE_VM_SKIPCALL | PTRACE_VM_SKIPEXIT)
-
-#ifndef PTRACE_VIEWOS	
-#define PTRACE_VIEWOS	0x4000
-/* options fpr PTRACE_VIEWOS */
-#define PT_VIEWOS_TEST          0x80000000
-#endif
 
 #endif

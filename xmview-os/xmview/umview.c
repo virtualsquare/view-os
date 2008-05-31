@@ -63,7 +63,7 @@ int _umview_version = 2; /* modules interface version id.
 										um-viewos kernel*/
 unsigned int has_ptrace_multi;
 unsigned int ptrace_vm_mask;
-unsigned int ptrace_viewos_mask;
+unsigned int ptrace_sysvm_tag;
 unsigned int hasppoll;
 unsigned int quiet = 0;
 static char *viewname;
@@ -206,7 +206,7 @@ static struct option long_options[] = {
 	{0,0,0,0}
 };
 
-/* pure_libc loading (by relaoding the entire umview) */
+/* pure_libc loading (by reloading the entire umview) */
 static void load_it_again(int argc,char *argv[])
 {
 	int nesting=1;
@@ -338,11 +338,10 @@ int main(int argc,char *argv[])
 	/* set up the scdtab */
 	scdtab_init();
 	/* test the ptrace support */
-	has_ptrace_multi=test_ptracemulti(&ptrace_vm_mask,&ptrace_viewos_mask);
+	has_ptrace_multi=test_ptracemulti(&ptrace_vm_mask,&ptrace_sysvm_tag);
 	hasppoll=hasppolltest();
 	want_ptrace_multi = has_ptrace_multi;
 	want_ptrace_vm = ptrace_vm_mask;
-	want_ptrace_viewos = ptrace_viewos_mask;
 	want_ppoll = hasppoll;
 	/* option management */
 	while (1) {
@@ -400,21 +399,19 @@ int main(int argc,char *argv[])
 	
 	if (!quiet)
 	{
-		if (has_ptrace_multi || ptrace_vm_mask || ptrace_viewos_mask || hasppoll)
+		if (has_ptrace_multi || ptrace_vm_mask || hasppoll)
 		{
 			fprintf(stderr, "This kernel supports: ");
 			if (has_ptrace_multi)
 				fprintf(stderr, "PTRACE_MULTI ");
 			if (ptrace_vm_mask)
 				fprintf(stderr, "PTRACE_SYSVM ");
-			if (ptrace_viewos_mask)
-				fprintf(stderr, "PTRACE_VIEWOS ");
 			if (hasppoll)
 				fprintf(stderr, "ppoll ");
 			fprintf(stderr, "\n");
 		}
 
-		if (has_ptrace_multi || ptrace_vm_mask || ptrace_viewos_mask || hasppoll ||
+		if (has_ptrace_multi || ptrace_vm_mask || hasppoll ||
 				want_ptrace_multi || want_ptrace_vm || want_ptrace_viewos)
 		{
 			fprintf(stderr, "%s will use: ", UMVIEW_NAME);	
@@ -434,7 +431,6 @@ int main(int argc,char *argv[])
 
 	has_ptrace_multi = want_ptrace_multi;
 	ptrace_vm_mask = want_ptrace_vm;
-	ptrace_viewos_mask = want_ptrace_viewos;
 	hasppoll = want_ppoll;
 	
 	if (hasppoll) {

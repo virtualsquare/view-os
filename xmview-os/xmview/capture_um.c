@@ -595,7 +595,7 @@ void tracehand()
 			if ((pc->behavior & SC_SUSPENDED) == 0) {
 				if ((pc->behavior & SC_SAVEREGS) || isreproducing) {
 					if (PT_VM_OK) {
-						/*printf("SC %s %d\n",SYSCALLNAME(scno),pc->behavior);*/
+						/*fprint2("SC %s %d\n",SYSCALLNAME(scno),pc->behavior);*/
 						if(setregs(pc,PTRACE_SYSVM, (isreproducing ? 0 : (pc->behavior & SC_VM_MASK)),pc->signum) == -1)
 							GPERROR(0, "setregs");
 						if(!isreproducing && (pc->behavior & PTRACE_VM_SKIPEXIT))

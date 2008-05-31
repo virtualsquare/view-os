@@ -48,9 +48,9 @@ static int child(void *arg)
 
 /* kernel feature test:
  * exit value =1 means that there is ptrace multi support
- * vm_mask and viewos_mask are masks of supported features of
- * PTRACE_SYSVM and PTRACE_VIEWOS tags, respectively*/
-unsigned int test_ptracemulti(unsigned int *vm_mask, unsigned int *viewos_mask) {
+ * vm_mask is the mask of PTRACE_SYSVM supported features 
+ * and sysvm_tag is the SYSVM ptrace option tag*/
+unsigned int test_ptracemulti(unsigned int *vm_mask, unsigned int *sysvm_tag) {
   int pid, status, rv;
   static char stack[1024];
 
@@ -67,13 +67,17 @@ unsigned int test_ptracemulti(unsigned int *vm_mask, unsigned int *viewos_mask) 
   else
 	  rv=1;
   errno=0;
-  *vm_mask=ptrace(PTRACE_SYSVM, pid, PTRACE_VM_TEST, 0);
-  if (errno != 0)
-	  *vm_mask=0;
-  errno=0;
-  *viewos_mask=ptrace(PTRACE_VIEWOS, pid, PT_VIEWOS_TEST, 0);
-  if (errno != 0)
-	  *viewos_mask=0;
+  *vm_mask=ptrace(PTRACE_SYSVM2, pid, PTRACE_VM_TEST, 0);
+  if (errno != 0) {
+		errno=0;
+		*vm_mask=ptrace(PTRACE_SYSVM1, pid, PTRACE_VM_TEST, 0);
+		if (errno != 0) {
+			*vm_mask=0;
+			*sysvm_tag=0;
+		} else
+			*sysvm_tag=PTRACE_SYSVM1;
+	} else
+		*sysvm_tag=PTRACE_SYSVM2;
   ptrace(PTRACE_KILL,pid,0,0);
   if((pid = r_waitpid(pid, &status, WUNTRACED)) < 0){
 	  perror("Waiting for stop");

@@ -35,4 +35,4 @@
  * exit value =1 means that there is ptrace multi support
  * vm_mask and viewos_mask are masks of supported features of
  * PTRACE_SYSVM and PTRACE_VIEWOS tags, respectively*/
-unsigned int test_ptracemulti(unsigned int *vm_mask,unsigned int *viewos_mask); 
+unsigned int test_ptracemulti(unsigned int *vm_mask,unsigned int *sysvm_tag); 

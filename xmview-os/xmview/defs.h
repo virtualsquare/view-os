@@ -156,7 +156,8 @@ extern unsigned int quiet;
 	extern unsigned int has_ptrace_multi;
 	extern unsigned int ptrace_vm_mask;
 #	define PT_VM_OK ((ptrace_vm_mask & PTRACE_VM_SKIPOK) == PTRACE_VM_SKIPOK)
-	extern unsigned int ptrace_viewos_mask;
+	extern unsigned int ptrace_sysvm_tag;
+# define PTRACE_SYSVM (ptrace_sysvm_tag)
 #endif
 
 #define WORDLEN sizeof(int *)
