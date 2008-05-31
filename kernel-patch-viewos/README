@@ -2,7 +2,9 @@ The patches here included add the PTRACE_MULTI tag to the
 ptrace system call into the linux kernel of the hosting machine.
 
 This patch add PTRACE MULTI for the following architectures:
-i386 ppc um (subarch i386)
+i386 ppc um (subarch i386). 
+
+From version 2.6.25 support for x86(32/64) ppc(32/64) um.
 
 UMVIEW does not need any patch in the kernel of the hosting computer to 
 work but with PTRACE_MULTI there is a dramatic increase in performance.
@@ -18,6 +20,8 @@ It is a more efficient support of PTRACE for Virtual Machine.
 with PT_VM it is possible to use the PTRACE_SYSVM call instead
 of PTRACE_SYSCALL. PTRACE_SYSVM has a parameter that can be set to skip
 the syscall execution and/or the after-syscall trace upcall.
+
+Credits: Cristian Greco for patch updates.
 
 As usual:
 
