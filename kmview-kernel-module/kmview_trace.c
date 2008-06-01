@@ -44,9 +44,16 @@ static u32 kmview_syscall_entry(struct utrace_attached_engine *engine, struct ta
 static u32 kmview_syscall_exit(struct utrace_attached_engine *engine, struct task_struct *tsk, struct pt_regs *regs);
 int kmview_allow_access_process_vm(struct utrace_attached_engine *engine,
 		struct task_struct *target, struct task_struct *caller);
+static u32 kmview_report_signal(struct utrace_attached_engine *engine,
+		struct task_struct *tsk, struct pt_regs *regs,
+		u32 action, siginfo_t *info,
+		const struct k_sigaction *orig_ka,
+		struct k_sigaction *return_ka);
 
 #define KMVIEW_EVENTS (UTRACE_EVENT(REAP) | UTRACE_EVENT(CLONE)\
-		| UTRACE_EVENT(SYSCALL_ENTRY) | UTRACE_EVENT(SYSCALL_EXIT)) 
+		| UTRACE_EVENT(SYSCALL_ENTRY) | UTRACE_EVENT(SYSCALL_EXIT) \
+		| UTRACE_EVENT(SIGNAL_TERM) \
+		) 
 
 #ifdef __NR_socketcall
 int socketcallnargs[] = {
@@ -78,6 +85,7 @@ const struct utrace_engine_ops kmview_ops =
 	.report_reap = kmview_reap,
 	.report_syscall_entry = kmview_syscall_entry,
 	.report_syscall_exit = kmview_syscall_exit,
+	.report_signal = kmview_report_signal,
 	.allow_access_process_vm = kmview_allow_access_process_vm
 };
 
@@ -108,13 +116,15 @@ static inline void kmview_event_enqueue(
 static inline struct utrace_attached_engine *kmview_attach_engine(struct task_struct *task)
 {
 	struct utrace_attached_engine *task_engine;
+	int rv=-100;
 	task_engine = utrace_attach(task, UTRACE_ATTACH_CREATE, &kmview_ops, 0);
+	/*printk("utrace_attach %d %x\n",task->pid,KMVIEW_EVENTS);*/
 	if (IS_ERR(task_engine)) {
 		printk("ERROR in attaching process %d => %ld\n",
 				task->pid, PTR_ERR(task_engine));
 		task_engine=NULL;
 	} else 
-		utrace_set_flags(task, task_engine, KMVIEW_EVENTS);
+		rv=utrace_set_flags(task, task_engine, KMVIEW_EVENTS);
 	return task_engine;
 }
 
@@ -198,7 +208,7 @@ static u32 kmview_clone(struct utrace_attached_engine *engine, struct task_struc
 static void kmview_reap(struct utrace_attached_engine *engine, struct task_struct *tsk)
 {
 	struct kmview_thread *kmt=engine->data;
-	//printk("process %d terminated\n",tsk->pid);
+	/*printk("process %d terminated\n",tsk->pid);*/
 	/*destroy data structures*/
 	if (kmt) {
 		if (kmt->tracer) {
@@ -328,6 +338,13 @@ static u32 kmview_syscall_exit(struct utrace_attached_engine *engine,
 		kill_proc(tsk->pid,9,0);
 		return UTRACE_ACTION_NEWSTATE | UTRACE_ACTION_QUIESCE;
 	}
+}
+
+static u32 kmview_report_signal(struct utrace_attached_engine *engine,
+		struct task_struct *tsk, struct pt_regs *regs,
+		u32 action, siginfo_t *info,
+		const struct k_sigaction *orig_ka,
+		struct k_sigaction *return_ka) {
 }
 
 int kmview_allow_access_process_vm(struct utrace_attached_engine *engine,
