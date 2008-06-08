@@ -103,7 +103,8 @@ static struct syscall_unifier scunify[] = {
 	{__NR_futimesat,	__NR_utimes},
 #ifdef __NR_newfstatat
 	{__NR_newfstatat,	__NR_stat64},
-#else
+#endif
+#ifdef __NR_fstatat64
 	{__NR_fstatat64,	__NR_stat64},
 #endif
 	{__NR_unlinkat,	__NR_unlink},

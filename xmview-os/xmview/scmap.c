@@ -224,23 +224,23 @@ struct sc_map scmap[]={
 	{__NR_mknod, choice_link, wrap_in_mknod, wrap_out_std, nchoice_path, nw_syspath_std, 0, 3, SOC_FILE},
 #ifdef __NR_openat
 	{__NR_openat, choice_pathat, wrap_in_open, wrap_out_open, nchoice_pathat, nw_sysopen, ALWAYS, 4, SOC_FILE},
-	{__NR_mkdirat, choice_linkat, wrap_in_mkdir, wrap_out_std, nchoice_linkat, nw_sysatpath_std, ALWAYS, 3, SOC_FILE},
-	{__NR_mknodat, choice_linkat, wrap_in_mknod, wrap_out_std, nchoice_linkat, nw_sysatpath_std, ALWAYS, 4, SOC_FILE},
-	{__NR_fchownat, choice_pl5at, wrap_in_chown, wrap_out_std, nchoice_pl5at, nw_sysatpath_std, ALWAYS, 5, SOC_FILE},
-	{__NR_futimesat, choice_pathat, wrap_in_utime, wrap_out_std, nchoice_pathat, nw_sysatpath_std, ALWAYS, 3, SOC_FILE},
+	{__NR_mkdirat, choice_linkat, wrap_in_mkdir, wrap_out_std, nchoice_linkat, nw_sysatpath_std, 0, 3, SOC_FILE},
+	{__NR_mknodat, choice_linkat, wrap_in_mknod, wrap_out_std, nchoice_linkat, nw_sysatpath_std, 0, 4, SOC_FILE},
+	{__NR_fchownat, choice_pl5at, wrap_in_chown, wrap_out_std, nchoice_pl5at, nw_sysatpath_std, 0, 5, SOC_FILE},
+	{__NR_futimesat, choice_pathat, wrap_in_utime, wrap_out_std, nchoice_pathat, nw_sysatpath_std, 0, 3, SOC_FILE},
 #ifdef __NR_newfstatat
 	/* 64 bit */
-	{__NR_newfstatat, choice_pl4at, wrap_in_stat64, wrap_out_std, nchoice_pl4at, nw_sysatpath_std, ALWAYS, 4, SOC_FILE},
+	{__NR_newfstatat, choice_pl4at, wrap_in_stat64, wrap_out_std, nchoice_pl4at, nw_sysatpath_std, 0, 4, SOC_FILE},
 #else
-	{__NR_fstatat64, choice_pl4at, wrap_in_stat64, wrap_out_std, nchoice_pl4at, nw_sysatpath_std, ALWAYS, 4, SOC_FILE},
+	{__NR_fstatat64, choice_pl4at, wrap_in_stat64, wrap_out_std, nchoice_pl4at, nw_sysatpath_std, 0, 4, SOC_FILE},
 #endif
-	{__NR_unlinkat, choice_unlinkat, wrap_in_unlink, wrap_out_std, nchoice_unlinkat, nw_sysatpath_std, ALWAYS, 3, SOC_FILE},
-	{__NR_renameat, choice_link3at, wrap_in_link, wrap_out_std, nchoice_link3at, nw_syslink, ALWAYS, 4, SOC_FILE},
-	{__NR_linkat, choice_link3at, wrap_in_link, wrap_out_std, nchoice_link3at, nw_syslink, ALWAYS, 4, SOC_FILE},
-	{__NR_symlinkat, choice_link2at, wrap_in_symlink, wrap_out_std, nchoice_link2at, nw_syssymlink, ALWAYS, 3, SOC_FILE},
-	{__NR_readlinkat, choice_linkat, wrap_in_readlink, wrap_out_std, nchoice_linkat, nw_sysatpath_std, ALWAYS, 4, SOC_FILE},
-	{__NR_fchmodat, choice_pl4at, wrap_in_chmod, wrap_out_std, nchoice_pl4at, nw_sysatpath_std, ALWAYS, 4, SOC_FILE},
-	{__NR_faccessat, choice_pl4at, wrap_in_access, wrap_out_std, nchoice_pl4at, nw_sysatpath_std, ALWAYS, 4, SOC_FILE},
+	{__NR_unlinkat, choice_unlinkat, wrap_in_unlink, wrap_out_std, nchoice_unlinkat, nw_sysatpath_std, 0, 3, SOC_FILE},
+	{__NR_renameat, choice_link3at, wrap_in_link, wrap_out_std, nchoice_link3at, nw_syslink, 0, 4, SOC_FILE},
+	{__NR_linkat, choice_link3at, wrap_in_link, wrap_out_std, nchoice_link3at, nw_syslink, 0, 4, SOC_FILE},
+	{__NR_symlinkat, choice_link2at, wrap_in_symlink, wrap_out_std, nchoice_link2at, nw_syssymlink, 0, 3, SOC_FILE},
+	{__NR_readlinkat, choice_linkat, wrap_in_readlink, wrap_out_std, nchoice_linkat, nw_sysatpath_std, 0, 4, SOC_FILE},
+	{__NR_fchmodat, choice_pl4at, wrap_in_chmod, wrap_out_std, nchoice_pl4at, nw_sysatpath_std, 0, 4, SOC_FILE},
+	{__NR_faccessat, choice_pl4at, wrap_in_access, wrap_out_std, nchoice_pl4at, nw_sysatpath_std, 0, 4, SOC_FILE},
 #endif
 
 #ifdef _UM_MMAP

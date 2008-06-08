@@ -155,7 +155,8 @@ extern unsigned int quiet;
 	/* flags on the underlying kernel support */
 	extern unsigned int has_ptrace_multi;
 	extern unsigned int ptrace_vm_mask;
-#	define PT_VM_OK ((ptrace_vm_mask & PTRACE_VM_SKIPOK) == PTRACE_VM_SKIPOK)
+/* skipexit and some kind of syscall must be implemented */
+#	define PT_VM_OK ((ptrace_vm_mask & PTRACE_VM_SKIPOK) != PTRACE_VM_SKIPEXIT)
 	extern unsigned int ptrace_sysvm_tag;
 # define PTRACE_SYSVM (ptrace_sysvm_tag)
 #endif

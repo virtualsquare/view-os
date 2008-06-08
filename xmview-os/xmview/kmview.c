@@ -231,7 +231,6 @@ static void load_it_again(int argc,char *argv[])
 			argv[0]="--kmview";
 			execv(path,argv);
 			/* useless cleanup */
-		fprint2("HERE 4!\n");
 			free(path);
 		}
 	}
@@ -309,6 +308,12 @@ static void root_process_init()
 /* KMVIEW MAIN PROGRAM */
 int main(int argc,char *argv[])
 {
+	if (argc < 2) /* NO ARGS */
+	{
+		usage(PROGNAME);
+		exit(1);
+	}
+
 	/* try to set the priority to -11 provided umview has been installed
 	 * setuid. it is effectiveless elsewhere */
 	r_setpriority(PRIO_PROCESS,0,-11);
@@ -330,12 +335,6 @@ int main(int argc,char *argv[])
 	 * generated syscalls, this condition manages the first call */
 	if (strcmp(argv[0],"--kmview")!=0)
 		load_it_again(argc,argv);	/* do not return (when purelibc and not -x)!*/
-
-	if (argc < 2)
-	{
-		usage(PROGNAME);
-		exit(1);
-	}
 
 	/* does this kernel provide pselect? */
 	/*has_pselect=has_pselect_test();*/
