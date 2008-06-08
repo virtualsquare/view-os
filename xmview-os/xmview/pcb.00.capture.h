@@ -21,14 +21,14 @@
 #	endif
 
 /* constants are compatible with PTRACE_SYS_VM definitions */
-#	define SC_SKIP_CALL 0x5 /* SKIP_CALL */
+#	define SC_SKIP_CALL 0x1 /* SKIP_CALL */
 #	define SC_SKIP_EXIT 0x2 /* SKIP_EXIT */
-#	define SC_SAVEREGS 0x8
-#	define SC_SUSPENDED 0x10
-#	define SC_SUSPIN 0x10     /* SUSPENDED + IN  */
-#	define SC_SUSPOUT 0x11    /* SUSPENDED + OUT */
+#	define SC_SAVEREGS 0x4
+#	define SC_SUSPENDED 0x8
+#	define SC_SUSPIN 0x8     /* SUSPENDED + IN  */
+#	define SC_SUSPOUT 0x9    /* SUSPENDED + OUT */
 
-#	define SC_VM_MASK 0x7 /*mask for SYS_VM */
+#	define SC_VM_MASK 0x3 /*mask for SYS_VM */
 
 #	define STD_BEHAVIOR SC_SKIP_EXIT  /* DO_SYSCALL SKIP_EXIT */
 #	define SC_MODICALL (SC_SKIP_EXIT | SC_SAVEREGS) /* SKIP_EXIT and save regs */
