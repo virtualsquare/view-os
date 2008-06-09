@@ -1,7 +1,7 @@
-diff -Naur linux-2.6.18/arch/i386/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/arch/i386/kernel/ptrace.c
---- linux-2.6.18/arch/i386/kernel/ptrace.c	2006-09-20 05:42:06.000000000 +0200
-+++ linux-2.6.18-ptmulti-ptvm/arch/i386/kernel/ptrace.c	2008-05-18 19:08:58.000000000 +0200
-@@ -480,15 +480,26 @@
+diff -Naur linux-2.6.23/arch/i386/kernel/ptrace.c linux-2.6.23-ptmulti-ptvm/arch/i386/kernel/ptrace.c
+--- linux-2.6.23/arch/i386/kernel/ptrace.c	2007-10-09 22:31:38.000000000 +0200
++++ linux-2.6.23-ptmulti-ptvm/arch/i386/kernel/ptrace.c	2008-05-18 21:21:51.000000000 +0200
+@@ -468,15 +468,26 @@
  		  }
  		  break;
  
@@ -28,7 +28,7 @@ diff -Naur linux-2.6.18/arch/i386/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/arch
  		} else if (request == PTRACE_SYSCALL) {
  			set_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
  			clear_tsk_thread_flag(child, TIF_SYSCALL_EMU);
-@@ -693,6 +704,9 @@
+@@ -681,6 +692,9 @@
  	if (!(current->ptrace & PT_PTRACED))
  		goto out;
  
@@ -38,7 +38,7 @@ diff -Naur linux-2.6.18/arch/i386/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/arch
  	/* If a process stops on the 1st tracepoint with SYSCALL_TRACE
  	 * and then is resumed with SYSEMU_SINGLESTEP, it will come in
  	 * here. We have to check this and return */
-@@ -720,7 +734,7 @@
+@@ -708,7 +722,7 @@
  		send_sig(current->exit_code, current, 1);
  		current->exit_code = 0;
  	}
@@ -47,10 +47,10 @@ diff -Naur linux-2.6.18/arch/i386/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/arch
  out:
  	if (unlikely(current->audit_context) && !entryexit)
  		audit_syscall_entry(AUDIT_ARCH_I386, regs->orig_eax,
-diff -Naur linux-2.6.18/arch/powerpc/kernel/entry_32.S linux-2.6.18-ptmulti-ptvm/arch/powerpc/kernel/entry_32.S
---- linux-2.6.18/arch/powerpc/kernel/entry_32.S	2006-09-20 05:42:06.000000000 +0200
-+++ linux-2.6.18-ptmulti-ptvm/arch/powerpc/kernel/entry_32.S	2008-05-18 19:09:58.000000000 +0200
-@@ -277,6 +277,7 @@
+diff -Naur linux-2.6.23/arch/powerpc/kernel/entry_32.S linux-2.6.23-ptmulti-ptvm/arch/powerpc/kernel/entry_32.S
+--- linux-2.6.23/arch/powerpc/kernel/entry_32.S	2007-10-09 22:31:38.000000000 +0200
++++ linux-2.6.23-ptmulti-ptvm/arch/powerpc/kernel/entry_32.S	2008-05-18 21:22:40.000000000 +0200
+@@ -276,6 +276,7 @@
  	stw	r0,_TRAP(r1)
  	addi	r3,r1,STACK_FRAME_OVERHEAD
  	bl	do_syscall_trace_enter
@@ -58,7 +58,7 @@ diff -Naur linux-2.6.18/arch/powerpc/kernel/entry_32.S linux-2.6.18-ptmulti-ptvm
  	lwz	r0,GPR0(r1)	/* Restore original registers */
  	lwz	r3,GPR3(r1)
  	lwz	r4,GPR4(r1)
-@@ -285,6 +286,8 @@
+@@ -284,6 +285,8 @@
  	lwz	r7,GPR7(r1)
  	lwz	r8,GPR8(r1)
  	REST_NVGPRS(r1)
@@ -67,10 +67,10 @@ diff -Naur linux-2.6.18/arch/powerpc/kernel/entry_32.S linux-2.6.18-ptmulti-ptvm
  	b	syscall_dotrace_cont
  
  syscall_exit_work:
-diff -Naur linux-2.6.18/arch/powerpc/kernel/entry_64.S linux-2.6.18-ptmulti-ptvm/arch/powerpc/kernel/entry_64.S
---- linux-2.6.18/arch/powerpc/kernel/entry_64.S	2006-09-20 05:42:06.000000000 +0200
-+++ linux-2.6.18-ptmulti-ptvm/arch/powerpc/kernel/entry_64.S	2008-05-18 19:10:33.000000000 +0200
-@@ -194,6 +194,7 @@
+diff -Naur linux-2.6.23/arch/powerpc/kernel/entry_64.S linux-2.6.23-ptmulti-ptvm/arch/powerpc/kernel/entry_64.S
+--- linux-2.6.23/arch/powerpc/kernel/entry_64.S	2007-10-09 22:31:38.000000000 +0200
++++ linux-2.6.23-ptmulti-ptvm/arch/powerpc/kernel/entry_64.S	2008-05-18 21:23:12.000000000 +0200
+@@ -203,6 +203,7 @@
  	bl	.save_nvgprs
  	addi	r3,r1,STACK_FRAME_OVERHEAD
  	bl	.do_syscall_trace_enter
@@ -78,7 +78,7 @@ diff -Naur linux-2.6.18/arch/powerpc/kernel/entry_64.S linux-2.6.18-ptmulti-ptvm
  	ld	r0,GPR0(r1)	/* Restore original registers */
  	ld	r3,GPR3(r1)
  	ld	r4,GPR4(r1)
-@@ -204,6 +205,8 @@
+@@ -213,6 +214,8 @@
  	addi	r9,r1,STACK_FRAME_OVERHEAD
  	clrrdi	r10,r1,THREAD_SHIFT
  	ld	r10,TI_FLAGS(r10)
@@ -87,10 +87,10 @@ diff -Naur linux-2.6.18/arch/powerpc/kernel/entry_64.S linux-2.6.18-ptmulti-ptvm
  	b	syscall_dotrace_cont
  
  syscall_enosys:
-diff -Naur linux-2.6.18/arch/powerpc/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/arch/powerpc/kernel/ptrace.c
---- linux-2.6.18/arch/powerpc/kernel/ptrace.c	2006-09-20 05:42:06.000000000 +0200
-+++ linux-2.6.18-ptmulti-ptvm/arch/powerpc/kernel/ptrace.c	2008-05-18 21:37:51.000000000 +0200
-@@ -337,15 +337,28 @@
+diff -Naur linux-2.6.23/arch/powerpc/kernel/ptrace.c linux-2.6.23-ptmulti-ptvm/arch/powerpc/kernel/ptrace.c
+--- linux-2.6.23/arch/powerpc/kernel/ptrace.c	2007-10-09 22:31:38.000000000 +0200
++++ linux-2.6.23-ptmulti-ptvm/arch/powerpc/kernel/ptrace.c	2008-06-04 19:27:12.000000000 +0200
+@@ -443,15 +443,28 @@
  		break;
  	}
  
@@ -122,24 +122,24 @@ diff -Naur linux-2.6.18/arch/powerpc/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/a
  		child->exit_code = data;
  		/* make sure the single step bit is not set. */
  		clear_single_step(child);
-@@ -524,7 +537,7 @@
+@@ -624,7 +637,7 @@
  	}
  }
  
 -void do_syscall_trace_enter(struct pt_regs *regs)
 +int do_syscall_trace_enter(struct pt_regs *regs)
  {
- #ifdef CONFIG_PPC64
  	secure_computing(regs->gpr[0]);
-@@ -544,6 +557,7 @@
- 				    regs->gpr[0],
- 				    regs->gpr[3], regs->gpr[4],
- 				    regs->gpr[5], regs->gpr[6]);
+ 
+@@ -648,6 +661,7 @@
+ 					    regs->gpr[5] & 0xffffffff,
+ 					    regs->gpr[6] & 0xffffffff);
+ 	}
 +	return (current->ptrace & PT_VM_SKIPCALL);
  }
  
  void do_syscall_trace_leave(struct pt_regs *regs)
-@@ -558,7 +572,8 @@
+@@ -658,6 +672,7 @@
  
  	if ((test_thread_flag(TIF_SYSCALL_TRACE)
  	     || test_thread_flag(TIF_SINGLESTEP))
@@ -148,11 +148,10 @@ diff -Naur linux-2.6.18/arch/powerpc/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/a
 +	    ((current->ptrace & PT_VM_SKIPEXIT)==0))
  		do_syscall_trace();
  }
- 
-diff -Naur linux-2.6.18/arch/ppc/kernel/entry.S linux-2.6.18-ptmulti-ptvm/arch/ppc/kernel/entry.S
---- linux-2.6.18/arch/ppc/kernel/entry.S	2006-09-20 05:42:06.000000000 +0200
-+++ linux-2.6.18-ptmulti-ptvm/arch/ppc/kernel/entry.S	2008-05-18 19:35:03.000000000 +0200
-@@ -277,6 +277,7 @@
+diff -Naur linux-2.6.23/arch/ppc/kernel/entry.S linux-2.6.23-ptmulti-ptvm/arch/ppc/kernel/entry.S
+--- linux-2.6.23/arch/ppc/kernel/entry.S	2007-10-09 22:31:38.000000000 +0200
++++ linux-2.6.23-ptmulti-ptvm/arch/ppc/kernel/entry.S	2008-05-18 21:27:13.000000000 +0200
+@@ -276,6 +276,7 @@
  	stw	r0,TRAP(r1)
  	addi	r3,r1,STACK_FRAME_OVERHEAD
  	bl	do_syscall_trace_enter
@@ -160,7 +159,7 @@ diff -Naur linux-2.6.18/arch/ppc/kernel/entry.S linux-2.6.18-ptmulti-ptvm/arch/p
  	lwz	r0,GPR0(r1)	/* Restore original registers */
  	lwz	r3,GPR3(r1)
  	lwz	r4,GPR4(r1)
-@@ -285,6 +286,8 @@
+@@ -284,6 +285,8 @@
  	lwz	r7,GPR7(r1)
  	lwz	r8,GPR8(r1)
  	REST_NVGPRS(r1)
@@ -169,10 +168,10 @@ diff -Naur linux-2.6.18/arch/ppc/kernel/entry.S linux-2.6.18-ptmulti-ptvm/arch/p
  	b	syscall_dotrace_cont
  
  syscall_exit_work:
-diff -Naur linux-2.6.18/arch/um/include/kern_util.h linux-2.6.18-ptmulti-ptvm/arch/um/include/kern_util.h
---- linux-2.6.18/arch/um/include/kern_util.h	2006-09-20 05:42:06.000000000 +0200
-+++ linux-2.6.18-ptmulti-ptvm/arch/um/include/kern_util.h	2008-05-18 19:35:28.000000000 +0200
-@@ -70,7 +70,7 @@
+diff -Naur linux-2.6.23/arch/um/include/kern_util.h linux-2.6.23-ptmulti-ptvm/arch/um/include/kern_util.h
+--- linux-2.6.23/arch/um/include/kern_util.h	2007-10-09 22:31:38.000000000 +0200
++++ linux-2.6.23-ptmulti-ptvm/arch/um/include/kern_util.h	2008-05-18 21:27:33.000000000 +0200
+@@ -67,7 +67,7 @@
  extern void paging_init(void);
  extern void init_flush_vm(void);
  extern void *syscall_sp(void *t);
@@ -180,11 +179,11 @@ diff -Naur linux-2.6.18/arch/um/include/kern_util.h linux-2.6.18-ptmulti-ptvm/ar
 +extern int syscall_trace(union uml_pt_regs *regs, int entryexit);
  extern int hz(void);
  extern unsigned int do_IRQ(int irq, union uml_pt_regs *regs);
- extern int external_pid(void *t);
-diff -Naur linux-2.6.18/arch/um/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/arch/um/kernel/ptrace.c
---- linux-2.6.18/arch/um/kernel/ptrace.c	2006-09-20 05:42:06.000000000 +0200
-+++ linux-2.6.18-ptmulti-ptvm/arch/um/kernel/ptrace.c	2008-06-04 18:31:25.000000000 +0200
-@@ -82,6 +82,12 @@
+ extern void interrupt_end(void);
+diff -Naur linux-2.6.23/arch/um/kernel/ptrace.c linux-2.6.23-ptmulti-ptvm/arch/um/kernel/ptrace.c
+--- linux-2.6.23/arch/um/kernel/ptrace.c	2007-10-09 22:31:38.000000000 +0200
++++ linux-2.6.23-ptmulti-ptvm/arch/um/kernel/ptrace.c	2008-05-18 21:31:02.000000000 +0200
+@@ -71,6 +71,12 @@
                  ret = poke_user(child, addr, data);
                  break;
  
@@ -197,7 +196,7 @@ diff -Naur linux-2.6.18/arch/um/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/arch/u
  	case PTRACE_SYSCALL: /* continue and stop at next (return from) syscall */
  	case PTRACE_CONT: { /* restart after signal. */
  		ret = -EIO;
-@@ -89,11 +95,17 @@
+@@ -78,11 +84,17 @@
  			break;
  
                  set_singlestepping(child, 0);
@@ -218,7 +217,7 @@ diff -Naur linux-2.6.18/arch/um/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/arch/u
  		}
  		child->exit_code = data;
  		wake_up_process(child);
-@@ -268,7 +280,7 @@
+@@ -263,7 +275,7 @@
  /* XXX Check PT_DTRACE vs TIF_SINGLESTEP for singlestepping check and
   * PT_PTRACED vs TIF_SYSCALL_TRACE for syscall tracing check
   */
@@ -227,7 +226,7 @@ diff -Naur linux-2.6.18/arch/um/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/arch/u
  {
  	int is_singlestep = (current->ptrace & PT_DTRACE) && entryexit;
  	int tracesysgood;
-@@ -290,10 +302,13 @@
+@@ -285,10 +297,13 @@
  		send_sigtrap(current, regs, 0);
  
  	if (!test_thread_flag(TIF_SYSCALL_TRACE))
@@ -243,7 +242,7 @@ diff -Naur linux-2.6.18/arch/um/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/arch/u
  
  	/* the 0x80 provides a way for the tracing parent to distinguish
  	   between a syscall stop and SIGTRAP delivery */
-@@ -311,4 +326,8 @@
+@@ -306,4 +321,8 @@
  		send_sig(current->exit_code, current, 1);
  		current->exit_code = 0;
  	}
@@ -252,9 +251,9 @@ diff -Naur linux-2.6.18/arch/um/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/arch/u
 +	else
 +		return 0;
  }
-diff -Naur linux-2.6.18/arch/um/kernel/skas/syscall.c linux-2.6.18-ptmulti-ptvm/arch/um/kernel/skas/syscall.c
---- linux-2.6.18/arch/um/kernel/skas/syscall.c	2006-09-20 05:42:06.000000000 +0200
-+++ linux-2.6.18-ptmulti-ptvm/arch/um/kernel/skas/syscall.c	2008-05-18 19:39:58.000000000 +0200
+diff -Naur linux-2.6.23/arch/um/kernel/skas/syscall.c linux-2.6.23-ptmulti-ptvm/arch/um/kernel/skas/syscall.c
+--- linux-2.6.23/arch/um/kernel/skas/syscall.c	2007-10-09 22:31:38.000000000 +0200
++++ linux-2.6.23-ptmulti-ptvm/arch/um/kernel/skas/syscall.c	2008-05-18 21:31:42.000000000 +0200
 @@ -18,8 +18,9 @@
  	struct pt_regs *regs = container_of(r, struct pt_regs, regs);
  	long result;
@@ -281,9 +280,9 @@ diff -Naur linux-2.6.18/arch/um/kernel/skas/syscall.c linux-2.6.18-ptmulti-ptvm/
  
  	syscall_trace(r, 1);
  }
-diff -Naur linux-2.6.18/arch/um/kernel/tt/syscall_kern.c linux-2.6.18-ptmulti-ptvm/arch/um/kernel/tt/syscall_kern.c
---- linux-2.6.18/arch/um/kernel/tt/syscall_kern.c	2006-09-20 05:42:06.000000000 +0200
-+++ linux-2.6.18-ptmulti-ptvm/arch/um/kernel/tt/syscall_kern.c	2008-05-18 19:41:02.000000000 +0200
+diff -Naur linux-2.6.23/arch/um/kernel/tt/syscall_kern.c linux-2.6.23-ptmulti-ptvm/arch/um/kernel/tt/syscall_kern.c
+--- linux-2.6.23/arch/um/kernel/tt/syscall_kern.c	2007-10-09 22:31:38.000000000 +0200
++++ linux-2.6.23-ptmulti-ptvm/arch/um/kernel/tt/syscall_kern.c	2008-05-18 21:32:14.000000000 +0200
 @@ -21,16 +21,18 @@
  	void *sc;
  	long result;
@@ -312,11 +311,11 @@ diff -Naur linux-2.6.18/arch/um/kernel/tt/syscall_kern.c linux-2.6.18-ptmulti-pt
  
  	syscall_trace(&regs->regs, 1);
  }
-diff -Naur linux-2.6.18/include/linux/ptrace.h linux-2.6.18-ptmulti-ptvm/include/linux/ptrace.h
---- linux-2.6.18/include/linux/ptrace.h	2006-09-20 05:42:06.000000000 +0200
-+++ linux-2.6.18-ptmulti-ptvm/include/linux/ptrace.h	2008-05-18 19:43:53.000000000 +0200
+diff -Naur linux-2.6.23/include/linux/ptrace.h linux-2.6.23-ptmulti-ptvm/include/linux/ptrace.h
+--- linux-2.6.23/include/linux/ptrace.h	2007-10-09 22:31:38.000000000 +0200
++++ linux-2.6.23-ptmulti-ptvm/include/linux/ptrace.h	2008-05-18 21:33:55.000000000 +0200
 @@ -20,6 +20,7 @@
- #define PTRACE_DETACH		0x11
+ #define PTRACE_DETACH		  17
  
  #define PTRACE_SYSCALL		  24
 +#define PTRACE_SYSVM		  33
@@ -374,9 +373,9 @@ diff -Naur linux-2.6.18/include/linux/ptrace.h linux-2.6.18-ptmulti-ptvm/include
  extern int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned long dst, int len);
  extern int ptrace_attach(struct task_struct *tsk);
  extern int ptrace_detach(struct task_struct *, unsigned int);
-diff -Naur linux-2.6.18/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/kernel/ptrace.c
---- linux-2.6.18/kernel/ptrace.c	2006-09-20 05:42:06.000000000 +0200
-+++ linux-2.6.18-ptmulti-ptvm/kernel/ptrace.c	2008-05-18 18:53:13.000000000 +0200
+diff -Naur linux-2.6.23/kernel/ptrace.c linux-2.6.23-ptmulti-ptvm/kernel/ptrace.c
+--- linux-2.6.23/kernel/ptrace.c	2007-10-09 22:31:38.000000000 +0200
++++ linux-2.6.23-ptmulti-ptvm/kernel/ptrace.c	2008-05-18 21:17:44.000000000 +0200
 @@ -2,6 +2,7 @@
   * linux/kernel/ptrace.c
   *
@@ -385,8 +384,8 @@ diff -Naur linux-2.6.18/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/kernel/ptrace.
   *
   * Common interfaces for "ptrace()" which we do not want
   * to continually duplicate across every architecture.
-@@ -295,54 +296,90 @@
- 	return buf - old_buf;
+@@ -244,54 +245,90 @@
+ 	return 0;
  }
  
 -int ptrace_readdata(struct task_struct *tsk, unsigned long src, char __user *dst, int len)
@@ -402,7 +401,17 @@ diff -Naur linux-2.6.18/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/kernel/ptrace.
 +	struct page *page;
 +	char *buf;
 +	unsigned long old_addr = addr;
-+
+ 
+-	while (len > 0) {
+-		char buf[128];
+-		int this_len, retval;
+-
+-		this_len = (len > sizeof(buf)) ? sizeof(buf) : len;
+-		retval = access_process_vm(tsk, src, buf, this_len, 0);
+-		if (!retval) {
+-			if (copied)
+-				break;
+-			return -EIO;
 +	mm = get_task_mm(tsk);
 +	if (!mm)
 +		return 0;
@@ -413,20 +422,11 @@ diff -Naur linux-2.6.18/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/kernel/ptrace.
 +	while (len) {
 +		int bytes, ret, offset;
 +		void *maddr;
- 
--	while (len > 0) {
--		char buf[128];
--		int this_len, retval;
--
--		this_len = (len > sizeof(buf)) ? sizeof(buf) : len;
--		retval = access_process_vm(tsk, src, buf, this_len, 0);
--		if (!retval) {
--			if (copied)
++
 +		ret = get_user_pages(tsk, mm, addr, 1,
 +				write, 1, &page, &vma);
 +		if (ret <= 0)
- 				break;
--			return -EIO;
++			break;
 +
 +		bytes = len;
 +		offset = addr & (PAGE_SIZE-1);
@@ -449,6 +449,8 @@ diff -Naur linux-2.6.18/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/kernel/ptrace.
 +						break;
 +				if (offset < bytes)
 +					bytes=len=offset+1;
++			}
++			__copy_to_user(ubuf,buf,bytes);
  		}
 -		if (copy_to_user(dst, buf, retval))
 -			return -EFAULT;
@@ -456,23 +458,27 @@ diff -Naur linux-2.6.18/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/kernel/ptrace.
 -		src += retval;
 -		dst += retval;
 -		len -= retval;			
-+			__copy_to_user(ubuf,buf,bytes);
- 	}
--	return copied;
 +		kunmap(page);
 +		page_cache_release(page);
 +		len -= bytes;
 +		ubuf += bytes;
 +		addr += bytes;
- }
+ 	}
+-	return copied;
 +	up_read(&mm->mmap_sem);
 +	mmput(mm);
- 
--int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned long dst, int len)
--{
--	int copied = 0;
++
 +	kfree(buf);
 +	return addr - old_addr;
+ }
+ 
+-int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned long dst, int len)
++int ptrace_readdata(struct task_struct *tsk, unsigned long src, char __user *dst, int len)
+ {
+-	int copied = 0;
++	if (!access_ok(VERIFY_WRITE, dst ,len))
++		return -EIO;
++	return access_process_vm_user(tsk, src, dst, len, 0, 0);
 +}
  
 -	while (len > 0) {
@@ -486,24 +492,20 @@ diff -Naur linux-2.6.18/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/kernel/ptrace.
 -		if (!retval) {
 -			if (copied)
 -				break;
-+int ptrace_readdata(struct task_struct *tsk, unsigned long src, char __user *dst, int len)
-+{
-+	if (!access_ok(VERIFY_WRITE, dst ,len))
- 			return -EIO;
-+	return access_process_vm_user(tsk, src, dst, len, 0, 0);
- 		}
+-			return -EIO;
+-		}
 -		copied += retval;
 -		src += retval;
 -		dst += retval;
 -		len -= retval;			
-+
+-	}
+-	return copied;
 +int ptrace_readstringdata(struct task_struct *tsk, unsigned long src, char __user *dst, int len)
 +{
 +	if (!access_ok(VERIFY_WRITE, dst ,len))
 +		return -EIO;
 +	return access_process_vm_user(tsk, src, dst, len, 0, 1);
- 	}
--	return copied;
++}
 +
 +int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned long dst, int len)
 +{
@@ -513,7 +515,7 @@ diff -Naur linux-2.6.18/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/kernel/ptrace.
  }
  
  static int ptrace_setoptions(struct task_struct *child, long data)
-@@ -500,6 +537,53 @@
+@@ -450,6 +487,53 @@
  	return child;
  }
  
@@ -531,7 +533,7 @@ diff -Naur linux-2.6.18/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/kernel/ptrace.
 +		struct ptrace_multi __user pm ;
 +		__copy_from_user(&pm, (struct ptrace_multi __user *)addr, sizeof(struct ptrace_multi));
 +		len = pm.length;
-+		switch ( pm.request){
++		switch (pm.request) {
 +			case PTRACE_PEEKTEXT:
 +			case PTRACE_PEEKDATA:
 +			case PTRACE_PEEKUSR:
@@ -567,7 +569,7 @@ diff -Naur linux-2.6.18/kernel/ptrace.c linux-2.6.18-ptmulti-ptvm/kernel/ptrace.
  #ifndef __ARCH_SYS_PTRACE
  asmlinkage long sys_ptrace(long request, long pid, long addr, long data)
  {
-@@ -530,6 +614,9 @@
+@@ -480,6 +564,9 @@
  	if (ret < 0)
  		goto out_put_task_struct;
  

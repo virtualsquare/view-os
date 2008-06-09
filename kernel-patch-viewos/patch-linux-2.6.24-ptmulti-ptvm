@@ -1,11 +1,11 @@
 diff -Naur linux-2.6.24/arch/powerpc/kernel/entry_32.S linux-2.6.24-ptmulti-ptvm/arch/powerpc/kernel/entry_32.S
 --- linux-2.6.24/arch/powerpc/kernel/entry_32.S	2008-01-24 23:58:37.000000000 +0100
-+++ linux-2.6.24-ptmulti-ptvm/arch/powerpc/kernel/entry_32.S	2008-03-26 17:21:06.000000000 +0100
++++ linux-2.6.24-ptmulti-ptvm/arch/powerpc/kernel/entry_32.S	2008-05-18 23:28:07.000000000 +0200
 @@ -292,6 +292,7 @@
  	stw	r0,_TRAP(r1)
  	addi	r3,r1,STACK_FRAME_OVERHEAD
  	bl	do_syscall_trace_enter
-+	mr	r10,r3
++	mr      r10,r3
  	lwz	r0,GPR0(r1)	/* Restore original registers */
  	lwz	r3,GPR3(r1)
  	lwz	r4,GPR4(r1)
@@ -13,19 +13,19 @@ diff -Naur linux-2.6.24/arch/powerpc/kernel/entry_32.S linux-2.6.24-ptmulti-ptvm
  	lwz	r7,GPR7(r1)
  	lwz	r8,GPR8(r1)
  	REST_NVGPRS(r1)
-+	cmpwi	r10,0
-+	bne-	ret_from_syscall
++	cmpwi   r10,0
++	bne-    ret_from_syscall
  	b	syscall_dotrace_cont
  
  syscall_exit_work:
 diff -Naur linux-2.6.24/arch/powerpc/kernel/entry_64.S linux-2.6.24-ptmulti-ptvm/arch/powerpc/kernel/entry_64.S
 --- linux-2.6.24/arch/powerpc/kernel/entry_64.S	2008-01-24 23:58:37.000000000 +0100
-+++ linux-2.6.24-ptmulti-ptvm/arch/powerpc/kernel/entry_64.S	2008-03-26 17:22:56.000000000 +0100
++++ linux-2.6.24-ptmulti-ptvm/arch/powerpc/kernel/entry_64.S	2008-05-18 23:31:15.000000000 +0200
 @@ -203,6 +203,7 @@
  	bl	.save_nvgprs
  	addi	r3,r1,STACK_FRAME_OVERHEAD
  	bl	.do_syscall_trace_enter
-+	mr	r11,r3
++	mr      r11,r3
  	ld	r0,GPR0(r1)	/* Restore original registers */
  	ld	r3,GPR3(r1)
  	ld	r4,GPR4(r1)
@@ -33,14 +33,14 @@ diff -Naur linux-2.6.24/arch/powerpc/kernel/entry_64.S linux-2.6.24-ptmulti-ptvm
  	addi	r9,r1,STACK_FRAME_OVERHEAD
  	clrrdi	r10,r1,THREAD_SHIFT
  	ld	r10,TI_FLAGS(r10)
-+	cmpwi	r11,0
-+	bne-	syscall_exit
++	cmpwi   r11,0
++	bne-    syscall_exit
  	b	syscall_dotrace_cont
  
  syscall_enosys:
 diff -Naur linux-2.6.24/arch/powerpc/kernel/ptrace.c linux-2.6.24-ptmulti-ptvm/arch/powerpc/kernel/ptrace.c
 --- linux-2.6.24/arch/powerpc/kernel/ptrace.c	2008-01-24 23:58:37.000000000 +0100
-+++ linux-2.6.24-ptmulti-ptvm/arch/powerpc/kernel/ptrace.c	2008-04-02 18:56:47.000000000 +0200
++++ linux-2.6.24-ptmulti-ptvm/arch/powerpc/kernel/ptrace.c	2008-05-18 23:35:26.000000000 +0200
 @@ -445,15 +445,28 @@
  		break;
  	}
@@ -101,12 +101,12 @@ diff -Naur linux-2.6.24/arch/powerpc/kernel/ptrace.c linux-2.6.24-ptmulti-ptvm/a
  }
 diff -Naur linux-2.6.24/arch/ppc/kernel/entry.S linux-2.6.24-ptmulti-ptvm/arch/ppc/kernel/entry.S
 --- linux-2.6.24/arch/ppc/kernel/entry.S	2008-01-24 23:58:37.000000000 +0100
-+++ linux-2.6.24-ptmulti-ptvm/arch/ppc/kernel/entry.S	2008-03-26 17:43:14.000000000 +0100
++++ linux-2.6.24-ptmulti-ptvm/arch/ppc/kernel/entry.S	2008-05-18 23:36:19.000000000 +0200
 @@ -292,6 +292,7 @@
  	stw	r0,TRAP(r1)
  	addi	r3,r1,STACK_FRAME_OVERHEAD
  	bl	do_syscall_trace_enter
-+	mr	r10,r3
++	mr      r10,r3
  	lwz	r0,GPR0(r1)	/* Restore original registers */
  	lwz	r3,GPR3(r1)
  	lwz	r4,GPR4(r1)
@@ -114,14 +114,14 @@ diff -Naur linux-2.6.24/arch/ppc/kernel/entry.S linux-2.6.24-ptmulti-ptvm/arch/p
  	lwz	r7,GPR7(r1)
  	lwz	r8,GPR8(r1)
  	REST_NVGPRS(r1)
-+	cmpwi	r10,0
-+	bne-	ret_from_syscall
++	cmpwi   r10,0
++	bne-    ret_from_syscall
  	b	syscall_dotrace_cont
  
  syscall_exit_work:
 diff -Naur linux-2.6.24/arch/um/include/kern_util.h linux-2.6.24-ptmulti-ptvm/arch/um/include/kern_util.h
 --- linux-2.6.24/arch/um/include/kern_util.h	2008-01-24 23:58:37.000000000 +0100
-+++ linux-2.6.24-ptmulti-ptvm/arch/um/include/kern_util.h	2008-03-26 17:47:21.000000000 +0100
++++ linux-2.6.24-ptmulti-ptvm/arch/um/include/kern_util.h	2008-05-18 23:37:04.000000000 +0200
 @@ -63,7 +63,7 @@
  extern void paging_init(void);
  extern void init_flush_vm(void);
@@ -133,7 +133,7 @@ diff -Naur linux-2.6.24/arch/um/include/kern_util.h linux-2.6.24-ptmulti-ptvm/ar
  extern void initial_thread_cb(void (*proc)(void *), void *arg);
 diff -Naur linux-2.6.24/arch/um/kernel/ptrace.c linux-2.6.24-ptmulti-ptvm/arch/um/kernel/ptrace.c
 --- linux-2.6.24/arch/um/kernel/ptrace.c	2008-01-24 23:58:37.000000000 +0100
-+++ linux-2.6.24-ptmulti-ptvm/arch/um/kernel/ptrace.c	2008-03-26 17:56:32.000000000 +0100
++++ linux-2.6.24-ptmulti-ptvm/arch/um/kernel/ptrace.c	2008-05-19 00:02:43.000000000 +0200
 @@ -64,6 +64,12 @@
  		ret = poke_user(child, addr, data);
  		break;
@@ -153,9 +153,9 @@ diff -Naur linux-2.6.24/arch/um/kernel/ptrace.c linux-2.6.24-ptmulti-ptvm/arch/u
  		set_singlestepping(child, 0);
 -		if (request == PTRACE_SYSCALL)
 +		child->ptrace &= ~PT_VM_MASK;
-+		if (request == PTRACE_CONT) {
++		if (request == PTRACE_CONT)
 +			clear_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
-+		} else {
++		else {
  			set_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
 -		else clear_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
 +			if (request == PTRACE_SYSVM) {
@@ -163,7 +163,7 @@ diff -Naur linux-2.6.24/arch/um/kernel/ptrace.c linux-2.6.24-ptmulti-ptvm/arch/u
 +				 * one operation */
 +				child->ptrace |= (addr & PTRACE_VM_MASK) << 28;
 +			} 
-+ 		}
++		}
  		child->exit_code = data;
  		wake_up_process(child);
  		ret = 0;
@@ -203,7 +203,7 @@ diff -Naur linux-2.6.24/arch/um/kernel/ptrace.c linux-2.6.24-ptmulti-ptvm/arch/u
  }
 diff -Naur linux-2.6.24/arch/um/kernel/skas/syscall.c linux-2.6.24-ptmulti-ptvm/arch/um/kernel/skas/syscall.c
 --- linux-2.6.24/arch/um/kernel/skas/syscall.c	2008-01-24 23:58:37.000000000 +0100
-+++ linux-2.6.24-ptmulti-ptvm/arch/um/kernel/skas/syscall.c	2008-04-02 19:32:06.000000000 +0200
++++ linux-2.6.24-ptmulti-ptvm/arch/um/kernel/skas/syscall.c	2008-05-18 23:42:27.000000000 +0200
 @@ -14,8 +14,9 @@
  	struct pt_regs *regs = container_of(r, struct pt_regs, regs);
  	long result;
@@ -219,7 +219,7 @@ diff -Naur linux-2.6.24/arch/um/kernel/skas/syscall.c linux-2.6.24-ptmulti-ptvm/
  	 *     gcc version 4.0.1 20050727 (Red Hat 4.0.1-5)
  	 * in case it's a compiler bug.
  	 */
-+	if (skip_call == 0) {
++	if (skip_call==0) {
  	syscall = UPT_SYSCALL_NR(r);
  	if ((syscall >= NR_syscalls) || (syscall < 0))
  		result = -ENOSYS;
@@ -232,7 +232,7 @@ diff -Naur linux-2.6.24/arch/um/kernel/skas/syscall.c linux-2.6.24-ptmulti-ptvm/
  }
 diff -Naur linux-2.6.24/arch/x86/kernel/ptrace_32.c linux-2.6.24-ptmulti-ptvm/arch/x86/kernel/ptrace_32.c
 --- linux-2.6.24/arch/x86/kernel/ptrace_32.c	2008-01-24 23:58:37.000000000 +0100
-+++ linux-2.6.24-ptmulti-ptvm/arch/x86/kernel/ptrace_32.c	2008-04-02 19:08:54.000000000 +0200
++++ linux-2.6.24-ptmulti-ptvm/arch/x86/kernel/ptrace_32.c	2008-05-18 23:24:04.000000000 +0200
 @@ -467,15 +467,26 @@
  		  }
  		  break;
@@ -281,7 +281,7 @@ diff -Naur linux-2.6.24/arch/x86/kernel/ptrace_32.c linux-2.6.24-ptmulti-ptvm/ar
  		audit_syscall_entry(AUDIT_ARCH_I386, regs->orig_eax,
 diff -Naur linux-2.6.24/include/linux/ptrace.h linux-2.6.24-ptmulti-ptvm/include/linux/ptrace.h
 --- linux-2.6.24/include/linux/ptrace.h	2008-01-24 23:58:37.000000000 +0100
-+++ linux-2.6.24-ptmulti-ptvm/include/linux/ptrace.h	2008-04-02 19:41:08.000000000 +0200
++++ linux-2.6.24-ptmulti-ptvm/include/linux/ptrace.h	2008-05-18 23:45:22.000000000 +0200
 @@ -20,6 +20,7 @@
  #define PTRACE_DETACH		  17
  
@@ -290,7 +290,7 @@ diff -Naur linux-2.6.24/include/linux/ptrace.h linux-2.6.24-ptmulti-ptvm/include
  
  /* 0x4200-0x4300 are reserved for architecture-independent additions.  */
  #define PTRACE_SETOPTIONS	0x4200
-@@ -27,6 +28,22 @@
+@@ -27,6 +28,18 @@
  #define PTRACE_GETSIGINFO	0x4202
  #define PTRACE_SETSIGINFO	0x4203
  
@@ -298,10 +298,6 @@ diff -Naur linux-2.6.24/include/linux/ptrace.h linux-2.6.24-ptmulti-ptvm/include
 +#define PTRACE_PEEKCHARDATA     0x4301
 +#define PTRACE_POKECHARDATA     0x4302
 +#define PTRACE_PEEKSTRINGDATA   0x4303
-+
-+#ifdef CONFIG_VIEWOS
-+#define PTRACE_VIEWOS		0x4000
-+#endif
 +
 +struct ptrace_multi {
 +	long request;
@@ -313,7 +309,7 @@ diff -Naur linux-2.6.24/include/linux/ptrace.h linux-2.6.24-ptmulti-ptvm/include
  /* options set using PTRACE_SETOPTIONS */
  #define PTRACE_O_TRACESYSGOOD	0x00000001
  #define PTRACE_O_TRACEFORK	0x00000002
-@@ -46,6 +63,18 @@
+@@ -46,6 +59,12 @@
  #define PTRACE_EVENT_VFORK_DONE	5
  #define PTRACE_EVENT_EXIT	6
  
@@ -323,27 +319,21 @@ diff -Naur linux-2.6.24/include/linux/ptrace.h linux-2.6.24-ptmulti-ptvm/include
 +#define PTRACE_VM_SKIPEXIT	2
 +#define PTRACE_VM_MASK		0x00000003
 +
-+#ifdef CONFIG_VIEWOS
-+/* options fpr PTRACE_VIEWOS */
-+#define PT_VIEWOS_TEST		0x80000000
-+#define PT_VIEWOS_MASK		0x00000000
-+#endif
-+
  #include <asm/ptrace.h>
  
  #ifdef __KERNEL__
-@@ -69,6 +98,10 @@
+@@ -69,6 +88,10 @@
  #define PT_TRACE_EXIT	0x00000200
  #define PT_ATTACHED	0x00000400	/* parent != real_parent */
  
-+#define PT_VM_SKIPCALL  0x10000000
-+#define PT_VM_SKIPEXIT  0x20000000
-+#define PT_VM_MASK      0x30000000
++#define PT_VM_SKIPCALL	0x10000000
++#define PT_VM_SKIPEXIT	0x20000000
++#define PT_VM_MASK	0x30000000
 +
  #define PT_TRACE_MASK	0x000003f4
  
  /* single stepping state bits (used on ARM and PA-RISC) */
-@@ -85,6 +118,7 @@
+@@ -85,6 +108,7 @@
  extern struct task_struct *ptrace_get_task_struct(pid_t pid);
  extern int ptrace_traceme(void);
  extern int ptrace_readdata(struct task_struct *tsk, unsigned long src, char __user *dst, int len);
@@ -351,26 +341,9 @@ diff -Naur linux-2.6.24/include/linux/ptrace.h linux-2.6.24-ptmulti-ptvm/include
  extern int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned long dst, int len);
  extern int ptrace_attach(struct task_struct *tsk);
  extern int ptrace_detach(struct task_struct *, unsigned int);
-diff -Naur linux-2.6.24/init/Kconfig linux-2.6.24-ptmulti-ptvm/init/Kconfig
---- linux-2.6.24/init/Kconfig	2008-01-24 23:58:37.000000000 +0100
-+++ linux-2.6.24-ptmulti-ptvm/init/Kconfig	2008-04-02 20:29:06.000000000 +0200
-@@ -415,6 +415,13 @@
- 
- if BLK_DEV_INITRD
- 
-+config VIEWOS
-+	bool "ViewOS Support (EXPERIMENTAL)"
-+	help
-+	  This option will enable kernel support for ViewOS partial virtualization.
-+
-+	  Say N if unsure.
-+
- source "usr/Kconfig"
- 
- endif
 diff -Naur linux-2.6.24/kernel/ptrace.c linux-2.6.24-ptmulti-ptvm/kernel/ptrace.c
 --- linux-2.6.24/kernel/ptrace.c	2008-01-24 23:58:37.000000000 +0100
-+++ linux-2.6.24-ptmulti-ptvm/kernel/ptrace.c	2008-03-26 18:53:09.000000000 +0100
++++ linux-2.6.24-ptmulti-ptvm/kernel/ptrace.c	2008-05-18 23:20:53.000000000 +0200
 @@ -2,6 +2,7 @@
   * linux/kernel/ptrace.c
   *
@@ -574,14 +547,3 @@ diff -Naur linux-2.6.24/kernel/ptrace.c linux-2.6.24-ptmulti-ptvm/kernel/ptrace.
  	ret = arch_ptrace(child, request, addr, data);
  	if (ret < 0)
  		goto out_put_task_struct;
-@@ -506,6 +593,10 @@
- }
- #endif /* __ARCH_SYS_PTRACE */
- 
-+#ifdef CONFIG_VIEWOS
-+#warning VIEWOS support not implemented yet
-+#endif
-+
- int generic_ptrace_peekdata(struct task_struct *tsk, long addr, long data)
- {
- 	unsigned long tmp;
