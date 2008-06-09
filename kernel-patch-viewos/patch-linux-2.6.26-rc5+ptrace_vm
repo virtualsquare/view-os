@@ -609,7 +609,7 @@ diff -Naur linux-2.6.26-rc5/include/linux/ptrace.h linux-2.6.26-rc5-ptrace_vm/in
  #define PT_TRACE_VFORK_DONE	0x00000100
  #define PT_TRACE_EXIT	0x00000200
  
-+#define PT_SYSCALL_SKIPEXIT  0x20000000
++#define PT_SYSCALL_SKIPEXIT  0x60000000
 +#define PT_SYSCALL_SKIPCALL  0x40000000
 +#define PT_SYSCALL_MASK      0x60000000
 +
