@@ -1,0 +1,66 @@
+
+LWIPV6a - Light weight IP v 6 A
+===============================
+
+LWIPV6a has been completely rewritten, it is based on LWIPv.1.1.0 
+(by Adam Dunkels).
+
+LWIPV6a includes also the management of PF_PACKET (e.g. ethereal and
+DHCP user level management).
+
+Copyright 2004 Renzo Davoli University of Bologna - Italy
+
+
+Features
+========
+
+ * "Phisical" Layer
+    o Virtual interfaces: TUNTAP driver support, VDE driver support.
+    o ARP support
+ * Network Layer
+    o Forwarding over interfaces (IPv4 and IPv6)
+    o Packet fragmentation (IPv4 and IPv6)
+    o NAT support (IPv4 and IPv6)
+    o IPv6: Stateless Address Autoconfiguration, Router Advertising support
+ * Transport Layer
+    o TCP: congestion control, RTT estimation, fast recovery/fast retransmit.
+    o UDP
+ * Berkeley Socket API
+    o Protocol family: PF_INET, PF_INET6, PF_PACKET, PF_NETLINK (partially)
+    o Socket type: SOCK_STREAM, SOCK_DGRAM, SOCK_RAW.
+
+
+License
+=======
+
+The TCP-IP stack is based on lwip by Adam Dunkels <adam@sics.se> 
+	(see README.LICENSE)
+
+*    This program is free software; you can redistribute it and/or modify
+*    it under the terms of the GNU General Public License as published by
+*    the Free Software Foundation; either version 2 of the License, or
+*    (at your option) any later version.
+*
+*    This program is distributed in the hope that it will be useful,
+*    but WITHOUT ANY WARRANTY; without even the implied warranty of
+*    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*    GNU General Public License for more details.
+*
+*    You should have received a copy of the GNU General Public License along
+*    with this program; if not, write to the Free Software Foundation, Inc.,
+*    51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+
+Use LwIPv6a with View-OS project
+================================
+
+The lwipv6.so module is ready to be used by um-viewos.
+
+An example of configuration script follows:
+-----------------------------------
+ip addr add 192.168.0.22/24 dev vd0
+ip addr add 2001:760:202:f000::ff/64 dev vd0
+ip route add default via 192.168.0.254
+ip -f inet6 route add default via 2001:760:202:f000::1
+ip link set vd0 up
+-----------------------------------
