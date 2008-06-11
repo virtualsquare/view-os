@@ -91,6 +91,7 @@ LWIPHEADERS = $(LWIPDIR)/include/lwip/arch.h \
               $(LWIPDIR)/include/lwip/native_syscalls.h \
               $(LWIPDIR)/include/lwip/snmp.h \
               $(LWIPDIR)/include/lwip/arphdr.h \
+              $(LWIPDIR)/include/lwip/stack.h \
               $(LWIPDIR)/include/ipv6/lwip/ip.h \
               $(LWIPDIR)/include/ipv6/lwip/ip_addr.h \
               $(LWIPDIR)/include/ipv6/lwip/ip_autoconf.h \

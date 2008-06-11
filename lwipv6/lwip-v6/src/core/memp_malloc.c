@@ -56,7 +56,7 @@
  *      These functions MUST be thread safe.
  */
 
-static const u16_t memp_sizes[MEMP_MAX] = {
+static const u32_t memp_sizes[MEMP_MAX] = {
   sizeof(struct pbuf),
   sizeof(struct raw_pcb),
   sizeof(struct udp_pcb),

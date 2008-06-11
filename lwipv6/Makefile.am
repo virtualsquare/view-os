@@ -1,4 +1,4 @@
-EXTRA_DIST = README.LICENSE
+EXTRA_DIST = README.LICENSE LWIPv6_Programming_Guide
 
 SUBDIRS = lwip-contrib/ports/unix/proj/lib
 
