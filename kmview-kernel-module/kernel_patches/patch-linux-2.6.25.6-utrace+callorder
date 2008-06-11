@@ -1,0 +1,532 @@
+diff -Naur linux-2.6.25.6-utrace/arch/powerpc/kernel/entry_32.S linux-2.6.25.6-utrace-callorder/arch/powerpc/kernel/entry_32.S
+--- linux-2.6.25.6-utrace/arch/powerpc/kernel/entry_32.S	2008-06-11 15:39:02.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/arch/powerpc/kernel/entry_32.S	2008-06-11 22:50:08.000000000 +0200
+@@ -292,6 +292,7 @@
+ 	stw	r0,_TRAP(r1)
+ 	addi	r3,r1,STACK_FRAME_OVERHEAD
+ 	bl	do_syscall_trace_enter
++	mr  r10,r3
+ 	lwz	r0,GPR0(r1)	/* Restore original registers */
+ 	lwz	r3,GPR3(r1)
+ 	lwz	r4,GPR4(r1)
+@@ -300,6 +301,8 @@
+ 	lwz	r7,GPR7(r1)
+ 	lwz	r8,GPR8(r1)
+ 	REST_NVGPRS(r1)
++	cmpwi r10,0
++	bne-  ret_from_syscall
+ 	b	syscall_dotrace_cont
+ 
+ syscall_exit_work:
+diff -Naur linux-2.6.25.6-utrace/arch/powerpc/kernel/entry_64.S linux-2.6.25.6-utrace-callorder/arch/powerpc/kernel/entry_64.S
+--- linux-2.6.25.6-utrace/arch/powerpc/kernel/entry_64.S	2008-06-11 15:15:37.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/arch/powerpc/kernel/entry_64.S	2008-06-11 22:50:08.000000000 +0200
+@@ -203,6 +203,7 @@
+ 	bl	.save_nvgprs
+ 	addi	r3,r1,STACK_FRAME_OVERHEAD
+ 	bl	.do_syscall_trace_enter
++	mr  r11,r3
+ 	ld	r0,GPR0(r1)	/* Restore original registers */
+ 	ld	r3,GPR3(r1)
+ 	ld	r4,GPR4(r1)
+@@ -213,6 +214,8 @@
+ 	addi	r9,r1,STACK_FRAME_OVERHEAD
+ 	clrrdi	r10,r1,THREAD_SHIFT
+ 	ld	r10,TI_FLAGS(r10)
++	cmpwi r11,0
++	bne-  syscall_exit
+ 	b	syscall_dotrace_cont
+ 
+ syscall_enosys:
+diff -Naur linux-2.6.25.6-utrace/arch/powerpc/kernel/ptrace.c linux-2.6.25.6-utrace-callorder/arch/powerpc/kernel/ptrace.c
+--- linux-2.6.25.6-utrace/arch/powerpc/kernel/ptrace.c	2008-06-11 15:39:02.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/arch/powerpc/kernel/ptrace.c	2008-06-11 22:50:08.000000000 +0200
+@@ -851,7 +851,7 @@
+ 	return ret;
+ }
+ 
+-void do_syscall_trace_enter(struct pt_regs *regs)
++long do_syscall_trace_enter(struct pt_regs *regs)
+ {
+ 	secure_computing(regs->gpr[0]);
+ 
+@@ -874,6 +874,7 @@
+ 					    regs->gpr[5] & 0xffffffff,
+ 					    regs->gpr[6] & 0xffffffff);
+ 	}
++	return 0;
+ }
+ 
+ void do_syscall_trace_leave(struct pt_regs *regs)
+diff -Naur linux-2.6.25.6-utrace/arch/um/include/kern_util.h linux-2.6.25.6-utrace-callorder/arch/um/include/kern_util.h
+--- linux-2.6.25.6-utrace/arch/um/include/kern_util.h	2008-06-11 15:15:38.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/arch/um/include/kern_util.h	2008-06-11 22:50:08.000000000 +0200
+@@ -57,7 +57,7 @@
+ extern unsigned long to_irq_stack(unsigned long *mask_out);
+ extern unsigned long from_irq_stack(int nested);
+ 
+-extern void syscall_trace(struct uml_pt_regs *regs, int entryexit);
++extern int syscall_trace(struct uml_pt_regs *regs, int entryexit);
+ extern int singlestepping(void *t);
+ 
+ extern void segv_handler(int sig, struct uml_pt_regs *regs);
+diff -Naur linux-2.6.25.6-utrace/arch/um/kernel/ptrace.c linux-2.6.25.6-utrace-callorder/arch/um/kernel/ptrace.c
+--- linux-2.6.25.6-utrace/arch/um/kernel/ptrace.c	2008-06-11 15:39:02.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/arch/um/kernel/ptrace.c	2008-06-11 22:50:08.000000000 +0200
+@@ -245,8 +245,9 @@
+ /*
+  * XXX Check PT_DTRACE vs TIF_SINGLESTEP for singlestepping check and
+  * PT_PTRACED vs TIF_SYSCALL_TRACE for syscall tracing check
++ * XXX dummy return value if 1 it skips the syscall
+  */
+-void syscall_trace(struct uml_pt_regs *regs, int entryexit)
++int syscall_trace(struct uml_pt_regs *regs, int entryexit)
+ {
+ 	int is_singlestep = (current->ptrace & PT_DTRACE) && entryexit;
+ 	int tracesysgood;
+@@ -292,4 +293,5 @@
+ 		send_sig(current->exit_code, current, 1);
+ 		current->exit_code = 0;
+ 	}
++	return 0;
+ }
+diff -Naur linux-2.6.25.6-utrace/arch/um/kernel/skas/syscall.c linux-2.6.25.6-utrace-callorder/arch/um/kernel/skas/syscall.c
+--- linux-2.6.25.6-utrace/arch/um/kernel/skas/syscall.c	2008-06-11 15:15:38.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/arch/um/kernel/skas/syscall.c	2008-06-11 22:50:08.000000000 +0200
+@@ -17,8 +17,9 @@
+ 	struct pt_regs *regs = container_of(r, struct pt_regs, regs);
+ 	long result;
+ 	int syscall;
++	int skip_call;
+ 
+-	syscall_trace(r, 0);
++	skip_call=syscall_trace(r, 0);
+ 
+ 	/*
+ 	 * This should go in the declaration of syscall, but when I do that,
+@@ -29,12 +30,13 @@
+ 	 *     gcc version 4.0.1 20050727 (Red Hat 4.0.1-5)
+ 	 * in case it's a compiler bug.
+ 	 */
+-	syscall = UPT_SYSCALL_NR(r);
+-	if ((syscall >= NR_syscalls) || (syscall < 0))
+-		result = -ENOSYS;
+-	else result = EXECUTE_SYSCALL(syscall, regs);
+-
+-	REGS_SET_SYSCALL_RETURN(r->gp, result);
++	if (skip_call == 0) {
++		syscall = UPT_SYSCALL_NR(r);
++		if ((syscall >= NR_syscalls) || (syscall < 0))
++			result = -ENOSYS;
++		else result = EXECUTE_SYSCALL(syscall, regs);
++		REGS_SET_SYSCALL_RETURN(r->gp, result);
++	}
+ 
+ 	syscall_trace(r, 1);
+ }
+diff -Naur linux-2.6.25.6-utrace/arch/x86/kernel/entry_32.S linux-2.6.25.6-utrace-callorder/arch/x86/kernel/entry_32.S
+--- linux-2.6.25.6-utrace/arch/x86/kernel/entry_32.S	2008-06-11 15:15:38.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/arch/x86/kernel/entry_32.S	2008-06-11 22:50:08.000000000 +0200
+@@ -333,7 +333,7 @@
+ 	GET_THREAD_INFO(%ebp)
+ 
+ 	/* Note, _TIF_SECCOMP is bit number 8, and so it needs testw and not testb */
+-	testw $(_TIF_SYSCALL_EMU|_TIF_SYSCALL_TRACE|_TIF_SECCOMP|_TIF_SYSCALL_AUDIT),TI_flags(%ebp)
++	testw $(_TIF_SYSCALL_TRACE|_TIF_SECCOMP|_TIF_SYSCALL_AUDIT),TI_flags(%ebp)
+ 	jnz syscall_trace_entry
+ 	cmpl $(nr_syscalls), %eax
+ 	jae syscall_badsys
+@@ -371,7 +371,7 @@
+ 	GET_THREAD_INFO(%ebp)
+ 					# system call tracing in operation / emulation
+ 	/* Note, _TIF_SECCOMP is bit number 8, and so it needs testw and not testb */
+-	testw $(_TIF_SYSCALL_EMU|_TIF_SYSCALL_TRACE|_TIF_SECCOMP|_TIF_SYSCALL_AUDIT),TI_flags(%ebp)
++	testw $(_TIF_SYSCALL_TRACE|_TIF_SECCOMP|_TIF_SYSCALL_AUDIT),TI_flags(%ebp)
+ 	jnz syscall_trace_entry
+ 	cmpl $(nr_syscalls), %eax
+ 	jae syscall_badsys
+diff -Naur linux-2.6.25.6-utrace/arch/x86/kernel/ptrace.c linux-2.6.25.6-utrace-callorder/arch/x86/kernel/ptrace.c
+--- linux-2.6.25.6-utrace/arch/x86/kernel/ptrace.c	2008-06-11 15:39:02.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/arch/x86/kernel/ptrace.c	2008-06-11 22:50:08.000000000 +0200
+@@ -850,9 +850,6 @@
+ void ptrace_disable(struct task_struct *child)
+ {
+ 	user_disable_single_step(child);
+-#ifdef TIF_SYSCALL_EMU
+-	clear_tsk_thread_flag(child, TIF_SYSCALL_EMU);
+-#endif
+ 	if (child->thread.ds_area_msr) {
+ #ifdef X86_BTS
+ 		ptrace_bts_realloc(child, 0, 0);
+@@ -1385,13 +1382,7 @@
+ __attribute__((regparm(3)))
+ int do_syscall_trace(struct pt_regs *regs, int entryexit)
+ {
+-	int is_sysemu = test_thread_flag(TIF_SYSCALL_EMU);
+-	/*
+-	 * With TIF_SYSCALL_EMU set we want to ignore TIF_SINGLESTEP for syscall
+-	 * interception
+-	 */
+-	int is_singlestep = !is_sysemu && test_thread_flag(TIF_SINGLESTEP);
+-	int ret = 0;
++	int is_singlestep = test_thread_flag(TIF_SINGLESTEP);
+ 
+ 	/* do the secure computing check first */
+ 	if (!entryexit)
+@@ -1418,42 +1409,33 @@
+ 	if (!tracehook_consider_fatal_signal(current, SIGTRAP, SIG_DFL))
+ 		goto out;
+ 
+-	/* If a process stops on the 1st tracepoint with SYSCALL_TRACE
+-	 * and then is resumed with SYSEMU_SINGLESTEP, it will come in
+-	 * here. We have to check this and return */
+-	if (is_sysemu && entryexit)
+-		return 0;
+-
+ 	/* Fake a debug trap */
+ 	if (is_singlestep)
+ 		send_sigtrap(current, regs, 0);
+ 
+- 	if (!test_thread_flag(TIF_SYSCALL_TRACE) && !is_sysemu)
+-		goto out;
+-
+ 	if (!entryexit)
+ 		tracehook_report_syscall_entry(regs);
+ 	else
+ 		tracehook_report_syscall_exit(regs, 0);
+ 
+-	ret = is_sysemu;
+ out:
+ 	if (unlikely(current->audit_context) && !entryexit)
+ 		audit_syscall_entry(AUDIT_ARCH_I386, regs->orig_ax,
+ 				    regs->bx, regs->cx, regs->dx, regs->si);
+-	if (ret == 0)
++	if (!entryexit && regs->orig_ax == -1) {
++		if (unlikely(current->audit_context))
++			audit_syscall_exit(AUDITSC_RESULT(regs->ax), regs->ax);
++	  tracehook_report_syscall_exit(regs, 0);
++		return 1;
++	} else
+ 		return 0;
+-
+-	regs->orig_ax = -1; /* force skip of syscall restarting */
+-	if (unlikely(current->audit_context))
+-		audit_syscall_exit(AUDITSC_RESULT(regs->ax), regs->ax);
+-	return 1;
+ }
+ 
+ #else  /* CONFIG_X86_64 */
+ 
+-asmlinkage void syscall_trace_enter(struct pt_regs *regs)
++asmlinkage long syscall_trace_enter(struct pt_regs *regs)
+ {
++	int ret=0;
+ 	/* do the secure computing check first */
+ 	secure_computing(regs->orig_ax);
+ 
+@@ -1473,6 +1455,14 @@
+ 					    regs->dx, regs->r10);
+ 		}
+ 	}
++	if (regs->orig_ax == -1) {
++		if (unlikely(current->audit_context))
++			audit_syscall_exit(AUDITSC_RESULT(regs->ax), regs->ax);
++		if (test_thread_flag(TIF_SYSCALL_TRACE))
++			tracehook_report_syscall_exit(regs,0);
++		return 1;
++	}
++	return 0;
+ }
+ 
+ asmlinkage void syscall_trace_leave(struct pt_regs *regs)
+diff -Naur linux-2.6.25.6-utrace/include/asm-x86/ptrace.h linux-2.6.25.6-utrace-callorder/include/asm-x86/ptrace.h
+--- linux-2.6.25.6-utrace/include/asm-x86/ptrace.h	2008-06-11 15:39:02.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/include/asm-x86/ptrace.h	2008-06-11 22:50:10.000000000 +0200
+@@ -127,6 +127,9 @@
+ 
+ #ifdef __KERNEL__
+ 
++#define ARCH_SET_SYSCALL_NO(REGS,V) ((REGS)->orig_ax = (V))
++#define ARCH_GET_SYSCALL_NO(REGS) ((REGS)->orig_ax)
++
+ /* the DS BTS struct is used for ptrace as well */
+ #include <asm/ds.h>
+ 
+diff -Naur linux-2.6.25.6-utrace/include/asm-x86/thread_info_32.h linux-2.6.25.6-utrace-callorder/include/asm-x86/thread_info_32.h
+--- linux-2.6.25.6-utrace/include/asm-x86/thread_info_32.h	2008-06-11 15:39:02.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/include/asm-x86/thread_info_32.h	2008-06-11 22:50:10.000000000 +0200
+@@ -128,7 +128,6 @@
+ #define TIF_NEED_RESCHED	2	/* rescheduling necessary */
+ #define TIF_SINGLESTEP		3	/* restore singlestep on return to user mode */
+ #define TIF_IRET		4	/* return with iret */
+-#define TIF_SYSCALL_EMU		5	/* syscall emulation active */
+ #define TIF_SYSCALL_AUDIT	6	/* syscall auditing active */
+ #define TIF_SECCOMP		7	/* secure computing */
+ #define TIF_HRTICK_RESCHED	9	/* reprogram hrtick timer */
+@@ -147,7 +146,6 @@
+ #define _TIF_NEED_RESCHED	(1<<TIF_NEED_RESCHED)
+ #define _TIF_SINGLESTEP		(1<<TIF_SINGLESTEP)
+ #define _TIF_IRET		(1<<TIF_IRET)
+-#define _TIF_SYSCALL_EMU	(1<<TIF_SYSCALL_EMU)
+ #define _TIF_SYSCALL_AUDIT	(1<<TIF_SYSCALL_AUDIT)
+ #define _TIF_SECCOMP		(1<<TIF_SECCOMP)
+ #define _TIF_HRTICK_RESCHED	(1<<TIF_HRTICK_RESCHED)
+@@ -163,7 +161,7 @@
+ /* work to do on interrupt/exception return */
+ #define _TIF_WORK_MASK \
+   (0x0000FFFF & ~(_TIF_SYSCALL_TRACE | _TIF_SYSCALL_AUDIT | \
+-		  _TIF_SECCOMP | _TIF_SYSCALL_EMU))
++		  _TIF_SECCOMP))
+ /* work to do on any return to u-space */
+ #define _TIF_ALLWORK_MASK	(0x0000FFFF & ~_TIF_SECCOMP)
+ 
+diff -Naur linux-2.6.25.6-utrace/include/linux/list.h linux-2.6.25.6-utrace-callorder/include/linux/list.h
+--- linux-2.6.25.6-utrace/include/linux/list.h	2008-06-11 15:15:48.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/include/linux/list.h	2008-06-11 22:50:10.000000000 +0200
+@@ -658,6 +658,24 @@
+ 		pos = n)
+ 
+ /**
++ * list_for_each_safe_rcu_reverse
++ * @pos: the &struct list_head to use as a loop cursor.
++ * @n:   another &struct list_head to use as temporary storage
++ * @head:  the head for your list.
++ *
++ * Iterate backwards over an rcu-protected list, safe against removal of 
++ * list entry.
++ *
++ * This list-traversal primitive may safely run concurrently with
++ * the _rcu list-mutation primitives such as list_add_rcu()
++ * as long as the traversal is guarded by rcu_read_lock().
++ */
++#define list_for_each_safe_rcu_reverse(pos, n, head) \
++	for (pos = (head)->prev; \
++			n = rcu_dereference(pos)->prev, pos != (head); \
++			pos = n)
++		
++/**
+  * list_for_each_entry_rcu	-	iterate over rcu list of given type
+  * @pos:	the type * to use as a loop cursor.
+  * @head:	the head for your list.
+diff -Naur linux-2.6.25.6-utrace/include/linux/utrace.h linux-2.6.25.6-utrace-callorder/include/linux/utrace.h
+--- linux-2.6.25.6-utrace/include/linux/utrace.h	2008-06-11 15:39:02.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/include/linux/utrace.h	2008-06-11 22:50:10.000000000 +0200
+@@ -197,6 +197,7 @@
+ 	struct list_head entry;	/* Entry on thread's utrace.engines list.  */
+ 	struct rcu_head rhead;
+ 	atomic_t check_dead;
++	long saved_scno;
+ 
+ /* public: */
+ 	const struct utrace_engine_ops *ops;
+diff -Naur linux-2.6.25.6-utrace/kernel/fork.c linux-2.6.25.6-utrace-callorder/kernel/fork.c
+--- linux-2.6.25.6-utrace/kernel/fork.c	2008-06-11 15:39:02.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/kernel/fork.c	2008-06-11 22:50:11.000000000 +0200
+@@ -1239,9 +1239,6 @@
+ 	 * of CLONE_PTRACE.
+ 	 */
+ 	clear_tsk_thread_flag(p, TIF_SYSCALL_TRACE);
+-#ifdef TIF_SYSCALL_EMU
+-	clear_tsk_thread_flag(p, TIF_SYSCALL_EMU);
+-#endif
+ 	clear_all_latency_tracing(p);
+ 
+ 	/* Our parent execution domain becomes current domain
+diff -Naur linux-2.6.25.6-utrace/kernel/ptrace.c linux-2.6.25.6-utrace-callorder/kernel/ptrace.c
+--- linux-2.6.25.6-utrace/kernel/ptrace.c	2008-06-11 15:39:02.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/kernel/ptrace.c	2008-06-11 22:50:11.000000000 +0200
+@@ -104,10 +104,11 @@
+ 	u8 options;		/* PTRACE_SETOPTIONS bits.  */
+ 	unsigned int syscall:1;	/* Reporting for syscall.  */
+ #ifdef PTRACE_SYSEMU
+-	unsigned int sysemu:1;	/* PTRACE_SYSEMU in progress. */
++	unsigned int sysemu:1;  /* PTRACE_SYSEMU in progress. */
+ #endif
+ 	unsigned int have_eventmsg:1; /* u.eventmsg valid. */
+ 	unsigned int cap_sys_ptrace:1; /* Tracer capable.  */
++	struct pt_regs *regs;
+ 
+ 	union
+ 	{
+@@ -152,6 +153,9 @@
+ 	state->engine = engine;
+ 	state->options = options;
+ 	state->cap_sys_ptrace = cap_sys_ptrace;
++#ifdef PTRACE_SYSEMU
++	state->sysemu = 0;
++#endif
+ 
+ 	rcu_read_lock();
+ 
+@@ -1484,43 +1488,16 @@
+ 		      int entry)
+ {
+ 	struct ptrace_state *state = get_ptrace_state(engine, tsk);
++	u32 ret;
+ 	if (unlikely(state == NULL))
+ 		return UTRACE_ACTION_RESUME;
+ 
+-#ifdef PTRACE_SYSEMU
+-	if (state->sysemu) {
+-		/*
+-		 * A syscall under PTRACE_SYSEMU gets just one stop and
+-		 * report.  But at that stop, the syscall number is
+-		 * expected to reside in the pseudo-register.  We need to
+-		 * reset it to prevent the actual syscall from happening.
+-		 *
+-		 * At the entry tracing stop, the return value register has
+-		 * been primed to -ENOSYS, and the syscall pseudo-register
+-		 * has the syscall number.  We squirrel away the syscall
+-		 * number in the return value register long enough to skip
+-		 * the actual syscall and get to the exit tracing stop.
+-		 * There, we swap the registers back and do ptrace_report.
+-		 */
+-
+-		unsigned long *scno = &regs->orig_ax; /* XXX */
+-		unsigned long *retval = &regs->ax;    /* XXX */
+-		if (entry) {
+-			*retval = *scno;
+-			*scno = -1;
+-			return UTRACE_ACTION_RESUME;
+-		}
+-		else {
+-			*scno = *retval;
+-			*retval = -ENOSYS;
+-		}
+-	}
+-#endif
+-
++	state->regs=regs;
+ 	state->syscall = 1;
+-	return ptrace_report(engine, tsk, state,
++	ret=ptrace_report(engine, tsk, state,
+ 			     ((state->options & PTRACE_O_TRACESYSGOOD)
+ 			      ? 0x80 : 0) | SIGTRAP);
++	return ret;
+ }
+ 
+ static u32
+@@ -1783,7 +1760,7 @@
+ 	case PTRACE_SYSCALL:
+ #ifdef PTRACE_SYSEMU
+ 	case PTRACE_SYSEMU:
+-	case PTRACE_SYSEMU_SINGLESTEP:
++	//case PTRACE_SYSEMU_SINGLESTEP:
+ #endif
+ #ifdef PTRACE_SINGLEBLOCK
+ 	case PTRACE_SINGLEBLOCK:
+@@ -1792,23 +1769,27 @@
+ #endif
+ #ifdef PTRACE_SINGLESTEP
+ 	case PTRACE_SINGLESTEP:
+-		if (!arch_has_single_step() && is_singlestep(request))
++		if (!arch_has_single_step() && 
++				(is_singlestep(request) || is_sysemu_singlestep(request)))
+ 			break;
+ #endif
+ 		ret = ptrace_induce_signal(child, engine, data);
+ 		if (ret)
+ 			break;
+ 
++#ifdef PTRACE_SYSEMU
++		if (state->sysemu && state->regs) 
++			ARCH_SET_SYSCALL_NO(state->regs,-1);
++		state->sysemu = is_sysemu(request);
++#endif
++
+ 		/*
+ 		 * Reset the action flags without QUIESCE, so it resumes.
+ 		 */
+ 		flags = 0;
+-#ifdef PTRACE_SYSEMU
+-		state->sysemu = is_sysemu(request);
+-#endif
+ 		if (request == PTRACE_SYSCALL || is_sysemu(request))
+ 			flags |= UTRACE_EVENT_SYSCALL;
+-		if (is_singlestep(request))
++		if (is_singlestep(request) || is_sysemu_singlestep(request))
+ 			flags |= UTRACE_ACTION_SINGLESTEP;
+ 		else if (is_singleblock(request))
+ 			flags |= UTRACE_ACTION_BLOCKSTEP;
+diff -Naur linux-2.6.25.6-utrace/kernel/utrace.c linux-2.6.25.6-utrace-callorder/kernel/utrace.c
+--- linux-2.6.25.6-utrace/kernel/utrace.c	2008-06-11 15:39:02.000000000 +0200
++++ linux-2.6.25.6-utrace-callorder/kernel/utrace.c	2008-06-11 22:50:11.000000000 +0200
+@@ -1738,32 +1738,44 @@
+ 	struct utrace *utrace = tsk->utrace;
+ 	struct list_head *pos, *next;
+ 	struct utrace_attached_engine *engine;
+-	unsigned long action, ev;
+-	int killed;
++	unsigned long action;
++	int killed=0;
+ 
+-/*
+-  XXX pass syscall # to engine hook directly, let it return inhibit-action
+-  to reset to -1
+-	long syscall = tracehook_syscall_number(regs, is_exit);
+-*/
+-
+-	ev = is_exit ? UTRACE_EVENT(SYSCALL_EXIT) : UTRACE_EVENT(SYSCALL_ENTRY);
+-
+-	/* XXX must change for sharing */
+ 	action = UTRACE_ACTION_RESUME;
+-	list_for_each_safe_rcu(pos, next, &utrace->engines) {
+-		engine = list_entry(pos, struct utrace_attached_engine, entry);
+-		if (engine->flags & ev) {
+-			if (is_exit)
+-				REPORT(report_syscall_exit, regs);
+-			else
+-				REPORT(report_syscall_entry, regs);
++	if (is_exit) {
++		list_for_each_safe_rcu(pos, next, &utrace->engines) {
++			engine = list_entry(pos, struct utrace_attached_engine, entry);
++#ifdef ARCH_GET_SYSCALL_NO
++			if (ARCH_GET_SYSCALL_NO(regs) != -1)
++#endif
++			{
++				if (engine->flags & UTRACE_EVENT(SYSCALL_EXIT)) {
++					REPORT(report_syscall_exit, regs);
++					action = check_detach(tsk, action);
++					if ((killed = check_quiescent(tsk, action)) != 0)
++						break;
++				}
++			}
++#ifdef ARCH_SET_SYSCALL_NO
++			ARCH_SET_SYSCALL_NO(regs,engine->saved_scno);
++#endif
++		}
++	} else {
++		list_for_each_safe_rcu_reverse(pos, next, &utrace->engines) {
++			engine = list_entry(pos, struct utrace_attached_engine, entry);
++#ifdef ARCH_GET_SYSCALL_NO
++			if ((engine->saved_scno = ARCH_GET_SYSCALL_NO(regs)) != -1) 
++#endif
++			{
++				if (engine->flags & UTRACE_EVENT(SYSCALL_ENTRY)) {
++					REPORT(report_syscall_entry, regs);
++					action = check_detach(tsk, action);
++					if ((killed = check_quiescent(tsk, action)) != 0)
++						break;
++				}
++			}
+ 		}
+-		if (action & UTRACE_ACTION_HIDE)
+-			break;
+ 	}
+-	action = check_detach(tsk, action);
+-	killed = check_quiescent(tsk, action);
+ 
+ 	if (!is_exit) {
+ 		if (unlikely(killed))
+@@ -1789,6 +1801,11 @@
+ 			spin_unlock_irq(&tsk->sighand->siglock);
+ 		}
+ 	}
++	/* all the actions get forwarded to the lower layer
++	 * currently:
++	 * UTRACE_SYSCALL_SKIP get sent as 0x01
++	 */
++	return;
+ }
+ 
+ 

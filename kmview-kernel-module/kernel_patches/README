@@ -5,7 +5,9 @@ linux-2.6.22-utrace-callorder-ptmulti.patch
 linux-2.6.23-rc4-utrace-callorder.patch
 linux-2.6.23-rc4-utrace-callorder-ptmulti.patch
 
-You must apply utrace patches first and then:
-This patch includes callorder-ptmulti together.
-linux-2.6.25.4-utrace-callorder-ptmulti-single.patch
+the patches:
+patch-linux-2.6.25.6-utrace* 
+must be applied in alphabetical order, each one adds a feature (the '+'
+		in the path stands for this).
+these patches implement the new ptrace_vm interface on utrace.
 
