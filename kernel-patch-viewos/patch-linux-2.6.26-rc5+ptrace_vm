@@ -120,9 +120,9 @@ diff -Naur linux-2.6.26-rc5/arch/um/include/ptrace_user.h linux-2.6.26-rc5-ptrac
  void set_using_sysemu(int value);
  int get_using_sysemu(void);
  extern int sysemu_supported;
-+void set_using_syscall2(int value);
-+int get_using_syscall2(void);
-+extern int syscall2_supported;
++void set_using_sysptvm(int value);
++int get_using_sysptvm(void);
++extern int sysptvm_supported;
  
  #define SELECT_PTRACE_OPERATION(sysemu_mode, singlestep_mode) \
  	(((int[3][3] ) { \
@@ -133,9 +133,9 @@ diff -Naur linux-2.6.26-rc5/arch/um/kernel/process.c linux-2.6.26-rc5-ptrace_vm/
  }
  
  static atomic_t using_sysemu = ATOMIC_INIT(0);
-+static atomic_t using_syscall2 = ATOMIC_INIT(0);
++static atomic_t using_sysptvm = ATOMIC_INIT(0);
  int sysemu_supported;
-+int syscall2_supported;
++int sysptvm_supported;
  
  void set_using_sysemu(int value)
  {
@@ -143,14 +143,14 @@ diff -Naur linux-2.6.26-rc5/arch/um/kernel/process.c linux-2.6.26-rc5-ptrace_vm/
  	return atomic_read(&using_sysemu);
  }
  
-+void set_using_syscall2(int value)
++void set_using_sysptvm(int value)
 +{
-+	atomic_set(&using_syscall2, value);
++	atomic_set(&using_sysptvm, value);
 +}
 +
-+int get_using_syscall2(void)
++int get_using_sysptvm(void)
 +{
-+	return atomic_read(&using_syscall2);
++	return atomic_read(&using_sysptvm);
 +}
 +
  static int proc_read_sysemu(char *buf, char **start, off_t offset, int size,int *eof, void *data)
@@ -161,13 +161,13 @@ diff -Naur linux-2.6.26-rc5/arch/um/kernel/process.c linux-2.6.26-rc5-ptrace_vm/
  }
  
 -int __init make_proc_sysemu(void)
-+static int proc_read_syscall2(char *buf, char **start, off_t offset, int size,int *eof, void *data)
++static int proc_read_sysptvm(char *buf, char **start, off_t offset, int size,int *eof, void *data)
  {
 -	struct proc_dir_entry *ent;
 -	if (!sysemu_supported)
 -		return 0;
-+	int syscall2=(get_using_syscall2() != 0);
-+	if (snprintf(buf, size, "%d\n", syscall2) < size)
++	int sysptvm=(get_using_sysptvm() != 0);
++	if (snprintf(buf, size, "%d\n", sysptvm) < size)
 +		/* No overflow */
 +		*eof = 1;
  
@@ -180,7 +180,7 @@ diff -Naur linux-2.6.26-rc5/arch/um/kernel/process.c linux-2.6.26-rc5-ptrace_vm/
 -		printk(KERN_WARNING "Failed to register /proc/sysemu\n");
 -		return 0;
 -	}
-+static int proc_write_syscall2(struct file *file,const char __user *buf, unsigned long count,void *data)
++static int proc_write_sysptvm(struct file *file,const char __user *buf, unsigned long count,void *data)
 +{
 +	char tmp[2];
 +
@@ -188,7 +188,7 @@ diff -Naur linux-2.6.26-rc5/arch/um/kernel/process.c linux-2.6.26-rc5-ptrace_vm/
 +		return -EFAULT;
 +
 +	if (tmp[0] == '0')
-+		set_using_syscall2(0);
++		set_using_sysptvm(0);
 +	if (tmp[0] == '1')
 +		set_using_sysemu(/* XXX */ 6);
 +	/* We use the first char, but pretend to write everything */
@@ -197,21 +197,21 @@ diff -Naur linux-2.6.26-rc5/arch/um/kernel/process.c linux-2.6.26-rc5-ptrace_vm/
  
 -	ent->read_proc  = proc_read_sysemu;
 -	ent->write_proc = proc_write_sysemu;
-+int __init make_proc_sysemu_or_syscall2(void)
++int __init make_proc_sysemu_or_sysptvm(void)
 +{
 +	struct proc_dir_entry *ent;
  
-+	if (syscall2_supported) {
-+		ent = create_proc_entry("syscall2", 0600, NULL);
++	if (sysptvm_supported) {
++		ent = create_proc_entry("sysptvm", 0600, NULL);
 +
 +		if (ent == NULL)
 +		{
-+			printk(KERN_WARNING "Failed to register /proc/syscall2\n");
++			printk(KERN_WARNING "Failed to register /proc/sysptvm\n");
 +			return 0;
 +		}
 +
-+		ent->read_proc  = proc_read_syscall2;
-+		ent->write_proc = proc_write_syscall2;
++		ent->read_proc  = proc_read_sysptvm;
++		ent->write_proc = proc_write_sysptvm;
 +	} else if (sysemu_supported) {
 +		ent = create_proc_entry("sysemu", 0600, NULL);
 +
@@ -228,7 +228,7 @@ diff -Naur linux-2.6.26-rc5/arch/um/kernel/process.c linux-2.6.26-rc5-ptrace_vm/
  }
  
 -late_initcall(make_proc_sysemu);
-+late_initcall(make_proc_sysemu_or_syscall2);
++late_initcall(make_proc_sysemu_or_sysptvm);
  
  int singlestepping(void * t)
  {
@@ -330,7 +330,7 @@ diff -Naur linux-2.6.26-rc5/arch/um/os-Linux/skas/process.c linux-2.6.26-rc5-ptr
   */
  static void handle_trap(int pid, struct uml_pt_regs *regs,
 -			int local_using_sysemu)
-+			int local_using_syscall2_or_sysemu)
++			int local_using_sysptvm_or_sysemu)
  {
  	int err, status;
  
@@ -339,7 +339,7 @@ diff -Naur linux-2.6.26-rc5/arch/um/os-Linux/skas/process.c linux-2.6.26-rc5-ptr
  	UPT_SYSCALL_NR(regs) = PT_SYSCALL_NR(regs->gp);
  
 -	if (!local_using_sysemu)
-+	if (!local_using_syscall2_or_sysemu)
++	if (!local_using_sysptvm_or_sysemu)
  	{
  		err = ptrace(PTRACE_POKEUSR, pid, PT_SYSCALL_NR_OFFSET,
  			     __NR_getpid);
@@ -347,7 +347,7 @@ diff -Naur linux-2.6.26-rc5/arch/um/os-Linux/skas/process.c linux-2.6.26-rc5-ptr
  	int err, status, op, pid = userspace_pid[0];
  	/* To prevent races if using_sysemu changes under us.*/
  	int local_using_sysemu;
-+	int local_using_syscall2;
++	int local_using_sysptvm;
  
  	if (getitimer(ITIMER_VIRTUAL, &timer))
  		printk(UM_KERN_ERR "Failed to get itimer, errno = %d\n", errno);
@@ -355,13 +355,13 @@ diff -Naur linux-2.6.26-rc5/arch/um/os-Linux/skas/process.c linux-2.6.26-rc5-ptr
  
  		/* Now we set local_using_sysemu to be used for one loop */
  		local_using_sysemu = get_using_sysemu();
-+		local_using_syscall2 = get_using_syscall2();
++		local_using_sysptvm = get_using_sysptvm();
  
  		op = SELECT_PTRACE_OPERATION(local_using_sysemu,
  					     singlestepping(NULL));
  
 -		if (ptrace(op, pid, 0, 0)) {
-+		if (ptrace(op, pid, local_using_syscall2, 0)) {
++		if (ptrace(op, pid, local_using_sysptvm, 0)) {
  			printk(UM_KERN_ERR "userspace - ptrace continue "
  			       "failed, op = %d, errno = %d\n", op, errno);
  			fatal_sigsegv();
@@ -373,18 +373,18 @@ diff -Naur linux-2.6.26-rc5/arch/um/os-Linux/start_up.c linux-2.6.26-rc5-ptrace_
  "    information.\n\n");
  
 +/* Changed only during early boot */
-+static int force_syscall2_disabled = 0;
++static int force_sysptvm_disabled = 0;
 +
-+static int __init nosyscall2_cmd_param(char *str, int* add)
++static int __init nosysptvm_cmd_param(char *str, int* add)
 +{
-+	force_syscall2_disabled = 1;
++	force_sysptvm_disabled = 1;
 +	return 0;
 +}
 +
-+__uml_setup("nosyscall2", nosyscall2_cmd_param,
-+"nosyscall2\n"
-+"    Turns off syscall emulation patch for ptrace (SYSCALL2) on.\n"
-+"    SYSCALL2 is a performance-patch introduced by Renzo Davoli. It changes\n"
++__uml_setup("nosysptvm", nosysptvm_cmd_param,
++"nosysptvm\n"
++"    Turns off syscall emulation tags for ptrace (ptrace_vm) on.\n"
++"    Ptrace_vm is a feature introduced by Renzo Davoli. It changes\n"
 +"    behaviour of ptrace() and helps reducing host context switch rate.\n"
 +"\n");
 +
@@ -398,7 +398,7 @@ diff -Naur linux-2.6.26-rc5/arch/um/os-Linux/start_up.c linux-2.6.26-rc5-ptrace_
 +
 +__uml_setup("usesysemu", usesysemu_cmd_param,
 +"usesysemu\n"
-+"    Use sysemu instead of syscall2 even when the kernel supports it.\n\n"
++"    Use sysemu instead of sysptvm even when the kernel supports it.\n\n"
 +);
 +
  static void __init check_sysemu(void)
@@ -410,7 +410,7 @@ diff -Naur linux-2.6.26-rc5/arch/um/os-Linux/start_up.c linux-2.6.26-rc5-ptrace_
  
 +/* test thread code. This thread is started only to test 
 + * which features are provided by the linux kernel */
-+static int syscall2_child(void *arg)
++static int sysptvm_child(void *arg)
 +{
 +	int *featurep=arg;
 +	int p[2]={-1,-1};
@@ -449,7 +449,7 @@ diff -Naur linux-2.6.26-rc5/arch/um/os-Linux/start_up.c linux-2.6.26-rc5-ptrace_
 +	static char stack[1024];
 +	feature=0;
 +
-+	if((pid = clone(syscall2_child, &stack[1020], SIGCHLD | CLONE_VM, &feature)) < 0)
++	if((pid = clone(sysptvm_child, &stack[1020], SIGCHLD | CLONE_VM, &feature)) < 0)
 +		return 0;
 +	if(waitpid(pid, &status, WUNTRACED) < 0){
 +		kill(pid, SIGKILL);
@@ -483,16 +483,16 @@ diff -Naur linux-2.6.26-rc5/arch/um/os-Linux/start_up.c linux-2.6.26-rc5-ptrace_
 +	return feature;
 +}
 +
-+static int  __init check_syscall2(void)
++static int  __init check_sysptvm(void)
 +{
 +	int feature=test_ptrace_sycall2();
 +  
 +	non_fatal("Checking ptrace new tags for syscall emulation...");
 +	if (feature==PTRACE_SYSCALL_SKIPCALL) {
-+		syscall2_supported=1;
++		sysptvm_supported=1;
 +		non_fatal("OK");
-+		if (!force_syscall2_disabled) 
-+			set_using_syscall2(PTRACE_SYSCALL_SKIPCALL);
++		if (!force_sysptvm_disabled) 
++			set_using_sysptvm(PTRACE_SYSCALL_SKIPCALL);
 +		else
 +			non_fatal(" (disabled)");
 +		non_fatal("\n");
@@ -510,7 +510,7 @@ diff -Naur linux-2.6.26-rc5/arch/um/os-Linux/start_up.c linux-2.6.26-rc5-ptrace_
  	stop_ptraced_child(pid, 0, 1);
  	non_fatal("OK\n");
 -	check_sysemu();
-+	if (use_sysemu || !check_syscall2()) 
++	if (use_sysemu || !check_sysptvm()) 
 +		check_sysemu();
  }
  
