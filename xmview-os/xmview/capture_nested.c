@@ -547,14 +547,12 @@ static int nested_sysindex(struct npcb *npc, int scno)
 	return uscno(scno);
 }
 
-#if __NR_socketcall != __NR_doesnotexist
-/* dcif (index) for sockets */
-static int nested_sockindex(struct npcb *npc, int scno)
+/* dcif (index) for sockets or virtual: just the sysno*/
+static int nested_sockvirindex(struct npcb *npc, int scno)
 {
-	  //return npc->sysargs[0];
 	  return scno;
 }
-#endif
+
 
 /* do_kernel_call for syscalls */
 static int nested_call_syscall (int sysno, struct npcb *npc)
@@ -676,7 +674,7 @@ static long int capture_nested_virsc(long int sysno, ...){
 	/* commonwrap for nested socket calls, 
 	 * nested_commonwrap sets errno, so the following code should not
 	 * call any system call or errno must be saved*/
-	rv=nested_commonwrap(sysno, &callee_pcb, nested_sockindex, nested_call_virsc, service_virsyscall, virscmap);
+	rv=nested_commonwrap(sysno, &callee_pcb, nested_sockvirindex, nested_call_virsc, service_virsyscall, virscmap);
 
 	nrestoreargs(caller_pcb, &callee_pcb);
 	set_pcb(caller_pcb);
@@ -720,7 +718,7 @@ static long int capture_nested_socketcall(long int sysno, ...){
 	 * callee_pcb.umpid=caller_pcb->umpid;
 	 */
 	/* commonwrap for nested socket calls */
-	rv=nested_commonwrap(sysno, &callee_pcb, nested_sockindex, nested_call_sockcall, service_socketcall, sockmap);
+	rv=nested_commonwrap(sysno, &callee_pcb, nested_sockvirindex, nested_call_sockcall, service_socketcall, sockmap);
 
 	nrestoreargs(caller_pcb, &callee_pcb);
 	set_pcb(caller_pcb);
