@@ -527,23 +527,23 @@ void tracehand()
 					if (isreproducing) {
 						offspring_enter(pc);
 					}
-				}
-				if (pc->behavior & SC_SAVEREGS) {
-					/* in case the call has been changed, count the 
-					 * args for the new call */
-					switch (scdnarg[getscno(pc)]) {
-						case 6:
-							putargn(5,pc->sysargs[5],pc);
-						case 5:
-							putargn(4,pc->sysargs[4],pc);
-						case 4:
-							putargn(3,pc->sysargs[3],pc);
-						case 3:
-							putargn(2,pc->sysargs[2],pc);
-						case 2:
-							putargn(1,pc->sysargs[1],pc);
-						case 1:
-							putargn(0,pc->sysargs[0],pc);
+					if (pc->behavior & SC_SAVEREGS) {
+						/* in case the call has been changed, count the 
+						 * args for the new call */
+						switch (scdnarg[getscno(pc)]) {
+							case 6:
+								putargn(5,pc->sysargs[5],pc);
+							case 5:
+								putargn(4,pc->sysargs[4],pc);
+							case 4:
+								putargn(3,pc->sysargs[3],pc);
+							case 3:
+								putargn(2,pc->sysargs[2],pc);
+							case 2:
+								putargn(1,pc->sysargs[1],pc);
+							case 1:
+								putargn(0,pc->sysargs[0],pc);
+						}
 					}
 				}
 			} else { /* POST syscall management (OUT phase) */
@@ -723,23 +723,23 @@ void sc_resume(struct pcb *pc)
 		} else {
 			if (isreproducing)
 				offspring_enter(pc);
-		}
-		if (pc->behavior & SC_SAVEREGS) {
-			/* in case the call has been changed, count the 
-			 * args for the new call */
-			switch (scdnarg[getscno(pc)]) {
-				case 6:
-					putargn(5,pc->sysargs[5],pc);
-				case 5:
-					putargn(4,pc->sysargs[4],pc);
-				case 4:
-					putargn(3,pc->sysargs[3],pc);
-				case 3:
-					putargn(2,pc->sysargs[2],pc);
-				case 2:
-					putargn(1,pc->sysargs[1],pc);
-				case 1:
-					putargn(0,pc->sysargs[0],pc);
+			if (pc->behavior & SC_SAVEREGS) {
+				/* in case the call has been changed, count the 
+				 * args for the new call */
+				switch (scdnarg[getscno(pc)]) {
+					case 6:
+						putargn(5,pc->sysargs[5],pc);
+					case 5:
+						putargn(4,pc->sysargs[4],pc);
+					case 4:
+						putargn(3,pc->sysargs[3],pc);
+					case 3:
+						putargn(2,pc->sysargs[2],pc);
+					case 2:
+						putargn(1,pc->sysargs[1],pc);
+					case 1:
+						putargn(0,pc->sysargs[0],pc);
+				}
 			}
 		}
 	} else { /* inout == OUT */
