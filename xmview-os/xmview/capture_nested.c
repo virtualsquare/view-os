@@ -55,7 +55,9 @@
 #endif
 
 static int nested_call_syscall (int sysno, struct npcb *npc);
+#if __NR_socketcall != __NR_doesnotexist
 static int nested_call_sockcall (int sysno, struct npcb *npc);
+#endif
 static int nested_call_virsc (int sysno, struct npcb *npc);
 
 static struct pcb_file umview_file;

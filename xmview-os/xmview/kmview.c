@@ -85,6 +85,7 @@ static void preadd(struct prelist **head,char *module)
 	*head=new;
 }
 
+#ifdef KMVIEW_RECURSIVE
 /* virtual syscall for the underlying umview */
 static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,long arg4,long arg5,long arg6) {
 	struct __sysctl_args scarg;
@@ -97,6 +98,7 @@ static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,lon
 	scarg.newlen=n;
 	return native_syscall(__NR__sysctl,&scarg);
 }
+#endif
 
 /* preload of modules */
 static int do_preload(struct prelist *head)
@@ -125,6 +127,7 @@ static void do_set_viewname(char *viewname)
 	}
 }
 
+#ifdef KMVIEW_RECURSIVE
 /* preload for nexted umview (it is a burst of um_add_module) */
 static int do_preload_recursive(struct prelist *head)
 {
@@ -143,6 +146,7 @@ static void do_set_viewname_recursive(char *viewname)
 		int_virnsyscall(__NR_UM_SERVICE,2,UMVIEW_SETVIEWNAME,(long)viewname,0,0,0,0);
 	}
 }
+#endif
 
 static void version(int verbose)
 {
@@ -236,6 +240,8 @@ static void load_it_again(int argc,char *argv[])
 	}
 }
 
+#ifdef KMVIEW_RECURSIVE
+
 /* recursive kmview invocation (umview started inside a umview machine) */
 static void kmview_recursive(int argc,char *argv[])
 {
@@ -295,6 +301,8 @@ static int test_recursion(int argc,char *argv[])
 	return userrecursion;
 }
 
+#endif
+
 static void root_process_init()
 {
 	capture_nested_init();
@@ -326,6 +334,7 @@ int main(int argc,char *argv[])
 	 * if it succeeded it is actually a nested invocation,
 	 * otherwise nobody is notified and the call fails*/
 #if 0
+#define KMVIEW_RECURSIVE
 	if (test_recursion(argc,argv)) {
 		if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_UMVIEW,0,0,0,0,0) >= 0)
 			kmview_recursive(argc,argv);	/* do not return!*/

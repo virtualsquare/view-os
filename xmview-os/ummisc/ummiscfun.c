@@ -84,7 +84,9 @@ struct misc_call misc_calls[]={
 	{__NR_setresgid,"misc_setresgid"},
 
 	/* priority related calls */
+#ifdef __NR_nice
 	{__NR_nice,"misc_nice"},
+#endif
 	{__NR_getpriority,"misc_getpriority"},
 	{__NR_setpriority,"misc_setpriority"},
 
@@ -234,11 +236,15 @@ static int umm_setresgid(gid_t rgid, gid_t egid, gid_t sgid) {
 	assert (mh != NULL);
 	return getfun(mh,__NR_setresgid)(rgid,egid,sgid,mh);
 }
+
+#ifdef __NR_nice
 static int umm_nice(int inc) {
 	struct ummisc *mh=searchmisc_sc(__NR_nice);
 	assert (mh != NULL);
 	return getfun(mh,__NR_nice)(inc,mh);
 }
+#endif
+
 static int umm_getpriority(int which, int who) {
 	struct ummisc *mh=searchmisc_sc(__NR_getpriority);
 	assert (mh != NULL);
@@ -327,7 +333,9 @@ void initmuscno(struct service *s)
 	SERVICESYSCALL(*s,setregid, umm_setregid);
 	SERVICESYSCALL(*s,getresgid, umm_getresgid);
 	SERVICESYSCALL(*s,setresgid, umm_setresgid);
+#ifdef __NR_nice
 	SERVICESYSCALL(*s,nice, umm_nice);
+#endif
 	SERVICESYSCALL(*s,getpriority, umm_getpriority);
 	SERVICESYSCALL(*s,setpriority, umm_setpriority);
 	SERVICESYSCALL(*s,getpid, umm_getpid);

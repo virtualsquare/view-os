@@ -32,7 +32,6 @@
 #include "defs.h"
 #include "services.h"
 #include "utils.h"
-#define umNULL ((int) NULL)
 
 int wrap_in_uname(int sc_number,struct pcb *pc,
 		    service_t sercode, sysfun um_syscall)

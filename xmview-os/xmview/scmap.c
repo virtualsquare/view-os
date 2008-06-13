@@ -58,7 +58,12 @@ wrapinfun wrap_in_utime, wrap_in_mount, wrap_in_umount,wrap_in_umount2;
 wrapinfun wrap_in_umask, wrap_in_chroot, wrap_in_mknod;
 wrapinfun wrap_in_truncate, wrap_in_ftruncate, wrap_in_execve;
 wrapinfun wrap_in_statfs, wrap_in_fstatfs;
+
+/* XXX: find a better way (see defs_x86_64*.h) */
+#if __NR_statfs64 != __NR_doesnotexist
 wrapinfun wrap_in_statfs64, wrap_in_fstatfs64;
+#endif
+
 #ifdef _UM_MMAP
 wrapinfun wrap_in_mmap,wrap_in_mremap,wrap_in_munmap;
 #endif
@@ -131,7 +136,8 @@ wrapinfun wrap_in_uname, wrap_in_gethostname, wrap_in_sethostname;
 #define AL64 0
 #endif
 
-/* SYSTEM CALL MAP, columns:
+/*
+ * SYSTEM CALL MAP, columns:
  * num of syscall (unistd.h)
  * choice function
  * wrap_in function
@@ -140,7 +146,14 @@ wrapinfun wrap_in_uname, wrap_in_gethostname, wrap_in_sethostname;
  * nested call wrap function
  * flags
  * number of args
- * category of calls */
+ * category of calls 
+ *
+ * Care should be taken in order to leave the length of this table constant
+ * for every architecture, and with the system calls in the same order. If a
+ * system call does not appear in one or more architectures it is enough to
+ * #define __NR_<systemcallname> __NR_doesnotexist in the corresponding
+ * defs_*.h header.
+ * */
 struct sc_map scmap[]={
 	{__NR_doesnotexist, always_umnone, NULL, NULL,always_umnone,NULL,0,6,0},
 

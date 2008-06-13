@@ -61,7 +61,7 @@ void pcb_inits(int flags)
 
 void pcb_finis(int flags)
 {
-	register int i;
+	register long i;
 	for (i=NFINIS-1;i>=0;i--)
 		finis[i](flags);
 }

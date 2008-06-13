@@ -53,7 +53,7 @@
 #include "utils.h"
 #include "uid16to32.h"
 
-#define umNULL ((int) NULL)
+#define umNULL ((long) NULL)
 
 int wrap_in_mkdir(int sc_number,struct pcb *pc,
 		char sercode, sysfun um_syscall)

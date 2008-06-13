@@ -108,96 +108,109 @@
 // and rax (i think...) contains return value and errno
 // for stack pointer -> RSP
 // for instruction pointer -> RIP
-				
-#define getregs(PC) ({ long temp[VIEWOS_FRAME_SIZE]; int i = ptrace(PTRACE_GETREGS,(PC)->pid,NULL,(void*) temp);\
-			(PC)->saved_regs[MY_RDI] = temp[RDI]; \
-			(PC)->saved_regs[MY_RSI] = temp[RSI]; \
-			(PC)->saved_regs[MY_RDX] = temp[RDX]; \
-			(PC)->saved_regs[MY_RCX] = temp[RCX]; \
-			(PC)->saved_regs[MY_RAX] = temp[RAX]; \
-			(PC)->saved_regs[MY_R8] = temp[R8]; \
-			(PC)->saved_regs[MY_R9] = temp[R9]; \
-			(PC)->saved_regs[MY_R10] = temp[R10]; \
-			(PC)->saved_regs[MY_R11] = temp[R11]; \
-			(PC)->saved_regs[MY_RBX] = temp[RBX]; \
-			(PC)->saved_regs[MY_RBP] = temp[RBP]; \
-			(PC)->saved_regs[MY_R12] = temp[R12]; \
-			(PC)->saved_regs[MY_R13] = temp[R13]; \
-			(PC)->saved_regs[MY_R14] = temp[R14]; \
-			(PC)->saved_regs[MY_R15] = temp[R15]; \
-			(PC)->saved_regs[MY_ORIG_RAX] = temp[ORIG_RAX]; \
-			(PC)->saved_regs[MY_RIP] = temp[RIP]; \
-			(PC)->saved_regs[MY_CS] = temp[CS]; \
-			(PC)->saved_regs[MY_EFLAGS] = temp[EFLAGS]; \
-			(PC)->saved_regs[MY_RSP] = temp[RSP]; \
-			(PC)->saved_regs[MY_SS] = temp[SS]; \
-			(PC)->saved_regs[FS_BASE] = temp[FS_BASE]; \
-			(PC)->saved_regs[GS_BASE] = temp[GS_BASE]; \
-			(PC)->saved_regs[DS] = temp[DS]; \
-			(PC)->saved_regs[ES] = temp[ES]; \
-			(PC)->saved_regs[FS] = temp[FS]; \
-			(PC)->saved_regs[GS] = temp[GS]; \
-			(PC)->regs_modified = 0;\
-			i; \
-			})
-	
-#define setregs(PC,CALL,OP,SIG) ({ (PC)->regs_modified==0? ptrace((CALL),(PC)->pid,(OP),0):({\
-			long temp[VIEWOS_FRAME_SIZE]; \
-			temp[RDI] = (PC)->saved_regs[MY_RDI]; \
-			temp[RSI] = (PC)->saved_regs[MY_RSI]; \
-			temp[RDX] = (PC)->saved_regs[MY_RDX]; \
-			temp[RCX] = (PC)->saved_regs[MY_RCX]; \
-			temp[RAX] = (PC)->saved_regs[MY_RAX]; \
-			temp[R8] = (PC)->saved_regs[MY_R8]; \
-			temp[R9] = (PC)->saved_regs[MY_R9]; \
-			temp[R10] = (PC)->saved_regs[MY_R10]; \
-			temp[R11] = (PC)->saved_regs[MY_R11]; \
-			temp[RBX] = (PC)->saved_regs[MY_RBX]; \
-			temp[RBP] = (PC)->saved_regs[MY_RBP]; \
-			temp[R12] = (PC)->saved_regs[MY_R12]; \
-			temp[R13] = (PC)->saved_regs[MY_R13]; \
-			temp[R14] = (PC)->saved_regs[MY_R14]; \
-			temp[R15] = (PC)->saved_regs[MY_R15]; \
-			temp[ORIG_RAX] = (PC)->saved_regs[MY_ORIG_RAX]; \
-			temp[RIP] = (PC)->saved_regs[MY_RIP]; \
-			temp[CS] = (PC)->saved_regs[MY_CS]; \
-			temp[EFLAGS] = (PC)->saved_regs[MY_EFLAGS]; \
-			temp[RSP] = (PC)->saved_regs[MY_RSP]; \
-			temp[SS] = (PC)->saved_regs[MY_SS]; \
-			temp[FS_BASE] = (PC)->saved_regs[FS_BASE]; \
-			temp[GS_BASE] = (PC)->saved_regs[GS_BASE]; \
-			temp[DS] = (PC)->saved_regs[DS]; \
-			temp[ES] = (PC)->saved_regs[ES]; \
-			temp[FS] = (PC)->saved_regs[FS]; \
-			temp[GS] = (PC)->saved_regs[GS]; \
-	(has_ptrace_multi ? ({\
-			     struct ptrace_multi req[] = {{PTRACE_SETREGS, 0, (void *) temp},\
-			     {(CALL), (OP), (SIG)}};\
-			     ptrace(PTRACE_MULTI,(PC)->pid,req,2); }\
-			    ) : (\
-				    {int rv;\
-				    rv=ptrace(PTRACE_SETREGS,(PC)->pid,NULL,(void*) temp);\
-					    if(rv== 0) rv=ptrace((CALL),(PC)->pid,(OP),(SIG));\
-					    rv;}\
-													) );\
-	});})
+
+static inline long getregs(struct pcb *pc)
+{
+	long temp[VIEWOS_FRAME_SIZE];
+	long rv = ptrace(PTRACE_GETREGS, pc->pid,NULL,(void*) temp);
+
+	pc->saved_regs[MY_RDI] = temp[RDI];
+	pc->saved_regs[MY_RSI] = temp[RSI];
+	pc->saved_regs[MY_RDX] = temp[RDX];
+	pc->saved_regs[MY_RCX] = temp[RCX];
+	pc->saved_regs[MY_RAX] = temp[RAX];
+	pc->saved_regs[MY_R8] = temp[R8];
+	pc->saved_regs[MY_R9] = temp[R9];
+	pc->saved_regs[MY_R10] = temp[R10];
+	pc->saved_regs[MY_R11] = temp[R11];
+	pc->saved_regs[MY_RBX] = temp[RBX];
+	pc->saved_regs[MY_RBP] = temp[RBP];
+	pc->saved_regs[MY_R12] = temp[R12];
+	pc->saved_regs[MY_R13] = temp[R13];
+	pc->saved_regs[MY_R14] = temp[R14];
+	pc->saved_regs[MY_R15] = temp[R15];
+	pc->saved_regs[MY_ORIG_RAX] = temp[ORIG_RAX];
+	pc->saved_regs[MY_RIP] = temp[RIP];
+	pc->saved_regs[MY_CS] = temp[CS];
+	pc->saved_regs[MY_EFLAGS] = temp[EFLAGS];
+	pc->saved_regs[MY_RSP] = temp[RSP];
+	pc->saved_regs[MY_SS] = temp[SS];
+	pc->saved_regs[FS_BASE] = temp[FS_BASE];
+	pc->saved_regs[GS_BASE] = temp[GS_BASE];
+	pc->saved_regs[DS] = temp[DS];
+	pc->saved_regs[ES] = temp[ES];
+	pc->saved_regs[FS] = temp[FS];
+	pc->saved_regs[GS] = temp[GS];
+
+	return rv;
+}
+
+static inline long setregs(struct pcb *pc, enum __ptrace_request call, long op, long sig)
+{
+	long temp[VIEWOS_FRAME_SIZE];
+
+	temp[RDI] = pc->saved_regs[MY_RDI];
+	temp[RSI] = pc->saved_regs[MY_RSI];
+	temp[RDX] = pc->saved_regs[MY_RDX];
+	temp[RCX] = pc->saved_regs[MY_RCX];
+	temp[RAX] = pc->saved_regs[MY_RAX];
+	temp[R8] = pc->saved_regs[MY_R8];
+	temp[R9] = pc->saved_regs[MY_R9];
+	temp[R10] = pc->saved_regs[MY_R10];
+	temp[R11] = pc->saved_regs[MY_R11];
+	temp[RBX] = pc->saved_regs[MY_RBX];
+	temp[RBP] = pc->saved_regs[MY_RBP];
+	temp[R12] = pc->saved_regs[MY_R12];
+	temp[R13] = pc->saved_regs[MY_R13];
+	temp[R14] = pc->saved_regs[MY_R14];
+	temp[R15] = pc->saved_regs[MY_R15];
+	temp[ORIG_RAX] = pc->saved_regs[MY_ORIG_RAX];
+	temp[RIP] = pc->saved_regs[MY_RIP];
+	temp[CS] = pc->saved_regs[MY_CS];
+	temp[EFLAGS] = pc->saved_regs[MY_EFLAGS];
+	temp[RSP] = pc->saved_regs[MY_RSP];
+	temp[SS] = pc->saved_regs[MY_SS];
+	temp[FS_BASE] = pc->saved_regs[FS_BASE];
+	temp[GS_BASE] = pc->saved_regs[GS_BASE];
+	temp[DS] = pc->saved_regs[DS];
+	temp[ES] = pc->saved_regs[ES];
+	temp[FS] = pc->saved_regs[FS];
+	temp[GS] = pc->saved_regs[GS];
+
+	if (has_ptrace_multi)
+	{
+		struct ptrace_multi req[] = {
+			{PTRACE_SETREGS, 0, (void *) temp, 0},
+			{call, op, (void*) sig, 0}};
+		return ptrace(PTRACE_MULTI, pc->pid, req, 2); 
+	}
+	else
+	{
+		int rv;
+		rv = ptrace(PTRACE_SETREGS, pc->pid, NULL, (void*) temp);
+		if (rv == 0) 
+			rv = ptrace(call, pc->pid, op, sig);
+		return rv;
+	}
+}
+
 #define getargp(PC) ((long*)(PC)->saved_regs[MY_RDI])
 #define printregs(PC)  // empty for a while... :P
 #define getscno(PC) ( (PC)->saved_regs[MY_ORIG_RAX] )											 
-#define putscno(X,PC) ( (PC)->regs_modified=1, (PC)->saved_regs[MY_ORIG_RAX]=(X) )
+#define putscno(X,PC) ( (PC)->saved_regs[MY_ORIG_RAX]=(X) )
 #define getargn(N,PC) ( (PC)->saved_regs[(N)] )
-#define putargn(N,X,PC) ( (PC)->regs_modified=1, (PC)->saved_regs[(N)]=(X) )
+#define putargn(N,X,PC) ( (PC)->saved_regs[(N)]=(X) )
 #define getrv(PC) ({ long rax; \
 		rax = (PC)->saved_regs[MY_RAX];\
 		(rax<0 && -rax < MAXERR)? -1 : rax; })
-#define putrv(RV,PC) ( (PC)->regs_modified=1, (PC)->saved_regs[MY_RAX]=(RV), 0 )
-#define puterrno(ERR,PC) (((ERR)!=0 && (PC)->retval==-1)?\
-				( (PC)->regs_modified=1,(PC)->saved_regs[MY_RAX]=-((long)(ERR)) ): 0 )
+#define putrv(RV,PC) ( (PC)->saved_regs[MY_RAX]=(RV), 0 )
+#define puterrno(ERR,PC) (((ERR)!=0 && (PC)->retval==-1) ? \
+				(PC)->saved_regs[MY_RAX]=-((long)(ERR)) : 0 )
 
 #define getsp(PC) ( (PC)->saved_regs[MY_RSP] )
 #define getpc(PC) ( (PC)->saved_regs[MY_RIP] )
-#define putsp(RV,PC) ( (PC)->regs_modified=1, (PC)->saved_regs[MY_RSP]=(RV) )
-#define putpc(RV,PC) ( (PC)->regs_modified=1, (PC)->saved_regs[MY_RIP]=(RV) )
+#define putsp(RV,PC) ( (PC)->saved_regs[MY_RSP]=(RV) )
+#define putpc(RV,PC) ( (PC)->saved_regs[MY_RIP]=(RV) )
 
 #define LITTLEENDIAN
 #define LONG_LONG(_l,_h) \
@@ -231,6 +244,12 @@
 #define __NR_recv __NR_doesnotexist
 #define __NR_statfs64 __NR_doesnotexist
 #define __NR_fstatfs64 __NR_doesnotexist
+#define __NR_nice __NR_doesnotexist
+#define __NR_mmap2 __NR_doesnotexist
+
+/* XXX: should we find a more elegant solution? */
+#define wrap_in_statfs64 NULL
+#define wrap_in_fstatfs64 NULL
 
 #define wrap_in_stat wrap_in_stat64
 #define wrap_in_fstat wrap_in_fstat64

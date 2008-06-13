@@ -306,7 +306,7 @@ static long add_mmap_secret(service_t sercode,const char *from, unsigned long pg
 	int n;
 	unsigned long long size=0;
 	//fprint2("add_mmap_secret %s %ld\n",from, pgoffset);
-#ifdef __NR__llseek
+#if __NR__llseek != __NR_doesnotexist
 	loff_t result;
 	r_llseek(um_mmap_secret, pgoffset >> ((sizeof (long)*8) - um_mmap_pageshift),
 			pgoffset << um_mmap_pageshift, &result, SEEK_SET);
@@ -375,11 +375,24 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 		sf_entry->counter++;
 		um_setepoch(nestepoch);
 		pc->retval = 0;
-		/* rewrite the syscall parms: it is a mmap2, using the secret file
-		 * at the correct offset */
+		
+		/* rewrite the syscall parms: mmap->mmap2 if needed, using the secret
+		 * file at the correct offset */
+		
+#		if __NR_mmap2 != __NR_doesnotexist
+		/* On 32-bit interfaces we convert every call to mmap2 which takes the
+		 * offset in pages (not bytes */
 		putscno(__NR_mmap2,pc);
-		pc->sysargs[4]=um_mmap_secret;
-		pc->sysargs[5]=sf_entry->pgoffset+offset;
+		pc->sysargs[4] = um_mmap_secret;
+		pc->sysargs[5] = sf_entry->pgoffset+offset;
+#		else
+		/* If there is no mmap2 (it's probably a 64 bit architecture) we stay
+		 * with the original mmap but the offset must be in bytes, rounded up
+		 * to a multiple of the page size. */
+		pc->sysargs[4] = um_mmap_secret;
+		pc->sysargs[5] = (sf_entry->pgoffset + offset) * pgsize;
+#		endif
+		
 		//fprint2("MMAP2 path %s epoch %lld %ld %ld %ld\n", path, nestepoch, sf_entry->pgoffset, offset,pgsize);
 		return SC_CALLONXIT;
 	}

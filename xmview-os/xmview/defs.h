@@ -38,6 +38,7 @@
 #include <sys/utsname.h>
 #include <asm/ptrace.h>
 
+#define umNULL ((long) NULL)
 #undef SNDRCVMSGUNIFY
 
 #ifdef _VIEWOS_UM
@@ -46,7 +47,6 @@
 #	if defined(__powerpc__) //setregs/getresg for ppc
 #		define FRAME_SIZE 13
 #	elif defined(__x86_64__) // asm-x86_64 define it as 168 [offset in bytes] ! 
-#		define VIEWOS_FRAME_SIZE 22
 #		define VIEWOS_FRAME_SIZE 28
 #	endif
 

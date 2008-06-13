@@ -28,7 +28,7 @@
 #include "defs.h"
 #include "services.h"
 #include "utils.h"
-#define umNULL ((int) NULL)
+#define umNULL ((long) NULL)
 
 /* getuid, geteuid, getgid, getegid */
 int wrap_in_getxid(int sc_number,struct pcb *pc,

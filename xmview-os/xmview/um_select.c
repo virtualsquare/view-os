@@ -51,8 +51,6 @@
 #include "capture.h"
 #include "mainpoll.h"
 
-#define umNULL ((int) NULL)
-
 enum {RX, WX, XX} stype;
 
 struct pendingdata {

@@ -62,8 +62,8 @@ extern int msocket (char *path, int domain, int type, int protocol);
 #define MC_USERCTL(sercode, ctl) (MC_USER | (sercode << 1) | (ctl << 9))
 
 /* To be tested. Bits are fun!  */
-#define MC_USERCTL_SERCODE(x) (((x) >> 1) & ((1 << (sizeof(service_t) * 8)) - 1))
-#define MC_USERCTL_CTL(x) (((x) >> 9) & ((1 << (sizeof(long) * 8 - 9)) - 1))
+#define MC_USERCTL_SERCODE(x) (((x) >> 1) & ((1L << (sizeof(service_t) * 8)) - 1))
+#define MC_USERCTL_CTL(x) (((x) >> 9) & ((1L << (sizeof(long) * 8 - 9)) - 1))
 
 #define MC_PROC			MC_CORECTLCLASS(0)
 #define MC_MODULE		MC_CORECTLCLASS(1)
@@ -231,17 +231,20 @@ extern int fprint2(const char *fmt, ...);
 extern int vfprint2(const char *fmt, va_list ap);
 
 #define __NR_doesnotexist -1
+
 #if defined(__x86_64__)
 #define __NR_socketcall __NR_doesnotexist
 #define __NR__newselect __NR_doesnotexist
 #define __NR_umount __NR_doesnotexist
-#define __NR_stat64 __NR_doesnotexist
-#define __NR_lstat64 __NR_doesnotexist
-#define __NR_fstat64 __NR_doesnotexist
-#define __NR_chown32 __NR_doesnotexist
-#define __NR_lchown32 __NR_doesnotexist
-#define __NR_fchown32 __NR_doesnotexist
-#define __NR_fcntl64 __NR_doesnotexist
+#define __NR_stat64 __NR_stat
+#define __NR_lstat64 __NR_lstat
+#define __NR_fstat64 __NR_fstat
+#define __NR_statfs64 __NR_statfs
+#define __NR_fstatfs64 __NR_fstatfs
+//#define __NR_chown32 __NR_chown
+//#define __NR_lchown32 __NR_lchown
+//#define __NR_fchown32 __NR_fchown
+#define __NR_fcntl64 __NR_fcntl
 #define __NR__llseek __NR_doesnotexist
 #define __NR_send __NR_doesnotexist
 #define __NR_recv __NR_doesnotexist

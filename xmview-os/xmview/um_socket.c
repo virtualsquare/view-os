@@ -46,7 +46,6 @@
 #include "scmap.h"
 #include "utils.h"
 
-#define umNULL ((int) NULL)
 #define SOCK_DEFAULT 0
 
 /* SOCKET & MSOCKET call management (IN) */

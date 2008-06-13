@@ -51,8 +51,6 @@
 #include "scmap.h"
 #include "utils.h"
 
-#define umNULL ((int) NULL)
-
 /* filecopy creates a copy of the executable inside the tmp file dir */
 static int filecopy(service_t sercode,const char *from, const char *to)
 {

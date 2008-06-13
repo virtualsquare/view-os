@@ -49,8 +49,6 @@
 #include <sys/time.h>
 #include <time.h>
 
-#define umNULL ((int) NULL)
-
 static void ioctl_getarg(struct pcb* pc, int ioctlparms, unsigned long arg, void **larg)
 {
 	int len=ioctlparms & IOCTLLENMASK;

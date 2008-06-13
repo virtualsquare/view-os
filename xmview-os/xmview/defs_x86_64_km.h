@@ -51,6 +51,12 @@
 #define __NR_recv __NR_doesnotexist
 #define __NR_statfs64 __NR_doesnotexist
 #define __NR_fstatfs64 __NR_doesnotexist
+#define __NR_nice __NR_doesnotexist
+#define __NR_mmap2 __NR_doesnotexist
+
+/* XXX: should we find a more elegant solution? */
+#define wrap_in_statfs64 NULL
+#define wrap_in_fstatfs64 NULL
 
 #define wrap_in_stat wrap_in_stat64
 #define wrap_in_fstat wrap_in_fstat64

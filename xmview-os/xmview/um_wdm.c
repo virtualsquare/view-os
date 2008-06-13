@@ -47,14 +47,12 @@
 #include "utils.h"
 #include "gdebug.h"
 
-#define umNULL ((int) NULL)
-
 int wrap_in_getcwd(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	long arg1=pc->sysargs[1];
-	if (pc->sysargs[0]==(int) NULL) {
-		pc->retval=(int) NULL;
+	if (pc->sysargs[0]==(long) NULL) {
+		pc->retval=(long) NULL;
 		pc->erno=EFAULT;
 	} else {
 		//printf("dsys_getcwd %s\n",pc->fdfs->cwd);
