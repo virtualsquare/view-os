@@ -132,19 +132,19 @@ int lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_
 int lwip_close(int s);
 int lwip_connect(int s, struct sockaddr *name, socklen_t namelen);
 int lwip_listen(int s, int backlog);
-int lwip_recv(int s, void *mem, int len, unsigned int flags);
-int lwip_read(int s, void *mem, int len);
-int lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
+ssize_t lwip_recv(int s, void *mem, int len, unsigned int flags);
+ssize_t lwip_read(int s, void *mem, int len);
+ssize_t lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 		      struct sockaddr *from, socklen_t *fromlen);
-int lwip_send(int s, void *dataptr, int size, unsigned int flags);
-int lwip_sendto(int s, void *dataptr, int size, unsigned int flags,
+ssize_t lwip_send(int s, void *dataptr, int size, unsigned int flags);
+ssize_t lwip_sendto(int s, void *dataptr, int size, unsigned int flags,
 		    struct sockaddr *to, socklen_t tolen);
-int lwip_recvmsg(int fd, struct msghdr *msg, int flags); 
-int lwip_sendmsg(int fd, const struct msghdr *msg, int flags); 
+ssize_t lwip_recvmsg(int fd, struct msghdr *msg, int flags); 
+ssize_t lwip_sendmsg(int fd, const struct msghdr *msg, int flags); 
 
 int lwip_msocket(struct stack *stack, int domain, int type, int protocol);
 int lwip_socket(int domain, int type, int protocol);
-int lwip_write(int s, void *dataptr, int size);
+ssize_t lwip_write(int s, void *dataptr, int size);
 int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
 		struct timeval *timeout);
 int lwip_pselect(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
@@ -156,8 +156,8 @@ int lwip_ppoll(struct pollfd *fds, nfds_t nfds,
 int lwip_ioctl(int s, long cmd, void *argp);
 
 struct iovec;
-int lwip_writev(int s, struct iovec *vector, int count);
-int lwip_readv(int s, struct iovec *vector, int count);
+ssize_t lwip_writev(int s, struct iovec *vector, int count);
+ssize_t lwip_readv(int s, struct iovec *vector, int count);
 
 int lwip_radv_load_configfile(struct stack *stack,void *arg);
 
@@ -176,6 +176,7 @@ typedef struct stack *pstack;
 typedef pnetif (*pnetiffun)();
 typedef pstack (*pstackfun)();
 typedef int (*lwiplongfun)();
+typedef ssize_t (*lwipssizetfun)();
 typedef void (*lwipvoidfun)();
 
 pstackfun lwip_stack_new;
@@ -188,43 +189,41 @@ pnetiffun lwip_vdeif_add, lwip_tapif_add, lwip_tunif_add;
 /*pnetiffun lwip_vdeif_madd, lwip_tapif_madd, lwip_tunif_madd;*/
 
 lwiplongfun lwip_add_addr,
-lwip_del_addr,
-lwip_add_route,
-lwip_del_route,
-lwip_ifup,
-lwip_ifdown,
-lwip_accept,
-lwip_bind,
-lwip_shutdown,
-lwip_getpeername,
-lwip_getsockname,
-lwip_getsockopt,
-lwip_setsockopt,
-lwip_close,
-lwip_connect,
-lwip_listen,
-lwip_recv,
-lwip_read,
-lwip_recvfrom,
-lwip_send,
-lwip_sendto,
-lwip_recvmsg,
-lwip_sendmsg,
-lwip_socket,
-lwip_write,
-	
-lwip_select,
-lwip_pselect,
-lwip_poll,
-lwip_ppoll,
-lwip_ioctl,
+			lwip_del_addr,
+			lwip_add_route,
+			lwip_del_route,
+			lwip_ifup,
+			lwip_ifdown,
+			lwip_accept,
+			lwip_bind,
+			lwip_shutdown,
+			lwip_getpeername,
+			lwip_getsockname,
+			lwip_getsockopt,
+			lwip_setsockopt,
+			lwip_close,
+			lwip_connect,
+			lwip_listen,
+			lwip_socket,
+			lwip_select,
+			lwip_pselect,
+			lwip_poll,
+			lwip_ppoll,
+			lwip_ioctl,
+			lwip_msocket,
+			lwip_event_subscribe;
 
-lwip_writev,
-lwip_readv,
+lwipssizetfun lwip_recv,
+			  lwip_read,
+			  lwip_recvfrom,
+			  lwip_send,
+			  lwip_sendto,
+			  lwip_recvmsg,
+			  lwip_sendmsg,
+			  lwip_write,
+			  lwip_writev,
+			  lwip_readv;
 
-lwip_msocket,
-lwip_event_subscribe
-;
 
 /* Added by Diego Billi */
 lwiplongfun lwip_radv_load_configfile;

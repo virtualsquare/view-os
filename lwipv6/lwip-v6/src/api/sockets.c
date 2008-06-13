@@ -248,7 +248,7 @@ static int set_lwip_sockmap(int s,short index)
 	lwip_sockmap[s]=index;
 }
 
-static struct lwip_socket *
+	static struct lwip_socket *
 get_socket(int s)
 {
 	struct lwip_socket *sock;
@@ -324,7 +324,7 @@ alloc_socket(struct netconn *newconn,u16_t family)
 				else
 					fd=socket(PF_INET, SOCK_DGRAM, 0);
 				if (fd < 0) {
-				  sockets[i]=NULL;
+					sockets[i]=NULL;
 					free(this);
 					set_errno(EIO);
 					return -1;
@@ -357,7 +357,7 @@ lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 #if LWIP_PACKET
 			|| sock->family == PF_PACKET
 #endif
-		 ) {
+	   ) {
 		set_errno(EBADF);
 		return -1;
 	}
@@ -580,7 +580,7 @@ lwip_listen(int s, int backlog)
 #if LWIP_PACKET
 			|| sock->family == PF_PACKET
 #endif
-		 ) {
+	   ) {
 		set_errno(EBADF);
 		return -1;
 	}
@@ -597,7 +597,7 @@ lwip_listen(int s, int backlog)
 	return 0;
 }
 
-	int
+	ssize_t
 lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 		struct sockaddr *from, socklen_t *fromlen)
 {
@@ -636,7 +636,7 @@ lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 			/*printf("netconn_recv %p R %d L %p S %d\n", sock->conn, sock->rcvevent, sock->lastdata, sock->sendevent);*/
 
 			/* No data was left from the previous operation, so we try to get
-				 some from the network. */
+			   some from the network. */
 			buf = netconn_recv(sock->conn);
 
 			if (!buf) {
@@ -660,7 +660,7 @@ lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 		}
 
 		/* copy the contents of the received buffer into
-			 the supplied memory pointer mem */
+		   the supplied memory pointer mem */
 		netbuf_copy_partial(buf, mem, copylen, sock->lastoffset);
 
 		/* Check to see from where the data was. */
@@ -731,8 +731,8 @@ lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 		}
 
 		/* If this is a TCP socket, check if there is data left in the
-			 buffer. If so, it should be saved in the sock structure for next
-			 time around. */
+		   buffer. If so, it should be saved in the sock structure for next
+		   time around. */
 		if (netconn_type(sock->conn) == NETCONN_TCP && buflen - copylen > 0) {
 			sock->lastdata = buf;
 			sock->lastoffset += copylen;
@@ -747,24 +747,24 @@ lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 	}
 }
 
-	int
+	ssize_t
 lwip_read(int s, void *mem, int len)
 {
 	return lwip_recvfrom(s, mem, len, 0, NULL, NULL);
 }
 
-int
+	ssize_t
 lwip_recv(int s, void *mem, int len, unsigned int flags)
 {
 	return lwip_recvfrom(s, mem, len, flags, NULL, NULL);
 }
 
-int lwip_recvmsg(int fd, struct msghdr *msg, int flags)
+ssize_t lwip_recvmsg(int fd, struct msghdr *msg, int flags)
 {
 	msg->msg_controllen=0;
 	if (msg->msg_iovlen == 1) {
 		return lwip_recvfrom(fd, msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
-				            msg->msg_name,&(msg->msg_namelen));
+				msg->msg_name,&(msg->msg_namelen));
 	} else {
 		struct iovec liovec,*msg_iov;
 		size_t msg_iovlen;
@@ -788,7 +788,7 @@ int lwip_recvmsg(int fd, struct msghdr *msg, int flags)
 	}
 }
 
-int
+	ssize_t
 lwip_send(int s, void *data, int size, unsigned int flags)
 {
 	struct lwip_socket *sock;
@@ -835,7 +835,7 @@ lwip_send(int s, void *data, int size, unsigned int flags)
 				}
 
 				/* make the buffer point to the data that should
-					 be sent */
+				   be sent */
 				netbuf_ref(buf, data, size);
 
 				/* send the data */
@@ -863,7 +863,7 @@ lwip_send(int s, void *data, int size, unsigned int flags)
 	}
 }
 
-	int
+	ssize_t
 lwip_sendto(int s, void *data, int size, unsigned int flags,
 		struct sockaddr *to, socklen_t tolen)
 {
@@ -913,7 +913,7 @@ lwip_sendto(int s, void *data, int size, unsigned int flags,
 		ret = lwip_send(s, data, size, flags);
 
 		/* reset the remote address and port number
-			 of the connection */
+		   of the connection */
 		if (connected) {
 			if (tolen>0) netconn_connect(sock->conn, &addr, port);
 		} else
@@ -922,12 +922,12 @@ lwip_sendto(int s, void *data, int size, unsigned int flags,
 	}
 }
 
-int lwip_sendmsg(int fd, struct msghdr *msg, int flags)
+ssize_t lwip_sendmsg(int fd, struct msghdr *msg, int flags)
 {
 	msg->msg_controllen=0;
 	if (msg->msg_iovlen == 1) {
 		return lwip_sendto(fd, msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
-				            msg->msg_name,msg->msg_namelen);
+				msg->msg_name,msg->msg_namelen);
 	} else {
 		struct iovec liovec,*msg_iov;
 		size_t msg_iovlen;
@@ -964,12 +964,12 @@ lwip_msocket(struct stack *stack, int domain, int type, int protocol)
 #if LWIP_PACKET
 			&& domain != PF_PACKET
 #endif
-		 ) {
+	   ) {
 		set_errno(EAFNOSUPPORT);
 		return -1;
 	}
 
-//#if LWIP_NL || LWIP_PACKET
+	//#if LWIP_NL || LWIP_PACKET
 	switch(domain) {
 #if LWIP_NL
 		case PF_NETLINK:
@@ -1012,7 +1012,7 @@ lwip_msocket(struct stack *stack, int domain, int type, int protocol)
 
 		case PF_INET:
 		case PF_INET6:
-//#endif 
+			//#endif 
 
 			/* create a netconn */
 			switch (type) {
@@ -1036,10 +1036,10 @@ lwip_msocket(struct stack *stack, int domain, int type, int protocol)
 			break;
 		default:
 			LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_socket(%d/UNKNOWN, %d, %d) = -1\n", domain, type, protocol));
-			
-//#if LWIP_NL
+
+			//#if LWIP_NL
 	}
-//#endif
+	//#endif
 
 	if (!conn) {
 		LWIP_DEBUGF(SOCKETS_DEBUG, ("-1 / ENOBUFS (could not create netconn)\n"));
@@ -1053,7 +1053,7 @@ lwip_msocket(struct stack *stack, int domain, int type, int protocol)
 #if LWIP_NL
 			&& domain != PF_NETLINK
 #endif
-		 ) {
+	   ) {
 		netconn_delete(conn);
 		set_errno(ENOBUFS);
 		return -1;
@@ -1073,7 +1073,7 @@ lwip_socket(int domain, int type, int protocol)
 	lwip_msocket(tcpip_stack_get(),domain,type,protocol);
 }
 
-int
+	ssize_t
 lwip_write(int s, void *data, int size)
 {
 	return lwip_send(s, data, size, 0);
@@ -1167,7 +1167,7 @@ int lwip_event_subscribe(void (* cb)(), void *arg, int fd, int events)
 	struct lwip_socket *psock=get_socket(fd);
 	int rv=0;
 	//printf("UMSELECT REGISTER %s %d events %x arg %x psock %x\n",
-			//(cb != NULL)?"REG" : "DEL", fd,events,arg,psock); 
+	//(cb != NULL)?"REG" : "DEL", fd,events,arg,psock); 
 	if (!selectsem)
 		selectsem = sys_sem_new(1);
 	sys_sem_wait(selectsem);
@@ -1178,9 +1178,9 @@ int lwip_event_subscribe(void (* cb)(), void *arg, int fd, int events)
 			rv=events;
 		else
 #endif
-		if ((rv= (events & POLLIN) * (psock->lastdata || psock->rcvevent || psock->conn->recv_avail) +
-					(events & POLLOUT) * psock->sendevent) == 0 && cb != NULL)
-			um_sel_add(cb,arg,fd,events);
+			if ((rv= (events & POLLIN) * (psock->lastdata || psock->rcvevent || psock->conn->recv_avail) +
+						(events & POLLOUT) * psock->sendevent) == 0 && cb != NULL)
+				um_sel_add(cb,arg,fd,events);
 	} 
 	if (cb == NULL || rv>0)
 		um_sel_del(arg,fd);
@@ -1252,7 +1252,7 @@ event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 	sys_sem_signal(selectsem);
 }
 
-int
+	int
 lwip_shutdown(int s, int how)
 {
 	struct lwip_socket *sock;
@@ -1280,7 +1280,7 @@ lwip_shutdown(int s, int how)
 	return 0;
 }
 
-int
+	int
 lwip_getpeername (int s, struct sockaddr *name, socklen_t *namelen)
 {
 	struct lwip_socket *sock;
@@ -1295,7 +1295,7 @@ lwip_getpeername (int s, struct sockaddr *name, socklen_t *namelen)
 #if LWIP_PACKET
 			|| sock->family == PF_PACKET
 #endif
-		 ) {
+	   ) {
 		set_errno(EBADF);
 		return -1;
 	}
@@ -1338,7 +1338,7 @@ lwip_getpeername (int s, struct sockaddr *name, socklen_t *namelen)
 	return 0;
 }
 
-int
+	int
 lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 {
 	struct lwip_socket *sock;
@@ -1462,8 +1462,8 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 		case IPPROTO_IP:
 			switch(optname) {
 				case IP_HDRINCL:
-				/* UNIMPL case IP_RCVDSTADDR: */
-				/* UNIMPL case IP_RCVIF: */
+					/* UNIMPL case IP_RCVDSTADDR: */
+					/* UNIMPL case IP_RCVIF: */
 				case IP_TTL:
 				case IP_TOS:
 					if( *optlen < sizeof(int) ) {
@@ -1657,8 +1657,8 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 						err = EINVAL;
 					}
 					break;
-				/*case SO_ATTACH_FILTER:
-					break;*/
+					/*case SO_ATTACH_FILTER:
+					  break;*/
 				default:
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_setsockopt(%d, SOL_SOCKET, UNIMPL: optname=0x%x, ..)\n", s, optname));
 					err = ENOPROTOOPT;
@@ -1669,8 +1669,8 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 		case IPPROTO_IP:
 			switch(optname) {
 				case IP_HDRINCL:
-				/* UNIMPL case IP_RCVDSTADDR: */
-				/* UNIMPL case IP_RCVIF: */
+					/* UNIMPL case IP_RCVDSTADDR: */
+					/* UNIMPL case IP_RCVIF: */
 				case IP_TTL:
 				case IP_TOS:
 				case IP_MTU_DISCOVER:
@@ -1914,7 +1914,7 @@ int lwip_ioctl(int s, unsigned long cmd, void *argp)
 #ifdef LWIP_SOCKET
 			|| sock->family == PF_SOCKET
 #endif
-		 ) {
+	   ) {
 		printf("lwip_ioctl %d %ld BADF\n",s,cmd);
 		set_errno(EBADF);
 		return -1;
@@ -1976,9 +1976,9 @@ int lwip_ioctl(int s, unsigned long cmd, void *argp)
 			}
 			else {
 				LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_ioctl(%d, UNIMPL: 0x%lx, %p)\n", s, cmd, argp));
-				
+
 				sock_set_errno(sock, ENOSYS); /* not yet implemented */
-				
+
 				return -1;
 			}
 	}
@@ -2002,7 +2002,7 @@ int lwip_fcntl64(int s, int cmd, long arg)
 #ifdef LWIP_SOCKET
 			|| sock->family == PF_SOCKET
 #endif
-		 ) {
+	   ) {
 		set_errno(EBADF);
 		return -1;
 	}
@@ -2073,7 +2073,7 @@ void lwip_pipecb(int *fdp)
 }
 
 int lwip_pselect(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
-		    const struct timespec *timeout, const sigset_t *sigmask)
+		const struct timespec *timeout, const sigset_t *sigmask)
 {
 	int i;
 	int rv,count;
@@ -2090,7 +2090,7 @@ int lwip_pselect(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *excepts
 	if (readset) lreadset=*readset; else FD_ZERO(&lreadset);
 	if (writeset) lwriteset=*writeset; else FD_ZERO(&lwriteset);
 	if (exceptset) lexceptset=*exceptset; else FD_ZERO(&lexceptset);
-  for (i=0;i<maxfdp1;i++) {
+	for (i=0;i<maxfdp1;i++) {
 		if ((p_sock=get_socket(i))!=NULL) {
 			short events=0;
 			if (FD_ISSET(i,&lreadset)) events |= POLLIN;
@@ -2109,7 +2109,7 @@ int lwip_pselect(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *excepts
 	else
 		rv=pselect(newmaxp1,&lreadset,&lwriteset,&lexceptset,timeout,sigmask);
 	count=0;
-  for (i=0;i<maxfdp1;i++) {
+	for (i=0;i<maxfdp1;i++) {
 		if ((p_sock=get_socket(i))!=NULL) {
 			short events=0;
 			if (readset && FD_ISSET(i,readset)) events |= POLLIN;
@@ -2219,7 +2219,7 @@ static int lwip_pollmerge(struct pollfd *fds, nfds_t nfds, struct pollfd *rfds)
 		} else {
 			if (fds[i].fd != rfds[ri].fd)
 				printf("ERROR misalignment!\n");
-		  else {
+			else {
 				fds[i].revents=rfds[ri].revents;
 				ri++;
 			}
@@ -2236,7 +2236,7 @@ int lwip_ppoll(struct pollfd *fds, nfds_t nfds,
 	int rv,count;
 	short *events;
 	short revents=0;
-  int fdp[2];
+	int fdp[2];
 	struct timespec now={0,0};
 	int indexpipe=-1;
 	int substitutedbypipe;
@@ -2256,7 +2256,7 @@ int lwip_ppoll(struct pollfd *fds, nfds_t nfds,
 			fds[i].events=POLLIN;
 		} else 
 			events[i]=0;
-  }
+	}
 	if (revents)
 		rv=ppoll(fds,nfds,&now,sigmask);
 	else
@@ -2324,7 +2324,7 @@ int lwip_writev(int s, struct iovec *vector, int count)
 
 	/* Copy in iovec buffers in the private buffer */
 	i = 0;
-    pos = 0;
+	pos = 0;
 	while (pos < totsize) {
 		memcpy( &temp_buf[pos], vector[i].iov_base, vector[i].iov_len);
 		i++;
@@ -2335,7 +2335,7 @@ int lwip_writev(int s, struct iovec *vector, int count)
 
 	mem_free(temp_buf);
 
-    return ret;
+	return ret;
 }
 
 int lwip_readv(int s, struct iovec *vector, int count)
@@ -2371,7 +2371,7 @@ int lwip_readv(int s, struct iovec *vector, int count)
 	ret = lwip_read(s, temp_buf, totsize);
 	if (ret != -1) {
 		i = 0;
-	    pos = 0;
+		pos = 0;
 		while (pos < ret) {
 			memcpy( vector[i].iov_base, &temp_buf[pos], vector[i].iov_len);
 			i++;
@@ -2381,5 +2381,5 @@ int lwip_readv(int s, struct iovec *vector, int count)
 
 	mem_free(temp_buf);
 
-    return ret;
+	return ret;
 }
