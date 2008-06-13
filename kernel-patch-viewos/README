@@ -9,7 +9,7 @@ From version 2.6.25:
 VM extensions to PTRACE_SYSCALL/SINGLESTEP/SINGLEBLOCK/CONT instead
 of the deprecated PTRACE_SYSVM tag
 - separate patches for ptrace_vm and ptrace_multi
-apply sequentially 1) +ptrace_vm and 2) -ptrace_vm+ptrace_multi
+The two patches are independent: can be applied in any order.
 
 UMVIEW does not need any patch in the kernel of the hosting computer to 
 work but with PTRACE_MULTI there is a dramatic increase in performance.

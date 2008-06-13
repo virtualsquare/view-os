@@ -1,6 +1,6 @@
-diff -Naur linux-2.6.26-rc5-ptrace_vm/include/linux/mm.h linux-2.6.26-rc5-ptrace_vm-ptrace_multi/include/linux/mm.h
---- linux-2.6.26-rc5-ptrace_vm/include/linux/mm.h	2008-06-09 12:01:53.000000000 +0200
-+++ linux-2.6.26-rc5-ptrace_vm-ptrace_multi/include/linux/mm.h	2008-06-09 12:45:54.000000000 +0200
+diff -Naur linux-2.6.26-rc6/include/linux/mm.h linux-2.6.26-rc6-ptrace_multi/include/linux/mm.h
+--- linux-2.6.26-rc6/include/linux/mm.h	2008-06-13 13:33:30.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_multi/include/linux/mm.h	2008-06-13 13:43:09.000000000 +0200
 @@ -804,6 +804,7 @@
  
  extern int make_pages_present(unsigned long addr, unsigned long end);
@@ -9,9 +9,9 @@ diff -Naur linux-2.6.26-rc5-ptrace_vm/include/linux/mm.h linux-2.6.26-rc5-ptrace
  
  int get_user_pages(struct task_struct *tsk, struct mm_struct *mm, unsigned long start,
  		int len, int write, int force, struct page **pages, struct vm_area_struct **vmas);
-diff -Naur linux-2.6.26-rc5-ptrace_vm/include/linux/ptrace.h linux-2.6.26-rc5-ptrace_vm-ptrace_multi/include/linux/ptrace.h
---- linux-2.6.26-rc5-ptrace_vm/include/linux/ptrace.h	2008-06-09 12:04:36.000000000 +0200
-+++ linux-2.6.26-rc5-ptrace_vm-ptrace_multi/include/linux/ptrace.h	2008-06-09 12:45:55.000000000 +0200
+diff -Naur linux-2.6.26-rc6/include/linux/ptrace.h linux-2.6.26-rc6-ptrace_multi/include/linux/ptrace.h
+--- linux-2.6.26-rc6/include/linux/ptrace.h	2008-06-13 13:33:30.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_multi/include/linux/ptrace.h	2008-06-13 13:43:09.000000000 +0200
 @@ -27,6 +27,18 @@
  #define PTRACE_GETSIGINFO	0x4202
  #define PTRACE_SETSIGINFO	0x4203
@@ -31,7 +31,7 @@ diff -Naur linux-2.6.26-rc5-ptrace_vm/include/linux/ptrace.h linux-2.6.26-rc5-pt
  /* options set using PTRACE_SETOPTIONS */
  #define PTRACE_O_TRACESYSGOOD	0x00000001
  #define PTRACE_O_TRACEFORK	0x00000002
-@@ -93,6 +105,7 @@
+@@ -84,6 +96,7 @@
  extern struct task_struct *ptrace_get_task_struct(pid_t pid);
  extern int ptrace_traceme(void);
  extern int ptrace_readdata(struct task_struct *tsk, unsigned long src, char __user *dst, int len);
@@ -39,9 +39,9 @@ diff -Naur linux-2.6.26-rc5-ptrace_vm/include/linux/ptrace.h linux-2.6.26-rc5-pt
  extern int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned long dst, int len);
  extern int ptrace_attach(struct task_struct *tsk);
  extern int ptrace_detach(struct task_struct *, unsigned int);
-diff -Naur linux-2.6.26-rc5-ptrace_vm/kernel/ptrace.c linux-2.6.26-rc5-ptrace_vm-ptrace_multi/kernel/ptrace.c
---- linux-2.6.26-rc5-ptrace_vm/kernel/ptrace.c	2008-06-09 12:04:36.000000000 +0200
-+++ linux-2.6.26-rc5-ptrace_vm-ptrace_multi/kernel/ptrace.c	2008-06-09 12:45:53.000000000 +0200
+diff -Naur linux-2.6.26-rc6/kernel/ptrace.c linux-2.6.26-rc6-ptrace_multi/kernel/ptrace.c
+--- linux-2.6.26-rc6/kernel/ptrace.c	2008-06-13 13:33:31.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_multi/kernel/ptrace.c	2008-06-13 13:43:09.000000000 +0200
 @@ -2,6 +2,7 @@
   * linux/kernel/ptrace.c
   *
@@ -115,7 +115,7 @@ diff -Naur linux-2.6.26-rc5-ptrace_vm/kernel/ptrace.c linux-2.6.26-rc5-ptrace_vm
  }
  
  static int ptrace_setoptions(struct task_struct *child, long data)
-@@ -537,6 +509,53 @@
+@@ -534,6 +506,53 @@
  #define arch_ptrace_attach(child)	do { } while (0)
  #endif
  
@@ -169,7 +169,7 @@ diff -Naur linux-2.6.26-rc5-ptrace_vm/kernel/ptrace.c linux-2.6.26-rc5-ptrace_vm
  asmlinkage long sys_ptrace(long request, long pid, long addr, long data)
  {
  	struct task_struct *child;
-@@ -574,7 +593,11 @@
+@@ -571,7 +590,11 @@
  	if (ret < 0)
  		goto out_put_task_struct;
  
@@ -182,9 +182,9 @@ diff -Naur linux-2.6.26-rc5-ptrace_vm/kernel/ptrace.c linux-2.6.26-rc5-ptrace_vm
  	if (ret < 0)
  		goto out_put_task_struct;
  
-diff -Naur linux-2.6.26-rc5-ptrace_vm/mm/memory.c linux-2.6.26-rc5-ptrace_vm-ptrace_multi/mm/memory.c
---- linux-2.6.26-rc5-ptrace_vm/mm/memory.c	2008-06-09 12:03:13.000000000 +0200
-+++ linux-2.6.26-rc5-ptrace_vm-ptrace_multi/mm/memory.c	2008-06-09 12:46:42.000000000 +0200
+diff -Naur linux-2.6.26-rc6/mm/memory.c linux-2.6.26-rc6-ptrace_multi/mm/memory.c
+--- linux-2.6.26-rc6/mm/memory.c	2008-06-13 13:33:31.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_multi/mm/memory.c	2008-06-13 13:43:09.000000000 +0200
 @@ -2793,6 +2793,74 @@
  }
  
@@ -260,8 +260,8 @@ diff -Naur linux-2.6.26-rc5-ptrace_vm/mm/memory.c linux-2.6.26-rc5-ptrace_vm-ptr
   * Print the name of a VMA.
   */
  void print_vma_addr(char *prefix, unsigned long ip)
-diff -Naur linux-2.6.26-rc5-ptrace_vm/patch-linux-2.6.25.5-ptrace_vm linux-2.6.26-rc5-ptrace_vm-ptrace_multi/patch-linux-2.6.25.5-ptrace_vm
---- linux-2.6.26-rc5-ptrace_vm/patch-linux-2.6.25.5-ptrace_vm	1970-01-01 01:00:00.000000000 +0100
-+++ linux-2.6.26-rc5-ptrace_vm-ptrace_multi/patch-linux-2.6.25.5-ptrace_vm	2008-06-09 12:46:20.000000000 +0200
+diff -Naur linux-2.6.26-rc6/patch-linux-2.6.25.5-ptrace_vm linux-2.6.26-rc6-ptrace_multi/patch-linux-2.6.25.5-ptrace_vm
+--- linux-2.6.26-rc6/patch-linux-2.6.25.5-ptrace_vm	1970-01-01 01:00:00.000000000 +0100
++++ linux-2.6.26-rc6-ptrace_multi/patch-linux-2.6.25.5-ptrace_vm	2008-06-13 13:43:09.000000000 +0200
 @@ -0,0 +1 @@
 +diff -Naur linux-2.6.25.5 linux-2.6.25.5.ptrace_vm
