@@ -1,6 +1,6 @@
 diff -Naur linux-2.6.26-rc6/arch/powerpc/kernel/entry_32.S linux-2.6.26-rc6-ptrace_vm/arch/powerpc/kernel/entry_32.S
 --- linux-2.6.26-rc6/arch/powerpc/kernel/entry_32.S	2008-06-13 13:33:26.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/arch/powerpc/kernel/entry_32.S	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/powerpc/kernel/entry_32.S	2008-06-14 16:42:36.000000000 +0200
 @@ -299,6 +299,7 @@
  	stw	r0,_TRAP(r1)
  	addi	r3,r1,STACK_FRAME_OVERHEAD
@@ -20,7 +20,7 @@ diff -Naur linux-2.6.26-rc6/arch/powerpc/kernel/entry_32.S linux-2.6.26-rc6-ptra
  syscall_exit_work:
 diff -Naur linux-2.6.26-rc6/arch/powerpc/kernel/entry_64.S linux-2.6.26-rc6-ptrace_vm/arch/powerpc/kernel/entry_64.S
 --- linux-2.6.26-rc6/arch/powerpc/kernel/entry_64.S	2008-06-13 13:33:26.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/arch/powerpc/kernel/entry_64.S	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/powerpc/kernel/entry_64.S	2008-06-14 16:42:36.000000000 +0200
 @@ -213,6 +213,7 @@
  	bl	.save_nvgprs
  	addi	r3,r1,STACK_FRAME_OVERHEAD
@@ -40,7 +40,7 @@ diff -Naur linux-2.6.26-rc6/arch/powerpc/kernel/entry_64.S linux-2.6.26-rc6-ptra
  syscall_enosys:
 diff -Naur linux-2.6.26-rc6/arch/powerpc/kernel/ptrace.c linux-2.6.26-rc6-ptrace_vm/arch/powerpc/kernel/ptrace.c
 --- linux-2.6.26-rc6/arch/powerpc/kernel/ptrace.c	2008-04-17 04:49:44.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/arch/powerpc/kernel/ptrace.c	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/powerpc/kernel/ptrace.c	2008-06-14 16:42:36.000000000 +0200
 @@ -867,7 +867,7 @@
  	}
  }
@@ -72,7 +72,7 @@ diff -Naur linux-2.6.26-rc6/arch/powerpc/kernel/ptrace.c linux-2.6.26-rc6-ptrace
  }
 diff -Naur linux-2.6.26-rc6/arch/ppc/kernel/entry.S linux-2.6.26-rc6-ptrace_vm/arch/ppc/kernel/entry.S
 --- linux-2.6.26-rc6/arch/ppc/kernel/entry.S	2008-04-17 04:49:44.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/arch/ppc/kernel/entry.S	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/ppc/kernel/entry.S	2008-06-14 16:42:36.000000000 +0200
 @@ -292,6 +292,7 @@
  	stw	r0,TRAP(r1)
  	addi	r3,r1,STACK_FRAME_OVERHEAD
@@ -92,7 +92,7 @@ diff -Naur linux-2.6.26-rc6/arch/ppc/kernel/entry.S linux-2.6.26-rc6-ptrace_vm/a
  syscall_exit_work:
 diff -Naur linux-2.6.26-rc6/arch/um/include/kern_util.h linux-2.6.26-rc6-ptrace_vm/arch/um/include/kern_util.h
 --- linux-2.6.26-rc6/arch/um/include/kern_util.h	2008-04-17 04:49:44.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/arch/um/include/kern_util.h	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/um/include/kern_util.h	2008-06-14 16:42:36.000000000 +0200
 @@ -57,7 +57,7 @@
  extern unsigned long to_irq_stack(unsigned long *mask_out);
  extern unsigned long from_irq_stack(int nested);
@@ -104,7 +104,7 @@ diff -Naur linux-2.6.26-rc6/arch/um/include/kern_util.h linux-2.6.26-rc6-ptrace_
  extern void segv_handler(int sig, struct uml_pt_regs *regs);
 diff -Naur linux-2.6.26-rc6/arch/um/include/ptrace_user.h linux-2.6.26-rc6-ptrace_vm/arch/um/include/ptrace_user.h
 --- linux-2.6.26-rc6/arch/um/include/ptrace_user.h	2008-04-17 04:49:44.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/arch/um/include/ptrace_user.h	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/um/include/ptrace_user.h	2008-06-14 16:42:36.000000000 +0200
 @@ -40,9 +40,20 @@
  #define PTRACE_OLDSETOPTIONS PTRACE_SETOPTIONS
  #endif
@@ -128,7 +128,7 @@ diff -Naur linux-2.6.26-rc6/arch/um/include/ptrace_user.h linux-2.6.26-rc6-ptrac
  	(((int[3][3] ) { \
 diff -Naur linux-2.6.26-rc6/arch/um/kernel/process.c linux-2.6.26-rc6-ptrace_vm/arch/um/kernel/process.c
 --- linux-2.6.26-rc6/arch/um/kernel/process.c	2008-06-13 13:33:26.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/arch/um/kernel/process.c	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/um/kernel/process.c	2008-06-14 16:42:36.000000000 +0200
 @@ -322,7 +322,9 @@
  }
  
@@ -234,7 +234,7 @@ diff -Naur linux-2.6.26-rc6/arch/um/kernel/process.c linux-2.6.26-rc6-ptrace_vm/
  {
 diff -Naur linux-2.6.26-rc6/arch/um/kernel/ptrace.c linux-2.6.26-rc6-ptrace_vm/arch/um/kernel/ptrace.c
 --- linux-2.6.26-rc6/arch/um/kernel/ptrace.c	2008-04-17 04:49:44.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/arch/um/kernel/ptrace.c	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/um/kernel/ptrace.c	2008-06-14 16:42:36.000000000 +0200
 @@ -76,6 +76,8 @@
  		if (request == PTRACE_SYSCALL)
  			set_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
@@ -290,7 +290,7 @@ diff -Naur linux-2.6.26-rc6/arch/um/kernel/ptrace.c linux-2.6.26-rc6-ptrace_vm/a
  }
 diff -Naur linux-2.6.26-rc6/arch/um/kernel/skas/syscall.c linux-2.6.26-rc6-ptrace_vm/arch/um/kernel/skas/syscall.c
 --- linux-2.6.26-rc6/arch/um/kernel/skas/syscall.c	2008-04-17 04:49:44.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/arch/um/kernel/skas/syscall.c	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/um/kernel/skas/syscall.c	2008-06-14 16:42:36.000000000 +0200
 @@ -17,8 +17,9 @@
  	struct pt_regs *regs = container_of(r, struct pt_regs, regs);
  	long result;
@@ -324,7 +324,7 @@ diff -Naur linux-2.6.26-rc6/arch/um/kernel/skas/syscall.c linux-2.6.26-rc6-ptrac
  }
 diff -Naur linux-2.6.26-rc6/arch/um/os-Linux/skas/process.c linux-2.6.26-rc6-ptrace_vm/arch/um/os-Linux/skas/process.c
 --- linux-2.6.26-rc6/arch/um/os-Linux/skas/process.c	2008-06-13 13:33:26.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/arch/um/os-Linux/skas/process.c	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/um/os-Linux/skas/process.c	2008-06-14 16:42:36.000000000 +0200
 @@ -157,7 +157,7 @@
   * (in local_using_sysemu
   */
@@ -367,7 +367,7 @@ diff -Naur linux-2.6.26-rc6/arch/um/os-Linux/skas/process.c linux-2.6.26-rc6-ptr
  			fatal_sigsegv();
 diff -Naur linux-2.6.26-rc6/arch/um/os-Linux/start_up.c linux-2.6.26-rc6-ptrace_vm/arch/um/os-Linux/start_up.c
 --- linux-2.6.26-rc6/arch/um/os-Linux/start_up.c	2008-06-13 13:33:26.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/arch/um/os-Linux/start_up.c	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/um/os-Linux/start_up.c	2008-06-14 16:42:36.000000000 +0200
 @@ -196,6 +196,35 @@
  "    See http://perso.wanadoo.fr/laurent.vivier/UML/ for further \n"
  "    information.\n\n");
@@ -515,9 +515,51 @@ diff -Naur linux-2.6.26-rc6/arch/um/os-Linux/start_up.c linux-2.6.26-rc6-ptrace_
  }
  
  extern void check_tmpexec(void);
+diff -Naur linux-2.6.26-rc6/arch/x86/ia32/ia32entry.S linux-2.6.26-rc6-ptrace_vm/arch/x86/ia32/ia32entry.S
+--- linux-2.6.26-rc6/arch/x86/ia32/ia32entry.S	2008-06-13 13:33:26.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/x86/ia32/ia32entry.S	2008-06-14 16:46:41.000000000 +0200
+@@ -165,6 +165,8 @@
+ 	movq	$-ENOSYS,RAX(%rsp)/* ptrace can change this for a bad syscall */
+ 	movq	%rsp,%rdi        /* &pt_regs -> arg1 */
+ 	call	syscall_trace_enter
++	testq %rax,%rax
++	jnz ia32_skipcall
+ 	LOAD_ARGS32 ARGOFFSET  /* reload args from stack in case ptrace changed it */
+ 	RESTORE_REST
+ 	xchgl	%ebp,%r9d
+@@ -266,6 +268,8 @@
+ 	movq $-ENOSYS,RAX(%rsp)	/* ptrace can change this for a bad syscall */
+ 	movq %rsp,%rdi        /* &pt_regs -> arg1 */
+ 	call syscall_trace_enter
++	testq %rax,%rax
++	jnz ia32_skipcall
+ 	LOAD_ARGS32 ARGOFFSET  /* reload args from stack in case ptrace changed it */
+ 	RESTORE_REST
+ 	xchgl %ebp,%r9d
+@@ -342,6 +346,8 @@
+ 	movq $-ENOSYS,RAX(%rsp)	/* ptrace can change this for a bad syscall */
+ 	movq %rsp,%rdi        /* &pt_regs -> arg1 */
+ 	call syscall_trace_enter
++	testq %rax,%rax
++	jnz ia32_skipcall
+ 	LOAD_ARGS32 ARGOFFSET  /* reload args from stack in case ptrace changed it */
+ 	RESTORE_REST
+ 	jmp ia32_do_syscall
+@@ -352,6 +358,11 @@
+ 	movq $-ENOSYS,RAX-ARGOFFSET(%rsp)
+ 	jmp int_ret_from_sys_call
+ 
++ia32_skipcall:
++	LOAD_ARGS32 ARGOFFSET  /* reload args from stack in case ptrace changed it */
++	RESTORE_REST
++	jmp int_ret_from_sys_call
++
+ quiet_ni_syscall:
+ 	movq $-ENOSYS,%rax
+ 	ret
 diff -Naur linux-2.6.26-rc6/arch/x86/kernel/entry_64.S linux-2.6.26-rc6-ptrace_vm/arch/x86/kernel/entry_64.S
 --- linux-2.6.26-rc6/arch/x86/kernel/entry_64.S	2008-06-13 13:33:26.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/arch/x86/kernel/entry_64.S	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/x86/kernel/entry_64.S	2008-06-14 16:42:36.000000000 +0200
 @@ -316,6 +316,11 @@
  	movq $-ENOSYS,RAX-ARGOFFSET(%rsp)
  	jmp ret_from_sys_call
@@ -541,7 +583,7 @@ diff -Naur linux-2.6.26-rc6/arch/x86/kernel/entry_64.S linux-2.6.26-rc6-ptrace_v
  	cmpq $__NR_syscall_max,%rax
 diff -Naur linux-2.6.26-rc6/arch/x86/kernel/ptrace.c linux-2.6.26-rc6-ptrace_vm/arch/x86/kernel/ptrace.c
 --- linux-2.6.26-rc6/arch/x86/kernel/ptrace.c	2008-06-13 13:33:26.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/arch/x86/kernel/ptrace.c	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/arch/x86/kernel/ptrace.c	2008-06-14 16:42:36.000000000 +0200
 @@ -1415,6 +1415,9 @@
  	if (!(current->ptrace & PT_PTRACED))
  		goto out;
@@ -592,7 +634,7 @@ diff -Naur linux-2.6.26-rc6/arch/x86/kernel/ptrace.c linux-2.6.26-rc6-ptrace_vm/
  
 diff -Naur linux-2.6.26-rc6/include/linux/ptrace.h linux-2.6.26-rc6-ptrace_vm/include/linux/ptrace.h
 --- linux-2.6.26-rc6/include/linux/ptrace.h	2008-06-13 13:33:30.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/include/linux/ptrace.h	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/include/linux/ptrace.h	2008-06-14 16:42:36.000000000 +0200
 @@ -46,6 +46,11 @@
  #define PTRACE_EVENT_VFORK_DONE	5
  #define PTRACE_EVENT_EXIT	6
@@ -618,7 +660,7 @@ diff -Naur linux-2.6.26-rc6/include/linux/ptrace.h linux-2.6.26-rc6-ptrace_vm/in
  /* single stepping state bits (used on ARM and PA-RISC) */
 diff -Naur linux-2.6.26-rc6/kernel/ptrace.c linux-2.6.26-rc6-ptrace_vm/kernel/ptrace.c
 --- linux-2.6.26-rc6/kernel/ptrace.c	2008-06-13 13:33:31.000000000 +0200
-+++ linux-2.6.26-rc6-ptrace_vm/kernel/ptrace.c	2008-06-13 13:45:21.000000000 +0200
++++ linux-2.6.26-rc6-ptrace_vm/kernel/ptrace.c	2008-06-14 16:42:36.000000000 +0200
 @@ -375,7 +375,7 @@
  #define is_sysemu_singlestep(request)	0
  #endif
