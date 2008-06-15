@@ -123,7 +123,6 @@ out:
 		rv=0;
 	else
 		rv=1;
-	fprint2("MULTI=%d\n",rv);
   ptrace(PTRACE_KILL,pid,0,0);
   if((pid = r_waitpid(pid, &status, WUNTRACED)) < 0){
 	  perror("Waiting for stop");
