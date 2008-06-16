@@ -143,35 +143,11 @@ static int noprocnetdev()
 	return -1;
 }
 
-struct libtab {
-	int tag;
-	enum {SOCK, SYS, VIR} choice;
-	char *funcname;
-} lwiplibtab[] = {
-	{SYS_SOCKET, 	SOCK, 	"lwip_socket"},
-	{SYS_BIND,	SOCK,	"lwip_bind"},
-	{SYS_CONNECT,	SOCK,	"lwip_connect"},
-	{SYS_LISTEN,	SOCK,	"lwip_listen"},
-	{SYS_ACCEPT,	SOCK,	"lwip_accept"},
-	{SYS_GETSOCKNAME,	SOCK,	"lwip_getsockname"},
-	{SYS_GETPEERNAME,	SOCK,	"lwip_getpeername"},
-	{SYS_SEND,	SOCK,	"lwip_send"},
-	{SYS_RECV,	SOCK,	"lwip_recv"},
-	{SYS_SENDTO,	SOCK,	"lwip_sendto"},
-	{SYS_RECVFROM,	SOCK,	"lwip_recvfrom"},
-	{SYS_SHUTDOWN,	SOCK,	"lwip_shutdown"},
-	{SYS_SETSOCKOPT,	SOCK,	"lwip_setsockopt"},
-	{SYS_GETSOCKOPT,	SOCK,	"lwip_getsockopt"},
-	{SYS_SENDMSG,	SOCK,	"lwip_sendmsg"},
-	{SYS_RECVMSG,	SOCK,	"lwip_recvmsg"},
-	{__NR_read,	SYS,	"lwip_read"},
-	{__NR_write,	SYS,	"lwip_write"},
-	{__NR_close,	SYS,	"lwip_close"},
-	{__NR_fcntl,	SYS,	"lwip_fcntl"},
-	{__NR_fcntl64,	SYS,	"lwip_fcntl64"},
-	{__NR_ioctl,	SYS,	"lwip_ioctl"},
-};
-#define SIZEOFLIBTAB (sizeof(lwiplibtab)/sizeof(struct libtab))
+
+
+typedef long (*longfun)();
+#define LWIPSOCKET(X,Y) s.socket[(X)]=(longfun)lwip_##Y
+#define LWIPSYSCALL(X,Y) s.syscall[uscno(X)]=(longfun)lwip_##Y
 static void *lwiphandle;
 static struct stack *lwipstack;
 
@@ -180,50 +156,45 @@ typedef void (*voidfun)();
 
 static void openlwiplib()
 {
-	pstackfun lwip_stack_new;
-	voidfun lwip_stack_set;
-
-	lwiphandle=dlopen("liblwipv6.so",RTLD_NOW);
-	if (lwiphandle!=NULL) {
-		lwip_stack_new=dlsym(lwiphandle,"lwip_stack_new");
-		lwip_stack_set=dlsym(lwiphandle,"lwip_stack_set");
-	}
-	if (lwiphandle==NULL || lwip_stack_new==NULL || lwip_stack_set==NULL)
-		fprint2("error loading liblwipv6: %s\n", dlerror());
-	else {
-		int i;
-		sysfun fun;
-		lwipstack=lwip_stack_new();
-		lwip_stack_set(lwipstack);
-		for (i=0;i<SIZEOFLIBTAB;i++) {
-			if ((fun=dlsym(lwiphandle,lwiplibtab[i].funcname)) != NULL)
-			{
-				if (lwiplibtab[i].choice==SOCK)
-					s.socket[lwiplibtab[i].tag]=fun;
-				else if (lwiplibtab[i].choice==SYS)
-					s.syscall[uscno(lwiplibtab[i].tag)]=fun;
-				else
-					s.virsc[lwiplibtab[i].tag]=fun;
-			}
-		}
-		s.event_subscribe=dlsym(lwiphandle,"lwip_event_subscribe");
-		real_lwip_ioctl=s.syscall[uscno(__NR_ioctl)];
-		SERVICESYSCALL(s, ioctl, sockioctl);
-		SERVICESYSCALL(s, open, noprocnetdev);
-		SERVICESYSCALL(s, lstat64, noprocnetdev);
-		SERVICESYSCALL(s, access, noprocnetdev);
-	}
+	int i;
+	sysfun fun;
+	lwipstack=lwip_stack_new();
+	lwip_stack_set(lwipstack);
+	LWIPSOCKET(SYS_SOCKET, 	socket);
+	LWIPSOCKET(SYS_BIND,	bind);
+	LWIPSOCKET(SYS_CONNECT,	connect);
+	LWIPSOCKET(SYS_LISTEN,	listen);
+	LWIPSOCKET(SYS_ACCEPT,	accept);
+	LWIPSOCKET(SYS_GETSOCKNAME,	getsockname);
+	LWIPSOCKET(SYS_GETPEERNAME,	getpeername);
+	LWIPSOCKET(SYS_SEND,	send);
+	LWIPSOCKET(SYS_RECV,	recv);
+	LWIPSOCKET(SYS_SENDTO,	sendto);
+	LWIPSOCKET(SYS_RECVFROM,	recvfrom);
+	LWIPSOCKET(SYS_SHUTDOWN,	shutdown);
+	LWIPSOCKET(SYS_SETSOCKOPT,	setsockopt);
+	LWIPSOCKET(SYS_GETSOCKOPT,	getsockopt);
+	LWIPSOCKET(SYS_SENDMSG,	sendmsg);
+	LWIPSOCKET(SYS_RECVMSG,	recvmsg);
+	LWIPSYSCALL(__NR_read,	read);
+	LWIPSYSCALL(__NR_write,	write);
+	LWIPSYSCALL(__NR_close,	close);
+	/*LWIPSYSCALL(__NR_fcntl,	fcntl);*/
+	/*LWIPSYSCALL(__NR_fcntl64,	fcntl64);*/
+	LWIPSYSCALL(__NR_ioctl,	ioctl);
+	s.event_subscribe=(longfun)lwip_event_subscribe;
+	real_lwip_ioctl=s.syscall[uscno(__NR_ioctl)];
+	SERVICESYSCALL(s, ioctl, sockioctl);
+	SERVICESYSCALL(s, open, noprocnetdev);
+	SERVICESYSCALL(s, lstat64, noprocnetdev);
+	SERVICESYSCALL(s, access, noprocnetdev);
 }
 
 static void closelwiplib()
 {
 	if (lwiphandle!=NULL) {
-		if (lwipstack != NULL) {
-			voidfun lwip_stack_free;
-			lwip_stack_free=dlsym(lwiphandle,"lwip_stack_free");
-			if (lwip_stack_free != NULL)
-				lwip_stack_free(lwipstack);
-		}
+		if (lwipstack != NULL) 
+			lwip_stack_free(lwipstack);
 		dlclose(lwiphandle);
 	}
 }
@@ -248,8 +219,7 @@ long llwip_sendmsg(int fd, const struct msghdr *msg, int flags) {
 static char *intname[]={"vd","tp","tn"};
 #define INTTYPES (sizeof(intname)/sizeof(char *))
 typedef struct netif *((*netifstarfun)());
-char *initfunname[INTTYPES]={"lwip_vdeif_add","lwip_tapif_add","lwip_tunif_add"};
-static netifstarfun initfun[INTTYPES];
+static netifstarfun initfun[INTTYPES]={lwip_vdeif_add,lwip_tapif_add,lwip_tunif_add};
 static char intnum[INTTYPES];
 struct ifname {
 	unsigned char type;
@@ -261,9 +231,8 @@ struct ifname {
 /* Other parameters */
 static char *paramname[]={"ra"};
 #define PARAMTYPES (sizeof(paramname)/sizeof(char *))
-char *paramfunname[PARAMTYPES]={"lwip_radv_load_configfile"};
 typedef int *((*paramstarfun)(struct stack *stack,char *opt));
-static paramstarfun paramfun[PARAMTYPES]; /* parameter handler */
+static paramstarfun paramfun[PARAMTYPES]={(paramstarfun)lwip_radv_load_configfile}; /* parameter handler */
 static char        *paramval[PARAMTYPES]; /* parameter value */
 
 static void iffree(struct ifname *head)
@@ -321,7 +290,6 @@ static void myputenv(char *arg)
 			}
 		}
 	}
-
 }
 
 static char stdargs[]="vd1";
@@ -334,15 +302,6 @@ static void lwipargtoenv(char *initargs)
 	register int i,j;
 
 	ifh=NULL;
-	for (i=0;i<INTTYPES;i++) {
-		intnum[i]=0;
-		initfun[i]=dlsym(lwiphandle,initfunname[i]);
-	}
-
-	for (i=0;i<PARAMTYPES;i++) {
-		paramval[i]=NULL;
-		paramfun[i]=dlsym(lwiphandle,paramfunname[i]);
-	}
 
 	if (*initargs == 0) initargs=stdargs;
 	while (*initargs != 0) {
