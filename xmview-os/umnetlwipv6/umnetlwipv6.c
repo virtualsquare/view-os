@@ -35,10 +35,8 @@
 #include <linux/sockios.h>
 #include <linux/if.h>
 #include <dlfcn.h>
-#define LWIPV6DL
 #include <lwipv6.h>
 #include "umnet.h"
-static void *lwiphandle;
 
 static int umnetlwipv6_ioctlparms(int fd, int req, struct umnet *nethandle)
 {
@@ -189,18 +187,6 @@ static void lwipargtoenv(struct stack *s,char *initargs)
 	memset(intnum,0,sizeof(intnum));
 	memset(paramval,0,sizeof(paramval));
 
-	/*
-	for (i=0;i<INTTYPES;i++) {
-		intnum[i]=0;
-		initfun[i]=dlsym(lwiphandle,initfunname[i]);
-	}
-
-	for (i=0;i<PARAMTYPES;i++) {
-		paramval[i]=NULL;
-		paramfun[i]=dlsym(lwiphandle,paramfunname[i]);
-	}
-	*/
-
 	if (initargs==0 || *initargs == 0) initargs=stdargs;
 	while (*initargs != 0) {
 		next=initargs;
@@ -286,47 +272,39 @@ struct umnet_operations umnet_ops={
 	.ioctlparms=umnetlwipv6_ioctlparms,
 	.init=umnetlwipv6_init,
 	.fini=umnetlwipv6_fini,
-	//.event_subscribe=umnetlwipv6_event_subscribe,
 	.supported_domain=umnetlwipv6_supported_domain
 };
 
-#define UMNETLWIPV6(X) umnet_ops.X=lwip_##X
+typedef int (*intfun)();
+#define UMNETLWIPV6(X) umnet_ops.X=(intfun)lwip_##X
 
-static void *lwiphandle;
 	static void
 	__attribute__ ((constructor))
 init (void)
 {
-	//fprint2("umnetlwipv6 constructor\n");
-	if ((lwiphandle=loadlwipv6dl())==NULL)
-		perror("umnet_lwipv6 can't load lwipv6 stack:");
-	else {
-		UMNETLWIPV6(bind);
-		UMNETLWIPV6(connect);
-		UMNETLWIPV6(listen);
-		UMNETLWIPV6(accept);
-		UMNETLWIPV6(getsockname);
-		UMNETLWIPV6(getpeername);
-		UMNETLWIPV6(send);
-		UMNETLWIPV6(recv);
-		UMNETLWIPV6(sendto);
-		UMNETLWIPV6(recvfrom);
-		//UMNETLWIPV6(shutdown);
-		UMNETLWIPV6(getsockopt);
-		UMNETLWIPV6(setsockopt);
-		UMNETLWIPV6(read);
-		UMNETLWIPV6(write);
-		UMNETLWIPV6(close);
-		UMNETLWIPV6(event_subscribe);
-		//UMNETLWIPV6(fcntl);
-		//UMNETLWIPV6(fcntl64);
-	}
+	/*fprint2("umnetlwipv6 constructor\n");*/
+	UMNETLWIPV6(bind);
+	UMNETLWIPV6(connect);
+	UMNETLWIPV6(listen);
+	UMNETLWIPV6(accept);
+	UMNETLWIPV6(getsockname);
+	UMNETLWIPV6(getpeername);
+	UMNETLWIPV6(send);
+	UMNETLWIPV6(recv);
+	UMNETLWIPV6(sendto);
+	UMNETLWIPV6(recvfrom);
+	//UMNETLWIPV6(shutdown);
+	UMNETLWIPV6(getsockopt);
+	UMNETLWIPV6(setsockopt);
+	UMNETLWIPV6(read);
+	UMNETLWIPV6(write);
+	UMNETLWIPV6(close);
+	UMNETLWIPV6(event_subscribe);
 }
 
 	static void
 	__attribute__ ((destructor))
 fini (void)
 {
-	//fprint2("umnetlwipv6 destructor\n");
-	dlclose(lwiphandle);
+	/*fprint2("umnetlwipv6 destructor\n");*/
 }
