@@ -882,6 +882,7 @@ static long umnet_umount2(char *target, int flags)
 			delnettab(mh);
 			free(mh->path);
 			free(mh);
+			return 0;
 		}
 	}
 }
