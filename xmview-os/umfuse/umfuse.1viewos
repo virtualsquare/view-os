@@ -29,16 +29,15 @@ umfuse \- User Mode FUSE implementation for umview
 .SH DESCRIPTION
 .B umfuse
 is the user-mode implementation of virtual FUSE filesystems for umfuse.
-.br
-when this service module it is possible to mount umfuse file systems.
+When this service module is loaded it is possible to mount umfuse file systems.
 FUSE and umfuse are source level compatible, it is possible to compile
 a FUSE file system implementation as a dynamic library.
-The name of umfuse file system imaplementation libraries must begin with
-.Bumfuse
-.
-Umfuse implemented file system are mounted and mounted by the standard
+The name of umfuse file system implementation libraries must begin with
+.B umfuse.
+
+Umfuse implemented file system are mounted and umounted by the standard
 utilities mount(8) and umount(8).
-.br
+
 Example:
 .RS 4
 .nf
