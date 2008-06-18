@@ -26,6 +26,9 @@
 
 #ifndef _DEFS_X86_64
 #define _DEFS_X86_64
+
+#include <asm/user.h>
+
 #define _KERNEL_NSIG   64
 #define _KERNEL_SIGSET_SIZE _KERNEL_NSIG/8
 
@@ -99,9 +102,9 @@
 #define FS_BASE 21
 #define GS_BASE 22
 #define DS 23
-#define ES 25
-#define FS 26
-#define GS 27
+#define ES 24
+#define FS 25
+#define GS 26
 
 // arguments in x86_64 are saved in order from RDI to R8
 // orig_rax contains syscall number 
@@ -111,83 +114,83 @@
 
 static inline long getregs(struct pcb *pc)
 {
-	long temp[VIEWOS_FRAME_SIZE];
-	long rv = ptrace(PTRACE_GETREGS, pc->pid,NULL,(void*) temp);
+	struct user_regs_struct temp;
+	long rv = ptrace(PTRACE_GETREGS, pc->pid,NULL,(void*) &temp);
 
-	pc->saved_regs[MY_RDI] = temp[RDI];
-	pc->saved_regs[MY_RSI] = temp[RSI];
-	pc->saved_regs[MY_RDX] = temp[RDX];
-	pc->saved_regs[MY_RCX] = temp[RCX];
-	pc->saved_regs[MY_RAX] = temp[RAX];
-	pc->saved_regs[MY_R8] = temp[R8];
-	pc->saved_regs[MY_R9] = temp[R9];
-	pc->saved_regs[MY_R10] = temp[R10];
-	pc->saved_regs[MY_R11] = temp[R11];
-	pc->saved_regs[MY_RBX] = temp[RBX];
-	pc->saved_regs[MY_RBP] = temp[RBP];
-	pc->saved_regs[MY_R12] = temp[R12];
-	pc->saved_regs[MY_R13] = temp[R13];
-	pc->saved_regs[MY_R14] = temp[R14];
-	pc->saved_regs[MY_R15] = temp[R15];
-	pc->saved_regs[MY_ORIG_RAX] = temp[ORIG_RAX];
-	pc->saved_regs[MY_RIP] = temp[RIP];
-	pc->saved_regs[MY_CS] = temp[CS];
-	pc->saved_regs[MY_EFLAGS] = temp[EFLAGS];
-	pc->saved_regs[MY_RSP] = temp[RSP];
-	pc->saved_regs[MY_SS] = temp[SS];
-	pc->saved_regs[FS_BASE] = temp[FS_BASE];
-	pc->saved_regs[GS_BASE] = temp[GS_BASE];
-	pc->saved_regs[DS] = temp[DS];
-	pc->saved_regs[ES] = temp[ES];
-	pc->saved_regs[FS] = temp[FS];
-	pc->saved_regs[GS] = temp[GS];
+	pc->saved_regs[MY_RDI] = temp.rdi;
+	pc->saved_regs[MY_RSI] = temp.rsi;
+	pc->saved_regs[MY_RDX] = temp.rdx;
+	pc->saved_regs[MY_RCX] = temp.rcx;
+	pc->saved_regs[MY_RAX] = temp.rax;
+	pc->saved_regs[MY_R8] = temp.r8;
+	pc->saved_regs[MY_R9] = temp.r9;
+	pc->saved_regs[MY_R10] = temp.r10;
+	pc->saved_regs[MY_R11] = temp.r11;
+	pc->saved_regs[MY_RBX] = temp.rbx;
+	pc->saved_regs[MY_RBP] = temp.rbp;
+	pc->saved_regs[MY_R12] = temp.r12;
+	pc->saved_regs[MY_R13] = temp.r13;
+	pc->saved_regs[MY_R14] = temp.r14;
+	pc->saved_regs[MY_R15] = temp.r15;
+	pc->saved_regs[MY_ORIG_RAX] = temp.orig_rax;
+	pc->saved_regs[MY_RIP] = temp.rip;
+	pc->saved_regs[MY_CS] = temp.cs;
+	pc->saved_regs[MY_EFLAGS] = temp.eflags;
+	pc->saved_regs[MY_RSP] = temp.rsp;
+	pc->saved_regs[MY_SS] = temp.ss;
+	pc->saved_regs[FS_BASE] = temp.fs_base;
+	pc->saved_regs[GS_BASE] = temp.gs_base;
+	pc->saved_regs[DS] = temp.ds;
+	pc->saved_regs[ES] = temp.es;
+	pc->saved_regs[FS] = temp.fs;
+	pc->saved_regs[GS] = temp.gs;
 
 	return rv;
 }
 
 static inline long setregs(struct pcb *pc, enum __ptrace_request call, long op, long sig)
 {
-	long temp[VIEWOS_FRAME_SIZE];
+	struct user_regs_struct temp;
 
-	temp[RDI] = pc->saved_regs[MY_RDI];
-	temp[RSI] = pc->saved_regs[MY_RSI];
-	temp[RDX] = pc->saved_regs[MY_RDX];
-	temp[RCX] = pc->saved_regs[MY_RCX];
-	temp[RAX] = pc->saved_regs[MY_RAX];
-	temp[R8] = pc->saved_regs[MY_R8];
-	temp[R9] = pc->saved_regs[MY_R9];
-	temp[R10] = pc->saved_regs[MY_R10];
-	temp[R11] = pc->saved_regs[MY_R11];
-	temp[RBX] = pc->saved_regs[MY_RBX];
-	temp[RBP] = pc->saved_regs[MY_RBP];
-	temp[R12] = pc->saved_regs[MY_R12];
-	temp[R13] = pc->saved_regs[MY_R13];
-	temp[R14] = pc->saved_regs[MY_R14];
-	temp[R15] = pc->saved_regs[MY_R15];
-	temp[ORIG_RAX] = pc->saved_regs[MY_ORIG_RAX];
-	temp[RIP] = pc->saved_regs[MY_RIP];
-	temp[CS] = pc->saved_regs[MY_CS];
-	temp[EFLAGS] = pc->saved_regs[MY_EFLAGS];
-	temp[RSP] = pc->saved_regs[MY_RSP];
-	temp[SS] = pc->saved_regs[MY_SS];
-	temp[FS_BASE] = pc->saved_regs[FS_BASE];
-	temp[GS_BASE] = pc->saved_regs[GS_BASE];
-	temp[DS] = pc->saved_regs[DS];
-	temp[ES] = pc->saved_regs[ES];
-	temp[FS] = pc->saved_regs[FS];
-	temp[GS] = pc->saved_regs[GS];
+	temp.rdi = pc->saved_regs[MY_RDI];
+	temp.rsi = pc->saved_regs[MY_RSI];
+	temp.rdx = pc->saved_regs[MY_RDX];
+	temp.rcx = pc->saved_regs[MY_RCX];
+	temp.rax = pc->saved_regs[MY_RAX];
+	temp.r8 = pc->saved_regs[MY_R8];
+	temp.r9 = pc->saved_regs[MY_R9];
+	temp.r10 = pc->saved_regs[MY_R10];
+	temp.r11 = pc->saved_regs[MY_R11];
+	temp.rbx = pc->saved_regs[MY_RBX];
+	temp.rbp = pc->saved_regs[MY_RBP];
+	temp.r12 = pc->saved_regs[MY_R12];
+	temp.r13 = pc->saved_regs[MY_R13];
+	temp.r14 = pc->saved_regs[MY_R14];
+	temp.r15 = pc->saved_regs[MY_R15];
+	temp.orig_rax = pc->saved_regs[MY_ORIG_RAX];
+	temp.rip = pc->saved_regs[MY_RIP];
+	temp.cs = pc->saved_regs[MY_CS];
+	temp.eflags = pc->saved_regs[MY_EFLAGS];
+	temp.rsp = pc->saved_regs[MY_RSP];
+	temp.ss = pc->saved_regs[MY_SS];
+	temp.fs_base = pc->saved_regs[FS_BASE];
+	temp.gs_base = pc->saved_regs[GS_BASE];
+	temp.ds = pc->saved_regs[DS];
+	temp.es = pc->saved_regs[ES];
+	temp.fs = pc->saved_regs[FS];
+	temp.gs = pc->saved_regs[GS];
 
 	if (has_ptrace_multi)
 	{
 		struct ptrace_multi req[] = {
-			{PTRACE_SETREGS, 0, (void *) temp, 0},
+			{PTRACE_SETREGS, 0, (void *) &temp, 0},
 			{call, op, (void*) sig, 0}};
 		return ptrace(PTRACE_MULTI, pc->pid, req, 2); 
 	}
 	else
 	{
 		int rv;
-		rv = ptrace(PTRACE_SETREGS, pc->pid, NULL, (void*) temp);
+		rv = ptrace(PTRACE_SETREGS, pc->pid, NULL, (void*) &temp);
 		if (rv == 0) 
 			rv = ptrace(call, pc->pid, op, sig);
 		return rv;

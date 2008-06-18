@@ -29,7 +29,7 @@
 
 #include <signal.h>
 #include <sys/syscall.h>
-#include <sys/user.h>
+//#include <sys/user.h>
 #include <sys/param.h>
 #include <fcntl.h>
 #include <errno.h>
