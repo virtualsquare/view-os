@@ -28,9 +28,10 @@
 #define UMVIEW_DESC "The user-mode implementation of View-OS"
 #define UMVIEW_VERSION PACKAGE_VERSION
 
-#define UMVIEW_URL "http://savannah.nongnu.org/projects/view-os"
+#define UMVIEW_URL "http://view-os.sourceforge.net"
 
-#define UMVIEW_COPYRIGHT "2005, 2006, 2007 Renzo Davoli, University of Bologna, Italy"
+#define UMVIEW_COPYRIGHT "2005-2008 Renzo Davoli, University of Bologna, Italy"
 #define UMVIEW_TEAM \
-"P. Angelelli, A. Bacchelli, M. Belletti, P. Beverini, D. Billi, A. Forni,\n" \
-"L. Gardenghi, A. Gasparini, D. Lacamera, C. Martellini, A. Seraghiti"
+"P. Angelelli, A. Bacchelli, M. Belletti, P. Beverini, L. Bigliardi, D. Billi,\n" \
+"A. Forni, L. Gardenghi, A. Gasparini, F. Giunchedi, D. Lacamera, C. Martellini,\n" \
+"A. Seraghiti"
