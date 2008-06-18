@@ -52,7 +52,6 @@
 #define TRY_DLOPEN(fmt...) \
 { \
 	snprintf(testpath, tplen, fmt); \
-	fprintf(stderr, "trying %s\n", testpath); \
 	if ((handle = dlopen(testpath, flag))) \
 	{ \
 		free(testpath); \
