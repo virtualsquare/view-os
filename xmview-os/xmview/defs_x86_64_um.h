@@ -27,7 +27,7 @@
 #ifndef _DEFS_X86_64
 #define _DEFS_X86_64
 
-#include <asm/user.h>
+#include <sys/user.h>
 
 #define _KERNEL_NSIG   64
 #define _KERNEL_SIGSET_SIZE _KERNEL_NSIG/8
