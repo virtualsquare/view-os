@@ -10,7 +10,7 @@ AM_CPPFLAGS = -I$(includedir)/umview -DFATWRITE -D_FILE_OFFSET_BITS=64 -D_GNU_SO
 bin_PROGRAMS = fusefat
 mod_LTLIBRARIES = umfusefat.la
 
-#dist_man1_MANS = fuseext2.1
+dist_man1_MANS = fusefat.1
 
 COMMONSRC = fusefat.c \
 	libfat.c libfat.h bits/libfat.h \
