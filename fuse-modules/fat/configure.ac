@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.60)
-AC_INIT([fuse-umfuse-fat], [0.1], [info@v2.cs.unibo.it])
+AC_INIT([fuse-umfuse-fat], [0.1a], [info@v2.cs.unibo.it])
 AM_INIT_AUTOMAKE([foreign dist-bzip2 1.10])
 AC_CONFIG_SRCDIR([fusefat.c])
 AC_CONFIG_HEADER([config.h])
