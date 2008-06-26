@@ -28,8 +28,6 @@
 #define OLFD_STEP 8 /*only power of 2 values */
 #define OLFD_STEP_1 (OLFD_STEP - 1)
 
-//#define UM_NONE 255
-
 #include "services.h"
 #include "treepoch.h"
 

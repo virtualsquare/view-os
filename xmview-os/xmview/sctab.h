@@ -92,5 +92,4 @@ int um_mod_getsyscalltype(int scno);
 
 //struct pcb* pid2pcb(int pid);
 
-//#define UM_NONE 255
 #endif

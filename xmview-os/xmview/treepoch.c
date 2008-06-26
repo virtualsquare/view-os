@@ -197,13 +197,17 @@ static void de_update_substr(struct treepoch *node,int v01)
 /* update the treepoch: the subtree height must be updated towards the root:
  * this recursive scan terminates when the root has been reached or
  * when the other subtree is deeper */
-static void de_update_height(struct treepoch *node,short subheight)
+static void de_update_height(struct treepoch *node)
 {
-	subheight++;
-	/* XXX does this work correctly when deleting levels? */
-	if (node && node->subheight < subheight) {
-		node->subheight=subheight;
-		de_update_height(node->parent,subheight);
+	if (node) {
+		short subheight0=node->sub[0]->subheight;
+		short subheight1=node->sub[1]->subheight;
+		short subheight=(subheight0>subheight1)?subheight0:subheight1;
+		subheight++;
+		if (node->subheight != subheight) {
+			node->subheight=subheight;
+			de_update_height(node->parent);
+		}
 	}
 }
 
@@ -263,7 +267,7 @@ static void te_delproc(struct treepoch *node)
 			/* update the structure */
 			de_update_substr(other->sub[0],0);
 			de_update_substr(other->sub[1],1);
-			de_update_height(other->parent,other->subheight);
+			de_update_height(other->parent);
 			/*te_printtree(te_root,0);*/
 		}
 		/* nproc must be updated also on the ancestors */
@@ -343,7 +347,7 @@ struct timestamp tst_newfork(struct timestamp *old_tst)
 			/* update strings (in the subtree) and height towards the ancestors */
 			de_update_substr(old_te,0);
 			de_update_substr(new_te,1);
-			de_update_height(par_te->parent,par_te->subheight);
+			de_update_height(par_te->parent);
 			/*te_printtree(te_root,0);*/
 		}
 		return rv;

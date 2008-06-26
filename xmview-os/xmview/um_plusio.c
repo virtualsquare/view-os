@@ -448,7 +448,6 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 	epoch_t nestepoch;
 	umovestr(pc,fstype,PATH_MAX,filesystemtype);
 	source = um_abspath(AT_FDCWD,argaddr,pc,&imagestat,0);
-	/*service_check(CHECKPATH,source,1); *//* ??? what is this for? */
 	nestepoch=um_setepoch(0);
 	um_setepoch(nestepoch+1);
 	/* maybe the source is not a path at all.
