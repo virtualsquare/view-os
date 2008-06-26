@@ -155,6 +155,10 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 		/* If there is a real directory with this name, and it is chdir-able,
 		 * we can chdir there instead of /tmp/ so the core and the process
 		 * will see the same cwd. */
+		/* (rd) maybe there is a virtual dir with the same name of
+		 * a real file with X permission... 
+		 * commented out 20080626*/
+#if 0
 		if (S_ISDIR(pc->pathstat.st_mode) && (r_access(pc->path,X_OK) == 0))
 		{
 			pathlen = WORDALIGN(strlen(pc->path));
@@ -165,22 +169,29 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 			return SC_CALLONXIT;
 		}
 		else
+#endif
 		{
-			um_x_lstat64(pc->path, &(pc->pathstat), pc);
 			if (S_ISDIR(pc->pathstat.st_mode)) {
-				if (sercode != UM_NONE) {
-					char *chdir_fake_dir= um_proc_fakecwd();
-					GDEBUG(4, "FCHDIR making chdir to %s (instead of %s)", chdir_fake_dir, pc->path);
-					pathlen = WORDALIGN(strlen(chdir_fake_dir));
-					ustoren(pc, sp-pathlen, pathlen, chdir_fake_dir);
+				if (um_x_access(pc->path,X_OK,pc)!=0) {
+					GDEBUG(4, "FCHDIR EACCES for %s", pc->path);
+					pc->erno=EACCES;
+					pc->retval = -1;
+					return SC_FAKE;
 				} else {
-					GDEBUG(4, "FCHDIR making chdir to unmanaged %s", pc->path);
-					pathlen = WORDALIGN(strlen(pc->path));
-					ustoren(pc, sp-pathlen, pathlen, pc->path);
+					if (sercode != UM_NONE) {
+						char *chdir_fake_dir= um_proc_fakecwd();
+						GDEBUG(4, "FCHDIR making chdir to %s (instead of %s)", chdir_fake_dir, pc->path);
+						pathlen = WORDALIGN(strlen(chdir_fake_dir));
+						ustoren(pc, sp-pathlen, pathlen, chdir_fake_dir);
+					} else {
+						GDEBUG(4, "FCHDIR making chdir to unmanaged %s", pc->path);
+						pathlen = WORDALIGN(strlen(pc->path));
+						ustoren(pc, sp-pathlen, pathlen, pc->path);
+					}
+					pc->sysargs[0]=sp-pathlen;
+					putscno(__NR_chdir,pc);
+					return SC_CALLONXIT;
 				}
-				pc->sysargs[0]=sp-pathlen;
-				putscno(__NR_chdir,pc);
-				return SC_CALLONXIT;
 			} else {
 				GDEBUG(4, "FCHDIR ENOTDIR for %s", pc->path);
 				pc->retval = -1;
