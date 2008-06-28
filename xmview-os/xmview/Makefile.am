@@ -23,6 +23,8 @@ COMMON_SOURCES = \
 	services.c services.h \
 	treepoch.c treepoch.h \
 	uid16to32.h \
+	hashtab.c \
+	hashtab.h \
 	um_basicio.c \
 	um_exec.c \
 	um_ioctl.c \
