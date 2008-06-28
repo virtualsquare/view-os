@@ -1,0 +1,101 @@
+.\" Copyright (c) 2007 Renzo Davoli
+.\"
+.\" mstack manual page
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License,
+.\" version 2, as published by the Free Software Foundation.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+.\" MA 02110-1301 USA.
+
+.TH VIEW-OS 1 "April 23, 2008" "VIEW-OS: a process with a view"
+.SH NAME
+mstack \- networking stack selection
+.SH SYNOPSIS
+.B mstack
+[\fI-u46npbihv\fR]
+[\fI-f\fR num,num#]
+\fIstack_mountpoint\fR \fIcommand\fI
+.br
+.SH DESCRIPTION
+.PP
+In View-OS multiple networking stacks are available to processes
+at the same time. View-OS supports the \fBmsocket(2)\fR system call.
+mstack defines the default stack (for each address family) that is used
+when msocket refers to a NULL pathname for its stack.
+mstack provides also a backward compatibility for all the programs
+using the obsolete \fBsocket(2)\fR system call.
+The stack mountpoint identifies the stack. In ViewOS it is the mountpoint
+where the stack was mounted (by \fBmount(2)(8)\fR.
+In fact the call:
+.br
+"socket(domain,type,protocol)" 4
+.br
+is equivalent to:
+.br
+"msocket(NULL,domain,type protocol)" 4
+.br
+mstacks changes the default stack for the desired protocol families and
+executes the command (by \fBexecve(2)).
+.SH OPTIONS
+.IP "\fB\-h\fR" 4
+prints the mstack command usage
+.IP "\fB\-v\fR" 4
+sets the verbose mode on
+.IP "\fB\-u\fR" 4
+redefines the protocol stack for AF_UNIX \fBunix(7)\fR
+.IP "\fB\-4\fR" 4
+redefines the protocol stack for AF_INET, i.e. ipv4 \fBip(7)\fR
+.IP "\fB\-6\fR" 4
+redefines the protocol stack for AF_INET6, i.e. ipv6 \fBipv6(7)\fR
+.IP "\fB\-n\fR" 4
+redefines the protocol stack for AF_NETLINK \fBnetlink(7)\fR
+.IP "\fB\-p\fR" 4
+redefines the protocol stack for AF_PACKET \fBpacket(7)\fR
+.IP "\fB\-b\fR" 4
+redefines the protocol stack for AF_BLUETOOTH\fR
+.IP "\fB\-i\fR" 4
+redefines the protocol stack for AF_IRDA\fR
+.IP "\fB\-f\fR \fInum,num...\fR" 4
+redefines the protocol stack for the listed protocols (list of numeric tags).
+.SH EXAMPLES
+.IP "\fBmstack /dev/net/lwip ip addr\fR"
+.br
+lists the address managed by the stack mounted on \fB/dev/net/lwip\fR.
+.IP "\fBexec mstack /dev/net/null bash\fR"
+.br
+disables the standard stack in a new bash (which overcomes the current one).
+.SH SEE ALSO
+.BR umview(1), 
+.BR	kmview(1), 
+.BR	msocket(3), 
+.BR umnetnative(9),
+.BR umnetnull(9),
+.BR umnetlwipv6(9),
+.BR	unix(7), 
+.BR	ip(7), 
+.BR	ipv6(7), 
+.BR	netlink(7), 
+.BR	packet(7).
+.SH AUTHORS
+View-OS is a project of the Computer Science Department, University of
+Bologna. Project Leader: Renzo Davoli. 
+.br
+<http://www.sourceforge.net/projects/view-os>
+
+Howto's and further information can be found on the project wiki
+<wiki.virtualsquare.org>.
+

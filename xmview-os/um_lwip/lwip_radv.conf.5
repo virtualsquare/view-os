@@ -1,0 +1,360 @@
+.\" Copyright (c) 2006 Diego Billi
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License,
+.\" version 2, as published by the Free Software Foundation.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+.\" MA 02110-1301 USA.
+
+.TH LWIPV6a 5 "July 22, 2006" "LWIPV6a: TCP-IP v4/v6 hybrid stack"
+
+.SH NAME
+lwip_radv.conf \- configuration file for the LWIPV6a router advertising service
+
+.\" -------------------------------------------------------------------
+
+.SH SYNOPSIS
+
+.B lwip_radv.conf
+
+.\" -------------------------------------------------------------------
+
+.SH DESCRIPTION
+The
+.B LWIPV6 
+stack implements the Routing Advertising protocol (RFC. 2461) and
+this files contains the protocol settings for each virtual network interface.
+
+Each interface configuration has the following form:
+
+.B [ 
+.I interface-name 
+.B ]
+.br
+.B "list of interface parameters"
+.br
+.B list of prefix definitions
+
+.\" -------------------------------------------------------------------
+
+.SH INTERFACE PARAMETERS
+
+In general, all parameters have the following syntax: "\fIParameter\fR = \fIvalue\fR". This
+is the list of all valid interface parameters:
+
+.\" .TP 
+.\" \fBIgnoreIfMissing =\fR \fBon\fR | \fBoff\fR
+.\" A flag indicating whether or not the interface is ignored
+.\" if it does not exist.
+.\" This is useful for dynamic interfaces which are not active when radvd
+.\" starts, but for which you want to already have configuration -- and when
+.\" they become active, you send HUP signal to radvd to activate them.
+.\" Default: off
+
+.TP 
+\fBAdvSendAdvert \= \fR \fBon\fR | \fBoff\fR
+
+A flag indicating whether or not the router sends
+periodic router advertisements and responds to
+router solicitations. 
+
+This option no longer has to be specified first, but it
+needs to be
+.B on
+to enable advertisement on this interface.
+
+Default: off
+
+.TP 
+\fBUnicastOnly =\fR \fBon\fR | \fBoff\fR
+
+Indicates that the interface link type only supports unicast.
+This will prevent unsolicited advertisements from being sent, and
+will cause solicited advertisements to be unicast to the
+soliciting node.  This option is necessary for non-broadcast,
+multiple-access links, such as ISATAP.
+
+Default: off
+
+.TP
+\fBMaxRtrAdvInterval =\fR \fIseconds\fR
+
+The maximum time allowed between sending unsolicited multicast
+router advertisements from the interface, in seconds.
+
+Must be no less than 4 seconds and no greater than 1800 seconds.
+
+Minimum when using Mobile IPv6 extensions: 0.07.
+
+For values less than 0.2 seconds, 0.02 seconds is added to account for
+scheduling granularities as specified in RFC3775.
+
+Default: 600 seconds    
+
+.TP
+\fBMinRtrAdvInterval =\fR \fIseconds\fR
+
+The minimum time allowed between sending unsolicited multicast
+router advertisements from the interface, in seconds.
+
+Must be no less than 3 seconds and no greater than 0.75 *
+MaxRtrAdvInterval.
+
+Minimum when using Mobile IPv6 extensions: 0.03.
+
+Default: 0.33 * MaxRtrAdvInterval
+
+.TP
+\fBMinDelayBetweenRAs =\fR \fIseconds\fR
+
+The minimum time allowed between sending multicast
+router advertisements from the interface, in seconds.
+
+This applies to solicited multicast RAs.
+This is defined as the protocol constant MIN_DELAY_BETWEEN_RAS in RFC2461.
+MIPv6 redefines this parameter to have a minimum of 0.03 seconds.
+
+Minimum when using Mobile IPv6 extensions: 0.03.
+
+Default: 3 
+
+.TP
+\fBAdvManagedFlag =\fR \fBon\fR | \fBoff\fR
+
+When set, hosts use the administered (stateful) protocol for address
+autoconfiguration in addition to any addresses autoconfigured using
+stateless address autoconfiguration.  The use of this flag is
+described in RFC 2462.
+
+Default: off
+
+.TP
+\fBAdvOtherConfigFlag =\fR \fBon\fR | \fBoff\fR
+
+When set, hosts use the administered (stateful) protocol for
+autoconfiguration of other (non-address) information.  The use of
+this flag is described in RFC 2462.
+
+Default: off
+
+.TP
+\fBAdvLinkMTU =\fR \fIinteger value\fR
+
+The MTU option is used in  router advertisement messages to insure
+that all nodes on a link use the same MTU value in those cases where
+the link MTU is not well known.
+
+If specified, i.e. not 0, must not be smaller than 1280 and not greater
+than the maximum MTU allowed for this link (e.g. ethernet has
+a maximum MTU of 1500. See RFC 2464).
+
+Default: 0
+
+.TP
+\fBAdvReachableTime =\fR \fImilliseconds\fR
+
+The time, in milliseconds, that a node assumes a neighbor is
+reachable after having received a reachability confirmation.  Used
+by the Neighbor Unreachability Detection algorithm (see Section
+7.3 of RFC 2461).  A value of zero means unspecified (by this router).
+
+Must be no greater than 3,600,000 milliseconds (1 hour).
+
+Default: 0
+
+.TP
+\fBAdvRetransTimer =\fR \fImilliseconds\fR
+
+The time, in milliseconds, between retransmitted Neighbor
+Solicitation messages.  Used by address resolution and the Neighbor
+Unreachability Detection algorithm (see Sections 7.2 and 7.3 of RFC 2461).
+A value of zero means unspecified (by this router).
+
+Default: 0
+
+.TP
+\fBAdvCurHopLimit =\fR \fIinteger value\fR
+
+The default value that should be placed in the Hop Count field of
+the IP header for outgoing (unicast) IP packets.  The value should
+be set to the current diameter of the Internet.  The value zero
+means unspecified (by this router).
+
+Default: 64
+
+.TP
+\fBAdvDefaultLifetime =\fR \fIseconds\fR
+
+The lifetime associated with the default router in units of seconds. 
+The maximum value corresponds to 18.2 hours.  A lifetime of 0
+indicates that the router is not a default router and should not
+appear on the default router list.  The router lifetime applies only
+to the router's usefulness as a default router; it does not apply to
+information contained in other message fields or options.  Options
+that need time limits for their information include their own
+lifetime fields.
+
+Must be either zero or between MaxRtrAdvInterval and 9000 seconds.
+
+Default: 3 * MaxRtrAdvInterval (Minimum 1 second).
+
+.\" .TP
+.\" \fBAdvDefaultPreference =\fR low | medium | high
+.\" The preference associated with the default router, as either "low",
+.\" "medium", or "high".
+.\" 
+.\" Default: medium
+
+.TP
+\fBAdvSourceLLAddress =\fR \fBon\fR | \fBoff\fR
+
+When set, the link-layer address of the outgoing interface is
+included in the RA.
+
+Default: on
+
+.\" -------------------------------------------------------------------
+
+.SH PREFIX DEFINITION
+
+The prefix definition is used to add a new prefix to a particular interface. The syntax of the prefix definition
+is:
+
+.B "AddPrefix =" 
+.I prefix
+[ , 
+.I parameters-list
+]
+
+where \fIprefix\fR syntax is \fIIPv6 address\fR/\fIlen\fR. 
+Each prefix can be followed by a list of comma-separeted parameters (\fIparameters-list\fR).
+These are all possible prefix parameters:
+
+.TP
+\fBAdvOnLink =\fR \fBon\fR | \fBoff\fR
+
+When set, indicates that this prefix can be used for on-link
+determination.  When not set the advertisement makes no statement
+about on-link or off-link properties of the prefix.  For instance,
+the prefix might be used for address configuration with some of the
+addresses belonging to the prefix being on-link and others being
+off-link.
+
+Default: on
+
+.TP
+\fBAdvAutonomous =\fR \fBon\fR | \fBoff\fR
+
+When set, indicates that this prefix can be used for autonomous
+address configuration as specified in RFC 2462.
+
+Default: on
+
+.TP
+\fBAdvRouterAddr =\fR \fBon\fR | \fBoff\fR
+
+When set, indicates that the address of interface is sent instead of
+network prefix, as is required by Mobile IPv6.  When set, minimum
+limits specified by Mobile IPv6 are used for MinRtrAdvInterval and
+MaxRtrAdvInterval.
+
+Default: off
+
+.TP
+\fBAdvValidLifetime =\fR \fIseconds\fR | \fBinfinity\fR
+
+The length of time in seconds (relative to the time the packet is
+sent) that the prefix is valid for the purpose of on-link
+determination.  The symbolic value
+.B infinity
+represents infinity (i.e. a value of all one bits (0xffffffff)).
+The valid lifetime is also used by RFC 2462.
+
+Default: 2592000 seconds (30 days)
+
+
+.TP
+\fBAdvPreferredLifetime =\fR \fIseconds\fR | \fBinfinity\fR
+
+The length of time in seconds (relative to the time the packet is
+sent) that addresses generated from the prefix via stateless address
+autoconfiguration remain preferred. 
+The symbolic value
+.B infinity
+represents infinity (i.e. a value of all one bits (0xffffffff)).
+See RFC 2462.
+
+Default: 604800 seconds (7 days)
+
+
+.\" -------------------------------------------------------------------
+
+.SH FILES
+.I lwip_radv.conf
+
+.\" -------------------------------------------------------------------
+
+.SH SEE ALSO
+.BR umview(1) ,
+.BR um_add_service(1) ,
+.BR lwipv6(1viewos)
+
+.\" -------------------------------------------------------------------
+
+.SH EXAMPLES
+
+This is a simple configuration file with two interface configuration sections (\fIvd0\fR and \fItp0\fR) . 
+
+[vd0]
+.br
+AdvSendAdvert = on
+.br
+MaxRtrAdvInterval = 20
+.br
+AdvLinkMTU = 1321
+.br
+MinRtrAdvInterval = 5
+.br
+AddPrefix = 2001:1234:5678::/64 , AdvOnLinkFlag = on , AdvAutonomousFlag = on
+
+[tp0]
+.br
+AdvLinkMTU = 1000
+.br
+AddPrefix = 2001:1234:aa00::/56
+
+.\" -------------------------------------------------------------------
+
+.SH AUTHORS
+LWIPV6a is parte of the View-OS project of the Computer Science Department, University of
+Bologna. 
+.br
+Project Leader: Renzo Davoli.
+.br
+Project Team: Alberto Bacchelli, Andrea Forni, Andrea Gasparini, Andrea Seraghiti, Christian Martellini, 
+Daniele Lacamera, Diego Billi, Ludovico Gardenghi, Mattia Belletti, Paolo Angelelli, Paolo Beverini
+
+<http://savannah.nongnu.org/projects/view-os>.
+
+
+
+
+
+.\" -------------------------------------------------------------------
+
+.SH HISTORY
+July 2006 \- Originally written by Diego Billi.
+

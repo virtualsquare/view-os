@@ -1,0 +1,168 @@
+This is UM-VIEWOS: the user-mode implementation of OSVIEW.
+
+(C) 2005 Renzo Davoli University of Bologna (ITALY)
+(C) 2005 Mattia Belletti, Ludovico Gardenghi, Andrea Gasparini,
+Paolo Angelelli, Andrea Seraghiti - University of Bologna (ITALY
+
+This is FREE software: this work has been released under the GPLv2 
+license (see the file COPYING and the header note in the source files).
+
+The subtitle is clearly a citation to a famous (and very nice IMHO) movie: "A
+Room with a View".  This citation has clearly a meaning: processes in an
+Operating Systems can have different views on the system rousources and
+services like hotel rooms give different views on a town (say Florence).  A
+different perspective on the world implies different behaviors and attitudes
+for the characters of the movie as well as for our processes.
+
+Nowadays it is a common idea that processes provided by an operating system
+have a shared view on system resources and services: there is one shared
+naming for the file system, all the processes can use the same set of network
+interfaces with the same set of addresses.  Access control methods can deny
+the access to specific resources: the process can see the existence of that
+resource but it cannot use it, e.g. permissions on files, packet filtering
+tables for networking.
+
+There are already some exceptions to this rule, mainly for security reasons.
+The following list include some examples:
+- chroot is a system call that reassigns the root directory in a Un*x system.
+  Only the subtree of the file system rooted a specific directory (the
+  argument of the call) is accessible after a chroot call. The new root
+  directory is named / and all the pathnames refer to it.  All the files and
+  directory which are not in the subtree are inaccessible, thus sometimes the
+  security effect is often named as "chroot cage".  There is no way in the
+  interface to exit from the chroot cage to a wider visibility of the file
+  system.
+- /dev/tty, is one special file that refers to different devices depending on
+  the controlling terminal of the process.
+- virtual machines. It is clear that a VM create a different view on system
+  resources. It is possible to emulate different processors, to access to
+  private filesystems stored as images on the hosting computer, to use
+  emulated network interfaces. Resources that have not been defined to a VM
+  are not accessible from inside the VM itself, this feature has been often
+  named "sandbox effect", as it limits the accessibility to safe resources as
+  the sand area for children.
+
+Anyway these exceptions do not supply a general solution: there are several
+services that cannot be provided or can be provided just in a very
+ineffective, inefficient way. A non-exhaustive list of such problems follows:
+- mount of a disk image file by a unprivileged user (without administrative
+  access). It is possible by booting a virtual machine (e.g. user-mode linux).
+- use of a virtual private network by a unprivileged user (only possible by
+  using ALE4Net, a research prototype of ours).
+- custom view of the file system, remapping of files and directories, on
+  process by process basis. e.g. with qemu and binfmt it is possible to run
+  executables for a large range of processors. Unfortunately all the programs
+  look into /usr/lib to find their dynamic libraries.  It would be very useful
+  to have /usr/lib pointing to two different contents depending on the
+  processor architecture of the executable.
+- file and service protection at process level.  When browsing the Internet or
+  testing some possibly dangerous software (e.g.  proprietary software shipped
+  for free), it is desirable to have protection against unwanted reading or
+  modification of personal data.  This can be currently solved only by runnung
+  the software or the browser inside a virtual machine.
+
+VIEWOS is a novel approach to the process/kernel interface.  The semantics of
+each system call can be assigned process by process giving the user the right
+to decide which view of the system each process has to join.  Each process can
+"see" a different file system structure, networking resources, processor,
+devices.  Moreover some of the resources can be provided by the user
+him/herself, thus these resource can be private to the single process and are
+not known a priori by the system.  Groups of processes can share the same view
+but this is just an optimization to share management methods.
+
+VIEWOS security is based on the idea that while the users shouldn't abuse their
+permissions, it must possible for them to have personal services based on
+resources they are allowed to access.  As an example if a user can open TCP
+connection on a network it means that he/she can also create his/her own
+virtual private network using a TCP connection or mount his/her remote
+filesystem to copy data in and out in a natural way.  Current UNIX
+implementation does not allow our user to do these operations unless he/she
+gets the superuser status.  Maybe he/she cannot, as an ordinary user of the
+system, maybe he/she does not want, because of the uncertainty about the safety
+of the network the user is joining or the safety of data in the filesystem
+he/she is mounting.
+
+VIEWOS point of view is thus quite near to that of some microkernel systems,
+like GNU/Hurd, whose aim is to provide as much flexibility as possible, without
+renouncing to system security. As an example, GNU/Hurd Translators are simply a
+way to offer a different view of the filesystem, and successfully makes the
+user able to manipulate it as he/she likes (e.g., by mounting disk images). In
+a microkernel system this is usually implemented by user-replaceable servers
+combined with strong security mechanisms, like some kind of capabilities,
+whereas our approach tries to bring the very same advantages in the world of
+monolithic kernels; moreover Hurd assign Translators to files through one field
+in the i-node structure, so each file can have only one translator associated.
+Our project has a more flexible tecnique (something like a list of choice
+functions) through which you can realize complex relation between umview modules
+and branch of the filesystem.
+
+
+VIEWOS can be implemented in many ways:
+- as a new kernel (or a patch for existing kernels)
+- as a virtual machine (more precisely as a partial virtual machine)
+- as a dynamic library hack.
+
+VIEWOS as a partial virtual machine. (UM-VIEWOS -- THIS IMPLEMENTATION!)
+The ViewOS approach has already been implemented as a virtual machine (more
+precisely as a partial virtual machine), under the name of UMView.  Please
+refer to technical report for details on the implementation, installation and
+running.  The basic idea is to run the processes with a controlling daemon
+that captures all the system calls.  This is the same approach used by
+User-Mode-Linux.  Modules can be loaded and unloaded at run time to define the
+system call semantics.  The deamon realizes a partial virtual machine because
+processes do not run on a new kernel and the processes running under the
+control of the daemon do not necessarily run into an entirely virtual system.
+Instead just some or the resources/services are virtual while the processes
+can continue to access some real resources/service.  For example the "open"
+system call can decide its behavior on the basis of the filename, "read" and
+"write" depending on the file descriptor number.  The same system call can be
+redefined for different conditions by different modules.A new virtual system
+call has been added to configure UMView add/remove/list/and change the search
+order of service modules.  This approach is obviously less performant than a
+kernel implementation but it can run every Linux kernel where ptrace is
+provided.  UMView does not need Kernel patching or administration privileges
+to run.
+
+VIEWOS as a kernel.
+All the services provided by UMView can be implemented as kernel services,
+either as a patch or as specific modules.  Modules can also run at user
+level or it is possible in principle to allow users to load modules provided
+the new services do not affect processes by other users.  Clearly this is the
+most effective and performant implementation but it may introduce new
+reliability threats both in terms of security and in terms of stability of the
+system.  For now this is a future challenge of the project.
+
+VIEWOS as a dynamic library hack.
+Dynamic library call substitution (by setting LD_PRELOAD or similar) is an
+alternative way to ptrace to divert program system calls.  It is potentially
+possible to have a ViewOS implementation based on library call substitution
+instead of ptrace.  From the performance point of view this approach does not
+need any context switch to capture system calls as the C library call is
+diverted by the dynamic linker.  On the opposite IPC is needed to forward the
+request to a deamon process.  Other conses of this approach include the lesser
+generality (programs that accesses system calls direcly without library calls
+or program statically linked are not supported) and the possibility for a
+process to leave the personal view of the system just by undefining an
+environmental variable (thus it is a very weak cage).  For this weakness we
+are not currently planning an implementation of VIEWOS using dynamic library
+hacks.
+
+VIEWOS is binary compatible with the plain Linux kernel: all the code+with
+different libraries.
+
+Current situation (May 2005) A preliminary prototype of UMView (the partial
+virtual machine implementing ViewOS) is running and has been released with
+several test modules (tiny examples on how to virtualize file systems or
+sockets).  Two operational modules have also been released:
+- UMFuse: a compatibility layer between UMView and Fuse (see
+  fuse.sourceforge.net). Potentially all the Fuse modules can run under
+  UMView. UMFuse is also provided with two test modules fuseext2 and
+  fuseiso9660 that can be used by Fuse or UM_Fuse to mount ext2 or iso9660
+  images.  UMFuse and the related modules have been released only for read
+  access, the write access for ext2 as well as the support for other file
+  systems is under development.
+- UM_lwip: this modules uses LWIPV6 (LightweightIP-V6) for networking. When
+  this module is loaded all the processes use the LWIPV6 user level IP stack
+  instead of the kernel stack. An unprivileged user can configure the IP
+  address, routing, etc. for his/her processes.
+

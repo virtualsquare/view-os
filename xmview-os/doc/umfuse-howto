@@ -1,0 +1,56 @@
+Umfuse is a gateway between umview and fuse (Filesystem in Userspace - 
+fuse.sourceforge.net).
+umfuse provides the same interface of the fuse kernel module.
+Potentially all the existing fuse module should be used on umfuse.
+
+The umview team has also developed the fuse/umfuse modules for
+ext2 and iso9660 file systems. These modules can be used both by the
+fuse kernel modules and by the umfuse layer.
+
+Filesystem support modules are shared libraries for umfuse, thus
+they must reside in the library path. 
+Umview intercepts the mount system call and when the filesystem type
+has a name prefixed by "umfuse" the umfuse module search and loads the
+file system management module with the same name (provided a such
+shared library exists).
+
+If your filesystem management modules are not installed in a
+directory in the search path for your dynamic linker (usually /lib, /usr/lib)
+it is necessary to extend the search set by setting the environment
+variable LD_LIBRARY_PATH.
+e.g.:
+$ export LD_LIBRARY_PATH="/usr/local/lib"
+
+umfuse is a umview service module.
+As a tiny tutorial an example of usage follows.
+
+Run a umview virtual machine and load the umfuse module
+e.g., using the preaload option (otherwise can be added later by
+um_add_service)
+$umview -p umfuse.so xterm
+
+umfuse intercepts the mount system call, filesystem can then be mounted by
+using the standard mount command
+
+e.g.
+$ mount -t umfusehello dummy umfuse/DirectoryTarget
+ 
+$ mount -t umfuseiso9660 tmp.iso /tmp/cdrom
+
+$ mount -t umfuseext2 tmp.ext2 /tmp/ext2
+
+FAQ:
+I have an error:you must be root to use mount, why?
+e.g.:
+$ mount -t fuse_modules/umfuseiso9660 fuse_modules/prova.iso fuse_modules/tmp
+mount: you must be root to use mount
+
+This error happens when the file system type is unsupported.
+A common case is a mistype in the file system type.
+Umfuse does not provide error conditions for unsupported file system
+(to avoid name clashes with other existent kernel provided file system
+types).
+When umfuse does not support a file system type, the management takes
+over with the kernel system call, thus the request to be root to mount
+file systems.
+

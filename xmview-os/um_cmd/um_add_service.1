@@ -1,0 +1,72 @@
+.\" Copyright (c) 2006 Renzo Davoli
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License,
+.\" version 2, as published by the Free Software Foundation.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+.\" MA 02110-1301 USA.
+
+.TH VIEW-OS 1 "June 10, 2006" "VIEW-OS: a process with a view"
+.SH NAME
+um_add_service \- add a service module to umview
+.SH SYNOPSIS
+.B um_add_service 
+[-p
+.I #
+]
+.I service_module
+[
+,
+.I module_options
+]
+.br
+.SH DESCRIPTION
+This command adds a service module to umview.
+Modules will be loaded as shared libraries thus all the
+rules to load libraries apply. Modules must be loaded from a directory
+within the ld.so search path or should be specified by their pathnames. 
+If necessary
+configure the LD_LIBRARY_PATH environment variable appropriately.
+.br
+.I module_options 
+are module specific configuration options, thus the reader 
+should refer to each service module manual for a complete description.
+.SH OPTIONS
+.IP "\fB\-p\fP \fI#\fP" 4 
+specify the position of the new loaded module in the chain of modules.
+.B umview
+tries all the modules in following the chain (total order), thus if 
+in a specific situation several loaded modules are able to virtualize 
+a system call, the first of them in the list actually manages the call.
+.SH SEE ALSO
+.BR umview(1),
+.BR um_del_service(1),
+.BR um_ls_service(1),
+.BR um_mov_service(1),
+.BR umfuse(1viewos),
+.BR lwipv6(1viewos),
+.BR umdev(1viewos),
+.BR umbinfmt(1viewos),
+.BR viewfs(1viewos),
+.SH AUTHORS
+View-OS is a project of the Computer Science Department, University of
+Bologna. Project Leader: Renzo Davoli. 
+.br
+<http://www.sourceforge.net/projects/view-os>
+
+Howto's and further information can be found on the project wiki
+<wiki.virtualsquare.org>.
+
