@@ -37,6 +37,7 @@
 #include "syscallnames.h"
 #include "gdebug.h"
 #include "scmap.h"
+#include "hashtab.h"
 #include "bits/wordsize.h"
 
 /* Each service module has its unique code 1..254 (0x01..0xfe) 0x00 is UM_ERR
@@ -511,43 +512,9 @@ void dereg_modules(service_t code)
 			service_ctl(MC_MODULE | MC_REM, code, -1, services[i]->code);
 }
 
-/*
-
-void service_addproc(service_t code,int umpid, int pumpid,int max)
-{
-	int pos;
-	GDEBUG(9, "code %d, umpid %d, pumpid %d, max %d", code, umpid, pumpid, max);
-	if (code == UM_NONE) {
-		for (pos=0;pos<noserv;pos++)
-		{
-			GDEBUG(9, "services[%d] == %p", services?services[pos]:(void *)(-1));
-			if (services[pos]->ctl)
-				services[pos]->ctl(MC_PROC | MC_ADD, umpid, pumpid, max);
-		}
-	} else {
-		int pos=servmap[code]-1;
-		if (services[pos]->ctl)
-				services[pos]->ctl(MC_PROC | MC_ADD, umpid, pumpid, max);
-	}
-	GDEBUG(9, "done");
-}
-
-void service_delproc(service_t code,int id)
-{
-	int pos;
-	if (code == UM_NONE) {
-		for (pos=0;pos<noserv;pos++)
-			if (services[pos]->ctl)
-				services[pos]->ctl(MC_PROC | MC_REM, id);
-	} else {
-		int pos=servmap[code]-1;
-		if (services[pos]->ctl)
-				services[pos]->ctl(MC_PROC | MC_REM, id);
-	}
-}
-*/
 service_t service_check(int type,void* arg,int setepoch)
 {
+#if 0
 	int i,max_index=-1;
 	struct service* s;
 	epoch_t	matchepoch=0;
@@ -570,6 +537,20 @@ service_t service_check(int type,void* arg,int setepoch)
 		else 
 			return services[max_index]->code;
 	}
+#endif
+	if (type==CHECKPATH) {
+		struct ht_elem *mp=ht_tab_pathsearch(CHECKPATH,arg,um_x_gettst(),0);
+		/*fprint2("CHECKPATH path->%s %x\n",
+				(char *) arg, mp?mp->service:UM_NONE);*/
+		if (mp) {
+			if (setepoch)
+				um_setepoch(mp->tst.epoch);
+			return mp->service;
+		} else
+			return UM_NONE;
+	}
+	else
+		return UM_NONE;
 }
 
 /*

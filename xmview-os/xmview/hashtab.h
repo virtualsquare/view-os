@@ -18,9 +18,9 @@ struct ht_elem {
 	struct ht_elem *prev,*next,**pprevhash,*nexthash;
 };
 
-int ht_tab_mntadd(const char *source,
+int ht_tab_pathadd(unsigned char type, const char *source,
 		const char *path,
-		const char *type,
+		const char *fstype,
 		const char *flags,
 		struct timestamp *tst, unsigned char service, 
 		checkfun_t checkfun,
@@ -31,8 +31,11 @@ int ht_tab_add(unsigned char type,void *obj,int objlen,
 		checkfun_t checkfun,
 		void *private_data);
 
-struct ht_elem *ht_tab_mntsearch(char *path, 
+struct ht_elem *ht_tab_pathsearch(unsigned char type, char *path, 
 	struct timestamp *tst, int exact);
+
+struct ht_elem *ht_tab_binfmtsearch(unsigned char type, struct binfmt_req *req, 
+	struct timestamp *tst);
 
 struct ht_elem *ht_tab_search(unsigned char type, void *obj, int objlen,
 	struct timestamp *tst);

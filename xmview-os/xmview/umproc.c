@@ -454,11 +454,16 @@ int fd_getflfl(struct pcb_file *p, int fd) {
 }
 
 /* fd 2 path mapping (given the file table of a process) */
-char *fd_getpath(struct pcb_file *p, int fd)
+char *fd_getpath(struct pcb_file *p, int fd, service_t *service,
+		epoch_t *epoch)
 {
 	if (fd>=0 && fd < p->nolfd) {
 		int lfd=FD2LFD(p,fd);
 		if (lfd >= 0 && lfd < um_maxlfd && lfd_tab[lfd] != NULL) {
+			if (service)
+				*service=lfd_tab[lfd]->service;
+			if (epoch)
+				*epoch=lfd_tab[lfd]->epoch;
 			return lfd_tab[lfd]->path;
 		} else {
 			return NULL;

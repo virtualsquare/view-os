@@ -104,7 +104,6 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,
 		if (sercode != UM_NONE) {
 			char *chdir_fake_dir = um_proc_fakecwd();
 			//fprint2("virtual path chdir to %s\n", chdir_fake_dir);
-			//XXX: check length of parameter??? if sysargs[0] was one byte long?
 			pathlen = WORDALIGN(strlen(chdir_fake_dir));
 			ustoren(pc, sp-pathlen, pathlen, chdir_fake_dir);
 		} else {
@@ -150,7 +149,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 	service_t pathservice;
 	epoch_t pathepoch;
 
-	if ((path=fd_getpath(pc->fds,pc->sysargs[0])) != NULL) {
+	if ((path=fd_getpath(pc->fds,pc->sysargs[0],&pathservice, &pathepoch)) != NULL) {
 		//fprint2("fchdir to %s\n",path);
 		pc->path=strdup(path);
 		um_x_lstat64(pc, pc->path, &(pc->pathstat), &pathservice, &pathepoch);

@@ -29,15 +29,15 @@ static inline int hashmod (long hashsum) {
 	return hashsum & MNTTAB_HASH_MASK;
 }
 
-static inline long hashsum (const char *c,int len) {
-	long sum=0;
+static inline long hashsum (unsigned char type,const char *c,int len) {
+	long sum=type;
 	int i;
 	for (i=0;i<len;i++,c++)
 		sum=hashadd(sum,*c);
 	return sum;
 }
 
-static int cutdots(char *path)
+static inline int cutdots(char *path)
 {
 	int l=strlen(path);
 	l--;
@@ -64,56 +64,16 @@ static int cutdots(char *path)
 	return l;
 }
 
-struct ht_elem *ht_tab_mntsearch(char *path, struct timestamp *tst, int exact) {
-	struct ht_elem *rv=NULL;
-	epoch_t maxepoch=0;
-	long sum=0;
-	int len=cutdots(path);
-	int i;
-	pthread_mutex_lock(&ht_tab_mutex);
-	for (i=0;i<=len;i++) {
-		if (path[i] == '/' || path[i]== '\0') {
-			epoch_t e;
-			long hash=hashmod(sum);
-			//printf("search %s %d %ld\n",path,i,hash);
-			struct ht_elem *ht=ht_hash[hash];
-			while (ht != NULL) {
-				char *htpath=ht->obj;
-				if (ht->type==CHECKPATH && 
-						sum==ht->hashsum &&
-						(ht->objlen == i) &&
-						strncmp(path,htpath,i)==0 &&
-						(ht->checkfun==NULL || ht->checkfun(CHECKPATH,ht->obj,ht)) && 
-						(tst->epoch > ht->tst.epoch) &&
-						(e=tst_matchingepoch(&(ht->tst))) > maxepoch) {
-					//printf("UPDATED max %s %lld\n",ht->path,ht->tst.epoch);
-					maxepoch=e;
-					rv=ht;
-				}
-				ht=ht->nexthash;
-			}
-		}
-		sum=hashadd(sum,path[i]);
-	}
-	pthread_mutex_unlock(&ht_tab_mutex);
-	if (exact && (!rv || strncmp(path,rv->obj,len) != 0))
-		return NULL;
-	else
-		return rv;
-}
-
-struct ht_elem *ht_tab_search(unsigned char type, void *obj, int objlen,
+static struct ht_elem *ht_tab_internal_search(unsigned char type, void *hashobj, void *obj, int objlen,
 		  struct timestamp *tst)
 {
 	struct ht_elem *rv=NULL;
-	char *objc=obj;
+	char *objc=hashobj;
 	epoch_t maxepoch=0;
 	long sum=0;
 	long hash;
 	struct ht_elem *ht;
-	int i;
-	for (i=0;i<=objlen;i++) 
-		sum=hashadd(sum,objc[i]);
+	sum=hashsum(type, objc, objlen);
 	hash=hashmod(sum);
 	pthread_mutex_lock(&ht_tab_mutex);
 	ht=ht_hash[hash];
@@ -121,9 +81,9 @@ struct ht_elem *ht_tab_search(unsigned char type, void *obj, int objlen,
 		epoch_t e;
 		if (type==ht->type &&
 				sum==ht->hashsum &&
-				(ht->objlen == objlen) &&
-				memcmp(obj,ht->obj,objlen)==0 &&
-				(ht->checkfun==NULL || ht->checkfun(CHECKPATH,ht->obj,ht)) && 
+				(ht->objlen >= objlen) &&
+				memcmp(hashobj,ht->obj,objlen)==0 &&
+				(ht->checkfun==NULL || ht->checkfun(type,obj,ht)) && 
 				(tst->epoch > ht->tst.epoch) &&
 				(e=tst_matchingepoch(&(ht->tst))) > maxepoch) {
 			maxepoch=e;
@@ -133,6 +93,34 @@ struct ht_elem *ht_tab_search(unsigned char type, void *obj, int objlen,
 	}
 	pthread_mutex_unlock(&ht_tab_mutex);
 	return rv;
+}
+
+struct ht_elem *ht_tab_search(unsigned char type, void *obj, int objlen,
+		  struct timestamp *tst)
+{
+	return ht_tab_internal_search(type,obj,obj,objlen,tst);
+}
+
+struct ht_elem *ht_tab_pathsearch(unsigned char type, char *path, struct timestamp *tst, int exact) {
+	int len=cutdots(path);
+	struct ht_elem *rv=ht_tab_internal_search(type,path,path,len,tst);
+#if 0
+	/* debug printf */
+	if (rv)
+		fprint2("+++ ht_tab_pathsearch %s %x %lld %lld\n",path,rv->service,tst->epoch,rv->tst.epoch);
+	else
+		fprint2("ht_tab_pathsearch %s %lld NONE\n",path,tst->epoch);
+#endif
+	if (exact && rv && rv->objlen != len)
+		return NULL;
+	else
+		return rv;
+}
+
+struct ht_elem *ht_tab_binfmtsearch(unsigned char type, struct binfmt_req *req,
+		  struct timestamp *tst)
+{
+	return ht_tab_internal_search(type,req->path,req,strlen(req->path),tst);
 }
 
 static int internal_ht_tab_add(unsigned char type, 
@@ -154,7 +142,7 @@ static int internal_ht_tab_add(unsigned char type,
 			new->private_data=private_data;
 			new->service=service;
 			new->checkfun=checkfun;
-			hashv=hashmod(new->hashsum=hashsum(new->obj,new->objlen));
+			hashv=hashmod(new->hashsum=hashsum(type,new->obj,new->objlen));
 			pthread_mutex_lock(&ht_tab_mutex);
 			if (ht_head) {
 				new->next=ht_head->next;
@@ -187,9 +175,9 @@ int ht_tab_add(unsigned char type,void *obj,int objlen,
 			tst, service, checkfun, private_data);
 }
 
-int ht_tab_mntadd(const char *source,
+int ht_tab_pathadd(unsigned char type, const char *source,
 		const char *path,
-		const char *type,
+		const char *fstype,
 		const char *flags,
 		struct timestamp *tst, unsigned char service, 
 		checkfun_t checkfun,
@@ -197,12 +185,15 @@ int ht_tab_mntadd(const char *source,
 {
 	char *mtabline;
 	int rv;
-	asprintf(&mtabline,"%s %s %s %s 0 %lld",source,path,type,flags,tst->epoch);
+	if (source)
+		asprintf(&mtabline,"%s %s %s %s 0 %lld",source,path,fstype,flags,tst->epoch);
+	else
+		mtabline=NULL;
 	if (path[1]=='\0' && path[0]=='/')
-		rv=internal_ht_tab_add(CHECKPATH, "", 0, mtabline,
+		rv=internal_ht_tab_add(type, "", 0, mtabline,
 				tst, service, checkfun, private_data);
 	else
-		rv=internal_ht_tab_add(CHECKPATH, path, strlen(path), mtabline,
+		rv=internal_ht_tab_add(type, path, strlen(path), mtabline,
 				tst, service, checkfun, private_data);
 	if (rv<0)
 		free(mtabline);

@@ -1510,18 +1510,6 @@ static long umfuse_fstat64(int fd, struct stat64 *buf64)
 	return rv;
 }
 
-#if 0
-static long umfuse_stat(char *path, struct stat *buf)
-{
-	return common_stat(searchcontext(path,SUBSTR),path,buf,1);
-}
-
-static long umfuse_lstat(char *path, struct stat *buf)
-{
-	return common_stat(searchcontext(path,SUBSTR),path,buf,1);
-}
-#endif
-
 static long umfuse_stat64(char *path, struct stat64 *buf64)
 {
 	return common_stat64(searchcontext(path,SUBSTR),path,buf64,1);

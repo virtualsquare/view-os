@@ -71,7 +71,9 @@ int fd_getfdfl(struct pcb_file *p, int fd);
 int fd_setfdfl(struct pcb_file *p, int fd, int val);
 int fd_getflfl(struct pcb_file *p, int fd);
 int fd2sfd (struct pcb_file *p, int fd);
-char *fd_getpath(struct pcb_file *p, int fd);
+char *fd_getpath(struct pcb_file *p, int fd, service_t *service,
+		    epoch_t *epoch);
+
 void lfd_register (struct pcb_file *p, int fd, int lfd);
 void lfd_deregister_n_close(struct pcb_file *p, int fd);
 void lfd_closeall();

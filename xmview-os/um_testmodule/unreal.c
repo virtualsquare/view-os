@@ -96,7 +96,6 @@ static long delmodule(int code)
 	return 0;
 }
 
-
 static long ctl(int type, va_list ap)
 {
 	int id, ppid, max, code;
@@ -310,7 +309,9 @@ init (void)
 #endif
 	add_service(&s);
 	t1=tst_timestamp();
+	ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal","rw",&t1,0xfe,NULL,NULL);
 	t2=tst_timestamp();
+	ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal","rw",&t2,0xfe,NULL,NULL);
 }
 
 static void

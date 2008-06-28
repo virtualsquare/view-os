@@ -53,6 +53,7 @@
 #include "capture.h"
 #include "capture_nested.h"
 #include "gdebug.h"
+#include "hashtab.h"
 
 static const char *const _sys_sigabbrev[NSIG] =
 {
@@ -143,15 +144,22 @@ int um_x_lstat64(struct pcb *pc, char *filename, struct stat64 *buf, service_t *
 	int retval;
 	long oldscno;
 	epoch_t oldepoch;
-	/* fprint2("-> um_lstat: %s\n",filename);*/
+	struct ht_elem *mp;
+	/*fprint2("-> um_lstat: %s\n",filename);*/
 	/* internal nested call save data */
 	oldscno = pc->sysscno;
 	pc->sysscno = NR64_stat;
 	oldepoch=pc->tst.epoch;
-	if ((*sercode=service_check(CHECKPATH,filename,1)) == UM_NONE)
+	mp=ht_tab_pathsearch(CHECKPATH,filename,&pc->tst,0);
+	if (mp && mp->tst.epoch > *matchepoch) {
+		*sercode=mp->service;
+		um_setepoch(mp->tst.epoch);
+	}
+	if (*sercode == UM_NONE)
 		retval = r_lstat64(filename,buf);
 	else
 		retval = service_syscall(*sercode,uscno(NR64_stat))(filename,buf,pc);
+	/*fprint2("-> um_lstat: %s %x %lld %lld\n",filename,*sercode,oldepoch,*matchepoch);*/
 	/* internal nested call restore data */
 	pc->sysscno = oldscno;
 	*matchepoch=pc->tst.epoch;
@@ -204,7 +212,7 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 		if (dirfd==AT_FDCWD)
 			cwd=pc->fdfs->cwd;
 		else
-			cwd=fd_getpath(pc->fds,dirfd);
+			cwd=fd_getpath(pc->fds,dirfd,sercode,matchepoch);
 		um_realpath(path,cwd,newpath,pst,dontfollowlink,pc,sercode,matchepoch);
 			/*fprint2("PATH %s (%s,%s) NEWPATH %s (%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->erno);*/
 		if (pc->erno)
@@ -639,8 +647,8 @@ service_t choice_sc(int sc_number,struct pcb *pc)
  * instead of the pathname for service selection) */
 service_t choice_mount(int sc_number,struct pcb *pc)
 {
-	service_t sercode;
-	epoch_t matchepoch;
+	service_t sercode=UM_NONE;
+	epoch_t matchepoch=0;
 	pc->path=um_abspath(AT_FDCWD,pc->sysargs[1],pc,&(pc->pathstat),0,&sercode,&matchepoch); 
 
 	if (pc->path!=um_patherror) {
@@ -658,8 +666,8 @@ service_t choice_mount(int sc_number,struct pcb *pc)
 /* choice path (filename must be defined) */
 service_t choice_path(int sc_number,struct pcb *pc)
 {
-	service_t sercode;
-	epoch_t matchepoch;
+	service_t sercode=UM_NONE;
+	epoch_t matchepoch=0;
 	pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),0,&sercode,&matchepoch); 
 	//printf("choice_path %d %s\n",sc_number,pc->path);
 	if (sercode != UM_NONE)
@@ -670,8 +678,8 @@ service_t choice_path(int sc_number,struct pcb *pc)
 /* choice pathat (filename must be defined) */
 service_t choice_pathat(int sc_number,struct pcb *pc)
 {
-	service_t sercode;
-	epoch_t matchepoch;
+	service_t sercode=UM_NONE;
+	epoch_t matchepoch=0;
 	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),0,&sercode,&matchepoch);
 	if (sercode != UM_NONE)
 		pc->tst.epoch=matchepoch;
@@ -682,8 +690,8 @@ service_t choice_pathat(int sc_number,struct pcb *pc)
 service_t choice_sockpath(int sc_number,struct pcb *pc)
 {
 	if (pc->sysargs[0] != 0) {
-		service_t sercode;
-		epoch_t matchepoch;
+		service_t sercode=UM_NONE;
+		epoch_t matchepoch=0;
 		pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),0,&sercode,&matchepoch); 
 		if (sercode != UM_NONE)
 			pc->tst.epoch=matchepoch;
@@ -695,8 +703,8 @@ service_t choice_sockpath(int sc_number,struct pcb *pc)
 /* choice link (dirname must be defined, basename can be non-existent) */
 char choice_link(int sc_number,struct pcb *pc)
 {
-	service_t sercode;
-	epoch_t matchepoch;
+	service_t sercode=UM_NONE;
+	epoch_t matchepoch=0;
 	pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),1,&sercode,&matchepoch); 
 	//printf("choice_path %d %s\n",sc_number,pc->path);
 	if (sercode != UM_NONE)
@@ -707,8 +715,8 @@ char choice_link(int sc_number,struct pcb *pc)
 /* choice linkat (dirname must be defined, basename can be non-existent) */
 service_t choice_linkat(int sc_number,struct pcb *pc)
 {
-	service_t sercode;
-	epoch_t matchepoch;
+	service_t sercode=UM_NONE;
+	epoch_t matchepoch=0;
 	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),1,&sercode,&matchepoch);
 	if (sercode != UM_NONE)
 		pc->tst.epoch=matchepoch;
@@ -718,8 +726,8 @@ service_t choice_linkat(int sc_number,struct pcb *pc)
 /* choice unlinkat (unlink = rmdir or unlink depending on flag) */
 service_t choice_unlinkat(int sc_number,struct pcb *pc)
 {
-	service_t sercode;
-	epoch_t matchepoch;
+	service_t sercode=UM_NONE;
+	epoch_t matchepoch=0;
 	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),
 			!(pc->sysargs[2] & AT_REMOVEDIR),&sercode,&matchepoch);
 	if (sercode != UM_NONE)
@@ -731,8 +739,8 @@ service_t choice_unlinkat(int sc_number,struct pcb *pc)
 /* depending on AT_SYMLINK_NOFOLLOW on the 4th parameter */
 service_t choice_pl4at(int sc_number,struct pcb *pc)
 {
-	service_t sercode;
-	epoch_t matchepoch;
+	service_t sercode=UM_NONE;
+	epoch_t matchepoch=0;
 	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),
 			pc->sysargs[3] & AT_SYMLINK_NOFOLLOW,&sercode,&matchepoch);
 	if (sercode != UM_NONE)
@@ -743,8 +751,8 @@ service_t choice_pl4at(int sc_number,struct pcb *pc)
 /* depending on AT_SYMLINK_NOFOLLOW on the 5th parameter */
 service_t choice_pl5at(int sc_number,struct pcb *pc)
 {
-	service_t sercode;
-	epoch_t matchepoch;
+	service_t sercode=UM_NONE;
+	epoch_t matchepoch=0;
 	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),
 			pc->sysargs[4] & AT_SYMLINK_NOFOLLOW,&sercode,&matchepoch);
 	if (sercode != UM_NONE)
@@ -756,8 +764,8 @@ service_t choice_pl5at(int sc_number,struct pcb *pc)
 char choice_link2(int sc_number,struct pcb *pc)
 {
 	int link;
-	service_t sercode;
-	epoch_t matchepoch;
+	service_t sercode=UM_NONE;
+	epoch_t matchepoch=0;
 	/* is this the right semantics? */
 #ifdef __NR_linkat
 	if (sc_number == __NR_linkat)
@@ -775,8 +783,8 @@ char choice_link2(int sc_number,struct pcb *pc)
 
 char choice_link2at(int sc_number,struct pcb *pc)
 {
-	service_t sercode;
-	epoch_t matchepoch;
+	service_t sercode=UM_NONE;
+	epoch_t matchepoch=0;
 	pc->path=um_abspath(pc->sysargs[1],pc->sysargs[2],pc,&(pc->pathstat),1,&sercode,&matchepoch); 
 	//printf("choice_path %d %s\n",sc_number,pc->path);
 	if (sercode != UM_NONE)
@@ -786,8 +794,8 @@ char choice_link2at(int sc_number,struct pcb *pc)
 
 char choice_link3at(int sc_number,struct pcb *pc)
 {
-	service_t sercode;
-	epoch_t matchepoch;
+	service_t sercode=UM_NONE;
+	epoch_t matchepoch=0;
 	pc->path=um_abspath(pc->sysargs[2],pc->sysargs[3],pc,&(pc->pathstat),1,&sercode,&matchepoch); 
 	//printf("choice_path %d %s\n",sc_number,pc->path);
 	if (sercode != UM_NONE)

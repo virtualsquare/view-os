@@ -334,7 +334,8 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 	long offset=pc->sysargs[5];
 	unsigned long pgsize;
 	struct stat64 sbuf;
-	char *path=fd_getpath(pc->fds,fd);
+	/*does it matter the time and service of the path? */
+	char *path=fd_getpath(pc->fds,fd,NULL,NULL);
 	if ((!(flags & MAP_PRIVATE)) && (prot & PROT_WRITE))
 		fprint2("MMAP: %s only MAP_PRIVATE has been implemented\n",path);
 	/* convert mmap into mmap2 */
