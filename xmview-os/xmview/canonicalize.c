@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <stddef.h>
 #include <config.h>
+#include "services.h"
 #include "sctab.h"
 
 /* Return the canonical absolute name of file NAME.  A canonical name
@@ -41,7 +42,7 @@
 	 holds the same value as the value returned.  */
 
 char *
-um_realpath (const char *name, const char *cwd, char *resolved, struct stat64 *pst, int dontfollowlink,void *xpc)
+um_realpath (const char *name, const char *cwd, char *resolved, struct stat64 *pst, int dontfollowlink,void *xpc, service_t *sercode, epoch_t *matchepoch)
 {
 	char *dest, extra_buf[PATH_MAX];
 	const char *start, *end, *resolved_limit; 
@@ -76,13 +77,6 @@ um_realpath (const char *name, const char *cwd, char *resolved, struct stat64 *p
 	/* relative path, the first char is not '/' */
 	if (name[0] != '/')
 	{
-#if 0
-		if (!um_getcwd (xpc,resolved, PATH_MAX))
-		{
-			resolved[0] = '\0';
-			goto error;
-		}
-#endif
 		if (cwd == NULL)
 		{
 			resolved[0] = '\0';
@@ -111,7 +105,7 @@ um_realpath (const char *name, const char *cwd, char *resolved, struct stat64 *p
 		/* special case "/" */
 		if (name[1] == 0) {
 			*dest='\0';
-			if (um_x_lstat64 (resolved, pst, xpc) < 0)
+			if (um_x_lstat64 (xpc, resolved, pst, sercode, matchepoch) < 0)
 				um_set_errno (xpc,errno);
 			else
 				um_set_errno (xpc,0);
@@ -164,7 +158,7 @@ um_realpath (const char *name, const char *cwd, char *resolved, struct stat64 *p
 
 			/*check the dir along the path */
 			validstat = 1;
-			if (um_x_lstat64 (resolved, pst, xpc) < 0) {
+			if (um_x_lstat64 (xpc, resolved, pst, sercode, matchepoch) < 0) {
 				pst->st_mode=0;
 				if (errno != ENOENT || *end == '/') {
 					um_set_errno (xpc,errno);
@@ -187,7 +181,7 @@ um_realpath (const char *name, const char *cwd, char *resolved, struct stat64 *p
 
 					/* symlink! */
 					validstat=0;
-					n = um_x_readlink (resolved, buf, PATH_MAX, xpc);
+					n = um_x_readlink (xpc, resolved, buf, PATH_MAX, sercode, matchepoch);
 					if (n < 0) {
 						um_set_errno (xpc,errno);
 						goto error;
@@ -217,7 +211,7 @@ um_realpath (const char *name, const char *cwd, char *resolved, struct stat64 *p
 					goto error;
 				}
 				else if (*end == '/') {
-					if (um_x_access(resolved,X_OK,xpc)!=0) {
+					if (um_x_access(xpc, resolved,X_OK,sercode, matchepoch)!=0) {
 						um_set_errno (xpc,EACCES);
 						goto error;
 					}
@@ -229,7 +223,7 @@ um_realpath (const char *name, const char *cwd, char *resolved, struct stat64 *p
 		--dest;
 	*dest = '\0';
 
-	if (!validstat && um_x_lstat64 (resolved, pst, xpc) < 0) 
+	if (!validstat && um_x_lstat64 (xpc, resolved, pst, sercode, matchepoch) < 0) 
 		pst->st_mode=0;
 
 	um_set_errno (xpc,0);

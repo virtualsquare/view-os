@@ -230,7 +230,7 @@ int ht_tab_del(struct ht_elem *ht) {
 		pthread_mutex_unlock(&ht_tab_mutex);
 		return 0;
 	} else
-		return ENOENT;
+		return -ENOENT;
 }
 
 void forall_ht_tab_do(unsigned char type, 

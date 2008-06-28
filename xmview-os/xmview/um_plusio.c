@@ -352,6 +352,8 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 	char *source;
 	int olddirfd;
 	long oldpath;
+	service_t matchcode;
+	epoch_t matchepoch;
 
 #ifdef __NR_linkat
 	if (sc_number == __NR_linkat || sc_number == __NR_renameat) {
@@ -364,7 +366,7 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 		oldpath=pc->sysargs[0];
 	} 
 
-	source=um_abspath(olddirfd,oldpath,pc,&sourcest,0);
+	source=um_abspath(olddirfd,oldpath,pc,&sourcest,0,&matchcode,&matchepoch);
 
 	if (source==um_patherror) {
 		pc->retval= -1;
@@ -446,8 +448,10 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 	unsigned long pdata=pc->sysargs[4];
 	struct stat64 imagestat;
 	epoch_t nestepoch;
+	service_t matchcode;
+	epoch_t matchepoch;
 	umovestr(pc,fstype,PATH_MAX,filesystemtype);
-	source = um_abspath(AT_FDCWD,argaddr,pc,&imagestat,0);
+	source = um_abspath(AT_FDCWD,argaddr,pc,&imagestat,0,&matchcode,&matchepoch);
 	nestepoch=um_setepoch(0);
 	um_setepoch(nestepoch+1);
 	/* maybe the source is not a path at all.

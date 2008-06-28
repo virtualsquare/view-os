@@ -95,7 +95,7 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,
 		else
 			pc->erno=ENOTDIR;
 	}
-	if ( (pc->erno==0) && (um_x_access(pc->path,X_OK,pc)!=0) ) {
+	if ( (pc->erno==0) && (um_x_access(pc,pc->path,X_OK,&sercode,&pc->tst.epoch)!=0) ) {
 			pc->erno=EACCES;
 	}
 	if (pc->erno == 0 && S_ISDIR(pc->pathstat.st_mode)) {
@@ -147,11 +147,13 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 	long sp=getsp(pc);
 	int pathlen;
 	char *path;
+	service_t pathservice;
+	epoch_t pathepoch;
 
 	if ((path=fd_getpath(pc->fds,pc->sysargs[0])) != NULL) {
 		//fprint2("fchdir to %s\n",path);
 		pc->path=strdup(path);
-		um_x_lstat64(pc->path, &(pc->pathstat), pc);
+		um_x_lstat64(pc, pc->path, &(pc->pathstat), &pathservice, &pathepoch);
 		/* If there is a real directory with this name, and it is chdir-able,
 		 * we can chdir there instead of /tmp/ so the core and the process
 		 * will see the same cwd. */
@@ -172,7 +174,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 #endif
 		{
 			if (S_ISDIR(pc->pathstat.st_mode)) {
-				if (um_x_access(pc->path,X_OK,pc)!=0) {
+				if (um_x_access(pc,pc->path,X_OK,&pathservice, &pathepoch)!=0) {
 					GDEBUG(4, "FCHDIR EACCES for %s", pc->path);
 					pc->erno=EACCES;
 					pc->retval = -1;

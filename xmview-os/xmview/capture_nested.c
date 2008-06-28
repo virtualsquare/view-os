@@ -97,7 +97,7 @@ int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 }
 
 /* convert the path into an absolute path (for nested calls) */
-static char *nest_abspath(int dirfd, long laddr,struct npcb *npc,struct stat64 *pst,int dontfollowlink)
+static char *nest_abspath(int dirfd, long laddr,struct npcb *npc,struct stat64 *pst,int dontfollowlink,service_t *sercode, epoch_t *matchepoch)
 {
 	char *path=(char*)laddr;
 	char newpath[PATH_MAX];
@@ -111,7 +111,7 @@ static char *nest_abspath(int dirfd, long laddr,struct npcb *npc,struct stat64 *
 	 *  cwd= ...path of dirfd... 
 	 */
 	cwd=NULL;
-	um_realpath(path,cwd,newpath,pst,dontfollowlink,npc);
+	um_realpath(path,cwd,newpath,pst,dontfollowlink,npc,sercode,matchepoch);
 	if (npc->erno)
 		return um_patherror;  //error
 	else
@@ -141,43 +141,48 @@ service_t nchoice_sc(int sc_number,struct npcb *npc) {
 
 /* choice function for nested calls: mount */
 service_t nchoice_mount(int sc_number,struct npcb *npc) {
-	npc->path=nest_abspath(AT_FDCWD,npc->sysargs[1],npc,&(npc->pathstat),0);
+	service_t sercode;
+	epoch_t matchepoch;
+	npc->path=nest_abspath(AT_FDCWD,npc->sysargs[1],npc,&(npc->pathstat),0,&sercode,&matchepoch);
 	if(npc->path==um_patherror) 
 		return UM_NONE;
 	else 
-		return service_check(CHECKFSTYPE,(char *)(npc->sysargs[2]),1);
+		return service_check(CHECKFSTYPE,(char *)(npc->sysargs[2]),0);
 }
 
 /* choice function for nested calls: path (1st arg) */
 service_t nchoice_path(int sc_number,struct npcb *npc) {
+	service_t sercode;
+	epoch_t matchepoch;
 	//fprint2("nchoice_path %s %lld\n",(char *)(npc->sysargs[0]),npc->tst.epoch);
-	npc->path=nest_abspath(AT_FDCWD,npc->sysargs[0],npc,&(npc->pathstat),0);
+	npc->path=nest_abspath(AT_FDCWD,npc->sysargs[0],npc,&(npc->pathstat),0,&sercode,&matchepoch);
 	//fprint2("nchoice_abspath %s %lld\n",npc->path,npc->tst.epoch);
-	if(npc->path==um_patherror)
-		return UM_NONE;
-	else
-		return service_check(CHECKPATH,npc->path,1);
+	if (sercode != UM_NONE)
+		npc->tst.epoch=matchepoch;
+	return sercode;
 }
 
 /* choice function for nested calls: dirfd/path (1st,2nd arg) */
 service_t nchoice_pathat(int sc_number,struct npcb *npc) {
-	npc->path=nest_abspath(npc->sysargs[0],npc->sysargs[1],npc,&(npc->pathstat),0);
-	if(npc->path==um_patherror)
-		return UM_NONE;
-	else
-		return service_check(CHECKPATH,npc->path,1);
+	service_t sercode;
+	epoch_t matchepoch;
+	npc->path=nest_abspath(npc->sysargs[0],npc->sysargs[1],npc,&(npc->pathstat),0,&sercode,&matchepoch);
+	if (sercode != UM_NONE)
+		npc->tst.epoch=matchepoch;
+	return sercode;
 }
 
 /* choice function for nested msocket calls: path (1st arg) */
 service_t nchoice_sockpath(int sc_number,struct npcb *npc) {
 	if (npc->sysargs[0]) {
+		service_t sercode;
+		epoch_t matchepoch;
 		//fprint2("nchoice_sockpath %s %lld\n",(char *)(npc->sysargs[0]),npc->tst.epoch);
-		npc->path=nest_abspath(AT_FDCWD,npc->sysargs[0],npc,&(npc->pathstat),0);
+		npc->path=nest_abspath(AT_FDCWD,npc->sysargs[0],npc,&(npc->pathstat),0,&sercode,&matchepoch);
 		//fprint2("nchoice_sockabspath %s %lld\n",npc->path,npc->tst.epoch);
-		if(npc->path==um_patherror)
-			return UM_NONE;
-		else
-			return service_check(CHECKPATH,npc->path,1);
+		if (sercode != UM_NONE)
+			npc->tst.epoch=matchepoch;
+		return sercode;
 	} else {
 		//fprint2("nchoice_abspath SOCK %ld\n",npc->sysargs[1]);
 		npc->path=NULL;
@@ -187,67 +192,75 @@ service_t nchoice_sockpath(int sc_number,struct npcb *npc) {
 
 /* choice function for nested calls: link (1st arg) */
 service_t nchoice_link(int sc_number,struct npcb *npc) {
+	service_t sercode;
+	epoch_t matchepoch;
 	//fprint2("nchoice_link %s\n",(char *)(npc->sysargs[0]));
-	npc->path=nest_abspath(AT_FDCWD,npc->sysargs[0],npc,&(npc->pathstat),1);
+	npc->path=nest_abspath(AT_FDCWD,npc->sysargs[0],npc,&(npc->pathstat),1,&sercode,&matchepoch);
 	//fprint2("nchoice_abslink %s\n",npc->path);
-	if(npc->path==um_patherror)
-		return UM_NONE;
-	else
-		return service_check(CHECKPATH,npc->path,1);
+	if (sercode != UM_NONE)
+		npc->tst.epoch=matchepoch;
+	return sercode;
 }
 
 /* choice function for nested calls: dirfd,link (1st,2nd arg) */
 service_t nchoice_linkat(int sc_number,struct npcb *npc) {
-	npc->path=nest_abspath(npc->sysargs[0],npc->sysargs[1],npc,&(npc->pathstat),1);
-	if(npc->path==um_patherror)
-		return UM_NONE;
-	else
-		return service_check(CHECKPATH,npc->path,1);
+	service_t sercode;
+	epoch_t matchepoch;
+	npc->path=nest_abspath(npc->sysargs[0],npc->sysargs[1],npc,&(npc->pathstat),1,&sercode,&matchepoch);
+	if (sercode != UM_NONE)
+		npc->tst.epoch=matchepoch;
+	return sercode;
 }
 
 /* choice function unlinkat (unlink = rmdir or unlink depending on flag) */ 
 service_t nchoice_unlinkat(int sc_number,struct npcb *npc) {
+	service_t sercode;
+	epoch_t matchepoch;
 	npc->path=nest_abspath(npc->sysargs[0],npc->sysargs[1],npc,&(npc->pathstat),
-			!(npc->sysargs[2] & AT_REMOVEDIR));
-	if(npc->path==um_patherror)
-		return UM_NONE;
-	else
-		return service_check(CHECKPATH,npc->path,1);
+			!(npc->sysargs[2] & AT_REMOVEDIR),&sercode,&matchepoch);
+	if (sercode != UM_NONE)
+		npc->tst.epoch=matchepoch;
+	return sercode;
 }
 
 /* choice function for nested calls: dirfd,link/path (1st,2nd arg,choice on 4th) */
 /* choice function for nested calls: dirfd,link/path (1st,2nd arg,choice on 4th) */
 service_t nchoice_pl4at(int sc_number,struct npcb *npc) {
+	service_t sercode;
+	epoch_t matchepoch;
 	npc->path=nest_abspath(npc->sysargs[0],npc->sysargs[1],npc,&(npc->pathstat),
-			npc->sysargs[3] & AT_SYMLINK_NOFOLLOW);
-	if(npc->path==um_patherror)
-		return UM_NONE;
-	else
-		return service_check(CHECKPATH,npc->path,1);
+			npc->sysargs[3] & AT_SYMLINK_NOFOLLOW,&sercode,&matchepoch);
+	if (sercode != UM_NONE)
+		npc->tst.epoch=matchepoch;
+	return sercode;
 }
 
 /* choice function for nested calls: dirfd,link/path (1st,2nd arg,choice on 5th) */
 service_t nchoice_pl5at(int sc_number,struct npcb *npc) {
+	service_t sercode;
+	epoch_t matchepoch;
 	npc->path=nest_abspath(npc->sysargs[0],npc->sysargs[1],npc,&(npc->pathstat),
-			npc->sysargs[4] & AT_SYMLINK_NOFOLLOW);
-	if(npc->path==um_patherror)
-		return UM_NONE;
-	else
-		return service_check(CHECKPATH,npc->path,1);
+			npc->sysargs[4] & AT_SYMLINK_NOFOLLOW,&sercode,&matchepoch);
+	if (sercode != UM_NONE)
+		npc->tst.epoch=matchepoch;
+	return sercode;
 }
 
 /* choice function for nested calls: link (2nd arg) */
 service_t nchoice_link2(int sc_number,struct npcb *npc) {
-	npc->path=nest_abspath(AT_FDCWD,npc->sysargs[1],npc,&(npc->pathstat),1);
-	if(npc->path==um_patherror)
-		return UM_NONE;
-	else
-		return service_check(CHECKPATH,npc->path,1);
+	service_t sercode;
+	epoch_t matchepoch;
+	npc->path=nest_abspath(AT_FDCWD,npc->sysargs[1],npc,&(npc->pathstat),1,&sercode,&matchepoch);
+	if (sercode != UM_NONE)
+		npc->tst.epoch=matchepoch;
+	return sercode;
 }
 
 /* choice function for nested calls: dirfd/link (3rd/4th arg) */
 service_t nchoice_link3at(int sc_number,struct npcb *npc) {
 	int link;
+	service_t sercode;
+	epoch_t matchepoch;
 	/* is this the right semantics? */
 #ifdef __NR_linkat
 	if (sc_number == __NR_linkat)
@@ -255,20 +268,20 @@ service_t nchoice_link3at(int sc_number,struct npcb *npc) {
 	else
 #endif
 		link=1;
-	npc->path=nest_abspath(npc->sysargs[2],npc->sysargs[3],npc,&(npc->pathstat),link);
-	if(npc->path==um_patherror)
-		return UM_NONE;
-	else
-		return service_check(CHECKPATH,npc->path,1);
+	npc->path=nest_abspath(npc->sysargs[2],npc->sysargs[3],npc,&(npc->pathstat),link,&sercode,&matchepoch);
+	if (sercode != UM_NONE)
+		npc->tst.epoch=matchepoch;
+	return sercode;
 }
 
 /* choice function for nested calls: dirfd/link (3rd/4th arg) */
 service_t nchoice_link2at(int sc_number,struct npcb *npc) {
-	npc->path=nest_abspath(npc->sysargs[1],npc->sysargs[2],npc,&(npc->pathstat),1);
-	if(npc->path==um_patherror)
-		return UM_NONE;
-	else
-		return service_check(CHECKPATH,npc->path,1);
+	service_t sercode;
+	epoch_t matchepoch;
+	npc->path=nest_abspath(npc->sysargs[1],npc->sysargs[2],npc,&(npc->pathstat),1,&sercode,&matchepoch);
+	if (sercode != UM_NONE)
+		npc->tst.epoch=matchepoch;
+	return sercode;
 }
 
 /* choice function for nested calls: socket */
@@ -280,7 +293,7 @@ service_t nchoice_socket(int sc_number,struct npcb *npc) {
 /* call the implementation */
 int do_nested_call(sysfun um_syscall,unsigned long *args,int n)
 {
-		return um_syscall(args[0],args[1],args[2],args[3],args[4],args[5]);
+	return um_syscall(args[0],args[1],args[2],args[3],args[4],args[5]);
 }
 
 /* nested wrapper for syscall with a path*/
@@ -314,6 +327,8 @@ int nw_syslink(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 	char *source;
 	int olddirfd;
 	long oldpath;
+	service_t matchcode;
+	epoch_t matchepoch;
 #ifdef __NR_linkat
 	if (scno == __NR_linkat || scno == __NR_renameat) {
 		olddirfd=npc->sysargs[0];
@@ -324,7 +339,7 @@ int nw_syslink(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 		olddirfd=AT_FDCWD;
 		oldpath=npc->sysargs[0];
 	} 
-	source=nest_abspath(olddirfd,oldpath,npc,&(npc->pathstat),0);
+	source=nest_abspath(olddirfd,oldpath,npc,&(npc->pathstat),0,&matchcode,&matchepoch);
 	if (npc->path==um_patherror) {
 		npc->erno= ENOENT;
 		return -1;
@@ -552,7 +567,7 @@ static int nested_sysindex(struct npcb *npc, int scno)
 /* dcif (index) for sockets or virtual: just the sysno*/
 static int nested_sockvirindex(struct npcb *npc, int scno)
 {
-	  return scno;
+	return scno;
 }
 
 
@@ -560,7 +575,7 @@ static int nested_sockvirindex(struct npcb *npc, int scno)
 static int nested_call_syscall (int sysno, struct npcb *npc)
 {
 	return native_syscall(sysno, npc->sysargs[0], npc->sysargs[1], npc->sysargs[2],
-			      npc->sysargs[3], npc->sysargs[4], npc->sysargs[5]);
+			npc->sysargs[3], npc->sysargs[4], npc->sysargs[5]);
 }
 
 #if __NR_socketcall != __NR_doesnotexist
@@ -604,10 +619,10 @@ int nested_commonwrap(int sc_number,struct npcb *npc,
 	}
 	else
 #endif
-	if (npc->path == um_patherror) {
-		errno=npc->erno;
-		return -1;
-	}
+		if (npc->path == um_patherror) {
+			errno=npc->erno;
+			return -1;
+		}
 	//fprint2("nested_commonwrap choice %d -> %lld %x\n",sc_number,npc->tst.epoch,sercode);
 	if (sercode != UM_NONE || (sm[index].flags & NALWAYS)) {
 		/* SUSPEND MGMT? */
@@ -708,14 +723,14 @@ static long int capture_nested_socketcall(long int sysno, ...){
 	va_end(ap);
 #ifdef _NESTED_CALL_DEBUG_
 	fprint2("SkC=%ld - %p %lld %lld- args: %p %p %p %p %p %p\n",sysno,get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
-					(void*)callee_pcb.sysargs[0],
-					(void*)callee_pcb.sysargs[1],
-					(void*)callee_pcb.sysargs[2],
-					(void*)callee_pcb.sysargs[3],
-					(void*)callee_pcb.sysargs[4],
-					(void*)callee_pcb.sysargs[5]);
+			(void*)callee_pcb.sysargs[0],
+			(void*)callee_pcb.sysargs[1],
+			(void*)callee_pcb.sysargs[2],
+			(void*)callee_pcb.sysargs[3],
+			(void*)callee_pcb.sysargs[4],
+			(void*)callee_pcb.sysargs[5]);
 #endif
-  /*
+	/*
 	 * UMPID4NESTED
 	 * callee_pcb.umpid=caller_pcb->umpid;
 	 */
@@ -726,7 +741,7 @@ static long int capture_nested_socketcall(long int sysno, ...){
 	set_pcb(caller_pcb);
 #ifdef _NESTED_CALL_DEBUG_
 	fprint2("->(Sk) %ld: return value:%ld %p\n",
-				sysno,rv,get_pcb());
+			sysno,rv,get_pcb());
 #endif
 	return rv;
 }
@@ -759,17 +774,17 @@ static long int capture_nested_syscall(long int sysno, ...)
 	}
 	va_end(ap);
 #ifdef _NESTED_CALL_DEBUG_
-		fprint2("SyC=%ld - %s %p %lld %lld- args: %x %x %x %x %x %x\n",sysno,SYSCALLNAME(sysno),get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
-					(void*)callee_pcb.sysargs[0],
-					(void*)callee_pcb.sysargs[1],
-					(void*)callee_pcb.sysargs[2],
-					(void*)callee_pcb.sysargs[3],
-					(void*)callee_pcb.sysargs[4],
-					(void*)callee_pcb.sysargs[5]);
+	fprint2("SyC=%ld - %s %p %lld %lld- args: %x %x %x %x %x %x\n",sysno,SYSCALLNAME(sysno),get_pcb(),callee_pcb.tst.epoch,callee_pcb.nestepoch,
+			(void*)callee_pcb.sysargs[0],
+			(void*)callee_pcb.sysargs[1],
+			(void*)callee_pcb.sysargs[2],
+			(void*)callee_pcb.sysargs[3],
+			(void*)callee_pcb.sysargs[4],
+			(void*)callee_pcb.sysargs[5]);
 #endif
-  /*
+	/*
 	 * UMPID4NESTED
-   * callee_pcb.umpid=caller_pcb->umpid;
+	 * callee_pcb.umpid=caller_pcb->umpid;
 	 */
 	/* commonwrap for nested calls */
 	rv=nested_commonwrap(sysno, &callee_pcb, nested_sysindex, nested_call_syscall, service_syscall, scmap);
@@ -777,8 +792,8 @@ static long int capture_nested_syscall(long int sysno, ...)
 	nrestoreargs(caller_pcb, &callee_pcb);
 	set_pcb(caller_pcb);
 #ifdef _NESTED_CALL_DEBUG_
-		fprint2("-> %ld - %s: return value:%ld %p\n",
-				sysno,SYSCALLNAME(sysno),rv,get_pcb());
+	fprint2("-> %ld - %s: return value:%ld %p\n",
+			sysno,SYSCALLNAME(sysno),rv,get_pcb());
 #endif
 	return rv;
 }
@@ -822,7 +837,7 @@ static int clonewrap(void *carg){
 
 /* clone management */
 int __clone (int (*fn) (void *arg), void *child_stack,
-		        int flags, void *arg, void *arg2, void *arg3, void *arg4) 
+		int flags, void *arg, void *arg2, void *arg3, void *arg4) 
 {
 	int rv;
 	struct clonearg *carg=malloc(sizeof(struct clonearg));
@@ -848,7 +863,7 @@ void capture_nested_init()
 	umview_file.count=1;
 	umview_file.nolfd=0;
 	umview_file.lfdlist=NULL;
-	
+
 	/* setting of _pure_syscall and _pure_socketcall, loading 
 	 * of native_syscall to bypass the library */
 	if ((_pure_start_p=dlsym(RTLD_DEFAULT,"_pure_start")) != NULL) {
