@@ -70,7 +70,7 @@
  *
  */
 
-#if Pv4_FRAGMENTATION || IPv6_FRAGMENTATION
+#if IPv4_FRAGMENTATION || IPv6_FRAGMENTATION
 
 #ifndef __LWIP_IP_FRAG_H__
 #define __LWIP_IP_FRAG_H__
@@ -131,6 +131,8 @@ struct pbuf *ip6_reass(struct stack *stack, struct pbuf *p, struct ip6_fraghdr *
 err_t ip6_frag(struct stack *stack, struct pbuf *p, struct netif *netif, struct ip_addr *dest);
 
 #endif /* IPv6_FRAGMENTATION */
+
+
 
 /* Max IP Payload len */
 #define IP_REASS_BUFSIZE         65535

@@ -69,8 +69,12 @@ static const u32_t memp_sizes[MEMP_MAX] = {
   sizeof(struct tcpip_msg),
   sizeof(struct sys_timeout),
   sizeof(struct ip_route_list),
-  sizeof(struct ip_addr_list),
+  sizeof(struct ip_addr_list)
+
+#if IPv4_FRAGMENTATION || IPv6_FRAGMENTATION
+  ,
   sizeof(struct ip_reassbuf)
+#endif
 
 /* added by Diego Billi */
 #if LWIP_USERFILTER && LWIP_NAT

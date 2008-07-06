@@ -58,7 +58,7 @@
  * Some of these are necessary if you are going to
  * use Lwipv6a as UMVIEWOS module (lwipv6.so).
  */
-//#define LWIP_DEBUG 
+#define LWIP_DEBUG 
 
 /*
  * Remove assertions.
@@ -182,7 +182,7 @@ a lot of data that needs to be copied, this should be set high. */
 #define IP_OPTIONS              1
 
 /* # of suspended fragments */
-#define IP_REASS_POOL_SIZE     5
+#define IP_REASS_POOL_SIZE      5
 
 /* ---------- ICMP options ---------- */
 
@@ -197,7 +197,7 @@ a lot of data that needs to be copied, this should be set high. */
 
 /* ---------- TCP options ---------- */
 
-#define LWIP_TCP                1
+#define LWIP_TCP                0
 #define TCP_TTL                 255
 
 /* Controls if TCP should queue segments that arrive out of
@@ -264,13 +264,12 @@ a lot of data that needs to be copied, this should be set high. */
 //#define DHCP_DEBUG              DBG_ON
 
 //#define IP_DEBUG                DBG_ON
+//#define IP_REASS_DEBUG          DBG_ON
+//#define IP_AUTOCONF_DEBUG       DBG_ON
 
 //#define PMTU_DEBUG              DBG_ON
 //#define IPv6_ADDRSELECT_DBG     DBG_ON
 
-//#define IP_REASS_DEBUG          DBG_ON
-
-//#define IP_AUTOCONF_DEBUG       DBG_ON
 
 //#define IP_RADV_DEBUG           DBG_ON
 //#define IP_RADVCONF_DEBUG       DBG_ON
