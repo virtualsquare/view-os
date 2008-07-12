@@ -21,6 +21,7 @@
 
 #include <config.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
