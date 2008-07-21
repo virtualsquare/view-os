@@ -122,7 +122,7 @@ int sys_sem_wait_timeout(sys_sem_t sem, u32_t timeout);
 void sys_msleep(u32_t ms); /* only has a (close to) 1 jiffy resolution. */
 #endif
 #ifndef sys_jiffies
-u32_t sys_jiffies(void); /* since power up. */
+unsigned long sys_jiffies(void); /* since power up. */
 #endif
 
 /* Mailbox functions. */

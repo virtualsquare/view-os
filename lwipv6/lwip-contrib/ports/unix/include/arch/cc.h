@@ -34,6 +34,7 @@
 
 /* Include some files for defining library routines */
 #include <string.h>
+#include <sys/types.h>
 
 /* Define platform endianness */
 #ifndef BYTE_ORDER
@@ -41,14 +42,14 @@
 #endif /* BYTE_ORDER */
 
 /* Define generic types used in lwIP */
-typedef unsigned   char    u8_t;
-typedef signed     char    s8_t;
-typedef unsigned   short   u16_t;
-typedef signed     short   s16_t;
-typedef unsigned   long    u32_t;
-typedef signed     long    s32_t;
+typedef u_int8_t		u8_t;
+typedef int8_t			s8_t;
+typedef u_int16_t		u16_t;
+typedef int16_t			s16_t;
+typedef u_int32_t		u32_t;
+typedef int32_t			s32_t;
 
-typedef u32_t mem_ptr_t;
+typedef unsigned long mem_ptr_t;
 
 
 /* Compiler hints for packing structures */

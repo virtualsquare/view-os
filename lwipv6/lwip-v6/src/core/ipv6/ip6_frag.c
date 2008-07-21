@@ -565,7 +565,7 @@ ip6_reass(struct stack *stack, struct pbuf *p, struct ip6_fraghdr *fragext, stru
 				entry_iphdr   = (struct ip_hdr *) ip_reassembly_pool[pos].buf;
 
 				/* Copy the whole  Unfragmentable Part */
-				unfragpart_len = ((int)fragext) - ((int)fragment_hdr);
+				unfragpart_len = ((long)fragext) - ((long)fragment_hdr);
 				memcpy(entry_iphdr, fragment_hdr, unfragpart_len);
 
 
@@ -577,7 +577,7 @@ ip6_reass(struct stack *stack, struct pbuf *p, struct ip6_fraghdr *fragext, stru
 	/* Entry found */
 	if (pos < IP_REASS_POOL_SIZE) {
 
-		unfragpart_len = ((int)fragext) - ((int)fragment_hdr);
+		unfragpart_len = ((long)fragext) - ((long)fragment_hdr);
 
 		entry_iphdr   = (struct ip_hdr *) ip_reassembly_pool[pos].buf;
 

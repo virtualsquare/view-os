@@ -35,7 +35,7 @@
 #include "lwip/opt.h"
 #include "lwip/arch.h"
 
-typedef u32_t mem_size_t;
+typedef unsigned long mem_size_t;
 
 
 void mem_init(void);
