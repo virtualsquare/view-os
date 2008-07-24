@@ -10,4 +10,6 @@ typedef long int (*sfun)(long int __sysno, ...);
 
 sfun _pure_start(sfun pure_syscall,sfun pure_socketcall,int flags);
 
+long _pure_debug_printf(const char *format, ...);
+
 #endif
