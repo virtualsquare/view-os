@@ -17,6 +17,7 @@ AC_PROG_LIBTOOL
 AC_CHECK_LIB([pcap], [pcap_open_offline],,AC_MSG_ERROR([libpcap missing]))
 AC_CHECK_LIB([util], [forkpty],,AC_MSG_ERROR([libutil missing]))
 AC_CHECK_LIB([vdeplug], [vde_close],,AC_MSG_ERROR([libvdeplug missing]))
+AC_CHECK_LIB([pthread], [pthread_create],,AC_MSG_ERROR([libpthread missing]))
 
 # Checks for header files.
 AC_HEADER_STDC
