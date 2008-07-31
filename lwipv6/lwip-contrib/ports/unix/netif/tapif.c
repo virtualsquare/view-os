@@ -84,14 +84,10 @@
 #include "netif/tcpdump.h"
 #endif /* LWIP_DEBUG && LWIP_TCPDUMP */
 
-#ifdef linux
 #include <sys/ioctl.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>
 #define DEVTAP "/dev/net/tun"
-#else  /* linux */
-#define DEVTAP "/dev/tap0"
-#endif /* linux */
 
 /*-----------------------------------------------------------------------------------*/
 
@@ -153,14 +149,9 @@ low_level_init(struct netif *netif, char *ifname)
 	tapif->fd = open(DEVTAP, O_RDWR);
 	LWIP_DEBUGF(TAPIF_DEBUG, ("tapif_init: fd %d\n", tapif->fd));
 	if(tapif->fd == -1) {
-#ifdef linux
 		perror("tapif_init: try running \"modprobe tun\" or rebuilding your kernel with CONFIG_TUN; cannot open "DEVTAP);
-#else
-		perror("tapif_init: cannot open "DEVTAP);
-#endif
 		return ERR_IF;
 	}
-#ifdef linux
 	{
 		struct ifreq ifr;
 		memset(&ifr, 0, sizeof(ifr));
@@ -171,7 +162,6 @@ low_level_init(struct netif *netif, char *ifname)
 			return ERR_IF;
 		}
 	}
-#endif /* Linux */
 
 	tapif->active = 1;
 	tapif->cleanup_mutex = sys_sem_new(0);

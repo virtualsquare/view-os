@@ -81,19 +81,15 @@
 #include "netif/tcpdump.h"
 #endif /* LWIP_DEBUG && LWIP_TCPDUMP */
 
-#ifdef linux
 #include <sys/ioctl.h>
 #include <sys/un.h>
-#include <sys/uio.h>
 #include <stdint.h>
 #include <libgen.h>
-#include "libvdeplug_dyn.h"
+#include <libvdeplug_dyn.h>
 #include <sys/poll.h>
 #include <pwd.h>
 
 struct vdepluglib vdeplug;
-
-#endif /* linux */
 
 /*-----------------------------------------------------------------------------------*/
 

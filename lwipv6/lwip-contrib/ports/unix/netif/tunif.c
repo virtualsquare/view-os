@@ -50,14 +50,10 @@
 #include "lwip/pbuf.h"
 #include "lwip/sys.h"
 
-#ifdef linux
 #include <sys/ioctl.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>
 #define DEVTAP "/dev/net/tun"
-#else  /* linux */
-#define DEVTAP "/dev/tun0"
-#endif /* linux */
 
 /*-----------------------------------------------------------------------------------*/
 
@@ -100,7 +96,6 @@ low_level_init(struct netif *netif, char *ifname)
     perror("tunif_init");
    return ERR_IF;
   }
-#ifdef linux
 	{
 		struct ifreq ifr;
 		memset(&ifr, 0, sizeof(ifr));
@@ -111,7 +106,6 @@ low_level_init(struct netif *netif, char *ifname)
 			return ERR_IF;
 		}
 	}
-#endif /* Linux */
 
   sys_thread_new(tunif_thread, netif, DEFAULT_THREAD_PRIO);
 	return ERR_OK;
