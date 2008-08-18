@@ -69,7 +69,8 @@ the format string is similar to that used in printf.
 #define FUSEARGSHOWCALL 6 //"format"
 #define FUSEARGUID 7 //"format"
 #define FUSEARGGID 8 //"format"
-#define FUSEARGHUMAN 9  //"human"
+#define FUSEEXCEPT 9  //"except"
+#define FUSEARGHUMAN 10 //"human"
 #define FUSEFLAGHASSTRING 1
 #define FUSEFLAGCOPY 2
 static struct fuseargitem {
@@ -85,6 +86,7 @@ static struct fuseargitem {
 	{"format=",FUSEARGFMT, FUSEFLAGHASSTRING},
 	{"fuseuid=",FUSEARGUID, FUSEFLAGHASSTRING},
 	{"fusegid=",FUSEARGGID, FUSEFLAGHASSTRING},
+	{"except=",FUSEEXCEPT, FUSEFLAGHASSTRING},
 	{"human", FUSEARGHUMAN, 0}
 };
 #define FUSEARGTABSIZE sizeof(fuseargtab)/sizeof(struct fuseargitem)
@@ -173,9 +175,10 @@ static int fuseaddargs(char *fmt, char *source, char *mountpoint, char *opts, ch
 	return nargc;
 }
 
-int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, char ***pargv,struct fuse_context *fc,int *pflags)
+int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, char ***pargv,struct fuse_context *fc,int *pflags,char ***pexceptions)
 {
 	char *sepopts[MAXARGS];
+	char *exceptions[MAXARGS];
 	int nsepopts=0;
 	char newopts[PATH_MAX];
 	char *pre=NULL;
@@ -183,6 +186,7 @@ int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, ch
 	char *fmt=NULL;
 	char nosource=0;
 	char showcall=0;
+	int nexceptions=0;
 	int i;
 	newopts[0]=0;
 	char *s=opts;
@@ -252,6 +256,10 @@ int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, ch
 			case FUSEARGGID:
 				fc->gid=atoi(sepopts[i]+strlen(fuseargtab[j].arg));
 				break;
+			case FUSEEXCEPT:
+				exceptions[nexceptions]=sepopts[i]+strlen(fuseargtab[j].arg);
+				nexceptions++;
+				break;
 			case FUSEARGHUMAN:
 				*pflags |= FUSE_HUMAN;
 				break;
@@ -265,6 +273,16 @@ int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, ch
 					strncat(newopts,sepopts[i],len);
 				}
 				break;
+		}
+	}
+	/* PHASE 2B set up exceptions (if there are) */
+	if (nexceptions > 0) {
+		char **newexceptions=*pexceptions=malloc((nexceptions+1)*sizeof(char *));
+		if (newexceptions) {
+			int i;
+			for (i=0;i<nexceptions;i++)
+				newexceptions[i]=strdup(exceptions[i]);
+			newexceptions[i]=0;
 		}
 	}
 	//printf("%s pre %s post %s fmt %s\n",newopts,pre,post,fmt);

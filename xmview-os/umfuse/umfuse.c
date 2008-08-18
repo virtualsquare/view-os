@@ -86,6 +86,7 @@ static struct service s;
 struct fuse {
 	char *filesystemtype;
 	char *path;
+	char **exceptions;
 	short pathlen;
 	void *dlhandle;
 	struct timestamp tst;
@@ -220,6 +221,35 @@ static cutdots(char *path)
 	}
 }
 
+/* search for exceptions returns 1 if it is an exception */
+
+static int isexception(char *path, char **exceptions)
+{
+	if (__builtin_expect((exceptions == NULL),1))
+		return 0;
+	else {
+		while (*exceptions != 0) {
+			if (strncmp(path,*exceptions,strlen(*exceptions)) == 0)
+				return 1;
+			exceptions ++;
+		}
+		return 0;
+	}
+}
+
+static void freeexceptions(char **exceptions)
+{
+	if (__builtin_expect((exceptions == NULL),1))
+		 return 0;
+	 else {
+		 while (*exceptions != 0) {
+			 free(*exceptions);
+			 exceptions++;
+		 }
+		 free(exceptions);
+	 }
+}
+
 /* search a path, returns the context i.e. the index of info for mounted file
  * -1 otherwise */
 static struct fuse_context *searchcontext(char *path,int exact)
@@ -242,7 +272,7 @@ static struct fuse_context *searchcontext(char *path,int exact)
 				}
 			} else {
 				int len=fusetab[i]->fuse->pathlen;
-				if ((strncmp(path,fusetab[i]->fuse->path,len) == 0 && (path[len] == '/' || path[len]=='\0')) && 
+				if ((strncmp(path,fusetab[i]->fuse->path,len) == 0 && (path[len] == '/' || path[len]=='\0')) && !(isexception(path+len,fusetab[i]->fuse->exceptions)) &&
 						((e=tst_matchingepoch(&(fusetab[i]->fuse->tst))) > maxepoch)) {
 					maxi=i;
 					maxepoch=e;
@@ -549,7 +579,7 @@ static void *startmain(void *vsmo)
 	/* handle -o options and specific filesystem options */
 	opts = mountflag2options(*(psmo->pmountflags), psmo->data);
 	fuse_set_context(psmo->new);
-	newargc=fuseargs(psmo->new->fuse->filesystemtype,psmo->source, psmo->new->fuse->path,opts, &newargv,psmo->new, &(psmo->new->fuse->flags));
+	newargc=fuseargs(psmo->new->fuse->filesystemtype,psmo->source, psmo->new->fuse->path,opts, &newargv,psmo->new, &(psmo->new->fuse->flags), &(psmo->new->fuse->exceptions));
 	free(opts);
 	if (psmo->new->fuse->flags & FUSE_DEBUG) {
 		GMESSAGE("UmFUSE Debug enabled");
@@ -809,6 +839,7 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 		new->fuse = (struct fuse *)malloc(sizeof(struct fuse));
 		assert(new->fuse);
 		new->fuse->path = strdup(target);
+		new->fuse->exceptions = NULL;
 		if (strcmp(target,"/")==0)
 			new->fuse->pathlen = 0;
 		else
@@ -835,7 +866,6 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 		smo.source = source;
 		smo.data = data;
 		
-		
 		pthread_cond_init(&(new->fuse->startloop),NULL);
 		pthread_cond_init(&(new->fuse->endloop),NULL);
 		pthread_mutex_init(&(new->fuse->endmutex),NULL);
@@ -855,6 +885,8 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 			pthread_join(fc_norace->fuse->thread, NULL);
 			dlclose(fc_norace->fuse->dlhandle);
 			free(fc_norace->fuse->filesystemtype);
+			if (fc_norace->fuse->exceptions)
+				freeexceptions(fc_norace->fuse->exceptions);
 			free(fc_norace->fuse->path);
 			free(fc_norace->fuse);
 			errno = EIO;
