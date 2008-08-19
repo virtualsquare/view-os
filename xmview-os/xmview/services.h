@@ -69,6 +69,7 @@ struct ioctl_len_req {
 struct binfmt_req {
 	char *path;
 	char *interp;
+	char *extraarg;
 	int flags;
 };
 
