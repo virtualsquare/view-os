@@ -147,7 +147,7 @@ static char **getparms(struct pcb *pc,long laddr) {
 			assert(paddr);
 		}
 		rv=umoven(pc,laddr,sizeof(char *),&(paddr[n]));
-		assert(rv=4);
+		assert(rv>=0);
 		laddr+= sizeof(char *);
 		n++;
 	} while (paddr[n-1] != 0);
@@ -260,7 +260,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		 * exec seems to cause an extra prace in a strange address space
 		 * to be solved (maybe using PTRACE OPTIONS!) */
 		//assert(rv);
-		if (!rv) return STD_BEHAVIOR;
+		if (rv<0) return STD_BEHAVIOR;
 		if (req.flags & BINFMT_KEEP_ARG0) {
 			oldarg0[PATH_MAX]=0;
 			umovestr(pc,larg0,PATH_MAX,oldarg0);
