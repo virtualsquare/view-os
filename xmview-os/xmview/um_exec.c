@@ -203,6 +203,8 @@ static int is_regular(char *path,struct pcb *pc)
 }
 
 #define UMBINWRAP LIBEXECDIR "/umbinwrap"
+/* WIP XXX try to run scripts and interpreters without UMBINWRAP */
+#undef NOUMBINWRAP
 /* wrap_in: execve handling */
 int wrap_in_execve(int sc_number,struct pcb *pc,
 		service_t sercode,sysfun um_syscall)
@@ -211,11 +213,16 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 	char scriptbuf[SCRIPTBUFLEN];
 	epoch_t nestepoch=um_setepoch(0);
 	service_t binfmtser;
+#if 0
+	fprint2("wrap_in_execve %s\n",req.path);
 	if (um_x_access(req.path,X_OK,pc)!=0) {
 		pc->erno=errno;
+		fprint2("um_x_access != 0 ERRNO %d\n",pc->erno);
 		pc->retval=-1;
 		return SC_FAKE;
 	}
+	fprint2("um_x_access == 0\n");
+#endif
 	/* The epoch should be just after the mount 
 	 * which generated the executable */
 	um_setepoch(nestepoch+1);
@@ -235,12 +242,13 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		int filenamelen;
 		int arg0len;
 		long sp=getsp(pc);
-		if (!is_regular(req.interp,pc)) {
+		if (*(req.interp) != '/') { /* full pathname required */
+			pc->erno=ENOENT;
 			pc->retval=-1;
 			return SC_FAKE;
 		}
-		if (*(req.interp) != '/') { /* full pathname required */
-			pc->erno=ENOENT;
+#ifndef NOUMBINWRAP
+		if (!is_regular(req.interp,pc)) {
 			pc->retval=-1;
 			return SC_FAKE;
 		}
@@ -249,6 +257,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 			pc->retval=-1;
 			return SC_FAKE;
 		}
+#endif
 		/* create the argv for the wrapper! */
 		rv=umoven(pc,largv,sizeof(char *),&(larg0));
 		//fprint2("%s %d %ld %ld rv=%d\n",pc->path,getpc(pc),largv,larg0,rv); 
@@ -271,6 +280,8 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 			;
 		if (req.extraarg==NULL)
 			req.extraarg="";
+#ifdef NOUMBINWRAP
+#else
 		/* collapse all the args in only one arg */
 		if (req.flags & BINFMT_KEEP_ARG0) 
 			asprintf(&umbinfmtarg0,"%c%s%c%s%c%s%c%s",
@@ -292,10 +303,11 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		ustoren(pc,larg0,arg0len,umbinfmtarg0);
 		ustoren(pc,largv,sizeof(char *),&larg0);
 		//fprint2("%s %s\n",UMBINWRAP,umbinfmtarg0);
+		/* exec the wrapper instead of the executable! */
 		free(umbinfmtarg0);
+#endif
 		if (req.flags & BINFMT_MODULE_ALLOC)
 			free(req.interp);
-		/* exec the wrapper instead of the executable! */
 		return SC_CALLONXIT;
 	}
 	else if (sercode != UM_NONE) {
