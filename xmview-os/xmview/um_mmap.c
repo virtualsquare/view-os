@@ -325,7 +325,7 @@ static long add_mmap_secret(service_t sercode,const char *from, unsigned long pg
 
 /* both mmap and mmap2 management */
 int wrap_in_mmap(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		service_t sercode, sysfun um_syscall)
 {
 	unsigned long length=pc->sysargs[1];
 	unsigned long prot=pc->sysargs[2];
@@ -401,7 +401,7 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 /* unmap: search the chunk to be unmapped, if found it is moved to the
  * head of the process mmap table */
 int wrap_in_munmap(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		service_t sercode, sysfun um_syscall)
 {
 	unsigned long start=pc->sysargs[0];
 	unsigned long length=pc->sysargs[1];
@@ -415,7 +415,7 @@ int wrap_in_munmap(int sc_number,struct pcb *pc,
 
 /* remap: search the chunk and move it ti the head of the process mmap table */
 int wrap_in_mremap(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		service_t sercode, sysfun um_syscall)
 {
 	unsigned long start=pc->sysargs[0];
 	unsigned long length=pc->sysargs[1];

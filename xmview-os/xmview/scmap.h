@@ -51,7 +51,7 @@ typedef long wrapoutfun();
 typedef long wrapfun();
 /*
 typedef int wrapinfun(int sc_number,struct pcb *pc,
-		                char sercode, sysfun um_syscall);
+		                service_t sercode, sysfun um_syscall);
 typedef int wrapoutfun(int sc_number,struct pcb *pc);
 */
 

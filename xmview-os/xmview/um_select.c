@@ -189,7 +189,7 @@ static void selectpoll_signal(struct pcb *pc)
 static short select2poll[]={POLLIN,POLLOUT,POLLPRI};
 
 int wrap_in_select(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		service_t sercode, sysfun um_syscall)
 {
 	register int n=pc->sysargs[0];
 	int i,fd,count;
@@ -330,7 +330,7 @@ int wrap_out_select(int sc_number,struct pcb *pc)
 }
 
 int wrap_in_poll(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		service_t sercode, sysfun um_syscall)
 {
 	struct pollfd *ufds; /*local copy*/
 	unsigned int nfds=pc->sysargs[1];
