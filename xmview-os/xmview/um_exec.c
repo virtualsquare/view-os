@@ -213,16 +213,11 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 	char scriptbuf[SCRIPTBUFLEN];
 	epoch_t nestepoch=um_setepoch(0);
 	service_t binfmtser;
-#if 0
-	fprint2("wrap_in_execve %s\n",req.path);
 	if (um_x_access(req.path,X_OK,pc)!=0) {
 		pc->erno=errno;
-		fprint2("um_x_access != 0 ERRNO %d\n",pc->erno);
 		pc->retval=-1;
 		return SC_FAKE;
 	}
-	fprint2("um_x_access == 0\n");
-#endif
 	/* The epoch should be just after the mount 
 	 * which generated the executable */
 	um_setepoch(nestepoch+1);

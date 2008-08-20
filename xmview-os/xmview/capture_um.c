@@ -443,7 +443,9 @@ void tracehand()
 #if __NR_socketcall != __NR_doesnotexist
 					pc->sockaddr == 0 && 
 #endif
-					pc->sysscno == __NR_execve && scno != __NR_execve){
+					pc->sysscno == __NR_execve && 
+					scno != __NR_execve && 
+					(pc->behavior != SC_FAKE || scno != __NR_getpid)){
 				pc->sysscno = NOSC;
 			}
 			isreproducing=(scno == __NR_fork ||
