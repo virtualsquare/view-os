@@ -596,6 +596,7 @@ static void *startmain(void *vsmo)
 	if ((newnewargv=malloc(newargc * sizeof (char *))) != NULL) {
 		for (i=0;i<newargc;i++) 
 			newnewargv[i]=newargv[i];
+		optind=1;
 		if (pmain(newargc,newnewargv) != 0)
 			umfuse_abort(psmo->new->fuse);
 		free(newnewargv);

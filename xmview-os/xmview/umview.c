@@ -333,7 +333,7 @@ int main(int argc,char *argv[])
 
 	/* does this kernel provide pselect? */
 	/*has_pselect=has_pselect_test();*/
-	optind=0;
+	optind=1;
 	argv[0]="umview";
 	/* set up the scdtab */
 	scdtab_init();

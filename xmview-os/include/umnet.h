@@ -60,6 +60,7 @@ struct umnet_operations {
 	ssize_t (*write) (int, const void *, size_t);
 	int (*ioctl) (int, int, void *);
 	int (*close) (int);
+	int (*fcntl) (int, int, long);
 
 	int (*supported_domain) (int);
 	int (*event_subscribe) (voidfun cb, void *arg, int fd, int how);
