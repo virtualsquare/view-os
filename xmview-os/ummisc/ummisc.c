@@ -662,6 +662,7 @@ static long ummisc_umount2(char *target, int flags)
 		delmisctab(mh);
 		free(mh->path);
 		free(mh);
+		return 0;
 	}
 }
 
