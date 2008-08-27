@@ -398,6 +398,7 @@ static long ummisc_open(char *path, int flags, mode_t mode)
 			filetab[fi]->size=fse->getputfun(UMMISC_GET,filetab[fi]->buf,MISCFILESIZE,mh,
 					filetab[fi]->fse->tag,filetab[fi]->path);
 			if (flags & O_TRUNC) filetab[fi]->size=0;
+			if (flags & O_APPEND) filetab[fi]->pos=filetab[fi]->size;
 		}
 		return fi;
 	} else {
