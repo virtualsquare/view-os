@@ -364,12 +364,15 @@ static struct fsentry *searchentry(struct ummisc *mh,char *path)
 	return recsearch(&(mh->ummisc_ops->root),mh->ummisc_ops->root.subdir,path);
 }
 
+static struct fsentry nullroot[] = {
+	  {NULL,NULL,NULL,0}};
+
 static long ummisc_open(char *path, int flags, mode_t mode)
 {
 	struct ummisc *mh = searchmisc(path,SUBSTR);
 	assert(mh);
 	char *upath=unwrap(mh,path);
-	//fprint2("open %s\n",upath);
+	//fprint2("open |%s| %d\n",upath,*upath);
 	struct fsentry *fse=searchentry(mh,upath);
 	if (fse != NULL) {
 		int fi = addfiletab();
@@ -381,7 +384,10 @@ static long ummisc_open(char *path, int flags, mode_t mode)
 		//fprint2("%d %lld %s\n",fi,filetab[fi]->pos,filetab[fi]->path);
 		filetab[fi]->fse=fse;
 		filetab[fi]->ummisc=mh;
-		if (fse->subdir != NULL) {
+		/* is a dir, root is always a dir! */
+		if (fse->subdir != NULL || *upath==0) {
+			if (fse->subdir==NULL)
+				fse->subdir=nullroot;
 			filetab[fi]->buf = NULL;
 			filetab[fi]->size = 0;
 		} else {

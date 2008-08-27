@@ -25,6 +25,7 @@
 #define _UID16TO32_H
 
 #define id16to32(id) ((id) == (unsigned short int) -1 ? (unsigned int) -1 : (id))
+#define id32to16(id) ((id) == (unsigned int) -1 ? (unsigned short int) -1 : (id))
 
 #ifndef __NR_chown32
 #define __NR_chown32 __NR_chown

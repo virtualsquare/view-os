@@ -200,6 +200,7 @@ static struct umdev *searchdevice(char *path)
 				/* set epoch */
 				epoch_t prevepoch=um_setepoch(devicetab[i]->tst.epoch);
 				if (((e=tst_matchingepoch(&(devicetab[i]->tst))) > maxepoch) &&  /* Epoch compatible  AND */
+						/* RD 08.2008, why can't we use um_mod_getpathstat? try it */
 						(stat64(path,&buf) == 0) &&  /* stat okay AND */
 						((((devicetab[i]->mode & S_IFMT) == 0) ||  /* the same kind of special file (or 0, any kind)  AND */
 							((buf.st_mode & S_IFMT) ==  (devicetab[i]->mode & S_IFMT))) &&

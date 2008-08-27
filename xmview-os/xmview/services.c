@@ -114,6 +114,29 @@ static struct syscall_unifier scunify[] = {
 	{__NR_readlinkat,	__NR_readlink},
 	{__NR_fchmodat,	__NR_chmod},
 	{__NR_faccessat,	__NR_access},
+#if defined(__NR_getuid32) && __NR_getuid32 != __NR_getuid
+	{__NR_getuid, __NR_getuid32},
+	{__NR_getgid, __NR_getgid32},   
+	{__NR_geteuid, __NR_geteuid32},
+	{__NR_getegid, __NR_getegid32},
+	{__NR_setreuid, __NR_setreuid32},
+	{__NR_setregid, __NR_setregid32},
+	{__NR_getgroups, __NR_getgroups32},
+	{__NR_setgroups, __NR_setgroups32},
+	{__NR_setresuid, __NR_setresuid32},
+	{__NR_getresuid, __NR_getresuid32},
+	{__NR_setresgid, __NR_setresgid32},
+	{__NR_getresgid, __NR_getresgid32},
+	{__NR_setuid, __NR_setuid32},
+	{__NR_setgid, __NR_setgid32},
+	{__NR_setfsuid, __NR_setfsuid32},
+	{__NR_setfsgid, __NR_setfsgid32},
+#endif
+#if defined(__NR_chown32) && __NR_chown32 != __NR_chown
+	//{__NR_chown, __NR_chown32},
+	//{__NR_lchown, __NR_lchown32},
+	//{__NR_fchown, __NR_fchown32},
+#endif
 #ifdef SNDRCVMSGUNIFY
 #if (__NR_socketcall == __NR_doesnotexist)
 	{__NR_send, __NR_sendmsg},

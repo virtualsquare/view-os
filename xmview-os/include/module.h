@@ -144,7 +144,7 @@ struct service {
 	 * the life of a process, can be used as an index for internal data
 	 * pumpid is the similar id for the parent process, -1 if it does not exist
 	 *
-	 * MC_PROC | MC_REM: int id
+	 * MC_PROC | MC_REM: int umpid
 	 * is the garbage collection function for the data that addproc may have created
 	 *
 	 * MC_MOUNT | MC_ADD:

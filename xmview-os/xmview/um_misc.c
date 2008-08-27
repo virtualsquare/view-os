@@ -28,6 +28,7 @@
 #include "defs.h"
 #include "services.h"
 #include "utils.h"
+#include "uid16to32.h"
 #define umNULL ((long) NULL)
 
 /* getuid, geteuid, getgid, getegid */
@@ -39,11 +40,28 @@ int wrap_in_getxid(int sc_number,struct pcb *pc,
 	return SC_FAKE;
 }
 
+int wrap_in_getxid16(int sc_number,struct pcb *pc,
+		service_t sercode, sysfun um_syscall)
+{
+	if ((pc->retval=id32to16(um_syscall())) < 0)
+		pc->erno=errno;
+	return SC_FAKE;
+}
+
 /* setuid, setfsuid*/
 int wrap_in_setuid(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	uid_t uid =pc->sysargs[0];
+	if ((pc->retval = um_syscall(uid)) < 0)
+		pc->erno=errno;
+	return SC_FAKE;
+}
+
+int wrap_in_setuid16(int sc_number,struct pcb *pc,
+		service_t sercode, sysfun um_syscall)
+{
+	uid_t uid =id16to32(pc->sysargs[0]);
 	if ((pc->retval = um_syscall(uid)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
@@ -59,11 +77,24 @@ int wrap_in_setgid(int sc_number,struct pcb *pc,
 	return SC_FAKE;
 }
 
+int wrap_in_setgid16(int sc_number,struct pcb *pc,
+		service_t sercode, sysfun um_syscall)
+{
+	gid_t gid =id16to32(pc->sysargs[0]);
+	if ((pc->retval = um_syscall(gid)) < 0)
+		pc->erno=errno;
+	return SC_FAKE;
+}
+
 int wrap_in_setreuid(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	uid_t uid1=pc->sysargs[0];
 	uid_t uid2=pc->sysargs[1];
+	if (sc_number != __NR_setreuid32) {
+		uid1=id16to32(uid1);
+		uid2=id16to32(uid2);
+	}
 	if ((pc->retval = um_syscall(uid1,uid2)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
@@ -74,6 +105,10 @@ int wrap_in_setregid(int sc_number,struct pcb *pc,
 {
 	gid_t gid1=pc->sysargs[0];
 	gid_t gid2=pc->sysargs[1];
+	if (sc_number != __NR_setregid32) {
+		gid1=id16to32(gid1);
+		gid2=id16to32(gid2);
+	}
 	if ((pc->retval = um_syscall(gid1,gid2)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
@@ -85,6 +120,11 @@ int wrap_in_setresuid(int sc_number,struct pcb *pc,
 	uid_t uid1=pc->sysargs[0];
 	uid_t uid2=pc->sysargs[1];
 	uid_t uid3=pc->sysargs[2];
+	if (sc_number != __NR_setresuid32) {
+		uid1=id16to32(uid1);
+		uid2=id16to32(uid2);
+		uid2=id16to32(uid3);
+	}
 	if ((pc->retval = um_syscall(uid1,uid2,uid3)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
@@ -96,11 +136,17 @@ int wrap_in_setresgid(int sc_number,struct pcb *pc,
 	gid_t gid1=pc->sysargs[0];
 	gid_t gid2=pc->sysargs[1];
 	gid_t gid3=pc->sysargs[2];
+	if (sc_number != __NR_setresgid32) {
+		gid1=id16to32(gid1);
+		gid2=id16to32(gid2);
+		gid2=id16to32(gid3);
+	}
 	if ((pc->retval = um_syscall(gid1,gid2,gid3)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }
 
+/* XXX conversion to 16 nit TODO */
 int wrap_in_getresuid(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
@@ -109,12 +155,24 @@ int wrap_in_getresuid(int sc_number,struct pcb *pc,
 		long uid1p=pc->sysargs[0];
 		long uid2p=pc->sysargs[1];
 		long uid3p=pc->sysargs[2];
-		if (uid1p != umNULL)
-			ustoren(pc,uid1p,sizeof(uid_t),&uid1);
-		if (uid2p != umNULL)
-			ustoren(pc,uid2p,sizeof(uid_t),&uid2);
-		if (uid3p != umNULL)
-			ustoren(pc,uid3p,sizeof(uid_t),&uid3);
+		if (sc_number != __NR_getresuid32) {
+			unsigned short int suid1=id32to16(uid1);
+			unsigned short int suid2=id32to16(uid2);
+			unsigned short int suid3=id32to16(uid3);
+			if (uid1p != umNULL)
+				ustoren(pc,uid1p,sizeof(suid1),&suid1);
+			if (uid2p != umNULL)
+				ustoren(pc,uid2p,sizeof(suid2),&suid2);
+			if (uid3p != umNULL)
+				ustoren(pc,uid3p,sizeof(suid3),&suid3);
+		} else {
+			if (uid1p != umNULL)
+				ustoren(pc,uid1p,sizeof(uid_t),&uid1);
+			if (uid2p != umNULL)
+				ustoren(pc,uid2p,sizeof(uid_t),&uid2);
+			if (uid3p != umNULL)
+				ustoren(pc,uid3p,sizeof(uid_t),&uid3);
+		}
 	} else
 		pc->erno=errno;
 	return SC_FAKE;
@@ -128,17 +186,28 @@ int wrap_in_getresgid(int sc_number,struct pcb *pc,
 		long gid1p=pc->sysargs[0];
 		long gid2p=pc->sysargs[1];
 		long gid3p=pc->sysargs[2];
-		if (gid1p != umNULL)
-			ustoren(pc,gid1p,sizeof(gid_t),&gid1);
-		if (gid2p != umNULL)
-			ustoren(pc,gid2p,sizeof(gid_t),&gid2);
-		if (gid3p != umNULL)
-			ustoren(pc,gid3p,sizeof(gid_t),&gid3);
+		if (sc_number != __NR_getresgid32) {
+			unsigned short int sgid1=id32to16(gid1);
+			unsigned short int sgid2=id32to16(gid2);
+			unsigned short int sgid3=id32to16(gid3);
+			if (gid1p != umNULL)
+				ustoren(pc,gid1p,sizeof(sgid1),&sgid1);
+			if (gid2p != umNULL)
+				ustoren(pc,gid2p,sizeof(sgid2),&sgid2);
+			if (gid3p != umNULL)
+				ustoren(pc,gid3p,sizeof(sgid3),&sgid3);
+		} else {
+			if (gid1p != umNULL)
+				ustoren(pc,gid1p,sizeof(gid_t),&gid1);
+			if (gid2p != umNULL)
+				ustoren(pc,gid2p,sizeof(gid_t),&gid2);
+			if (gid3p != umNULL)
+				ustoren(pc,gid3p,sizeof(gid_t),&gid3);
+		}
 	} else
 		pc->erno=errno;
 	return SC_FAKE;
 }
-
 
 int wrap_in_nice(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)

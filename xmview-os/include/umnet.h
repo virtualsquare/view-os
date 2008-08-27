@@ -80,7 +80,9 @@ void netargs(char *opts, struct netargitem *netargtab, int netargsize, void *arg
 void umnet_setprivatedata(struct umnet *nethandle, void *privatedata);
 void *umnet_getprivatedata(struct umnet *nethandle);
 
+#if 0
 void umnet_setmode(struct umnet *nethandle, mode_t mode);
 mode_t umnet_getmode(struct umnet *nethandle);
+#endif
 #endif /* _UMNET_H_ */
 
