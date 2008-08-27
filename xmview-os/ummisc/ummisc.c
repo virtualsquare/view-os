@@ -330,8 +330,8 @@ static char *unwrap(struct ummisc *mh,char *path)
 static int strpathcmp(char *s1,char *s2)
 {
 	int c=0;
-	while (*s1 && *s2 && c==0)
-		c=s2-s1;
+	for (c=0;(c=*s2-*s1)==0 && *s1 && *s2;s1++,s2++)
+		;
 	if (*s1 == *s2 || *s1 == '/' || *s2 == '/')
 		return 0;
 	else
@@ -349,6 +349,7 @@ static struct fsentry *recsearch(struct fsentry *fsdir,struct fsentry *fse,char 
 		if (fse==NULL || fse->name==NULL)
 			return NULL;
 		else {
+			//fprint2("|%s|%s| %d\n",fse->name,path,strpathcmp(fse->name,path));
 			if (strpathcmp(fse->name,path) == 0)
 			{
 				path+=strlen(fse->name);
@@ -374,6 +375,7 @@ static long ummisc_open(char *path, int flags, mode_t mode)
 	char *upath=unwrap(mh,path);
 	//fprint2("open |%s| %d\n",upath,*upath);
 	struct fsentry *fse=searchentry(mh,upath);
+	//fprint2("ummisc_open %s %p\n",upath,fse);
 	if (fse != NULL) {
 		int fi = addfiletab();
 		int rv;
