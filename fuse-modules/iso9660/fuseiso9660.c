@@ -39,6 +39,7 @@
 #include <fcntl.h>
 #include <zlib.h>
 #include <dirent.h>
+#include <libgen.h>
 #include <errno.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
@@ -54,58 +55,52 @@
 
 static int f_iso9660_readlink(const char *path, char *buf, size_t size)
 {
-    return -EINVAL;
-}
-
-#if 0
-static int f_iso9660_getdir(const char *path, fuse_dirh_t h, fuse_dirfil_t filler)
-{
 	struct fuse_context *mycontext=fuse_get_context();
 	iso9660_t *isofs=(iso9660_t *) mycontext->private_data;
 
-	//printf("f_iso9660_getdir %s\n",path);
-	iso9660_stat_t *isostat=
-		//iso9660_ifs_stat_translate(isofs,path);
-		iso9660_ifs_stat(isofs,path);
-	//printf("f_iso9660_getdir %s stat done\n",path);
-	if (isostat ==NULL)
-		return -ENOENT;
-	else {
-		CdioList *entlist;
-		CdioListNode *entnode;
+	iso9660_stat_t *isostat;
+	isostat= iso9660_ifs_stat(isofs,path);
 
-	//printf("f_iso9660_readdir %s\n",path);
-		entlist = iso9660_ifs_readdir (isofs, path);
-	//printf("f_iso9660_readdir %s done\n",path);
-
-		if (entlist != NULL) {
-
-			_CDIO_LIST_FOREACH (entnode, entlist)
-			{
-				char filename[4096];
-				int type;
-				iso9660_stat_t *p_statbuf = _cdio_list_node_data (entnode);
-	//printf("f_iso9660_translate %s \n",path);
-				//iso9660_name_translate(p_statbuf->filename, filename);
-				//iso9660_name_translate_ext(p_statbuf->filename, filename, iso9660_ifs_get_joliet_level(isofs));
-				strcpy(filename,p_statbuf->filename);
-	//printf("f_iso9660_translate %s done\n",path);
-				//printf ("/%s\n", filename);
-				switch (p_statbuf->type) {
-					case _STAT_FILE: type=DT_REG;break;
-					case _STAT_DIR:  type=DT_DIR;break;
+	if (isostat->rr.b3_rock == yep &&
+			S_ISLNK(isostat->rr.st_mode)) {
+		/*
+		 *  if (isostat->rr.i_symlink < size)
+		 *    size=isostat->rr.i_symlink;
+		 *  strncpy(buf,isostat->rr.psz_symlink,size);
+		 */
+		/* ISO library iso9660_ifs_stat does not return rr.psz_symlink */
+		/* workaround! */
+		char *newpath=strdup(path);
+		char *base=basename(newpath);
+		char *dir=dirname(newpath);
+		iso9660_stat_t *dirstat=iso9660_ifs_stat(isofs,dir);
+		if (dirstat !=NULL) {
+			CdioList *entlist;
+			CdioListNode *entnode;
+			entlist = iso9660_ifs_readdir (isofs, dir);
+			if (entlist != NULL) {
+				_CDIO_LIST_FOREACH (entnode, entlist)
+				{
+					iso9660_stat_t *p_statbuf = _cdio_list_node_data (entnode);
+					if (strcmp(base,p_statbuf->filename)==0) {
+						if (p_statbuf->rr.i_symlink < size)
+							size=p_statbuf->rr.i_symlink;
+						strncpy(buf,p_statbuf->rr.psz_symlink,size);
+						break;
+					}
 				}
-				//printf("filler %s %d\n",filename,type);
-				filler(h, filename, type, 2);
 			}
-
 			_cdio_list_free (entlist, true);
 		}
-
+		free(dirstat);
+		free(newpath);
+		free(isostat);
+		return size;
+	} else {
+		free(isostat);
+    return -EINVAL;
 	}
-	return 0;
 }
-#endif
 
 static int f_iso9660_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		                       off_t offset, struct fuse_file_info *fi)
@@ -135,7 +130,7 @@ static int f_iso9660_readdir(const char *path, void *buf, fuse_fill_dir_t filler
 				char filename[4096];
 				int type;
 				iso9660_stat_t *p_statbuf = _cdio_list_node_data (entnode);
-	//printf("f_iso9660_translate %s \n",path);
+//	printf("f_iso9660_translate %s %s\n",p_statbuf->filename,p_statbuf->rr.psz_symlink);
 				//iso9660_name_translate(p_statbuf->filename, filename);
 				//iso9660_name_translate_ext(p_statbuf->filename, filename, iso9660_ifs_get_joliet_level(isofs));
 				strcpy(filename,p_statbuf->filename);
@@ -158,130 +153,10 @@ static int f_iso9660_readdir(const char *path, void *buf, fuse_fill_dir_t filler
 		}
 
 	}
+	free(isostat);
 	return 0;
 }
-#if 0
-static int f_iso9660_mknod(const char *path, mode_t mode, dev_t rdev)
-{
-    int res;
 
-    res = mknod(path, mode, rdev);
-    if(res == -1)
-        return -errno;
-
-    return 0;
-}
-
-static int f_iso9660_mkdir(const char *path, mode_t mode)
-{
-    int res;
-
-    res = mkdir(path, mode);
-    if(res == -1)
-        return -errno;
-
-    return 0;
-}
-
-static int f_iso9660_unlink(const char *path)
-{
-    int res;
-
-    res = unlink(path);
-    if(res == -1)
-        return -errno;
-
-    return 0;
-}
-
-static int f_iso9660_rmdir(const char *path)
-{
-    int res;
-
-    res = rmdir(path);
-    if(res == -1)
-        return -errno;
-
-    return 0;
-}
-
-static int f_iso9660_symlink(const char *from, const char *to)
-{
-    int res;
-
-    res = symlink(from, to);
-    if(res == -1)
-        return -errno;
-
-    return 0;
-}
-
-static int f_iso9660_rename(const char *from, const char *to)
-{
-    int res;
-
-    res = rename(from, to);
-    if(res == -1)
-        return -errno;
-
-    return 0;
-}
-
-static int f_iso9660_link(const char *from, const char *to)
-{
-    int res;
-
-    res = link(from, to);
-    if(res == -1)
-        return -errno;
-
-    return 0;
-}
-
-static int f_iso9660_chmod(const char *path, mode_t mode)
-{
-    int res;
-
-    res = chmod(path, mode);
-    if(res == -1)
-        return -errno;
-
-    return 0;
-}
-
-static int f_iso9660_chown(const char *path, uid_t uid, gid_t gid)
-{
-    int res;
-
-    res = lchown(path, uid, gid);
-    if(res == -1)
-        return -errno;
-
-    return 0;
-}
-
-static int f_iso9660_truncate(const char *path, off_t size)
-{
-    int res;
-
-    res = truncate(path, size);
-    if(res == -1)
-        return -errno;
-
-    return 0;
-}
-
-static int f_iso9660_utime(const char *path, struct utimbuf *buf)
-{
-    int res;
-
-    res = utime(path, buf);
-    if(res == -1)
-        return -errno;
-
-    return 0;
-}
-#endif
 /*************** COMPRESSED ISO (ZISO) DEFS ***************/
 static const unsigned char zisofs_magic[8] = {
 	  0x37, 0xE4, 0x53, 0x96, 0xC9, 0xDB, 0xD6, 0x07
@@ -399,6 +274,16 @@ static int f_iso9660_getattr(const char *path, struct stat *stbuf)
 		stbuf->st_uid=0;
 		stbuf->st_gid=0;
 		stbuf->st_rdev=0;
+		stbuf->st_size=isostat->size;
+		if (isostat->rr.b3_rock == yep) {
+			stbuf->st_mode=isostat->rr.st_mode;
+			stbuf->st_nlink=isostat->rr.st_nlinks;
+			stbuf->st_uid=isostat->rr.st_uid;
+			stbuf->st_gid=isostat->rr.st_gid;
+			if (isostat->rr.i_symlink > 0) {
+				stbuf->st_size=isostat->rr.i_symlink;
+			}
+		} else
 		/* XA permission management already untested */
 		if (iso9660_ifs_is_xa(isofs)) {
 			stbuf->st_uid=isostat->xa.user_id;
@@ -406,8 +291,8 @@ static int f_iso9660_getattr(const char *path, struct stat *stbuf)
 			stbuf->st_ino=isostat->xa.filenum;
 			stbuf->st_mode=convertmode(stbuf->st_mode,isostat->xa.attributes);
 		} else
-					stbuf->st_ino=count++;
-		stbuf->st_size=isostat->size;
+			stbuf->st_ino=count++;
+		/* check it is a reg file? */
 		if (isostat->size >= sizeof(struct compressed_file_header)) { /* file shorted than the header cannot be compressed */
 			struct compressed_file_header hdr;
 			int rv;
@@ -420,11 +305,12 @@ static int f_iso9660_getattr(const char *path, struct stat *stbuf)
 		stbuf->st_blksize=ISO_BLOCKSIZE;
 		stbuf->st_blocks=isostat->secsize;
 		stbuf->st_atime= stbuf->st_mtime= stbuf->st_ctime=mktime(&isostat->tm);
-		char filename[4096];
+	 //char filename[4096];
 		//iso9660_name_translate(isostat->filename, filename);
 		//iso9660_name_translate_ext(isostat->filename, filename, iso9660_ifs_get_joliet_level(isofs));
-		strcpy(filename,isostat->filename);
+		//strcpy(filename,isostat->filename);
 		//printf("f_iso9660_getattr OKAY %s\n",filename);
+		free(isostat);
 		return 0;
 	}
 }
@@ -464,10 +350,12 @@ static int f_iso9660_open(const char *path, struct fuse_file_info *fi)
 					if ((fh9660->pointer_block=malloc(tablesize)) ==NULL)
 					{
 						free(fh9660);
+						free(isostat);
 						return -ENOMEM;
 					}
 					if (f_iso9660_intread(isofs,isostat,(char *)fh9660->pointer_block,tablesize,hdr.header_size<<2) != tablesize) {
 						free(fh9660);
+						free(isostat);
 						return -EIO;
 					}
 				}
@@ -509,7 +397,7 @@ static int f_iso9660_comprread(iso9660_t *isofs,struct iso9660fileinfo *fh9660,c
 		}
 		if (readrv>0) {
 			off_t len=((1<<fh9660->block_shift)-offset < size)?(1<<fh9660->block_shift)-offset:size;
-			memcpy(buf,outbuf+offset,len);
+			memmove(buf,outbuf+offset,len);
 			offset=0;
 			size-=len;
 			buf+=len;
@@ -548,31 +436,10 @@ static int f_iso9660_read(const char *path, char *buf, size_t size, off_t offset
 	}
 }
 
-#if 0 
-static int f_iso9660_write(const char *path, const char *buf, size_t size,
-                     off_t offset, struct fuse_file_info *fi)
-{
-    int fd;
-    int res;
-
-    (void) fi;
-    fd = open(path, O_WRONLY);
-    if(fd == -1)
-        return -errno;
-
-    res = pwrite(fd, buf, size, offset);
-    if(res == -1)
-        res = -errno;
-
-    close(fd);
-    return res;
-}
-
-#endif
-
 static int f_iso9660_release(const char *path, struct fuse_file_info *fi)
 {
     struct iso9660fileinfo *fh9660=(struct iso9660fileinfo *)((long)(fi->fh));
+		free(fh9660->stat);
 		if (fh9660 != NULL) {
 			if (fh9660->pointer_block != NULL)
 				free(fh9660->pointer_block);
@@ -580,57 +447,6 @@ static int f_iso9660_release(const char *path, struct fuse_file_info *fi)
 		}
     return 0;
 }
-
-#if 0
-static int f_iso9660_fsync(const char *path, int isdatasync,
-                     struct fuse_file_info *fi)
-{
-    /* Just a stub.  This method is optional and can safely be left
-       unimplemented */
-
-    (void) path;
-    (void) isdatasync;
-    (void) fi;
-    return 0;
-}
-
-#ifdef HAVE_SETXATTR
-/* xattr operations are optional and can safely be left unimplemented */
-static int f_iso9660_setxattr(const char *path, const char *name, const char *value,
-                        size_t size, int flags)
-{
-    int res = lsetxattr(path, name, value, size, flags);
-    if(res == -1)
-        return -errno;
-    return 0;
-}
-
-static int f_iso9660_getxattr(const char *path, const char *name, char *value,
-                    size_t size)
-{
-    int res = lgetxattr(path, name, value, size);
-    if(res == -1)
-        return -errno;
-    return res;
-}
-
-static int f_iso9660_listxattr(const char *path, char *list, size_t size)
-{
-    int res = llistxattr(path, list, size);
-    if(res == -1)
-        return -errno;
-    return res;
-}
-
-static int f_iso9660_removexattr(const char *path, const char *name)
-{
-    int res = lremovexattr(path, name);
-    if(res == -1)
-        return -errno;
-    return 0;
-}
-#endif /* HAVE_SETXATTR */
-#endif
 
 /* waiting for FUSE 2.6 */
 #if ( FUSE_MINOR_VERSION <= 5 )
@@ -661,36 +477,6 @@ static struct fuse_operations iso9660_oper = {
     .read	= f_iso9660_read,
     .release	= f_iso9660_release,
     .init	= f_iso9660_init,
-/*
-ok    .getattr	= f_iso9660_getattr,
-ok    .readlink	= f_iso9660_readlink,
-ok    .getdir	= f_iso9660_getdir,
-    .mknod	= f_iso9660_mknod,
-    .mkdir	= f_iso9660_mkdir,
-    .symlink	= f_iso9660_symlink,
-    .unlink	= f_iso9660_unlink,
-    .rmdir	= f_iso9660_rmdir,
-    .rename	= f_iso9660_rename,
-    .link	= f_iso9660_link,
-    .chmod	= f_iso9660_chmod,
-    .chown	= f_iso9660_chown,
-    .truncate	= f_iso9660_truncate,
-    .utime	= f_iso9660_utime,
-ok    .open	= f_iso9660_open,
-ok    .read	= f_iso9660_read,
-    .write	= f_iso9660_write,
-    .statfs	= f_iso9660_statfs,
-ok    .release	= f_iso9660_release,
-    .fsync	= f_iso9660_fsync,
-    */
-#if 0
-#ifdef HAVE_SETXATTR
-    .setxattr	= f_iso9660_setxattr,
-    .getxattr	= f_iso9660_getxattr,
-    .listxattr	= f_iso9660_listxattr,
-    .removexattr= f_iso9660_removexattr,
-#endif
-#endif
 };
 
 
@@ -715,37 +501,17 @@ int main(int argc, char *argv[])
 	isofs=iso9660_open_ext(argv[1],ISO_EXTENSION_ALL);
 	if (!isofs)
 		return -1;
-
 	//printf("open %s %p\n",argv[argc-2],isofs);
 	if (!iso9660_ifs_read_superblock(isofs,ISO_EXTENSION_ALL))
 		return -1;
-
 	cdio_loglevel_default=CDIO_LOG_ERROR;
-#if 0
-#if ( FUSE_MINOR_VERSION <= 4 )
-	fuse_fd = fuse_mount(argv[argc-1], "ro");
-#else
-	char *argargv[]={"ro",NULL};
-	struct fuse_args arg={1,argargv,0};
-
-	fuse_fd = fuse_mount(argv[argc+1], &arg);
-#endif
 #if ( FUSE_MINOR_VERSION <= 5 )
-	fuse = fuse_new(fuse_fd, NULL, &iso9660_oper, sizeof(iso9660_oper));
-	init_data=isofs;
+		init_data=isofs;
+		err=fuse_main(--argc,++argv,&iso9660_oper);
 #else
-	fuse = fuse_new(fuse_fd, &arg, &iso9660_oper, sizeof(iso9660_oper),isofs);
-#endif
-	//printf("MOUNT OKAY!\n");
-	fuse_loop(fuse);
-#endif
-#if ( FUSE_MINOR_VERSION <= 5 )
-	init_data=isofs;
-	err = fuse_main(--argc, ++argv, &iso9660_oper);
-#else
-	err = fuse_main(--argc, ++argv, &iso9660_oper, isofs);
+		err=fuse_main(--argc,++argv,&iso9660_oper,isofs);
 #endif
 
-	iso9660_close(isofs);
-	return err;
+		iso9660_close(isofs);
+		return err;
 }
