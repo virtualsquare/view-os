@@ -223,28 +223,38 @@ static cutdots(char *path)
 
 /* search for exceptions returns 1 if it is an exception */
 
-static int isexception(char *path, char **exceptions)
+static inline int isexception(char *path, char **exceptions, struct fuse_context *fc)
 {
-	if (__builtin_expect((exceptions == NULL),1))
+	if (__builtin_expect((exceptions == NULL && !(fc->fuse->flags & FUSE_MERGE)),1))
 		return 0;
 	else {
-		while (*exceptions != 0) {
-			if (strncmp(path,*exceptions,strlen(*exceptions)) == 0)
-				return 1;
-			exceptions ++;
+		if (exceptions) {
+			while (*exceptions != 0) {
+				if (strncmp(path,*exceptions,strlen(*exceptions)) == 0)
+					return 1;
+				exceptions ++;
+			}
+		}
+		if (fc->fuse->flags & FUSE_MERGE) {
+			struct stat buf;
+			struct fuse_context *oldfc=fuse_gs_context(fc);
+			int rv=fc->fuse->fops.getattr(path,&buf);
+			fuse_set_context(oldfc);
+			return (rv < 0);
 		}
 		return 0;
 	}
 }
 
-static void freeexceptions(char **exceptions)
+static inline void freeexceptions(char **exceptions)
 {
 	if (__builtin_expect((exceptions == NULL),1))
 		 return 0;
 	 else {
-		 while (*exceptions != 0) {
-			 free(*exceptions);
-			 exceptions++;
+		 char **excscan=exceptions;
+		 while (*excscan != 0) {
+			 free(*excscan);
+			 excscan++;
 		 }
 		 free(exceptions);
 	 }
@@ -272,7 +282,7 @@ static struct fuse_context *searchcontext(char *path,int exact)
 				}
 			} else {
 				int len=fusetab[i]->fuse->pathlen;
-				if ((strncmp(path,fusetab[i]->fuse->path,len) == 0 && (path[len] == '/' || path[len]=='\0')) && !(isexception(path+len,fusetab[i]->fuse->exceptions)) &&
+				if ((strncmp(path,fusetab[i]->fuse->path,len) == 0 && (path[len] == '/' || path[len]=='\0')) && !(isexception(path+len,fusetab[i]->fuse->exceptions,fusetab[i])) &&
 						((e=tst_matchingepoch(&(fusetab[i]->fuse->tst))) > maxepoch)) {
 					maxi=i;
 					maxepoch=e;
@@ -886,8 +896,7 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 			pthread_join(fc_norace->fuse->thread, NULL);
 			dlclose(fc_norace->fuse->dlhandle);
 			free(fc_norace->fuse->filesystemtype);
-			if (fc_norace->fuse->exceptions)
-				freeexceptions(fc_norace->fuse->exceptions);
+			freeexceptions(fc_norace->fuse->exceptions);
 			free(fc_norace->fuse->path);
 			free(fc_norace->fuse);
 			errno = EIO;
@@ -940,6 +949,7 @@ static long umfuse_umount2(char *target, int flags)
 		pthread_join(fc_norace->fuse->thread, NULL);
 		//printf("JOIN done\n");
 		free(fc_norace->fuse->filesystemtype);
+		freeexceptions(fc_norace->fuse->exceptions);
 		free(fc_norace->fuse->path);
 		dlclose(fc_norace->fuse->dlhandle);
 		free(fc_norace->fuse);
@@ -1006,6 +1016,57 @@ static int umfusefillreaddir(void *buf, const char *name, const struct stat *stb
 	return 0;
 }
 
+static int merge_newentry(char *name,struct umdirent *tail,struct umdirent *oldtail)
+{
+	if (oldtail) {
+		do {
+			struct umdirent *next=tail->next;
+			if (strcmp(next->de.d_name,name)==0)
+				return 0;
+			tail=next;
+		} while (tail != oldtail);
+	}
+	return 1;
+}
+
+static void um_mergedir(char *path,struct fuse_context *fc,fuse_dirh_t h)
+{
+	char *abspath;
+	int fd;
+	asprintf(&abspath,"%s%s",fc->fuse->path,path);
+	fd=open(abspath,O_RDONLY|O_DIRECTORY);
+	free(abspath);
+	if (fd) {
+		char buf[4096];
+		int len;
+		struct umdirent *oldtail=h->tail;
+		while ((len=getdents64(fd,buf,4096)) > 0) {
+			off_t off=0;
+			while (off<len) {
+				struct dirent64 *de=(struct dirent *)(buf+off);
+				if (merge_newentry(de->d_name,h->tail,oldtail))
+				{
+					struct umdirent *new=(struct umdirent *)malloc(sizeof(struct umdirent));
+					new->de.d_name=strdup(de->d_name);
+					new->de.d_type=de->d_type;
+					new->de.d_ino=de->d_ino;
+					new->de.d_reclen=WORDALIGN(SIZEDIRENT64NONAME+strlen(de->d_name)+1);
+					new->de.d_off=h->offset=h->offset+WORDALIGN(12+strlen(de->d_name));
+					if (h->tail==NULL) {
+						new->next=new;
+					} else {
+						new->next=h->tail->next;
+						h->tail->next=new;
+					}
+					h->tail=new;
+				}
+				off+=de->d_reclen;
+			}
+		}
+		close(fd);
+	}
+}
+
 static struct umdirent *umfilldirinfo(struct fileinfo *fi)
 {
 	int rv;
@@ -1019,6 +1080,9 @@ static struct umdirent *umfilldirinfo(struct fileinfo *fi)
 	else
 		rv=fc->fuse->fops.getdir(fi->path, &dh, umfusefilldir);
 	fuse_set_context(oldfc);
+	
+	if (fc->fuse->flags & FUSE_MERGE && rv>=0) 
+		um_mergedir(fi->path,fc,&dh);
 	if (rv < 0)
 		return NULL;
 	else 

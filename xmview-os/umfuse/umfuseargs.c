@@ -71,6 +71,7 @@ the format string is similar to that used in printf.
 #define FUSEARGGID 8 //"format"
 #define FUSEEXCEPT 9  //"except"
 #define FUSEARGHUMAN 10 //"human"
+#define FUSEARGMERGE 11 //"merge"
 #define FUSEFLAGHASSTRING 1
 #define FUSEFLAGCOPY 2
 static struct fuseargitem {
@@ -87,7 +88,8 @@ static struct fuseargitem {
 	{"fuseuid=",FUSEARGUID, FUSEFLAGHASSTRING},
 	{"fusegid=",FUSEARGGID, FUSEFLAGHASSTRING},
 	{"except=",FUSEEXCEPT, FUSEFLAGHASSTRING},
-	{"human", FUSEARGHUMAN, 0}
+	{"human", FUSEARGHUMAN, 0},
+	{"merge", FUSEARGMERGE, 0}
 };
 #define FUSEARGTABSIZE sizeof(fuseargtab)/sizeof(struct fuseargitem)
 
@@ -262,6 +264,9 @@ int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, ch
 				break;
 			case FUSEARGHUMAN:
 				*pflags |= FUSE_HUMAN;
+				break;
+			case FUSEARGMERGE:
+				*pflags |= FUSE_MERGE;
 				break;
 			default:
 				{
