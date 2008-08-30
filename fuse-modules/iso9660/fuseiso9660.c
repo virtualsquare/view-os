@@ -275,6 +275,8 @@ static int f_iso9660_getattr(const char *path, struct stat *stbuf)
 		stbuf->st_gid=0;
 		stbuf->st_rdev=0;
 		stbuf->st_size=isostat->size;
+		stbuf->st_ino=isostat->lsn;
+		//fprintf(stderr,"%s-> lsn %d xa?%d rr?%d\n",path,isostat->lsn,iso9660_ifs_is_xa(isofs),isostat->rr.b3_rock == yep);
 		if (isostat->rr.b3_rock == yep) {
 			stbuf->st_mode=isostat->rr.st_mode;
 			stbuf->st_nlink=isostat->rr.st_nlinks;
