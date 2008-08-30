@@ -53,6 +53,83 @@
 #include <sys/xattr.h>
 #endif
 
+#define BRUTECACHETEST
+#ifdef BRUTECACHETEST
+
+#define BRUTECACHESIZE 128
+#include <time.h>
+struct brutecache {
+	iso9660_t *isofs;
+	char *path;
+	struct stat *stat;
+	time_t time;
+} brutecache[BRUTECACHESIZE];
+
+static void brutecache_add(iso9660_t *isofs,const char *path,struct stat *stat)
+{
+	int i,newi;
+	time_t min,now;
+	now=min=time(NULL);
+	for (newi=i=0;i<BRUTECACHESIZE;i++) {
+		if (brutecache[i].path == NULL)
+			break;
+		if (brutecache[i].time < min) {
+			min=brutecache[i].time;
+			newi=i;
+		}
+	}
+	if (i < BRUTECACHESIZE) newi=i;
+	if (brutecache[newi].path != NULL)
+		free(brutecache[newi].path);
+	brutecache[newi].path=strdup(path);
+	brutecache[newi].isofs=isofs;
+	if (stat==NULL) {
+		if (brutecache[newi].stat != NULL) {
+			free(brutecache[newi].stat);
+			brutecache[newi].stat=NULL;
+		}
+	} else {
+		if (brutecache[newi].stat == NULL)
+			brutecache[newi].stat = malloc(sizeof(struct stat));
+		*(brutecache[newi].stat) = *stat;
+	}
+	brutecache[newi].time=now;
+}
+
+static int brutecache_search(iso9660_t *isofs,const char *path,struct stat *stat)
+{
+	int i;
+	for (i=0;i<BRUTECACHESIZE;i++) {
+		if (brutecache[i].isofs == isofs &&
+				strcmp(brutecache[i].path,path)==0) {
+			brutecache[i].time=time(NULL);
+			if (brutecache[i].stat != NULL) {
+				*stat=*(brutecache[i].stat);
+				return 0;
+			} else
+				return -ENOENT;
+		}
+	}
+	return EAGAIN; /*positive, go on searching */
+}
+
+static void brutecache_rmiso(iso9660_t *isofs)
+{
+	int i;
+	for (i=0;i<BRUTECACHESIZE;i++) {
+		if (brutecache[i].isofs == isofs) {
+			if (brutecache[i].path != NULL) {
+				free(brutecache[i].path);
+				brutecache[i].path=NULL;
+			}
+			if (brutecache[i].stat != NULL) {
+				free(brutecache[i].stat);
+				brutecache[i].stat=NULL;
+			}
+		}
+	}
+}
+#endif
 static int f_iso9660_readlink(const char *path, char *buf, size_t size)
 {
 	struct fuse_context *mycontext=fuse_get_context();
@@ -251,15 +328,24 @@ static int f_iso9660_getattr(const char *path, struct stat *stbuf)
 {
 	struct fuse_context *mycontext=fuse_get_context();
 	iso9660_t *isofs=(iso9660_t *) mycontext->private_data;
-	static int count=100;
+#ifdef BRUTECACHETEST
+	{
+		int rv=brutecache_search(isofs,path,stbuf);
+		if (rv <= 0)
+			return rv;
+	}
+#endif
 
 	//printf("f_iso9660_getattr %p %s\n",isofs,path);
 	iso9660_stat_t *isostat=
 		//iso9660_ifs_stat_translate(isofs,path);
 		iso9660_ifs_stat(isofs,path);
-	if (isostat ==NULL)
+	if (isostat ==NULL) {
+#ifdef BRUTECACHETEST
+		brutecache_add(isofs,path,NULL);
+#endif
 		return -ENOENT;
-	else {
+	} else {
 		memset (stbuf,0,sizeof(struct stat));
 		/* XXX workaround
 		 * should be unique and != existing devices */
@@ -292,8 +378,7 @@ static int f_iso9660_getattr(const char *path, struct stat *stbuf)
 			stbuf->st_gid=isostat->xa.group_id;
 			stbuf->st_ino=isostat->xa.filenum;
 			stbuf->st_mode=convertmode(stbuf->st_mode,isostat->xa.attributes);
-		} else
-			stbuf->st_ino=count++;
+		}
 		/* check it is a reg file? */
 		if (isostat->size >= sizeof(struct compressed_file_header)) { /* file shorted than the header cannot be compressed */
 			struct compressed_file_header hdr;
@@ -312,6 +397,9 @@ static int f_iso9660_getattr(const char *path, struct stat *stbuf)
 		//iso9660_name_translate_ext(isostat->filename, filename, iso9660_ifs_get_joliet_level(isofs));
 		//strcpy(filename,isostat->filename);
 		//printf("f_iso9660_getattr OKAY %s\n",filename);
+#ifdef BRUTECACHETEST
+		brutecache_add(isofs,path,stbuf);
+#endif
 		free(isostat);
 		return 0;
 	}
@@ -468,6 +556,14 @@ void *f_iso9660_init(struct fuse_conn_info *conn)
 }
 #endif
 
+void f_iso9660_destroy(void *arg)
+{
+	iso9660_t *isofs=arg;
+#ifdef BRUTECACHETEST
+	brutecache_rmiso(isofs);
+#endif
+}
+
 static struct fuse_operations iso9660_oper = {
     .getattr	= f_iso9660_getattr,
     .readlink	= f_iso9660_readlink,
@@ -479,6 +575,7 @@ static struct fuse_operations iso9660_oper = {
     .read	= f_iso9660_read,
     .release	= f_iso9660_release,
     .init	= f_iso9660_init,
+		.destroy = f_iso9660_destroy
 };
 
 
