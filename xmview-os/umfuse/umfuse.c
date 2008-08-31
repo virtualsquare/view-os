@@ -230,7 +230,9 @@ static inline int isexception(char *path, char **exceptions, struct fuse_context
 	else {
 		if (exceptions) {
 			while (*exceptions != 0) {
-				if (strncmp(path,*exceptions,strlen(*exceptions)) == 0)
+				int len=strlen(*exceptions);
+				if (strncmp(path,*exceptions,len) == 0 &&
+						(path[len] == '/' || path[len]=='\0'))
 					return 1;
 				exceptions ++;
 			}
