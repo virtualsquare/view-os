@@ -1532,6 +1532,16 @@ static int stat2stat64(struct stat64 *s64, struct stat *s)
 	return 0;
 }
 
+/*heuristics for file system which does not set st_ino */
+static inline unsigned long hashnodeid (const char *s) {
+	unsigned long sum=0;
+	while (*s) {
+		sum=sum ^ ((sum << 5) + (sum >> 2) + *s);
+		s++;
+	}
+	return sum;
+}
+
 static int common_stat(struct fuse_context *fc, char *path,  struct stat *buf,int wrapped)
 {
 	int rv;
@@ -1547,6 +1557,12 @@ static int common_stat(struct fuse_context *fc, char *path,  struct stat *buf,in
 				fc->fuse->path, path, rv ? "Error" : "Success", (rv < 0) ? -rv : 0);
 	}
 	fuse_set_context(oldfc);
+	/*heuristics for file system which does not set st_ino */
+	if (buf->st_ino == 0)
+		buf->st_ino=(ino_t) hashnodeid(path);
+	/*heuristics for file system which does not set st_dev */
+	if (buf->st_dev == 0)
+		buf->st_dev=(dev_t) fc;
 	if (rv<0) {
 		errno= -rv;
 		return -1;
