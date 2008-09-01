@@ -178,7 +178,7 @@ static void selectpoll_signal(struct pcb *pc)
 	struct seldata *sd=pc->selset;
 	if (!sd)
 		fprint2("sd err %p\n",sd);
-	else if (sd->lfd <= 0)
+	else if (sd->lfd < 0)
 		fprint2("lfd err\n",sd->lfd);
 	else {
 		assert(sd->lfd >= 0);
