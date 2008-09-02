@@ -371,15 +371,15 @@ int nw_sysclose(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 {
 	int rv;
 	int fd=npc->sysargs[0];
-	int lfd=fd2lfd(&umview_file,npc->sysargs[0]);
+	int lfd=fd2lfd(&umview_file,fd);
 	if (lfd >= 0 && lfd_getcount(lfd) <= 1) { //no more opened lfd on this file:
 		npc->sysargs[0]=fd2sfd(&umview_file,fd);
-		r_close(fd);
 		rv=do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
 		if (rv >= 0) {
 			lfd_nullsfd(lfd);
 			lfd_deregister_n_close(&umview_file,fd);
 		}
+		r_close(fd);
 		return rv;
 	} else
 		return -1;
