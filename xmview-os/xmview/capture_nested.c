@@ -378,8 +378,8 @@ int nw_sysclose(int scno,struct npcb *npc,service_t sercode,sysfun um_syscall)
 		if (rv >= 0) {
 			lfd_nullsfd(lfd);
 			lfd_deregister_n_close(&umview_file,fd);
+			r_close(fd);
 		}
-		r_close(fd);
 		return rv;
 	} else
 		return -1;
