@@ -495,7 +495,7 @@ int capture_main(char **argv,void (*root_process_init)(void))
 			GPERROR(0, "strace: exec");
 			_exit(1);
 		default:
-			/* UMVIEW TRACER startup */
+			/* KMVIEW TRACER startup */
 			/* create the thread key */
 			pthread_key_create(&pcb_key,vir_pcb_free);
 			/* init the first child startup fun */
