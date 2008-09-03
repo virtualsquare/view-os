@@ -235,18 +235,6 @@ static struct pcb *pid2pcb(int pid)
 	return NULL;
 }
 
-/*static void droppcb(struct pcb *pc)*/
-/*{*/
-/*  pc->flags = 0; |+NOT PCB_INUSE +|;*/
-/*#ifdef _PROC_MEM_TEST*/
-/*  if (pc->memfd >= 0)*/
-/*    close(pc->memfd);*/
-/*#endif*/
-/*  if (pcb_destr != NULL)*/
-/*    pcb_destr(pc);*/
-/*  nprocs--;*/
-/*}*/
-
 /* orphan processes must NULL-ify their parent process pointer */
 static void _cut_pp(struct pcb *pc, struct pcb *delpc)
 {
@@ -417,6 +405,7 @@ void tracehand()
 				return;
 			}
 			/* error case */
+			fprint2("signal from unknown pid %d: killed\n",pid);
 			GDEBUG(0, "signal from unknown pid %d: killed",pid);
 			if(ptrace(PTRACE_KILL, pid, 0, 0) < 0){
 				GPERROR(0, "KILL");
@@ -883,6 +872,20 @@ static int r_execvp(const char *file, char *const argv[]){
 		free(path);
 		errno = ENOENT;
 		return -1;
+	}
+}
+
+int capture_attach(struct pcb *pc,pid_t pid)
+{
+	handle_new_proc(pid,pc);
+	if (ptrace(PTRACE_ATTACH,pid,0,0) < 0)
+		return -errno;
+	else {
+		int status;
+		if(r_waitpid(pid, &status, WUNTRACED) < 0 ||
+				ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0)
+			GPERROR(0, "restarting attached");
+		return 0;
 	}
 }
 

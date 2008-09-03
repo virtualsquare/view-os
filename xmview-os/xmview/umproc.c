@@ -55,6 +55,7 @@ static int um_tmpfile_len;
 #ifdef _UM_MMAP
 int um_mmap_secret;
 int um_mmap_pageshift;
+#define MMAP_SECRET_FD 1024
 #endif
 
 struct lfd_vtable;
@@ -102,6 +103,10 @@ void um_proc_open()
 	/* open/create the mmap secret file, it is inherited by all the processes */
 	strcat(path,"/lfd.um_mmap");
 	um_mmap_secret = r_open(path,O_RDWR|O_TRUNC|O_CREAT,0700);
+#ifdef MMAP_SECRET_FD
+	if (r_dup2(um_mmap_secret,MMAP_SECRET_FD)==0)
+		um_mmap_secret = MMAP_SECRET_FD; 
+#endif
 	/* compute the pageshift value  (log2(pagesize)) */
 	pagesize = sysconf(_SC_PAGESIZE);
 	for (um_mmap_pageshift = -1;pagesize > 0; um_mmap_pageshift++, pagesize >>= 1)

@@ -43,6 +43,8 @@ typedef unsigned long viewid_t;
 
 #define UMVIEW_KILLALL  0x103
 
+#define UMVIEW_ATTACH  0x104
+
 extern long (*virnsyscall)();
 
 #define virsyscall0(virscno,a1) virnsyscall(virscno,0,0,0,0,0,0,0);
@@ -68,5 +70,7 @@ int um_name_service(int code, char *buf, int len);
 int um_lock_service(int invisible);
 int um_view_getinfo(struct viewinfo *info);
 int um_setviewname(char *name);
+int um_killall(int signo);
+int um_attach(int pid);
 
 #endif

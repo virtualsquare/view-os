@@ -40,6 +40,7 @@
 #include "defs.h"
 #include "sctab.h"
 #include "services.h"
+#include "capture.h"
 #include "utils.h"
 #include "modutils.h"
 #include "gdebug.h"
@@ -176,6 +177,13 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 			killall(pc,pc->sysargs[1]);
 			pc->retval=0;
 			pc->erno = 0;
+			break;
+		case UMVIEW_ATTACH:
+			pc->retval=capture_attach(pc,pc->sysargs[1]);
+			if (pc->retval < 0) {
+				pc->erno = - pc->retval;
+				pc->retval = -1;
+			}
 			break;
 		default:
 			pc->retval = -1;

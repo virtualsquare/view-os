@@ -7,6 +7,7 @@ dist_man1_MANS = \
 	vuname.1 \
 	viewname.1 \
 	umshutdown.1 \
+	um_attach.1 \
 	mstack.1
 
 CPPFLAGS = -I../include
@@ -20,6 +21,7 @@ bin_PROGRAMS = \
 	vuname \
 	viewname \
 	umshutdown \
+	um_attach \
 	mstack
 
 debug release: all

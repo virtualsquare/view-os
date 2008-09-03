@@ -85,3 +85,8 @@ int um_killall(int signo)
 {
 	return virsyscall2(VIRUMSERVICE,UMVIEW_KILLALL,signo);
 }
+
+int um_attach(int pid)
+{
+	return virsyscall2(VIRUMSERVICE,UMVIEW_ATTACH,pid);
+}

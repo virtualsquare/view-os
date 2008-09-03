@@ -461,6 +461,11 @@ static int r_execvp(const char *file, char *const argv[]){
 	}
 }
 
+int capture_attach(struct pcb *pc,pid_t pid)
+{ 
+	return -ENOSYS;
+}
+
 /* main capture startup */
 int capture_main(char **argv,void (*root_process_init)(void))
 {

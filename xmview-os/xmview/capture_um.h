@@ -55,4 +55,6 @@ void do_wake_tracer();
 /* This is the handler of sigchld from user processes */
 void tracehand();
 
+int capture_attach(struct pcb *pc,pid_t pid);
+
 #endif
