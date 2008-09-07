@@ -410,16 +410,18 @@ int wrap_in_stat64(int sc_number,struct pcb *pc,
 {
 	long pbuf;
 	struct stat64 buf;
+#if defined(__NR_fstatat64) || defined(__NR_newfstatat)
+	if (sc_number == 
 #ifdef __NR_fstatat64
-	if (sc_number == __NR_fstatat64)
-		pbuf=pc->sysargs[2];
-	else
+			__NR_fstatat64
 #else
-#ifdef __NR_newfstatat
-	if (sc_number == __NR_newfstatat)
-		pbuf=pc->sysargs[2];
-	else
+			__NR_newfstatat
 #endif
+		 ) {
+		pbuf=pc->sysargs[2];
+		if (pc->sysargs[3] & AT_SYMLINK_NOFOLLOW) 
+			um_syscall=service_syscall(sercode,uscno(NR64_lstat));
+	} else
 #endif
 	pbuf=pc->sysargs[1];
 	if ((pc->retval = um_syscall(pc->path,&buf)) >= 0)

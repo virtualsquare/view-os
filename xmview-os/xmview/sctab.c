@@ -148,12 +148,12 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
 	/* fprint2("-> um_lstat: %s\n",filename); */
 	/* internal nested call save data */
 	oldscno = pc->sysscno;
-	pc->sysscno = NR64_stat;
+	pc->sysscno = NR64_lstat;
 	epoch=pc->tst.epoch;
 	if ((sercode=service_check(CHECKPATH,filename,1)) == UM_NONE)
 		retval = r_lstat64(filename,buf);
 	else{
-		retval = service_syscall(sercode,uscno(NR64_stat))(filename,buf,pc);
+		retval = service_syscall(sercode,uscno(NR64_lstat))(filename,buf,pc);
 	}
 	/* internal nested call restore data */
 	pc->sysscno = oldscno;
@@ -196,6 +196,31 @@ char *um_getpath(long laddr,struct pcb *pc)
 		return um_patherror;
 }
 
+char *um_cutdots(char *path)
+{
+	int l=strlen(path);
+	l--;
+	if (path[l]=='.') {
+		l--;
+		if(path[l]=='/') {
+			if (l!=0) path[l]=0; else path[l+1]=0;
+		} else if (path[l]=='.') {
+			l--;
+			if(path[l]=='/') {
+				while(l>0) {
+					l--;
+					if (path[l]=='/')
+						break;
+				}
+				if(path[l]=='/') {
+					if (l!=0) path[l]=0; else path[l+1]=0;
+				}
+			}
+		}
+	}
+	return path;
+}
+
 /* get a path, convert it as an absolute path (and strdup it) 
  * from the process address space */
 char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink)
@@ -213,7 +238,7 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 		if (pc->erno)
 			return um_patherror;	//error
 		else
-			return strdup(newpath);
+			return strdup(um_cutdots(newpath));
 	}
 	else {
 		pc->erno = EINVAL;
@@ -660,7 +685,7 @@ service_t choice_mount(int sc_number,struct pcb *pc)
 service_t choice_path(int sc_number,struct pcb *pc)
 {
 	pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),0); 
-	//printf("choice_path %d %s\n",sc_number,pc->path);
+	//fprint2("choice_path %d %s\n",sc_number,pc->path);
 
 	if (pc->path==um_patherror){
 		/*		char buff[PATH_MAX];

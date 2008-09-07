@@ -104,7 +104,6 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,
 		if (sercode != UM_NONE) {
 			char *chdir_fake_dir = um_proc_fakecwd();
 			//fprint2("virtual path chdir to %s\n", chdir_fake_dir);
-			//XXX: check length of parameter??? if sysargs[0] was one byte long?
 			pathlen = WORDALIGN(strlen(chdir_fake_dir));
 			ustoren(pc, sp-pathlen, pathlen, chdir_fake_dir);
 		} else {
@@ -158,8 +157,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 		/* (rd) maybe there is a virtual dir with the same name of
 		 * a real file with X permission... 
 		 * commented out 20080626*/
-#if 0
-		if (S_ISDIR(pc->pathstat.st_mode) && (r_access(pc->path,X_OK) == 0))
+		if (S_ISDIR(pc->pathstat.st_mode) && (access(pc->path,X_OK) == 0))
 		{
 			pathlen = WORDALIGN(strlen(pc->path));
 			ustoren(pc, sp - pathlen, pathlen, pc->path);
@@ -169,6 +167,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 			return SC_CALLONXIT;
 		}
 		else
+#if 0
 #endif
 		{
 			if (S_ISDIR(pc->pathstat.st_mode)) {

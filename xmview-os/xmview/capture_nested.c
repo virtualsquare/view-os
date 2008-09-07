@@ -115,7 +115,7 @@ static char *nest_abspath(int dirfd, long laddr,struct npcb *npc,struct stat64 *
 	if (npc->erno)
 		return um_patherror;  //error
 	else
-		return strdup(newpath);
+		return strdup(um_cutdots(newpath));
 }
 
 /* choice function for nested calls: on the process visible fd */
@@ -215,7 +215,6 @@ service_t nchoice_unlinkat(int sc_number,struct npcb *npc) {
 		return service_check(CHECKPATH,npc->path,1);
 }
 
-/* choice function for nested calls: dirfd,link/path (1st,2nd arg,choice on 4th) */
 /* choice function for nested calls: dirfd,link/path (1st,2nd arg,choice on 4th) */
 service_t nchoice_pl4at(int sc_number,struct npcb *npc) {
 	npc->path=nest_abspath(npc->sysargs[0],npc->sysargs[1],npc,&(npc->pathstat),
@@ -552,7 +551,7 @@ static int nested_sysindex(struct npcb *npc, int scno)
 /* dcif (index) for sockets or virtual: just the sysno*/
 static int nested_sockvirindex(struct npcb *npc, int scno)
 {
-	  return scno;
+	return scno;
 }
 
 
@@ -676,6 +675,7 @@ static long int capture_nested_virsc(long int sysno, ...){
 	/* commonwrap for nested socket calls, 
 	 * nested_commonwrap sets errno, so the following code should not
 	 * call any system call or errno must be saved*/
+	callee_pcb.private_scno=sysno | ESCNO_VIRSC;
 	rv=nested_commonwrap(sysno, &callee_pcb, nested_sockvirindex, nested_call_virsc, service_virsyscall, virscmap);
 
 	nrestoreargs(caller_pcb, &callee_pcb);
@@ -720,6 +720,7 @@ static long int capture_nested_socketcall(long int sysno, ...){
 	 * callee_pcb.umpid=caller_pcb->umpid;
 	 */
 	/* commonwrap for nested socket calls */
+	callee_pcb.private_scno=sysno | ESCNO_SOCKET;
 	rv=nested_commonwrap(sysno, &callee_pcb, nested_sockvirindex, nested_call_sockcall, service_socketcall, sockmap);
 
 	nrestoreargs(caller_pcb, &callee_pcb);
@@ -772,6 +773,7 @@ static long int capture_nested_syscall(long int sysno, ...)
    * callee_pcb.umpid=caller_pcb->umpid;
 	 */
 	/* commonwrap for nested calls */
+	callee_pcb.private_scno = sysno;
 	rv=nested_commonwrap(sysno, &callee_pcb, nested_sysindex, nested_call_syscall, service_syscall, scmap);
 
 	nrestoreargs(caller_pcb, &callee_pcb);

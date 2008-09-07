@@ -93,6 +93,11 @@ int wrap_in_mknod(int sc_number,struct pcb *pc,
 int wrap_in_unlink(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
+#ifdef __NR_unlinkat
+	if (sc_number == __NR_unlinkat && (pc->sysargs[1] & AT_REMOVEDIR)) {
+		 um_syscall=service_syscall(sercode,uscno(__NR_rmdir));
+	} 
+#endif
 	if ((pc->retval = um_syscall(pc->path)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
