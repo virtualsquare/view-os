@@ -89,7 +89,23 @@ int wrap_in_open(int sc_number,struct pcb *pc,
 		} else
 			return SC_FAKE;
 	} else {
+#if 0
+		/* load the complete path (to avoid border effects -- like open(..) */
+		/* open problem: all the paths should be rewritten on borders
+		 * not only for "open" */
+		int filenamelen=WORDALIGN(strlen(pc->path));
+		long sp=getsp(pc);
+		ustoren(pc,sp-filenamelen,filenamelen,pc->path);
+#ifdef __NR_openat
+		if (sc_number == __NR_openat) 
+			pc->sysargs[1]=sp-filenamelen;
+		else 
+#endif
+			pc->sysargs[0]=sp-filenamelen;
 		/* keep track of the open file */
+		pc->retval=lfd_open(sercode,-1,pc->path,flags,0);
+		return SC_CALLONXIT;
+#endif
 		pc->retval=lfd_open(sercode,-1,pc->path,flags,0);
 		return SC_TRACEONLY;
 	}
