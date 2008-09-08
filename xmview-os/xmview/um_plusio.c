@@ -94,7 +94,7 @@ int wrap_in_unlink(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 #ifdef __NR_unlinkat
-	if (sc_number == __NR_unlinkat && (pc->sysargs[1] & AT_REMOVEDIR)) {
+	if (sc_number == __NR_unlinkat && (pc->sysargs[2] & AT_REMOVEDIR)) {
 		 um_syscall=service_syscall(sercode,uscno(__NR_rmdir));
 	} 
 #endif
