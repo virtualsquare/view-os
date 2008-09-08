@@ -114,6 +114,16 @@ static int file_exist(char *path)
 	return stat(path,&buf)==0;
 }
 
+/* Does this file exist? */
+static int file_isdir(char *path)
+{
+	struct stat buf;
+	if (stat(path,&buf)==0)
+		return S_ISDIR(buf.st_mode);
+	else
+		return 0;
+}
+
 /* create all the missing dirs in the path */
 static void create_path(char *path)
 {
@@ -535,7 +545,8 @@ static long viewfs_open(char *path, int flags, mode_t mode)
 		rv=open(vfspath,flags,mode);
 	if (rv >= 0) {
 		wipeunlink(vfs,path);
-		if (flags & O_DIRECTORY && vfs->flags & VIEWFS_MERGE) {
+		if ((vfs->flags & VIEWFS_MERGE) &&
+				((flags & O_DIRECTORY) || file_isdir(vfspath))) {
 			struct viewfsdir *vfsdir=malloc(sizeof(struct viewfsdir));
 			vfsdir->vfs=vfs;
 			vfsdir->fd=rv;
@@ -832,7 +843,6 @@ static inline int isdot(char *s)
 	return 0;
 }
 
-/* XXX rmdir ENOTEMPY */
 static int isemptydir(struct viewfs *vfs,char *path)
 {
 	int dirfd=open(path,O_RDONLY|O_DIRECTORY);
