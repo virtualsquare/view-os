@@ -345,6 +345,8 @@ static inline int isexception(char *path, int pathlen, char **exceptions, struct
 				exceptions ++;
 			}
 		}
+		if (strcmp(path+pathlen,"/.-")==0)
+			return 1;
 		/* chdir to real dir when possible */
 		if (sysno==__NR_chdir || sysno==__NR_fchdir) {
 			/*
@@ -432,6 +434,32 @@ static inline void freeexceptions(char **exceptions)
 	}
 }
 
+static struct viewfs *vfs_search(char *path,char *source,int flags)
+{
+	register int i;
+	struct viewfs *result=NULL;
+	epoch_t maxepoch=0;
+	int maxi=-1;
+	for (i=0;i<viewfstabmax;i++)
+	{
+		epoch_t e;
+		if (viewfstab[i] != NULL) {
+			if ((strcmp(path,viewfstab[i]->path) == 0) &&
+					(strcmp(source,viewfstab[i]->source) == 0) &&
+					(flags==viewfstab[i]->flags) &&
+					((e=tst_matchingepoch(&(viewfstab[i]->tst))) > maxepoch)) {
+				maxi=i;
+				maxepoch=e;
+			}
+		}
+	}
+	if (maxi >= 0)
+		result=viewfstab[maxi];
+	//fprint2("Renew:%s %p\n",path, result);
+	return result;
+}
+
+
 static struct viewfs *searchcontext(char *path,int exact)
 {
 	register int i;
@@ -443,7 +471,7 @@ static struct viewfs *searchcontext(char *path,int exact)
 	for (i=0;i<viewfstabmax;i++)
 	{
 		epoch_t e;
-		if ((viewfstab[i] != NULL) && (viewfstab[i] != NULL)) {
+		if (viewfstab[i] != NULL) {
 			if (exact) {
 				if ((strcmp(path,viewfstab[i]->path) == 0) &&
 						((e=tst_matchingepoch(&(viewfstab[i]->tst))) > maxepoch)) {
@@ -532,7 +560,7 @@ static long viewfs_open(char *path, int flags, mode_t mode)
 	char *vfspath=unwrap(vfs,path,0);
 	int rv;
 	/*fprint2("OPEN  %s %s %d %d 0%o\n",
-			path,vfspath,access(vfspath),isdeleted(vfs,path),flags);*/
+			path,vfspath,file_exist(vfspath),isdeleted(vfs,path),flags);*/
 	if ((flags & O_ACCMODE) && (vfs->flags & VIEWFS_COW)) {
 		create_path(vfspath);
 		/* is not in cow but it exists, copy it! */
@@ -553,7 +581,7 @@ static long viewfs_open(char *path, int flags, mode_t mode)
 			vfsdir->path=strdup(path);
 			vfsdir->vfspath=strdup(vfspath);
 			vfsdir->dirinfo=vfsdir->dirpos=0;
-			struct viewfsdir *next=viewfs_opendirs;
+			vfsdir->next=viewfs_opendirs;
 			viewfs_opendirs=vfsdir;
 			FD_SET(rv,&viewfs_dirset);
 		}
@@ -584,8 +612,12 @@ static long viewfs_truncate64(char *path, loff_t length)
 				}
 			} else { /* MERGE */
 				if (file_exist(vfspath)) {
+#ifdef MERGEROFS
 					rv=-1;
 					errno=EROFS;
+#else
+					rv=truncate64(vfspath,length);
+#endif
 				} else
 					rv=truncate64(path,length);
 			}
@@ -820,8 +852,12 @@ static long viewfs_unlink(char *path)
 				}
 			} else { /* MERGE */
 				if (file_exist(vfspath)) {
+#ifdef MERGEROFS
 					rv=-1;
 					errno=EROFS;
+#else
+					rv=unlink(vfspath);
+#endif
 				} else
 					rv=unlink(path);
 			}
@@ -941,8 +977,12 @@ static long viewfs_rmdir(char *path)
 				}
 			} else { /* MERGE */
 				if (file_exist(vfspath)) {
+#ifdef MERGEROFS
 					rv=-1;
 					errno=EROFS;
+#else
+					rv=rmdir(vfspath);
+#endif
 				} else
 					rv=rmdir(path);
 			}
@@ -981,8 +1021,12 @@ static long viewfs_chmod(char *path, int mode)
 				}
 			} else { /* MERGE */
 				if (file_exist(vfspath)) {
+#ifdef MERGEROFS
 					rv=-1;
 					errno=EROFS;
+#else
+					rv=chmod(vfspath,mode);
+#endif
 				} else
 					rv=chmod(path,mode);
 			}
@@ -1017,8 +1061,12 @@ static long viewfs_chown(char *path, uid_t owner, gid_t group)
 				}
 			} else { /* MERGE */
 				if (file_exist(vfspath)) {
+#ifdef MERGEROFS
 					rv=-1;
 					errno=EROFS;
+#else
+					rv=chown(vfspath,owner,group);
+#endif
 				} else
 					rv=chown(path,owner,group);
 			}
@@ -1053,8 +1101,12 @@ static long viewfs_lchown(char *path, uid_t owner, gid_t group)
 				}
 			} else { /* MERGE */
 				if (file_exist(vfspath)) {
+#ifdef MERGEROFS
 					rv=-1;
 					errno=EROFS;
+#else
+					rv=lchown(vfspath,owner,group);
+#endif
 				} else
 					rv=lchown(path,owner,group);
 			}
@@ -1090,8 +1142,12 @@ static long viewfs_utime(char *path, struct utimbuf *buf)
 				}
 			} else { /* MERGE */
 				if (file_exist(vfspath)) {
+#ifdef MERGEROFS
 					rv=-1;
 					errno=EROFS;
+#else
+					rv=utime(vfspath,buf);
+#endif
 				} else
 					rv=utime(path,buf);
 			}
@@ -1126,8 +1182,12 @@ static long viewfs_utimes(char *path, struct timeval tv[2])
 				}
 			} else { /* MERGE */
 				if (file_exist(vfspath)) {
+#ifdef MERGEROFS
 					rv=-1;
 					errno=EROFS;
+#else
+					rv=utimes(vfspath,tv);
+#endif
 				} else
 					rv=utimes(path,tv);
 			}
@@ -1166,7 +1226,8 @@ static int merge_newentry(char *name,struct umdirent *tail,struct umdirent *oldt
 	return 1;
 }
 
-static struct umdirent *umadddirinfo(int fd, struct umdirent *head,int wipeout)
+static struct umdirent *umadddirinfo(int fd, struct umdirent *head,
+		int wipeout, int rootdir)
 {
 	if (fd) {
 		char buf[4096];
@@ -1184,24 +1245,27 @@ static struct umdirent *umadddirinfo(int fd, struct umdirent *head,int wipeout)
 				if (!(wipeout && de->d_type == DT_DIR) &&
 						merge_newentry(de->d_name,head,oldtail))
 				{
-					struct umdirent *new=(struct umdirent *)malloc(sizeof(struct umdirent));
-					new->de.d_name=strdup(de->d_name);
-					new->de.d_type=de->d_type;
-					new->de.d_ino=de->d_ino;
-					if (wipeout) {
-						new->de.d_reclen=0;
-						new->de.d_off=offset;
-					} else {
-						new->de.d_reclen=WORDALIGN(SIZEDIRENT64NONAME+strlen(de->d_name)+1);
-						new->de.d_off=offset=offset+WORDALIGN(12+strlen(de->d_name));
+					/* .- must not appear in the dir listing! */
+					if (!rootdir || (strcmp(de->d_name,".-") != 0)) {
+						struct umdirent *new=(struct umdirent *)malloc(sizeof(struct umdirent));
+						new->de.d_name=strdup(de->d_name);
+						new->de.d_type=de->d_type;
+						new->de.d_ino=de->d_ino;
+						if (wipeout) {
+							new->de.d_reclen=0;
+							new->de.d_off=offset;
+						} else {
+							new->de.d_reclen=WORDALIGN(SIZEDIRENT64NONAME+strlen(de->d_name)+1);
+							new->de.d_off=offset=offset+WORDALIGN(12+strlen(de->d_name));
+						}
+						if (head==NULL) {
+							new->next=new;
+						} else {
+							new->next=head->next;
+							head->next=new;
+						}
+						head=new;
 					}
-					if (head==NULL) {
-						new->next=new;
-					} else {
-						new->next=head->next;
-						head->next=new;
-					}
-					head=new;
 				}
 				off+=de->d_reclen;
 			}
@@ -1213,16 +1277,16 @@ static struct umdirent *umadddirinfo(int fd, struct umdirent *head,int wipeout)
 
 static struct umdirent *umfilldirinfo(int fd,char *mergepath,struct viewfs *vfs)
 {
-	struct umdirent *result=umadddirinfo(fd,NULL,0);
+	struct umdirent *result=umadddirinfo(fd,NULL,0,*(mergepath+vfs->pathlen)==0);
 	if (vfs->flags & VIEWFS_MERGE) {
 		char *wipedir=wipeunwrap(vfs,mergepath);
 		int mergefd=open(wipedir,O_RDONLY|O_DIRECTORY);
 		if (mergefd) {
-			result=umadddirinfo(mergefd,result,1);
+			result=umadddirinfo(mergefd,result,1,0);
 			close(mergefd);
 		}
 		mergefd=open(mergepath,O_RDONLY|O_DIRECTORY);
-		result=umadddirinfo(mergefd,result,0);
+		result=umadddirinfo(mergefd,result,0,0);
 		close(mergefd);
 	}
 	return result;
@@ -1250,7 +1314,6 @@ static long viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned i
 			vfsdir=vfsdir->next;
 		if (vfsdir) {
 			int curoffs=0;
-			//fprint2("viewfs_getdents64 %d %s %s\n",fd,vfsdir->path,vfsdir->vfspath);
 			if (vfsdir->dirinfo == NULL) 
 				vfsdir->dirinfo = umfilldirinfo(fd,vfsdir->path,vfsdir->vfs);
 			if (vfsdir->dirinfo == NULL)
@@ -1305,21 +1368,32 @@ static long viewfs_mount(char *source, char *target, char *filesystemtype,
 	int flags=0;
 	char **exceptions=NULL;
 	rv=viewfsargs(data,&flags,&exceptions);
-
 	if (rv==0) {
-		struct viewfs *new = (struct viewfs *) malloc(sizeof(struct viewfs));
-		new->path = strdup(target);
-		new->source = strdup(source);
-		new->exceptions=exceptions;
-		new->flags=flags;
-		if (strcmp(target,"/")==0)
-			new->pathlen = 0;
-		else
-			new->pathlen = strlen(target);
-		if (flags & VIEWFS_COW)
-			viewfs_cow_init(new);
-		addviewfstab(new);
-		new->tst=tst_timestamp();
+		if (flags & VIEWFS_RENEW){
+			flags &= ~VIEWFS_RENEW;
+			struct viewfs *vfs=vfs_search(target,source,flags);
+			if (vfs) {
+				vfs->tst=tst_timestamp();
+				rv=0;
+			} else {
+				errno=ENOENT;
+				rv=-1;
+			}
+		} else {
+			struct viewfs *new = (struct viewfs *) malloc(sizeof(struct viewfs));
+			new->path = strdup(target);
+			new->source = strdup(source);
+			new->exceptions=exceptions;
+			new->flags=flags;
+			if (strcmp(target,"/")==0)
+				new->pathlen = 0;
+			else
+				new->pathlen = strlen(target);
+			if (flags & VIEWFS_COW)
+				viewfs_cow_init(new);
+			addviewfstab(new);
+			new->tst=tst_timestamp();
+		}
 	}
 	return rv;
 }

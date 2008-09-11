@@ -68,6 +68,8 @@ int viewfsargs(char *opts,int *pflags,char ***pexceptions)
 	char typeoption=0;
 	int i;
 
+	if (opts == NULL)
+		return 0;
 #ifdef DEBUGVIEWFSARGS
 	printf("viewfsargs opts %s\n",s);
 #endif
