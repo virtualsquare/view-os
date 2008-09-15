@@ -664,8 +664,60 @@ static long viewfs_link(char *oldpath, char *newpath)
 			}
 			free(vfsoldpath);
 		}
-	} else /* MOVE */
+	} else /* MOVE */ /* XXX vfsoldpath? */
 		rv=link(oldpath,vfsnewpath);
+	free(vfsnewpath);
+	return rv;
+}
+
+static long viewfs_rename(char *oldpath, char *newpath)
+{
+	struct viewfs *vfs = searchcontext(newpath, SUBSTR);
+	char *vfsnewpath=unwrap(vfs,newpath,1);
+	int rv=0;
+	//fprint2("rename %s %s %s\n",oldpath, newpath, vfsnewpath);
+	if (vfs->flags & VIEWFS_MERGE) {
+		char *vfsoldpath=unwrap(vfs,oldpath,1);
+		char *thisoldpath;
+		if (file_exist(vfsoldpath))
+			thisoldpath=vfsoldpath;
+		else
+			thisoldpath=oldpath;
+		if (vfs->flags & VIEWFS_COW) {
+			if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
+				rv=rename(thisoldpath,newpath);
+				if (rv<0) {
+					create_path(vfsnewpath);
+					rv=rename(thisoldpath,vfsnewpath);
+					if (rv<0)
+						rv=copyfile(thisoldpath,vfsnewpath,MAXSIZE);
+					if (rv>=0) {
+						wipeunlink(vfs,newpath);
+						if(thisoldpath==vfsoldpath)
+							unlink(vfsoldpath);
+						if(file_exist(oldpath))
+							wipeoutfile(vfs,oldpath);
+					}
+				}
+			} else { /* COW but not MIN */
+				create_path(vfsnewpath);
+				rv=rename(thisoldpath,vfsnewpath);
+				if (rv<0)
+					rv=copyfile(thisoldpath,vfsnewpath,MAXSIZE);
+				if (rv>=0) {
+					wipeunlink(vfs,newpath);
+					if(thisoldpath==vfsoldpath)
+						unlink(vfsoldpath);
+					if(file_exist(oldpath))
+						wipeoutfile(vfs,oldpath);
+				}
+			}
+		} else { /* MERGE */
+			rv=rename(thisoldpath,newpath);
+		}
+		free(vfsoldpath);
+	} else /* MOVE */
+		rv=rename(oldpath,vfsnewpath);
 	free(vfsnewpath);
 	return rv;
 }
@@ -1469,6 +1521,7 @@ init (void)
 	SERVICESYSCALL(s, fsync, fsync);
 	SERVICESYSCALL(s, fdatasync, fdatasync);
 	SERVICESYSCALL(s, link, viewfs_link);
+	SERVICESYSCALL(s, rename, viewfs_rename);
 	SERVICESYSCALL(s, symlink, viewfs_symlink);
 #if __WORDSIZE == 32
 	SERVICESYSCALL(s, truncate64, viewfs_truncate64);
