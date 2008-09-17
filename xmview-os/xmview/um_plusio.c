@@ -263,14 +263,6 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 		return SC_FAKE;
 	} else {
 		switch (cmd) {
-			case F_GETLK:
-			case F_SETLK:
-			case F_SETLKW:
-				/* LOCKING unsupported yet XXX */
-				fprint2("Locking unsupported\n");
-				pc->retval= -1;
-				pc->erno= EBADF;
-				return SC_FAKE;
 			case F_DUPFD:
 				pc->retval=fd2lfd(pc->fds,fd);
 				if (pc->retval < 0)
@@ -292,8 +284,27 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 					pc->erno=0;
 				break;
 			default:
+#if 0
+				/* WIP XXX */
+				switch (cmd) {
+					case F_GETLK:
+					case F_SETLK:
+					case F_SETLKW:
+						break;
+				}
+#endif
 				if ((pc->retval = um_syscall(sfd,cmd,arg)) == -1)
 					pc->erno= errno;
+#if 0
+				/* WIP XXX */
+				switch (cmd) {
+					case F_GETLK:
+					case F_SETLK:
+					case F_SETLKW:
+						fprint2("LOCK %d %d %d %d\n",sc_number,fd,cmd,pc->retval,pc->erno);
+						break;
+				}
+#endif
 				if (pc->retval < 0 && pc->erno == ENOSYS) { /* last chance */
 					switch (cmd) {
 						/* this is just a workaround for module that does not manage
@@ -306,6 +317,14 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 							break;
 							/* F_SETFL is useless if the module does not change the flags
 							 * effectively */
+						case F_GETLK:
+						case F_SETLK:
+						case F_SETLKW:
+							/* LOCKING unsupported yet XXX */
+							fprint2("Locking unsupported\n");
+							pc->retval= -1;
+							pc->erno= EBADF;
+							return SC_FAKE;
 					}
 				}
 		}

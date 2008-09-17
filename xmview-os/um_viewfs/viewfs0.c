@@ -670,6 +670,7 @@ static long viewfs_link(char *oldpath, char *newpath)
 	return rv;
 }
 
+/* XXX if copy is needed, it does not manage directories */
 static long viewfs_rename(char *oldpath, char *newpath)
 {
 	struct viewfs *vfs = searchcontext(newpath, SUBSTR);
