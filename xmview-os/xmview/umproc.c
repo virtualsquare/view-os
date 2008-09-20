@@ -108,7 +108,7 @@ void um_proc_open()
 	if (r_dup2(um_mmap_secret,MMAP_SECRET_FD)>=0) {
 		r_close(um_mmap_secret);
 		um_mmap_secret = MMAP_SECRET_FD; 
-	} else
+	} 
 #endif
 	/* compute the pageshift value  (log2(pagesize)) */
 	pagesize = sysconf(_SC_PAGESIZE);
