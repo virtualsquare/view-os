@@ -403,13 +403,13 @@ int wrap_in_fstat(int sc_number,struct pcb *pc,
 		                service_t sercode, sysfun um_syscall)
 {
 	long pbuf=pc->sysargs[1];
-	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	if (sfd < 0) {
+	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	if (path == NULL) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
 		struct stat64 buf64;
-		if ((pc->retval = um_syscall(sfd,&buf64)) >= 0) {
+		if ((pc->retval = um_syscall(path,&buf64)) >= 0) {
 			struct kstat kbuf;
 			stat64_2kstat(&buf64,&kbuf);
 			ustoren(pc,pbuf,sizeof(struct kstat),(char *)&kbuf);
@@ -451,14 +451,14 @@ int wrap_in_fstat64(int sc_number,struct pcb *pc,
 		                service_t sercode, sysfun um_syscall)
 {
 	long pbuf=pc->sysargs[1];
-	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
+	char *path=fd_getpath(pc->fds,pc->sysargs[0]);
 	/*fprint2("wrap_in_fstat: %d\n",sfd);*/
-	if (sfd < 0) {
+	if (path==NULL) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
 		struct stat64 buf;
-		if ((pc->retval = um_syscall(sfd,&buf)) >= 0)
+		if ((pc->retval = um_syscall(path,&buf)) >= 0)
 			ustoren(pc,pbuf,sizeof(struct stat64),&buf);
 		else
 			pc->erno=errno;

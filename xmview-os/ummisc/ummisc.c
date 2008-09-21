@@ -115,30 +115,6 @@ static void misc_set_context(struct misc *mc)
 }
 #endif
 
-static void cutdots(char *path)
-{
-	int l=strlen(path);
-	l--;
-	if (path[l]=='.') {
-		l--;
-		if(path[l]=='/') {
-			if (l!=0) path[l]=0; else path[l+1]=0;
-		} else if (path[l]=='.') {
-			l--;
-			if(path[l]=='/') {
-				while(l>0) {
-					l--;
-					if (path[l]=='/')
-						break;
-				}
-				if(path[l]=='/') {
-					if (l!=0) path[l]=0; else path[l+1]=0;
-				}
-			}
-		}
-	}
-}
-
 static struct ummisc *searchmisc(char *path,int exact)
 {
 	register int i;
@@ -149,7 +125,6 @@ static struct ummisc *searchmisc(char *path,int exact)
 
 	PRINTDEBUG(0,"SearchContext:%s\n",path);
 	//fprint2("SearchContext:%s\n",path);
-	cutdots(path);
 	for (i=0;i<misctabmax;i++)
 	{
 		epoch_t e;
@@ -711,7 +686,7 @@ init (void)
 	SERVICESYSCALL(s, close, ummisc_close);
 	SERVICESYSCALL(s, stat64, ummisc_stat64);
 	SERVICESYSCALL(s, lstat64, ummisc_stat64);
-	SERVICESYSCALL(s, fstat64, ummisc_fstat64);
+	//SERVICESYSCALL(s, fstat64, ummisc_fstat64);
 	SERVICESYSCALL(s, fcntl64, ummisc_fcntl64);
 	SERVICESYSCALL(s, fsync, ummisc_fsync);
 	SERVICESYSCALL(s, access, ummisc_access);

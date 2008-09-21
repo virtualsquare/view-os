@@ -115,7 +115,10 @@ static char *nest_abspath(int dirfd, long laddr,struct npcb *npc,struct stat64 *
 	if (npc->erno)
 		return um_patherror;  //error
 	else
+#if 0
 		return strdup(um_cutdots(newpath));
+#endif
+		return strdup(newpath);
 }
 
 /* choice function for nested calls: on the process visible fd */

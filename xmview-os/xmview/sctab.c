@@ -196,9 +196,13 @@ char *um_getpath(long laddr,struct pcb *pc)
 		return um_patherror;
 }
 
+#if 0
 char *um_cutdots(char *path)
 {
 	int l=strlen(path);
+#ifdef CUTDOTSTEST
+	char *s=strdup(path);
+#endif
 	l--;
 	if (path[l]=='.') {
 		l--;
@@ -218,8 +222,14 @@ char *um_cutdots(char *path)
 			}
 		}
 	}
+#ifdef CUTDOTSTEST
+	if (strcmp(path,s) != 0)
+		fprint2("cutdots worked %s %s\n",path,s);
+	free(s);
+#endif
 	return path;
 }
+#endif
 
 /* get a path, convert it as an absolute path (and strdup it) 
  * from the process address space */
@@ -238,7 +248,10 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 		if (pc->erno)
 			return um_patherror;	//error
 		else
+#if 0
 			return strdup(um_cutdots(newpath));
+#endif
+			return strdup(newpath);
 	}
 	else {
 		pc->erno = EINVAL;

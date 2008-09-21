@@ -349,6 +349,12 @@ static inline int isexception(char *path, int pathlen, char **exceptions, struct
 			return 1;
 		/* chdir to real dir when possible */
 		if (sysno==__NR_chdir || sysno==__NR_fchdir) {
+			int rv;
+			epoch_t prevepoch=um_setepoch(vfs->tst.epoch);
+			rv=file_isdir(path);
+			//fprint2("chdir %s %d\n",path,file_exist(path));
+			um_setepoch(prevepoch);
+			return rv;
 			/*
 			struct stat64 buf;
 			char *vfspath=unwrap(vfs,path,1);
@@ -359,7 +365,7 @@ static inline int isexception(char *path, int pathlen, char **exceptions, struct
 			else
 				return 0;
 				*/
-			return (file_exist(path));
+			//return (file_exist(path));
 		}
 		/* MERGE + COW */
 		if (vfs->flags & VIEWFS_MERGE) {
@@ -559,6 +565,8 @@ static long viewfs_open(char *path, int flags, mode_t mode)
 	struct viewfs *vfs = searchcontext(path, SUBSTR);
 	char *vfspath=unwrap(vfs,path,0);
 	int rv;
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_OPEN %s->%s 0%o\n",path,vfspath,flags);
 	/*fprint2("OPEN  %s %s %d %d 0%o\n",
 			path,vfspath,file_exist(vfspath),isdeleted(vfs,path),flags);*/
 	if ((flags & O_ACCMODE) && (vfs->flags & VIEWFS_COW)) {
@@ -595,6 +603,8 @@ static long viewfs_truncate64(char *path, loff_t length)
 	struct viewfs *vfs = searchcontext(path, SUBSTR);
 	int rv=0;
 	char *vfspath=unwrap(vfs,path,0);
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_TRUNCATE %s->%s %d\n",path,vfspath,length);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
@@ -633,6 +643,8 @@ static long viewfs_link(char *oldpath, char *newpath)
 	struct viewfs *vfs = searchcontext(newpath, SUBSTR);
 	char *vfsnewpath=unwrap(vfs,newpath,1);
 	int rv=0;
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_LINK %s %s->%s\n",oldpath,newpath,vfsnewpath);
 	//fprint2("link %s %s %s\n",oldpath, newpath, vfsnewpath);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cowexisterror(vfs,newpath,vfsnewpath))==0) { /* EEXIST */
@@ -682,8 +694,12 @@ static long viewfs_rename(char *oldpath, char *newpath)
 		char *thisoldpath;
 		if (file_exist(vfsoldpath))
 			thisoldpath=vfsoldpath;
-		else
+		else if (file_exist(oldpath))
 			thisoldpath=oldpath;
+		else {
+			errno=ENOENT;
+			return -1;
+		}
 		if (vfs->flags & VIEWFS_COW) {
 			if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
 				rv=rename(thisoldpath,newpath);
@@ -719,6 +735,8 @@ static long viewfs_rename(char *oldpath, char *newpath)
 		free(vfsoldpath);
 	} else /* MOVE */
 		rv=rename(oldpath,vfsnewpath);
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_RENAME %s %s->%s %d\n",oldpath,newpath,vfsnewpath,rv);
 	free(vfsnewpath);
 	return rv;
 }
@@ -755,6 +773,8 @@ static long viewfs_statfs64(char *path, struct statfs64 *buf)
 	struct viewfs *vfs = searchcontext(path, SUBSTR);
 	char *vfspath=unwrap(vfs,path,0);
 	int rv= statfs64(vfspath,buf);
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_STATFS %s->%s rv %d\n",path,vfspath,rv);
 	if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
 		rv= statfs64(path,buf);
 	free(vfspath);
@@ -768,7 +788,11 @@ static long viewfs_stat64(char *path, struct stat64 *buf)
 	int rv= stat64(vfspath,buf);
 	if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
 		rv= stat64(path,buf);
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_STAT %s->%s rv %d\n",path,vfspath,rv);
 	free(vfspath);
+	if (rv==0 && vfs->flags & VIEWFS_WOK)
+		buf->st_mode |= 0222;
 	//fprint2("viewfs_stat64 %s rv=%d\n",path,rv);
 	return rv;
 }
@@ -780,7 +804,11 @@ static long viewfs_lstat64(char *path, struct stat64 *buf)
 	int rv= lstat64(vfspath,buf);
 	if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
 		rv= lstat64(path,buf);
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_LSTAT %s->%s rv %d\n",path,vfspath,rv);
 	free(vfspath);
+	if (rv==0 && vfs->flags & VIEWFS_WOK)
+		buf->st_mode |= 0222;
 	//fprint2("viewfs_lstat64 %s rv=%d\n",path,rv);
 	return rv;
 }
@@ -790,6 +818,8 @@ static long viewfs_readlink(char *path, char *buf, size_t bufsiz)
 	struct viewfs *vfs = searchcontext(path, SUBSTR);
 	char *vfspath=unwrap(vfs,path,0);
 	int rv= readlink(vfspath,buf,bufsiz);
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_READLINK %s->%s rv %d\n",path,vfspath,rv);
 	if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
 		rv= readlink(path,buf,bufsiz);
 	free(vfspath);
@@ -799,13 +829,21 @@ static long viewfs_readlink(char *path, char *buf, size_t bufsiz)
 static long viewfs_access(char *path, int mode)
 {
 	struct viewfs *vfs = searchcontext(path, SUBSTR);
-	char *vfspath=unwrap(vfs,path,0);
-	int rv= access(vfspath,mode);
-	if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
-		rv= access(path,mode);
-	//fprint2("access %s %d-> %d\n",path,mode,rv);
-	free(vfspath);
-	return rv;
+	if (mode==W_OK && (vfs->flags & VIEWFS_WOK)) {
+		if (vfs->flags & VIEWFS_DEBUG)
+			fprint2("VIEWFS_ACCESS %s WOK\n",path);
+		return 0;
+	} else {
+		char *vfspath=unwrap(vfs,path,0);
+		int rv= access(vfspath,mode);
+		if (vfs->flags & VIEWFS_DEBUG)
+			fprint2("VIEWFS_ACCESS %s->%s %d rv %d\n",path,vfspath,mode,rv);
+		if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
+			rv= access(path,mode);
+		//fprint2("access %s %d-> %d\n",path,mode,rv);
+		free(vfspath);
+		return rv;
+	}
 }
 
 /* add something: mkdir, symlink, link */
@@ -814,6 +852,8 @@ static long viewfs_mkdir(char *path, int mode)
 	struct viewfs *vfs = searchcontext(path, SUBSTR);
 	int rv=0;
 	char *vfspath=unwrap(vfs,path,1);
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_MKDIR %s->%s \n",path,vfspath);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cowexisterror(vfs,path,vfspath))==0) { /* EEXIST */
 			if (vfs->flags & VIEWFS_COW) {
@@ -844,6 +884,8 @@ static long viewfs_symlink(char *oldpath, char *newpath)
 	struct viewfs *vfs = searchcontext(newpath, SUBSTR);
 	char *vfspath=unwrap(vfs,newpath,1);
 	int rv=0;
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_SYMLINK %s %s->%s \n",oldpath,newpath,vfspath);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cowexisterror(vfs,newpath,vfspath))==0) { /* EEXIST */
 			if (vfs->flags & VIEWFS_COW) {
@@ -876,6 +918,8 @@ static long viewfs_unlink(char *path)
 	char *vfspath=unwrap(vfs,path,0);
 	int rv=0;
 	int saverrno;
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_UNLINK %s->%s \n",path,vfspath);
 	//fprint2("viewfs_unlink %s\n",path);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
@@ -993,6 +1037,8 @@ static long viewfs_rmdir(char *path)
 	struct viewfs *vfs = searchcontext(path, SUBSTR);
 	char *vfspath=unwrap(vfs,path,0);
 	int rv;
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_RMDIR %s->%s \n",path,vfspath);
 	//fprint2("viewfs_rmdir %s\n",path);
 	//fprint2("ISEMPTY %s %d\n",path,isemptydir(vfs,path));
 	if (vfs->flags & VIEWFS_MERGE) {
@@ -1055,12 +1101,14 @@ static long viewfs_chmod(char *path, int mode)
 	struct viewfs *vfs = searchcontext(path, SUBSTR);
 	int rv=0;
 	char *vfspath=unwrap(vfs,path,0);
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_CHMOD %s->%s 0%o\n",path,vfspath,mode);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
-				if (file_exist(vfspath)) /* virt file */
+				if (file_exist(vfspath)) {/* virt file */
 					rv=chmod(vfspath,mode);
-				else {
+				} else {
 					if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
 						rv=chmod(path,mode);
 						if (rv<0) {
@@ -1095,11 +1143,18 @@ static long viewfs_chown(char *path, uid_t owner, gid_t group)
 	struct viewfs *vfs = searchcontext(path, SUBSTR);
 	int rv=0;
 	char *vfspath=unwrap(vfs,path,0);
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_CHOWN %s->%s %d %d\n",path,vfspath,owner,group);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
-				if (file_exist(vfspath)) /* virt file */
+				if (file_exist(vfspath)) {/* virt file */
 					rv=chown(vfspath,owner,group);
+					if (rv<0 && errno==EPERM)  {
+						rv=0;
+						errno=0;
+					}
+				}
 				else { 
 					if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
 						rv=chown(path,owner,group);
@@ -1135,11 +1190,17 @@ static long viewfs_lchown(char *path, uid_t owner, gid_t group)
 	struct viewfs *vfs = searchcontext(path, SUBSTR);
 	int rv=0;
 	char *vfspath=unwrap(vfs,path,0);
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_LCHOWN %s->%s %d %d\n",path,vfspath,owner,group);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
 				if (file_exist(vfspath)) /* virt file */
 					rv=lchown(vfspath,owner,group);
+					if (rv<0 && errno==EPERM)  {
+						rv=0;
+						errno=0;
+					}
 				else {         
 					if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
 						rv=lchown(path,owner,group);
@@ -1171,6 +1232,7 @@ static long viewfs_lchown(char *path, uid_t owner, gid_t group)
 
 }
 
+#if 0
 static long viewfs_utime(char *path, struct utimbuf *buf)
 {
 	struct viewfs *vfs = searchcontext(path, SUBSTR);
@@ -1210,12 +1272,15 @@ static long viewfs_utime(char *path, struct utimbuf *buf)
 	free(vfspath);
 	return rv;
 }
+#endif
 
-static long viewfs_utimes(char *path, struct timeval tv[2])
+static long viewfs_utimes(char *path, struct timeval *tv)
 {
 	struct viewfs *vfs = searchcontext(path, SUBSTR);
 	int rv=0;
 	char *vfspath=unwrap(vfs,path,0);
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_UTIMES %s->%s %ld %ld\n",path,(tv)?vfspath,tv[0].tv_sec:0,(tv)?tv[1].tv_sec:0);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
@@ -1262,6 +1327,8 @@ static long viewfs_msocket(char *path, int domain, int type, int protocol)
 	struct viewfs *vfs = searchcontext(path, SUBSTR);
 	char *vfspath=unwrap(vfs,path,0);
 	int rv= msocket(vfspath,domain,type,protocol);
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_MSOCKET %s->%s rv %d\n",path,vfspath,rv);
 	free(vfspath);
 	return rv;
 }
@@ -1421,6 +1488,8 @@ static long viewfs_mount(char *source, char *target, char *filesystemtype,
 	int flags=0;
 	char **exceptions=NULL;
 	rv=viewfsargs(data,&flags,&exceptions);
+	if (flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_MOUNT source %s target %s\n",source,target);
 	if (rv==0) {
 		if (flags & VIEWFS_RENEW){
 			flags &= ~VIEWFS_RENEW;
@@ -1454,6 +1523,8 @@ static long viewfs_mount(char *source, char *target, char *filesystemtype,
 static long viewfs_umount2(char *target, int flags)
 {
 	struct viewfs *vfs = searchcontext(target, EXACT);
+	if (vfs->flags & VIEWFS_DEBUG)
+		fprint2("VIEWFS_UMOUNT source %s target %s\n",vfs->source,vfs->path);
 	delviewfstab(vfs);
 	free(vfs->path);
 	free(vfs->source);
@@ -1468,6 +1539,11 @@ static void createscset(void)
 	FD_ZERO(&fastsysset);
 	for (p=fastsc;*p>=0;p++)
 		FD_SET(*p,&fastsysset);
+}
+
+static int viewfs_event_subscribe(void (* cb)(), void *arg, int fd, int how)
+{
+	return um_mod_event_subscribe(cb,arg,fd,how);
 }
 
 	static void
@@ -1490,15 +1566,15 @@ init (void)
 #if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have these
 	SERVICESYSCALL(s, stat64, viewfs_stat64);
 	SERVICESYSCALL(s, lstat64, viewfs_lstat64);
-	SERVICESYSCALL(s, fstat64, fstat64);
+	//SERVICESYSCALL(s, fstat64, fstat64);
 	SERVICESYSCALL(s, statfs64, viewfs_statfs64);
-	SERVICESYSCALL(s, fstatfs64, fstatfs64);
+	//SERVICESYSCALL(s, fstatfs64, fstatfs64);
 #else
 	SERVICESYSCALL(s, stat, viewfs_stat64);
 	SERVICESYSCALL(s, lstat, viewfs_lstat64);
-	SERVICESYSCALL(s, fstat, fstat64);
+	//SERVICESYSCALL(s, fstat, fstat64);
 	SERVICESYSCALL(s, statfs, viewfs_statfs64);
-	SERVICESYSCALL(s, fstatfs, fstatfs64);
+	//SERVICESYSCALL(s, fstatfs, fstatfs64);
 #endif
 	SERVICESYSCALL(s, readlink, viewfs_readlink);
 	SERVICESYSCALL(s, getdents64, viewfs_getdents64);
@@ -1515,9 +1591,9 @@ init (void)
 	SERVICESYSCALL(s, rmdir, viewfs_rmdir);
 	SERVICESYSCALL(s, chown, viewfs_chown);
 	SERVICESYSCALL(s, lchown, viewfs_lchown);
-	SERVICESYSCALL(s, fchown, fchown);
+	//SERVICESYSCALL(s, fchown, fchown);
 	SERVICESYSCALL(s, chmod, viewfs_chmod);
-	SERVICESYSCALL(s, fchmod, fchmod);
+	//SERVICESYSCALL(s, fchmod, fchmod);
 	SERVICESYSCALL(s, unlink, viewfs_unlink);
 	SERVICESYSCALL(s, fsync, fsync);
 	SERVICESYSCALL(s, fdatasync, fdatasync);
@@ -1526,16 +1602,17 @@ init (void)
 	SERVICESYSCALL(s, symlink, viewfs_symlink);
 #if __WORDSIZE == 32
 	SERVICESYSCALL(s, truncate64, viewfs_truncate64);
-	//SERVICESYSCALL(s, ftruncate64, viewfs_ftruncate64);
+	SERVICESYSCALL(s, ftruncate64, ftruncate64);
 #else
 	SERVICESYSCALL(s, truncate, viewfs_truncate64);
-	//SERVICESYSCALL(s, ftruncate, viewfs_ftruncate64);
+	SERVICESYSCALL(s, ftruncate, ftruncate64);
 #endif
 	SERVICESYSCALL(s, pread64, pread64);
 	SERVICESYSCALL(s, pwrite64, pwrite64);
-	SERVICESYSCALL(s, utime, viewfs_utime);
+	//SERVICESYSCALL(s, utime, viewfs_utime);
 	SERVICESYSCALL(s, utimes, viewfs_utimes);
 	SERVICEVIRSYSCALL(s, msocket, viewfs_msocket);
+	s.event_subscribe=viewfs_event_subscribe;
 	FD_ZERO(&viewfs_dirset);
 	createscset();
 	add_service(&s);

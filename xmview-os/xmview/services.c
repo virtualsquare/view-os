@@ -75,6 +75,8 @@ static struct syscall_unifier scunify[] = {
 	{__NR_readv,	__NR_read},
 	{__NR_writev,	__NR_write},
 	{__NR_time,	  __NR_gettimeofday},
+	{__NR_fchown,	__NR_chown},
+	{__NR_fchmod,	__NR_chmod},
 #if (__NR_olduname != __NR_doesnotexist)
 	{__NR_olduname, __NR_uname},
 #endif
@@ -89,18 +91,26 @@ static struct syscall_unifier scunify[] = {
 	{__NR_umount,	__NR_umount2},
 	{__NR_stat,		__NR_stat64},
 	{__NR_lstat,	__NR_lstat64},
-	{__NR_fstat,	__NR_fstat64},
+	{__NR_fstat,	__NR_stat64},
+	{__NR_fstat64,__NR_stat64},
 	{__NR_getdents,	__NR_getdents64},
 	{__NR_truncate,	__NR_truncate64},
 	{__NR_ftruncate,__NR_ftruncate64},
 	{__NR_statfs,	__NR_statfs64},
-	{__NR_fstatfs,	__NR_fstatfs64},
+	{__NR_fstatfs,	__NR_statfs64},
+#else
+	{__NR_fstatfs,	__NR_statfs},
+	{__NR_fstat,	__NR_stat},
 #endif 
 	{__NR_openat,	__NR_open},
 	{__NR_mkdirat,	__NR_mkdir},
 	{__NR_mknodat,	__NR_mknod},
 	{__NR_fchownat,	__NR_chown},
 	{__NR_futimesat,	__NR_utimes},
+#ifdef __NR_utimensat
+	{__NR_utimensat,	__NR_utimes},
+#endif
+	{__NR_utime,	__NR_utimes},
 #ifdef __NR_newfstatat
 	{__NR_newfstatat,	__NR_stat64},
 #endif
@@ -135,7 +145,8 @@ static struct syscall_unifier scunify[] = {
 #if defined(__NR_chown32) && __NR_chown32 != __NR_chown
 	//{__NR_chown, __NR_chown32},
 	//{__NR_lchown, __NR_lchown32},
-	//{__NR_fchown, __NR_fchown32},
+	//{__NR_fchown, __NR_chown32},
+	{__NR_fchown32, __NR_chown32},
 #endif
 #ifdef SNDRCVMSGUNIFY
 #if (__NR_socketcall == __NR_doesnotexist)

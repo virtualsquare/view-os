@@ -131,8 +131,8 @@ int wrap_in_chown(int sc_number,struct pcb *pc,
 int wrap_in_fchown(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	if (sfd < 0) {
+	char *path=fd_getpath(pc->fds,pc->sysargs[0]);
+	if (path==NULL) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 		return SC_FAKE;
@@ -146,7 +146,7 @@ int wrap_in_fchown(int sc_number,struct pcb *pc,
 			group=id16to32(group);
 		}
 #endif
-		if ((pc->retval = um_syscall(sfd,owner,group)) < 0)
+		if ((pc->retval = um_syscall(path,owner,group)) < 0)
 			pc->erno=errno;
 		return SC_FAKE;
 	}
@@ -170,15 +170,15 @@ int wrap_in_chmod(int sc_number,struct pcb *pc,
 int wrap_in_fchmod(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	if (sfd < 0) {
+	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	if (path==NULL) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 		return SC_FAKE;
 	} else {
 		int mode;
 		mode=pc->sysargs[1];
-		if ((pc->retval = um_syscall(sfd,mode)) < 0)
+		if ((pc->retval = um_syscall(path,mode)) < 0)
 			pc->erno=errno;
 		return SC_FAKE;
 	}
@@ -248,6 +248,53 @@ int wrap_out_dup(int sc_number,struct pcb *pc)
 	return STD_BEHAVIOR;
 }
 
+struct um_flock32 {
+	  short l_type;
+		short l_whence;
+		off_t l_start;
+		off_t l_len;
+		pid_t l_pid;
+};
+
+struct um_flock64 {
+	short  l_type;
+	short  l_whence;
+	loff_t l_start;
+	loff_t l_len;
+	pid_t  l_pid;
+};
+
+static inline void get_flock64(struct pcb *pc,unsigned long addr,struct um_flock64 *fl)
+{
+	umoven(pc,addr,sizeof(struct um_flock64),fl);
+}
+
+static inline void put_flock64(struct pcb *pc,unsigned long addr,struct um_flock64 *fl)
+{
+	ustoren(pc,addr,sizeof(struct um_flock64),fl);
+}
+
+static inline void get_flock32(struct pcb *pc,unsigned long addr,struct um_flock64 *fl)
+{
+	struct um_flock32 fl32;
+	umoven(pc,addr,sizeof(struct um_flock32),&fl32);
+	fl->l_type=fl32.l_type;
+	fl->l_whence=fl32.l_whence;
+	fl->l_start=fl32.l_start;
+	fl->l_len=fl32.l_len;
+	fl->l_pid=fl32.l_pid;
+}
+
+static inline void put_flock32(struct pcb *pc,unsigned long addr,struct um_flock64 *fl)
+{
+	struct um_flock32 fl32;
+	fl32.l_type=fl->l_type;
+	fl32.l_whence=fl->l_whence;
+	fl32.l_start=fl->l_start;
+	fl32.l_len=fl->l_len;
+	fl32.l_pid=fl->l_pid;
+	ustoren(pc,addr,sizeof(struct um_flock32),&fl32);
+}
 
 int wrap_in_fcntl(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
@@ -283,28 +330,60 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 				else
 					pc->erno=0;
 				break;
-			default:
-#if 0
-				/* WIP XXX */
-				switch (cmd) {
-					case F_GETLK:
-					case F_SETLK:
-					case F_SETLKW:
-						break;
-				}
+			case F_GETLK:
+			case F_SETLK:
+			case F_SETLKW:
+#ifdef F_GETLK64
+			case F_GETLK64:
+			case F_SETLK64:
+			case F_SETLKW64:
 #endif
+				{
+					struct um_flock64 flock;
+#ifdef __NR_fcntl64
+					if (sc_number == __NR_fcntl64 
+#ifdef F_GETLK64
+							|| cmd==F_GETLK64 || cmd==F_SETLK64 || cmd==F_SETLKW64
+#endif
+						 )
+						get_flock64(pc,arg,&flock);
+					else
+						get_flock32(pc,arg,&flock);
+#else
+					get_flock64(pc,arg,&flock);
+#endif
+					if ((pc->retval = um_syscall(sfd,cmd,&flock)) == -1)
+						pc->erno= errno;
+					if (pc->retval < 0 && pc->erno == ENOSYS) { /* last chance */
+						fprint2("Locking unsupported\n");
+						pc->retval= -1;
+						pc->erno= EBADF;
+						return SC_FAKE;
+					}
+					if (cmd==F_GETLK
+#ifdef F_GETLK64
+							|| cmd==F_GETLK64
+#endif
+						 ) {
+#ifdef __NR_fcntl64
+						if (sc_number == __NR_fcntl64
+#ifdef F_GETLK64
+								|| cmd==F_GETLK64 || cmd==F_SETLK64 || cmd==F_SETLKW64
+#endif
+							 )
+							put_flock64(pc,arg,&flock);
+						else
+							put_flock32(pc,arg,&flock);
+#else
+						put_flock64(pc,arg,&flock);
+#endif
+					}
+					//fprint2("LOCK %d %d %d %d\n",sc_number,fd,cmd,pc->retval,pc->erno);
+					break;
+				}
+			default:
 				if ((pc->retval = um_syscall(sfd,cmd,arg)) == -1)
 					pc->erno= errno;
-#if 0
-				/* WIP XXX */
-				switch (cmd) {
-					case F_GETLK:
-					case F_SETLK:
-					case F_SETLKW:
-						fprint2("LOCK %d %d %d %d\n",sc_number,fd,cmd,pc->retval,pc->erno);
-						break;
-				}
-#endif
 				if (pc->retval < 0 && pc->erno == ENOSYS) { /* last chance */
 					switch (cmd) {
 						/* this is just a workaround for module that does not manage
@@ -317,14 +396,6 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 							break;
 							/* F_SETFL is useless if the module does not change the flags
 							 * effectively */
-						case F_GETLK:
-						case F_SETLK:
-						case F_SETLKW:
-							/* LOCKING unsupported yet XXX */
-							fprint2("Locking unsupported\n");
-							pc->retval= -1;
-							pc->erno= EBADF;
-							return SC_FAKE;
 					}
 				}
 		}
@@ -431,10 +502,14 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	unsigned long argaddr;
-	int argsize;
-	char *larg;
-#ifdef __NR_futimes
-	if (sc_number == __NR_futimes)
+	struct timeval tv[2];
+	struct timeval *larg;
+#ifdef __NR_futimesat
+	if (sc_number == __NR_futimesat
+#ifdef __NR_utimensat
+			|| sc_number==__NR_utimensat
+#endif
+			)
 		argaddr=pc->sysargs[2];
 	else
 #endif
@@ -442,14 +517,27 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 	if (argaddr == umNULL) 
 		larg=NULL;
 	else {
-		if (sc_number == __NR_utime)
+		if (sc_number == __NR_utime) {
 			/* UTIME */
-			argsize=sizeof(struct utimbuf);
-		else
+			struct utimbuf buf;
+			umoven(pc,argaddr,sizeof(struct utimbuf),&buf);
+			tv[0].tv_sec=buf.actime;
+			tv[1].tv_sec=buf.modtime;
+			tv[0].tv_usec=tv[1].tv_usec=0;
+		} else
+#ifdef __NR_utimensat
+			if (sc_number == __NR_utimensat) {
+				struct timespec times[2];
+				umoven(pc,argaddr,2*sizeof(struct timespec),times);
+				tv[0].tv_sec=times[0].tv_sec;
+				tv[1].tv_sec=times[1].tv_sec;
+				tv[0].tv_usec=times[0].tv_nsec/1000;
+				tv[1].tv_usec=times[1].tv_nsec/1000;
+			} else 
+#endif
 			/* UTIMES FUTIMESAT*/
-			argsize=2*sizeof(struct timeval);
-		larg=alloca(argsize);
-		umoven(pc,argaddr,argsize,larg);
+			umoven(pc,argaddr,2*sizeof(struct timeval),tv);
+		larg=tv;
 	}
 	if ((pc->retval = um_syscall(pc->path,larg)) < 0)
 		pc->erno=errno;
@@ -585,12 +673,12 @@ int wrap_in_fstatfs(int sc_number,struct pcb *pc,
 {
 	struct statfs64 sfs64;
 	long pbuf=pc->sysargs[1];
-	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	if (sfd < 0) {
+	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	if (path==NULL) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		if ((pc->retval = um_syscall(sfd,&sfs64)) >= 0) {
+		if ((pc->retval = um_syscall(path,&sfs64)) >= 0) {
 			struct statfs sfs;
 			statfs264(&sfs,&sfs64);
 			ustoren(pc,pbuf,sizeof(struct statfs),(char *)&sfs);
@@ -628,16 +716,16 @@ int wrap_in_fstatfs64(int sc_number,struct pcb *pc,
 	struct statfs64 sfs64;
 	long size=pc->sysargs[1];
 	long pbuf=pc->sysargs[2];
-	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
+	char *path=fd_getpath(pc->fds,pc->sysargs[0]);
 
-	if (sfd < 0) {
+	if (path==NULL) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else if (size != sizeof(sfs64)) {
 		pc->retval= -1;
 		pc->erno= EINVAL;
 	} else {
-		if ((pc->retval = um_syscall(sfd,&sfs64)) >= 0)
+		if ((pc->retval = um_syscall(path,&sfs64)) >= 0)
 			ustoren(pc,pbuf,sizeof(struct statfs64),(char *)&sfs64);
 		else
 			pc->erno=errno;

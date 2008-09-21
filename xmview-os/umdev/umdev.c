@@ -117,30 +117,6 @@ static void printdebug(int level, const char *file, const int line, const char *
 }
 #endif
 
-static void cutdots(char *path)
-{
-	int l=strlen(path);
-	l--;
-	if (path[l]=='.') {
-		l--;
-		if(path[l]=='/') {
-			if (l!=0) path[l]=0; else path[l+1]=0;
-		} else if (path[l]=='.') {
-			l--;
-			if(path[l]=='/') {
-				while(l>0) {
-					l--;
-					if (path[l]=='/')
-						break;
-				}
-				if(path[l]=='/') {
-					if (l!=0) path[l]=0; else path[l+1]=0;
-				}
-			}
-		}
-	}
-}
-
 static int search_plusnum(const char *path, const char *base, int nsubdev)
 {
 	int len=strlen(base);
@@ -175,7 +151,6 @@ static struct umdev *searchdevice(char *path)
 	int maxi=-1;
 
 	PRINTDEBUG(0,"SearchContext:%s\n",path);
-	cutdots(path);
 	for (i=0;i<devicetabmax;i++)
 	{
 		epoch_t e;
@@ -1255,7 +1230,7 @@ init (void)
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, stat64, umdev_stat64);
 	SERVICESYSCALL(s, lstat64, umdev_lstat64);
-	SERVICESYSCALL(s, fstat64, umdev_fstat64);
+	//SERVICESYSCALL(s, fstat64, umdev_fstat64);
 #endif
 	SERVICESYSCALL(s, access, umdev_access);
 	SERVICESYSCALL(s, lseek, umdev_lseek);
@@ -1264,7 +1239,7 @@ init (void)
 #endif
 	//SERVICESYSCALL(s, mknod, umdev_mknod);
 	SERVICESYSCALL(s, chown, umdev_chown);
-	SERVICESYSCALL(s, fchown, fchown);
+	//SERVICESYSCALL(s, fchown, fchown);
 	SERVICESYSCALL(s, chmod, umdev_chmod);
 	//SERVICESYSCALL(s, fchmod, fchmod);
 	SERVICESYSCALL(s, fsync, umdev_fsync); 

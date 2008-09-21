@@ -255,6 +255,9 @@ struct sc_map scmap[]={
 	{__NR_readlinkat, choice_linkat, wrap_in_readlink, wrap_out_std, nchoice_linkat, nw_sysatpath_std, 0, 4, SOC_FILE},
 	{__NR_fchmodat, choice_pl4at, wrap_in_chmod, wrap_out_std, nchoice_pl4at, nw_sysatpath_std, 0, 4, SOC_FILE},
 	{__NR_faccessat, choice_pl4at, wrap_in_access, wrap_out_std, nchoice_pl4at, nw_sysatpath_std, 0, 4, SOC_FILE},
+#ifdef __NR_utimensat
+	{__NR_utimensat, choice_pl4at, wrap_in_utime,  wrap_out_std, nchoice_pl4at, nw_sysatpath_std, 0, 4, SOC_FILE},
+#endif
 #endif
 
 #ifdef _UM_MMAP

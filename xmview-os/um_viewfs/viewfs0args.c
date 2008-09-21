@@ -40,6 +40,8 @@
 #define VIEWFSARGCOW 12 //"cow"
 #define VIEWFSARGRENEW 13 //"renew"
 #define VIEWFSARGMINCOW 14 //"renew"
+#define VIEWFSARGWOK 15 //"wok"
+#define VIEWFSARGNOWOK 16 //"nowok"
 #define VIEWFSFLAGHASSTRING 1
 
 static struct viewfsargitem {
@@ -53,7 +55,9 @@ static struct viewfsargitem {
 	{"merge", VIEWFSARGMERGE, 0},
 	{"cow", VIEWFSARGCOW, 0},
 	{"renew", VIEWFSARGRENEW, 0},
-	{"mincow", VIEWFSARGMINCOW, 0}
+	{"mincow", VIEWFSARGMINCOW, 0},
+	{"wok", VIEWFSARGWOK, 0},
+	{"nowok", VIEWFSARGNOWOK, 0}
 };
 #define VIEWFSARGTABSIZE sizeof(viewfsargtab)/sizeof(struct viewfsargitem)
 
@@ -120,14 +124,20 @@ int viewfsargs(char *opts,int *pflags,char ***pexceptions)
 				break;
 			case VIEWFSARGCOW:
 				typeoption++;
-				*pflags |= VIEWFS_MERGE | VIEWFS_COW;
+				*pflags |= VIEWFS_MERGE | VIEWFS_COW | VIEWFS_WOK;
 				break;
 			case VIEWFSARGMINCOW:
 				typeoption++;
-				*pflags |= VIEWFS_MERGE | VIEWFS_COW | VIEWFS_MINCOW;
+				*pflags |= VIEWFS_MERGE | VIEWFS_COW | VIEWFS_MINCOW | VIEWFS_WOK;
 				break;
 			case VIEWFSARGRENEW:
 				*pflags |= VIEWFS_RENEW;
+				break;
+			case VIEWFSARGWOK:
+				*pflags |= VIEWFS_WOK;
+				break;
+			case VIEWFSARGNOWOK:
+				*pflags &= ~VIEWFS_WOK;
 				break;
 			case 0:
 				fprint2("viewfs unknown option %s\n",sepopts[i]);

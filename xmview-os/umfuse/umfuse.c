@@ -197,30 +197,6 @@ static void printdebug(int level, const char *file, const int line, const char *
 #endif
 #endif
 
-static cutdots(char *path)
-{
-	int l=strlen(path);
-	l--;
-	if (path[l]=='.') {
-		l--;
-		if(path[l]=='/') {
-			if (l!=0) path[l]=0; else path[l+1]=0;
-		} else if (path[l]=='.') {
-			l--;
-			if(path[l]=='/') {
-				while(l>0) {
-					l--;
-					if (path[l]=='/')
-						break;
-				}
-				if(path[l]=='/') {
-					if (l!=0) path[l]=0; else path[l+1]=0;
-				}
-			}
-		}
-	}
-}
-
 /* search for exceptions returns 1 if it is an exception */
 
 static inline int isexception(char *path, char **exceptions, struct fuse_context *fc)
@@ -251,7 +227,7 @@ static inline int isexception(char *path, char **exceptions, struct fuse_context
 static inline void freeexceptions(char **exceptions)
 {
 	if (__builtin_expect((exceptions == NULL),1))
-		 return 0;
+		 return;
 	 else {
 		 char **excscan=exceptions;
 		 while (*excscan != 0) {
@@ -271,7 +247,6 @@ static struct fuse_context *searchcontext(char *path,int exact)
 	epoch_t maxepoch=0;
 	int maxi=-1;
 	GDEBUG(1,"SearchContext:%s-%s ENTER!",path, exact?"EXACT":"SUBSTR");
-	cutdots(path);
 	for (i=0;i<fusetabmax;i++)
 	{
 		epoch_t e;
@@ -1098,6 +1073,7 @@ static void umcleandirinfo(struct umdirent *tail)
 			struct umdirent *tmp;
 			tmp=tail->next;
 			tail->next=tmp->next;
+			free(tmp->de.d_name);
 			free(tmp);
 		}
 		free(tail);
@@ -2430,15 +2406,15 @@ init (void)
 #if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have these
 	SERVICESYSCALL(s, stat64, umfuse_stat64);
 	SERVICESYSCALL(s, lstat64, umfuse_lstat64);
-	SERVICESYSCALL(s, fstat64, umfuse_fstat64);
+	//SERVICESYSCALL(s, fstat64, umfuse_fstat64);
 	SERVICESYSCALL(s, statfs64, umfuse_statfs64);
 	SERVICESYSCALL(s, fstatfs64, umfuse_fstatfs64);
 #else 
 	SERVICESYSCALL(s, stat, umfuse_stat64);
 	SERVICESYSCALL(s, lstat, umfuse_lstat64);
-	SERVICESYSCALL(s, fstat, umfuse_fstat64);
+	//SERVICESYSCALL(s, fstat, umfuse_fstat64);
 	SERVICESYSCALL(s, statfs, umfuse_statfs64);
-	SERVICESYSCALL(s, fstatfs, umfuse_fstatfs64);
+	//SERVICESYSCALL(s, fstatfs, umfuse_fstatfs64);
 #endif
 	SERVICESYSCALL(s, readlink, umfuse_readlink);
 	SERVICESYSCALL(s, getdents64, umfuse_getdents64);
@@ -2473,7 +2449,7 @@ init (void)
 #endif
 	SERVICESYSCALL(s, pread64, umfuse_pread64);
 	SERVICESYSCALL(s, pwrite64, umfuse_pwrite64);
-	SERVICESYSCALL(s, utime, umfuse_utime);
+	//SERVICESYSCALL(s, utime, umfuse_utime);
 	SERVICESYSCALL(s, utimes, umfuse_utimes);
 	add_service(&s);
 }

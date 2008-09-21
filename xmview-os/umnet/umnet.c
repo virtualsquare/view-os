@@ -106,30 +106,6 @@ struct umnetdefault {
 static struct umnetdefault **defnet=NULL;
 static int defnetsize=0;
 
-static void cutdots(char *path)
-{
-	int l=strlen(path);
-	l--;
-	if (path[l]=='.') {
-		l--;
-		if(path[l]=='/') {
-			if (l!=0) path[l]=0; else path[l+1]=0;
-		} else if (path[l]=='.') {
-			l--;
-			if(path[l]=='/') {
-				while(l>0) {
-					l--;
-					if (path[l]=='/')
-						break;
-				}
-				if(path[l]=='/') {
-					if (l!=0) path[l]=0; else path[l+1]=0;
-				}
-			}
-		}
-	}
-}
-
 /* Is it always "exact"? I think so (rd 20080420) */
 static struct umnet *searchnet(char *path,int exact)
 {
@@ -142,7 +118,6 @@ static struct umnet *searchnet(char *path,int exact)
 	PRINTDEBUG(0,"SearchNetContext:%s\n",path);
 	if (path==NULL)
 		fprint2("SearchNetContext:%s\n",path);
-	cutdots(path);
 	for (i=0;i<nettabmax;i++)
 	{
 		epoch_t e;
@@ -959,7 +934,7 @@ init (void)
 	SERVICESYSCALL(s, close, umnet_close);
 	SERVICESYSCALL(s, stat64, umnet_stat64);
 	SERVICESYSCALL(s, lstat64, umnet_stat64);
-	SERVICESYSCALL(s, fstat64, umnet_fstat64);
+	//SERVICESYSCALL(s, fstat64, umnet_fstat64);
 	SERVICESYSCALL(s, fcntl64, umnet_fcntl64);
 	SERVICESYSCALL(s, access, umnet_access);
 	SERVICESYSCALL(s, chmod, umnet_chmod);

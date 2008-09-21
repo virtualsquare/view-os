@@ -153,30 +153,6 @@ static void printdebug(int level, const char *file, const int line, const char *
 }
 #endif
 
-static void cutdots(char *path)
-{
-	int l=strlen(path);
-	l--;
-	if (path[l]=='.') {
-		l--;
-		if(path[l]=='/') {
-			if (l!=0) path[l]=0; else path[l+1]=0;
-		} else if (path[l]=='.') {
-			l--;
-			if(path[l]=='/') {
-				while(l>0) {
-					l--;
-					if (path[l]=='/')
-						break;
-				}
-				if(path[l]=='/') {
-					if (l!=0) path[l]=0; else path[l+1]=0;
-				}
-			}
-		}
-	}
-}
-
 /* search a binfmt, returns the context i.e. the index of info for mounted file
  * -1 otherwise */
 static struct umbinfmt *searchbmfile(char *path)
@@ -186,7 +162,6 @@ static struct umbinfmt *searchbmfile(char *path)
 	epoch_t maxepoch=0;
 	int maxi=-1;
 	PRINTDEBUG(0,"SearchContext:%s\n",path);
-	cutdots(path);
 	for (i=0;i<mnttabmax;i++)
 	{
 		epoch_t e;
@@ -1182,11 +1157,11 @@ init (void)
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, stat64, umbinfmt_stat64);
 	SERVICESYSCALL(s, lstat64, umbinfmt_lstat64);
-	SERVICESYSCALL(s, fstat64, umbinfmt_fstat64);
+	//SERVICESYSCALL(s, fstat64, umbinfmt_fstat64);
 #else
 	SERVICESYSCALL(s, stat, umbinfmt_stat64);
 	SERVICESYSCALL(s, lstat, umbinfmt_lstat64);
-	SERVICESYSCALL(s, fstat, umbinfmt_fstat64);
+	//SERVICESYSCALL(s, fstat, umbinfmt_fstat64);
 #endif
 	SERVICESYSCALL(s, access, umbinfmt_access);
 	SERVICESYSCALL(s, lseek, umbinfmt_lseek);

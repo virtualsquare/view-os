@@ -305,45 +305,6 @@ static sysfun action_map_access[] = {
 /* VREM | VADD | VMRG | VMOV | VCOW | VDIR */ action_path_invalid
 };
 
-static void cutdots(char *path)
-{
-	int l = strlen(path);
-	GDEBUG(5, "original string: %s", path);
-	l--;
-	if (path[l] == '.')
-	{
-		l--;
-		if (path[l] == '/')
-		{
-			if (l)
-				path[l] = 0;
-			else
-				path[l+1] = 0;
-		}
-		else if (path[l] == '.')
-		{
-			l--;
-			if (path[l] == '/')
-			{
-				while (l > 0)
-				{
-					l--;
-					if (path[l] == '/')
-						break;
-				}
-				if(path[l] == '/')
-				{
-					if (l)
-						path[l] = 0;
-					else
-						path[l+1] = 0;
-				}
-			}
-		}
-	}
-	GDEBUG(5, "final string   : %s", path);
-}
-
 static void addlayertab(struct viewfs_layer *new)
 {
 	int i;
@@ -389,8 +350,6 @@ static struct viewfs_layer *searchlayer(char *path, int exact)
 
 	if (!path || !path[0])
 		return NULL;
-
-	cutdots(path);
 
 	GDEBUG(2, "trying to match path %s", path);
 

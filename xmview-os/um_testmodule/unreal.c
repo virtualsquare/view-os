@@ -209,10 +209,12 @@ static long unreal_symlink(char *oldpath, char *newpath)
 	return symlink(oldpath,unwrap(newpath));
 }
 
+#if 0
 static long unreal_utime(char *filename, struct utimbuf *buf)
 {
 	return utime(unwrap(filename),buf);
 }
+#endif
 
 static long unreal_utimes(char *filename, struct timeval tv[2])
 {
@@ -264,11 +266,11 @@ init (void)
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, stat64, unreal_stat64);
 	SERVICESYSCALL(s, lstat64, unreal_lstat64);
-	SERVICESYSCALL(s, fstat64, fstat64);
+	//SERVICESYSCALL(s, fstat64, fstat64);
 #else
 	SERVICESYSCALL(s, stat, unreal_stat64);
 	SERVICESYSCALL(s, lstat, unreal_lstat64);
-	SERVICESYSCALL(s, fstat, fstat64);
+	//SERVICESYSCALL(s, fstat, fstat64);
 #endif
 	SERVICESYSCALL(s, readlink, unreal_readlink);
 #if 0 
@@ -288,9 +290,9 @@ init (void)
 	SERVICESYSCALL(s, rmdir, unreal_rmdir);
 	SERVICESYSCALL(s, chown, unreal_chown);
 	SERVICESYSCALL(s, lchown, unreal_lchown);
-	SERVICESYSCALL(s, fchown, fchown);
+	//SERVICESYSCALL(s, fchown, fchown);
 	SERVICESYSCALL(s, chmod, unreal_chmod);
-	SERVICESYSCALL(s, fchmod, fchmod);
+	//SERVICESYSCALL(s, fchmod, fchmod);
 	SERVICESYSCALL(s, unlink, unreal_unlink);
 	SERVICESYSCALL(s, fsync, fsync);
 	SERVICESYSCALL(s, fdatasync, fdatasync);
@@ -299,14 +301,14 @@ init (void)
 	SERVICESYSCALL(s, symlink, unreal_symlink);
 	SERVICESYSCALL(s, pread64, unreal_pread);
 	SERVICESYSCALL(s, pwrite64, unreal_pwrite);
-	SERVICESYSCALL(s, utime, unreal_utime);
+	//SERVICESYSCALL(s, utime, unreal_utime);
 	SERVICESYSCALL(s, utimes, unreal_utimes);
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, statfs64, unreal_statfs64);
-	SERVICESYSCALL(s, fstatfs64, fstatfs64);
+	//SERVICESYSCALL(s, fstatfs64, fstatfs64);
 #else
 	SERVICESYSCALL(s, statfs, unreal_statfs64);
-	SERVICESYSCALL(s, fstatfs, fstatfs64);
+	//SERVICESYSCALL(s, fstatfs, fstatfs64);
 #endif
 	add_service(&s);
 	t1=tst_timestamp();

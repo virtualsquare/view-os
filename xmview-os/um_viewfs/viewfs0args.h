@@ -30,6 +30,7 @@
 #define VIEWFS_COW   0x02 
 #define VIEWFS_MINCOW 0x10
 #define VIEWFS_RENEW 0x100 
+#define VIEWFS_WOK   0x200 
 
 int viewfsarg(char *opts,int *pflags,char ***pexceptions);
 #endif
