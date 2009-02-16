@@ -1180,7 +1180,7 @@ int __fxstatat(int ver, int fildes, const char *pathname, struct stat* buf_stat,
 			break;
 
 		default:
-			fprintf(stderr, "*** BUG! *** __fxstat can't manage version %d!\n", ver);
+			fprintf(stderr, "*** BUG! *** __fxstatat can't manage version %d!\n", ver);
 			abort();
 	}
 	if (rv >= 0)
