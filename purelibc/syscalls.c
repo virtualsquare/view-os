@@ -279,6 +279,7 @@ int __lxstat64(int ver,const char* pathname,struct stat64* buf){
 int __fxstat64 (int ver, int fildes, struct stat64 *buf){
 	return _pure_syscall(MAKE_NAME(__NR_f, arch_stat64), fildes, buf);
 }
+/* end of unreadable code */
 
 int mknod(const char *pathname, mode_t mode, dev_t dev) {
 	return _pure_syscall(__NR_mknod,pathname,mode,dev);
@@ -291,6 +292,21 @@ int __xmknod (int ver, const char *path, mode_t mode, dev_t *dev) {
 int access(const char* pathname,int mode){
 	return _pure_syscall(__NR_access,pathname,mode);
 }
+int __access(const char* pathname,int mode){
+	return access(pathname,mode);
+}
+
+#ifdef __NR_faccessat
+int euidaccess(const char *pathname, int mode){
+	return _pure_syscall(__NR_faccessat,AT_FDCWD,pathname,mode,AT_EACCESS);
+}
+int eaccess(const char *pathname, int mode){
+	return euidaccess(pathname,mode);
+}
+int __euidaccess(const char *pathname, int mode){
+	return euidaccess(pathname,mode);
+}
+#endif
 
 ssize_t readlink(const char* pathname,char* buf, size_t bufsize){
 	return _pure_syscall(__NR_readlink,pathname,buf,bufsize);
@@ -589,17 +605,29 @@ int setegid(gid_t egid){
 uid_t getuid(void) {
 	return _pure_syscall(__NR_getuid);
 }
+uid_t __getuid(void) {
+	return getuid();
+}
 
 gid_t getgid(void) {
 	return _pure_syscall(__NR_getgid);
+}
+gid_t __getgid(void) {
+	return getgid();
 }
 
 uid_t geteuid(void) {
 	return _pure_syscall(__NR_geteuid);
 }
+uid_t __geteuid(void) {
+	return geteuid();
+}
 
 gid_t getegid(void) {
 	return _pure_syscall(__NR_getegid);
+}
+gid_t __getegid(void) {
+	return getegid();
 }
 
 int setreuid(uid_t ruid, uid_t euid){
@@ -1086,6 +1114,129 @@ int ftime(struct timeb *tp){
 	tp->dstflag = daylight;
 	return rv;
 }
+
+/* *at syscalls */
+
+#ifdef __NR_openat
+int openat(int dirfd,const char* pathname,int flags,...){
+	va_list arg_list;
+	if( flags |  O_CREAT ){
+		mode_t mode;
+		va_start(arg_list,flags);
+		mode = va_arg(arg_list,mode_t);
+		va_end(arg_list);
+		return _pure_syscall(__NR_openat,dirfd,pathname,flags,mode);
+	}
+	else
+		return _pure_syscall(__NR_openat,dirfd,pathname,flags);
+}
+#endif
+
+#ifdef __NR_mkdirat
+int mkdirat(int dirfd,const char* pathname,mode_t mode){
+	  return _pure_syscall(__NR_mkdirat,dirfd,pathname,mode);
+}
+#endif
+
+#ifdef __NR_mknodat
+int mknodat(int dirfd,const char *pathname, mode_t mode, dev_t dev) {
+	  return _pure_syscall(__NR_mknodat,dirfd,pathname,mode,dev);
+}
+#endif
+
+#ifdef __NR_fchownat
+int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags) {
+	return _pure_syscall(__NR_fchownat,dirfd,pathname,owner,group,flags);
+}
+#endif
+
+#ifdef __NR_futimesat
+int futimesat(int dirfd, const char *pathname, const struct timeval times[2]) {
+	return _pure_syscall(__NR_futimesat,dirfd,pathname,times);
+}
+#endif
+
+#ifdef __NR_fstatat64
+#define __NR_FSTATAT64 __NR_fstatat64
+#endif
+#ifdef __NR_newfstatat
+#define __NR_FSTATAT64 __NR_newfstatat
+#endif
+#ifdef __NR_FSTATAT64
+int fstatat(int dirfd, const char *pathname, struct stat *buf, int flags) {
+	return _pure_syscall(__NR_fstatat64,dirfd,pathname,buf,flags);
+}
+int __fxstatat64 (int ver, int dirfd, const char *pathname, struct stat64 *buf, int flags){
+	return _pure_syscall(__NR_fstatat64,dirfd,pathname,buf,flags);
+}
+int __fxstatat(int ver, int fildes, const char *pathname, struct stat* buf_stat,int flags)
+{
+	IFNOT64(struct stat64 *buf_stat64 = alloca(sizeof(struct stat64));)
+	int rv;
+	switch(ver)
+	{
+		case _STAT_VER_LINUX:
+			rv = _pure_syscall(__NR_fstatat64, fildes, pathname, MAKE_NAME(buf_, arch_stat64), flags);
+			break;
+
+		default:
+			fprintf(stderr, "*** BUG! *** __fxstat can't manage version %d!\n", ver);
+			abort();
+	}
+	if (rv >= 0)
+		arch_stat64_2_stat(MAKE_NAME(buf_, arch_stat64), buf_stat);
+	return rv;
+}
+#endif
+
+#ifdef __NR_unlinkat
+int unlinkat(int dirfd, const char *pathname, int flags){
+	return _pure_syscall(__NR_unlinkat,dirfd,pathname,flags);
+}
+#endif
+
+#ifdef __NR_renameat
+int renameat(int olddirfd, const char *oldpath,int newdirfd, const char *newpath){
+	return _pure_syscall(__NR_renameat,olddirfd,oldpath,newdirfd,newpath);
+}
+#endif
+
+#ifdef __NR_linkat
+int linkat(int olddirfd, const char *oldpath,int newdirfd, const char *newpath, int flags){
+	return _pure_syscall(__NR_linkat,oldpath,newdirfd,newpath,flags);
+}
+
+#endif
+
+#ifdef __NR_symlinkat
+int symlinkat(const char *oldpath, int newdirfd, const char *newpath){
+	return _pure_syscall(__NR_symlinkat,oldpath,newdirfd,newpath);
+}
+#endif
+
+#ifdef __NR_readlinkat
+int readlinkat(int dirfd, const char *pathname,char *buf, size_t bufsiz){
+	return _pure_syscall(__NR_readlinkat,dirfd,pathname,bufsiz);
+}
+#endif
+
+#ifdef __NR_fchmodat
+int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags){
+	return _pure_syscall(__NR_fchmodat,dirfd,pathname,mode,flags);
+}
+#endif
+
+#ifdef __NR_faccessat
+int faccessat(int dirfd, const char *pathname, int mode, int flags){
+	return _pure_syscall(__NR_faccessat,dirfd,pathname,mode,flags);
+}
+#endif
+
+#ifdef __NR_utimensat
+int utimensat(int dirfd, const char *pathname, const struct timespec times[2], int flags){
+	return _pure_syscall(__NR_utimensat,dirfd,pathname,times,flags);
+}
+#endif
 
 static void init(void);
 long int syscall(long int n,...)
