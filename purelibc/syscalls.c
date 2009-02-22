@@ -1130,6 +1130,19 @@ int openat(int dirfd,const char* pathname,int flags,...){
 	else
 		return _pure_syscall(__NR_openat,dirfd,pathname,flags);
 }
+
+int openat64(int dirfd,const char* pathname,int flags,...){
+	va_list arg_list;
+	if( flags |  O_CREAT ){
+		mode_t mode;
+		va_start(arg_list,flags);
+		mode = va_arg(arg_list,mode_t);
+		va_end(arg_list);
+		return _pure_syscall(__NR_openat,dirfd,pathname,flags|O_LARGEFILE,mode);
+	}
+	else
+		return _pure_syscall(__NR_openat,dirfd,pathname,flags|O_LARGEFILE);
+}
 #endif
 
 #ifdef __NR_mkdirat
