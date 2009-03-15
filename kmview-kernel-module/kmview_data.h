@@ -22,6 +22,7 @@
 #include <linux/utrace.h>
 #include <linux/list.h>
 #include <linux/wait.h>
+#include <linux/semaphore.h>
 /* PUBLIC INTERFACE IS IN kmview.h */
 #include "kmview.h"
 
@@ -49,11 +50,12 @@ struct kmview_thread {
 	pid_t umpid;
 	u32 flags;
 	unsigned long scno;
-	struct utrace_attached_engine *engine;
+	struct utrace_engine *engine;
 	struct pt_regs *regs;
 #ifdef __NR_socketcall
 	unsigned long socketcallargs[6];
 #endif
+	struct utrace_examiner exam;
 	struct kmview_fdsysset *fdset;
 };
 

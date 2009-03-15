@@ -1,8 +1,8 @@
 KMVIEW kernel module
 
 (c) 2007 Andrea Gasparini (gaspa@yattaweb.it), 
-         Renzo Davoli (renzo@cs.unibo.it)
-
+    2007,2008,2009 Renzo Davoli (renzo@cs.unibo.it)
+	  
 This is kmview: the kernel module view-os implementation.
 
 More precisely this directory includes the kernel patches and the 
@@ -12,7 +12,7 @@ Please note that kmview is already an experimental project.
 
 To install kmview:
 
-1- download your favourite kernel (>2.6.22) Check into kernel_patches that we
+1- download your favourite kernel (>=2.6.29) Check into kernel_patches that we
 have already updated the kerenl patches for that kernel.
 
 2- download and install the latest utrace patches for the kernel you
@@ -39,6 +39,5 @@ make KERNELDIR="/path/to/your/kernel_source/"
 8- create the device:
 # mkdev /dev/kmview c 10 233
 # chmod 666 /dev/kmview
-(official device number assignment requested).
 
 Now you can run the kmview application and enjoy the fast virtualization.

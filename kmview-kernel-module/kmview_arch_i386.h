@@ -9,20 +9,20 @@
 #define FDSOCKETCALL64 0x000000000003fefc
 
 #define MAXERR 4096
-#define arch_scno(X) ((X)->orig_eax)
+#define arch_scno(X) ((X)->orig_ax)
 #define arch_n(X,N) (*(((long *)(X))+(N)))
-#define arch_sp(X) ((X)->esp)
-#define arch_pc(X) ((X)->eip)
-#define arch_get_rv(X) ({ int eax; \
-		    eax = (X)->eax;\
-		    (eax<0 && -eax < MAXERR)? -1 : eax; })
-#define arch_get_errno(X) ({ int eax; \
-		    eax = (X)->eax;\
-		    (eax<0 && -eax < MAXERR)? -eax : 0; })
+#define arch_sp(X) ((X)->sp)
+#define arch_pc(X) ((X)->ip)
+#define arch_get_rv(X) ({ int ax; \
+		    ax = (X)->ax;\
+		    (ax<0 && -ax < MAXERR)? -1 : ax; })
+#define arch_get_errno(X) ({ int ax; \
+		    ax = (X)->ax;\
+		    (ax<0 && -ax < MAXERR)? -ax : 0; })
 #define arch_put_rv_errno(X,RV,ERRNO) ({if ((ERRNO) != 0) {\
 		if ((ERRNO) < 0) (ERRNO)=-ERRNO;\
-		(X)->eax=-(ERRNO); } else\
-		(X)->eax=(RV); })
+		(X)->ax=-(ERRNO); } else\
+		(X)->ax=(RV); })
 
 #ifndef BITS_PER_LONG
 #error "BITS_PER_LONG undefined"

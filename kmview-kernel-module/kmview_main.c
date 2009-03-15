@@ -105,8 +105,9 @@ static void terminated_tracer_kill_threads(struct kmpid_struct *kms,void *arg)
 	struct kmview_tracer *kmt=arg;
 	if (kms->km_thread->tracer == kmt || kmt==NULL) {
 		if (kms->km_thread->task) {
-			utrace_detach(kms->km_thread->task,kms->km_thread->engine);
-			kill_proc(kms->km_thread->task->pid,9,0);
+			int rv;
+			rv=utrace_control(kms->km_thread->task,kms->km_thread->engine,UTRACE_DETACH);
+			send_sig(SIGKILL,kms->km_thread->task,1);
 		}
 		kmview_thread_free(kms->km_thread);
 	}
@@ -202,6 +203,9 @@ static ssize_t kmview_read(struct file *filp, char __user *buf, size_t count, lo
 	struct kmview_event *event=(struct kmview_event *)buf;
 	int len;
 
+#ifdef KMDEBUG
+	printk("READ pending %d %p %d %d\n",current->pid,kmt,count,sizeof(*event));
+#endif
 	if(count < sizeof(*event))
 		return -EINVAL;
 	if(wait_event_interruptible(kmt->event_waitqueue, !list_empty(&kmt->event_queue)))
@@ -229,7 +233,7 @@ static int kmview_ioctl(struct inode *inode, struct file *filp,
 		return -EIO;
 	locked=1;
 #ifdef KMDEBUG
-	printk("IOCTL %d %d %p\n",current->pid,cmd,kmt);
+	printk("IOCTL %d %x %p\n",current->pid,cmd,kmt);
 #endif
 	switch(cmd) {
 		case KMVIEW_GET_VERSION:
@@ -255,7 +259,7 @@ static int kmview_ioctl(struct inode *inode, struct file *filp,
 				break;
 			}
 		case KMVIEW_ATTACH:
-			if (kmt->task->pid != current->parent->pid)
+			if (kmt->task->pid != current->real_parent->pid)
 				ret=-EPERM;
 			else {
 				up(&kmt->sem);
@@ -286,6 +290,7 @@ static int kmview_ioctl(struct inode *inode, struct file *filp,
 						kmpids->km_thread->tracer != kmt)
 					ret=-EPERM;
 				else {
+					//printk("KMVIEW_SYSRESUME\n");
 					kmpids->km_thread->flags |= KMVIEW_THREAD_FLAG_SKIP_EXIT;
 					kmpids->km_thread->flags &= ~KMVIEW_THREAD_FLAG_SKIP_CALL;
 					kmview_kmpid_resume(kmpid);
@@ -311,6 +316,7 @@ static int kmview_ioctl(struct inode *inode, struct file *filp,
 					} else { /* cmd == KMVIEW_SYSRETURN */
 						kmpids->km_thread->flags &= ~KMVIEW_THREAD_FLAG_SKIP_BOTH;
 					}
+					//printk("KMVIEW_SYSRETURN\n");
 					kmview_kmpid_resume(umsysreturn.x.kmpid);
 				}
 				break;
@@ -340,6 +346,7 @@ static int kmview_ioctl(struct inode *inode, struct file *filp,
 					kmpids->km_thread->flags &= ~KMVIEW_THREAD_FLAG_SKIP_BOTH;
 					if (cmd==KMVIEW_SYSARGMOD)
 						kmpids->km_thread->flags |= KMVIEW_THREAD_FLAG_SKIP_EXIT;
+					//printk("KMVIEW_SYSMODIFIED\n");
 					kmview_kmpid_resume(umsyscall.x.kmpid);
 				}
 				break;
@@ -355,7 +362,7 @@ static int kmview_ioctl(struct inode *inode, struct file *filp,
 				else if ((kmpids=kmpid_search(umpiddata.kmpid))==NULL ||
 						kmpids->km_thread->tracer != kmt)
 					ret=-EPERM;
-				else 
+				else  {
 					switch (cmd) {
 						case KMVIEW_READDATA:
 							ret=kmview_access_process_vm(kmpids->km_thread->task,
@@ -377,6 +384,7 @@ static int kmview_ioctl(struct inode *inode, struct file *filp,
 									umpiddata.len,1,0);
 							break;
 					}
+				}
 				break;
 			}
 		case KMVIEW_ADDFD:
