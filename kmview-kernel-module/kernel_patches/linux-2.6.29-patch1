@@ -1,0 +1,98 @@
+diff -Naur linux-2.6.29-rc7-git5-utrace/kernel/utrace.c linux-2.6.29-rc7-git5-utrace-p1/kernel/utrace.c
+--- linux-2.6.29-rc7-git5-utrace/kernel/utrace.c	2009-03-12 11:00:09.000000000 +0100
++++ linux-2.6.29-rc7-git5-utrace-p1/kernel/utrace.c	2009-03-12 13:55:31.000000000 +0100
+@@ -376,6 +376,13 @@
+ 	return killed;
+ }
+ 
++static void mark_engine_wants_stop(struct utrace_engine *engine);
++static void clear_engine_wants_stop(struct utrace_engine *engine);
++static bool engine_wants_stop(struct utrace_engine *engine);
++static void mark_engine_wants_resume(struct utrace_engine *engine);
++static void clear_engine_wants_resume(struct utrace_engine *engine);
++static bool engine_wants_resume(struct utrace_engine *engine);
++
+ /*
+  * Perform %UTRACE_STOP, i.e. block in TASK_TRACED until woken up.
+  * @task == current, @utrace == current->utrace, which is not locked.
+@@ -385,6 +392,7 @@
+ static bool utrace_stop(struct task_struct *task, struct utrace *utrace)
+ {
+ 	bool killed;
++	struct utrace_engine *engine, *next;
+ 
+ 	/*
+ 	 * @utrace->stopped is the flag that says we are safely
+@@ -406,7 +414,22 @@
+ 		return true;
+ 	}
+ 
+-	utrace->stopped = 1;
++	/* final check: it is really needed to stop? */
++	list_for_each_entry_safe(engine, next, &utrace->attached, entry) {
++		if ((engine->ops != &utrace_detached_ops) && engine_wants_stop(engine)) {
++			if (engine_wants_resume(engine)) {
++				clear_engine_wants_stop(engine);
++				clear_engine_wants_resume(engine);
++			} else
++				utrace->stopped = 1;
++		}
++	}
++	if (unlikely(!utrace->stopped)) {
++		spin_unlock_irq(&task->sighand->siglock);
++		spin_unlock(&utrace->lock);
++		return false;
++	}
++
+ 	__set_current_state(TASK_TRACED);
+ 
+ 	/*
+@@ -632,6 +655,7 @@
+  * to record whether the engine is keeping the target thread stopped.
+  */
+ #define ENGINE_STOP		(1UL << _UTRACE_NEVENTS)
++#define ENGINE_RESUME		(1UL << (_UTRACE_NEVENTS+1))
+ 
+ static void mark_engine_wants_stop(struct utrace_engine *engine)
+ {
+@@ -648,6 +672,21 @@
+ 	return (engine->flags & ENGINE_STOP) != 0;
+ }
+ 
++static void mark_engine_wants_resume(struct utrace_engine *engine)
++{
++	engine->flags |= ENGINE_RESUME;
++}
++
++static void clear_engine_wants_resume(struct utrace_engine *engine)
++{
++	engine->flags &= ~ENGINE_RESUME;
++}
++
++static bool engine_wants_resume(struct utrace_engine *engine)
++{
++	return (engine->flags & ENGINE_RESUME) != 0;
++}
++
+ /**
+  * utrace_set_events - choose which event reports a tracing engine gets
+  * @target:		thread to affect
+@@ -906,6 +945,10 @@
+ 			list_move(&engine->entry, &detached);
+ 		} else {
+ 			flags |= engine->flags | UTRACE_EVENT(REAP);
++			if (engine_wants_resume(engine)) {
++				clear_engine_wants_stop(engine);
++				clear_engine_wants_resume(engine);
++			}
+ 			wake = wake && !engine_wants_stop(engine);
+ 		}
+ 	}
+@@ -1133,6 +1176,7 @@
+ 		 * There might not be another report before it just
+ 		 * resumes, so make sure single-step is not left set.
+ 		 */
++		mark_engine_wants_resume(engine);
+ 		if (likely(resume))
+ 			user_disable_single_step(target);
+ 		break;
