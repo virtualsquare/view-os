@@ -189,6 +189,8 @@ by this latter call, return value and errno can be changed.
 
 ------------------------------------------------------------------------------
 A minimal tracer appear as follows:
+#include <stdio,h>
+#include <fcntl.h>
 #include <kmview.h>
 
 void dowait(int signal)
@@ -239,7 +241,27 @@ main(int argc, char *argv[])
 		execvp(argv[0],argv);
 	}
 }
+------------------------------------------------------------------------------
+DATA TRANSFER
+The tracer can transfer data from/to the traced process by ioctl:
 
+struct kmview_ioctl_data {
+  pid_t kmpid;
+  long addr;
+  int len;
+  void *localaddr;
+};
+ioctl(fd,KMVIEW_READDATA,& {struct kmview_ioctl_data var})
+ioctl(fd,KMVIEW_READSTRINGDATA,& {struct kmview_ioctl_data var})
+ioctl(fd,KMVIEW_WRITEDATA,& {struct kmview_ioctl_data var})
+
+KMVIEW_READDATA copy 'len' bytes from the traced process address 'addr' to
+the tracer address 'localaddr';
+KMVIEW_READSTRINGDATA copy at most 'len' bytes from the traced process address 
+'addr' to the tracer address 'localaddr'. if stops copying after
+the first null byte transferred.
+KMVIEW_WRITEDATA copy 'len' bytes from the tracer address 'localaddr' 'to 
+traced process address 'addr'.
 ------------------------------------------------------------------------------
 MAGICPOLL
 
@@ -364,4 +386,5 @@ These two calls cause a change of the system state: some virtual machine
 monitors (like our kmview) need to trace these changes.
 
 (C) 2007 Renzo Davoli and Andrea Gasparini.
+updated 2009 Renzo Davoli
 Document released under the CC Attribution ShareAlike license.
