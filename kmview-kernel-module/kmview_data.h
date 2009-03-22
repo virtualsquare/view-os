@@ -27,6 +27,7 @@
 #include "kmview.h"
 
 #define USE_KMEM_CACHE
+//#define KMVIEW_NEWSTOP
 
 struct kmview_tracer {
 	struct semaphore sem;
@@ -46,6 +47,9 @@ struct kmview_tracer {
 struct kmview_thread {
 	struct task_struct *task;
 	struct kmview_tracer *tracer;
+#ifdef KMVIEW_NEWSTOP
+	struct semaphore kmstop;
+#endif
 	pid_t kmpid;
 	pid_t umpid;
 	u32 flags;
