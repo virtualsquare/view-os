@@ -28,7 +28,7 @@
 
 pid_t kmview_root_thread(struct task_struct *task, struct kmview_tracer *tracer);
 void kmview_kmpid_resume(pid_t kmpid);
-void kmview_thread_free(struct kmview_thread *kmt);
+void kmview_thread_free(struct kmview_thread *kmt, int kill);
 void kmview_module_event_free(struct kmview_module_event *kme);
 int kmview_trace_init(void);
 void kmview_trace_fini(void);

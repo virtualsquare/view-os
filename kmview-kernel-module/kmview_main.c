@@ -23,7 +23,6 @@
 #include <linux/pid.h>
 #include <linux/err.h>
 #include <linux/fs.h>
-#include <linux/utrace.h>
 #include <linux/errno.h>
 #include <linux/cdev.h>
 #include <linux/list.h>
@@ -103,14 +102,8 @@ static int kmview_open(struct inode *inode, struct file *filp)
 static void terminated_tracer_kill_threads(struct kmpid_struct *kms,void *arg)
 {
 	struct kmview_tracer *kmt=arg;
-	if (kms->km_thread->tracer == kmt || kmt==NULL) {
-		if (kms->km_thread->task) {
-			int rv;
-			rv=utrace_control(kms->km_thread->task,kms->km_thread->engine,UTRACE_DETACH);
-			send_sig(SIGKILL,kms->km_thread->task,1);
-		}
-		kmview_thread_free(kms->km_thread);
-	}
+	if (kms->km_thread->tracer == kmt || kmt==NULL) 
+		kmview_thread_free(kms->km_thread, 1);
 }
 
 static void terminated_tracer_cleanup_msgqueue(struct kmview_tracer *kmt)
@@ -163,7 +156,7 @@ static int kmview_fill_event(struct kmview_tracer *kmt, struct kmview_event *eve
 		case KMVIEW_EVENT_TERMTHREAD:
 			event->x.termthread.umpid=module_event->thread->umpid;
 			event->x.termthread.remaining=module_event->arg;
-			kmview_thread_free(module_event->thread);
+			kmview_thread_free(module_event->thread,0);
 			len=sizeof(unsigned long)+sizeof(struct kmview_event_termthread);
 			break;
 		case KMVIEW_EVENT_SYSCALL_ENTRY:

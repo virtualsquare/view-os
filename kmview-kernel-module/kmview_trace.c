@@ -272,8 +272,16 @@ static void kmview_reap(struct utrace_engine *engine, struct task_struct *tsk)
 	}
 }
 
-void kmview_thread_free(struct kmview_thread *kmt)
+void kmview_thread_free(struct kmview_thread *kmt, int kill)
 {
+	if (kill && kmt->task) {
+		int rv;
+		rv=utrace_control(kmt->task,kmt->engine,UTRACE_DETACH);
+		send_sig(SIGKILL,kmt->task,1);
+#ifdef KMVIEW_NEWSTOP
+		up(&kmt->kmstop);
+#endif
+	}
 	fdsysset_free(kmt->fdset);
 	kmpid_free(kmt->kmpid);
 #ifdef USE_KMEM_CACHE
