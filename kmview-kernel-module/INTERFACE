@@ -166,13 +166,15 @@ the linux kernel. Kmpid must be set and the return value, errno will be
 those specified here.
 The tracer will not receive any KMVIEW_EVENT_SYSCALL_EXIT event for this call.
 
-3- KMVIEW_SYSMODIFIED:
+3- KMVIEW_SYSMODIFIED/KMVIEW_SYSARGMOD:
 ioctl(fd,KMVIEW_SYSMODIFIED,& {struct kmview_event_ioctl_syscall var})
+ioctl(fd,KMVIEW_SYSARGMOD,& {struct kmview_event_ioctl_syscall var})
 The call may have been modified. The kernel will execute the syscall
 (maybe a different one) as stated by the registers.
 Registers, scno, will be changed.
-This call cause a KMVIEW_EVENT_SYSCALL_EXIT event after the syscall
-execution (to restore the original values of registers if needed).
+KMVIEW_SYSMODIFIED call causes a KMVIEW_EVENT_SYSCALL_EXIT event after 
+the syscall execution (to restore the original values of registers if needed).
+After a KMVIEW_SYSARGMOD there is not a KMVIEW_EVENT_SYSCALL_EXIT notification.
 
 ------------------------------------------------------------------------------
 KMVIEW_EVENT_SYSCALL_EXIT:
