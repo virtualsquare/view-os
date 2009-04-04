@@ -223,7 +223,7 @@ void kmview_kmpid_resume(pid_t kmpid)
 		printk("utrace_control RESUME %d\n",kmt->task->pid);
 #endif
 		rv=kmview_resume_task(kmt);
-		if (rv!=0)
+		if (rv!=0 && rv != -ESRCH)
 			printk("ERR! utrace_control resume %d\n",rv);
 #ifdef KMVIEW_DEBUG
 	printk("utrace_resume %d %d\n",kmt->task->pid,rv);
