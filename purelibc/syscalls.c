@@ -1177,10 +1177,10 @@ int futimesat(int dirfd, const char *pathname, const struct timeval times[2]) {
 #endif
 #ifdef __NR_FSTATAT64
 int fstatat(int dirfd, const char *pathname, struct stat *buf, int flags) {
-	return _pure_syscall(__NR_fstatat64,dirfd,pathname,buf,flags);
+	return _pure_syscall(__NR_FSTATAT64,dirfd,pathname,buf,flags);
 }
 int __fxstatat64 (int ver, int dirfd, const char *pathname, struct stat64 *buf, int flags){
-	return _pure_syscall(__NR_fstatat64,dirfd,pathname,buf,flags);
+	return _pure_syscall(__NR_FSTATAT64,dirfd,pathname,buf,flags);
 }
 int __fxstatat(int ver, int fildes, const char *pathname, struct stat* buf_stat,int flags)
 {
@@ -1189,7 +1189,7 @@ int __fxstatat(int ver, int fildes, const char *pathname, struct stat* buf_stat,
 	switch(ver)
 	{
 		case _STAT_VER_LINUX:
-			rv = _pure_syscall(__NR_fstatat64, fildes, pathname, MAKE_NAME(buf_, arch_stat64), flags);
+			rv = _pure_syscall(__NR_FSTATAT64, fildes, pathname, MAKE_NAME(buf_, arch_stat64), flags);
 			break;
 
 		default:
@@ -1228,7 +1228,7 @@ int symlinkat(const char *oldpath, int newdirfd, const char *newpath){
 #endif
 
 #ifdef __NR_readlinkat
-int readlinkat(int dirfd, const char *pathname,char *buf, size_t bufsiz){
+ssize_t readlinkat(int dirfd, const char *pathname,char *buf, size_t bufsiz){
 	return _pure_syscall(__NR_readlinkat,dirfd,pathname,bufsiz);
 }
 #endif
