@@ -40,7 +40,9 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <linux/types.h>
-#include <linux/dirent.h>
+#define _DIRENT_H
+#include <bits/dirent.h>
+#undef _DIRENT_H
 #include <config.h>
 #include "defs.h"
 #include "umproc.h"

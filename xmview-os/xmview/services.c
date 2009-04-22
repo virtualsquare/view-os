@@ -98,6 +98,7 @@ static struct syscall_unifier scunify[] = {
 	{__NR_ftruncate,__NR_ftruncate64},
 	{__NR_statfs,	__NR_statfs64},
 	{__NR_fstatfs,	__NR_statfs64},
+	{__NR_fstatfs64,	__NR_statfs64},
 #else
 	{__NR_fstatfs,	__NR_statfs},
 	{__NR_fstat,	__NR_stat},

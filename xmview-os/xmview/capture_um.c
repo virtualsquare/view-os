@@ -402,7 +402,7 @@ void tracehand()
 				 * until the parent complete the pcb */
 				////fprint2("RACE CONDITION %d\n",pid);
 				handle_new_proc(pid,NULL);
-				return;
+				continue;
 			}
 			/* error case */
 			fprint2("signal from unknown pid %d: killed\n",pid);
