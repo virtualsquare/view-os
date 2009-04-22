@@ -722,6 +722,8 @@ static setstat64(struct stat64 *buf64, struct umnet *um)
 	buf64->st_atime=um->sockettime;
 }
 
+#if 0
+/* 09 2008 f-syscall unification */
 static long umnet_fstat64(int fd, struct stat64 *buf64)
 {
 	if (fd < 0 || filetab[fd] == NULL) {
@@ -732,6 +734,7 @@ static long umnet_fstat64(int fd, struct stat64 *buf64)
 		return 0;
 	}
 }
+#endif
 
 static long umnet_stat64(char *path, struct stat64 *buf64)
 {

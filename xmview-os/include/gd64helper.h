@@ -27,8 +27,7 @@
 
 #include <glib.h>
 #include <linux/types.h>
-#include <linux/dirent.h>
-
+#include "libummod.h"
 
 typedef struct _dirdata dirdata;
 enum ddmode { DDFULL, DDFAST };

@@ -27,7 +27,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <linux/types.h>
-#include <linux/dirent.h>
 #include <linux/unistd.h>
 #include <glib.h>
 #include <assert.h>
@@ -357,7 +356,7 @@ static int apply_pending(dirdata *dd)
 	return i;
 }
 
-static int getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
+static int _getdents64(unsigned int fd, struct dirent64 *dirp, unsigned int count)
 {
 	return syscall(__NR_getdents64, fd, dirp, count);
 }
@@ -380,7 +379,7 @@ static int fill_dirdata(dirdata *dd, int fd, struct dirent64 *dirp, unsigned int
 		do
 		{
 			GDEBUG(10, "calling getdents... ");
-			rv = getdents64(fd, dirp, count);
+			rv = _getdents64(fd, dirp, count);
 			GDEBUG(10, "returns %d", rv);
 			if (rv > 0)
 				dirdata_add_dirents(dd, dirp, rv, 1);

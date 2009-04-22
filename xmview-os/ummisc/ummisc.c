@@ -461,6 +461,8 @@ static setstat64(struct stat64 *buf64, int isdir)
 	buf64->st_size=MISCFILESIZE;
 }
 
+#if 0
+/* 09 2008 f-syscall unification */
 static long ummisc_fstat64(int fd, struct stat64 *buf64)
 {
 	if (fd < 0 || filetab[fd] == NULL) {
@@ -471,6 +473,7 @@ static long ummisc_fstat64(int fd, struct stat64 *buf64)
 		return 0;
 	}
 }
+#endif
 
 static long ummisc_stat64(char *path, struct stat64 *buf64)
 {

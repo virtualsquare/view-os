@@ -37,7 +37,6 @@
 #include <pthread.h>
 #include <fuse.h>
 #include <linux/types.h>
-#include <linux/dirent.h>
 #include <linux/unistd.h>
 #include "module.h"
 #include "libummod.h"
@@ -1557,6 +1556,8 @@ static int common_stat64(struct fuse_context *fc, char *path,  struct stat64 *bu
 	return rv;
 }
 
+#if 0
+/* 09 2008 f-syscall unification */
 static long umfuse_fstat(int fd, struct stat *buf)
 {
 	if (fd < 0 || filetab[fd] == NULL) {
@@ -1600,6 +1601,7 @@ static long umfuse_fstat64(int fd, struct stat64 *buf64)
 		stat2stat64(buf64,&buf);
 	return rv;
 }
+#endif
 
 #if 0
 static long umfuse_stat(char *path, struct stat *buf)
@@ -2362,6 +2364,8 @@ static long umfuse_statfs64 (char *file, struct statfs64 *buf)
 	return 0;
 }
 
+#if 0
+/* 09 2008 f-syscall unification */
 static long umfuse_fstatfs64 (unsigned int fd, struct statfs64 *buf)
 {
 	if (filetab[fd]==NULL) {
@@ -2375,6 +2379,7 @@ static long umfuse_fstatfs64 (unsigned int fd, struct statfs64 *buf)
 		return rv;
 	}
 }
+#endif
 
 void contextclose(struct fuse_context *fc)
 {
@@ -2408,7 +2413,7 @@ init (void)
 	SERVICESYSCALL(s, lstat64, umfuse_lstat64);
 	//SERVICESYSCALL(s, fstat64, umfuse_fstat64);
 	SERVICESYSCALL(s, statfs64, umfuse_statfs64);
-	SERVICESYSCALL(s, fstatfs64, umfuse_fstatfs64);
+	//SERVICESYSCALL(s, fstatfs64, umfuse_fstatfs64);
 #else 
 	SERVICESYSCALL(s, stat, umfuse_stat64);
 	SERVICESYSCALL(s, lstat, umfuse_lstat64);

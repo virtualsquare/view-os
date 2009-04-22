@@ -34,7 +34,6 @@
 #include <dlfcn.h>
 #include <pthread.h>
 #include <linux/types.h>
-#include <linux/dirent.h>
 #include <linux/unistd.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -955,6 +954,8 @@ static int common_stat64(struct umbinfmt *fc,struct umregister *reg, struct stat
 }
 */
 
+#if 0
+/* 09 2008 f-syscall unification */
 static long umbinfmt_fstat64(int fd, struct stat64 *buf64)
 {
 	if (fd < 0 || filetab[fd] == NULL) {
@@ -964,6 +965,7 @@ static long umbinfmt_fstat64(int fd, struct stat64 *buf64)
 		return common_stat64(filetab[fd]->bfmount, filetab[fd]->reg,buf64);
 	}
 }
+#endif
 
 /*
 static long umbinfmt_fstat64(int fd, struct stat64 *buf64)
