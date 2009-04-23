@@ -30,7 +30,6 @@
 #include <errno.h>
 #include <config.h>
 
-
 int getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
 {
 	return syscall(__NR_getdents, fd, dirp, count);
