@@ -25,9 +25,7 @@
 #include <unistd.h>
 #include <linux/types.h>
 #include <sys/types.h>
-#define _DIRENT_H
-#include <bits/dirent.h>
-#undef _DIRENT_H
+#include <linux_dirent.h>
 #include <linux/unistd.h>
 #include <errno.h>
 #include <config.h>
