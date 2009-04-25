@@ -27,7 +27,7 @@
 #include "kmview.h"
 
 #define USE_KMEM_CACHE
-//#define KMVIEW_NEWSTOP
+#define KMVIEW_NEWSTOP
 
 struct kmview_tracer {
 	struct semaphore sem;

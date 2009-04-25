@@ -58,10 +58,7 @@ static inline u32 kmview_abort_task(struct task_struct *task)
 static inline u32 kmview_stop_task(struct kmview_thread *kmt)
 {
 #ifdef KMVIEW_NEWSTOP
-	/* XXX mgmt of interruptions!
-	 * IN PHASE -> EINTR
-	 * OUT PHASE? The syscall has been made already! */
-	//down_interruptible(&kmt->kmstop);
+	/* it should not creat unkillable 'D' processes */
 	down(&kmt->kmstop);
 	return UTRACE_RESUME;
 #else
