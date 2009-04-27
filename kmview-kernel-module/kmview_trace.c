@@ -314,15 +314,12 @@ static inline int iskmviewfd (unsigned long sysno, int fd, struct kmview_fdsysse
 	return FD_ISSET(fd,&fdset->fdset);
 }
 
-static inline int iskmviewsockfd(unsigned long socketcallno, int fd, struct kmview_fdsysset *fdset,
-		        int except_close)
+static inline int iskmviewsockfd(unsigned long socketcallno, int fd, struct kmview_fdsysset *fdset)
 {
 	if (!isfdsocket(socketcallno))
 		return 1;
-	if (except_close && socketcallno == 13) /*shutdown is a kind of close*/
-		return 1;
 	if (fdset == NULL)
-		    return 0;
+		return 0;
 	return FD_ISSET(fd,&fdset->fdset);
 }
 
@@ -344,8 +341,7 @@ static u32 kmview_syscall_entry(u32 action, struct utrace_engine *engine,
 						socketcallnargs[socketcallno] * sizeof(unsigned long)))
 				return kmview_abort_task(tsk);
 			if (!(kmt->tracer->flags & KMVIEW_FLAG_FDSET)  ||
-					iskmviewsockfd(socketcallno, socketcallnargs[0], kmt->fdset,
-						kmt->tracer->flags & KMVIEW_FLAG_EXCEPT_CLOSE)) {
+					iskmviewsockfd(socketcallno, kmt->socketcallargs[0], kmt->fdset)) {
 				kmt->regs=regs;
 				kmview_event_enqueue(KMVIEW_EVENT_SOCKETCALL_ENTRY,kmt,socketcallnargs[socketcallno],0);
 				//printk("STOPs\n");

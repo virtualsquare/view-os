@@ -166,6 +166,7 @@ static int kmview_fill_event(struct kmview_tracer *kmt, struct kmview_event *eve
 				event->x.syscall.args[i]=arch_n(module_event->thread->regs,i);
 			event->x.syscall.pc=arch_pc(module_event->thread->regs);
 			event->x.syscall.sp=arch_sp(module_event->thread->regs);
+			//printk("SYS sp %lx pc %lx\n", event->x.socketcall.sp, event->x.socketcall.pc);
 			len=sizeof(unsigned long)+sizeof(struct kmview_event_ioctl_syscall);
 			break;
 		case KMVIEW_EVENT_SYSCALL_EXIT:
@@ -174,16 +175,21 @@ static int kmview_fill_event(struct kmview_tracer *kmt, struct kmview_event *eve
 			event->x.sysreturn.erno=arch_get_errno(module_event->thread->regs);
 			len=sizeof(unsigned long)+sizeof(struct kmview_event_ioctl_sysreturn);
 			break;
+#ifdef __NR_socketcall
 		case KMVIEW_EVENT_SOCKETCALL_ENTRY:
 			event->x.socketcall.x.umpid=module_event->thread->umpid;
 			event->x.socketcall.scno=arch_n(module_event->thread->regs,0);
 			for (i=0;i<module_event->arg;i++)
 				event->x.socketcall.args[i]=module_event->thread->socketcallargs[i];
+			for (i=0;i<6;i++) 
+				module_event->thread->socketcallargs[i]=arch_n(module_event->thread->regs,i);
 			event->x.socketcall.pc=arch_pc(module_event->thread->regs);
 			event->x.socketcall.sp=arch_sp(module_event->thread->regs);
-			event->x.socketcall.addr=arch_n(module_event->thread->regs,2);
+			event->x.socketcall.addr=arch_n(module_event->thread->regs,1);
+			//printk("SOCK sp %lx pc %lx\n", event->x.socketcall.sp, event->x.socketcall.pc);
 			len=sizeof(unsigned long)+sizeof(struct kmview_event_socketcall);
 			break;
+#endif
 	}
 	list_del(&module_event->eventlist);
 	kmview_module_event_free(module_event);
@@ -307,6 +313,12 @@ static int kmview_ioctl(struct inode *inode, struct file *filp,
 						arch_scno(kmpids->km_thread->regs)=-1;
 						kmpids->km_thread->flags |= KMVIEW_THREAD_FLAG_SKIP_BOTH;
 					} else { /* cmd == KMVIEW_SYSRETURN */
+#ifdef __NR_socketcall
+						if (kmpids->km_thread->scno == __NR_socketcall) {
+							for(i=0;i<6;i++)
+								arch_n(kmpids->km_thread->regs,i)=kmpids->km_thread->socketcallargs[i];
+						}
+#endif
 						kmpids->km_thread->flags &= ~KMVIEW_THREAD_FLAG_SKIP_BOTH;
 					}
 					//printk("KMVIEW_SYSRETURN\n");
@@ -325,17 +337,21 @@ static int kmview_ioctl(struct inode *inode, struct file *filp,
 						kmpids->km_thread->tracer != kmt)
 					ret=-EPERM;
 				else {
-					/*printk("MODI PRE %ld %lx %lx --",arch_scno(kmpids->km_thread->regs),
+					/*printk("MODI PRE %ld %lx %lx sp %lx pc %lx--",arch_scno(kmpids->km_thread->regs),
 							arch_n(kmpids->km_thread->regs,0),
-							arch_n(kmpids->km_thread->regs,1));*/
+							arch_n(kmpids->km_thread->regs,1),
+							arch_sp(kmpids->km_thread->regs),
+							arch_pc(kmpids->km_thread->regs));*/
 					arch_scno(kmpids->km_thread->regs)=umsyscall.scno;
 					for(i=0;i<6;i++)
 						arch_n(kmpids->km_thread->regs,i)=umsyscall.args[i];
-					/*printk("MODI POST %ld %lx %lx\n",arch_scno(kmpids->km_thread->regs),
-							arch_n(kmpids->km_thread->regs,0),
-							arch_n(kmpids->km_thread->regs,1));*/
 					arch_pc(kmpids->km_thread->regs)=umsyscall.pc;
 					arch_sp(kmpids->km_thread->regs)=umsyscall.sp;
+					/*printk("MODI POST %ld %lx %lx sp %lx pc %lx\n",arch_scno(kmpids->km_thread->regs),
+							arch_n(kmpids->km_thread->regs,0),
+							arch_n(kmpids->km_thread->regs,1),
+							arch_sp(kmpids->km_thread->regs),
+							arch_pc(kmpids->km_thread->regs));*/
 					kmpids->km_thread->flags &= ~KMVIEW_THREAD_FLAG_SKIP_BOTH;
 					if (cmd==KMVIEW_SYSARGMOD)
 						kmpids->km_thread->flags |= KMVIEW_THREAD_FLAG_SKIP_EXIT;
