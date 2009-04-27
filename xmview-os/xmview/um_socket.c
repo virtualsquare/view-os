@@ -211,7 +211,7 @@ int wrap_out_socket(int sc_number,struct pcb *pc) {
 	if (pc->behavior==SC_CALLONXIT && pc->retval >= 0) {
 		int fd=getrv(pc);	
 		/* if the syscall issued by the process was also okay */
-		if (fd >= 0) {
+		if (fd >= 0 && addfd(pc,fd) == 0) {
 			/* update open file table*/
 			lfd_register(pc->fds,fd,pc->retval);
 		} else {
