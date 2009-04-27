@@ -179,7 +179,7 @@ static inline pid_t kmview_new_thread(
 	kmt->tracer=tracer;
 	kmt->kmpid=kmpid_alloc(kmt);
 	kmt->umpid=-1;
-	kmt->flags=0;
+	kmt->flags=KMVIEW_THREAD_FLAG_SKIP_EXIT;
 #ifdef KMVIEW_NEWSTOP
 	init_MUTEX_LOCKED(&kmt->kmstop);
 #endif
