@@ -1,4 +1,5 @@
 __NR_accept
+__NR_accept4
 __NR_bind
 __NR_close
 __NR_connect

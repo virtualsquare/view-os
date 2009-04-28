@@ -1,6 +1,7 @@
-ARCH = i386
-KERNELDIR = "/usr/src/experimental/linux-source-2.6.22-utrace-viewos"
-ARCHUNISTD = $(KERNELDIR)/include/asm-$(ARCH)/unistd.h
+ARCH = x86
+EXT = _32
+KERNELDIR = "/usr/src/experimental/linux-source-2.6.29-utrace"
+ARCHUNISTD = $(KERNELDIR)/arch/$(ARCH)/include/asm/unistd$(EXT).h
 
 arch_fdsyslist: arch_fdsyslist.o
 

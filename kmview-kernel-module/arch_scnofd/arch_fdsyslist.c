@@ -36,7 +36,7 @@ main()
 		fdsyslist64[fdsyslist[i] >> 6] |= ((uint64_t)1)<<(fdsyslist[i] & 0x3f);
 	}
 #ifdef __NR_socketcall
-	for (i=2;i<18;i++) {
+	for (i=2;i<19;i++) {
 		if (i != 8) /*SOCKETPAIR*/ {
 			fdsocketlist32 |= ((uint32_t)1)<<(i & 0x1f);
 			fdsocketlist64 |= ((uint64_t)1)<<(i & 0x3f);
