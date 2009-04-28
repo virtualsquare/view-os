@@ -366,6 +366,7 @@ void sc_resume(struct pcb *pc)
 				r_ioctl(kmviewfd,KMVIEW_SYSRESUME,pc->kmpid);
 				break;
 			case SC_FAKE:
+				fun(scno,OUT,pc);
 				pc->outevent.x.kmpid=pc->kmpid;
 				r_ioctl(kmviewfd,KMVIEW_SYSVIRTUALIZED,&pc->outevent);
 				break;
