@@ -214,6 +214,13 @@ int wrap_out_socket(int sc_number,struct pcb *pc) {
 		if (fd >= 0 && addfd(pc,fd) == 0) {
 			/* update open file table*/
 			lfd_register(pc->fds,fd,pc->retval);
+#ifdef __NR_accept4
+			if (sc_number == __NR_accept4) {
+				int flags = pc->sysargs[3];
+				if (flags & SOCK_CLOEXEC) 
+					fd_setfdfl(pc->fds,fd,FD_CLOEXEC);
+			}
+#endif
 		} else {
 			putrv(pc->retval,pc);
 			puterrno(pc->erno,pc);

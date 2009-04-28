@@ -197,8 +197,12 @@ int wrap_in_dup(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	int sfd;
-	if (sc_number != __NR_dup2) 
+	if (sc_number == __NR_dup) 
 		pc->sysargs[1]= -1;
+#ifdef __NR_dup3
+	if (sc_number != __NR_dup3) 
+#endif
+		pc->sysargs[2]= 0;
 	sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	GDEBUG(4, "DUP %d %d sfd %d %s",pc->sysargs[0],pc->sysargs[1],sfd,fd_getpath(pc->fds,pc->sysargs[0]));
 	if (pc->sysargs[1] == um_mmap_secret || (sfd < 0 && sercode != UM_NONE)) {
@@ -238,6 +242,11 @@ int wrap_out_dup(int sc_number,struct pcb *pc)
 			}
 			if (pc->retval >= 0)
 				lfd_register(pc->fds,fd,pc->retval);
+#ifdef __NR_dup3
+			if (pc->sysargs[2] & O_CLOEXEC) {
+				fd_setfdfl(pc->fds,fd,FD_CLOEXEC);
+			}
+#endif
 		} else {
 			lfd_close(pc->retval);
 		}

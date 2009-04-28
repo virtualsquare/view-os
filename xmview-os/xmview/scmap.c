@@ -116,6 +116,9 @@ wrapinfun wrap_in_uname, wrap_in_gethostname, wrap_in_sethostname;
 	#define	__NR_connect	SYS_CONNECT
 	#define	__NR_listen	SYS_LISTEN
 	#define	__NR_accept	SYS_ACCEPT
+#ifdef SYS_ACCEPT4
+	#define	__NR_accept4	SYS_ACCEPT4
+#endif
 	#define	__NR_getsockname	SYS_GETSOCKNAME 
 	#define	__NR_getpeername	SYS_GETPEERNAME
 	#define	__NR_socketpair	SYS_SOCKETPAIR
@@ -174,6 +177,9 @@ struct sc_map scmap[]={
 	{__NR_chroot,	choice_path,	wrap_in_chroot, wrap_out_chroot,	always_umnone,	NULL, ALWAYS,	1, SOC_FILE|SOC_NET},
 	{__NR_dup,	choice_fd,	wrap_in_dup,	wrap_out_dup,	nchoice_fd, nw_sysdup, ALWAYS,	1, SOC_FILE|SOC_NET},
 	{__NR_dup2,	choice_fd,	wrap_in_dup,	wrap_out_dup,	nchoice_fd, nw_sysdup, ALWAYS,	2, SOC_FILE|SOC_NET},
+#ifdef __NR_dup3
+	{__NR_dup3,	choice_fd,	wrap_in_dup,	wrap_out_dup,	nchoice_fd, nw_sysdup, ALWAYS,	3, SOC_FILE|SOC_NET},
+#endif
 	{__NR_mount,	choice_mount,	wrap_in_mount,	wrap_out_std,	always_umnone,	NULL, 0,	5, SOC_FILE},
 	{__NR_umount,	choice_path,	wrap_in_umount,	wrap_out_std,	always_umnone,	NULL, 0,	1, SOC_FILE},
 	{__NR_umount2,	choice_path,	wrap_in_umount2,wrap_out_std,	always_umnone,	NULL, 0,	2, SOC_FILE},
@@ -365,6 +371,9 @@ struct sc_map sockmap[]={
 /*15*/	{__NR_getsockopt,choice_fd,	wrap_in_getsockopt,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	5, SOC_SOCKET|SOC_NET},
 /*16*/	{__NR_sendmsg,   choice_fd,	wrap_in_sendmsg,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	3, SOC_SOCKET|SOC_NET},
 /*17*/	{__NR_recvmsg,   choice_fd,	wrap_in_recvmsg,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, CB_R,	3, SOC_SOCKET|SOC_NET},
+#ifdef __NR_accept4
+/*18*/	{__NR_accept4,   choice_fd,	wrap_in_accept,	wrap_out_socket,	nchoice_sfd,	nw_accept, CB_R,	4, SOC_SOCKET|SOC_NET},
+#endif
 };
 
 /* fake sockmap when socket system calls are normal syscalls */
