@@ -99,6 +99,7 @@ char socketcallnargs[] = {
   5, /* sys_getsockopt(2)    */
   3, /* sys_sendmsg(2)   */
   3, /* sys_recvmsg(2)   */
+	4, /* sys_accept4(2) */
 	4  /* sys_msocket new call for multiple stack access */
 };
 #endif
