@@ -45,9 +45,12 @@ static u32 kmview_clone(enum utrace_resume_action action,struct utrace_engine *e
 static void kmview_reap(struct utrace_engine *engine, struct task_struct *tsk);
 static u32 kmview_syscall_entry(u32 action,struct utrace_engine *engine, struct task_struct *tsk, struct pt_regs *regs);
 static u32 kmview_syscall_exit(enum utrace_resume_action action,struct utrace_engine *engine, struct task_struct *tsk, struct pt_regs *regs);
+static u32 kmview_report_exec(enum utrace_resume_action action, struct utrace_engine *engine,
+		struct task_struct *task, const struct linux_binfmt *fmt, const struct linux_binprm *bprm, struct pt_regs *regs);
+
 
 #define KMVIEW_EVENTS (UTRACE_EVENT(REAP) | UTRACE_EVENT(CLONE)\
-		| UTRACE_EVENT(SYSCALL_ENTRY) | UTRACE_EVENT(SYSCALL_EXIT)) 
+		| UTRACE_EVENT(SYSCALL_ENTRY) | UTRACE_EVENT(SYSCALL_EXIT)) | UTRACE_EVENT(EXEC)
 
 static inline u32 kmview_abort_task(struct task_struct *task)
 {
@@ -106,6 +109,7 @@ const struct utrace_engine_ops kmview_ops =
 	.report_reap = kmview_reap,
 	.report_syscall_entry = kmview_syscall_entry,
 	.report_syscall_exit = kmview_syscall_exit,
+	.report_exec = kmview_report_exec,
 };
 
 static inline void kmview_event_enqueue(
@@ -267,6 +271,34 @@ static void kmview_reap(struct utrace_engine *engine, struct task_struct *tsk)
 			kmview_event_enqueue(KMVIEW_EVENT_TERMTHREAD,kmt,remaining,0);
 		} 
 	}
+}
+
+static u32 kmview_report_exec(enum utrace_resume_action action,
+		struct utrace_engine *engine,
+		struct task_struct *task,
+		const struct linux_binfmt *fmt,
+		const struct linux_binprm *bprm,
+		struct pt_regs *regs)
+{
+	/* revert the effect of setuid */
+	if (current_uid() != current_euid() ||
+			current_gid() != current_egid()) {
+		struct cred *new;
+		new = prepare_creds();
+		if (!new)
+			send_sig(SIGKILL,task,1);
+		else {
+			new->euid = new->suid = current_uid();
+			new->egid = new->sgid = current_gid();
+			commit_creds(new);
+			/* printk("EXEC %d -> u%d g%d eu%d eg%d\n", task->pid,
+					current_uid(),
+					current_gid(),
+					current_euid(),
+					current_egid()); */
+		}
+	}
+	return UTRACE_RESUME;
 }
 
 void kmview_thread_free(struct kmview_thread *kmt, int kill)
