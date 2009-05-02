@@ -21,6 +21,7 @@
 #include <linux/utrace.h>
 #include <linux/ptrace.h>
 #include <linux/unistd.h>
+#include <linux/security.h>
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/errno.h>
@@ -286,11 +287,15 @@ static u32 kmview_report_exec(enum utrace_resume_action action,
 			current_gid() != current_egid()) {
 		struct cred *new;
 		new = prepare_creds();
-		if (!new)
+		if (!new) {
+			abort_creds(new);
 			send_sig(SIGKILL,task,1);
-		else {
-			new->euid = new->suid = current_uid();
-			new->egid = new->sgid = current_gid();
+		} else {
+			new->fsuid = new->euid = new->suid = current_uid();
+			new->fsgid = new->egid = new->sgid = current_gid();
+			new->cap_inheritable = CAP_EMPTY_SET;
+			new->cap_permitted = CAP_EMPTY_SET;
+			new->cap_effective = CAP_EMPTY_SET;
 			commit_creds(new);
 			/* printk("EXEC %d -> u%d g%d eu%d eg%d\n", task->pid,
 					current_uid(),
