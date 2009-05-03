@@ -1985,11 +1985,6 @@ int lwip_ioctl(int s, unsigned long cmd, void *argp)
 }
 
 
-int lwip_fcntl(int s, int cmd, long arg)
-{
-	return lwip_fcntl(s,cmd,arg);
-}
-
 int lwip_fcntl64(int s, int cmd, long arg)
 {
 	struct lwip_socket *sock = get_socket(s);
@@ -2016,6 +2011,11 @@ int lwip_fcntl64(int s, int cmd, long arg)
 		default:
 			return -1;
 	}
+}
+
+int lwip_fcntl(int s, int cmd, long arg)
+{
+	return lwip_fcntl64(s,cmd,arg);
 }
 
 static int fdsplit(int max, 
