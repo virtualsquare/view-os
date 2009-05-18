@@ -72,7 +72,7 @@ static int rec_realpath(struct canonstruct *cdata, char *dest)
 		 ROOT if this is the root dir layer */
 	while (1) {
 		*dest=0;
-		/*fprintf(stderr,"looprealpath %s -> %s\n",cdata->ebuf,cdata->resolved);*/
+		/*fprint2("looprealpath %s -> %s\n",cdata->ebuf,cdata->resolved);*/
 		/* delete multiple slashes / */
 		while (*cdata->start == '/')
 			cdata->start++;
@@ -135,14 +135,14 @@ static int rec_realpath(struct canonstruct *cdata, char *dest)
 			} else
 			{
 				char buf[PATH_MAX];
-				size_t len,n;
+				int len,n;
 				/* test for symlink loops */
 				if (++cdata->num_links > MAXSYMLINKS) {
 					um_set_errno(cdata->xpc,ELOOP);
 					return -1;
 				}
 				/* read the link */
-				n = readlink(cdata->resolved, buf, PATH_MAX-1);
+				n = um_x_readlink(cdata->resolved, buf, PATH_MAX-1, cdata->xpc);
 				if (n<0)  {
 					um_set_errno(cdata->xpc,errno);
 					return -1;
@@ -274,16 +274,18 @@ char *um_realpath(const char *name, const char *cwd, char *resolved,
 		}
 		memcpy(cdata.ebuf+cwdlen,name,namelen+1);
 	}
-	/* fprintf(stderr,"PATH! %s (inside %s)\n",cdata.ebuf,cdata.ebuf+cdata.rootlen);*/
+	/* fprint2("PATH! %s (inside %s)\n",cdata.ebuf,cdata.ebuf+cdata.rootlen);*/
 	resolved[0]='/';
 	cdata.start=cdata.ebuf+1;
 	pst->st_mode=0;
 	/* start the recursive canonicalization function */
 	if (rec_realpath(&cdata,resolved+1) < 0) {
+		/*fprint2("PATH! %s ERR\n",name);*/
 		*resolved=0;
 		return NULL;
 	} else {
 		um_set_errno(xpc,0);
+		/*fprint2("PATH! %s (resolved %s)\n",name,resolved);*/
 		return resolved;
 	}
 }
