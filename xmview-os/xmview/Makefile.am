@@ -38,6 +38,7 @@ COMMON_SOURCES = \
 	um_wdm.c \
 	umproc.c umproc.h \
 	utils.h \
+	loginshell.c loginshell.h
 	kmview.h
 # kmview.h must be removed, it will part of the dev package of the
 # kmview.ko kernel module

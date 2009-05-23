@@ -52,6 +52,7 @@
 #include "um_services.h"
 #include "mainpoll.h"
 #include "gdebug.h"
+#include "loginshell.h"
 
 #ifdef GDEBUG_ENABLED
 #	define OPTSTRING "+p:o:hvxqV:u"
@@ -316,6 +317,8 @@ static void root_process_init()
 /* KMVIEW MAIN PROGRAM */
 int main(int argc,char *argv[])
 {
+	if (argc == 1 && argv[0][0] == '-') /* login shell */
+		loginshell_view();
 	if (argc < 2) /* NO ARGS */
 	{
 		usage(PROGNAME);
