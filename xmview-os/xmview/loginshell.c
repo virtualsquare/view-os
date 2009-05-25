@@ -186,10 +186,5 @@ void loginshell_view(void)
 	argv[0]="viewos-login";
 	argv[argc]=0;
 	splitargs(command,argv+1);
-	{
-		int i;
-		for (i=0;i<argc;i++)
-			printf("argv[%d]=%s\n",i,argv[i]);
-	}
 	main(argc,argv);
 }
