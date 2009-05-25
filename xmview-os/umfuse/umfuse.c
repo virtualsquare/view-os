@@ -1468,8 +1468,6 @@ static long umfuse_write(int fd, void *buf, size_t count)
 		fc->pid=um_mod_getpid();
 		if (filetab[fd]->ffi.flags & O_APPEND)
 			rv=umfuse_lseek(fd,0,SEEK_END);
-		if (filetab[fd]->ffi.flags & O_APPEND)
-			fprint2("APPEND -> SEEK! %d\n",filetab[fd]->pos);
 		if (rv!=-1) {
 			rv = fc->fuse->fops.write(filetab[fd]->path,
 					buf, count, filetab[fd]->pos, &filetab[fd]->ffi);
