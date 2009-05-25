@@ -1448,10 +1448,11 @@ static long umfuse_read(int fd, void *buf, size_t count)
 	}
 }
 
+static long umfuse_lseek(int fd, int offset, int whence);
 static long umfuse_write(int fd, void *buf, size_t count)
 {
 //TODO write page?!
-	int rv;
+	int rv=0;
 
 	if ( (filetab[fd]==NULL) || ((filetab[fd]->ffi.flags & O_ACCMODE) == O_RDONLY)) {
 		errno = EBADF;
@@ -1465,8 +1466,14 @@ static long umfuse_write(int fd, void *buf, size_t count)
 		struct fuse_context *fc=filetab[fd]->context;
 		struct fuse_context *oldfc=fuse_gs_context(fc);
 		fc->pid=um_mod_getpid();
-		rv = fc->fuse->fops.write(filetab[fd]->path,
-				buf, count, filetab[fd]->pos, &filetab[fd]->ffi);
+		if (filetab[fd]->ffi.flags & O_APPEND)
+			rv=umfuse_lseek(fd,0,SEEK_END);
+		if (filetab[fd]->ffi.flags & O_APPEND)
+			fprint2("APPEND -> SEEK! %d\n",filetab[fd]->pos);
+		if (rv!=-1) {
+			rv = fc->fuse->fops.write(filetab[fd]->path,
+					buf, count, filetab[fd]->pos, &filetab[fd]->ffi);
+		}
 		if (fc->fuse->flags & FUSE_DEBUG) {
 			GMESSAGE("WRITE[%s:%d] => path:%s count:0x%x rv:%d\n",
 				fc->fuse->path, fd, filetab[fd]->path, count, rv);
