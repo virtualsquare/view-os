@@ -41,9 +41,10 @@ typedef unsigned long viewid_t;
 #define UMVIEW_GETINFO     0x101
 #define UMVIEW_SETVIEWNAME 0x102
 
-#define UMVIEW_KILLALL  0x103
+#define UMVIEW_KILLALL     0x103
 
-#define UMVIEW_ATTACH  0x104
+#define UMVIEW_ATTACH      0x104
+#define UMVIEW_FSALIAS     0x105
 
 extern long (*virnsyscall)();
 
@@ -72,5 +73,6 @@ int um_view_getinfo(struct viewinfo *info);
 int um_setviewname(char *name);
 int um_killall(int signo);
 int um_attach(int pid);
+int um_fsalias(char *alias,char *filesystemname);
 
 #endif

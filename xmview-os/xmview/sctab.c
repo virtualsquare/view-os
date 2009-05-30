@@ -686,7 +686,7 @@ service_t choice_mount(int sc_number,struct pcb *pc)
 		char filesystemtype[PATH_MAX];
 		unsigned long fstype=pc->sysargs[2];
 		if (umovestr(pc,fstype,PATH_MAX,filesystemtype) == 0) {
-			return service_check(CHECKFSTYPE,filesystemtype,0);
+			return service_check(CHECKFSTYPE,fs_alias(filesystemtype),0);
 		}
 		else
 			return UM_NONE;

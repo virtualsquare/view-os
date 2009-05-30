@@ -274,5 +274,6 @@ struct viewinfo {
 #define UMVIEW_SETVIEWNAME 0x102
 #define UMVIEW_KILLALL     0x103
 #define UMVIEW_ATTACH      0x104
+#define UMVIEW_FSALIAS     0x105
 
 #endif // _DEFS_H

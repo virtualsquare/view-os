@@ -583,7 +583,8 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 		umovestr(pc,pdata,PATH_MAX,data);
 	else
 		datax=NULL;
-	if ((pc->retval = um_syscall(source,pc->path,filesystemtype,mountflags,datax)) < 0)
+	if ((pc->retval = um_syscall(source,pc->path,fs_alias(filesystemtype),
+					mountflags,datax)) < 0)
 		pc->erno=errno;
 	free(source);
 	um_setepoch(nestepoch);

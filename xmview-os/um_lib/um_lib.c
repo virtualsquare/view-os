@@ -90,3 +90,8 @@ int um_attach(int pid)
 {
 	return virsyscall2(VIRUMSERVICE,UMVIEW_ATTACH,pid);
 }
+
+int um_fsalias(char *alias,char *filesystemname)
+{
+	return virsyscall3(VIRUMSERVICE,UMVIEW_FSALIAS,alias,filesystemname);
+}

@@ -22,6 +22,7 @@
  *
  */   
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
 #include <sys/wait.h>
@@ -81,6 +82,62 @@ int um_add_service(char* path,int position){
 	return 0;
 }
 #endif
+
+struct fsalias {
+	char *fsalias;
+	char *fsname;
+	struct fsalias *next;
+};
+static struct fsalias *fs_alias_head=NULL;
+
+static struct fsalias * 
+rec_fs_add_alias(struct fsalias *fsh,char *fsalias,char *fsname)
+{
+	if (fsh == NULL) {
+		struct fsalias *new;
+		if (*fsname != 0 && (new=malloc(sizeof(struct fsalias))) != NULL) {
+			new->fsalias=strdup(fsalias);
+			new->fsname=strdup(fsname);
+			new->next=NULL;
+			return new;
+		} else
+			return NULL;
+	} else if (strcmp(fsalias,fsh->fsalias)==0) {
+		if (*fsname==0) {
+			struct fsalias *next=fsh->next;
+			free(fsh->fsalias);
+			free(fsh->fsname);
+			free(fsh);
+			return next;
+		} else {
+			free(fsh->fsname);
+			fsh->fsname=strdup(fsname);
+			return fsh;
+		}
+	} else {
+		fsh->next=rec_fs_add_alias(fsh->next,fsalias,fsname);
+		return fsh;
+	}
+}
+
+static inline void fs_add_alias(char *fsalias,char *fsname)
+{
+	if (fsalias != NULL && fsname != NULL)
+		fs_alias_head=rec_fs_add_alias(fs_alias_head,fsalias,fsname);
+}
+
+static char *rec_fs_search_alias(struct fsalias *fsh,char *fsalias) {
+	if (fsh == NULL)
+		return fsalias;
+	else if (strcmp(fsalias,fsh->fsalias)==0) 
+		return fsh->fsname;
+	else
+		return rec_fs_search_alias(fsh->next,fsalias);
+}
+
+char *fs_alias(char *fsalias) {
+	return rec_fs_search_alias(fs_alias_head,fsalias);
+}
 
 int wrap_in_umservice(int sc_number,struct pcb *pc,
 		    service_t sercode, sysfun um_syscall)
@@ -183,6 +240,17 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 			if (pc->retval < 0) {
 				pc->erno = - pc->retval;
 				pc->retval = -1;
+			}
+			break;
+		case UMVIEW_FSALIAS:
+			{
+				char fsalias[256];
+				char fsname[256];
+				umovestr(pc,pc->sysargs[1],256,fsalias);
+				umovestr(pc,pc->sysargs[2],256,fsname);
+				fs_add_alias(fsalias,fsname);
+				pc->retval=0;
+				pc->erno = 0;
 			}
 			break;
 		default:
