@@ -32,8 +32,10 @@ extern divfun sockcdtab[];
 #endif
 extern int kmviewfd;
 extern int first_child_exit_status;
+/* start a rc file */
+void capture_execrc(const char *path,const char *argv1);
 /* let the game start! */
-int capture_main(char **argv,void (*root_process_init)());
+int capture_main(char **argv,void (*root_process_init)(),char *rc);
 /* resume a process previously suspended */
 void sc_resume(void *pc);
 

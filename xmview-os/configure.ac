@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.60)
-AC_INIT([UMView], [0.5], [info@v2.cs.unibo.it], [umview])
+AC_INIT([View-OS], [0.6], [info@v2.cs.unibo.it], [umview])
 AM_INIT_AUTOMAKE([foreign dist-bzip2 1.10])
 AC_CONFIG_SRCDIR([xmview/umview.c])
 AC_CONFIG_HEADER([config.h])

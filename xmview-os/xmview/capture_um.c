@@ -840,6 +840,7 @@ static void vir_pcb_free(void *arg)
 	}
 }
 
+#if 0
 /* execvp implementation (to avoid pure_libc management) */
 static int r_execvp(const char *file, char *const argv[]){
 	if(strchr(file,'/') != NULL)
@@ -874,6 +875,7 @@ static int r_execvp(const char *file, char *const argv[]){
 		return -1;
 	}
 }
+#endif
 
 int capture_attach(struct pcb *pc,pid_t pid)
 {
@@ -889,8 +891,24 @@ int capture_attach(struct pcb *pc,pid_t pid)
 	}
 }
 
+void capture_execrc(const char *path,const char *argv1)
+{
+	if (access(path,X_OK)==0) {
+		int pid;
+		int status;
+		switch (pid=fork()) {
+			case -1: exit (2);
+			case 0: execl(path,path,argv1,(char *)0);
+							exit (2);
+			default: waitpid(pid,&status,0);
+							 if (!WIFEXITED(status))
+								 exit (2);
+		}
+	}
+}
+
 /* main capture startup */
-int capture_main(char **argv,int has_ppoll)
+int capture_main(char **argv,int has_ppoll,char *rc)
 {
 	int status;
 #if __NR_socketcall != __NR_doesnotexist
@@ -923,10 +941,13 @@ int capture_main(char **argv,int has_ppoll)
 				exit(1);
 			}
 			r_kill(getpid(), SIGSTOP);
+			capture_execrc("/etc/viewosrc",(char *)0);
+			if (rc != NULL && *rc != 0)
+				capture_execrc(rc,(char *)0);
 			/* maybe it is better to use execvp instead of r_execvp.
 			 * the former permits to load the startup executable through 
 			 * a (preloaded) module */
-			r_execvp(argv[0], argv);
+			execvp(argv[0], argv);
 			GPERROR(0, "strace: exec");
 			_exit(1);
 		default:

@@ -467,12 +467,28 @@ int capture_attach(struct pcb *pc,pid_t pid)
 	return -ENOSYS;
 }
 
+void capture_execrc(const char *path,const char *argv1)
+{
+	if (access(path,X_OK)==0) {
+		int pid;
+		int status;
+		switch (pid=fork()) {
+			case -1: exit (2);
+			case 0: execl(path,path,(char *)0);
+							exit (2);
+			default: waitpid(pid,&status,0);
+							 if (!WIFEXITED(status))
+								 exit (2);
+		}
+	}
+}
+
 /* main capture startup */
-int capture_main(char **argv,void (*root_process_init)(void))
+int capture_main(char **argv,void (*root_process_init)(void),char *rc)
 {
 	struct kmview_magicpoll mp={(long)&event,1};
-	kmviewfd=r_open("/dev/kmview",O_RDONLY,0);
 	long flags;
+	kmviewfd=r_open("/dev/kmview",O_RDONLY,0);
 	if (kmviewfd < 0)
 		return -1;
 	r_ioctl(kmviewfd, KMVIEW_MAGICPOLL, &mp);
@@ -496,6 +512,10 @@ int capture_main(char **argv,void (*root_process_init)(void))
 			r_close(kmviewfd);
 			/* maybe it is better to use execvp instead of r_execvp.
 			 * the former permits to use a (preloaded) module provided executable as startup process*/
+			GDEBUG(8, "starting rc files");
+			capture_execrc("/etc/viewosrc",(char *)0);
+			if (rc != NULL && *rc != 0)
+				capture_execrc(rc,(char *)0);
 			GDEBUG(8, "starting %s",argv[0]);
 			r_execvp(argv[0], argv);
 			GPERROR(0, "strace: exec");

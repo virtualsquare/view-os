@@ -55,10 +55,11 @@
 #include "loginshell.h"
 
 #ifdef GDEBUG_ENABLED
-#	define OPTSTRING "+p:o:hvxqV:u"
+#	define OPTSTRING "+p:f:o:hvxqV:u"
 #else
-#	define OPTSTRING "+p:hvxqV:u"
+#	define OPTSTRING "+p:f:hvxqV:u"
 #endif
+#define KMVIEW_USER_NESTING
 
 int _umview_version = 2; /* modules interface version id.
 										modules can test to be compatible with
@@ -86,7 +87,7 @@ static void preadd(struct prelist **head,char *module)
 	*head=new;
 }
 
-#ifdef KMVIEW_RECURSIVE
+#ifdef KMVIEW_USER_NESTING
 /* virtual syscall for the underlying umview */
 static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,long arg4,long arg5,long arg6) {
 	struct __sysctl_args scarg;
@@ -128,7 +129,7 @@ static void do_set_viewname(char *viewname)
 	}
 }
 
-#ifdef KMVIEW_RECURSIVE
+#ifdef KMVIEW_USER_NESTING
 /* preload for nexted umview (it is a burst of um_add_module) */
 static int do_preload_recursive(struct prelist *head)
 {
@@ -174,6 +175,7 @@ static void usage(char *s)
 			"  -v, --version             show version information\n"
 			"  -q, --quiet               suppress some additional output\n"
 			"  -V name, --viewname name  set the view name\n"
+			"  -f file, --rc file        set rc file\n"
 			"  -p file, --preload file   load plugin named `file' (must be a .so)\n"
 #ifdef GDEBUG_ENABLED
 			"  -o file, --output file    send debug messages to file instead of stderr\n"
@@ -199,7 +201,7 @@ static struct option long_options[] = {
 };
 
 /* pure_libc loading (by reloading the entire kmview) */
-static void load_it_again(int argc,char *argv[])
+static void load_it_again(int argc,char *argv[],int login)
 {
 	int nesting=1;
 	while (1) {
@@ -233,7 +235,10 @@ static void load_it_again(int argc,char *argv[])
 			/* preload the pure_libc library */
 			setenv("LD_PRELOAD","libpurelibc.so",1);
 			/* reload the executable with a leading - */
-			argv[0]="--kmview";
+			if (login)
+				argv[0]="--kmview-login";
+			else
+				argv[0]="--kmview";
 			execv(path,argv);
 			/* useless cleanup */
 			free(path);
@@ -241,11 +246,12 @@ static void load_it_again(int argc,char *argv[])
 	}
 }
 
-#ifdef KMVIEW_RECURSIVE
+#ifdef KMVIEW_USER_NESTING
 
 /* recursive kmview invocation (umview started inside a umview machine) */
 static void kmview_recursive(int argc,char *argv[])
 {
+	char *rcfile=NULL;
 	if (argc < 2)
 	{
 		usage(argv[0]);
@@ -268,6 +274,9 @@ static void kmview_recursive(int argc,char *argv[])
 				version(1);
 				exit(0);
 				break;
+			case 'f':
+				rcfile=strdup(optarg);
+				break;
 			case 'V':
 				viewname=strdup(optarg);
 				break;
@@ -277,7 +286,12 @@ static void kmview_recursive(int argc,char *argv[])
 		}
 	}
 	if (!quiet)
-		fprintf(stderr,"UMView: nested invocation\n\n");
+		fprintf(stderr,"KMView: nested invocation\n\n");
+	if (rcfile==NULL)
+		asprintf(&rcfile,"%s/%s",getenv("HOME"),".viewosrc");
+	capture_execrc("/etc/viewosrc","nested");
+	if (rcfile != NULL && *rcfile != 0)
+		capture_execrc(rcfile,"nested");
 	do_preload_recursive(prehead);
 	do_set_viewname_recursive(viewname);
 	/* exec the process */
@@ -317,6 +331,7 @@ static void root_process_init()
 /* KMVIEW MAIN PROGRAM */
 int main(int argc,char *argv[])
 {
+	char *rcfile=NULL;
 	if (argc == 1 && argv[0][0] == '-') /* login shell */
 		loginshell_view();
 	if (argc < 2) /* NO ARGS */
@@ -336,8 +351,7 @@ int main(int argc,char *argv[])
 	 * try the nested invocation notifying virtual syscall, 
 	 * if it succeeded it is actually a nested invocation,
 	 * otherwise nobody is notified and the call fails*/
-#if 0
-#define KMVIEW_RECURSIVE
+#ifdef KMVIEW_USER_NESTING
 	if (test_recursion(argc,argv)) {
 		if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_UMVIEW,0,0,0,0,0) >= 0)
 			kmview_recursive(argc,argv);	/* do not return!*/
@@ -345,8 +359,8 @@ int main(int argc,char *argv[])
 #endif
 	/* umview loads itself twice if there is pure_libc, to trace module 
 	 * generated syscalls, this condition manages the first call */
-	if (strcmp(argv[0],"--kmview")!=0)
-		load_it_again(argc,argv);	/* do not return (when purelibc and not -x)!*/
+	if (strncmp(argv[0],"--kmview",8)!=0)
+		load_it_again(argc,argv,isloginshell(argv[0]));	/* do not return (when purelibc and not -x)!*/
 
 	/* does this kernel provide pselect? */
 	/*has_pselect=has_pselect_test();*/
@@ -376,6 +390,9 @@ int main(int argc,char *argv[])
 			             a data structure */
 				preadd(&prehead,optarg);
 				break;
+			case 'f':
+				rcfile=strdup(optarg);
+				break;
 			case 'q':
 				quiet = 1;
 				break;
@@ -396,10 +413,13 @@ int main(int argc,char *argv[])
 		fprintf(stderr, "Kmview: %s\nver: %s\n\n",KMVIEW_DESC,PACKAGE_VERSION);
 	}
 
+	if (rcfile==NULL && !isloginshell(argv[0]))
+		asprintf(&rcfile,"%s/%s",getenv("HOME"),".viewosrc");
+
 	sigset_t unblockchild;
 	sigprocmask(SIG_BLOCK,NULL,&unblockchild);
 	pcb_inits(0);
-	if (capture_main(argv+optind,root_process_init) < 0) {
+	if (capture_main(argv+optind,root_process_init,rcfile) < 0) {
 		fprint2("Kmview: kernel module not loaded\n");
 		exit(1);
 	}

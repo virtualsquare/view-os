@@ -80,6 +80,7 @@ umbinwrap_SOURCES = \
 
 dist_man1_MANS = kmview.1 umview.1 
 dist_man2_MANS = msocket.2viewos
+dist_man5_MANS = viewospasswd.5
 
 CBASEFLAGS =
 CDEBUGFLAGS = -g3 -ggdb3

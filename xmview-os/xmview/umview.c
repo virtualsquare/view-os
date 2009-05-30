@@ -54,9 +54,9 @@
 #include "gdebug.h"
 
 #ifdef GDEBUG_ENABLED
-#	define OPTSTRING "+p:o:hvnxqV:"
+#	define OPTSTRING "+p:f:o:hvnxqV:"
 #else
-#	define OPTSTRING "+p:hvnxqV:"
+#	define OPTSTRING "+p:f:hvnxqV:"
 #endif
 
 int _umview_version = 2; /* modules interface version id.
@@ -175,6 +175,7 @@ static void usage(char *s)
 			"  -v, --version             show version information\n"
 			"  -q, --quiet               suppress some additional output\n"
 			"  -V name, --viewname name  set the view name\n"
+			"  -f file, --rc file        set rc file\n"
 			"  -p file, --preload file   load plugin named `file' (must be a .so)\n"
 #ifdef GDEBUG_ENABLED
 			"  -o file, --output file    send debug messages to file instead of stderr\n"
@@ -191,6 +192,7 @@ static void usage(char *s)
 
 static struct option long_options[] = {
 	{"preload",1,0,'p'},
+	{"rc",1,0,'f'},
 #ifdef GDEBUG_ENABLED
 	{"output",1,0,'o'},
 #endif
@@ -208,7 +210,7 @@ static struct option long_options[] = {
 };
 
 /* pure_libc loading (by reloading the entire umview) */
-static void load_it_again(int argc,char *argv[])
+static void load_it_again(int argc,char *argv[],int login)
 {
 	int nesting=1;
 	while (1) {
@@ -242,7 +244,10 @@ static void load_it_again(int argc,char *argv[])
 			/* preload the pure_libc library */
 			setenv("LD_PRELOAD","libpurelibc.so",1);
 			/* reload the executable with a leading - */
-			argv[0]="--umview";
+			if (login)
+				argv[0]="--umview-login";
+			else
+				argv[0]="--umview";
 			execv(path,argv);
 			/* useless cleanup */
 			free(path);
@@ -253,6 +258,7 @@ static void load_it_again(int argc,char *argv[])
 /* recursive umview invocation (umview started inside a umview machine) */
 static void umview_recursive(int argc,char *argv[])
 {
+	char *rcfile=NULL;
 	if (argc < 2)
 	{
 		usage(argv[0]);
@@ -275,6 +281,9 @@ static void umview_recursive(int argc,char *argv[])
 				version(1);
 				exit(0);
 				break;
+			case 'f':
+				rcfile=strdup(optarg);
+				break;
 			case 'V':
 				viewname=strdup(optarg);
 				break;
@@ -285,6 +294,11 @@ static void umview_recursive(int argc,char *argv[])
 	}
 	if (!quiet)
 		fprintf(stderr,"UMView: nested invocation\n\n");
+	if (rcfile==NULL)
+		asprintf(&rcfile,"%s/%s",getenv("HOME"),".viewosrc");
+	capture_execrc("/etc/viewosrc","nested");
+	if (rcfile != NULL && *rcfile != 0)
+		capture_execrc(rcfile,"nested");
 	do_preload_recursive(prehead);
 	do_set_viewname_recursive(viewname);
 	/* exec the process */
@@ -308,6 +322,7 @@ static int has_pselect_test()
 /* UMVIEW MAIN PROGRAM */
 int main(int argc,char *argv[])
 {
+	char *rcfile=NULL;
 	if (argc == 1 && argv[0][0] == '-') /* login shell */
 		loginshell_view();
 	/* try to set the priority to -11 provided umview has been installed
@@ -325,8 +340,8 @@ int main(int argc,char *argv[])
 		umview_recursive(argc,argv);	/* do not return!*/
 	/* umview loads itself twice if there is pure_libc, to trace module 
 	 * generated syscalls, this condition manages the first call */
-	if (strcmp(argv[0],"--umview")!=0)
-		load_it_again(argc,argv);	/* do not return (when purelibc and not -x)!*/
+	if (strncmp(argv[0],"--umview",8)!=0)
+		load_it_again(argc,argv,isloginshell(argv[0]));	/* do not return (when purelibc and not -x)!*/
 
 	if (argc < 2)
 	{
@@ -366,6 +381,9 @@ int main(int argc,char *argv[])
 			case 'p': /* module preload, here the module requests are just added to
 			             a data structure */
 				preadd(&prehead,optarg);
+				break;
+			case 'f':
+				rcfile=strdup(optarg);
 				break;
 			case 'q':
 				quiet = 1;
@@ -436,11 +454,14 @@ int main(int argc,char *argv[])
 	ptrace_vm_mask = want_ptrace_vm;
 	hasppoll = want_ppoll;
 	
+	if (rcfile==NULL && !isloginshell(argv[0]))
+		asprintf(&rcfile,"%s/%s",getenv("HOME"),".viewosrc");
+
 	if (hasppoll) {
 		sigset_t unblockchild;
 		sigprocmask(SIG_BLOCK,NULL,&unblockchild);
 		pcb_inits(1);
-		capture_main(argv+optind,1);
+		capture_main(argv+optind,1,rcfile);
 		setenv("_INSIDE_UMVIEW_MODULE","",1);
 		do_preload(prehead);
 		do_set_viewname(viewname);
@@ -455,7 +476,7 @@ int main(int argc,char *argv[])
 		 * most hit, so this inversion gives performance to the system */
 		mp_add(wt,POLLIN,do_wake_tracer,NULL,1);
 		pcb_inits(0);
-		capture_main(argv+optind,0);
+		capture_main(argv+optind,0,NULL);
 		setenv("_INSIDE_UMVIEW_MODULE","",1);
 		do_preload(prehead);
 		do_set_viewname(viewname);

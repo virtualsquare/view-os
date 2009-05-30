@@ -48,8 +48,8 @@ as it would have behaved outside.
 Each module can customize specific entities: there are modules to mount
 filesystems at user-level
 .B (umfuse)
-, to define virtual network interfaces
-.B (lwipv6)
+, to define virtual networks
+.B (umnet)
 , to define virtual devices
 .B (umdev)
 , to provide interpreters for executables, e.g. to support executables for
@@ -63,7 +63,20 @@ These are some examples of modules provided by the View-OS team.
 aims to provide a general interface to customize the system call semantics
 of process under specified conditions. So more modules will be added both
 by the View-OS team and by third parties.
+.br
+.B umview 
+can also be used as a login shell in \fB/etc/passwd\fR (see passwd(5)).
+When umview is a login shell the mapping between each user and his/her
+startup script is in the file \fB/etc/viewospasswd\fR (see viewospasswd(5)).
 .SH OPTIONS
+.PD 0
+.IP "\fB\-f\fP \fIscript-path\fP" 4
+.PD 0
+.IP "\fB\-\-rcfile\fP \fIscript-path\fP" 4
+Load the specified startup script instead of the standard
+one (\fB$(HOME)/.viewosrc\fR).
+\fB/etc/viewosrc\fR is always loaded first, and then either
+\fB$(HOME)/.viewosrc\fR or the script specified by \fR\-f\fRB or
 .PD 0
 .IP "\fB\-V\fP \fIname\fP" 4
 .PD 0
@@ -130,18 +143,29 @@ Print the version and exit.
 .PD 0
 .IP "\fB\-\-help\fR" 4
 Print a short help message and exit.
+.PD 0
+.IP "\fB/etc/viewospasswd\fR" 4
+user startup scripts information for kmview login shells.
+.PD 0
+.IP "\fB/etc/viewosrc\fR" 4
+global configuration script
+.PD 0
+.IP "\fB$HOME/.viewosrc\fR" 4
+user configuration script (it is not automatically loaded in case of login
+shell. Add it at the end of the login script if needed)
 .SH SEE ALSO
-.BR um_add_service(1)
-.BR um_del_service(1)
-.BR um_ls_service(1)
-.BR um_mov_service(1)
-.BR umfuse(1viewos)
-.BR lwipv6(1viewos)
-.BR umdev(1viewos)
-.BR umbinfmt(1viewos)
-.BR viewfs(1viewos)
-.BR vuname(1viewos)
-.BR viewname(1viewos)
+.BR um_add_service(1),
+.BR um_del_service(1),
+.BR um_ls_service(1),
+.BR um_mov_service(1),
+.BR umfuse(1viewos),
+.BR lwipv6(1viewos),
+.BR umdev(1viewos),
+.BR umbinfmt(1viewos),
+.BR viewfs(1viewos),
+.BR vuname(1viewos),
+.BR viewname(1viewos),
+.BR viewospasswd(5)
 .SH AUTHORS
 View-OS is a project of the Computer Science Department, University of
 Bologna. Project Leader: Renzo Davoli. Development Team: P. Angelelli, A.

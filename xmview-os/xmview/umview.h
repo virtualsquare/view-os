@@ -25,7 +25,7 @@
 #include <config.h>
 
 #define UMVIEW_NAME PACKAGE_NAME
-#define UMVIEW_DESC "The user-mode implementation of View-OS"
+#define UMVIEW_DESC "umview: The user-mode implementation of View-OS"
 #define UMVIEW_VERSION PACKAGE_VERSION
 
 #define UMVIEW_URL "http://view-os.sourceforge.net"

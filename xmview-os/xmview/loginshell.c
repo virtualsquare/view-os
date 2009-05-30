@@ -28,6 +28,7 @@
 #include<sys/types.h>
 #include<pwd.h>
 #include<defs.h>
+#include<loginshell.h>
 
 int main(int argc,char *argv[]);
 
@@ -183,7 +184,7 @@ void loginshell_view(void)
 	char *command=loginshell_path();
 	int argc=argcount(command)+1;
 	char *argv[argc+1];
-	argv[0]="viewos-login";
+	argv[0]=LOGIN_SHELL_ARG0;
 	argv[argc]=0;
 	splitargs(command,argv+1);
 	main(argc,argv);
