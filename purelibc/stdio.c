@@ -31,6 +31,7 @@
 #include <pthread.h>
 
 #define PURE_HASHSIZE 64
+long _pure_debug_printf(const char *format, ...);
 
 struct pure_file {
 	int fd;
@@ -43,7 +44,7 @@ pthread_mutex_t _pure_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int pure_hfun(FILE *f)
 {
-	long l=(long)f;
+	unsigned long l=(long)f;
 	return (l+(l>>8)+(l>>16)) % PURE_HASHSIZE;
 }
 
@@ -94,7 +95,7 @@ static FILE *new_pure_file(int fd, const char *modes)
 			n->next=pure_hash[hkey];
 			pure_hash[hkey]=n;
 			pthread_mutex_unlock(&_pure_mutex);
-			//fprintf(stderr,"+%p %d\n",n,hkey);
+			//_pure_debug_printf("+%p %d\n",n,hkey);
 			return f;
 		} else {
 			free(n);
@@ -129,7 +130,7 @@ static void del_pure_file(struct pure_file *x)
 		n=&((*n)->next);
 	if (*n == x)
 		*n=x->next;
-	//fprintf(stderr,"-%p %d\n",x,hkey);
+	//_pure_debug_printf("-%p %d\n",x,hkey);
 	pthread_mutex_unlock(&_pure_mutex);
 	free(x);
 }
@@ -150,9 +151,7 @@ int _pure_parse_mode(const char *modes) {
 
 static FILE *_pure_fopen (const char *filename, const char * modes, int flags){
 	int fd;
-	/*write(2,"FO",2);
-		write(2,filename,strlen(filename));
-		write(2,"\n",1);*/
+	//_pure_debug_printf("_pure_fopen %s\n",filename);
 	if ((fd=open(filename,flags,0666)) < 0)
 		return NULL;
 	else
