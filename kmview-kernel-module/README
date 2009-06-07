@@ -13,7 +13,7 @@ Please note that kmview is already an experimental project.
 To install kmview:
 
 1- download your favourite kernel (>=2.6.29) Check into kernel_patches that we
-have already updated the kerenl patches for that kernel.
+have already updated the kernel patches for that kernel.
 
 2- download and install the latest utrace patches for the kernel you
 downloaded (from http://www.redhat.com/~roland/utrace)

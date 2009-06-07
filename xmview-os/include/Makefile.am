@@ -7,6 +7,7 @@ pkgincludedir = $(includedir)/umview
 dist_pkginclude_HEADERS = \
 	gdebug.h \
 	libummod.h \
+	linux_dirent.h \
 	module.h \
 	um_lib.h \
 	msocket.h \
