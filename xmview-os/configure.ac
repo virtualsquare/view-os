@@ -4,10 +4,10 @@
 AC_PREREQ(2.60)
 AC_INIT([View-OS], [0.6], [info@v2.cs.unibo.it], [umview])
 AM_INIT_AUTOMAKE([foreign dist-bzip2 1.10])
+AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_SRCDIR([xmview/umview.c])
 AC_CONFIG_HEADER([config.h])
 
-AC_GNU_SOURCE
 AC_USE_SYSTEM_EXTENSIONS
 
 # Checks for programs.

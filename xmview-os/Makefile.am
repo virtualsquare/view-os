@@ -1,3 +1,5 @@
+ACLOCAL_AMFLAGS = -I m4
+
 #SUBDIRS = um-viewos um_lib um_cmd include doc um_testmodule um_viewfs umdev \
 #umdev_testmodules umdevmbr umbinfmt
 
