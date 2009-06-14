@@ -45,6 +45,9 @@
 #ifndef __NR_geteuid32
 #define __NR_geteuid32 __NR_geteuid
 #endif
+#ifndef __NR_getegid32
+#define __NR_getegid32 __NR_getegid
+#endif
 #ifndef __NR_setreuid32
 #define __NR_setreuid32 __NR_setreuid
 #endif
@@ -75,8 +78,8 @@
 #ifndef __NR_setfsuid32
 #define __NR_setfsuid32 __NR_setfsuid
 #endif
-#ifndef __NR_setfsuid32
-#define __NR_setfsuid32 __NR_setfsuid
+#ifndef __NR_setfsgid32
+#define __NR_setfsgid32 __NR_setfsgid
 #endif
 
 #endif

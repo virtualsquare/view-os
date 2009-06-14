@@ -343,9 +343,11 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 			case F_SETLK:
 			case F_SETLKW:
 #ifdef F_GETLK64
+#	if (F_GETLK64 != F_GETLK)
 			case F_GETLK64:
 			case F_SETLK64:
 			case F_SETLKW64:
+#	endif
 #endif
 				{
 					struct um_flock64 flock;

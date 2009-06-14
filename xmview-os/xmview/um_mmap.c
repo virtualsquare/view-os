@@ -347,7 +347,7 @@ static void store_mmap_secret(service_t sercode,const char *to, unsigned long pg
 	char buf[BUFSIZ];
 	int fdf;
 	int n;
-	unsigned long long size=0;
+	// unsigned long long size=0;
 	//fprint2("store_mmap_secret %s %ld\n",to, pgoffset);
 #if __NR__llseek != __NR_doesnotexist
 	loff_t result;
@@ -375,7 +375,7 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 {
 	unsigned long length=pc->sysargs[1];
 	unsigned long prot=pc->sysargs[2];
-	unsigned long flags=pc->sysargs[3];
+	// unsigned long flags=pc->sysargs[3];
 	unsigned long fd=pc->sysargs[4];
 	long offset=pc->sysargs[5];
 	unsigned long pgsize;
