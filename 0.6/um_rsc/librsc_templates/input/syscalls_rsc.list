@@ -1,0 +1,117 @@
+#   
+#   This is part of RSC file generator program
+#
+#   syscalls_rsc.list: the system call list describing the different 
+#                      syscalls used given in input to the rsc_file_gen.rb
+#                      program.
+#   
+#   
+#   Copyright (C) 2007 Andrea Forni
+#   
+#   This program is free software; you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License, version 2, as
+#   published by the Free Software Foundation.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License along
+#   with this program; if not, write to the Free Software Foundation, Inc.,
+#   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
+#
+
+#__RSC* constants | Arguments | Headers
+# Created:  Sun May 07 15:22:57 CEST 2006
+
+__RSC__llseek | unsigned int fd, unsigned long int offset_high, unsigned long int offset_low, loff_t *result{W}, unsigned int whence | unistd.h, sys/types.h, linux/unistd.h, errno.h, sys/syscall.h
+__RSC_access | const char *pathname{R}, int mode | unistd.h, sys/syscall.h
+__RSC_chdir | const char *path{R} | unistd.h, sys/syscall.h
+__RSC_chmod | const char *path{R}, mode_t mode | sys/types.h, sys/stat.h, sys/syscall.h
+__RSC_chown | const char *path{R}, uid_t owner, gid_t group | sys/types.h, unistd.h, sys/syscall.h
+__RSC_chown32 | const char *path{R}, uid_t owner, gid_t group | sys/types.h, unistd.h, sys/syscall.h
+__RSC_close | int fd | unistd.h, sys/syscall.h
+__RSC_dup | int oldfd | unistd.h, sys/syscall.h
+__RSC_dup2 | int oldfd, int newfd | unistd.h, sys/syscall.h
+__RSC_fchdir | int fd | unistd.h, sys/syscall.h
+__RSC_fchmod | int fildes, mode_t mode | sys/types.h, sys/stat.h, sys/syscall.h
+__RSC_fchown | int fd, uid_t owner, gid_t group | sys/types.h, unistd.h, sys/syscall.h
+_RSC_fchown32 | int fd, uid_t owner, gid_t group | sys/types.h, unistd.h, sys/syscall.h
+__RSC_fdatasync | int fd | unistd.h, sys/syscall.h
+__RSC_fgetxattr | int filedes, const char *name{R}, void *value{W}[size], size_t size | sys/types.h, sys/syscall.h
+__RSC_fstat64 | int filedes, struct stat64 *buf{W} | sys/types.h, sys/stat.h, unistd.h, sys/syscall.h
+__RSC_fstat64 | int filedes, struct stat64 *buf{W} | sys/types.h, sys/stat.h, unistd.h, sys/syscall.h
+__RSC_fsync | int fd | unistd.h, sys/syscall.h
+__RSC_getdents64 | unsigned int fd, struct dirent64 *dirp{W}[count], unsigned int count | unistd.h, linux/types.h, linux/unistd.h, errno.h, sys/syscall.h, dirent.h
+__RSC_getxattr | const char *path{R}, const char *name{R}, void *value{W}[size], size_t size | sys/types.h, sys/syscall.h
+__RSC_lchown | const char *path{R}, uid_t owner, gid_t group | sys/types.h, unistd.h, sys/syscall.h
+__RSC_lchown32 | const char *path{R}, uid_t owner, gid_t group | sys/types.h, unistd.h, sys/syscall.h
+__RSC_lgetxattr | const char *path{R}, const char *name{R}, void *value{W}[size], size_t size | sys/types.h, sys/syscall.h
+__RSC_link | const char *oldpath{R}, const char *newpath{R} | unistd.h, sys/syscall.h
+__RSC_lseek | int fildes, off_t offset, int whence | sys/types.h, unistd.h, sys/syscall.h
+__RSC_lstat64 | const char *path{R}, struct stat64 *buf{W} | sys/types.h, sys/stat.h, unistd.h, sys/syscall.h
+__RSC_mkdir | const char *pathname{R}, mode_t mode | sys/stat.h, sys/types.h, sys/syscall.h
+__RSC_mount | const char *source{R}, const char *target{R}, const char *filesystemtype{R}, unsigned long int mountflags, const void *data{R}=act_as_a_string= | sys/mount.h, sys/syscall.h
+__RSC_open | const char *pathname{R}, int flags | sys/types.h, sys/stat.h, fcntl.h, sys/syscall.h
+
+__RSC_pread64 | int fd, void *buf{W}[count], size_t count, off_t offset | unistd.h, sys/syscall.h
+__RSC_pwrite64 | int fd, const void *buf{R}[count], size_t count, off_t offset | unistd.h, sys/syscall.h
+
+__RSC_read | int fd, void *buf{W}[count]<retval>, size_t count | unistd.h, sys/syscall.h
+__RSC_readlink | const char *path{R}, char *buf{W}[bufsiz], size_t bufsiz | unistd.h, sys/syscall.h
+__RSC_rename | const char *oldpath{R}, const char *newpath{R} | stdio.h, sys/syscall.h
+__RSC_rmdir | const char *pathname{R} | unistd.h, sys/syscall.h
+__RSC_stat64 | const char *path{R}, struct stat64 *buf{W} | sys/types.h, sys/stat.h, unistd.h, sys/syscall.h
+__RSC_symlink | const char *oldpath{R}, const char *newpath{R} | unistd.h, sys/syscall.h
+__RSC_umount2 | const char *target{R}, int flags | sys/mount.h, sys/syscall.h
+__RSC_unlink | const char *pathname{R} | unistd.h, sys/syscall.h
+__RSC_utime | const char *filename{R}, const struct utimbuf *buf{R} | sys/types.h, utime.h, sys/time.h, sys/syscall.h
+__RSC_utimes | const char *filename{R}, const struct timeval tv[2] | sys/types.h, utime.h, sys/time.h, sys/syscall.h
+__RSC_write | int fd, const void *buf{R}[count], size_t count | unistd.h, sys/syscall.h
+
+__RSC_adjtimex | struct timex *buf{RW} | sys/timex.h
+__RSC_clock_getres | clockid_t clk_id, struct timespec *res{W} | time.h
+__RSC_clock_gettime | clockid_t clk_id, struct timespec *tp{W} | time.h
+__RSC_clock_settime | clockid_t clk_id, const struct timespec *tp{R} | time.h
+
+__RSC_fchown32 | int fd, uid_t owner, gid_t group | sys/types.h, unistd.h
+__RSC_fstatfs64 | unsigned int fd, struct statfs64 *buf{W} | sys/statfs.h
+__RSC_ftruncate64 | int fd, __off64_t length | unistd.h, sys/types.h
+__RSC_getdomainname | char *name{W}[len], size_t len | unistd.h
+__RSC_gethostname | char *name{W}[len], size_t len | unistd.h
+__RSC_gettimeofday | struct timeval *tv{W}, struct timezone *tz{W} | sys/time.h, time.h
+__RSC_pread | int fd, void *buf{W}, size_t count, off_t offset | unistd.h
+__RSC_pwrite | int fd, const void *buf{R}, size_t count, off_t offset | unistd.h
+__RSC_setdomainname | const char *name{R}[len], size_t len | unistd.h
+__RSC_sethostname | const char *name{R}[len], size_t len | unistd.h
+__RSC_settimeofday | const struct timeval *tv{R} , const struct timezone *tz{R} | sys/time.h, time.h
+__RSC_statfs64 | const char *path{R}, struct statfs64 *buf{W} | sys/statfs.h
+__RSC_truncate64 | const char *path{R}, __off64_t length | unistd.h, sys/types.h
+__RSC_uname | struct utsname *buf{W} | sys/utsname.h
+
+
+#########################################
+# NETWORK SYSTEM CALL
+#########################################
+__RSC_accept | int sockfd, struct sockaddr *addr{W}[addrlen], socklen_t *addrlen{RW} | sys/types.h, sys/socket.h, sys/syscall.h, linux/net.h
+__RSC_bind | int sockfd, const struct sockaddr *my_addr{R}[addrlen], socklen_t addrlen | sys/types.h, sys/socket.h, sys/syscall.h, linux/net.h
+__RSC_connect | int sockfd, const struct sockaddr *serv_addr{R}[addrlen], socklen_t addrlen | sys/types.h, sys/socket.h, sys/syscall.h, linux/net.h
+__RSC_getpeername | int s, struct sockaddr *name{W}[namelen], socklen_t *namelen{RW} | sys/socket.h, sys/syscall.h, linux/net.h
+__RSC_getsockname | int s, struct sockaddr *name{W}[namelen], socklen_t *namelen{RW} | sys/socket.h, sys/syscall.h, linux/net.h
+__RSC_getsockopt | int s, int level, int optname, void *optval{W}[optlen], socklen_t *optlen{RW} | sys/types.h, sys/socket.h, sys/syscall.h, linux/net.h
+__RSC_listen | int sockfd, int backlog | sys/socket.h, sys/syscall.h, linux/net.h
+__RSC_recv | int s, void *buf{W}[len], size_t len, int flags | sys/types.h, sys/socket.h, sys/syscall.h, linux/net.h
+__RSC_recvfrom | int s, void *buf{W}[len], size_t len, int flags, struct sockaddr *from{R}[fromlen], socklen_t *fromlen{RW} | sys/types.h, sys/socket.h, sys/syscall.h, linux/net.h
+__RSC_send | int s, const void *buf{R}[len], size_t len, int flags | sys/types.h, sys/socket.h, sys/syscall.h, linux/net.h
+__RSC_sendto | int s, const void *buf{R}[len], size_t len, int flags, const struct sockaddr *to{R}[tolen], socklen_t tolen | sys/types.h, sys/socket.h, sys/syscall.h, linux/net.h
+__RSC_setsockopt | int s, int level, int optname, const void *optval{R}[optlen], socklen_t optlen | sys/types.h, sys/socket.h, sys/syscall.h, linux/net.h
+__RSC_shutdown | int s, int how | sys/socket.h, sys/syscall.h, linux/net.h
+__RSC_socket | int domain, int type, int protocol | sys/types.h, sys/socket.h, sys/syscall.h, linux/net.h
+
+#########################################
+# COMPLEX STRUCTURES AS ARG
+#########################################
+
+#__RSC_recvmsg | int s, struct msghdr *msg, int flags | sys/types.h, sys/socket.h, sys/syscall.h, linux/net.h
+#__RSC_sendmsg | int s, const struct msghdr *msg, int flags | sys/types.h, sys/socket.h, sys/syscall.h, linux/net.h

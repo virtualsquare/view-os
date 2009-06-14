@@ -1,0 +1,19 @@
+If you obtained UMView from the CVS repository you need the following
+software:
+
+- autoconf 2.60
+- automake 1.10
+
+In order to create the configure script and related files you can use the
+following command:
+
+$ autoreconf -i
+
+After that, or if you obtained UMView from the official tarballs, the usual
+autotools command apply:
+
+$ ./configure && make && make install
+
+You can add `--enable-debug' as an option to configure if you need verbose
+debug reporting in UMView.
+

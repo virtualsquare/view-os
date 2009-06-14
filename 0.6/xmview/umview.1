@@ -1,0 +1,179 @@
+.\" Copyright (c) 2006 Renzo Davoli
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License,
+.\" version 2, as published by the Free Software Foundation.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+.\" MA 02110-1301 USA.
+
+.TH VIEW-OS 1 "June 10, 2006" "VIEW-OS: a process with a view"
+.SH NAME
+umview \- User Mode implementation of View-OS
+.SH SYNOPSIS
+.B umview 
+[
+.I options
+]
+.I prog
+.br
+.SH DESCRIPTION
+The main goal of the View-OS project is to give each process its own view
+of the system resources.
+For example, each process can mount filesystems or hide some file or
+directories. It is also possible to assign virtual network interfaces, IP
+addresses or define virtual devices for each process (or for hierarchies of
+processes).
+.br
+.B umview 
+is the user mode implementation of View-OS concepts.
+It is a modular partial virtual machine. 
+.B umview 
+before loading any module is completely transparent, a process
+behaves inside 
+.B umview
+as it would have behaved outside.
+Each module can customize specific entities: there are modules to mount
+filesystems at user-level
+.B (umfuse)
+, to define virtual networks
+.B (umnet)
+, to define virtual devices
+.B (umdev)
+, to provide interpreters for executables, e.g. to support executables for
+foreign architectures
+.B (umbinfmt)
+, to hide, move, overlay parts of the file system
+.B (viewfs).
+.br
+These are some examples of modules provided by the View-OS team. 
+.B umview
+aims to provide a general interface to customize the system call semantics
+of process under specified conditions. So more modules will be added both
+by the View-OS team and by third parties.
+.br
+.B umview 
+can also be used as a login shell in \fB/etc/passwd\fR (see passwd(5)).
+When umview is a login shell the mapping between each user and his/her
+startup script is in the file \fB/etc/viewospasswd\fR (see viewospasswd(5)).
+.SH OPTIONS
+.PD 0
+.IP "\fB\-f\fP \fIscript-path\fP" 4
+.PD 0
+.IP "\fB\-\-rcfile\fP \fIscript-path\fP" 4
+Load the specified startup script instead of the standard
+one (\fB$(HOME)/.viewosrc\fR).
+\fB/etc/viewosrc\fR is always loaded first, and then either
+\fB$(HOME)/.viewosrc\fR or the script specified by \fR\-f\fRB or
+.PD 0
+.IP "\fB\-V\fP \fIname\fP" 4
+.PD 0
+.IP "\fB\-\-viewname\fP \fIname\fP" 4
+set the name of the view. The view can be read and set using 
+.B vuname
+or
+.B viewname
+commands.
+.PD 0
+.IP "\fB\-p\fP \fImodule\fP [ , \fImodule_options\fP ]" 4 
+.PD 0
+.IP "\fB\-\-preload\fR \fImodule\fP [ , \fImodule_options\fP ]" 4
+preload modules. 
+Modules will be loaded as shared libraries thus all the
+rules to load libraries apply. Modules must be loaded from a directory
+within the ld.so search path or should be specified by their pathnames. 
+If necessary
+configure the LD_LIBRARY_PATH environment variable appropriately.
+\fImodule_options\fR are module specific configuration options, thus the reader
+should refer to each service module manual for a complete description.
+Modules can be loaded at run time using the
+.B um_add_service
+command.
+.IP "\fB\-x\fP" 4 
+.PD 0
+.IP "\fB\-\-nonesting\fR" 4
+.B umview
+is able to provide module nesting, i.e. a module can provide services on
+the basis of virtual services provided by another module or even by the
+module itself. For example it is possible to mount a file system image
+which is stored in an already virtually mounted filesystem.
+This feature requires the pure_libc library. 
+The \fB\-x\fR or \fB\-\-nonesting\fR option disables the nesting feature.
+.IP "\fB\-n\fP" 4 
+.PD 0
+.IP "\fB\-\-nokernelpatch\fR" 4
+.B umview
+is able to use some specific kernel extensions (when present) 
+to increase its performance. The source distribution of
+.B umview
+include the kernel patches for the latest kernels.
+The kernel extensions are enabled by default when available.
+This option disables the kernel extensions.
+.IP "\fB\-\-nokmulti\fR" 4
+This option disables the PTRACE_MULTI kernel extension.
+.IP "\fB\-\-noksysvm\fR" 4
+This option disables the PTRACE_SYSVM kernel extension.
+.IP "\fB\-\-nokviewos\fR" 4
+This option disables the PTRACE_SYSVIEWOS kernel extension (already
+experimental, not yet released).
+.IP "\fB\-o\fP \fIfile\fP" 4 
+.PD 0
+.IP "\fB\-\-output\fR \fIfile\fP" 4
+This option diverts the debugging output to the file specified, it is
+useful when
+.B umview
+has been compiled with debugging extensions.
+.IP "\fB\-v\fP" 4 
+.PD 0
+.IP "\fB\-\-version\fR" 4
+Print the version and exit.
+.IP "\fB\-h\fP" 4 
+.PD 0
+.IP "\fB\-\-help\fR" 4
+Print a short help message and exit.
+.PD 0
+.IP "\fB/etc/viewospasswd\fR" 4
+user startup scripts information for kmview login shells.
+.PD 0
+.IP "\fB/etc/viewosrc\fR" 4
+global configuration script
+.PD 0
+.IP "\fB$HOME/.viewosrc\fR" 4
+user configuration script (it is not automatically loaded in case of login
+shell. Add it at the end of the login script if needed)
+.SH SEE ALSO
+.BR um_add_service(1),
+.BR um_del_service(1),
+.BR um_ls_service(1),
+.BR um_mov_service(1),
+.BR umfuse(1viewos),
+.BR lwipv6(1viewos),
+.BR umdev(1viewos),
+.BR umbinfmt(1viewos),
+.BR viewfs(1viewos),
+.BR vuname(1viewos),
+.BR viewname(1viewos),
+.BR viewospasswd(5)
+.SH AUTHORS
+View-OS is a project of the Computer Science Department, University of
+Bologna. Project Leader: Renzo Davoli. Development Team: P. Angelelli, A.
+Bacchelli, M. Belletti, P. Beverini, D. Billi, A. Forni,
+L. Gardenghi, A. Gasparini, D. Lacamera, C. Martellini, A. Seraghiti
+<http://www.sourceforge.net/projects/view-os>
+
+Howto's and further information can be found on the project wiki
+<wiki.virtualsquare.org>.
+
+
