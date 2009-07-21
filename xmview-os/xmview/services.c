@@ -546,41 +546,6 @@ void dereg_modules(service_t code)
 			service_ctl(MC_MODULE | MC_REM, code, -1, services[i]->code);
 }
 
-/*
-
-void service_addproc(service_t code,int umpid, int pumpid,int max)
-{
-	int pos;
-	GDEBUG(9, "code %d, umpid %d, pumpid %d, max %d", code, umpid, pumpid, max);
-	if (code == UM_NONE) {
-		for (pos=0;pos<noserv;pos++)
-		{
-			GDEBUG(9, "services[%d] == %p", services?services[pos]:(void *)(-1));
-			if (services[pos]->ctl)
-				services[pos]->ctl(MC_PROC | MC_ADD, umpid, pumpid, max);
-		}
-	} else {
-		int pos=servmap[code]-1;
-		if (services[pos]->ctl)
-				services[pos]->ctl(MC_PROC | MC_ADD, umpid, pumpid, max);
-	}
-	GDEBUG(9, "done");
-}
-
-void service_delproc(service_t code,int id)
-{
-	int pos;
-	if (code == UM_NONE) {
-		for (pos=0;pos<noserv;pos++)
-			if (services[pos]->ctl)
-				services[pos]->ctl(MC_PROC | MC_REM, id);
-	} else {
-		int pos=servmap[code]-1;
-		if (services[pos]->ctl)
-				services[pos]->ctl(MC_PROC | MC_REM, id);
-	}
-}
-*/
 service_t service_check(int type,void* arg,int setepoch)
 {
 	int i,max_index=-1;
@@ -606,23 +571,6 @@ service_t service_check(int type,void* arg,int setepoch)
 			return services[max_index]->code;
 	}
 }
-
-/*
-service_t service_check(int type, void *arg)
-{
-	int i;
-	if (arg == NULL || noserv == 0) 
-		return(UM_NONE);
-	else {
-		for (i = noserv-1 ; i>=0 ; i--) {
-			struct service *s=services[i];
-			if (s->checkfun != NULL && s->checkfun(type,arg))
-				return(s->code);
-		}
-		return(UM_NONE);
-	}
-}
-*/
 
 static long errnosys()
 {

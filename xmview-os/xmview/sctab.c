@@ -466,7 +466,6 @@ int dsys_um_sysctl(int sc_number,int inout,struct pcb *pc)
 /* just the function executed by the following function (iterator) */
 static void _reg_processes(struct pcb *pc,service_t *pcode)
 {
-	// service_addproc(*pcode,pc->umpid,(pc->pp)?pc->pp->umpid:-1,pcbtablesize());
 	service_ctl(MC_PROC | MC_ADD, *pcode, -1, pc->umpid, (pc->pp) ? pc->pp->umpid : -1, pcbtablesize());
 }
 
@@ -483,7 +482,6 @@ static int reg_processes(service_t code)
 static void _dereg_processes(struct pcb *pc,service_t *pcode)
 {
 	service_ctl(MC_PROC | MC_REM, *pcode, -1, pc->umpid);
-	// service_delproc(*pcode,pc->umpid);
 }
 
 /* when a service gets deregistered, all the data structures managed by the
@@ -500,14 +498,12 @@ static void um_proc_add(struct pcb *pc)
 {
 	GDEBUG(0, "calling service_ctl %d %d %d %d %d %d", MC_PROC|MC_ADD, UM_NONE, -1, pc->umpid, (pc->pp)?pc->pp->umpid:-1, pcbtablesize());
 	service_ctl(MC_PROC | MC_ADD, UM_NONE, -1, pc->umpid, (pc->pp) ? pc->pp->umpid : -1, pcbtablesize());
-	// service_addproc(UM_NONE,pc->umpid,(pc->pp)?pc->pp->umpid:-1,pcbtablesize());
 }
 
 /* UM actions for a terminated process */
 static void um_proc_del(struct pcb *pc)
 {
 	service_ctl(MC_PROC | MC_REM, UM_NONE, -1, pc->umpid);
-	// service_delproc(UM_NONE,pc->umpid);
 }
 
 #if 0
