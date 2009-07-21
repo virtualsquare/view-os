@@ -43,6 +43,25 @@
 #define DOTDOT 1
 #define ROOT 2
 
+/* canonstruct: this struct contains the values that must be shared during the
+	 whole recursive scan:
+	 .xpc: opaque for um_x_lstat64, um_xaccess, um_readlink, um_getroot
+	 .ebuf: source for the relative to absolute path translation.
+	   it is allocated on the stack.
+		 if the path to translate begins by '/':
+		   it contains the root dir followed by the path to translate, 
+		 otherwise
+		   it contains the current working dir followed by the path to translate
+	 .start, .end: pointers on ebuf, the boundaries of the current component
+	 .resolved: the user provided buffer where the result must be stored
+	 .rootlen: the len of the root component (it is not possible to generate
+	   shorter pathnames to force the root cage)
+	 .num_links: counter of symlink to avoid infinite loops (ELOOP)
+	 .statbuf: lstat64 of the last component (of the file at the end)
+	 .dontfollowlonks: flag, if the entire path is a link do not follow it,
+	   this flag is for l-system calls like lstat, lchmod, lchown etc...
+*/
+	        
 struct canonstruct {
 	void *xpc;
 	char *ebuf;
@@ -50,17 +69,26 @@ struct canonstruct {
 	char *end;
 	char *resolved;
 	short rootlen;
-	struct stat64 *statbuf;
 	short num_links;
+	struct stat64 *statbuf;
 	int dontfollowlink;
 };
 
+/* The length of the last component during the canonicalize process */
+static inline int lastlen(struct canonstruct *cdata)
+{
+	return (cdata->end-cdata->start);
+}
+
 /* recursive construction of canonical absolute form of a filename.
 	 This function gets called recursively for each component of the resolved path.
+	 dest is pointer to a char of the "resolved" string (the first char
+	 of the new component).
    return value: 0 successful canonicalize
                  DOTDOT (..) return to the previous level
                  ROOT, canonicalize stepped onto an absolute symlink
-                       resulution must return back to the root (or chroot rootcage) 
+                       the translation process must return back to the root 
+											 (or chroot rootcage) 
 								 -1 error
  */
 
@@ -80,12 +108,12 @@ static int rec_realpath(struct canonstruct *cdata, char *dest)
 		for (cdata->end = cdata->start; *cdata->end && *cdata->end != '/'; ++cdata->end)
 			;
 		/* '.': continue with the next component of the path, forget this */
-		if (cdata->end-cdata->start == 1 && cdata->start[0] == '.') {
+		if (lastlen(cdata) == 1 && cdata->start[0] == '.') {
 			cdata->start=cdata->end;
 			continue; /* CONTINUE: NEXT ITERATION OF THE LOOP (***) */
 		}
 		/* '..' */
-		if (cdata->end-cdata->start == 2 && cdata->start[0] == '.' && cdata->start[1] == '.') {
+		if (lastlen(cdata) == 2 && cdata->start[0] == '.' && cdata->start[1] == '.') {
 			cdata->start=cdata->end;
 			/* return DOTDOT only if this does not goes outside the current root */
 			if (dest > cdata->resolved+cdata->rootlen)
@@ -96,10 +124,10 @@ static int rec_realpath(struct canonstruct *cdata, char *dest)
 		if (cdata->statbuf->st_mode==0)
 			um_x_lstat64(cdata->resolved,cdata->statbuf,cdata->xpc);
 		/* nothing more to do */
-		if (cdata->end-cdata->start == 0) 
+		if (lastlen(cdata) == 0) 
 			return 0;
 		/* overflow check */
-		if (dest + (cdata->end - cdata->start) > cdata->resolved + PATH_MAX) {
+		if (dest + lastlen(cdata) > cdata->resolved + PATH_MAX) {
 			um_set_errno(cdata->xpc,ENAMETOOLONG);
 			return -1;
 		}
@@ -107,7 +135,7 @@ static int rec_realpath(struct canonstruct *cdata, char *dest)
 		newdest=dest;
 		if (newdest[-1] != '/')
 			*newdest++='/';
-		newdest=mempcpy(newdest,cdata->start,cdata->end-cdata->start);
+		newdest=mempcpy(newdest,cdata->start,lastlen(cdata));
 		*newdest=0;
 		/* does the file exist? */
 		if (um_x_lstat64(cdata->resolved,cdata->statbuf,cdata->xpc) < 0) {

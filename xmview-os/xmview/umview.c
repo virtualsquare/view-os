@@ -213,6 +213,7 @@ static struct option long_options[] = {
 static void load_it_again(int argc,char *argv[],int login)
 {
 	int nesting=1;
+	optind=1;
 	while (1) {
 		int c;
 		int option_index = 0;
@@ -331,17 +332,19 @@ int main(int argc,char *argv[])
 	/* if it was setuid, return back to the user status immediately,
 	 * for safety! */
 	r_setuid(getuid());
+	/* Check these cases only when *not* reloaded for purelibc */
+	if (strncmp(argv[0],"--umview",8)!=0) {
 	/* if this is a nested invocation of umview, notify the umview monitor
 	 * and execute the process, 
 	 * try the nested invocation notifying virtual syscall, 
 	 * if it succeeded it is actually a nested invocation,
 	 * otherwise nobody is notified and the call fails*/
-	if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_UMVIEW,0,0,0,0,0) >= 0)
-		umview_recursive(argc,argv);	/* do not return!*/
-	/* umview loads itself twice if there is pure_libc, to trace module 
-	 * generated syscalls, this condition manages the first call */
-	if (strncmp(argv[0],"--umview",8)!=0)
+		if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_UMVIEW,0,0,0,0,0) >= 0)
+			umview_recursive(argc,argv);	/* do not return!*/
+		/* umview loads itself twice if there is pure_libc, to trace module 
+		 * generated syscalls, this condition manages the first call */
 		load_it_again(argc,argv,isloginshell(argv[0]));	/* do not return (when purelibc and not -x)!*/
+	}
 
 	if (argc < 2)
 	{

@@ -204,6 +204,7 @@ static struct option long_options[] = {
 static void load_it_again(int argc,char *argv[],int login)
 {
 	int nesting=1;
+	optind=1;
 	while (1) {
 		int c;
 		int option_index = 0;
@@ -258,6 +259,7 @@ static void kmview_recursive(int argc,char *argv[])
 		exit(1);
 	}
 
+	optind=1;
 	while (1) {
 		int c;
 		int option_index = 0;
@@ -302,10 +304,11 @@ static void kmview_recursive(int argc,char *argv[])
 static int test_recursion(int argc,char *argv[])
 {
 	int userrecursion=0;
+	optind=1;
 	while (1) {
 		int c;
 		int option_index = 0;
-		c = getopt_long(argc, argv, OPTSTRING, NULL, &option_index);
+		c = getopt_long(argc, argv, OPTSTRING, long_options, &option_index);
 		if (c == -1) break;
 		switch (c) {
 			case 'u':
@@ -332,7 +335,12 @@ static void root_process_init()
 int main(int argc,char *argv[])
 {
 	char *rcfile=NULL;
-	if (argc == 1 && argv[0][0] == '-') /* login shell */
+	/*loginshell is true if this execution is driven by a login shell
+		(maybe indirectly: main restarted from /etc/viewospasswd or
+		reloaded for purelibc) */
+	int loginshell=isloginshell(argv[0]);
+	/* login shell? (directly from /etc/passwd) */
+	if (argc == 1 && argv[0][0] == '-') 
 		loginshell_view();
 	if (argc < 2) /* NO ARGS */
 	{
@@ -346,21 +354,23 @@ int main(int argc,char *argv[])
 	/* if it was setuid, return back to the user status immediately,
 	 * for safety! */
 	r_setuid(getuid());
-	/* if this is a nested invocation of umview, notify the umview monitor
-	 * and execute the process, 
-	 * try the nested invocation notifying virtual syscall, 
-	 * if it succeeded it is actually a nested invocation,
-	 * otherwise nobody is notified and the call fails*/
+	/* Check these cases only when *not* reloaded for purelibc */
+	if (strncmp(argv[0],"--kmview",8)!=0) {
+		/* if this is a nested invocation of umview, notify the umview monitor
+		 * and execute the process, 
+		 * try the nested invocation notifying virtual syscall, 
+		 * if it succeeded it is actually a nested invocation,
+		 * otherwise nobody is notified and the call fails*/
 #ifdef KMVIEW_USER_NESTING
-	if (test_recursion(argc,argv)) {
-		if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_UMVIEW,0,0,0,0,0) >= 0)
-			kmview_recursive(argc,argv);	/* do not return!*/
-	}
+		if (test_recursion(argc,argv)) {
+			if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_UMVIEW,0,0,0,0,0) >= 0)
+				kmview_recursive(argc,argv);	/* do not return!*/
+		}
 #endif
-	/* umview loads itself twice if there is pure_libc, to trace module 
-	 * generated syscalls, this condition manages the first call */
-	if (strncmp(argv[0],"--kmview",8)!=0)
-		load_it_again(argc,argv,isloginshell(argv[0]));	/* do not return (when purelibc and not -x)!*/
+		/* umview loads itself twice if there is pure_libc, to trace module 
+		 * generated syscalls, this condition manages the first call */
+		load_it_again(argc,argv,loginshell);	/* do not return (when purelibc and not -x)!*/
+	}
 
 	/* does this kernel provide pselect? */
 	/*has_pselect=has_pselect_test();*/
