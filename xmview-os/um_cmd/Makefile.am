@@ -9,7 +9,9 @@ dist_man1_MANS = \
 	umshutdown.1 \
 	um_attach.1 \
 	um_fsalias.1 \
-	mstack.1
+	mstack.1 \
+	viewmount.1 \
+	viewumount.1
 
 CPPFLAGS = -I../include
 
@@ -24,7 +26,9 @@ bin_PROGRAMS = \
 	umshutdown \
 	um_attach \
 	um_fsalias \
-	mstack
+	mstack \
+	viewmount \
+	viewumount
 
 debug release: all
 

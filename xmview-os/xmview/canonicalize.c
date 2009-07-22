@@ -74,12 +74,6 @@ struct canonstruct {
 	int dontfollowlink;
 };
 
-/* The length of the last component during the canonicalize process */
-static inline int lastlen(struct canonstruct *cdata)
-{
-	return (cdata->end-cdata->start);
-}
-
 /* recursive construction of canonical absolute form of a filename.
 	 This function gets called recursively for each component of the resolved path.
 	 dest is pointer to a char of the "resolved" string (the first char
@@ -107,36 +101,40 @@ static int rec_realpath(struct canonstruct *cdata, char *dest)
 		/* find the next component */
 		for (cdata->end = cdata->start; *cdata->end && *cdata->end != '/'; ++cdata->end)
 			;
-		/* '.': continue with the next component of the path, forget this */
-		if (lastlen(cdata) == 1 && cdata->start[0] == '.') {
-			cdata->start=cdata->end;
-			continue; /* CONTINUE: NEXT ITERATION OF THE LOOP (***) */
-		}
-		/* '..' */
-		if (lastlen(cdata) == 2 && cdata->start[0] == '.' && cdata->start[1] == '.') {
-			cdata->start=cdata->end;
-			/* return DOTDOT only if this does not goes outside the current root */
-			if (dest > cdata->resolved+cdata->rootlen)
-				return DOTDOT;
-			else
+		{ /* scope of lastlen, a smart compiler should not save this
+				 on the stack */
+			register int lastlen=cdata->end-cdata->start;
+			/* '.': continue with the next component of the path, forget this */
+			if (lastlen == 1 && cdata->start[0] == '.') {
+				cdata->start=cdata->end;
 				continue; /* CONTINUE: NEXT ITERATION OF THE LOOP (***) */
+			}
+			/* '..' */
+			if (lastlen == 2 && cdata->start[0] == '.' && cdata->start[1] == '.') {
+				cdata->start=cdata->end;
+				/* return DOTDOT only if this does not goes outside the current root */
+				if (dest > cdata->resolved+cdata->rootlen)
+					return DOTDOT;
+				else
+					continue; /* CONTINUE: NEXT ITERATION OF THE LOOP (***) */
+			}
+			if (cdata->statbuf->st_mode==0)
+				um_x_lstat64(cdata->resolved,cdata->statbuf,cdata->xpc);
+			/* nothing more to do */
+			if (lastlen == 0) 
+				return 0;
+			/* overflow check */
+			if (dest + lastlen > cdata->resolved + PATH_MAX) {
+				um_set_errno(cdata->xpc,ENAMETOOLONG);
+				return -1;
+			}
+			/* add the new component */
+			newdest=dest;
+			if (newdest[-1] != '/')
+				*newdest++='/';
+			newdest=mempcpy(newdest,cdata->start,lastlen);
+			*newdest=0;
 		}
-		if (cdata->statbuf->st_mode==0)
-			um_x_lstat64(cdata->resolved,cdata->statbuf,cdata->xpc);
-		/* nothing more to do */
-		if (lastlen(cdata) == 0) 
-			return 0;
-		/* overflow check */
-		if (dest + lastlen(cdata) > cdata->resolved + PATH_MAX) {
-			um_set_errno(cdata->xpc,ENAMETOOLONG);
-			return -1;
-		}
-		/* add the new component */
-		newdest=dest;
-		if (newdest[-1] != '/')
-			*newdest++='/';
-		newdest=mempcpy(newdest,cdata->start,lastlen(cdata));
-		*newdest=0;
 		/* does the file exist? */
 		if (um_x_lstat64(cdata->resolved,cdata->statbuf,cdata->xpc) < 0) {
 			cdata->statbuf->st_mode=0;
