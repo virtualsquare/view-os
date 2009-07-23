@@ -59,8 +59,8 @@ int main(int argc, char * argv[])
 	if (optind >= argc)
 		usage();
 
-	target=argv[optind+1];
+	target=argv[optind];
 
 	if (umount2(target, umountflags))
-		perror("mount");
+		perror("umount");
 }
