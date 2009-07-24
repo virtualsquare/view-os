@@ -542,10 +542,22 @@ void pcb_plus(struct pcb *pc,int flags,int npcflag)
 				r_umask(pc->fdfs->mask);
 				/* create the root of the treepoch */
 				pc->tst=tst_newfork(NULL);
+				/* set the initial uid */
+				r_getresuid(&pc->ruid,&pc->euid,&pc->suid);
+				r_getresgid(&pc->rgid,&pc->egid,&pc->sgid);
+				/*
+				pc->ruid=pc->euid=pc->suid=pc->rgid=pc->egid=pc->sgid=0;
+				*/
 			} else {
 				pc->fdfs->cwd=strdup(pc->pp->fdfs->cwd);
 				pc->fdfs->root=strdup(pc->pp->fdfs->root);
 				pc->fdfs->mask=pc->pp->fdfs->mask;
+				pc->ruid=pc->pp->ruid;
+				pc->euid=pc->pp->euid;
+				pc->suid=pc->pp->suid;
+				pc->rgid=pc->pp->rgid;
+				pc->egid=pc->pp->egid;
+				pc->sgid=pc->pp->sgid;
 			}
 		}
 		pc->tst=tst_newproc(&(pc->pp->tst));

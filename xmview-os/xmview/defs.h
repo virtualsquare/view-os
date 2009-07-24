@@ -117,6 +117,8 @@ extern sfun native_syscall;
 #define r_kill(p,s) (native_syscall(__NR_kill,(p),(s)))
 #define r_execve(p,a,e) (native_syscall(__NR_execve,(p),(a),(e)))
 #define r_lseek(f,o,w) (native_syscall(__NR_close,(f),(o),(w)))
+#define r_getresuid(r,e,s) (native_syscall(__NR_getresuid,(r),(e),(s)))
+#define r_getresgid(r,e,s) (native_syscall(__NR_getresgid,(r),(e),(s)))
 #if 0
 #define r_sigsuspend(m) (native_syscall(__NR_sigsuspend,(m)))
 #define r_sigaction(s,a,o) (native_syscall(__NR_sigaction,(s),(a),(o)))

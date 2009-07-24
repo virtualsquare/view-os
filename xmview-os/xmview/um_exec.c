@@ -218,6 +218,20 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		pc->retval=-1;
 		return SC_FAKE;
 	}
+	/* management of set[ug]id executables */
+	if (pc->pathstat.st_mode & S_ISUID) {
+		pc->suid=pc->euid;
+		pc->euid=pc->pathstat.st_uid;
+	}
+	if (pc->pathstat.st_mode & S_ISGID) {
+		pc->sgid=pc->egid;
+		pc->egid=pc->pathstat.st_gid;
+	}
+	if (strcmp(pc->path,"/bin/mount") == 0 || 
+		strcmp(pc->path,"/bin/umount") == 0) {
+		pc->suid=pc->euid;
+		pc->ruid=pc->suid=0;
+	}
 	/* The epoch should be just after the mount 
 	 * which generated the executable */
 	um_setepoch(nestepoch+1);
@@ -358,6 +372,8 @@ int wrap_out_execve(int sc_number,struct pcb *pc)
 	//fprint2("wrap_out_execve %d\n",pc->retval);
 	/* The tmp file gets automagically deleted (see sctab.c) */
 	if (pc->retval < 0) {
+		pc->euid=pc->suid;
+		pc->egid=pc->sgid;
 		putrv(pc->retval,pc);
 		puterrno(pc->erno,pc);
 		return SC_MODICALL;

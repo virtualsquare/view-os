@@ -35,16 +35,35 @@
 int wrap_in_getxid(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	if ((pc->retval=um_syscall()) < 0)
-		pc->erno=errno;
+	if (sercode != UM_NONE) {
+		if ((pc->retval=um_syscall()) < 0)
+			pc->erno=errno;
+	} else {
+		switch (sc_number) {
+			case __NR_getuid:
+			case __NR_getuid32:
+			 	pc->retval=pc->ruid; break;
+			case __NR_getgid: 
+			case __NR_getgid32: 
+				pc->retval=pc->rgid; break;
+			case __NR_geteuid: 
+			case __NR_geteuid32: 
+				pc->retval=pc->euid; break;
+			case __NR_getegid: 
+			case __NR_getegid32: 
+				pc->retval=pc->egid; break;
+		}
+		/*fprint2("%d->%d\n",sc_number,pc->retval);*/
+		pc->erno=0;
+	}
 	return SC_FAKE;
 }
 
 int wrap_in_getxid16(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	if ((pc->retval=id32to16(um_syscall())) < 0)
-		pc->erno=errno;
+	int rv=wrap_in_getxid(sc_number,pc,sercode,um_syscall);
+	pc->retval=id32to16(pc->retval);
 	return SC_FAKE;
 }
 
@@ -52,18 +71,34 @@ int wrap_in_getxid16(int sc_number,struct pcb *pc,
 int wrap_in_setuid(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	uid_t uid =pc->sysargs[0];
-	if ((pc->retval = um_syscall(uid)) < 0)
-		pc->erno=errno;
+	uid_t uid=pc->sysargs[0];
+	if (sercode != UM_NONE) {
+		if ((pc->retval = um_syscall(uid)) < 0)
+			pc->erno=errno;
+	} else {
+		if (pc->euid == 0) 
+			pc->ruid=pc->euid=uid;
+		else
+			pc->euid=uid;
+		pc->erno=pc->retval=0;
+	}
 	return SC_FAKE;
 }
 
 int wrap_in_setuid16(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
-	uid_t uid =id16to32(pc->sysargs[0]);
-	if ((pc->retval = um_syscall(uid)) < 0)
-		pc->erno=errno;
+	uid_t uid=id16to32(pc->sysargs[0]);
+	if (sercode != UM_NONE) {
+		if ((pc->retval = um_syscall(uid)) < 0)
+			pc->erno=errno;
+	} else {
+		if (pc->euid == 0) 
+			pc->ruid=pc->euid=uid;
+		else
+			pc->euid=uid;
+		pc->erno=pc->retval=0;
+	}
 	return SC_FAKE;
 }
 
@@ -72,8 +107,16 @@ int wrap_in_setgid(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	gid_t gid =pc->sysargs[0];
-	if ((pc->retval = um_syscall(gid)) < 0)
-		pc->erno=errno;
+	if (sercode != UM_NONE) {
+		if ((pc->retval = um_syscall(gid)) < 0)
+			pc->erno=errno;
+	} else {
+		if (pc->euid == 0) 
+			pc->rgid=pc->egid=gid;
+		else
+			pc->egid=gid;
+		pc->erno=pc->retval=0;
+	}
 	return SC_FAKE;
 }
 
@@ -81,8 +124,16 @@ int wrap_in_setgid16(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	gid_t gid =id16to32(pc->sysargs[0]);
-	if ((pc->retval = um_syscall(gid)) < 0)
-		pc->erno=errno;
+	if (sercode != UM_NONE) {
+		if ((pc->retval = um_syscall(gid)) < 0)
+			pc->erno=errno;
+	} else {
+		if (pc->euid == 0) 
+			pc->rgid=pc->egid=gid;
+		else
+			pc->euid=gid;
+		pc->erno=pc->retval=0;
+	}
 	return SC_FAKE;
 }
 
@@ -95,8 +146,14 @@ int wrap_in_setreuid(int sc_number,struct pcb *pc,
 		uid1=id16to32(uid1);
 		uid2=id16to32(uid2);
 	}
-	if ((pc->retval = um_syscall(uid1,uid2)) < 0)
-		pc->erno=errno;
+	if (sercode != UM_NONE) {
+		if ((pc->retval = um_syscall(uid1,uid2)) < 0)
+			pc->erno=errno;
+	} else {
+		if (uid1 != -1) pc->ruid=uid1;
+		if (uid2 != -1) pc->euid=uid2;
+		pc->erno=pc->retval=0;
+	}
 	return SC_FAKE;
 }
 
@@ -109,8 +166,14 @@ int wrap_in_setregid(int sc_number,struct pcb *pc,
 		gid1=id16to32(gid1);
 		gid2=id16to32(gid2);
 	}
-	if ((pc->retval = um_syscall(gid1,gid2)) < 0)
-		pc->erno=errno;
+	if (sercode != UM_NONE) {
+		if ((pc->retval = um_syscall(gid1,gid2)) < 0)
+			pc->erno=errno;
+	} else {
+		if (gid1 != -1) pc->rgid=gid1;
+		if (gid2 != -1) pc->egid=gid2;
+		pc->erno=pc->retval=0;
+	}
 	return SC_FAKE;
 }
 
@@ -125,8 +188,15 @@ int wrap_in_setresuid(int sc_number,struct pcb *pc,
 		uid2=id16to32(uid2);
 		uid2=id16to32(uid3);
 	}
-	if ((pc->retval = um_syscall(uid1,uid2,uid3)) < 0)
-		pc->erno=errno;
+	if (sercode != UM_NONE) {
+		if ((pc->retval = um_syscall(uid1,uid2,uid3)) < 0)
+			pc->erno=errno;
+	} else {
+		if (uid1 != -1) pc->ruid=uid1;
+		if (uid2 != -1) pc->euid=uid2;
+		if (uid3 != -1) pc->suid=uid2;
+		pc->erno=pc->retval=0;
+	}
 	return SC_FAKE;
 }
 
@@ -141,8 +211,15 @@ int wrap_in_setresgid(int sc_number,struct pcb *pc,
 		gid2=id16to32(gid2);
 		gid2=id16to32(gid3);
 	}
-	if ((pc->retval = um_syscall(gid1,gid2,gid3)) < 0)
-		pc->erno=errno;
+	if (sercode != UM_NONE) {
+		if ((pc->retval = um_syscall(gid1,gid2,gid3)) < 0)
+			pc->erno=errno;
+	} else {
+		if (gid1 != -1) pc->rgid=gid1;
+		if (gid2 != -1) pc->egid=gid2;
+		if (gid3 != -1) pc->sgid=gid2;
+		pc->erno=pc->retval=0;
+	}
 	return SC_FAKE;
 }
 
@@ -151,7 +228,15 @@ int wrap_in_getresuid(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	uid_t uid1,uid2,uid3;
-	if ((pc->retval = um_syscall(&uid1,&uid2,&uid3)) >= 0) {
+	if (sercode != UM_NONE) 
+		pc->retval = um_syscall(&uid1,&uid2,&uid3);
+	else {
+		uid1=pc->ruid;
+		uid2=pc->euid;
+		uid3=pc->suid;
+		pc->retval=pc->erno=0;
+	}
+	if (pc->retval >= 0) {
 		long uid1p=pc->sysargs[0];
 		long uid2p=pc->sysargs[1];
 		long uid3p=pc->sysargs[2];
@@ -182,7 +267,15 @@ int wrap_in_getresgid(int sc_number,struct pcb *pc,
 		service_t sercode, sysfun um_syscall)
 {
 	gid_t gid1,gid2,gid3;
-	if ((pc->retval = um_syscall(&gid1,&gid2,&gid3)) >= 0) {
+	if (sercode != UM_NONE) 
+		pc->retval = um_syscall(&gid1,&gid2,&gid3);
+	else {
+		gid1=pc->rgid;
+		gid2=pc->egid;
+		gid3=pc->sgid;
+		pc->retval=pc->erno=0;
+	}
+	if (pc->retval >= 0) {
 		long gid1p=pc->sysargs[0];
 		long gid2p=pc->sysargs[1];
 		long gid3p=pc->sysargs[2];
