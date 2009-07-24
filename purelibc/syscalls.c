@@ -1251,6 +1251,10 @@ int utimensat(int dirfd, const char *pathname, const struct timespec times[2], i
 }
 #endif
 
+int raise(int sig) {
+	return kill(getpid(), sig);
+}
+
 static void init(void);
 long int syscall(long int n,...)
 {
