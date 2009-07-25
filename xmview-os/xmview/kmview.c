@@ -340,7 +340,7 @@ int main(int argc,char *argv[])
 		reloaded for purelibc) */
 	int loginshell=isloginshell(argv[0]);
 	/* login shell? (directly from /etc/passwd) */
-	if (argc == 1 && argv[0][0] == '-') 
+	if (argc == 1 && argv[0][0] == '-' && argv[0][1] != '-') 
 		loginshell_view();
 	if (argc < 2) /* NO ARGS */
 	{

@@ -324,7 +324,7 @@ static int has_pselect_test()
 int main(int argc,char *argv[])
 {
 	char *rcfile=NULL;
-	if (argc == 1 && argv[0][0] == '-') /* login shell */
+	if (argc == 1 && argv[0][0] == '-' && argv[0][1] != '-') /* login shell */
 		loginshell_view();
 	/* try to set the priority to -11 provided umview has been installed
 	 * setuid. it is effectiveless elsewhere */
