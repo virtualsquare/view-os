@@ -1541,7 +1541,7 @@ static void createscset(void)
 		FD_SET(*p,&fastsysset);
 }
 
-static int viewfs_event_subscribe(void (* cb)(), void *arg, int fd, int how)
+static long viewfs_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 {
 	return um_mod_event_subscribe(cb,arg,fd,how);
 }
