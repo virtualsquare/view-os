@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 #include <sys/select.h>
 #include <sys/utsname.h>
+#include <sys/param.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
 #include <linux/net.h>
@@ -81,12 +82,19 @@ static inline void fs_add_alias(char *fsalias,char *fsname)
 	}
 }
 
-char *fs_alias(char *fsalias) {
+static char *rec_fs_alias(char *fsalias,int depth) {
 	struct ht_elem *hte=ht_check(CHECKFSALIAS,fsalias,NULL,0);
-	if (hte)
-		return hte->private_data;
-	else
+	if (hte) {
+		if (depth > MAXSYMLINKS) 
+			return fsalias;
+		else
+			return rec_fs_alias(hte->private_data,depth+1);
+	} else
 		return fsalias;
+}
+
+char *fs_alias(char *fsalias) {
+	return rec_fs_alias(fsalias,0);
 }
 
 int wrap_in_umservice(int sc_number,struct pcb *pc,
