@@ -55,7 +55,8 @@ typedef unsigned long c_set;
 #define CHECKBLKDEVICE   5
 #define CHECKSC 6
 #define CHECKBINFMT 7
-#define NCHECKS 8
+#define CHECKFSALIAS 8
+#define NCHECKS 9
 
 // for IOCTL mgmt
 #define CHECKIOCTLPARMS   0x40000000

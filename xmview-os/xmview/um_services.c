@@ -66,60 +66,27 @@ void *open_dllib(char *name)
 	return handle;
 }
 
-struct fsalias {
-	char *fsalias;
-	char *fsname;
-	struct fsalias *next;
-};
-static struct fsalias *fs_alias_head=NULL;
-
-static struct fsalias * 
-rec_fs_add_alias(struct fsalias *fsh,char *fsalias,char *fsname)
+static inline void fs_add_alias(char *fsalias,char *fsname)
 {
-	if (fsh == NULL) {
-		struct fsalias *new;
-		if (*fsname != 0 && (new=malloc(sizeof(struct fsalias))) != NULL) {
-			new->fsalias=strdup(fsalias);
-			new->fsname=strdup(fsname);
-			new->next=NULL;
-			return new;
-		} else
-			return NULL;
-	} else if (strcmp(fsalias,fsh->fsalias)==0) {
-		if (*fsname==0) {
-			struct fsalias *next=fsh->next;
-			free(fsh->fsalias);
-			free(fsh->fsname);
-			free(fsh);
-			return next;
-		} else {
-			free(fsh->fsname);
-			fsh->fsname=strdup(fsname);
-			return fsh;
-		}
+	struct ht_elem *hte=ht_check(CHECKFSALIAS,fsalias,NULL,0);
+	if (hte) {
+		free(hte->private_data);
+		if (*fsname==0)
+			ht_tab_del(hte);
+		else 
+			hte->private_data=strdup(fsname);
 	} else {
-		fsh->next=rec_fs_add_alias(fsh->next,fsalias,fsname);
-		return fsh;
+		if (*fsname!=0)
+			ht_tab_add(CHECKFSALIAS,fsalias,strlen(fsalias),NULL,NULL,strdup(fsname));
 	}
 }
 
-static inline void fs_add_alias(char *fsalias,char *fsname)
-{
-	if (fsalias != NULL && fsname != NULL)
-		fs_alias_head=rec_fs_add_alias(fs_alias_head,fsalias,fsname);
-}
-
-static char *rec_fs_search_alias(struct fsalias *fsh,char *fsalias) {
-	if (fsh == NULL)
-		return fsalias;
-	else if (strcmp(fsalias,fsh->fsalias)==0) 
-		return fsh->fsname;
-	else
-		return rec_fs_search_alias(fsh->next,fsalias);
-}
-
 char *fs_alias(char *fsalias) {
-	return rec_fs_search_alias(fs_alias_head,fsalias);
+	struct ht_elem *hte=ht_check(CHECKFSALIAS,fsalias,NULL,0);
+	if (hte)
+		return hte->private_data;
+	else
+		return fsalias;
 }
 
 int wrap_in_umservice(int sc_number,struct pcb *pc,

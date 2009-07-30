@@ -188,6 +188,8 @@ static inline int ht_scan_stop(unsigned char type, char *objc, int len, int exac
 			return ((len % sizeof(int))==0);
 		case CHECKFSTYPE: /* char by char */
 			return 1;
+		case CHECKFSALIAS: /* end of string */
+			return (*objc == 0);
 		default:
 			return 0;
 	}
@@ -199,6 +201,7 @@ static inline int ht_scan_terminate(unsigned char type, char *objc, int len, int
 		case CHECKPATH:
 		case CHECKBINFMT:
 		case CHECKFSTYPE:
+		case CHECKFSALIAS:
 			return (*objc == 0);
 		case CHECKSOCKET:
 		case CHECKCHRDEVICE:
@@ -232,12 +235,12 @@ static struct ht_elem *ht_tab_internal_search(unsigned char type, void *obj, int
 		if (ht_scan_stop(type, objc, len, exact)) {
 			hash=hashmod(sum);
 			ht=(len)?ht_hash[hash]:ht_hash0[type];
-			//if (type==CHECKFSTYPE)
-				//fprint2("CHECK %s %ld %d %p\n",obj,sum,hash,ht);
+			/* if (type== XXXXXX )
+				fprint2("CHECK %s %ld %d %p\n",obj,sum,hash,ht); */
 			while (ht != NULL) {
 				epoch_t e;
-				//if (type==CHECKFSTYPE && type==ht->type)
-					//fprint2("CHECK %s %s\n",obj,ht->obj);
+				/* if (type== XXXXXXX && type==ht->type)
+					fprint2("CHECK %s %s\n",obj,ht->obj); */
 				if (type==ht->type &&
 						sum==ht->hashsum &&
 						(ht->objlen >= len) &&
@@ -298,6 +301,7 @@ static inline int ht_is_obj_string(unsigned char type) {
 	switch (type) {
 		case CHECKPATH:
 		case CHECKFSTYPE:
+		case CHECKFSALIAS:
 			return 1;
 		default:
 			return 0;
@@ -334,8 +338,6 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 				hashhead=&ht_hash0[type];
 			else
 				hashhead=&ht_hash[hashmod(new->hashsum)]; 
-			//if (type==CHECKFSTYPE)
-				//fprint2("ADD %s %ld %d\n",new->obj,new->hashsum,hashmod(new->hashsum));
 			pthread_rwlock_wrlock(&ht_tab_rwlock);
 			if (ht_head) {
 				new->next=ht_head->next;
@@ -462,6 +464,9 @@ struct ht_elem *ht_check(int type, void *arg, struct stat64 *st, int setepoch)
 			size++;
 		case CHECKFSTYPE:
 			hte=ht_tab_search(type, arg, size*sizeof(int), um_x_gettst());
+			break;
+		case CHECKFSALIAS:
+			hte=ht_tab_search(type, arg, strlen(arg), um_x_gettst());
 			break;
 		case CHECKBINFMT:
 			hte=ht_tab_binfmtsearch(type, arg, um_x_gettst(), 0);
