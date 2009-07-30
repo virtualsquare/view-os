@@ -25,6 +25,7 @@
 #define _UID16TO32_H
 
 #define id16to32(id) ((id) == (unsigned short int) -1 ? (unsigned int) -1 : (id))
+#define id32to16(id) ((id) == (unsigned int) -1 ? (unsigned short int) -1 : (id))
 
 #ifndef __NR_chown32
 #define __NR_chown32 __NR_chown
@@ -43,6 +44,9 @@
 #endif
 #ifndef __NR_geteuid32
 #define __NR_geteuid32 __NR_geteuid
+#endif
+#ifndef __NR_getegid32
+#define __NR_getegid32 __NR_getegid
 #endif
 #ifndef __NR_setreuid32
 #define __NR_setreuid32 __NR_setreuid
@@ -74,8 +78,8 @@
 #ifndef __NR_setfsuid32
 #define __NR_setfsuid32 __NR_setfsuid
 #endif
-#ifndef __NR_setfsuid32
-#define __NR_setfsuid32 __NR_setfsuid
+#ifndef __NR_setfsgid32
+#define __NR_setfsgid32 __NR_setfsgid
 #endif
 
 #endif

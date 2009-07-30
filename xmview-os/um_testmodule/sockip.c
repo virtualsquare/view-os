@@ -43,11 +43,10 @@
 
 
 static struct service s;
-static struct timestamp stst;
 
-static int ioctlparms(struct ioctl_len_req *arg)
+static long ioctlparms(int fd, int req)
 {
-	switch (arg->req) { 
+	switch (req) { 
 		case FIONREAD:
 			return sizeof(int) | IOCTL_W;
 		case FIONBIO:
@@ -85,23 +84,6 @@ static int ioctlparms(struct ioctl_len_req *arg)
 }
 
 // int read(), write(), close();
-
-static epoch_t checkip(int type, void *arg)
-{
-	if (type ==  CHECKSOCKET) {
-		int *pdomain=arg;
-		fprint2("checkip %d %d\n",*pdomain,tst_matchingepoch(&stst));
-		if(*pdomain == AF_INET)
-			return tst_matchingepoch(&stst);
-		else
-			return 0;
-	}
-	else if (type == CHECKIOCTLPARMS) 
-		return ioctlparms(arg);
-	else 
-		return 0;
-}
-
 /*
 static int myread(int fd, char *buf, int size)
 {
@@ -165,10 +147,11 @@ init (void)
 	GMESSAGE("sockettest init");
 	s.name="sockettest (syscall are executed server side)";
 	s.code=0xfb;
-	s.checkfun=checkip;
+	s.ioctlparms=ioctlparms;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	SERVICESOCKET(s, socket, socket);
+	//SERVICESOCKET(s, socket, mysocket);
 	SERVICESOCKET(s, bind, bind);
 	SERVICESOCKET(s, connect, connect);
 	SERVICESOCKET(s, listen, listen);
@@ -194,12 +177,13 @@ init (void)
 	SERVICESYSCALL(s, fcntl64, fcntl64);
 #endif
 	SERVICESYSCALL(s, ioctl, sockioctl);
-	//SERVICESYSCALL(s, _newselect, select);
-	//SERVICESYSCALL(s, poll, poll);
 	s.event_subscribe=sock_event_subscribe;
 
 	add_service(&s);
-	stst=tst_timestamp();
+	{
+		int socktype=AF_INET;
+		ht_tab_add(CHECKSOCKET,&socktype,sizeof(int),&s,NULL,NULL);
+	}
 }
 
 	static void

@@ -1,26 +1,63 @@
+/*   This is part of um-ViewOS
+ *   The user-mode implementation of OSVIEW -- A Process with a View
+ *
+ *   hashtab.c: main hash table
+ *   
+ *   Copyright 2009 Renzo Davoli University of Bologna - Italy
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License, version 2, as
+ *   published by the Free Software Foundation.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
+ *
+ */
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
 #include <pthread.h>
+#include <sctab.h>
+#include <assert.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include "hashtab.h"
 
+/* it must be a power of two (masks are used instead of modulo) */
 #define MNTTAB_HASH_SIZE 512
 #define MNTTAB_HASH_MASK (MNTTAB_HASH_SIZE-1)
 
 static struct ht_elem *ht_hash[MNTTAB_HASH_SIZE]; 
+static struct ht_elem *ht_hash0[NCHECKS]; 
 static struct ht_elem *ht_head;
 //static struct ht_elem *ht_free;
-static pthread_mutex_t ht_tab_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_rwlock_t ht_tab_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
+/* alloc/free of ht_elem */
 static inline struct ht_elem *ht_tab_alloc() {
 	 return (struct ht_elem *)malloc(sizeof (struct ht_elem));
 }
 
-static void ht_tab_free(struct ht_elem *ht) {
+static inline void ht_tab_free(struct ht_elem *ht) {
+	free(ht->obj);
+	if (ht->mtabline)
+		free(ht->mtabline);
 	free(ht);
 }
 
+/* hash function */
+/* hash sum and mod are separate functions:
+	 hash sums are used to quicly elimiate false positives,
+	 intermediate results can be completed during the scan */
 static inline long hashadd (long prevhash, char c) {
 	return prevhash ^ ((prevhash << 5) + (prevhash >> 2) + c); 
 }
@@ -37,113 +74,269 @@ static inline long hashsum (unsigned char type,const char *c,int len) {
 	return sum;
 }
 
-static inline int cutdots(char *path)
+/* CARROT magagement:
+	 a carrot is a list of virtualization layers lying under a path
+	 the list is sorted from the newest to the oldest
+	 a carrot contains all the layers up to the newest which do not
+	 have exceptions */
+static inline int ht_elem_has_exceptions(struct ht_elem *elem)
 {
-	int l=strlen(path);
-	l--;
-	if (path[l]=='.') {
-		l--;
-		if(path[l]=='/') {
-			if (l!=0) path[l]=0; else path[l+1]=0;
-		} else if (path[l]=='.') {
-			l--;
-			if(path[l]=='/') {
-				while(l>0) {
-					l--;
-					if (path[l]=='/')
-						break;
-				}
-				if(path[l]=='/') {
-					if (l==0) l++;
-					path[l]=0; 
-				}
-			}
-		}
-	} else
-		l++;
-	return l;
+	return (elem->checkfun != NULL);
 }
 
-static struct ht_elem *ht_tab_internal_search(unsigned char type, void *hashobj, void *obj, int objlen,
-		  struct timestamp *tst)
-{
-	struct ht_elem *rv=NULL;
-	char *objc=hashobj;
-	epoch_t maxepoch=0;
-	long sum=0;
-	long hash;
-	struct ht_elem *ht;
-	sum=hashsum(type, objc, objlen);
-	hash=hashmod(sum);
-	pthread_mutex_lock(&ht_tab_mutex);
-	ht=ht_hash[hash];
-	while (ht != NULL) {
-		epoch_t e;
-		if (type==ht->type &&
-				sum==ht->hashsum &&
-				(ht->objlen >= objlen) &&
-				memcmp(hashobj,ht->obj,objlen)==0 &&
-				(ht->checkfun==NULL || ht->checkfun(type,obj,ht)) && 
-				(tst->epoch > ht->tst.epoch) &&
-				(e=tst_matchingepoch(&(ht->tst))) > maxepoch) {
-			maxepoch=e;
-			rv=ht;
-		}
-		ht=ht->nexthash;
-	}
-	pthread_mutex_unlock(&ht_tab_mutex);
+struct carrot {
+	struct ht_elem *elem;
+	epoch_t time;
+	struct carrot *next;
+};
+
+static struct carrot *carrot_fhead;
+
+static inline struct carrot *carrot_alloc(void) {
+	struct carrot *rv=NULL;
+	if (carrot_fhead != NULL) {
+		rv=carrot_fhead;
+		carrot_fhead=rv->next;
+		rv->next=NULL;
+	} else /* XXX maybe we can allocate groups of carrot elems */
+		rv=malloc(sizeof(struct carrot));
 	return rv;
 }
 
-struct ht_elem *ht_tab_search(unsigned char type, void *obj, int objlen,
-		  struct timestamp *tst)
-{
-	return ht_tab_internal_search(type,obj,obj,objlen,tst);
+static void carrot_free(struct carrot *old) {
+	if (old != NULL) {
+		struct carrot *scan;
+		for (scan=old;scan->next!=NULL;scan=scan->next)
+			;
+		scan->next=carrot_fhead;
+		carrot_fhead=old;
+	}
 }
 
-struct ht_elem *ht_tab_pathsearch(unsigned char type, char *path, struct timestamp *tst, int exact) {
-	int len=cutdots(path);
-	struct ht_elem *rv=ht_tab_internal_search(type,path,path,len,tst);
-#if 0
-	/* debug printf */
-	if (rv)
-		fprint2("+++ ht_tab_pathsearch %s %x %lld %lld\n",path,rv->service,tst->epoch,rv->tst.epoch);
-	else
-		fprint2("ht_tab_pathsearch %s %lld NONE\n",path,tst->epoch);
-#endif
-	if (exact && rv && rv->objlen != len)
+static struct carrot *carrot_insert(struct carrot *head, struct ht_elem *elem,  epoch_t time) {
+	if (head==NULL ||	/* empty carrot */
+			head->time < time) { /* this is newer */
+		if (head==NULL || ht_elem_has_exceptions(elem)) {
+			struct carrot *rv;
+			rv=carrot_alloc();
+			rv->elem=elem;
+			rv->time=time;
+			rv->next=head;
+			return rv;
+		} else {
+			head->elem=elem;
+			head->time=time;
+			carrot_free(head->next);
+			head->next=NULL;
+			return head;
+		}
+	} else {
+		if (ht_elem_has_exceptions(head->elem)) 
+			head->next=carrot_insert(head->next,elem,time);
+		return head;
+	}		
+}
+
+static struct carrot *carrot_delete(struct carrot *head, struct ht_elem *elem) {
+	if (head==NULL)
 		return NULL;
-	else
-		return rv;
+	else {
+		if (head->elem==elem) {
+			struct carrot *tail=head->next;
+			head->next=NULL;
+			carrot_free(head);
+			return tail;
+		} else {
+			head->next=carrot_delete(head->next,elem);
+			return head;
+		}
+	}
 }
 
-struct ht_elem *ht_tab_binfmtsearch(unsigned char type, struct binfmt_req *req,
-		  struct timestamp *tst)
+/* true if there are only trailing numbers (and there is at least one) */
+/* View-OS permits "mount" of things like /dev/hda[0-9]* */
+static inline int trailnum(char *s)
 {
-	return ht_tab_internal_search(type,req->path,req,strlen(req->path),tst);
+	/* "at least one" the first element needs a special case.
+     performance:  >'9' is the most frequent case, <'0' are quite rare
+		 in pathnames, the end of string is more common */
+	if (*s > '9' || *s == 0 || *s < '0')
+		return 0;
+	for (s++;*s;s++) 
+		if (*s > '9' || *s < '0')
+			return 0;
+	return 1;
 }
 
-static int internal_ht_tab_add(unsigned char type, 
+/* during the scan: search in the hash table if this returns 1 */
+static inline int ht_scan_stop(unsigned char type, char *objc, int len, int exact) {
+	switch (type) {
+		case CHECKPATH:
+			return (*objc == 0  /* this is the end of a string */
+					|| (!exact /* or when subtring match are allowed */
+						&& (*objc=='/' /* test the match if the current char is '/' */
+				/* or if there are trailing numbers e.g. /dev/hda1, hda2 etc */
+							|| trailnum(objc))));
+		case CHECKBINFMT:
+			return (*objc == 0  /* this is the end of a string */
+					|| (!exact /* or when subtring match are allowed */
+						&& *objc=='/')); /* test the match if the current char is '/' */
+		case CHECKSOCKET:
+		case CHECKCHRDEVICE:
+		case CHECKBLKDEVICE:
+		case CHECKSC: /* array of int, or null keys */
+			return ((len % sizeof(int))==0);
+		case CHECKFSTYPE: /* char by char */
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+/* terminate the scan */
+static inline int ht_scan_terminate(unsigned char type, char *objc, int len, int objlen) {
+	switch (type) {
+		case CHECKPATH:
+		case CHECKBINFMT:
+		case CHECKFSTYPE:
+			return (*objc == 0);
+		case CHECKSOCKET:
+		case CHECKCHRDEVICE:
+		case CHECKBLKDEVICE:
+		case CHECKSC:
+			return (len==objlen);
+		default:
+			return 0;
+	}
+}
+static inline int call_checkfun(int (*checkfun)(),unsigned char type,void *checkobj,int len,struct ht_elem *ht) {
+	epoch_t epoch=um_setepoch(ht->tst.epoch);
+	int rv=checkfun(type,checkobj,len,ht);
+	um_setepoch(epoch);
+	return rv;
+}
+
+/* unified search, specific searches are defined in hashtab.h as 
+	 inline functions (for performance) */
+static struct ht_elem *ht_tab_internal_search(unsigned char type, void *obj, int objlen, void *checkobj, struct timestamp *tst, int exact) 
+{
+	struct ht_elem *rv=NULL;
+	char *objc=obj;
+	long sum=type;
+	long hash;
+	struct carrot *carh=NULL;
+	struct ht_elem *ht;
+	int len=0;
+	pthread_rwlock_rdlock(&ht_tab_rwlock);
+	while (1) {
+		if (ht_scan_stop(type, objc, len, exact)) {
+			hash=hashmod(sum);
+			ht=(len)?ht_hash[hash]:ht_hash0[type];
+			//if (type==CHECKFSTYPE)
+				//fprint2("CHECK %s %ld %d %p\n",obj,sum,hash,ht);
+			while (ht != NULL) {
+				epoch_t e;
+				//if (type==CHECKFSTYPE && type==ht->type)
+					//fprint2("CHECK %s %s\n",obj,ht->obj);
+				if (type==ht->type &&
+						sum==ht->hashsum &&
+						(ht->objlen >= len) &&
+						memcmp(obj,ht->obj,len)==0 &&
+						(ht->trailingnumbers || !trailnum(objc)) &&
+						(tst->epoch > ht->tst.epoch) &&
+						(e=tst_matchingepoch(&(ht->tst))) > 0) {
+					/*carrot add*/
+					if (ht->checkfun == NEGATIVE_MOUNT)
+						carh=carrot_delete(carh, ht->private_data);
+					else
+						carh=carrot_insert(carh, ht, e); 
+				}
+				ht=ht->nexthash;
+			}
+			if (ht_scan_terminate(type, objc, len, objlen))
+				break;
+		}
+		sum=hashadd(sum,*objc);
+		objc++;
+		len++;
+	}
+	if (carh != NULL) {
+		struct carrot *curcar=carh;
+		for (curcar=carh; curcar!=NULL;curcar=curcar->next) {
+			ht=curcar->elem;
+			if (ht->checkfun==NULL || call_checkfun(ht->checkfun,type,checkobj,len,ht))
+				break;
+		}
+		if (curcar != NULL)
+			rv=curcar->elem;
+		carrot_free(carh);
+	}
+	pthread_rwlock_unlock(&ht_tab_rwlock);
+	/*fprint2("ht_tab_search %s %p\n",(char *)obj,rv);*/
+	return rv;
+}
+
+static inline struct ht_elem *ht_tab_pathsearch(unsigned char type, void *obj, 
+		struct timestamp *tst, int exact) {
+	return ht_tab_internal_search(type,obj,0,obj,tst,exact);
+}
+
+static inline struct ht_elem *ht_tab_binfmtsearch(unsigned char type, 
+		struct binfmt_req *req, struct timestamp *tst, int exact) {
+	return ht_tab_internal_search(type,req->path,0,req,tst,exact);
+}
+
+static inline struct ht_elem *ht_tab_search(unsigned char type, void *obj, 
+		int objlen, struct timestamp *tst) {
+	return ht_tab_internal_search(type,obj,objlen,obj,tst,0);
+}
+
+/* for debugging: otherwise strings are not null terminated, so cannot 
+	 be printed*/
+#if 0
+static inline int ht_is_obj_string(unsigned char type) {
+	switch (type) {
+		case CHECKPATH:
+		case CHECKFSTYPE:
+			return 1;
+		default:
+			return 0;
+	}
+}
+#endif
+/* during normal operation it is safe to keep strings without the final NULL */
+#define ht_is_obj_string(X) 0 
+
+/* generic add of ht element */
+static struct ht_elem *internal_ht_tab_add(unsigned char type, 
 		const void *obj, 
 		int objlen,
 		char *mtabline,
-		struct timestamp *tst, unsigned char service, 
+		struct service *service, 
+		unsigned char trailingnumbers,
 		checkfun_t checkfun,
 		void *private_data) {
-	long hashv;
 	struct ht_elem *new=ht_tab_alloc();
 	if (new) {
-		if ((new->obj=malloc(objlen)) != NULL) {
-			memcpy(new->obj,obj,objlen);
+		if ((new->obj=malloc(objlen+ht_is_obj_string(type))) != NULL) {
+			struct ht_elem **hashhead;
+			memcpy(new->obj,obj,objlen+ht_is_obj_string(type));
 			new->objlen=objlen;
 			new->type=type;
 			new->mtabline=mtabline;
-			new->tst=*tst;
+			new->tst=tst_timestamp();
+			new->trailingnumbers=trailingnumbers;
 			new->private_data=private_data;
 			new->service=service;
 			new->checkfun=checkfun;
-			hashv=hashmod(new->hashsum=hashsum(type,new->obj,new->objlen));
-			pthread_mutex_lock(&ht_tab_mutex);
+			new->hashsum=hashsum(type,new->obj,new->objlen);
+			if (objlen==0)
+				hashhead=&ht_hash0[type];
+			else
+				hashhead=&ht_hash[hashmod(new->hashsum)]; 
+			//if (type==CHECKFSTYPE)
+				//fprint2("ADD %s %ld %d\n",new->obj,new->hashsum,hashmod(new->hashsum));
+			pthread_rwlock_wrlock(&ht_tab_rwlock);
 			if (ht_head) {
 				new->next=ht_head->next;
 				new->prev=ht_head;
@@ -152,106 +345,244 @@ static int internal_ht_tab_add(unsigned char type,
 				ht_head=new;
 			} else 
 				ht_head=new->next=new->prev=new;
-			if (ht_hash[hashv]) 
-				ht_hash[hashv]->pprevhash=&(new->nexthash);
-			new->nexthash=ht_hash[hashv];
-			new->pprevhash=&ht_hash[hashv];
-			ht_hash[hashv]=new;
-			pthread_mutex_unlock(&ht_tab_mutex);
-			return 0;
+			if (*hashhead) 
+				(*hashhead)->pprevhash=&(new->nexthash);
+			new->nexthash=*hashhead;
+			new->pprevhash=hashhead;
+			*hashhead=new;
+			pthread_rwlock_unlock(&ht_tab_rwlock);
+			return new;
 		} else {
 			free(new);
-			return -ENOMEM;
+			return NULL;
 		}
 	} else
-		return -ENOMEM;
+		return NULL;
 }
 
-int ht_tab_add(unsigned char type,void *obj,int objlen,
-		    struct timestamp *tst, unsigned char service, 
-				checkfun_t checkfun,
-				void *private_data) {
+/* add a "normal" item to the hash table:
+	 (tralingnumbers=1 causes scan to skip the check) */
+struct ht_elem *ht_tab_add(unsigned char type,void *obj,int objlen,
+		struct service *service, checkfun_t checkfun, void *private_data) {
+	if (type==CHECKFSTYPE)
+		objlen=strlen(obj);
 	return internal_ht_tab_add(type, obj, objlen, NULL,
-			tst, service, checkfun, private_data);
+			service, 1, checkfun, private_data);
 }
 
-int ht_tab_pathadd(unsigned char type, const char *source,
+/* add a path to the hashtable (this creates an entry for the mounttab) */
+struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 		const char *path,
 		const char *fstype,
 		const char *flags,
-		struct timestamp *tst, unsigned char service, 
+		struct service *service, 
+		unsigned char trailingnumbers,
 		checkfun_t checkfun,
 		void *private_data)
 {
 	char *mtabline;
-	int rv;
+	const char *addpath;
+	struct ht_elem *rv;
 	if (source)
-		asprintf(&mtabline,"%s %s %s %s 0 %lld",source,path,fstype,flags,tst->epoch);
+		asprintf(&mtabline,"%s%s %s %s %s 0 %lld",
+				(checkfun==NEGATIVE_MOUNT)?"-":"",
+				source,path,fstype,flags?flags:"\"\"",get_epoch());
 	else
 		mtabline=NULL;
 	if (path[1]=='\0' && path[0]=='/')
-		rv=internal_ht_tab_add(type, "", 0, mtabline,
-				tst, service, checkfun, private_data);
+		addpath="";
 	else
-		rv=internal_ht_tab_add(type, path, strlen(path), mtabline,
-				tst, service, checkfun, private_data);
-	if (rv<0)
+		addpath=path;
+	rv=internal_ht_tab_add(type, addpath, strlen(addpath), mtabline,
+			service, trailingnumbers, checkfun, private_data);
+	if (rv == NULL && mtabline != NULL)
 		free(mtabline);
 	return rv;
 }
 
+/* delete an element from the hash table */
+static void ht_tab_del_locked(struct ht_elem *ht) {
+	if (ht == ht_head) {
+		if (ht->next == ht)
+			ht_head=NULL;
+		else
+			ht_head = ht->prev;
+	}
+	ht->prev->next=ht->next;
+	ht->next->prev=ht->prev;
+	*(ht->pprevhash)=ht->nexthash;
+	if (ht->nexthash)
+		ht->nexthash->pprevhash=ht->pprevhash;
+	ht_tab_free(ht);
+}
+
+void ht_tab_invalidate(struct ht_elem *ht) {
+	if (ht)
+		ht->type=CHECKNOCHECK;
+}
+
 int ht_tab_del(struct ht_elem *ht) {
 	if (ht) {
-		pthread_mutex_lock(&ht_tab_mutex);
-		if (ht == ht_head) {
-			if (ht->next == ht)
-				ht_head=NULL;
-			else
-				ht_head = ht->prev;
-		}
-		ht->prev->next=ht->next;
-		ht->next->prev=ht->prev;
-		*(ht->pprevhash)=ht->nexthash;
-		if (ht->nexthash)
-			ht->nexthash->pprevhash=ht->pprevhash;
-		free(ht->obj);
-		if (ht->mtabline)
-			free(ht->mtabline);
-		ht_tab_free(ht);
-		pthread_mutex_unlock(&ht_tab_mutex);
+		pthread_rwlock_wrlock(&ht_tab_rwlock);
+		ht_tab_del_locked(ht);
+		pthread_rwlock_unlock(&ht_tab_rwlock);
 		return 0;
 	} else
 		return -ENOENT;
 }
 
-void forall_ht_tab_do(unsigned char type, 
-		struct timestamp *tst, unsigned char service,
+struct ht_elem *ht_check(int type, void *arg, struct stat64 *st, int setepoch)
+{
+	struct ht_elem *hte;
+	int size=0;
+	switch (type) {
+		case CHECKPATH:
+			hte=ht_tab_pathsearch(type, arg, um_x_gettst(), 0);
+			if (st) {
+				if (__builtin_expect(S_ISCHR(st->st_mode),0)) {
+					struct ht_elem *devhte;
+					devhte=ht_tab_search(CHECKCHRDEVICE, &st->st_rdev, 
+							sizeof(dev_t), um_x_gettst());
+					if (devhte != NULL)
+						hte=devhte;
+				} else if (__builtin_expect(S_ISBLK(st->st_mode),0)) {
+					struct ht_elem *devhte;
+					devhte=ht_tab_search(CHECKBLKDEVICE, &st->st_rdev,
+							sizeof(dev_t), um_x_gettst());
+					if (devhte != NULL)
+						hte=devhte;
+				}
+			}
+			break;
+		case CHECKCHRDEVICE:
+		case CHECKBLKDEVICE:
+			size++;
+		case CHECKSOCKET:
+		case CHECKSC:
+			size++;
+		case CHECKFSTYPE:
+			hte=ht_tab_search(type, arg, size*sizeof(int), um_x_gettst());
+			break;
+		case CHECKBINFMT:
+			hte=ht_tab_binfmtsearch(type, arg, um_x_gettst(), 0);
+			break;
+		default:
+			hte=NULL;
+	}
+	if (hte && setepoch)
+		um_setepoch(hte->tst.epoch);
+	return hte;
+}
+
+static long errnosys()
+{
+	errno=ENOSYS;
+	return -1;
+}
+
+int isnosys(sysfun f)
+{
+	return (f==errnosys);
+}
+
+sysfun ht_syscall(struct ht_elem *hte, int scno)
+{
+	if (hte) {
+		struct service *s=hte->service;
+		assert( s != NULL);
+		return (s->um_syscall[scno] == NULL) ? errnosys : s->um_syscall[scno];
+	} else
+		return NULL;
+}
+
+sysfun ht_socketcall(struct ht_elem *hte, int scno)
+{
+	if (hte) {
+		struct service *s=hte->service;
+		assert(s != NULL);
+		return (s->um_socket[scno] == NULL) ? errnosys : s->um_socket[scno];
+	} else
+		return NULL;
+}
+
+sysfun ht_virsyscall(struct ht_elem *hte, int scno)
+{
+	if (hte) {
+		struct service *s=hte->service;
+		assert( s != NULL );
+		return (s->um_virsc == NULL || s->um_virsc[scno] == NULL)
+			? errnosys : s->um_virsc[scno];
+	} else
+		return NULL;
+}
+
+sysfun ht_ioctlparms(struct ht_elem *hte)
+{
+	struct service *s=hte->service;
+	assert( s != NULL );
+	return (s->ioctlparms);
+}
+
+sysfun ht_event_subscribe(struct ht_elem *hte)
+{
+	struct service *s=hte->service;
+	assert( s != NULL );
+	return (s->event_subscribe);
+}
+
+void forall_ht_tab_service_do(unsigned char type, 
+		struct service *service,
 		void (*fun)(struct ht_elem *ht, void *arg), 
 		void *arg) {
-	int what=(tst == NULL) | 0x2 * (service != 0);
-	pthread_mutex_lock(&ht_tab_mutex);
+	pthread_rwlock_rdlock(&ht_tab_rwlock);
+	if (ht_head) {
+		struct ht_elem *scanht=ht_head;
+		struct ht_elem *next=scanht;
+		do {
+			scanht=next;
+			if (type==CHECKNOCHECK || scanht->type == type) {
+				if (service == NULL || scanht->service == service)
+					fun(scanht, arg);
+			}
+			next=scanht->prev;
+			//fprint2("SCAN %p %p %s\n",next,scanht,scanht->obj);
+		} while (ht_head != NULL && next != ht_head);
+	}
+	pthread_rwlock_unlock(&ht_tab_rwlock);
+}
+
+void forall_ht_tab_del_invalid(void)
+{
+	pthread_rwlock_wrlock(&ht_tab_rwlock);
+	if (ht_head) {
+		struct ht_elem *scanht=ht_head;
+		struct ht_elem *next=scanht->next;
+		do {
+			scanht=next;
+			if (scanht->type == CHECKNOCHECK)
+				ht_tab_del_locked(scanht);
+			next=scanht->next;
+		} while (ht_head != NULL && scanht != ht_head);
+	}
+	pthread_rwlock_unlock(&ht_tab_rwlock);
+}
+
+void forall_ht_tab_do(unsigned char type,
+		void (*fun)(struct ht_elem *ht, void *arg),
+		void *arg) {
+	pthread_rwlock_rdlock(&ht_tab_rwlock);
 	if (ht_head) {
 		struct ht_elem *scanht=ht_head;
 		do {
 			scanht=scanht->next;
-			if (scanht->type == type) {
-				switch (what) {
-					case 0 : fun(scanht, arg); break;
-					case 1 : if (tst_matchingepoch(tst) > 0)
-										 fun(scanht, arg);
-									 break;
-					case 2 : if (scanht->service == service)
-										 fun(scanht, arg);
-									 break;
-					case 3 : if (tst_matchingepoch(tst) > 0 &&
-											 scanht->service == service)
-										 fun(scanht, arg);
-									 break;
-				} 
+			if (type==CHECKNOCHECK || scanht->type == type) {
+				if (tst_matchingepoch(&(scanht->tst)) > 0)
+					fun(scanht, arg);
 			}
-		} while (scanht != ht_head);
-  }
-	pthread_mutex_unlock(&ht_tab_mutex);
+			//fprint2("SCAN %p %s\n",scanht,scanht->obj);
+		} while (ht_head != NULL && scanht != ht_head);
+	}
+	pthread_rwlock_unlock(&ht_tab_rwlock);
 }
 
 static void ht_tab_getmtab_add(struct ht_elem *ht, void *arg) {
@@ -260,10 +591,10 @@ static void ht_tab_getmtab_add(struct ht_elem *ht, void *arg) {
 		fprintf(f,"%s\n",ht->mtabline);
 }
 
-void ht_tab_getmtab(struct timestamp *tst,char **buf, size_t *size) {
+void ht_tab_getmtab(char **buf, size_t *size) {
 	FILE *f=open_memstream(buf,size);
 	if (f) 
-		forall_ht_tab_do(CHECKPATH,tst,0,ht_tab_getmtab_add,f);
+		forall_ht_tab_do(CHECKPATH,ht_tab_getmtab_add,f);
 	fclose(f);
 }
 

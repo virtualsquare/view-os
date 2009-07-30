@@ -29,11 +29,6 @@
 
 struct service s;
 
-static epoch_t alwaysfalse()
-{
-	return 0;
-}
-
 static long addproc(int id, int max)
 {
 	fprintf(stderr, "testmodule add proc %d %d\n", id, max);
@@ -117,7 +112,6 @@ init (void)
 	fprintf(stderr, "testmodule init\n");
 	s.name="Test Module";
 	s.code=0xfc;
-	s.checkfun=alwaysfalse;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	s.ctl = ctl;

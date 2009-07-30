@@ -46,9 +46,9 @@
 
 static struct service s;
 
-static int ioctlparms(struct ioctl_len_req *arg)
+static long ioctlparms(int fd,int req)
 {
-	switch (arg->req) {
+	switch (req) {
 		case FIONREAD:
 			return sizeof(int) | IOCTL_W;
 		case FIONBIO:
@@ -85,17 +85,6 @@ static int ioctlparms(struct ioctl_len_req *arg)
 	}
 }
 
-
-static epoch_t choiceissocket(int type,void *arg)
-{
-	if (type==CHECKSOCKET)
-		return 1;
-	else if (type == CHECKIOCTLPARMS) 
-		return ioctlparms(arg);
-	else
-		return 0;
-}
-
 static int sockioctl(int d, int request, void *arg)
 {
 	if (request == SIOCGIFCONF) {
@@ -125,7 +114,7 @@ init (void)
 	GMESSAGE("sockettest init");
 	s.name="sockettest (syscall are executed server side)";
 	s.code=0xfa;
-	s.checkfun=choiceissocket;
+	s.ioctlparms=ioctlparms;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	SERVICESOCKET(s, socket, socket);
@@ -156,6 +145,7 @@ init (void)
 	SERVICESYSCALL(s, poll, poll);
 
 	add_service(&s);
+	ht_tab_add(CHECKSOCKET,NULL,0,&s,NULL,NULL);
 }
 
 	static void

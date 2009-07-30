@@ -33,7 +33,7 @@
 #include "defs.h"
 #include "gdebug.h"
 #include "umproc.h"
-#include "services.h"
+#include "hashtab.h"
 #include "um_services.h"
 #include "sctab.h"
 #include "scmap.h"
@@ -47,6 +47,9 @@ struct mmap_sf_entry {
 	char *path;
 	epoch_t epoch;
 	time_t mtime;
+	struct ht_elem *hte;
+	unsigned long prot;
+	unsigned long length;
 	unsigned long pgoffset;
 	unsigned long pgsize;
 	unsigned long counter;
@@ -97,12 +100,22 @@ static struct mmap_sf_entry *pcb_mmap_sfsearch(
 }
 #endif
 
+static void store_mmap_secret(struct ht_elem *hte,const char *to, unsigned long pgoffset, unsigned long length);
+static inline void mmap_sf_del(struct mmap_sf_entry *sf_entry, int error)
+{
+	sf_entry->counter--;
+	if (!error && sf_entry->counter == 0 &&
+			sf_entry->prot & PROT_WRITE) {
+		store_mmap_secret(sf_entry->hte,sf_entry->path, sf_entry->pgoffset, sf_entry->length);
+	}
+}
+
 /* delete the first element in the *process* mmap list */
-static void pcb_mmap_deletehead(struct pcb_mmap_entry **head)
+static void pcb_mmap_deletehead(struct pcb_mmap_entry **head,int error)
 {
 	struct pcb_mmap_entry *this=*head;
 	if (this != NULL) {
-		this->sf_entry->counter--;
+		mmap_sf_del(this->sf_entry,error);
 		*head=this->next; 
 		free(this);
 	}
@@ -228,7 +241,8 @@ static void mmap_compact()
 
 /* allocate a free space on the secret file*/
 static struct mmap_sf_entry *mmap_sf_allocate (
-		char *path, epoch_t epoch, time_t mtime, unsigned long pgsize)
+		char *path, epoch_t epoch, time_t mtime, unsigned long pgsize,
+		unsigned long prot,struct ht_elem *hte,unsigned long length)
 {
 	struct mmap_sf_entry *scan=mmap_sf_head;
 	mmap_compact();
@@ -258,6 +272,9 @@ static struct mmap_sf_entry *mmap_sf_allocate (
 				scan->next=new;
 			}
 			scan->path=strdup(path);
+			scan->prot=prot;
+			scan->hte=hte;
+			scan->length=length;
 			scan->epoch=epoch;
 			scan->mtime=mtime;
 			scan->counter=scan->lastuse=0;
@@ -289,17 +306,17 @@ static struct mmap_sf_entry *mmap_sf_allocate (
 }
 
 /* get the stat info of the mmapped file */
-static int um_mmap_getstat(char *filename, service_t sercode, struct stat64 *buf, struct pcb *pc)
+static int um_mmap_getstat(char *filename, struct ht_elem *hte, struct stat64 *buf, struct pcb *pc)
 {
- if (sercode == UM_NONE)
+ if (hte == NULL)
 	 return r_lstat64(filename,buf);
  else
-	 return service_syscall(sercode,uscno(NR64_stat))(filename,buf,pc);
+	 return ht_syscall(hte,uscno(NR64_stat))(filename,buf,pc);
 }
 
 /* add_mmap_secret copies the virtual mmap-ed file in a section of the
  * secret file */
-static long add_mmap_secret(service_t sercode,const char *from, unsigned long pgoffset)
+static long add_mmap_secret(struct ht_elem *hte,const char *from, unsigned long pgoffset)
 {
 	char buf[BUFSIZ];
 	int fdf;
@@ -313,31 +330,58 @@ static long add_mmap_secret(service_t sercode,const char *from, unsigned long pg
 #else
 	r_lseek(um_mmap_secret,pgoffset << um_mmap_pageshift,SEEK_SET);
 #endif
-	if ((fdf=service_syscall(sercode,uscno(__NR_open))(from,O_RDONLY,0)) < 0)
+	if ((fdf=ht_syscall(hte,uscno(__NR_open))(from,O_RDONLY,0)) < 0)
 		return -errno;
-	while ((n=service_syscall(sercode,uscno(__NR_read))(fdf,buf,BUFSIZ)) > 0) {
+	while ((n=ht_syscall(hte,uscno(__NR_read))(fdf,buf,BUFSIZ)) > 0) {
 		r_write (um_mmap_secret,buf,n);
 		size += n;
 	}
-	service_syscall(sercode,uscno(__NR_close))(fdf);
+	ht_syscall(hte,uscno(__NR_close))(fdf);
 	return (size >> um_mmap_pageshift)+1;
+}
+
+/* store_mmap_secret copies a section of the secret file back in the
+ * virtual file*/
+static void store_mmap_secret(struct ht_elem *hte,const char *to, unsigned long pgoffset, unsigned long length)
+{
+	char buf[BUFSIZ];
+	int fdf;
+	int n;
+	//fprint2("store_mmap_secret %s %ld\n",to, pgoffset);
+#if __NR__llseek != __NR_doesnotexist
+	loff_t result;
+	r_llseek(um_mmap_secret, pgoffset >> ((sizeof (long)*8) - um_mmap_pageshift),
+			pgoffset << um_mmap_pageshift, &result, SEEK_SET);
+#else
+	r_lseek(um_mmap_secret,pgoffset << um_mmap_pageshift,SEEK_SET);
+#endif
+	if ((fdf=ht_syscall(hte,uscno(__NR_open))(to,O_WRONLY | O_TRUNC | O_CREAT,0)) < 0)
+		return;
+	while (length > 0) {
+		n=(length < BUFSIZ)?length:BUFSIZ;
+	  n=r_read(um_mmap_secret,buf,n);
+	  if (n<=0)
+			break;
+	  ht_syscall(hte,uscno(__NR_write))(fdf,buf,n);
+	}
+	ht_syscall(hte,uscno(__NR_close))(fdf);
+	return; 
 }
 
 /* both mmap and mmap2 management */
 int wrap_in_mmap(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned long length=pc->sysargs[1];
 	unsigned long prot=pc->sysargs[2];
-	unsigned long flags=pc->sysargs[3];
+	// unsigned long flags=pc->sysargs[3];
 	unsigned long fd=pc->sysargs[4];
 	long offset=pc->sysargs[5];
 	unsigned long pgsize;
 	struct stat64 sbuf;
-	/*does it matter the time and service of the path? */
-	char *path=fd_getpath(pc->fds,fd,NULL,NULL);
-	if ((!(flags & MAP_PRIVATE)) && (prot & PROT_WRITE))
-		fprint2("MMAP: %s only MAP_PRIVATE has been implemented\n",path);
+	char *path=fd_getpath(pc->fds,fd);
+	/*if ((!(flags & MAP_PRIVATE)) && (prot & PROT_WRITE))
+		fprint2("MMAP: %s only MAP_PRIVATE has been implemented\n",path);*/
 	/* convert mmap into mmap2 */
 	if (sc_number == __NR_mmap)
 		offset >>= um_mmap_pageshift;
@@ -346,7 +390,7 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 	epoch_t nestepoch=um_setepoch(0);
 	um_setepoch(nestepoch +1);
 	/* get the stat info about the file */
-	if (um_mmap_getstat(path, sercode, &sbuf, pc) < 0) {
+	if (um_mmap_getstat(path, hte, &sbuf, pc) < 0) {
 		pc->retval = -1;
 		um_setepoch(nestepoch);
 		return SC_FAKE;
@@ -354,17 +398,18 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 		struct mmap_sf_entry *sf_entry;
 		if ((sbuf.st_size >> um_mmap_pageshift) + 1 > pgsize)
 			pgsize = (sbuf.st_size >> um_mmap_pageshift) + 1;
-		//fprint2("SIZE %lld pgsize %ld %ld \n", sbuf.st_size,(unsigned long)((sbuf.st_size >> um_mmap_pageshift) + 1),pgsize);
+		//fprint2("%s(%d/%o): MMAP SIZE %lld pgsize %ld %ld \n", path, hte->service->code, fd,sbuf.st_size,(unsigned long)((sbuf.st_size >> um_mmap_pageshift) + 1),pgsize);
 		/* there is already in the secret file? */
 		if ((sf_entry=mmap_sf_find(path,nestepoch,sbuf.st_mtime,pgsize)) == NULL) {
 			/* NO. must be loaded */
-			if ((sf_entry=mmap_sf_allocate(path,nestepoch,sbuf.st_mtime,pgsize)) == NULL) {
+			if ((sf_entry=mmap_sf_allocate(path,nestepoch,sbuf.st_mtime,pgsize,
+							prot,hte,length)) == NULL) {
 				/* there is something wrong, we cannot allocate space on the secret file*/
 				pc->retval = -1;
 				um_setepoch(nestepoch);
 				return SC_FAKE;
 			}
-			if (add_mmap_secret(sercode, path, sf_entry->pgoffset) <= 0) {
+			if (add_mmap_secret(hte, path, sf_entry->pgoffset) <= 0) {
 				/* there is something wrong, cannot load the file! */
 				pc->retval = -1;
 				um_setepoch(nestepoch);
@@ -402,7 +447,7 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 /* unmap: search the chunk to be unmapped, if found it is moved to the
  * head of the process mmap table */
 int wrap_in_munmap(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned long start=pc->sysargs[0];
 	unsigned long length=pc->sysargs[1];
@@ -416,7 +461,7 @@ int wrap_in_munmap(int sc_number,struct pcb *pc,
 
 /* remap: search the chunk and move it ti the head of the process mmap table */
 int wrap_in_mremap(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned long start=pc->sysargs[0];
 	unsigned long length=pc->sysargs[1];
@@ -442,7 +487,7 @@ int wrap_out_mmap(int sc_number,struct pcb *pc)
 				pc->um_mmap->start=rv;
 			else
 				/* user mode failed, the mapping must be deleted here, too */
-				pcb_mmap_deletehead(&(pc->um_mmap));
+				pcb_mmap_deletehead(&(pc->um_mmap),1);
 		}
 		return STD_BEHAVIOR;
 	} else {
@@ -456,10 +501,10 @@ int wrap_out_mmap(int sc_number,struct pcb *pc)
  * user mode syscall succeeded */
 int wrap_out_munmap(int sc_number,struct pcb *pc)
 {
-	//fprint2("======== wrap_out_munmap!!!\n");
+	//fprint2("======== wrap_out_munmap !!!\n");
 	long rv=getrv(pc);
 	if (rv != -1) 
-		pcb_mmap_deletehead(&(pc->um_mmap));	
+		pcb_mmap_deletehead(&(pc->um_mmap),0);	
 	return STD_BEHAVIOR;
 }
 

@@ -43,6 +43,7 @@
 #include "defs.h"
 #include "umproc.h"
 #include "services.h"
+#include "hashtab.h"
 #include "um_services.h"
 #include "sctab.h"
 #include "um_select.h"
@@ -79,8 +80,8 @@ static void cleanup_pending(struct pcb *pc)
 		int i;
 		assert(sd->pending);
 		for (i=0; i<sd->len; i++) {
-			int sercode=service_fd(pc->fds,sd->pending[i].fd,1);
-			sysfun local_event_subscribe=service_event_subscribe(sercode);
+			struct ht_elem *hte=ht_fd(pc->fds,sd->pending[i].fd,1);
+			sysfun local_event_subscribe=ht_event_subscribe(hte);
 			int sfd=fd2sfd(pc->fds,sd->pending[i].fd);
 			assert(local_event_subscribe != NULL && sfd >= 0);
 			local_event_subscribe(NULL,pc,sfd,sd->pending[i].how);
@@ -105,8 +106,8 @@ static void suspend_signaled(struct pcb *pc)
 		printf("UH? %d\n",pc->pid);
 	assert(sd);
 	assert(sd->pending);
-	int sercode=service_fd(pc->fds,sd->pending[0].fd,1);
-	sysfun local_event_subscribe=service_event_subscribe(sercode);
+	struct ht_elem *hte=ht_fd(pc->fds,sd->pending[0].fd,1);
+	sysfun local_event_subscribe=ht_event_subscribe(hte);
 	int sfd=fd2sfd(pc->fds,sd->pending[0].fd);
 	assert(local_event_subscribe != NULL && sfd >= 0);
 	local_event_subscribe(NULL,pc,sfd,sd->pending[0].how);
@@ -120,7 +121,7 @@ static void suspend_signaled(struct pcb *pc)
 int check_suspend_on(struct pcb *pc, int fd, int how)
 {
 	epoch_t oldepoch=um_setepoch(0);
-	int sercode=service_fd(pc->fds,fd,1);
+	struct ht_elem *hte=ht_fd(pc->fds,fd,1);
 	int sfd;
 	/*int i;*/
 	assert (pc->selset == NULL);
@@ -134,9 +135,9 @@ int check_suspend_on(struct pcb *pc, int fd, int how)
 		return SC_CALLONXIT;
 	}
 	/* check the fd is managed by some service and gets its service fd (sfd) */
-	if (sercode != UM_NONE && (sfd=fd2sfd(pc->fds,fd)) >= 0) {
+	if (hte != NULL && (sfd=fd2sfd(pc->fds,fd)) >= 0) {
 		sysfun local_event_subscribe;
-		if ((local_event_subscribe=service_event_subscribe(sercode)) != NULL) {
+		if ((local_event_subscribe=ht_event_subscribe(hte)) != NULL) {
 			bq_block(pc);
 			if (local_event_subscribe(bq_signal, pc, sfd, how) == 0)
 			{
@@ -178,7 +179,7 @@ static void selectpoll_signal(struct pcb *pc)
 	struct seldata *sd=pc->selset;
 	if (!sd)
 		fprint2("sd err %p\n",sd);
-	else if (sd->lfd <= 0)
+	else if (sd->lfd < 0)
 		fprint2("lfd err\n",sd->lfd);
 	else {
 		assert(sd->lfd >= 0);
@@ -189,7 +190,7 @@ static void selectpoll_signal(struct pcb *pc)
 static short select2poll[]={POLLIN,POLLOUT,POLLPRI};
 
 int wrap_in_select(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	register int n=pc->sysargs[0];
 	int i,fd,count;
@@ -219,9 +220,9 @@ int wrap_in_select(int sc_number,struct pcb *pc,
 				how |= select2poll[i];
 		}
 		if (how) {
-			int sercode=service_fd(pc->fds,fd,0);
-			if (sercode != UM_NONE && (fd2sfd(pc->fds,fd)) >= 0
-					&& (service_event_subscribe(sercode)) != NULL)
+			struct ht_elem *hte=ht_fd(pc->fds,fd,0);
+			if (hte != NULL && (fd2sfd(pc->fds,fd)) >= 0
+					&& (ht_event_subscribe(hte)) != NULL)
 				count++;
 		}
 	}
@@ -245,10 +246,10 @@ int wrap_in_select(int sc_number,struct pcb *pc,
 					how |= select2poll[i];
 			}
 			if (how) {
-				int sercode=service_fd(pc->fds,fd,1);
-				if (sercode != UM_NONE) {
+				struct ht_elem *hte=ht_fd(pc->fds,fd,1);
+				if (hte != NULL) {
 					int sfd=fd2sfd(pc->fds,fd);
-					sysfun local_event_subscribe=service_event_subscribe(sercode);
+					sysfun local_event_subscribe=ht_event_subscribe(hte);
 					if (sfd >= 0 && local_event_subscribe) {
 						/* virtual file: split components */
 						/* how encodes the requested waiting flags for event_subscribe */
@@ -295,8 +296,8 @@ int wrap_out_select(int sc_number,struct pcb *pc)
 			}
 		}
 		for (i=0; i<sd->len; i++) {
-			int sercode=service_fd(pc->fds,sd->pending[i].fd,1);
-			sysfun local_event_subscribe=service_event_subscribe(sercode);
+			struct ht_elem *hte=ht_fd(pc->fds,sd->pending[i].fd,1);
+			sysfun local_event_subscribe=ht_event_subscribe(hte);
 			int sfd=fd2sfd(pc->fds,sd->pending[i].fd);
 			assert(local_event_subscribe != NULL && sfd >= 0);
 			int howret=local_event_subscribe(NULL,pc,sfd,sd->pending[i].how);
@@ -330,7 +331,7 @@ int wrap_out_select(int sc_number,struct pcb *pc)
 }
 
 int wrap_in_poll(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	struct pollfd *ufds; /*local copy*/
 	unsigned int nfds=pc->sysargs[1];
@@ -344,9 +345,9 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 	/* count how many virtual file are there */
 	for(i=0,count=0;i<nfds;i++) {
 		int fd=ufds[i].fd;
-		int sercode=service_fd(pc->fds,fd,1);
-		if (ufds[i].events && sercode != UM_NONE && fd2sfd(pc->fds,fd) >= 0 &&
-				service_event_subscribe(sercode))
+		struct ht_elem *hte=ht_fd(pc->fds,fd,1);
+		if (ufds[i].events && hte != NULL && fd2sfd(pc->fds,fd) >= 0 &&
+				ht_event_subscribe(hte))
 			count++;
 	}
 	/* no virtual file: nothing to do here */
@@ -363,10 +364,10 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 		for(i=0,count=0;i<nfds;i++) {
 			if (ufds[i].events) {
 				int fd=ufds[i].fd;
-				int sercode=service_fd(pc->fds,fd,1);
-				if (sercode != UM_NONE) {
+				struct ht_elem *hte=ht_fd(pc->fds,fd,1);
+				if (hte != NULL) {
 					int sfd=fd2sfd(pc->fds,fd);
-					sysfun local_event_subscribe=service_event_subscribe(sercode);
+					sysfun local_event_subscribe=ht_event_subscribe(hte);
 					if (sfd >= 0 && local_event_subscribe) {
 						int lfd=fd2lfd(pc->fds,fd);
 						if (sd->lfd < 0) sd->lfd=lfd;
@@ -405,8 +406,8 @@ int wrap_out_poll(int sc_number,struct pcb *pc)
 			pc->retval=0;
 			for(i=0,j=0;i<nfds;i++) {
 				if(j<sd->len && ufds[i].fd == sd->pending[j].fd) {/* virtual file */
-					int sercode=service_fd(pc->fds,sd->pending[j].fd,1);
-					sysfun local_event_subscribe=service_event_subscribe(sercode);
+					struct ht_elem *hte=ht_fd(pc->fds,sd->pending[j].fd,1);
+					sysfun local_event_subscribe=ht_event_subscribe(hte);
 					int sfd=fd2sfd(pc->fds,sd->pending[j].fd);
 					assert(local_event_subscribe != NULL && sfd >= 0);
 					int lfd=fd2lfd(pc->fds,sd->pending[j].fd);

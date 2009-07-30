@@ -28,11 +28,6 @@
 
 struct service s;
 
-static epoch_t alwaysfalse()
-{
-	return 0;
-}
-
 static void
 __attribute__ ((constructor))
 init (void)
@@ -40,7 +35,6 @@ init (void)
 	GMESSAGE("testmodul2 init");
 	s.name="Test Module 2";
 	s.code=0xfd;
-	s.checkfun=alwaysfalse;
 	s.syscall=NULL;
 	s.socket=NULL;
 	add_service(&s);

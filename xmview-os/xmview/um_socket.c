@@ -41,6 +41,7 @@
 #include "defs.h"
 #include "umproc.h"
 #include "services.h"
+#include "hashtab.h"
 #include "um_services.h"
 #include "sctab.h"
 #include "scmap.h"
@@ -51,7 +52,7 @@
 /* SOCKET & MSOCKET call management (IN) */
 
 int wrap_in_msocket(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	/* path = pc->sysarg[0] = pc->path */
 	int domain  =pc->sysargs[1];
@@ -59,7 +60,7 @@ int wrap_in_msocket(int sc_number,struct pcb *pc,
 	int protocol=pc->sysargs[3];
 	/* msocket is ALWAYS called: msocket(NULL...) calls must be converted
 	 * into socket(...) syscalls */
-	if (sercode != UM_NONE) {
+	if (hte != NULL) {
 		if (type == SOCK_DEFAULT) {
 			if (pc->path == NULL) {
 				pc->retval = -1;
@@ -78,9 +79,9 @@ int wrap_in_msocket(int sc_number,struct pcb *pc,
 					 * modules implementing only "socket". 
 					 * the code reaches this case only from wrap_in_socket */
 #if (__NR_socketcall != __NR_doesnotexist)
-					um_syscall=service_socketcall(sercode,SYS_SOCKET);
+					um_syscall=ht_socketcall(hte,SYS_SOCKET);
 #else
-					um_syscall=service_syscall(sercode,uscno(__NR_socket));
+					um_syscall=ht_syscall(hte,uscno(__NR_socket));
 #endif
 					if ((pc->retval = um_syscall(domain,type,protocol)) < 0) {
 						pc->erno = errno;
@@ -90,7 +91,7 @@ int wrap_in_msocket(int sc_number,struct pcb *pc,
 			}
 			/* create the comm fifo with the user process */
 			if (pc->retval >= 0 &&
-					(pc->retval=lfd_open(sercode,pc->retval,NULL,O_RDWR,0)) >= 0) {
+					(pc->retval=lfd_open(hte,pc->retval,NULL,O_RDWR,0)) >= 0) {
 				char *filename=lfd_getfilename(pc->retval);
 				int filenamelen=WORDALIGN(strlen(filename));
 				long sp=getsp(pc);
@@ -139,21 +140,21 @@ int wrap_in_msocket(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_socket(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	pc->sysargs[3]=pc->sysargs[2];
 	pc->sysargs[2]=pc->sysargs[1];
 	pc->sysargs[1]=pc->sysargs[0];
 	pc->sysargs[0]=umNULL;
 	pc->path=NULL;
-	return wrap_in_msocket(__NR_msocket,pc,sercode,
-			service_virsyscall(sercode,VIRSYS_MSOCKET));
+	return wrap_in_msocket(__NR_msocket,pc,hte,
+			ht_virsyscall(hte,VIRSYS_MSOCKET));
 }
 
 #define MAX_SOCKLEN 1024
 /* accept creates a new fd! */
 int wrap_in_accept(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	/* the virtual file does not exist */
@@ -188,7 +189,7 @@ int wrap_in_accept(int sc_number,struct pcb *pc,
 		}
 		/* open the new fifo, (accept creates a new fd) */
 		if (pc->retval >= 0 && 
-				(pc->retval=lfd_open(sercode,pc->retval,NULL,O_RDWR,0)) >= 0) {
+				(pc->retval=lfd_open(hte,pc->retval,NULL,O_RDWR,0)) >= 0) {
 			char *filename=lfd_getfilename(pc->retval);
 			int filenamelen=WORDALIGN(strlen(filename));
 			int sp=getsp(pc);
@@ -211,9 +212,16 @@ int wrap_out_socket(int sc_number,struct pcb *pc) {
 	if (pc->behavior==SC_CALLONXIT && pc->retval >= 0) {
 		int fd=getrv(pc);	
 		/* if the syscall issued by the process was also okay */
-		if (fd >= 0) {
+		if (fd >= 0 && addfd(pc,fd) == 0) {
 			/* update open file table*/
 			lfd_register(pc->fds,fd,pc->retval);
+#ifdef __NR_accept4
+			if (sc_number == __NR_accept4) {
+				int flags = pc->sysargs[3];
+				if (flags & SOCK_CLOEXEC) 
+					fd_setfdfl(pc->fds,fd,FD_CLOEXEC);
+			}
+#endif
 		} else {
 			putrv(pc->retval,pc);
 			puterrno(pc->erno,pc);
@@ -228,7 +236,7 @@ int wrap_out_socket(int sc_number,struct pcb *pc) {
 }
 
 int wrap_in_bind_connect(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -246,7 +254,7 @@ int wrap_in_bind_connect(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_listen(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -261,7 +269,7 @@ int wrap_in_listen(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_getsock(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -288,7 +296,7 @@ int wrap_in_getsock(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_send(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -324,7 +332,7 @@ int wrap_in_send(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_recv(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -358,7 +366,7 @@ int wrap_in_recv(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_sendto(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -404,7 +412,7 @@ int wrap_in_sendto(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_recvfrom(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -460,7 +468,7 @@ int wrap_in_recvfrom(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_shutdown(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -475,7 +483,7 @@ int wrap_in_shutdown(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_getsockopt(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -506,7 +514,7 @@ int wrap_in_getsockopt(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_setsockopt(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -533,7 +541,7 @@ int wrap_in_setsockopt(int sc_number,struct pcb *pc,
 }
 /* sendmsg and recvmsg have more complex arguments */
 int wrap_in_recvmsg(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -602,7 +610,7 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_sendmsg(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {

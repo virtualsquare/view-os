@@ -43,30 +43,6 @@
 // int read(), write(), close();
 
 static struct service s;
-static struct timestamp t1;
-static struct timestamp t2;
-
-static epoch_t unrealpath(int type,void *arg)
-{
-	/* This is an example that shows how to pick up extra info in the
-	 * calling process. */
-/*	printf("test umph info pid=%d, scno=%d, arg[0]=%d, argv[1]=%d\n",
-			um_mod_getpid(),um_mod_getsyscallno(),
-			um_mod_getargs()[0],um_mod_getargs()[1]); */
-/* NB: DEVELOPMENT PHASE !! */
-	if (type== CHECKPATH) {
-		char *path=arg;
-		epoch_t e=0;
-		if(strncmp(path,"/unreal",7) == 0) {
-			if ((e=tst_matchingepoch(&t2)) == 0)
-				e=tst_matchingepoch(&t1);
-			//fprint2("MATCH e=%lld\n",e);
-		}
-		return e;
-	}
-	else
-		return 0;
-}
 
 static long addproc(int id, int max)
 {
@@ -95,6 +71,7 @@ static long delmodule(int code)
 	GDEBUG(3, "module 0x%02x removed", code);
 	return 0;
 }
+
 
 static long ctl(int type, va_list ap)
 {
@@ -138,8 +115,7 @@ static long unreal_open(char *pathname, int flags, mode_t mode)
 	/* send the file name to every module except myself (just for testing) */
 	service_userctl(42, s.code, MC_ALLSERVICES, pathname);
 	/* send the file name to module 0xfc (i.e. testmodule) */
-//	service_userctl(42, s.code, 0xfc, pathname);
-
+	//	service_userctl(42, s.code, 0xfc, pathname);
 	return open(unwrap(pathname),flags,mode);
 }
 
@@ -208,10 +184,12 @@ static long unreal_symlink(char *oldpath, char *newpath)
 	return symlink(oldpath,unwrap(newpath));
 }
 
+#if 0
 static long unreal_utime(char *filename, struct utimbuf *buf)
 {
 	return utime(unwrap(filename),buf);
 }
+#endif
 
 static long unreal_utimes(char *filename, struct timeval tv[2])
 {
@@ -242,7 +220,6 @@ init (void)
 	GMESSAGE("unreal init");
 	s.name="/unreal Mapping to FS (server side)";
 	s.code=0xfe;
-	s.checkfun=unrealpath;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	s.ctl = ctl;
@@ -255,24 +232,14 @@ init (void)
 	SERVICESYSCALL(s, read, read);
 	SERVICESYSCALL(s, write, write);
 	SERVICESYSCALL(s, close, close);
-#if 0
-	SERVICESYSCALL(s, stat, unreal_stat64);
-	SERVICESYSCALL(s, lstat, unreal_lstat64);
-	SERVICESYSCALL(s, fstat, fstat64);
-#endif
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, stat64, unreal_stat64);
 	SERVICESYSCALL(s, lstat64, unreal_lstat64);
-	SERVICESYSCALL(s, fstat64, fstat64);
 #else
 	SERVICESYSCALL(s, stat, unreal_stat64);
 	SERVICESYSCALL(s, lstat, unreal_lstat64);
-	SERVICESYSCALL(s, fstat, fstat64);
 #endif
 	SERVICESYSCALL(s, readlink, unreal_readlink);
-#if 0 
-	SERVICESYSCALL(s, getdents, getdents64);
-#endif
 	SERVICESYSCALL(s, getdents64, getdents64);
 	SERVICESYSCALL(s, access, unreal_access);
 #if !defined(__x86_64__)
@@ -287,9 +254,7 @@ init (void)
 	SERVICESYSCALL(s, rmdir, unreal_rmdir);
 	SERVICESYSCALL(s, chown, unreal_chown);
 	SERVICESYSCALL(s, lchown, unreal_lchown);
-	SERVICESYSCALL(s, fchown, fchown);
 	SERVICESYSCALL(s, chmod, unreal_chmod);
-	SERVICESYSCALL(s, fchmod, fchmod);
 	SERVICESYSCALL(s, unlink, unreal_unlink);
 	SERVICESYSCALL(s, fsync, fsync);
 	SERVICESYSCALL(s, fdatasync, fdatasync);
@@ -298,20 +263,16 @@ init (void)
 	SERVICESYSCALL(s, symlink, unreal_symlink);
 	SERVICESYSCALL(s, pread64, unreal_pread);
 	SERVICESYSCALL(s, pwrite64, unreal_pwrite);
-	SERVICESYSCALL(s, utime, unreal_utime);
+	//SERVICESYSCALL(s, utime, unreal_utime);
 	SERVICESYSCALL(s, utimes, unreal_utimes);
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, statfs64, unreal_statfs64);
-	SERVICESYSCALL(s, fstatfs64, fstatfs64);
 #else
 	SERVICESYSCALL(s, statfs, unreal_statfs64);
-	SERVICESYSCALL(s, fstatfs, fstatfs64);
 #endif
 	add_service(&s);
-	t1=tst_timestamp();
-	ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal","rw",&t1,0xfe,NULL,NULL);
-	t2=tst_timestamp();
-	ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal","rw",&t2,0xfe,NULL,NULL);
+	ht_tab_pathadd(CHECKPATH,"","/unreal","unreal","",&s,0,NULL,NULL);
+	ht_tab_pathadd(CHECKPATH,"","/unreal","unreal","",&s,0,NULL,NULL);
 }
 
 static void

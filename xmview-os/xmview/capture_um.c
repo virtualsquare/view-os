@@ -235,18 +235,6 @@ static struct pcb *pid2pcb(int pid)
 	return NULL;
 }
 
-/*static void droppcb(struct pcb *pc)*/
-/*{*/
-/*  pc->flags = 0; |+NOT PCB_INUSE +|;*/
-/*#ifdef _PROC_MEM_TEST*/
-/*  if (pc->memfd >= 0)*/
-/*    close(pc->memfd);*/
-/*#endif*/
-/*  if (pcb_destr != NULL)*/
-/*    pcb_destr(pc);*/
-/*  nprocs--;*/
-/*}*/
-
 /* orphan processes must NULL-ify their parent process pointer */
 static void _cut_pp(struct pcb *pc, struct pcb *delpc)
 {
@@ -414,9 +402,10 @@ void tracehand()
 				 * until the parent complete the pcb */
 				////fprint2("RACE CONDITION %d\n",pid);
 				handle_new_proc(pid,NULL);
-				return;
+				continue;
 			}
 			/* error case */
+			fprint2("signal from unknown pid %d: killed\n",pid);
 			GDEBUG(0, "signal from unknown pid %d: killed",pid);
 			if(ptrace(PTRACE_KILL, pid, 0, 0) < 0){
 				GPERROR(0, "KILL");
@@ -443,7 +432,9 @@ void tracehand()
 #if __NR_socketcall != __NR_doesnotexist
 					pc->sockaddr == 0 && 
 #endif
-					pc->sysscno == __NR_execve && scno != __NR_execve){
+					pc->sysscno == __NR_execve && 
+					scno != __NR_execve && 
+					(pc->behavior != SC_FAKE || scno != __NR_getpid)){
 				pc->sysscno = NOSC;
 			}
 			isreproducing=(scno == __NR_fork ||
@@ -849,6 +840,7 @@ static void vir_pcb_free(void *arg)
 	}
 }
 
+#if 0
 /* execvp implementation (to avoid pure_libc management) */
 static int r_execvp(const char *file, char *const argv[]){
 	if(strchr(file,'/') != NULL)
@@ -883,9 +875,40 @@ static int r_execvp(const char *file, char *const argv[]){
 		return -1;
 	}
 }
+#endif
+
+int capture_attach(struct pcb *pc,pid_t pid)
+{
+	handle_new_proc(pid,pc);
+	if (ptrace(PTRACE_ATTACH,pid,0,0) < 0)
+		return -errno;
+	else {
+		int status;
+		if(r_waitpid(pid, &status, WUNTRACED) < 0 ||
+				ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0)
+			GPERROR(0, "restarting attached");
+		return 0;
+	}
+}
+
+void capture_execrc(const char *path,const char *argv1)
+{
+	if (access(path,X_OK)==0) {
+		int pid;
+		int status;
+		switch (pid=fork()) {
+			case -1: exit (2);
+			case 0: execl(path,path,argv1,(char *)0);
+							exit (2);
+			default: waitpid(pid,&status,0);
+							 if (!WIFEXITED(status))
+								 exit (2);
+		}
+	}
+}
 
 /* main capture startup */
-int capture_main(char **argv,int has_ppoll)
+int capture_main(char **argv,int has_ppoll,char *rc)
 {
 	int status;
 #if __NR_socketcall != __NR_doesnotexist
@@ -918,9 +941,13 @@ int capture_main(char **argv,int has_ppoll)
 				exit(1);
 			}
 			r_kill(getpid(), SIGSTOP);
+			capture_execrc("/etc/viewosrc",(char *)0);
+			if (rc != NULL && *rc != 0)
+				capture_execrc(rc,(char *)0);
 			/* maybe it is better to use execvp instead of r_execvp.
-			 * the former permits to use a (preloaded) module provided executable as startup process*/
-			r_execvp(argv[0], argv);
+			 * the former permits to load the startup executable through 
+			 * a (preloaded) module */
+			execvp(argv[0], argv);
 			GPERROR(0, "strace: exec");
 			_exit(1);
 		default:

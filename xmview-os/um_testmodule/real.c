@@ -39,23 +39,6 @@
 // int read(), write(), close();
 
 static struct service s;
-static struct timestamp t1;
-
-static epoch_t real_path(int type, void *arg)
-{
-	if (type == CHECKPATH) {
-		/*char *path=arg;*/
-		epoch_t e=0;
-		e=tst_matchingepoch(&t1);
-		/*return (strncmp(path,"/lib",4) != 0);*/
-		/*if (strncmp(path,"/tmp",4)!=0)
-			return 0;
-		else */
-			return e;
-	}
-	else
-		return 0;
-}
 
 static long addproc(int id, int max)
 {
@@ -118,7 +101,6 @@ init (void)
 	GMESSAGE("real init");
 	s.name="Identity (server side)";
 	s.code=0xf8;
-	s.checkfun=real_path;
 	s.ctl = ctl;
 	
 
@@ -135,7 +117,6 @@ init (void)
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, stat64, stat64);
 	SERVICESYSCALL(s, lstat64, lstat64);
-	SERVICESYSCALL(s, fstat64, fstat64);
 #endif
 	SERVICESYSCALL(s, readlink, readlink);
 	SERVICESYSCALL(s, getdents64, getdents64);
@@ -146,7 +127,7 @@ init (void)
 	SERVICESYSCALL(s, _llseek, _llseek);
 #endif
 	add_service(&s);
-	t1=tst_timestamp();
+	ht_tab_pathadd(CHECKPATH,"","/","real","",&s,0,NULL,NULL);
 }
 
 static void

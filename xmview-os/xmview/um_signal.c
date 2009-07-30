@@ -23,11 +23,11 @@
 
 #include <config.h>
 #include "defs.h"
-#include "services.h"
+#include "hashtab.h"
 #include "mainpoll.h"
 
 int wrap_in_kill(int sc_number,struct pcb *pc,
-		    service_t sercode, sysfun um_syscall)
+		    struct ht_elem *hte, sysfun um_syscall)
 {
 	long pid=pc->sysargs[0];
 	if (bq_pidwake(pid,pc->sysargs[1])) {

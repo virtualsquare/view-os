@@ -45,30 +45,91 @@
 #include "defs.h"
 #include "gdebug.h"
 #include "umproc.h"
-#include "services.h"
+#include "hashtab.h"
 #include "um_services.h"
 #include "sctab.h"
 #include "scmap.h"
 #include "utils.h"
+#include "canonicalize.h"
+
+#define SCRIPTBUFLEN 128
+#define HT_SCRIPT ((struct ht_elem *) 1)
+#define STDINTERP "/bin/bash"
 
 /* filecopy creates a copy of the executable inside the tmp file dir */
-static int filecopy(service_t sercode,const char *from, const char *to)
+static int filecopy(struct ht_elem *hte,const char *from, const char *to)
 {
 	char buf[BUFSIZ];
 	int fdf,fdt;
 	int n;
-	if ((fdf=service_syscall(sercode,uscno(__NR_open))(from,O_RDONLY,0)) < 0)
+	if ((fdf=ht_syscall(hte,uscno(__NR_open))(from,O_RDONLY,0)) < 0)
 		return -errno;
 	if ((fdt=open(to,O_CREAT|O_TRUNC|O_WRONLY,0600)) < 0)
 		return -errno;
-	while ((n=service_syscall(sercode,uscno(__NR_read))(fdf,buf,BUFSIZ)) > 0)
+	while ((n=ht_syscall(hte,uscno(__NR_read))(fdf,buf,BUFSIZ)) > 0)
 		r_write (fdt,buf,n);
-	service_syscall(sercode,uscno(__NR_close))(fdf);
+	ht_syscall(hte,uscno(__NR_close))(fdf);
 	fchmod (fdt,0700); /* permissions? */
 	close (fdt);
 	return 0;
 }
 
+/* is the executable a script? */
+static struct ht_elem *checkscript(struct ht_elem *hte,struct binfmt_req *req,char *scriptbuf)
+{
+	int fd,n;
+	if (hte == NULL) {
+		if ((fd=open(req->path,O_RDONLY,0)) < 0)
+			return NULL;
+		n=read(fd,scriptbuf,SCRIPTBUFLEN-1);
+		close(fd);
+	} else {
+		if ((fd=ht_syscall(hte,uscno(__NR_open))(req->path,O_RDONLY,0)) < 0)
+			return NULL;
+		n=ht_syscall(hte,uscno(__NR_read))(fd,scriptbuf,SCRIPTBUFLEN-1);
+		ht_syscall(hte,uscno(__NR_close))(fd);
+	}
+	if (n>1) {
+		/* this should include ELF, COFF and a.out */
+		if (scriptbuf[0] < '\n' || scriptbuf[0] == '\177')
+			return NULL;
+		else if (scriptbuf[0]=='#' && scriptbuf[1]=='!') {
+			/* parse the first line */
+			char *s=scriptbuf+2;
+			scriptbuf[n]=0;
+			/* skip leading spaces */
+			while(*s == ' ' || *s == '\t')
+				s++;
+			/* the first non blank is the interpreter */
+			req->interp=s; 
+			while(*s != ' ' && *s != '\t' && *s != '\n' && *s!=0)
+				s++;
+			if (*s == 0 || *s=='\n') 
+				*s=0;
+			else {
+				*s++ = 0;
+				while(*s == ' ' || *s == '\t')
+					*s++ = 0;
+				req->extraarg=s;
+				while(*s != '\n' && *s!=0)
+					s++;
+				while(*(s-1)==' ' || *(s-1)=='\t')
+					s--;
+				*s=0;
+				if (*(req->extraarg)==0)
+					req->extraarg=NULL;
+			}
+			if (*(req->interp)==0)
+				req->interp=STDINTERP;
+			return HT_SCRIPT;
+		}
+		else {
+			/* heuristics here */
+			return NULL;
+		}
+	}
+	return NULL;
+}
 
 /* getparms (argv) from the user space */
 #define CHUNKSIZE 16
@@ -86,7 +147,7 @@ static char **getparms(struct pcb *pc,long laddr) {
 			assert(paddr);
 		}
 		rv=umoven(pc,laddr,sizeof(char *),&(paddr[n]));
-		assert(rv=4);
+		assert(rv>=0);
 		laddr+= sizeof(char *);
 		n++;
 	} while (paddr[n-1] != 0);
@@ -128,18 +189,50 @@ static void printparms(char *what,char **parms)
 #define UMBINWRAP LIBEXECDIR "/umbinwrap"
 /* wrap_in: execve handling */
 int wrap_in_execve(int sc_number,struct pcb *pc,
-		service_t sercode,sysfun um_syscall)
+		struct ht_elem *hte,sysfun um_syscall)
 {
-	struct binfmt_req req={(char *)pc->path,NULL,0};
+	struct binfmt_req req={(char *)pc->path,NULL,NULL,0};
+	char scriptbuf[SCRIPTBUFLEN];
 	epoch_t nestepoch=um_setepoch(0);
-	service_t binfmtser;
+	struct ht_elem *binfmtht;
+	if (um_x_access(req.path,X_OK,pc)!=0) {
+		pc->erno=errno;
+		pc->retval=-1;
+		return SC_FAKE;
+	}
+	/* management of set[ug]id executables */
+	if (pc->pathstat.st_mode & S_ISUID) {
+		pc->suid=pc->euid;
+		pc->euid=pc->pathstat.st_uid;
+	}
+	if (pc->pathstat.st_mode & S_ISGID) {
+		pc->sgid=pc->egid;
+		pc->egid=pc->pathstat.st_gid;
+	}
+	if (strcmp(pc->path,"/bin/mount") == 0 || 
+		strcmp(pc->path,"/bin/umount") == 0) {
+		pc->suid=pc->euid;
+		pc->ruid=pc->suid=0;
+	}
 	/* The epoch should be just after the mount 
 	 * which generated the executable */
 	um_setepoch(nestepoch+1);
-	binfmtser=service_check(CHECKBINFMT,&req,0);
+	binfmtht=checkscript(hte,&req,scriptbuf);
+	if (binfmtht == NULL) {
+		/* char buf[128];
+		req.buf=buf;
+		memset(buf,0,128);
+		int fd=open(req.path,O_RDONLY);
+		if (fd >= 0) {
+			read(fd, buf, 128);
+			close(fd);
+		}  */
+		binfmtht=ht_check(CHECKBINFMT,&req,NULL,0);
+	} 
+	//fprint2("wrap_in_execve %x |%s| |%s|\n",binfmtht->service->code,req.interp,req.extraarg);
 	um_setepoch(nestepoch);
 	/* is there a binfmt service for this executable? */
-	if (binfmtser != UM_NONE) {
+	if (binfmtht != NULL) {
 		char *umbinfmtarg0;
 		int sep;
 		long largv=pc->sysargs[1];
@@ -149,6 +242,11 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		int filenamelen;
 		int arg0len;
 		long sp=getsp(pc);
+		if (*(req.interp) != '/') { /* full pathname required */
+			pc->erno=ENOENT;
+			pc->retval=-1;
+			return SC_FAKE;
+		}
 		/* create the argv for the wrapper! */
 		rv=umoven(pc,largv,sizeof(char *),&(larg0));
 		//fprint2("%s %d %ld %ld rv=%d\n",pc->path,getpc(pc),largv,larg0,rv); 
@@ -156,7 +254,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		 * exec seems to cause an extra prace in a strange address space
 		 * to be solved (maybe using PTRACE OPTIONS!) */
 		//assert(rv);
-		if (!rv) return STD_BEHAVIOR;
+		if (rv<0) return STD_BEHAVIOR;
 		if (req.flags & BINFMT_KEEP_ARG0) {
 			oldarg0[PATH_MAX]=0;
 			umovestr(pc,larg0,PATH_MAX,oldarg0);
@@ -169,11 +267,22 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 				 strchr(oldarg0,sep)!=NULL);
 				sep++)
 			;
+		if (req.extraarg==NULL)
+			req.extraarg="";
+#ifdef NOUMBINWRAP
+#else
 		/* collapse all the args in only one arg */
 		if (req.flags & BINFMT_KEEP_ARG0) 
-			asprintf(&umbinfmtarg0,"%c%s%c%s%c%s",sep,req.interp,sep,oldarg0,sep,(char *)pc->path);
+			asprintf(&umbinfmtarg0,"%c%s%c%s%c%s%c%s",
+					sep,req.interp,
+					sep,req.extraarg,
+					sep,(char *)pc->path,
+					sep,oldarg0);
 		else 
-			asprintf(&umbinfmtarg0,"%c%s%c%s",sep,req.interp,sep,(char *)pc->path);
+			asprintf(&umbinfmtarg0,"%c%s%c%s%c%s",
+					sep,req.interp,
+					sep,req.extraarg,
+					sep,(char *)pc->path);
 		filenamelen=WORDALIGN(strlen(UMBINWRAP));
 		arg0len=WORDALIGN(strlen(umbinfmtarg0));
 		pc->retval=0;
@@ -183,16 +292,17 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		ustoren(pc,larg0,arg0len,umbinfmtarg0);
 		ustoren(pc,largv,sizeof(char *),&larg0);
 		//fprint2("%s %s\n",UMBINWRAP,umbinfmtarg0);
+		/* exec the wrapper instead of the executable! */
 		free(umbinfmtarg0);
+#endif
 		if (req.flags & BINFMT_MODULE_ALLOC)
 			free(req.interp);
-		/* exec the wrapper instead of the executable! */
 		return SC_CALLONXIT;
 	}
-	else if (sercode != UM_NONE) {
+	else if (hte != NULL) {
 		pc->retval=ERESTARTSYS;
 		/* does the module define a semantics for execve? */
-		if (! isnosys(um_syscall)) {
+		if (!isnosys(um_syscall)) {
 			long largv=pc->sysargs[1];
 			long lenv=pc->sysargs[2];
 			char **argv=getparms(pc,largv);
@@ -213,7 +323,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 
 			/* copy the file and change the first arg of execve to 
 			 * address the copy */
-			if ((pc->retval=filecopy(sercode,pc->path,filename))>=0) {
+			if ((pc->retval=filecopy(hte,pc->path,filename))>=0) {
 				long sp=getsp(pc);
 				int filenamelen=WORDALIGN(strlen(filename));
 				pc->retval=0;
@@ -242,6 +352,8 @@ int wrap_out_execve(int sc_number,struct pcb *pc)
 	//fprint2("wrap_out_execve %d\n",pc->retval);
 	/* The tmp file gets automagically deleted (see sctab.c) */
 	if (pc->retval < 0) {
+		pc->euid=pc->suid;
+		pc->egid=pc->sgid;
 		putrv(pc->retval,pc);
 		puterrno(pc->erno,pc);
 		return SC_MODICALL;

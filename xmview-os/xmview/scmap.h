@@ -24,7 +24,7 @@
 #ifndef _SCMAP_H
 #define _SCMAP_H
 #include <poll.h>
-#include "services.h"
+#include "hashtab.h"
 #include "defs.h"
 
 #define VIRSYS_UMSERVICE 1
@@ -43,15 +43,15 @@
 #define ESCNO_MAP		0xC0000000
 
 //typedef struct service *sss;
-typedef service_t (* serfun)();
-typedef service_t serfunt();
+typedef struct ht_elem *(*htfun)();
+typedef struct ht_elem *htfunt();
 typedef long sysfunt();
 typedef long wrapinfun();
 typedef long wrapoutfun();
 typedef long wrapfun();
 /*
 typedef int wrapinfun(int sc_number,struct pcb *pc,
-		                char sercode, sysfun um_syscall);
+		                struct ht *hte, sysfun um_syscall);
 typedef int wrapoutfun(int sc_number,struct pcb *pc);
 */
 
@@ -67,7 +67,7 @@ struct sc_map {
 	int scno;
 	/* the choice function: this function tells the service which have to
 	 * manage the system call */
-	serfun scchoice;
+	htfun scchoice;
 	/* wrapin function: this function is called in the IN phase of the
 	 * syscall */
 	sysfun wrapin;
@@ -75,7 +75,7 @@ struct sc_map {
 	sysfun wrapout;
 	/* the choice function: this function tells the service which have to
 	 * manage the nested system call */
-	serfun nestchoice;
+	htfun nestchoice;
 	/* wrapin function: this function is called for wrapped syscalls.
 	 syscall */
 	sysfun nestwrap;

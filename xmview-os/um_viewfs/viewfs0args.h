@@ -1,9 +1,10 @@
 /*   This is part of um-ViewOS
  *   The user-mode implementation of OSVIEW -- A Process with a View
  *
- *   um_services.h: system call access to services
+ *   viewfs parameters management
  *   
  *   Copyright 2005 Renzo Davoli University of Bologna - Italy
+ *   Modified 2005 Paolo Angelelli, Andrea Seraghiti
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License, version 2, as
@@ -18,14 +19,18 @@
  *   with this program; if not, write to the Free Software Foundation, Inc.,
  *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
  *
- *   $Id$
  *
- */   
-#ifndef _UM_SERVICES_H
-#define _UM_SERVICES_H
+ */
 
-char *fs_alias(char *fsalias);
+#ifndef _VIEWFS0ARG
+#define _VIEWFS0ARG
+#define VIEWFS_DEBUG 1<<29 
+#define VIEWFS_MOVE  0x00
+#define VIEWFS_MERGE 0x01
+#define VIEWFS_COW   0x02 
+#define VIEWFS_MINCOW 0x10
+#define VIEWFS_RENEW 0x100 
+#define VIEWFS_WOK   0x200 
 
-void *open_dllib(char *name);
-
+int viewfsarg(char *opts,int *pflags,char ***pexceptions);
 #endif

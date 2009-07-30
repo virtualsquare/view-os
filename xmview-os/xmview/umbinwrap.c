@@ -1,3 +1,29 @@
+/*   This is part of um-ViewOS
+ *   The user-mode implementation of OSVIEW -- A Process with a View
+ *
+ *   umbinwrap.c: wrapper for executables. In ViewOS "execve" executes 
+ *   this program.
+ *   If mmap does not work for the executable (it is the case of some
+ *   virtual file systems) it copies the executable and uses a watchdog
+ *   process to clean up the copy when the execution terminates.
+ * 
+ *   Copyright 2007 Renzo Davoli University of Bologna - Italy
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License, version 2, as
+ *   published by the Free Software Foundation.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
+ *
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <alloca.h>
@@ -72,37 +98,39 @@ int execv_nommap(char *cmd,char *argv[]) {
 
 int main(int argc,char* argv[])
 {
-	char *split;
-	char esc=*argv[0];
-	(argv[0])++;
-	if ((split=strchr(argv[0],esc)) != NULL) {
-		char *split2;
-		char *cmd;
-		int i;
-		char **newargv=alloca(argc+2);
-		*split=0;
-		split++;
-		cmd=argv[0];
-		if ((split2=strchr(split,esc)) != NULL) {
-			*split2=0;
-			split2++;
-			newargv[0]=split;
-			newargv[1]=split2;
-		} else {
-			newargv[0]=cmd;
-			newargv[1]=split;
-		}
-		for (i=1;i<argc;i++)
-			newargv[i+1]=argv[i];
-		newargv[i+1]=0;
-		if (mmap_not_ok(newargv[1])) 
-			execv_nommap(cmd,newargv);
-		else
-			execv(cmd,newargv);
-		return 0;
-	} else {
-		fprintf(stderr, "UMBINWRAP is a tool for Virtual BinFmt support\n"
-				" This program does not run as a command\n\n");
-		return -1;
+	char *s=argv[0];
+	char sep=*s;
+	char *cmd;
+	char **newargv=alloca(argc+3);
+	int i;
+	int sargc=0;
+	*s=0;
+	for(i=1;s[i]!=0;i++) {
+		if (s[i-1]==0)
+			newargv[sargc++]=s+i;
+		if (s[i]==sep)
+			s[i]=0;
 	}
+	cmd=newargv[0];
+	if (sargc>3) {
+		newargv[0]=newargv[3];
+		sargc=3;
+	}
+	if (*newargv[1] == 0) {
+		newargv[1]=newargv[2];
+		sargc--;
+	}
+	sargc--;
+	for (i=1;i<argc;i++)
+		newargv[i+sargc]=argv[i];
+	newargv[i+sargc]=0;
+#if 0
+	for (i=0;i<argc+sargc;i++)
+		printf("%d %s\n",i,newargv[i]);
+#endif
+	if (mmap_not_ok(newargv[1])) 
+		execv_nommap(cmd,newargv);
+	else
+		execv(cmd,newargv);
+	return 0;
 }

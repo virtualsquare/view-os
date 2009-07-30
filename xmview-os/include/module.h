@@ -32,6 +32,7 @@
 #define VIRSYS_MSOCKET 2
 #define __NR_msocket VIRSYS_MSOCKET
 
+struct ht_elem;
 extern int _umview_version;
 
 typedef long (*sysfun)();
@@ -41,7 +42,6 @@ struct timestamp {
 	epoch_t epoch;
 	struct treepoch *treepoch;
 };
-
 
 extern epoch_t tst_matchingepoch(struct timestamp *service_tst);
 extern struct timestamp tst_timestamp();
@@ -84,8 +84,10 @@ extern int msocket (char *path, int domain, int type, int protocol);
 #define CHECKPATH     1
 #define CHECKSOCKET   2
 #define CHECKFSTYPE   3
-#define CHECKSC 5
-#define CHECKBINFMT 6
+#define CHECKCHRDEVICE   4
+#define CHECKBLKDEVICE   5
+#define CHECKSC 6
+#define CHECKBINFMT 7
 
 // for IOCTL mgmt
 #define CHECKIOCTLPARMS   0x40000000
@@ -102,42 +104,10 @@ struct ioctl_len_req {
 struct binfmt_req {
 	char *path;
 	char *interp;
+	char *extraarg;
 	int flags;
 };
 
-struct ht_elem;
-typedef int (* checkfun_t)(int type, void *arg, struct ht_elem *ht);
-
-int ht_tab_pathadd(unsigned char type, const char *source,
-		const char *path,
-		const char *fstype,
-		const char *flags,
-		struct timestamp *tst, unsigned char service,
-		checkfun_t checkfun,
-		void *private_data);
-
-int ht_tab_add(unsigned char type,void *obj,int objlen,
-		struct timestamp *tst, unsigned char service,
-		checkfun_t checkfun,
-		void *private_data);
-
-struct ht_elem *ht_tab_pathsearch(unsigned char type, char *path,
-		struct timestamp *tst, int exact);
-
-struct ht_elem *ht_tab_binfmtsearch(unsigned char type, struct binfmt_req *req,
-		struct timestamp *tst);
-
-struct ht_elem *ht_tab_search(unsigned char type, void *obj, int objlen,
-		struct timestamp *tst);
-
-int ht_tab_del(struct ht_elem *mp);
-
-void ht_tab_getmtab(struct timestamp *tst,char **buf, size_t *size);
-
-void forall_ht_tab_do(unsigned char type,
-		struct timestamp *tst, service_t service,
-		void (*fun)(struct ht_elem *mp, void *arg),
-		void *arg);
 
 struct service {
 	char *name;
@@ -177,7 +147,7 @@ struct service {
 	 * the life of a process, can be used as an index for internal data
 	 * pumpid is the similar id for the parent process, -1 if it does not exist
 	 *
-	 * MC_PROC | MC_REM: int id
+	 * MC_PROC | MC_REM: int umpid
 	 * is the garbage collection function for the data that addproc may have created
 	 *
 	 * MC_MOUNT | MC_ADD:
@@ -194,15 +164,11 @@ struct service {
 	 */
 	c_set ctlhs;
 
-	/* choice function: returns TRUE if this path must be managed by this module
-	 * FALSE otherwise.
-	 * Nesting modules: returns the epoch of best match (0 if non found).
-	 *
-	 * checkfun functions has the following args:
-	 *  (int type, void *arg) or
-	 *  type is defined by CHECK... constants above
+	/* 
+	 *  (int fd, void *req) 
+	 *  returns: the length of the field bit_or IOCTL_R/IOCTL_W if the parameter is input/output
 	 */
-	epochfun checkfun;
+	sysfun ioctlparms;
 
 	/* proactive management of select/poll system call. The module provides this function
 	 * to activate a callback when an event occurs.
@@ -240,6 +206,11 @@ extern int scmap_sockmapsize;
 extern int scmap_virscmapsize;
 
 extern int um_mod_getpid(void);
+extern void *um_mod_get_private_data(void);
+extern void um_mod_set_private_data(void *private_data);
+void um_mod_set_hte(struct ht_elem *hte);
+struct ht_elem *um_mod_get_hte(void);
+void um_mod_renew_hte(struct ht_elem *hte);
 extern int um_mod_umoven(long addr, int len, void *_laddr);
 extern int um_mod_umovestr(long addr, int len, void *_laddr);
 extern int um_mod_ustoren(long addr, int len, void *_laddr);
@@ -312,7 +283,6 @@ extern int vfprint2(const char *fmt, va_list ap);
 #define INTERNAL_MAKE_NAME(a, b) a ## b
 #define MAKE_NAME(a, b) INTERNAL_MAKE_NAME(a, b)
 
-
 /* GEN stands for "generic" */
 #define GENSERVICESYSCALL(s, scno, sfun, type) ((s).syscall[uscno(MAKE_NAME(__NR_, scno))] = (type) (sfun))
 #define GETSERVICESYSCALL(s, scno) ((s).syscall[uscno(MAKE_NAME(__NR_, scno))])
@@ -330,4 +300,56 @@ extern int vfprint2(const char *fmt, va_list ap);
 
 #define SERVICEVIRSYSCALL(s, scno, sfun) ((s).virsc[MAKE_NAME(__NR_, scno)] = (sysfun) (sfun))
 
+/* modules can define check functions to test for exceptions */
+typedef int (* checkfun_t)(int type, void *arg, int arglen,
+		struct ht_elem *ht);
+#define NEGATIVE_MOUNT ((checkfun_t) 1)
+
+struct ht_elem {
+	void *obj;
+	char *mtabline;
+	struct timestamp tst;
+	unsigned char type;
+	struct service *service;
+	unsigned char trailingnumbers;
+	void *private_data;
+	int objlen;
+	long hashsum;
+	checkfun_t checkfun;
+	struct ht_elem *prev,*next,**pprevhash,*nexthash;
+};
+
+/* add a path to the hashtable (this creates an entry for the mounttab) */
+struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
+		const char *path, const char *fstype, const char *flags,
+		struct service *service, unsigned char trailingnumbers,
+		checkfun_t checkfun, void *private_data);
+
+/* add a generic element to the hashtable */
+struct ht_elem *ht_tab_add(unsigned char type,void *obj,int objlen,
+		struct service *service, checkfun_t checkfun, void *private_data);
+
+void ht_tab_invalidate(struct ht_elem *hte);
+
+int ht_tab_del(struct ht_elem *mp); 
+
+void ht_tab_getmtab(char **buf, size_t *size);
+
+void forall_ht_tab_service_do(unsigned char type,
+		struct service *service,
+		void (*fun)(struct ht_elem *ht, void *arg),
+		void *arg);
+
+void forall_ht_tab_tst_do(unsigned char type,
+		void (*fun)(struct ht_elem *ht, void *arg),
+		void *arg);
+
+void forall_ht_tab_del_invalid(void);
+
+struct ht_elem *ht_check(int type, void *arg, struct stat64 *st, int setepoch);
+
+/* filetab management */
+int addfiletab(int size);
+void delfiletab(int i);
+void *getfiletab(int i);
 #endif

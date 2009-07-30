@@ -47,6 +47,7 @@
 #include "gdebug.h"
 #include "umproc.h"
 #include "services.h"
+#include "hashtab.h"
 #include "um_services.h"
 #include "sctab.h"
 #include "scmap.h"
@@ -56,7 +57,7 @@
 #define umNULL ((long) NULL)
 
 int wrap_in_mkdir(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int mode;
 #ifdef __NR_mkdirat
@@ -71,7 +72,7 @@ int wrap_in_mkdir(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_mknod(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int mode;
 	int dev;
@@ -91,15 +92,20 @@ int wrap_in_mknod(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_unlink(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
+#ifdef __NR_unlinkat
+	if (sc_number == __NR_unlinkat && (pc->sysargs[2] & AT_REMOVEDIR)) {
+		 um_syscall=ht_syscall(hte,uscno(__NR_rmdir));
+	} 
+#endif
 	if ((pc->retval = um_syscall(pc->path)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }
 
 int wrap_in_chown(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned int owner,group;
 #ifdef __NR_fchownat
@@ -124,10 +130,10 @@ int wrap_in_chown(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_fchown(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	if (sfd < 0) {
+	char *path=fd_getpath(pc->fds,pc->sysargs[0]);
+	if (path==NULL) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 		return SC_FAKE;
@@ -141,14 +147,14 @@ int wrap_in_fchown(int sc_number,struct pcb *pc,
 			group=id16to32(group);
 		}
 #endif
-		if ((pc->retval = um_syscall(sfd,owner,group)) < 0)
+		if ((pc->retval = um_syscall(path,owner,group)) < 0)
 			pc->erno=errno;
 		return SC_FAKE;
 	}
 }
 
 int wrap_in_chmod(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int mode;
 #ifdef __NR_fchmodat
@@ -163,17 +169,17 @@ int wrap_in_chmod(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_fchmod(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
-	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	if (sfd < 0) {
+	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	if (path==NULL) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 		return SC_FAKE;
 	} else {
 		int mode;
 		mode=pc->sysargs[1];
-		if ((pc->retval = um_syscall(sfd,mode)) < 0)
+		if ((pc->retval = um_syscall(path,mode)) < 0)
 			pc->erno=errno;
 		return SC_FAKE;
 	}
@@ -189,14 +195,18 @@ int wrap_in_fchmod(int sc_number,struct pcb *pc,
  * dup-ped when the file is virtual) and umview records the operation 
  * DUP does not exist for modules */
 int wrap_in_dup(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd;
-	if (sc_number != __NR_dup2) 
+	if (sc_number == __NR_dup) 
 		pc->sysargs[1]= -1;
+#ifdef __NR_dup3
+	if (sc_number != __NR_dup3) 
+#endif
+		pc->sysargs[2]= 0;
 	sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	GDEBUG(4, "DUP %d %d sfd %d %s",pc->sysargs[0],pc->sysargs[1],sfd,fd_getpath(pc->fds,pc->sysargs[0]));
-	if (pc->sysargs[1] == um_mmap_secret || (sfd < 0 && sercode != UM_NONE)) {
+	if (pc->sysargs[1] == um_mmap_secret || (sfd < 0 && hte != NULL)) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 		return SC_FAKE;
@@ -211,13 +221,13 @@ int wrap_in_dup(int sc_number,struct pcb *pc,
 
 int wrap_out_dup(int sc_number,struct pcb *pc)
 {
-	/* SC_CALLONXIT both for UM_NONE and module managed files.
+	/* SC_CALLONXIT both for NULL and module managed files.
 	 * FAKE only when the module gave an error */
 	if (pc->behavior == SC_CALLONXIT) {
 		int fd=getrv(pc);
 		if (fd >= 0 &&
 				(pc->retval < 0
-				 || lfd_getservice(pc->retval) == UM_NONE
+				 || lfd_getht(pc->retval) == NULL
 				 || addfd(pc,fd) == 0)) {
 			/* DUP2 case, the previous fd has been closed, umview must
 			 * update its lfd table */
@@ -226,13 +236,18 @@ int wrap_out_dup(int sc_number,struct pcb *pc)
 				int oldlfd=fd2lfd(pc->fds,oldfd);
 				if (oldlfd >= 0) /* socket and stdin/out/err are -1*/
 				{
-					if (lfd_getservice(oldlfd) != UM_NONE)
+					if (lfd_getht(oldlfd) != NULL)
 						delfd(pc,pc->sysargs[1]);
 					lfd_deregister_n_close(pc->fds,oldfd);
 				}
 			}
 			if (pc->retval >= 0)
 				lfd_register(pc->fds,fd,pc->retval);
+#ifdef __NR_dup3
+			if (pc->sysargs[2] & O_CLOEXEC) {
+				fd_setfdfl(pc->fds,fd,FD_CLOEXEC);
+			}
+#endif
 		} else {
 			lfd_close(pc->retval);
 		}
@@ -243,9 +258,56 @@ int wrap_out_dup(int sc_number,struct pcb *pc)
 	return STD_BEHAVIOR;
 }
 
+struct um_flock32 {
+	  short l_type;
+		short l_whence;
+		off_t l_start;
+		off_t l_len;
+		pid_t l_pid;
+};
+
+struct um_flock64 {
+	short  l_type;
+	short  l_whence;
+	loff_t l_start;
+	loff_t l_len;
+	pid_t  l_pid;
+};
+
+static inline void get_flock64(struct pcb *pc,unsigned long addr,struct um_flock64 *fl)
+{
+	umoven(pc,addr,sizeof(struct um_flock64),fl);
+}
+
+static inline void put_flock64(struct pcb *pc,unsigned long addr,struct um_flock64 *fl)
+{
+	ustoren(pc,addr,sizeof(struct um_flock64),fl);
+}
+
+static inline void get_flock32(struct pcb *pc,unsigned long addr,struct um_flock64 *fl)
+{
+	struct um_flock32 fl32;
+	umoven(pc,addr,sizeof(struct um_flock32),&fl32);
+	fl->l_type=fl32.l_type;
+	fl->l_whence=fl32.l_whence;
+	fl->l_start=fl32.l_start;
+	fl->l_len=fl32.l_len;
+	fl->l_pid=fl32.l_pid;
+}
+
+static inline void put_flock32(struct pcb *pc,unsigned long addr,struct um_flock64 *fl)
+{
+	struct um_flock32 fl32;
+	fl32.l_type=fl->l_type;
+	fl32.l_whence=fl->l_whence;
+	fl32.l_start=fl->l_start;
+	fl32.l_len=fl->l_len;
+	fl32.l_pid=fl->l_pid;
+	ustoren(pc,addr,sizeof(struct um_flock32),&fl32);
+}
 
 int wrap_in_fcntl(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int fd= pc->sysargs[0];
 	int cmd= pc->sysargs[1];
@@ -258,14 +320,6 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 		return SC_FAKE;
 	} else {
 		switch (cmd) {
-			case F_GETLK:
-			case F_SETLK:
-			case F_SETLKW:
-				/* LOCKING unsupported yet XXX */
-				fprint2("Locking unsupported\n");
-				pc->retval= -1;
-				pc->erno= EBADF;
-				return SC_FAKE;
 			case F_DUPFD:
 				pc->retval=fd2lfd(pc->fds,fd);
 				if (pc->retval < 0)
@@ -286,6 +340,59 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 				else
 					pc->erno=0;
 				break;
+			case F_GETLK:
+			case F_SETLK:
+			case F_SETLKW:
+#ifdef F_GETLK64
+#	if (F_GETLK64 != F_GETLK)
+			case F_GETLK64:
+			case F_SETLK64:
+			case F_SETLKW64:
+#	endif
+#endif
+				{
+					struct um_flock64 flock;
+#ifdef __NR_fcntl64
+					if (sc_number == __NR_fcntl64 
+#ifdef F_GETLK64
+							|| cmd==F_GETLK64 || cmd==F_SETLK64 || cmd==F_SETLKW64
+#endif
+						 )
+						get_flock64(pc,arg,&flock);
+					else
+						get_flock32(pc,arg,&flock);
+#else
+					get_flock64(pc,arg,&flock);
+#endif
+					if ((pc->retval = um_syscall(sfd,cmd,&flock)) == -1)
+						pc->erno= errno;
+					if (pc->retval < 0 && pc->erno == ENOSYS) { /* last chance */
+						fprint2("Locking unsupported\n");
+						pc->retval= -1;
+						pc->erno= EBADF;
+						return SC_FAKE;
+					}
+					if (cmd==F_GETLK
+#ifdef F_GETLK64
+							|| cmd==F_GETLK64
+#endif
+						 ) {
+#ifdef __NR_fcntl64
+						if (sc_number == __NR_fcntl64
+#ifdef F_GETLK64
+								|| cmd==F_GETLK64 || cmd==F_SETLK64 || cmd==F_SETLKW64
+#endif
+							 )
+							put_flock64(pc,arg,&flock);
+						else
+							put_flock32(pc,arg,&flock);
+#else
+						put_flock64(pc,arg,&flock);
+#endif
+					}
+					//fprint2("LOCK %d %d %d %d\n",sc_number,fd,cmd,pc->retval,pc->erno);
+					break;
+				}
 			default:
 				if ((pc->retval = um_syscall(sfd,cmd,arg)) == -1)
 					pc->erno= errno;
@@ -331,7 +438,7 @@ int wrap_out_fcntl(int sc_number,struct pcb *pc)
 }
 
 int wrap_in_fsync(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -346,14 +453,12 @@ int wrap_in_fsync(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_link(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	struct stat64 sourcest;
 	char *source;
 	int olddirfd;
 	long oldpath;
-	service_t matchcode;
-	epoch_t matchepoch;
 
 #ifdef __NR_linkat
 	if (sc_number == __NR_linkat || sc_number == __NR_renameat) {
@@ -366,15 +471,15 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 		oldpath=pc->sysargs[0];
 	} 
 
-	source=um_abspath(olddirfd,oldpath,pc,&sourcest,0,&matchcode,&matchepoch);
+	source=um_abspath(olddirfd,oldpath,pc,&sourcest,0);
 
 	if (source==um_patherror) {
 		pc->retval= -1;
 		pc->erno= ENOENT;
 	} else {
 		/* inter module file hard link are unsupported! */
-		int ser2=service_check(CHECKPATH,source,0);
-		if (ser2 != sercode) {
+		struct ht_elem *hte2=ht_check(CHECKPATH,source,&sourcest,0);
+		if (hte != hte2) {
 			pc->retval= -1;
 			pc->erno= EXDEV;
 		} else {
@@ -387,7 +492,7 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_symlink(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	char *source;
 	
@@ -406,13 +511,17 @@ int wrap_in_symlink(int sc_number,struct pcb *pc,
 
 /* UTIME & UTIMES wrap in function */
 int wrap_in_utime(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned long argaddr;
-	int argsize;
-	char *larg;
-#ifdef __NR_futimes
-	if (sc_number == __NR_futimes)
+	struct timeval tv[2];
+	struct timeval *larg;
+#ifdef __NR_futimesat
+	if (sc_number == __NR_futimesat
+#ifdef __NR_utimensat
+			|| sc_number==__NR_utimensat
+#endif
+			)
 		argaddr=pc->sysargs[2];
 	else
 #endif
@@ -420,14 +529,27 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 	if (argaddr == umNULL) 
 		larg=NULL;
 	else {
-		if (sc_number == __NR_utime)
+		if (sc_number == __NR_utime) {
 			/* UTIME */
-			argsize=sizeof(struct utimbuf);
-		else
+			struct utimbuf buf;
+			umoven(pc,argaddr,sizeof(struct utimbuf),&buf);
+			tv[0].tv_sec=buf.actime;
+			tv[1].tv_sec=buf.modtime;
+			tv[0].tv_usec=tv[1].tv_usec=0;
+		} else
+#ifdef __NR_utimensat
+			if (sc_number == __NR_utimensat) {
+				struct timespec times[2];
+				umoven(pc,argaddr,2*sizeof(struct timespec),times);
+				tv[0].tv_sec=times[0].tv_sec;
+				tv[1].tv_sec=times[1].tv_sec;
+				tv[0].tv_usec=times[0].tv_nsec/1000;
+				tv[1].tv_usec=times[1].tv_nsec/1000;
+			} else 
+#endif
 			/* UTIMES FUTIMESAT*/
-			argsize=2*sizeof(struct timeval);
-		larg=alloca(argsize);
-		umoven(pc,argaddr,argsize,larg);
+			umoven(pc,argaddr,2*sizeof(struct timeval),tv);
+		larg=tv;
 	}
 	if ((pc->retval = um_syscall(pc->path,larg)) < 0)
 		pc->erno=errno;
@@ -436,7 +558,7 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 
 /* MOUNT */
 int wrap_in_mount(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	char *source;
 	char filesystemtype[PATH_MAX];
@@ -448,10 +570,8 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 	unsigned long pdata=pc->sysargs[4];
 	struct stat64 imagestat;
 	epoch_t nestepoch;
-	service_t matchcode;
-	epoch_t matchepoch;
 	umovestr(pc,fstype,PATH_MAX,filesystemtype);
-	source = um_abspath(AT_FDCWD,argaddr,pc,&imagestat,0,&matchcode,&matchepoch);
+	source = um_abspath(AT_FDCWD,argaddr,pc,&imagestat,0);
 	nestepoch=um_setepoch(0);
 	um_setepoch(nestepoch+1);
 	/* maybe the source is not a path at all.
@@ -466,7 +586,8 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 		umovestr(pc,pdata,PATH_MAX,data);
 	else
 		datax=NULL;
-	if ((pc->retval = um_syscall(source,pc->path,filesystemtype,mountflags,datax)) < 0)
+	if ((pc->retval = um_syscall(source,pc->path,fs_alias(filesystemtype),
+					mountflags,datax)) < 0)
 		pc->erno=errno;
 	free(source);
 	um_setepoch(nestepoch);
@@ -474,7 +595,7 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_umount(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned int flags=0;
 	if ((pc->retval = um_syscall(pc->path,flags)) < 0)
@@ -483,7 +604,7 @@ int wrap_in_umount(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_umount2(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned int flags=0;
 	// flags is defined as int in umount manpage.
@@ -500,7 +621,7 @@ int wrap_in_umount2(int sc_number,struct pcb *pc,
 #endif
 
 int wrap_in_truncate(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	__off64_t off;
 #if (__NR_truncate64 != __NR_doesnotexist)
@@ -515,7 +636,7 @@ int wrap_in_truncate(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_ftruncate(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	__off64_t off;
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
@@ -545,7 +666,7 @@ static void statfs264(struct statfs *fs,struct statfs64 *fs64)
 }
 
 int wrap_in_statfs(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	struct statfs64 sfs64;
 	long pbuf=pc->sysargs[1];
@@ -561,16 +682,16 @@ int wrap_in_statfs(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_fstatfs(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	struct statfs64 sfs64;
 	long pbuf=pc->sysargs[1];
-	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	if (sfd < 0) {
+	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	if (path==NULL) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		if ((pc->retval = um_syscall(sfd,&sfs64)) >= 0) {
+		if ((pc->retval = um_syscall(path,&sfs64)) >= 0) {
 			struct statfs sfs;
 			statfs264(&sfs,&sfs64);
 			ustoren(pc,pbuf,sizeof(struct statfs),(char *)&sfs);
@@ -583,7 +704,7 @@ int wrap_in_fstatfs(int sc_number,struct pcb *pc,
 
 #if (__NR_statfs64 != __NR_doesnotexist)
 int wrap_in_statfs64(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	struct statfs64 sfs64;
 	long size=pc->sysargs[1];
@@ -603,21 +724,21 @@ int wrap_in_statfs64(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_fstatfs64(int sc_number,struct pcb *pc,
-		char sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	struct statfs64 sfs64;
 	long size=pc->sysargs[1];
 	long pbuf=pc->sysargs[2];
-	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
+	char *path=fd_getpath(pc->fds,pc->sysargs[0]);
 
-	if (sfd < 0) {
+	if (path==NULL) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else if (size != sizeof(sfs64)) {
 		pc->retval= -1;
 		pc->erno= EINVAL;
 	} else {
-		if ((pc->retval = um_syscall(sfd,&sfs64)) >= 0)
+		if ((pc->retval = um_syscall(path,&sfs64)) >= 0)
 			ustoren(pc,pbuf,sizeof(struct statfs64),(char *)&sfs64);
 		else
 			pc->erno=errno;

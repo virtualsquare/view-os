@@ -76,6 +76,8 @@ static struct syscall_unifier scunify[] = {
 	{__NR_readv,	__NR_read},
 	{__NR_writev,	__NR_write},
 	{__NR_time,	  __NR_gettimeofday},
+	{__NR_fchown,	__NR_chown},
+	{__NR_fchmod,	__NR_chmod},
 #if (__NR_olduname != __NR_doesnotexist)
 	{__NR_olduname, __NR_uname},
 #endif
@@ -90,18 +92,27 @@ static struct syscall_unifier scunify[] = {
 	{__NR_umount,	__NR_umount2},
 	{__NR_stat,		__NR_stat64},
 	{__NR_lstat,	__NR_lstat64},
-	{__NR_fstat,	__NR_fstat64},
+	{__NR_fstat,	__NR_stat64},
+	{__NR_fstat64,__NR_stat64},
 	{__NR_getdents,	__NR_getdents64},
 	{__NR_truncate,	__NR_truncate64},
 	{__NR_ftruncate,__NR_ftruncate64},
 	{__NR_statfs,	__NR_statfs64},
-	{__NR_fstatfs,	__NR_fstatfs64},
+	{__NR_fstatfs,	__NR_statfs64},
+	{__NR_fstatfs64,	__NR_statfs64},
+#else
+	{__NR_fstatfs,	__NR_statfs},
+	{__NR_fstat,	__NR_stat},
 #endif 
 	{__NR_openat,	__NR_open},
 	{__NR_mkdirat,	__NR_mkdir},
 	{__NR_mknodat,	__NR_mknod},
 	{__NR_fchownat,	__NR_chown},
 	{__NR_futimesat,	__NR_utimes},
+#ifdef __NR_utimensat
+	{__NR_utimensat,	__NR_utimes},
+#endif
+	{__NR_utime,	__NR_utimes},
 #ifdef __NR_newfstatat
 	{__NR_newfstatat,	__NR_stat64},
 #endif
@@ -115,6 +126,30 @@ static struct syscall_unifier scunify[] = {
 	{__NR_readlinkat,	__NR_readlink},
 	{__NR_fchmodat,	__NR_chmod},
 	{__NR_faccessat,	__NR_access},
+#if defined(__NR_getuid32) && __NR_getuid32 != __NR_getuid
+	{__NR_getuid, __NR_getuid32},
+	{__NR_getgid, __NR_getgid32},   
+	{__NR_geteuid, __NR_geteuid32},
+	{__NR_getegid, __NR_getegid32},
+	{__NR_setreuid, __NR_setreuid32},
+	{__NR_setregid, __NR_setregid32},
+	{__NR_getgroups, __NR_getgroups32},
+	{__NR_setgroups, __NR_setgroups32},
+	{__NR_setresuid, __NR_setresuid32},
+	{__NR_getresuid, __NR_getresuid32},
+	{__NR_setresgid, __NR_setresgid32},
+	{__NR_getresgid, __NR_getresgid32},
+	{__NR_setuid, __NR_setuid32},
+	{__NR_setgid, __NR_setgid32},
+	{__NR_setfsuid, __NR_setfsuid32},
+	{__NR_setfsgid, __NR_setfsgid32},
+#endif
+#if defined(__NR_chown32) && __NR_chown32 != __NR_chown
+	//{__NR_chown, __NR_chown32},
+	//{__NR_lchown, __NR_lchown32},
+	//{__NR_fchown, __NR_chown32},
+	{__NR_fchown32, __NR_chown32},
+#endif
 #ifdef SNDRCVMSGUNIFY
 #if (__NR_socketcall == __NR_doesnotexist)
 	{__NR_send, __NR_sendmsg},
@@ -512,135 +547,15 @@ void dereg_modules(service_t code)
 			service_ctl(MC_MODULE | MC_REM, code, -1, services[i]->code);
 }
 
-service_t service_check(int type,void* arg,int setepoch)
-{
-#if 0
-	int i,max_index=-1;
-	struct service* s;
-	epoch_t	matchepoch=0;
-	if (arg == NULL || noserv == 0) 
-		return(UM_NONE);
-	else {
-		for (i = noserv-1 ; i>=0 ; i--) {
-			epoch_t returned_epoch;
-			s=services[i];
-			if (s->checkfun != NULL && (returned_epoch=s->checkfun(type,arg)) &&
-					(returned_epoch>matchepoch)) {
-				matchepoch=returned_epoch;
-				max_index=i;
-			}
-		}
-		if (setepoch)
-			um_setepoch(matchepoch);
-		if(max_index<0)
-			return(UM_NONE);
-		else 
-			return services[max_index]->code;
-	}
-#endif
-	if (type==CHECKPATH) {
-		struct ht_elem *mp=ht_tab_pathsearch(CHECKPATH,arg,um_x_gettst(),0);
-		/*fprint2("CHECKPATH path->%s %x\n",
-				(char *) arg, mp?mp->service:UM_NONE);*/
-		if (mp) {
-			if (setepoch)
-				um_setepoch(mp->tst.epoch);
-			return mp->service;
-		} else
-			return UM_NONE;
-	}
-	else
-		return UM_NONE;
-}
-
-/*
-service_t service_check(int type, void *arg)
-{
-	int i;
-	if (arg == NULL || noserv == 0) 
-		return(UM_NONE);
-	else {
-		for (i = noserv-1 ; i>=0 ; i--) {
-			struct service *s=services[i];
-			if (s->checkfun != NULL && s->checkfun(type,arg))
-				return(s->code);
-		}
-		return(UM_NONE);
-	}
-}
-*/
-
-static long errnosys()
-{
-	errno=ENOSYS;
-	return -1;
-}
-
-int isnosys(sysfun f)
-{
-	return (f==errnosys);
-}
-
-sysfun service_syscall(service_t code, int scno)
-{
-	if (code == UM_NONE || code == UM_ERR)
-		return NULL;
-	else {
-		int pos=servmap[code]-1;
-		struct service *s=services[pos];
-		assert( s != NULL);
-		return (s->um_syscall[scno] == NULL) ? errnosys : s->um_syscall[scno];
-	}
-}
-
-sysfun service_socketcall(service_t code, int scno)
-{
-	if(code == UM_NONE)
-		return NULL;
-	else {
-		int pos=servmap[code]-1;
-		struct service *s=services[pos];
-		assert(s != NULL);
-		return (s->um_socket[scno] == NULL) ? errnosys : s->um_socket[scno];
-	}
-}
-
-sysfun service_virsyscall(service_t code, int scno)
-{
-	if(code == UM_NONE)
-		return NULL;
-	else {
-		int pos=servmap[code]-1;
-		struct service *s=services[pos];
-		assert( s != NULL );
-		return (s->um_virsc == NULL || s->um_virsc[scno] == NULL) 
-			? errnosys : s->um_virsc[scno];
-	}
-}
-
-epochfun service_checkfun(service_t code)
-{
-	int pos=servmap[code]-1;
-	struct service *s=services[pos];
-	return (s->checkfun);
-}
-
-sysfun service_event_subscribe(service_t code)
-{
-	int pos=servmap[code]-1;
-	struct service *s=services[pos];
-	return (s->event_subscribe);
-}
-
 static void _service_fini()
 {
 	/*
-	int i;
-	void *hdl;
-	for (i=0;i<0xff;i++)
-		if ((hdl=get_handle_service(i)) != NULL)
-			dlclose(hdl);
-			*/
+		 int i;
+		 void *hdl;
+		 for (i=0;i<0xff;i++)
+		 if ((hdl=get_handle_service(i)) != NULL)
+		 dlclose(hdl);
+	 */
 }
 
 /* service initialization: upcalls for new services/deleted services
@@ -660,5 +575,5 @@ void _service_init()
 }
 
 
-	
+
 

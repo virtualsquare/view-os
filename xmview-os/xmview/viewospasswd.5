@@ -1,0 +1,54 @@
+.\" Copyright (c) 2009 Renzo Davoli
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License,
+.\" version 2, as published by the Free Software Foundation.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+.\" MA 02110-1301 USA.
+
+.TH VIEW-OS 5 "May 30, 2009" "VIEW-OS: a process with a view"
+.SH NAME
+viewospasswd \- login info for kmview-umview users 
+.SH DESCRIPTION
+.B /etc/viewospasswd
+contains one line for each user account aiming to use kmview-umview as
+his/her user account.
+Each line contains two fields delimited by colons (\fB:\fR):
+.sp
+.RS 4
+\h'-04'\(bu\h'+03'login name
+.RE
+.sp
+.RS 4
+\h'-04'\(bu\h'+03'command line of the user's startup script
+.RE
+The startup script/command should start a shell as its last action using
+an exec.
+.SH FILES
+.PD 0
+.IP "\fB/etc/viewospasswd\fR" 4
+user startup scripts information for kmview login shells.
+.SH SEE ALSO
+.BR umview(1),
+.BR kmview(1)
+.SH AUTHORS
+View-OS is a project of the Computer Science Department, University of
+Bologna. Project Leader: Renzo Davoli. 
+
+Howto's and further information can be found on the project wiki
+<wiki.virtualsquare.org>.
+
+

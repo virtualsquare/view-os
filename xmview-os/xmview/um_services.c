@@ -22,6 +22,7 @@
  *
  */   
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
 #include <sys/wait.h>
@@ -39,7 +40,8 @@
 #include <config.h>
 #include "defs.h"
 #include "sctab.h"
-#include "services.h"
+#include "hashtab.h"
+#include "capture.h"
 #include "utils.h"
 #include "modutils.h"
 #include "gdebug.h"
@@ -64,25 +66,64 @@ void *open_dllib(char *name)
 	return handle;
 }
 
-#if 0
-// umview internal use only, not in syscall management.
-// because it doesn't update pc->errno
-// FIXME: should be moved from this file.
-int um_add_service(char* path,int position){
-	void *handle=open_dllib(path);
-	if (handle==NULL) {
-			return  -1;
+struct fsalias {
+	char *fsalias;
+	char *fsname;
+	struct fsalias *next;
+};
+static struct fsalias *fs_alias_head=NULL;
+
+static struct fsalias * 
+rec_fs_add_alias(struct fsalias *fsh,char *fsalias,char *fsname)
+{
+	if (fsh == NULL) {
+		struct fsalias *new;
+		if (*fsname != 0 && (new=malloc(sizeof(struct fsalias))) != NULL) {
+			new->fsalias=strdup(fsalias);
+			new->fsname=strdup(fsname);
+			new->next=NULL;
+			return new;
+		} else
+			return NULL;
+	} else if (strcmp(fsalias,fsh->fsalias)==0) {
+		if (*fsname==0) {
+			struct fsalias *next=fsh->next;
+			free(fsh->fsalias);
+			free(fsh->fsname);
+			free(fsh);
+			return next;
+		} else {
+			free(fsh->fsname);
+			fsh->fsname=strdup(fsname);
+			return fsh;
+		}
 	} else {
-			if ( set_handle_new_service(handle,position) != 0) {
-					dlclose(handle);
-			}
+		fsh->next=rec_fs_add_alias(fsh->next,fsalias,fsname);
+		return fsh;
 	}
-	return 0;
 }
-#endif
+
+static inline void fs_add_alias(char *fsalias,char *fsname)
+{
+	if (fsalias != NULL && fsname != NULL)
+		fs_alias_head=rec_fs_add_alias(fs_alias_head,fsalias,fsname);
+}
+
+static char *rec_fs_search_alias(struct fsalias *fsh,char *fsalias) {
+	if (fsh == NULL)
+		return fsalias;
+	else if (strcmp(fsalias,fsh->fsalias)==0) 
+		return fsh->fsname;
+	else
+		return rec_fs_search_alias(fsh->next,fsalias);
+}
+
+char *fs_alias(char *fsalias) {
+	return rec_fs_search_alias(fs_alias_head,fsalias);
+}
 
 int wrap_in_umservice(int sc_number,struct pcb *pc,
-		    service_t sercode, sysfun um_syscall)
+		    struct ht_elem *hte, sysfun um_syscall)
 {
 	char buf[PATH_MAX];
 	switch (pc->sysargs[0]) {
@@ -176,6 +217,24 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 			killall(pc,pc->sysargs[1]);
 			pc->retval=0;
 			pc->erno = 0;
+			break;
+		case UMVIEW_ATTACH:
+			pc->retval=capture_attach(pc,pc->sysargs[1]);
+			if (pc->retval < 0) {
+				pc->erno = - pc->retval;
+				pc->retval = -1;
+			}
+			break;
+		case UMVIEW_FSALIAS:
+			{
+				char fsalias[256];
+				char fsname[256];
+				umovestr(pc,pc->sysargs[1],256,fsalias);
+				umovestr(pc,pc->sysargs[2],256,fsname);
+				fs_add_alias(fsalias,fsname);
+				pc->retval=0;
+				pc->erno = 0;
+			}
 			break;
 		default:
 			pc->retval = -1;

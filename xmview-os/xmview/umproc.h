@@ -28,7 +28,7 @@
 #define OLFD_STEP 8 /*only power of 2 values */
 #define OLFD_STEP_1 (OLFD_STEP - 1)
 
-#include "services.h"
+#include "hashtab.h"
 #include "treepoch.h"
 
 #ifdef _UM_MMAP
@@ -57,13 +57,13 @@ char *um_proc_tmpname();
 void lfd_addproc (struct pcb_file **p,int flag);
 void lfd_delproc (struct pcb_file *p);
 #endif
-int lfd_open (service_t service, int sfd, char *path, int flags, int nested);
+int lfd_open (struct ht_elem *hte, int sfd, char *path, int flags, int nested);
 void lfd_close (int lfd);
 int lfd_dup(int lfd);
 int lfd_getcount(int lfd);
 void lfd_nullsfd(int lfd);
 int lfd_getsfd(int lfd);
-service_t lfd_getservice(int lfd);
+struct ht_elem *lfd_getht(int lfd);
 char *lfd_getfilename(int lfd);
 char *lfd_getpath(int lfd);
 int fd2lfd (struct pcb_file *p, int fd);
@@ -71,15 +71,13 @@ int fd_getfdfl(struct pcb_file *p, int fd);
 int fd_setfdfl(struct pcb_file *p, int fd, int val);
 int fd_getflfl(struct pcb_file *p, int fd);
 int fd2sfd (struct pcb_file *p, int fd);
-char *fd_getpath(struct pcb_file *p, int fd, service_t *service,
-		    epoch_t *epoch);
-
+char *fd_getpath(struct pcb_file *p, int fd);
 void lfd_register (struct pcb_file *p, int fd, int lfd);
 void lfd_deregister_n_close(struct pcb_file *p, int fd);
 void lfd_closeall();
 void lfd_signal(int lfd);
 void lfd_delsignal(int lfd);
-service_t service_fd(struct pcb_file *p, int fd, int setepoch);
-char *sfd_getpath(service_t code, int sfd);
+struct ht_elem *ht_fd(struct pcb_file *p, int fd, int setepoch);
+char *sfd_getpath(struct ht_elem *hte, int sfd);
 
 #endif

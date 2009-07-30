@@ -33,8 +33,10 @@ extern divfun sockcdtab[];
 #endif
 
 extern int first_child_exit_status;
+/* start a rc file */
+void capture_execrc(const char *path,const char *argv1);
 /* let the game start! */
-int capture_main(char **argv,int has_pselect);
+int capture_main(char **argv,int has_pselect,char *rc);
 /* resume a process previously suspended */
 void sc_resume(void *pc);
 
@@ -54,5 +56,7 @@ void wake_tracer(int s);
 void do_wake_tracer();
 /* This is the handler of sigchld from user processes */
 void tracehand();
+
+int capture_attach(struct pcb *pc,pid_t pid);
 
 #endif

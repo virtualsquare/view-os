@@ -23,8 +23,6 @@ COMMON_SOURCES = \
 	services.c services.h \
 	treepoch.c treepoch.h \
 	uid16to32.h \
-	hashtab.c \
-	hashtab.h \
 	um_basicio.c \
 	um_exec.c \
 	um_ioctl.c \
@@ -40,8 +38,10 @@ COMMON_SOURCES = \
 	um_wdm.c \
 	umproc.c umproc.h \
 	utils.h \
+	loginshell.c loginshell.h \
+	hashtab.c hashtab.h \
 	kmview.h
-# kmview.h must be removed, it will part of the dev package of the
+# kmview.h must be removed, it will be part of the dev package of the
 # kmview.ko kernel module
 
 bin_PROGRAMS = kmview umview
@@ -81,6 +81,7 @@ umbinwrap_SOURCES = \
 
 dist_man1_MANS = kmview.1 umview.1 
 dist_man2_MANS = msocket.2viewos
+dist_man5_MANS = viewospasswd.5
 
 CBASEFLAGS =
 CDEBUGFLAGS = -g3 -ggdb3

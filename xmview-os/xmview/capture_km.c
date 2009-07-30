@@ -1,3 +1,25 @@
+/*   This is part of um-ViewOS
+ *   The user-mode implementation of OSVIEW -- A Process with a View
+ *
+ *   capture_km.c: capture layer for kmview
+ *   
+ *   Copyright 2008 Renzo Davoli University of Bologna - Italy
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License, version 2, as
+ *   published by the Free Software Foundation.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
+ *
+ */
+
 #include <assert.h>
 #include <stdio.h>
 #include <signal.h>
@@ -366,6 +388,7 @@ void sc_resume(struct pcb *pc)
 				r_ioctl(kmviewfd,KMVIEW_SYSRESUME,pc->kmpid);
 				break;
 			case SC_FAKE:
+				fun(scno,OUT,pc);
 				pc->outevent.x.kmpid=pc->kmpid;
 				r_ioctl(kmviewfd,KMVIEW_SYSVIRTUALIZED,&pc->outevent);
 				break;
@@ -461,12 +484,33 @@ static int r_execvp(const char *file, char *const argv[]){
 	}
 }
 
+int capture_attach(struct pcb *pc,pid_t pid)
+{ 
+	return -ENOSYS;
+}
+
+void capture_execrc(const char *path,const char *argv1)
+{
+	if (access(path,X_OK)==0) {
+		int pid;
+		int status;
+		switch (pid=fork()) {
+			case -1: exit (2);
+			case 0: execl(path,path,(char *)0);
+							exit (2);
+			default: waitpid(pid,&status,0);
+							 if (!WIFEXITED(status))
+								 exit (2);
+		}
+	}
+}
+
 /* main capture startup */
-int capture_main(char **argv,void (*root_process_init)(void))
+int capture_main(char **argv,void (*root_process_init)(void),char *rc)
 {
 	struct kmview_magicpoll mp={(long)&event,1};
-	kmviewfd=r_open("/dev/kmview",O_RDONLY,0);
 	long flags;
+	kmviewfd=r_open("/dev/kmview",O_RDONLY,0);
 	if (kmviewfd < 0)
 		return -1;
 	r_ioctl(kmviewfd, KMVIEW_MAGICPOLL, &mp);
@@ -490,12 +534,16 @@ int capture_main(char **argv,void (*root_process_init)(void))
 			r_close(kmviewfd);
 			/* maybe it is better to use execvp instead of r_execvp.
 			 * the former permits to use a (preloaded) module provided executable as startup process*/
+			GDEBUG(8, "starting rc files");
+			capture_execrc("/etc/viewosrc",(char *)0);
+			if (rc != NULL && *rc != 0)
+				capture_execrc(rc,(char *)0);
 			GDEBUG(8, "starting %s",argv[0]);
 			r_execvp(argv[0], argv);
 			GPERROR(0, "strace: exec");
 			_exit(1);
 		default:
-			/* UMVIEW TRACER startup */
+			/* KMVIEW TRACER startup */
 			/* create the thread key */
 			pthread_key_create(&pcb_key,vir_pcb_free);
 			/* init the first child startup fun */

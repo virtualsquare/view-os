@@ -25,11 +25,10 @@
 #include <unistd.h>
 #include <linux/types.h>
 #include <sys/types.h>
-#include <linux/dirent.h>
+#include <linux_dirent.h>
 #include <linux/unistd.h>
 #include <errno.h>
 #include <config.h>
-
 
 int getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
 {

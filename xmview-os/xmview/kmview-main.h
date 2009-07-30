@@ -25,7 +25,7 @@
 #include <config.h>
 
 #define KMVIEW_NAME PACKAGE_NAME
-#define KMVIEW_DESC "kernel-mode View-OS"
+#define KMVIEW_DESC "kmview: kernel-module implementation of View-OS"
 #define KMVIEW_VERSION PACKAGE_VERSION
 
 #define KMVIEW_URL "http://savannah.nongnu.org/projects/view-os"

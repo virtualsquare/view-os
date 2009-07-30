@@ -27,8 +27,8 @@
 #include <unistd.h>
 #include <linux/types.h>
 #include <sys/types.h>
-#include <linux/dirent.h>
 #include <linux/unistd.h>
+#include <linux_dirent.h>
 #include <errno.h>
 
 int getdents(unsigned int fd, struct dirent *dirp, unsigned int count);
@@ -113,6 +113,14 @@ int _llseek(unsigned int fd, unsigned long offset_high,
 #ifdef __NR_setfsuid32
 #undef __NR_setfsuid
 #define __NR_setfsuid __NR_setfsuid32
+#endif
+#ifdef __NR_getegid32
+#undef __NR_getegid
+#define __NR_getegid __NR_getegid32
+#endif
+#ifdef __NR_setfsgid32
+#undef __NR_setfsgid
+#define __NR_setfsgid __NR_setfsgid32
 #endif
 
 /*#if defined(__x86_64__)

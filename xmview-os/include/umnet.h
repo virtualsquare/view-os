@@ -60,6 +60,7 @@ struct umnet_operations {
 	ssize_t (*write) (int, const void *, size_t);
 	int (*ioctl) (int, int, void *);
 	int (*close) (int);
+	int (*fcntl) (int, int, long);
 
 	int (*supported_domain) (int);
 	int (*event_subscribe) (voidfun cb, void *arg, int fd, int how);
@@ -79,7 +80,9 @@ void netargs(char *opts, struct netargitem *netargtab, int netargsize, void *arg
 void umnet_setprivatedata(struct umnet *nethandle, void *privatedata);
 void *umnet_getprivatedata(struct umnet *nethandle);
 
+#if 0
 void umnet_setmode(struct umnet *nethandle, mode_t mode);
 mode_t umnet_getmode(struct umnet *nethandle);
+#endif
 #endif /* _UMNET_H_ */
 

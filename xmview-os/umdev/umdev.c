@@ -35,7 +35,6 @@
 #include <dlfcn.h>
 #include <pthread.h>
 #include <linux/types.h>
-#include <linux/dirent.h>
 #include <linux/unistd.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -62,12 +61,13 @@
 #endif
 
 static struct service s;
+static struct ht_elem *service_ht;
 
 struct umdev {
 	char *path;
 	void *dlhandle;
 	struct timestamp tst;
-	dev_t device;
+	dev_t dev;
 	mode_t mode;
 	uid_t uid;
 	gid_t gid;
@@ -75,6 +75,7 @@ struct umdev {
 	struct umdev_operations *devops;	
 	int inuse;
 	unsigned long flags;
+	struct ht_elem *devht;
 	void *private_data;
 };
 
@@ -87,22 +88,10 @@ struct fileinfo {
 	struct umdev *umdev;
 };
 
-#define MNTTABSTEP 4 /* must be a power of two */
-#define MNTTABSTEP_1 (MNTTABSTEP-1)
-#define FILETABSTEP 4 /* must be a power of two */
-#define FILETABSTEP_1 (FILETABSTEP-1)
-
-static struct fileinfo **filetab=NULL;
-static int filetabmax=0;
-
-static struct umdev **devicetab=NULL;
-static int devicetabmax=0;
-
-
 #ifdef __UMDEV_DEBUG__
 static void printdebug(int level, const char *file, const int line, const char *func, const char *fmt, ...) {
 	va_list ap;
-    
+
 	if (level >= __UMDEV_DEBUG_LEVEL__) {
 		va_start(ap, fmt);
 #ifdef _PTHREAD_H
@@ -117,107 +106,30 @@ static void printdebug(int level, const char *file, const int line, const char *
 }
 #endif
 
-static void cutdots(char *path)
+static int umdev_confirm(int type, void *arg, int arglen, struct ht_elem *ht)
 {
-	int l=strlen(path);
-	l--;
-	if (path[l]=='.') {
-		l--;
-		if(path[l]=='/') {
-			if (l!=0) path[l]=0; else path[l+1]=0;
-		} else if (path[l]=='.') {
-			l--;
-			if(path[l]=='/') {
-				while(l>0) {
-					l--;
-					if (path[l]=='/')
-						break;
-				}
-				if(path[l]=='/') {
-					if (l!=0) path[l]=0; else path[l+1]=0;
-				}
-			}
-		}
-	}
-}
-
-static int search_plusnum(const char *path, const char *base, int nsubdev)
-{
-	int len=strlen(base);
-	if (strncmp(path,base,len) == 0) {
-		const char *s=path+len;
-		if (nsubdev == 0)
-			return(*s == 0);
-		else {
-			for (s=path+len; *s!=0 && *s>='0' && *s <='9'; s++)
-				;
-			if (*s==0) {
-				int sub=atoi(path+len);
-				if (sub <= nsubdev)
-					return 1;
-				else return 0;
-			} else
-				return 0;
-		}
-	}
+	char *path=arg;
+	struct umdev *fc=ht->private_data;
+	char *suffix=path+strlen(fc->path);
+	//fprint2("umdev_confirm path %s suffix %s\n",path,suffix);
+	int sub=atoi(suffix);
+	if (sub <= fc->nsubdev)
+		return 1;
 	else
 		return 0;
 }
 
-/* search a device, returns the context i.e. the index of info for mounted file
- * -1 otherwise */
-static struct umdev *searchdevice(char *path)
+static int umdev_confirm_dev(int type, void *arg, int arglen, struct ht_elem *ht)
 {
-	register int i;
-	struct umdev *result=NULL;
-	struct stat64 buf;
-	epoch_t maxepoch=0;
-	int maxi=-1;
-
-	PRINTDEBUG(0,"SearchContext:%s\n",path);
-	cutdots(path);
-	for (i=0;i<devicetabmax;i++)
-	{
-		epoch_t e;
-		if ((devicetab[i] != NULL)) {
-			epoch_t prevepoch=um_setepoch(devicetab[i]->tst.epoch);
-			if (
-				//	(strcmp(path,devicetab[i]->path) == 0) &&
-				  search_plusnum(path,devicetab[i]->path,devicetab[i]->nsubdev) &&
-					((e=tst_matchingepoch(&(devicetab[i]->tst))) > maxepoch)) {
-				maxi=i;
-				maxepoch=e;
-			}
-			um_setepoch(prevepoch);
-		}
-	}
-  /* Major/Minor Number select */	
-	if (maxi < 0)
-		for (i=0;i<devicetabmax && result==NULL;i++)
-		{
-			epoch_t e;
-			if ((devicetab[i] != NULL)) {
-				/* set epoch */
-				epoch_t prevepoch=um_setepoch(devicetab[i]->tst.epoch);
-				if (((e=tst_matchingepoch(&(devicetab[i]->tst))) > maxepoch) &&  /* Epoch compatible  AND */
-						(stat64(path,&buf) == 0) &&  /* stat okay AND */
-						((((devicetab[i]->mode & S_IFMT) == 0) ||  /* the same kind of special file (or 0, any kind)  AND */
-							((buf.st_mode & S_IFMT) ==  (devicetab[i]->mode & S_IFMT))) &&
-						 (major(devicetab[i]->device) == major(buf.st_rdev)) && /* the same Major num AND */
-						 ((minor(devicetab[i]->device) == -1) ||  /* the same Minor (or any) */
-							(((minor(devicetab[i]->device) <= minor(buf.st_rdev)) &&
-								(minor(devicetab[i]->device)+devicetab[i]->nsubdev >= minor(buf.st_rdev))))))) {
-					/* after all the tests: it's it! */
-					maxi=i;
-					maxepoch=e;
-				}
-				um_setepoch(prevepoch);
-				/* restore epoch */
-			}
-		}
-	if (maxi >= 0)
-		result=devicetab[maxi];
-	return result;
+	dev_t *dev=arg;
+	struct umdev *fc=ht->private_data;
+	if (major(fc->dev) == major(*dev) &&
+			(minor(fc->dev) == -1 ||
+			 (minor(fc->dev) <= minor(*dev) &&
+				minor(fc->dev)+fc->nsubdev >= minor(*dev))))
+		return 1;
+	else
+		return 0;
 }
 
 static inline int mode2char(mode_t mode)
@@ -234,100 +146,21 @@ static int set_dev(dev_t *dev, struct umdev *umdev,char *path)
 {
 	register int i;
 	mode_t mode;
-	
+
 	struct stat64 buf;
-	
+
 	*dev=0;
 	if (stat64(path,&buf) >= 0 && (S_ISCHR(buf.st_mode) || S_ISBLK(buf.st_mode))) {
 		*dev=buf.st_rdev;
 	} else {
 		if (strlen(path) > strlen(umdev->path)) 
-			*dev=makedev(major(umdev->device),minor(umdev->device)+atoi(path+strlen(umdev->path)));
+			*dev=makedev(major(umdev->dev),minor(umdev->dev)+atoi(path+strlen(umdev->path)));
 		else
-			*dev= umdev->device;
+			*dev= umdev->dev;
 	}
 	mode= umdev->mode;
 	//fprint2("SET_DEV %s %x %d %d\n",path,mode,major(*dev),minor(*dev));
 	return mode2char(mode);
-}
-
-/*insert a new context in the device table*/
-static struct umdev *adddevicetab(struct umdev *new)
-{
-	register int i;
-	//pthread_mutex_lock( &devicetab_mutex );
-	for (i=0;i<devicetabmax && devicetab[i] != NULL;i++)
-		;
-	if (i>=devicetabmax) {
-		register int j;
-		register int devicetabnewmax=(i + MNTTABSTEP) & ~MNTTABSTEP_1;
-		devicetab=(struct umdev **)realloc(devicetab,devicetabnewmax*sizeof(struct umdev *));
-		assert(devicetab);
-		for (j=i;j<devicetabnewmax;j++)
-			devicetab[j]=NULL;
-		devicetabmax=devicetabnewmax;
-	}
-	devicetab[i]=new;
-	//pthread_mutex_unlock( &devicetab_mutex );
-	return devicetab[i];
-}
-
-/* execute a specific function (arg) for each devicetab element */
-static void foralldevicetabdo(void (*fun)(struct umdev *fc))
-{
-	register int i;
-	for (i=0;i<devicetabmax;i++)
-		if (devicetab[i] != NULL)
-		     fun(devicetab[i]);
-}
-
-/*
- * delete the i-th element of the tab.
- * the table cannot be compacted as the index is used as id
- */
-static void deldevicetab(struct umdev *fc)
-{
-	register int i;
-	//pthread_mutex_lock( &devicetab_mutex );
-	for (i=0;i<devicetabmax && fc != devicetab[i];i++)
-		;
-	if (i<devicetabmax)
-		 devicetab[i]=NULL;
-	else
-		fprint2("delmnt inexistent entry\n");
-	//pthread_mutex_unlock( &devicetab_mutex );
-}
- 
-/* add an element to the filetab (open file table)
- * each file has a fileinfo record
- */
-static int addfiletab()
-{
-	register int i;
-	//pthread_mutex_lock( &devicetab_mutex );
-	for (i=0;i<filetabmax && filetab[i] != NULL;i++)
-		;
-	if (i>=filetabmax) {
-		register int j;
-		filetabmax=(i + MNTTABSTEP) & ~MNTTABSTEP_1;
-		filetab=(struct fileinfo **)realloc(filetab,filetabmax*sizeof(struct fileinfo *));
-		assert(filetab);
-		for (j=i;j<filetabmax;j++)
-			filetab[j]=NULL;
-	}
-	filetab[i]=(struct fileinfo *)malloc(sizeof(struct fileinfo));
-	assert(filetab[i]);
-	//pthread_mutex_unlock( &devicetab_mutex );
-	return i;
-}
-
-/* delete an entry from the open file table.
- * RD: there is a counter managed by open and close calls */
-static void delfiletab(int i)
-{
-	struct fileinfo *norace=filetab[i];
-	filetab[i]=NULL;
-	free(norace);
 }
 
 #define MAXARGS 256
@@ -363,8 +196,8 @@ static void majorfun(char *s,struct umdev *fc)
 	fprint2("MAJ %s\n",s);
 #endif
 	majx=atoi(s);
-	minx=minor(fc->device);
-	fc->device=makedev(majx,minx);
+	minx=minor(fc->dev);
+	fc->dev=makedev(majx,minx);
 }
 
 static void minorfun(char *s,struct umdev *fc)
@@ -373,12 +206,12 @@ static void minorfun(char *s,struct umdev *fc)
 #ifdef DEBUGUMDEVARGS
 	fprint2("MIN %s\n",s);
 #endif
-	majx=major(fc->device);
+	majx=major(fc->dev);
 	if (strcmp(s,"any")==0)
 		minx = -1;
 	else
 		minx=atoi(s);
-	fc->device=makedev(majx,minx);
+	fc->dev=makedev(majx,minx);
 }
 
 static void plusnum(char *s,struct umdev *fc)
@@ -475,11 +308,11 @@ static struct devargitem umdevargtab[] = {
 #define UMDEVARGTABSIZE sizeof(umdevargtab)/sizeof(struct devargitem)
 
 static long umdev_mount(char *source, char *target, char *filesystemtype,
-		       unsigned long mountflags, void *data)
+		unsigned long mountflags, void *data)
 {
 	void *dlhandle = openmodule(filesystemtype, RTLD_NOW);
 	struct umdev_operations *umdev_ops;
-	
+
 	PRINTDEBUG(10, "MOUNT %s %s %s %x %s\n",source,target,filesystemtype,
 			mountflags, (data!=NULL)?data:"<NULL>");
 
@@ -498,9 +331,9 @@ static long umdev_mount(char *source, char *target, char *filesystemtype,
 		new->mode = S_IFCHR | 0600;
 		new->uid = getuid();
 		new->gid = getgid();
-		new->device = 0;
+		new->dev = 0;
 		if (s64) {
-			new->device = s64->st_rdev;
+			new->dev = s64->st_rdev;
 			if (S_ISCHR(s64->st_mode) | S_ISBLK (s64->st_mode))
 				new->mode = (s64->st_mode & S_IFMT) | 0600;
 		}
@@ -517,8 +350,8 @@ static long umdev_mount(char *source, char *target, char *filesystemtype,
 			free(datacopy);
 		}
 		if (umdev_ops->init) {
-			if (umdev_ops->init(mode2char(new->mode),new->device,source,
-					mountflags,data?data:"", new) < 0) {
+			if (umdev_ops->init(mode2char(new->mode),new->dev,source,
+						mountflags,data?data:"", new) < 0) {
 				deldevicetab(new);
 				free(new->path);
 				free(new);
@@ -526,16 +359,36 @@ static long umdev_mount(char *source, char *target, char *filesystemtype,
 				return -1;
 			}
 		}
-		new->tst=tst_timestamp();
-		adddevicetab(new);
+		ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,data,&s,1,umdev_confirm,new);
+		new->devht=NULL;
+		if (new->dev) {
+			if (S_ISCHR(new->mode))
+				new->devht=ht_tab_add(CHECKCHRDEVICE,NULL,0,&s,umdev_confirm_dev,new);
+			else if (S_ISBLK(new->mode))
+				new->devht=ht_tab_add(CHECKBLKDEVICE,NULL,0,&s,umdev_confirm_dev,new);
+		}
 		return 0;
 	}
+}
+
+static void umdev_umount_internal(struct umdev *fc,int flags) {
+	char *target=fc->path;
+	ht_tab_invalidate(um_mod_get_hte());
+	if (fc->devht)
+		ht_tab_invalidate(fc->devht);
+	if (fc->flags & UMDEV_DEBUG)
+		fprint2("UMOUNT => path:%s flag:%d\n",target, flags);
+	if (fc->devops->fini)
+		fc->devops->fini(mode2char(fc->mode),fc->dev,fc);
+	free(fc->path);
+	dlclose(fc->dlhandle);
+	free(fc);
 }
 
 static long umdev_umount2(char *target, int flags)
 {
 	struct umdev *fc;
-	fc = searchdevice(target);
+	fc = um_mod_get_private_data();
 	if (fc == NULL) {
 		errno=EINVAL;
 		return -1;
@@ -544,18 +397,21 @@ static long umdev_umount2(char *target, int flags)
 		errno=EBUSY;
 		return -1;
 	} else {
-		struct umdev *fc_norace=fc;
-		if (fc_norace->flags & UMDEV_DEBUG) 
-			fprint2("UMOUNT => path:%s flag:%d\n",target, flags);
-		if (fc_norace->devops->fini)
-			fc_norace->devops->fini(mode2char(fc_norace->mode),fc_norace->device,fc);
-		deldevicetab(fc);
-		free(fc_norace->path);
-		dlclose(fc_norace->dlhandle);
-		free(fc_norace);
+		struct ht_elem *devht=fc->devht;
+		umdev_umount_internal(fc,flags);
+		ht_tab_del(um_mod_get_hte());
+		if (devht)
+			ht_tab_del(devht);
 		return 0;
 	}
 }
+
+static void htcontextclose(struct ht_elem *mp, void *arg)
+{
+	um_mod_set_hte(mp);
+	umdev_umount_internal(um_mod_get_private_data(),MNT_FORCE);
+}
+
 
 #define TRUE 1
 #define FALSE 0
@@ -565,45 +421,26 @@ static int alwaysfalse()
 	return FALSE;
 }
 
-static long umdev_ioctlargs(struct ioctl_len_req *arg)
+static long umdev_ioctlparms(int fd,int req)
 {
-	int fd=arg->fd;
-	if (filetab[fd]->umdev->devops->ioctlparms) {
+	struct fileinfo *ft=getfiletab(fd);
+	if (ft->umdev->devops->ioctlparms) {
 		struct dev_info di;
-		di.fh = filetab[fd]->fh;
+		di.fh = ft->fh;
 		di.flags = 0;
-		di.devhandle=filetab[fd]->umdev;
-		return filetab[fd]->umdev->devops->ioctlparms(
-				filetab[fd]->type, filetab[fd]->device, arg->req, filetab[fd]->umdev);
+		di.devhandle=ft->umdev;
+		return ft->umdev->devops->ioctlparms(
+				ft->type, ft->device, req, ft->umdev);
 	} else
 		return 0;
 }
 
-static epoch_t umdev_check(int type, void *arg)
-{
-	if (type == CHECKPATH) {
-		char *path=arg;
-		struct umdev *fc=searchdevice(path);
-		if ( fc != NULL) {
-			return fc->tst.epoch; 
-		}
-		else
-			return FALSE;
-	} else if (type == CHECKFSTYPE) {
-		char *path=arg;
-		return (strncmp(path,"umdev",5) == 0);
-	} else if (type == CHECKIOCTLPARMS) {
-		return umdev_ioctlargs(arg);
-	} else {
-		return FALSE;
-	}
-}
-
 static long umdev_open(char *path, int flags, mode_t mode)
 {
-	struct umdev *fc = searchdevice(path);
+	struct umdev *fc = um_mod_get_private_data();
 	struct dev_info di;
-	int fi = addfiletab();
+	int fd = addfiletab(sizeof(struct fileinfo));
+	struct fileinfo *ft=getfiletab(fd);
 	int rv;
 	int exists_err;
 	struct stat buf;
@@ -647,138 +484,125 @@ static long umdev_open(char *path, int flags, mode_t mode)
 	if(flags &  O_SYNC)
 		PRINTDEBUG(10, "SYNC\n");
 #endif
-	filetab[fi]->count = 0;
-	filetab[fi]->pos = 0;
-	//filetab[fi]->size = buf.st_size; /* SIZE OF device? */
+	ft->count = 0;
+	ft->pos = 0;
+	//ft->size = buf.st_size; /* SIZE OF device? */
 	di.flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
 	di.fh = 0;
 	di.devhandle=fc;
 
-	filetab[fi]->type=set_dev(&filetab[fi]->device,fc,path);
-	filetab[fi]->umdev=fc;
+	ft->type=set_dev(&ft->device,fc,path);
+	ft->umdev=fc;
 	if (fc->devops->open)
-		rv = fc->devops->open(filetab[fi]->type, filetab[fi]->device, &di);
+		rv = fc->devops->open(ft->type, ft->device, &di);
 	else
 		rv=0;
-	filetab[fi]->fh=di.fh;
+	ft->fh=di.fh;
 
 	if (rv < 0)
 	{
 		if (fc->flags & UMDEV_DEBUG) 
-        		fprint2("OPEN[%d: %c(%d,%d)] ERROR => path:%s flags:0x%x\n",
-				fi, filetab[fi]->type, major(filetab[fi]->device), minor(filetab[fi]->device), path, flags);	
-		delfiletab(fi);
+			fprint2("OPEN[%d: %c(%d,%d)] ERROR => path:%s flags:0x%x\n",
+					fd, ft->type, major(ft->device), minor(ft->device), path, flags);	
+		delfiletab(fd);
 		errno = -rv;
 		return -1;
 	} else {
-		filetab[fi]->count += 1;
+		ft->count += 1;
 		if (fc->flags & UMDEV_DEBUG) 
-        		fprint2("OPEN[%d: %c(%d:%d)] => path:%s flags:0x%x\n",
-				fi, filetab[fi]->type, major(filetab[fi]->device), minor(filetab[fi]->device), path, flags);
+			fprint2("OPEN[%d: %c(%d:%d)] => path:%s flags:0x%x\n",
+					fd, ft->type, major(ft->device), minor(ft->device), path, flags);
 		fc->inuse++;
-		return fi;
+		return fd;
 	}
 }
 
 static long umdev_close(int fd)
 {
 	int rv;
-	
-	if (filetab[fd]==NULL) {
-		errno=EBADF;
+	struct fileinfo *ft=getfiletab(fd);
+
+	struct dev_info di;
+	di.fh = ft->fh;
+	di.flags = ft->umdev->flags;
+	di.devhandle=ft->umdev;
+	if (ft->umdev->flags & UMDEV_DEBUG) 
+		fprint2("CLOSE[%d %c(%d:%d)] %p\n",fd,
+				ft->type, major(ft->device), minor(ft->device),ft);
+	ft->count--;
+	PRINTDEBUG(10,"->CLOSE %c(%d:%d) %d\n",
+			ft->type, major(ft->device), minor(ft->device), ft->count);
+	if (ft->count == 0) {			 
+		ft->umdev->inuse--;
+		if (ft->umdev->devops->release)
+			rv=ft->umdev->devops->release(ft->type, ft->device, &di);
+		else
+			rv=0;
+		if (ft->umdev->flags & UMDEV_DEBUG) 
+			fprint2("RELEASE[%d %c(%d:%d)] => flags:0x%x rv=%d\n",
+					fd, ft->type, major(ft->device), minor(ft->device), ft->umdev->flags,rv);
+		delfiletab(fd);
+	}
+	if (rv<0) {
+		errno= -rv;
 		return -1;
 	} else {
-		struct dev_info di;
-		di.fh = filetab[fd]->fh;
-		di.flags = filetab[fd]->umdev->flags;
-		di.devhandle=filetab[fd]->umdev;
-		if (filetab[fd]->umdev->flags & UMDEV_DEBUG) 
-			fprint2("CLOSE[%d %c(%d:%d)] %p\n",fd,
-					filetab[fd]->type, major(filetab[fd]->device), minor(filetab[fd]->device),filetab[fd]);
-		filetab[fd]->count--;
-		PRINTDEBUG(10,"->CLOSE %c(%d:%d) %d\n",
-				filetab[fd]->type, major(filetab[fd]->device), minor(filetab[fd]->device), filetab[fd]->count);
-		if (filetab[fd]->count == 0) {			 
-			filetab[fd]->umdev->inuse--;
-			if (filetab[fd]->umdev->devops->release)
-				rv=filetab[fd]->umdev->devops->release(filetab[fd]->type, filetab[fd]->device, &di);
-			else
-				rv=0;
-			if (filetab[fd]->umdev->flags & UMDEV_DEBUG) 
-        			fprint2("RELEASE[%d %c(%d:%d)] => flags:0x%x rv=%d\n",
-					fd, filetab[fd]->type, major(filetab[fd]->device), minor(filetab[fd]->device), filetab[fd]->umdev->flags,rv);
-			delfiletab(fd);
-		}
-		if (rv<0) {
-			errno= -rv;
-			return -1;
-		} else {
-			return rv;
-		}
-	} return 0;
+		return rv;
+	}
 }
 
 static long umdev_read(int fd, void *buf, size_t count)
 {
 	int rv;
-	if (filetab[fd]==NULL) {
-		errno=EBADF;
+	struct fileinfo *ft=getfiletab(fd);
+	struct dev_info di;
+	di.fh = ft->fh;
+	di.flags = 0;
+	di.devhandle=ft->umdev;
+	if (ft->umdev->devops->read)
+		rv = ft->umdev->devops->read(
+				ft->type, ft->device, 
+				buf, count, ft->pos, &di);
+	else
+		rv= -EINVAL;
+	if (ft->umdev->flags & UMDEV_DEBUG) 
+		fprint2("READ[%d %c(%d:%d)] => count:%u\n",
+				fd, ft->type, major(ft->device), minor(ft->device), count);
+	if (rv<0) {
+		errno= -rv;
 		return -1;
-	} 
-	else {
-		struct dev_info di;
-		di.fh = filetab[fd]->fh;
-		di.flags = 0;
-		di.devhandle=filetab[fd]->umdev;
-		if (filetab[fd]->umdev->devops->read)
-			rv = filetab[fd]->umdev->devops->read(
-					filetab[fd]->type, filetab[fd]->device, 
-					buf, count, filetab[fd]->pos, &di);
-		else
-			rv= -EINVAL;
-		if (filetab[fd]->umdev->flags & UMDEV_DEBUG) 
-        		fprint2("READ[%d %c(%d:%d)] => count:%u\n",
-				fd, filetab[fd]->type, major(filetab[fd]->device), minor(filetab[fd]->device), count);
-		if (rv<0) {
-			errno= -rv;
-			return -1;
-		} else {
-			filetab[fd]->pos += rv;
-			return rv;
-		}
+	} else {
+		ft->pos += rv;
+		return rv;
 	}
 }
 
 static long umdev_write(int fd, void *buf, size_t count)
 {
 	int rv;
+	struct fileinfo *ft=getfiletab(fd);
 
-	if (filetab[fd]==NULL) {
-		errno = EBADF;
+	struct dev_info di;
+	di.fh = ft->fh;
+	di.flags = 0;
+	di.devhandle=ft->umdev;
+	if(ft->umdev->devops->write) {
+		rv = ft->umdev->devops->write(
+				ft->type, ft->device,
+				buf, count, ft->pos, &di);
+	} else
+		rv= -EINVAL;
+	if (ft->umdev->flags & UMDEV_DEBUG) 
+		fprint2("WRITE[%d %c(%d:%d)] => count:0x%x\n",
+				fd, ft->type, major(ft->device), minor(ft->device), count);
+
+	PRINTDEBUG(10,"WRITE rv:%d\n",rv); 
+	if (rv<0) {
+		errno= -rv;
 		return -1;
 	} else {
-		struct dev_info di;
-		di.fh = filetab[fd]->fh;
-		di.flags = 0;
-		di.devhandle=filetab[fd]->umdev;
-		if(filetab[fd]->umdev->devops->write) {
-			rv = filetab[fd]->umdev->devops->write(
-					filetab[fd]->type, filetab[fd]->device,
-					buf, count, filetab[fd]->pos, &di);
-		} else
-			rv= -EINVAL;
-		if (filetab[fd]->umdev->flags & UMDEV_DEBUG) 
-			fprint2("WRITE[%d %c(%d:%d)] => count:0x%x\n",
-				fd, filetab[fd]->type, major(filetab[fd]->device), minor(filetab[fd]->device), count);
-	
-		PRINTDEBUG(10,"WRITE rv:%d\n",rv); 
-		if (rv<0) {
-			errno= -rv;
-			return -1;
-		} else {
-			filetab[fd]->pos += rv;
-			return rv;
-		}
+		ft->pos += rv;
+		return rv;
 	}
 }
 
@@ -826,85 +650,11 @@ static int common_stat64(struct umdev *fc, char type, dev_t device, struct stat6
 		return rv;
 }
 
-/*
-static int common_stat64(struct umdev *fc, char type, dev_t device, struct stat64 *buf64)
-{
-	int rv;
-	struct stat buf;
-	if ((rv=common_stat(fc,type,device,&buf))>=0)
-		stat2stat64(buf64,&buf);
-	return rv;
-}
-*/
-
-static long umdev_fstat64(int fd, struct stat64 *buf64)
-{
-	if (fd < 0 || filetab[fd] == NULL) {
-		errno=EBADF;
-		return -1;
-	} else {
-		struct umdev *fc=filetab[fd]->umdev;
-		if(fc->devops->fgetattr) {
-			struct dev_info di;
-			int rv;
-			di.fh = filetab[fd]->fh;
-			di.flags = 0;
-			di.devhandle=fc;
-			rv=fc->devops->fgetattr(filetab[fd]->type,filetab[fd]->device,buf64,&di);
-			if (fc->flags & UMDEV_DEBUG) 
-				fprint2("stat->FGETATTR %c(%d:%d) => status: %s\n",
-						filetab[fd]->type, 
-						major(filetab[fd]->device), minor(filetab[fd]->device), 
-						rv ? "Error" : "Success");
-			if (rv<0) {
-				errno= -rv;
-				return -1;
-			} else
-				return rv;
-		} else
-			return common_stat64(fc,filetab[fd]->type,filetab[fd]->device,buf64);
-	}
-}
-
-/*
-static long umdev_fstat64(int fd, struct stat64 *buf64)
-{
-	if (filetab[fd]==NULL) {
-		errno=EBADF;
-		return -1;
-	} else {
-		int rv;
-		struct stat buf;
-		if ((rv=umdev_fstat(fd,&buf))>=0)
-			stat2stat64(buf64,&buf);
-		return rv;
-	}
-}
-
-static long umdev_stat(char *path, struct stat *buf)
-{
-	dev_t device;
-	int type;
-	struct umdev *umdev=searchdevice(path);
-	type=set_dev(&device,umdev,path);
-	return common_stat(umdev,type,device,buf);
-}
-
-static long umdev_lstat(char *path, struct stat *buf)
-{
-	dev_t device;
-	int type;
-	struct umdev *umdev=searchdevice(path);
-	type=set_dev(&device,umdev,path);
-	return common_stat(umdev,type,device,buf);
-}
-*/
-
 static long umdev_stat64(char *path, struct stat64 *buf64)
 {
 	dev_t device;
 	int type;
-	struct umdev *umdev=searchdevice(path);
+	struct umdev *umdev=um_mod_get_private_data();
 	type=set_dev(&device,umdev,path);
 	return common_stat64(umdev,type,device,buf64);
 }
@@ -913,23 +663,23 @@ static long umdev_lstat64(char *path, struct stat64 *buf64)
 {
 	dev_t device;
 	int type;
-	struct umdev *umdev=searchdevice(path);
+	struct umdev *umdev=um_mod_get_private_data();
 	type=set_dev(&device,umdev,path);
 	return common_stat64(umdev,type,device,buf64);
 }
 
 static long umdev_access(char *path, int mode)
 {
-	struct umdev *fc=searchdevice(path);
+	struct umdev *fc=um_mod_get_private_data();
 	int rv;
 	dev_t device;
 	int type;
 	type=set_dev(&device,fc,path);
 	assert(fc!=NULL);
 	if (fc->flags & UMDEV_DEBUG) 
-        	fprint2("ACCESS %c(%d,%d) => path:%s mode:%s%s%s%s\n", 
-							type, major(device), minor(device),
-							path,
+		fprint2("ACCESS %c(%d,%d) => path:%s mode:%s%s%s%s\n", 
+				type, major(device), minor(device),
+				path,
 				(mode & R_OK) ? "R_OK": "",
 				(mode & W_OK) ? "W_OK": "",
 				(mode & X_OK) ? "X_OK": "",
@@ -947,23 +697,23 @@ static long umdev_access(char *path, int mode)
 	}
 }
 /*
-static long umdev_mknod(const char *path, mode_t mode, dev_t dev)
-{
-	struct device_context *fc = searchdevice(path);
-	int rv;
-	assert(fc != NULL);
-	device_set_context(fc);
-	if (fc->device->flags & UMDEV_DEBUG)
-        	fprint2("MKNOD => path:%s\n",path);
-	rv = fc->device->fops.mknod(
-			path, mode, dev);
-	if (rv < 0) {
-		errno = -rv;
-		return -1;
-	}
-	return rv;
-}
-*/
+	 static long umdev_mknod(const char *path, mode_t mode, dev_t dev)
+	 {
+	 struct device_context *fc = um_mod_get_private_data();
+	 int rv;
+	 assert(fc != NULL);
+	 device_set_context(fc);
+	 if (fc->device->flags & UMDEV_DEBUG)
+	 fprint2("MKNOD => path:%s\n",path);
+	 rv = fc->device->fops.mknod(
+	 path, mode, dev);
+	 if (rv < 0) {
+	 errno = -rv;
+	 return -1;
+	 }
+	 return rv;
+	 }
+ */
 
 
 static long umdev_chmod(char *path, int mode)
@@ -973,12 +723,12 @@ static long umdev_chmod(char *path, int mode)
 	dev_t device;
 	int type;
 
-	umdev=searchdevice(path);
+	umdev=um_mod_get_private_data();
 	assert(umdev != NULL);
 	type=set_dev(&device,umdev,path);
 
 	if (umdev->flags & UMDEV_DEBUG) 
-        	fprint2("CHMOD => path:%s\n",path);
+		fprint2("CHMOD => path:%s\n",path);
 	if (umdev->devops->chmod)
 		rv= umdev->devops->chmod(type,device,mode,umdev);
 	else {
@@ -999,7 +749,7 @@ static long umdev_chown(char *path, uid_t owner, gid_t group)
 	dev_t device;
 	int type;
 
-	umdev=searchdevice(path);
+	umdev=um_mod_get_private_data();
 	assert(umdev != NULL);
 	type=set_dev(&device,umdev,path);
 
@@ -1020,54 +770,47 @@ static long umdev_chown(char *path, uid_t owner, gid_t group)
 static long umdev_fsync(int fd)
 {
 	int rv;
-	if (filetab[fd]==NULL) {
-		errno=EBADF;
+	struct fileinfo *ft=getfiletab(fd);
+	struct dev_info di;
+	di.fh = ft->fh;
+	di.flags = 0;
+	di.devhandle=ft->umdev;
+	if (ft->umdev->devops->fsync)
+		rv = ft->umdev->devops->fsync(
+				ft->type, ft->device, &di);
+	else
+		rv= 0;
+	if (ft->umdev->flags & UMDEV_DEBUG) 
+		fprint2("FSYNC[%d %c(%d:%d)] rv=%d\n",
+				fd, ft->type, major(ft->device), minor(ft->device), rv);
+	if (rv<0) {
+		errno= -rv;
 		return -1;
-	} 
-	else {
-		struct dev_info di;
-		di.fh = filetab[fd]->fh;
-		di.flags = 0;
-		di.devhandle=filetab[fd]->umdev;
-		if (filetab[fd]->umdev->devops->fsync)
-			rv = filetab[fd]->umdev->devops->fsync(
-					filetab[fd]->type, filetab[fd]->device, &di);
-		else
-			rv= 0;
-		if (filetab[fd]->umdev->flags & UMDEV_DEBUG) 
-			fprint2("FSYNC[%d %c(%d:%d)] rv=%d\n",
-					fd, filetab[fd]->type, major(filetab[fd]->device), minor(filetab[fd]->device), rv);
-		if (rv<0) {
-			errno= -rv;
-			return -1;
-		} else {
-			return rv;
-		}
+	} else {
+		return rv;
 	}
 }
 
 static loff_t umdev_x_lseek(int fd, off_t offset, int whence)
 {
-	if (filetab[fd]==NULL) {
-		errno = EBADF; 
-		return -1;
-	} else if (filetab[fd]->umdev->devops->lseek) {
+	struct fileinfo *ft=getfiletab(fd);
+	if (ft->umdev->devops->lseek) {
 		loff_t rv;
 		struct dev_info di;
-		di.fh = filetab[fd]->fh;
+		di.fh = ft->fh;
 		di.flags = 0;
-		di.devhandle=filetab[fd]->umdev;
-		rv=filetab[fd]->umdev->devops->lseek(
-				filetab[fd]->type, filetab[fd]->device, offset, whence, filetab[fd]->pos, &di);
-		if (filetab[fd]->umdev->flags & UMDEV_DEBUG) 
+		di.devhandle=ft->umdev;
+		rv=ft->umdev->devops->lseek(
+				ft->type, ft->device, offset, whence, ft->pos, &di);
+		if (ft->umdev->flags & UMDEV_DEBUG) 
 			fprint2("SEEK[%d %c(%d:%d)] OFF %lld WHENCE %d -> %lld\n",
-					fd, filetab[fd]->type, major(filetab[fd]->device), minor(filetab[fd]->device),
+					fd, ft->type, major(ft->device), minor(ft->device),
 					offset,whence, rv);
 		if (rv<0) {
 			errno= -rv;
 			return -1;
 		} else {
-			filetab[fd]->pos=rv;
+			ft->pos=rv;
 			return rv;
 		}
 	} else {
@@ -1122,30 +865,25 @@ static long umdev__llseek(unsigned int fd, unsigned long offset_high,  unsigned 
 static long umdev_ioctl(int fd, int req, void *arg)
 {
 	int rv;
-	if (filetab[fd]==NULL) {
-		errno=EBADF;
+	struct fileinfo *ft=getfiletab(fd);
+	if (ft->umdev->devops->ioctl) {
+		struct dev_info di;
+		di.fh = ft->fh;
+		di.flags = 0;
+		di.devhandle=ft->umdev;
+		rv = ft->umdev->devops->ioctl(
+				ft->type, ft->device,
+				req, arg, &di);
+	} else
+		rv= -EINVAL;
+	if (ft->umdev->flags & UMDEV_DEBUG) 
+		fprint2("IOCTL[%d %c(%d:%d)] => req:%x\n",
+				fd, ft->type, major(ft->device), minor(ft->device), req);
+	if (rv<0) {
+		errno= -rv;
 		return -1;
-	}
-	else {
-		if (filetab[fd]->umdev->devops->ioctl) {
-			struct dev_info di;
-			di.fh = filetab[fd]->fh;
-			di.flags = 0;
-			di.devhandle=filetab[fd]->umdev;
-			rv = filetab[fd]->umdev->devops->ioctl(
-					filetab[fd]->type, filetab[fd]->device,
-					req, arg, &di);
-		} else
-			rv= -EINVAL;
-		if (filetab[fd]->umdev->flags & UMDEV_DEBUG) 
-			fprint2("IOCTL[%d %c(%d:%d)] => req:%x\n",
-					fd, filetab[fd]->type, major(filetab[fd]->device), minor(filetab[fd]->device), req);
-		if (rv<0) {
-			errno= -rv;
-			return -1;
-		} else 
-			return rv;
-	}
+	} else 
+		return rv;
 }
 
 static void contextclose(struct umdev *fc)
@@ -1156,26 +894,21 @@ static void contextclose(struct umdev *fc)
 static long umdev_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 {
 	int rv=1;
-	if (filetab[fd]==NULL) {
-		errno=EBADF;
+	struct fileinfo *ft=getfiletab(fd);
+	if (ft->umdev->devops->event_subscribe) {
+		struct dev_info di;
+		di.fh = ft->fh;
+		di.flags = 0;
+		di.devhandle=ft->umdev;
+		rv = ft->umdev->devops->event_subscribe(
+				ft->type, ft->device,
+				cb, arg, how, &di);
+	}
+	if (rv<0) {
+		errno= -rv;
 		return -1;
-	}
-	else {
-		if (filetab[fd]->umdev->devops->event_subscribe) {
-			struct dev_info di;
-			di.fh = filetab[fd]->fh;
-			di.flags = 0;
-			di.devhandle=filetab[fd]->umdev;
-			rv = filetab[fd]->umdev->devops->event_subscribe(
-					          filetab[fd]->type, filetab[fd]->device,
-											cb, arg, how, &di);
-		}
-		if (rv<0) {
-			errno= -rv;
-			return -1;
-		} else 
-			return rv;
-	}
+	} else 
+		return rv;
 }
 
 void umdev_setprivatedata(struct umdev *devhandle, void *privatedata)
@@ -1205,7 +938,7 @@ int umdev_getnsubdev(struct umdev *devhandle)
 dev_t umdev_getbasedev(struct umdev *devhandle)
 {
 	if(devhandle)
-		return devhandle->device;
+		return devhandle->dev;
 }
 
 void umdev_setmode(struct umdev *devhandle, mode_t mode)
@@ -1221,14 +954,14 @@ mode_t umdev_getmode(struct umdev *devhandle)
 }
 
 
-static void
-__attribute__ ((constructor))
+	static void
+	__attribute__ ((constructor))
 init (void)
 {
 	fprint2("umdev init\n");
 	s.name="umdev";
 	s.code=UMDEV_SERVICE_CODE;
-	s.checkfun=umdev_check;
+	s.ioctlparms=umdev_ioctlparms;
 	//pthread_key_create(&context_key,NULL);
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
@@ -1254,7 +987,7 @@ init (void)
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, stat64, umdev_stat64);
 	SERVICESYSCALL(s, lstat64, umdev_lstat64);
-	SERVICESYSCALL(s, fstat64, umdev_fstat64);
+	//SERVICESYSCALL(s, fstat64, umdev_fstat64);
 #endif
 	SERVICESYSCALL(s, access, umdev_access);
 	SERVICESYSCALL(s, lseek, umdev_lseek);
@@ -1263,7 +996,7 @@ init (void)
 #endif
 	//SERVICESYSCALL(s, mknod, umdev_mknod);
 	SERVICESYSCALL(s, chown, umdev_chown);
-	SERVICESYSCALL(s, fchown, fchown);
+	//SERVICESYSCALL(s, fchown, fchown);
 	SERVICESYSCALL(s, chmod, umdev_chmod);
 	//SERVICESYSCALL(s, fchmod, fchmod);
 	SERVICESYSCALL(s, fsync, umdev_fsync); 
@@ -1273,15 +1006,18 @@ init (void)
 	SERVICESYSCALL(s, pwrite64, umdev_pwrite64); 
 	s.event_subscribe=umdev_event_subscribe;
 	add_service(&s);
+	service_ht=ht_tab_add(CHECKFSTYPE,"umdev",0,&s,NULL,NULL);
 }
 
-static void
-__attribute__ ((destructor))
+	static void
+	__attribute__ ((destructor))
 fini (void)
 {
+	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
-	foralldevicetabdo(contextclose);
+	forall_ht_tab_service_do(CHECKPATH,&s,htcontextclose,NULL);
+	forall_ht_tab_del_invalid();
 	fprint2("umdev fini\n");
 }
 

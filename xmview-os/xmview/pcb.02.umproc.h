@@ -1,5 +1,3 @@
-#ifdef _UM_MMAP
-
 #ifdef _PCB_DEFINITIONS
 struct pcb_file;
 void umproc_addproc(),umproc_delproc();
@@ -22,6 +20,4 @@ umproc_addproc,
 
 #ifdef _PCB_DESTRUCTOR
 umproc_delproc,
-#endif
-
 #endif

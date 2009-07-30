@@ -34,7 +34,6 @@
 #include <dlfcn.h>
 #include <pthread.h>
 #include <linux/types.h>
-#include <linux/dirent.h>
 #include <linux/unistd.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -65,6 +64,9 @@
 #define syscall_getgid getgid
 
 static struct service s;
+static struct ht_elem *service_ht;
+static struct ht_elem *binfmt_ht;
+static struct ht_elem *binfmt_vfs_ht=NULL;
 
 struct binfileinfo {
 	struct umregister *reg;
@@ -81,9 +83,9 @@ struct umregister {
 	char type;
 	unsigned char offset;
 	unsigned char len;
-	char *flags;
-	char *magic;
-	char *mask;
+	unsigned char *flags;
+	unsigned char *magic;
+	unsigned char *mask;
 	char *interpreter;
 	struct umregister *next;
 };
@@ -99,23 +101,11 @@ static char statusfile[]="status";
 
 struct umbinfmt {
 	char *path;
-	struct timestamp tst;
 	unsigned char enabled;
 	char flags;
 	int inuse;
 	struct umregister *head;
 };
-
-#define MNTTABSTEP 4 /* must be a power of two */
-#define MNTTABSTEP_1 (MNTTABSTEP-1)
-#define FILETABSTEP 4 /* must be a power of two */
-#define FILETABSTEP_1 (FILETABSTEP-1)
-
-static struct binfileinfo **filetab=NULL;
-static int filetabmax=0;
-
-static struct umbinfmt **mnttab=NULL;
-static int mnttabmax=0;
 
 struct umbinfmt_dirent64 {
 	__ino64_t             d_ino;
@@ -153,185 +143,47 @@ static void printdebug(int level, const char *file, const int line, const char *
 }
 #endif
 
-static void cutdots(char *path)
+static int searchbinfmt(struct umbinfmt *fc,struct binfmt_req *req)
 {
-	int l=strlen(path);
-	l--;
-	if (path[l]=='.') {
-		l--;
-		if(path[l]=='/') {
-			if (l!=0) path[l]=0; else path[l+1]=0;
-		} else if (path[l]=='.') {
-			l--;
-			if(path[l]=='/') {
-				while(l>0) {
-					l--;
-					if (path[l]=='/')
-						break;
-				}
-				if(path[l]=='/') {
-					if (l!=0) path[l]=0; else path[l+1]=0;
-				}
-			}
-		}
-	}
-}
-
-/* search a binfmt, returns the context i.e. the index of info for mounted file
- * -1 otherwise */
-static struct umbinfmt *searchbmfile(char *path)
-{
-	register int i;
-	struct umbinfmt *result=NULL;
-	epoch_t maxepoch=0;
-	int maxi=-1;
-	PRINTDEBUG(0,"SearchContext:%s\n",path);
-	cutdots(path);
-	for (i=0;i<mnttabmax;i++)
-	{
-		epoch_t e;
-		if ((mnttab[i] != NULL)) {
-			if (strncmp(path,mnttab[i]->path,strlen(mnttab[i]->path)) == 0 &&
-					((e=tst_matchingepoch(&(mnttab[i]->tst))) > maxepoch)) {
-				maxi=i;
-				maxepoch=e;
-			}
-		}
-	}
-	if (maxi >= 0)
-		result=mnttab[maxi];
-	return result;
-}
-
-/* search for a match with an existing entry and returns the interpreter */
-
-static epoch_t searchbinfmt(struct binfmt_req *req)
-{
-	register int ifc;
 	char buf[128];
 	memset(buf,0,128);
-	int fd;
-	fd=open(req->path,O_RDONLY);
+	int fd=open(req->path,O_RDONLY);
 	if (fd >= 0) {
 		read(fd, buf, 128);
 		close(fd);
 	}
-	req->interp=NULL;
-	for (ifc=0;ifc<mnttabmax;ifc++)
-		if (mnttab[ifc] != NULL) {
-			struct umbinfmt *fc=mnttab[ifc];
-			if (fc->enabled) {
-				struct umregister *scan=fc->head;
-				while (scan != NULL && req->interp==NULL) {
-					if (scan->enabled) {
-						if (scan->type == 'E') {
-							int suffixpos=strlen(req->path)-scan->len;
-							if (suffixpos>0 && strcmp(req->path+suffixpos,scan->magic)==0) {
-								req->interp=scan->interpreter;
-								req->flags=(strchr(scan->flags,'P') != NULL)?BINFMT_KEEP_ARG0:0;
-							}
-						} else if (scan->type == 'M') {
-							int i,j,diff;
-							/*for (i=scan->offset,j=0,diff=0;i<128 && j<scan->len && diff==0;i++,j++)
-								fprint2("%02x %02x %02x %2x\n",buf[i],scan->magic[j],scan->mask[j],
-										(buf[i] ^ scan->magic[j]) & scan->mask[j]);*/
-							for (i=scan->offset,j=0,diff=0;i<128 && j<scan->len && diff==0;i++,j++)
-								diff=(buf[i] ^ scan->magic[j]) & scan->mask[j];
-							if (diff==0) {
-								req->interp=scan->interpreter;
-								req->flags=(strchr(scan->flags,'P') != NULL)?BINFMT_KEEP_ARG0:0;
-							}
-						}
+	if (fc->enabled) {
+		struct umregister *scan=fc->head;
+		while (scan != NULL && req->interp==NULL) {
+			if (scan->enabled) {
+				if (scan->type == 'E') {
+					int suffixpos=strlen(req->path)-scan->len;
+					if (suffixpos>0 && strcmp(req->path+suffixpos,scan->magic)==0) {
+						req->interp=scan->interpreter;
+						req->flags=(strchr(scan->flags,'P') != NULL)?BINFMT_KEEP_ARG0:0;
 					}
-					scan=scan->next;
+				} else if (scan->type == 'M') {
+					int i,j,diff;
+					/*for (i=scan->offset,j=0,diff=0;i<128 && j<scan->len && diff==0;i++,j++)
+						fprint2("%02x %02x %02x %2x\n",buf[i],scan->magic[j],scan->mask[j],
+						(buf[i] ^ scan->magic[j]) & scan->mask[j]);*/
+					for (i=scan->offset,j=0,diff=0;i<128 && j<scan->len && diff==0;i++,j++)
+						diff=(buf[i] ^ scan->magic[j]) & scan->mask[j];
+					if (diff==0) {
+						req->interp=scan->interpreter;
+						req->flags=(strchr(scan->flags,'P') != NULL)?BINFMT_KEEP_ARG0:0;
+					}
 				}
 			}
+			scan=scan->next;
 		}
+	}
+	//fprint2("searchbinfmt %s %s\n",req->path,req->interp);
 	if (req->interp!=NULL)
-		return get_epoch();
+		return 1;
 	else
 		return 0;
 }
-
-/*insert a new context in the mount table*/
-static struct umbinfmt *addmnttab(struct umbinfmt *new)
-{
-	register int i;
-	//pthread_mutex_lock( &mnttab_mutex );
-	for (i=0;i<mnttabmax && mnttab[i] != NULL;i++)
-		;
-	if (i>=mnttabmax) {
-		register int j;
-		register int mnttabnewmax=(i + MNTTABSTEP) & ~MNTTABSTEP_1;
-		mnttab=(struct umbinfmt **)realloc(mnttab,mnttabnewmax*sizeof(struct umbinfmt *));
-		assert(mnttab);
-		for (j=i;j<mnttabnewmax;j++)
-			mnttab[j]=NULL;
-		mnttabmax=mnttabnewmax;
-	}
-	mnttab[i]=new;
-	//pthread_mutex_unlock( &mnttab_mutex );
-	return mnttab[i];
-}
-
-/* execute a specific function (arg) for each mnttab element */
-static void forallmnttabdo(void (*fun)(struct umbinfmt *fc))
-{
-	register int i;
-	for (i=0;i<mnttabmax;i++)
-		if (mnttab[i] != NULL)
-			fun(mnttab[i]);
-}
-
-/*
- * delete the i-th element of the tab.
- * the table cannot be compacted as the index is used as id
- */
-static void delmnttab(struct umbinfmt *fc)
-{
-	register int i;
-	//pthread_mutex_lock( &mnttab_mutex );
-	for (i=0;i<mnttabmax && fc != mnttab[i];i++)
-		;
-	if (i<mnttabmax)
-		mnttab[i]=NULL;
-	else
-		fprint2("delmnt inexistent entry\n");
-	//pthread_mutex_unlock( &mnttab_mutex );
-}
-
-/* add an element to the filetab (open file table)
- * each file has a fileinfo record
- */
-static int addfiletab()
-{
-	register int i;
-	//pthread_mutex_lock( &mnttab_mutex );
-	for (i=0;i<filetabmax && filetab[i] != NULL;i++)
-		;
-	if (i>=filetabmax) {
-		register int j;
-		filetabmax=(i + MNTTABSTEP) & ~MNTTABSTEP_1;
-		filetab=(struct binfileinfo **)realloc(filetab,filetabmax*sizeof(struct binfileinfo *));
-		assert(filetab);
-		for (j=i;j<filetabmax;j++)
-			filetab[j]=NULL;
-	}
-	filetab[i]=(struct binfileinfo *)malloc(sizeof(struct binfileinfo));
-	assert(filetab[i]);
-	//pthread_mutex_unlock( &mnttab_mutex );
-	return i;
-}
-
-/* delete an entry from the open file table.
- * RD: there is a counter managed by open and close calls */
-static void delfiletab(int i)
-{
-	struct binfileinfo *norace=filetab[i];
-	filetab[i]=NULL;
-	free(norace);
-}
-
 
 #if 0
 #define MAXARGS 256
@@ -427,41 +279,50 @@ static struct umregister *delete_allreg(struct umregister *head)
 		return NULL;
 	}
 }
-		
+
 static long umbinfmt_mount(char *source, char *target, char *filesystemtype,
 		unsigned long mountflags, void *data)
 {
-	struct umbinfmt *new = (struct umbinfmt *) malloc(sizeof(struct umbinfmt));
-	assert(new);
-	new->path = strdup(target);
-	new->tst=tst_timestamp();
-	new->flags=(data && strcmp((char*)data,"debug")==0)?UMBINFMT_DEBUG:0;
-	new->inuse=0;
-	new->enabled=1;
-	new->head=NULL;
-	addmnttab(new);
-	return 0;
+	if (binfmt_vfs_ht) 
+		return -EBUSY;
+	else {
+		struct umbinfmt *new = (struct umbinfmt *) malloc(sizeof(struct umbinfmt));
+		assert(new);
+		new->path = strdup(target);
+		new->flags=(data && strcmp((char*)data,"debug")==0)?UMBINFMT_DEBUG:0;
+		new->inuse=0;
+		new->enabled=1;
+		new->head=NULL;
+		binfmt_vfs_ht=ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,data,&s,0,NULL,new);
+		binfmt_ht->private_data=new;
+		return 0;
+	}
+}
+
+static void umbinfmt_umount_internal(struct umbinfmt *fc, int flags)
+{
+	struct umbinfmt *fc_norace=fc;
+	char *target=fc->path;
+	if (fc_norace->flags & UMBINFMT_DEBUG) 
+		fprint2("UMOUNT => path:%s flag:%d\n",target, flags);
+	delete_allreg(fc->head);
+	free(fc_norace->path);
+	free(fc_norace);
 }
 
 static long umbinfmt_umount2(char *target, int flags)
 {
-	struct umbinfmt *fc;
-	fc = searchbmfile(target);
+	struct umbinfmt *fc=um_mod_get_private_data();
 	if (fc == NULL) {
 		errno=EINVAL;
 		return -1;
 	} else if (fc->inuse > 0) {
 		errno=EBUSY;
 		return -1;
-	} else
-	{
-		struct umbinfmt *fc_norace=fc;
-		if (fc_norace->flags & UMBINFMT_DEBUG) 
-			fprint2("UMOUNT => path:%s flag:%d\n",target, flags);
-		delmnttab(fc);
-		delete_allreg(fc->head);
-		free(fc_norace->path);
-		free(fc_norace);
+	} else {
+		umbinfmt_umount_internal(fc,flags);
+		ht_tab_del(um_mod_get_hte());
+		binfmt_vfs_ht=NULL;
 		return 0;
 	}
 }
@@ -474,26 +335,14 @@ static int alwaysfalse()
 	return FALSE;
 }
 
-static epoch_t umbinfmt_check(int type, void *arg)
+static int checkbinfmt(int type, void *arg, int arglen,
+		struct ht_elem *ht)
 {
-	if (type == CHECKPATH) {
-		char *path=arg;
-		struct umbinfmt *fc=searchbmfile(path);
-		if ( fc != NULL) {
-			return TRUE; 
-		}
-		else
-			return FALSE;
-	} else if (type == CHECKFSTYPE) {
-		char *path=arg;
-		return ((strcmp(path,"umbinfmt") == 0) ||
-				(strcmp(path,"umbinfmt_misc") == 0));
-	} else if (type == CHECKBINFMT) {
-		struct binfmt_req *req=arg;
-		return searchbinfmt(req);
-	} else {
-		return FALSE;
-	}
+	struct binfmt_req *req=arg;
+	if (ht->private_data)
+		return searchbinfmt(ht->private_data,req);
+	else
+		return 0;
 }
 
 static char *unwrap(struct umbinfmt *fc,char *path)
@@ -577,7 +426,8 @@ static char *hexstring(char *src,char *hex,int len)
 
 static char *createcontents(int fd,struct umbinfmt *fc,int *len)
 {
-	struct umregister *reg=filetab[fd]->reg;
+	struct binfileinfo *ft=getfiletab(fd);
+	struct umregister *reg=ft->reg;
 	assert (reg);
 	if (UBM_IS_ROOT(reg)) {
 		return create_dirent(fc,len);
@@ -613,8 +463,8 @@ static char *createcontents(int fd,struct umbinfmt *fc,int *len)
 
 static long umbinfmt_open(char *path, int flags, mode_t mode)
 {
-	struct umbinfmt *fc = searchbmfile(path);
-	int fi;
+	struct umbinfmt *fc = um_mod_get_private_data();
+	int fd;
 	int rv;
 	assert(fc!=NULL);
 	struct umregister *file=searchfile(path,fc);
@@ -625,8 +475,9 @@ static long umbinfmt_open(char *path, int flags, mode_t mode)
 			(UBM_IS_ROOT(file) && !(flags & O_DIRECTORY) && (flags & O_WRONLY)))
 		rv=-EINVAL;
 	else {
-		fi = addfiletab();
-		assert(fi>=0);
+		fd = addfiletab(sizeof(struct binfileinfo));
+		struct binfileinfo *ft=getfiletab(fd);
+		assert(fd>=0);
 
 #ifdef __UMBINFMT_DEBUG__
 		PRINTDEBUG(10,"FLAGOPEN path:%s \nFLAGS:0x%x MODE:%d\n",path,flags,mode);
@@ -666,15 +517,15 @@ static long umbinfmt_open(char *path, int flags, mode_t mode)
 		if(flags &  O_SYNC)
 			PRINTDEBUG(10, "SYNC\n");
 #endif
-		filetab[fi]->reg = file;
-		filetab[fi]->bfmount = fc;
-		filetab[fi]->flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
-		filetab[fi]->pos = 0;
+		ft->reg = file;
+		ft->bfmount = fc;
+		ft->flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
+		ft->pos = 0;
 		if (!(flags & O_WRONLY)) {
-			filetab[fi]->contents = createcontents(fi,fc,&(filetab[fi]->len));
+			ft->contents = createcontents(fd,fc,&(ft->len));
 		} else {
-			filetab[fi]->len = 0;
-			filetab[fi]->contents = NULL;
+			ft->len = 0;
+			ft->contents = NULL;
 		}
 		fc->inuse++;
 		rv=0;
@@ -683,13 +534,13 @@ static long umbinfmt_open(char *path, int flags, mode_t mode)
 	if (rv < 0)
 	{
 		if (fc->flags & UMBINFMT_DEBUG) 
-			fprint2("OPEN[%d] ERROR => path:%s flags:0x%x\n", fi, path, flags);	
+			fprint2("OPEN[%d] ERROR => path:%s flags:0x%x\n", fd, path, flags);	
 		errno = -rv;
 		return -1;
 	} else {
 		if (fc->flags & UMBINFMT_DEBUG) 
-			fprint2("OPEN[%d] => path:%s flags:0x%x\n", fi, path, flags);
-		return fi;
+			fprint2("OPEN[%d] => path:%s flags:0x%x\n", fd, path, flags);
+		return fd;
 	}
 }
 
@@ -698,26 +549,22 @@ static long umbinfmt_open(char *path, int flags, mode_t mode)
 static long umbinfmt_close(int fd)
 {
 	int rv;
+	struct binfileinfo *ft=getfiletab(fd);
 
-	if (filetab[fd]==NULL) {
-		errno=EBADF;
-		return -1;
+	if (ft->bfmount->flags & UMBINFMT_DEBUG) 
+		fprint2("CLOSE[%d]\n",fd);
+	if (ft->contents != NULL)
+		free(ft->contents);
+	ft->bfmount->inuse--;
+	if (UBM_IS_STATUS(ft->reg)) {
+		if (ft->bfmount->enabled == 0xff)
+			ft->bfmount->head=delete_allreg(ft->bfmount->head);
 	} else {
-		if (filetab[fd]->bfmount->flags & UMBINFMT_DEBUG) 
-			fprint2("CLOSE[%d]\n",fd);
-		if (filetab[fd]->contents != NULL)
-			free(filetab[fd]->contents);
-		filetab[fd]->bfmount->inuse--;
-		if (UBM_IS_STATUS(filetab[fd]->reg)) {
-			if (filetab[fd]->bfmount->enabled == 0xff)
-				filetab[fd]->bfmount->head=delete_allreg(filetab[fd]->bfmount->head);
-		} else {
-			if (filetab[fd]->reg->enabled == 0xff)
-				filetab[fd]->bfmount->head=delete_reg(filetab[fd]->bfmount->head,filetab[fd]->reg);
-		}
-		delfiletab(fd);
-		return 0;
+		if (ft->reg->enabled == 0xff)
+			ft->bfmount->head=delete_reg(ft->bfmount->head,ft->reg);
 	}
+	delfiletab(fd);
+	return 0;
 }
 
 static int count_dents64(void *buf, int count, int max) {
@@ -732,70 +579,43 @@ static int count_dents64(void *buf, int count, int max) {
 
 static long umbinfmt_getdents64(int fd, void *buf, size_t count){
 	int rv;
-	if (filetab[fd]==NULL) {
-		errno=EBADF;
-		return -1;
-	} else if (! UBM_IS_ROOT(filetab[fd]->reg)) {
+	struct binfileinfo *ft=getfiletab(fd);
+	if (! UBM_IS_ROOT(ft->reg)) {
 		errno=ENOTDIR;
 		return -1;
 	}
 	else {
-		char *tail=(filetab[fd]->contents)+filetab[fd]->pos;
-		int rv=count_dents64(tail,count,filetab[fd]->len-filetab[fd]->pos);
-		memcpy(buf,(filetab[fd]->contents)+filetab[fd]->pos,rv);
+		char *tail=(ft->contents)+ft->pos;
+		int rv=count_dents64(tail,count,ft->len-ft->pos);
+		memcpy(buf,(ft->contents)+ft->pos,rv);
 		if (rv<0) {
 			errno= -rv;
 			return -1;
 		} else {
-			filetab[fd]->pos += rv;
+			ft->pos += rv;
 			return rv;
 		}
 	}
 }
 
-#if 0
-static void convert_dents6432(void *buf, int count) {
-	if (count > 0) {
-		struct umbinfmt_dirent *d32=(struct umbinfmt_dirent *)buf;
-		struct umbinfmt_dirent64 *d64=(struct umbinfmt_dirent64 *)buf;
-		void *next=(void *)(((char *)buf) + d64->d_reclen);
-		int nextcount=count - d64->d_reclen;
-		d32->d_ino=d64->d_ino;
-		d32->d_off=d64->d_off;
-		d32->d_reclen=d64->d_reclen;
-		//d32->d_type=d64->d_type;
-		memmove(d32->d_name,d64->d_name,strlen(d64->d_name)+1);
-		convert_dents6432(next,nextcount);
-	}
-}
-
-static long umbinfmt_getdents(int fd, void *buf, size_t count){
-	int rv=umbinfmt_getdents64(fd, buf, count);
-	convert_dents6432(buf,rv);
-	return rv;
-}
-#endif
-
 static long umbinfmt_read(int fd, void *buf, size_t count)
 {
 	int rv;
-	if (filetab[fd]==NULL) {
-		errno=EBADF;
-		return -1;
-	} else if (UBM_IS_ROOT(filetab[fd]->reg)) {
+	struct binfileinfo *ft=getfiletab(fd);
+	if (UBM_IS_ROOT(ft->reg)) {
 		errno=EISDIR;
 		return -1;
 	}
 	else {
 		rv = count;
-		if (rv > filetab[fd]->len - filetab[fd]->pos)
-			rv= filetab[fd]->len - filetab[fd]->pos;
-		strncpy(buf,(filetab[fd]->contents)+filetab[fd]->pos,rv);
+		if (rv > ft->len - ft->pos)
+			rv= ft->len - ft->pos;
+		strncpy(buf,(ft->contents)+ft->pos,rv);
 		if (rv<0) {
 			errno= -rv;
 			return -1;
 		} else {
-			filetab[fd]->pos += rv;
+			ft->pos += rv;
 			return rv;
 		}
 	}
@@ -886,64 +706,40 @@ static void ubm_register(struct umbinfmt *fc,char *buf, size_t count)
 static long umbinfmt_write(int fd, void *buf, size_t count)
 {
 	int rv=count;
+	struct binfileinfo *ft=getfiletab(fd);
 	char *cbuf=buf;
 
-	if (filetab[fd]==NULL) {
-		errno = EBADF;
-		return -1;
-	} else {
-		if (UBM_IS_REGISTER(filetab[fd]->reg)) {
-			if (filetab[fd]->pos == 0)
-				ubm_register(filetab[fd]->bfmount,buf,count);
-		} 
-		else if (UBM_IS_STATUS(filetab[fd]->reg)) {
-			if (count >= 1) { 
-				if (*cbuf=='1')
-					filetab[fd]->bfmount->enabled = 1;
-				else if (*cbuf=='0')
-					filetab[fd]->bfmount->enabled = 0;
-				if (count >= 2 && cbuf[0]=='-' && cbuf[1]=='1')
-					filetab[fd]->bfmount->enabled = 0xff;
-			}
-		} else {
-			if (count >= 1) { 
-				if (*cbuf=='1')
-					filetab[fd]->reg->enabled = 1;
-				else if (*cbuf=='0')
-					filetab[fd]->reg->enabled = 0;
-				if (count >= 2 && cbuf[0]=='-' && cbuf[1]=='1')
-					filetab[fd]->reg->enabled = 0xff;
-			}
+	if (UBM_IS_REGISTER(ft->reg)) {
+		if (ft->pos == 0)
+			ubm_register(ft->bfmount,buf,count);
+	} 
+	else if (UBM_IS_STATUS(ft->reg)) {
+		if (count >= 1) { 
+			if (*cbuf=='1')
+				ft->bfmount->enabled = 1;
+			else if (*cbuf=='0')
+				ft->bfmount->enabled = 0;
+			if (count >= 2 && cbuf[0]=='-' && cbuf[1]=='1')
+				ft->bfmount->enabled = 0xff;
 		}
-		if (rv<0) {
-			errno= -rv;
-			return -1;
-		} else {
-			filetab[fd]->pos += rv;
-			return rv;
+	} else {
+		if (count >= 1) { 
+			if (*cbuf=='1')
+				ft->reg->enabled = 1;
+			else if (*cbuf=='0')
+				ft->reg->enabled = 0;
+			if (count >= 2 && cbuf[0]=='-' && cbuf[1]=='1')
+				ft->reg->enabled = 0xff;
 		}
 	}
+	if (rv<0) {
+		errno= -rv;
+		return -1;
+	} else {
+		ft->pos += rv;
+		return rv;
+	}
 }
-
-/*
-static int stat2stat64(struct stat64 *s64, struct stat *s)
-{
-	s64->st_dev= s->st_dev;
-	s64->st_ino= s->st_ino;
-	s64->st_mode= s->st_mode;
-	s64->st_nlink= s->st_nlink;
-	s64->st_uid= s->st_uid;
-	s64->st_gid= s->st_gid;
-	s64->st_rdev= s->st_rdev;
-	s64->st_size= s->st_size;
-	s64->st_blksize= s->st_blksize;
-	s64->st_blocks= s->st_blocks;
-	s64->st_atim= s->st_atim;
-	s64->st_mtim= s->st_mtim;
-	s64->st_ctim= s->st_ctim;
-	return 0;
-}
-*/
 
 static int common_stat64(struct umbinfmt *fc,struct umregister *reg, struct stat64 *buf64)
 {
@@ -969,60 +765,9 @@ static int common_stat64(struct umbinfmt *fc,struct umregister *reg, struct stat
 	return rv;
 }
 
-/*
-static int common_stat64(struct umbinfmt *fc,struct umregister *reg, struct stat64 *buf64)
-{
-	int rv;
-	struct stat buf;
-	if ((rv=common_stat(fc,reg,&buf))>=0)
-		stat2stat64(buf64,&buf);
-	return rv;
-}
-*/
-
-static long umbinfmt_fstat64(int fd, struct stat64 *buf64)
-{
-	if (fd < 0 || filetab[fd] == NULL) {
-		errno=EBADF;
-		return -1;
-	} else {
-		return common_stat64(filetab[fd]->bfmount, filetab[fd]->reg,buf64);
-	}
-}
-
-/*
-static long umbinfmt_fstat64(int fd, struct stat64 *buf64)
-{
-	if (filetab[fd]==NULL) {
-		errno=EBADF;
-		return -1;
-	} else {
-		int rv;
-		struct stat buf;
-		if ((rv=umbinfmt_fstat(fd,&buf))>=0)
-			stat2stat64(buf64,&buf);
-		return rv;
-	}
-}
-*/
-
-#if 0
-static long umbinfmt_stat(char *path, struct stat *buf)
-{
-	struct umbinfmt *umbinfmt=searchbmfile(path);
-	struct umregister *reg=searchfile(path,umbinfmt);
-	return common_stat(umbinfmt,reg,buf);
-}
-
-static long umbinfmt_lstat(char *path, struct stat *buf)
-{
-	return umbinfmt_stat(path,buf);
-}
-#endif
-
 static long umbinfmt_stat64(char *path, struct stat64 *buf64)
 {
-	struct umbinfmt *umbinfmt=searchbmfile(path);
+	struct umbinfmt *umbinfmt=um_mod_get_private_data();
 	struct umregister *reg=searchfile(path,umbinfmt);
 	return common_stat64(umbinfmt,reg,buf64);
 }
@@ -1034,7 +779,7 @@ static long umbinfmt_lstat64(char *path, struct stat64 *buf64)
 
 static long umbinfmt_access(char *path, int mode)
 {
-	struct umbinfmt *fc=searchbmfile(path);
+	struct umbinfmt *fc=um_mod_get_private_data();
 	struct umregister *reg=searchfile(path,fc);
 	int rv;
 	assert(fc!=NULL);
@@ -1045,7 +790,7 @@ static long umbinfmt_access(char *path, int mode)
 				(mode & W_OK) ? "W_OK": "",
 				(mode & X_OK) ? "X_OK": "",
 				(mode & F_OK) ? "F_OK": "");
-	
+
 
 	if (UBM_IS_ROOT(reg))
 		rv= !(mode & W_OK); /* it is forbidden to create new file by hand*/
@@ -1072,25 +817,21 @@ static long umbinfmt_access(char *path, int mode)
 
 static loff_t umbinfmt_x_lseek(int fd, off_t offset, int whence)
 {
-	if (filetab[fd]==NULL) {
-		errno = EBADF; 
-		return -1;
-	} else {
-		switch (whence) {
-			case SEEK_SET:
-				filetab[fd]->pos=offset;
-				break;
-			case SEEK_CUR:
-				filetab[fd]->pos+=offset;
-				break;
-			case SEEK_END:
-				filetab[fd]->pos=filetab[fd]->len+offset;
-				break;
-		}
-		if (filetab[fd]->pos<0) filetab[fd]->pos=0;
-		if (filetab[fd]->pos > filetab[fd]->len) filetab[fd]->pos=filetab[fd]->len;
-		return filetab[fd]->pos;
+	struct binfileinfo *ft=getfiletab(fd);
+	switch (whence) {
+		case SEEK_SET:
+			ft->pos=offset;
+			break;
+		case SEEK_CUR:
+			ft->pos+=offset;
+			break;
+		case SEEK_END:
+			ft->pos=ft->len+offset;
+			break;
 	}
+	if (ft->pos<0) ft->pos=0;
+	if (ft->pos > ft->len) ft->pos=ft->len;
+	return ft->pos;
 }
 
 static long umbinfmt_lseek(int fd, int offset, int whence)
@@ -1125,12 +866,7 @@ static void contextclose(struct umbinfmt *fc)
 
 static long umbinfmt_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 {
-	if (filetab[fd]==NULL) {
-		errno=EBADF;
-		return -1;
-	}
-	else 
-		return 1;
+	return 1;
 }
 
 #if 0
@@ -1143,7 +879,7 @@ static epoch_t umbinfmt_check(int type, void *arg)
 			req->interp="/usr/local/bin/qemu-i386";
 			return get_epoch()-1;
 		} else
-					return 0;
+			return 0;
 	}
 	else 
 		return 0;
@@ -1162,39 +898,25 @@ init (void)
 	printf("umbinfmt init\n");
 	s.name="umbinfmt";
 	s.code=UMBINFMT_SERVICE_CODE;
-	s.checkfun=umbinfmt_check;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	SERVICESYSCALL(s, mount, umbinfmt_mount);
-#if 0
-#if ! defined(__x86_64__)
-	SERVICESYSCALL(s, umount, umbinfmt_umount2); /* umount must be mapped onto umount2 */
-#endif
-#endif
 	SERVICESYSCALL(s, umount2, umbinfmt_umount2);
 	SERVICESYSCALL(s, open, umbinfmt_open);
-#if 0
-	SERVICESYSCALL(s, creat, umbinfmt_open); /*creat is an open with (O_CREAT|O_WRONLY|O_TRUNC)*/
-#endif
 	SERVICESYSCALL(s, read, umbinfmt_read);
 	SERVICESYSCALL(s, write, umbinfmt_write);
 	SERVICESYSCALL(s, close, umbinfmt_close);
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, stat64, umbinfmt_stat64);
 	SERVICESYSCALL(s, lstat64, umbinfmt_lstat64);
-	SERVICESYSCALL(s, fstat64, umbinfmt_fstat64);
 #else
 	SERVICESYSCALL(s, stat, umbinfmt_stat64);
 	SERVICESYSCALL(s, lstat, umbinfmt_lstat64);
-	SERVICESYSCALL(s, fstat, umbinfmt_fstat64);
 #endif
 	SERVICESYSCALL(s, access, umbinfmt_access);
 	SERVICESYSCALL(s, lseek, umbinfmt_lseek);
 #if ! defined(__x86_64__)
 	SERVICESYSCALL(s, _llseek, umbinfmt__llseek);
-#endif
-#if 0
-	SERVICESYSCALL(s, getdents, umbinfmt_getdents);
 #endif
 	SERVICESYSCALL(s, getdents64, umbinfmt_getdents64);
 	SERVICESYSCALL(s, fcntl64, umbinfmt_fcntl64);
@@ -1207,12 +929,20 @@ init (void)
 	//SERVICESYSCALL(s, ioctl, umbinfmt_ioctl); 
 	s.event_subscribe=umbinfmt_event_subscribe;
 	add_service(&s);
+	service_ht=ht_tab_add(CHECKFSTYPE,"umbinfmt",0,&s,NULL,NULL);
+	binfmt_ht=ht_tab_add(CHECKBINFMT,NULL,0,&s,checkbinfmt,NULL);
 }
 
 	static void
 	__attribute__ ((destructor))
 fini (void)
 {
+	if (binfmt_vfs_ht) {
+		umbinfmt_umount_internal(binfmt_vfs_ht->private_data, MNT_FORCE);
+		ht_tab_del(binfmt_vfs_ht);
+	}
+	ht_tab_del(binfmt_ht);
+	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
 	//	foralldevicetabdo(contextclose);

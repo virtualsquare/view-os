@@ -52,8 +52,8 @@
 #include "canonicalize.h"
 #include "capture.h"
 #include "capture_nested.h"
-#include "gdebug.h"
 #include "hashtab.h"
+#include "gdebug.h"
 
 static const char *const _sys_sigabbrev[NSIG] =
 {
@@ -117,21 +117,23 @@ epoch_t um_setepoch(epoch_t epoch)
 }
 
 /* internal call: check the permissions for a file */
-int um_x_access(struct pcb *pc, char *filename, int mode, service_t *sercode, epoch_t *matchepoch)
+int um_x_access(char *filename, int mode, struct pcb *pc)
 {
+	struct ht_elem *hte;
 	int retval;
 	long oldscno;
 	epoch_t epoch;
-	/* fprint2("-> um_x_access: %s\n",filename); */
+	/* fprint2("-> um_x_access: %s\n",filename);  */
 	/* internal nested call save data */
 	oldscno = pc->sysscno;
 	epoch=pc->tst.epoch;
-	pc->tst.epoch=*matchepoch;
 	pc->sysscno = __NR_access;
-	if (*sercode == UM_NONE)
+	if ((hte=ht_check(CHECKPATH,filename,NULL,1)) == NULL)
 		retval = r_access(filename,mode);
-	else
-		retval = service_syscall(*sercode,uscno(__NR_access))(filename,mode,pc);
+	else{
+		pc->hte=hte;
+		retval = ht_syscall(hte,uscno(__NR_access))(filename,mode,pc);
+	}
 	/* internal nested call restore data */
 	pc->sysscno=oldscno;
 	pc->tst.epoch = epoch;
@@ -139,49 +141,46 @@ int um_x_access(struct pcb *pc, char *filename, int mode, service_t *sercode, ep
 }
 										 
 /* internal call: load the stat info for a file */
-int um_x_lstat64(struct pcb *pc, char *filename, struct stat64 *buf, service_t *sercode, epoch_t *matchepoch)
+int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
 {
+	struct ht_elem *hte;
 	int retval;
 	long oldscno;
-	epoch_t oldepoch;
-	struct ht_elem *mp;
-	/*fprint2("-> um_lstat: %s\n",filename);*/
+	epoch_t epoch;
+	/* fprint2("-> um_lstat: %s\n",filename); */
 	/* internal nested call save data */
 	oldscno = pc->sysscno;
-	pc->sysscno = NR64_stat;
-	oldepoch=pc->tst.epoch;
-	mp=ht_tab_pathsearch(CHECKPATH,filename,&pc->tst,0);
-	if (mp && mp->tst.epoch > *matchepoch) {
-		*sercode=mp->service;
-		um_setepoch(mp->tst.epoch);
-	}
-	if (*sercode == UM_NONE)
+	pc->sysscno = NR64_lstat;
+	epoch=pc->tst.epoch;
+	if ((hte=ht_check(CHECKPATH,filename,NULL,1)) == NULL)
 		retval = r_lstat64(filename,buf);
-	else
-		retval = service_syscall(*sercode,uscno(NR64_stat))(filename,buf,pc);
-	/*fprint2("-> um_lstat: %s %x %lld %lld\n",filename,*sercode,oldepoch,*matchepoch);*/
+	else{
+		pc->hte=hte;
+		retval = ht_syscall(hte,uscno(NR64_lstat))(filename,buf,pc);
+	}
 	/* internal nested call restore data */
 	pc->sysscno = oldscno;
-	*matchepoch=pc->tst.epoch;
-	pc->tst.epoch=oldepoch;
+	pc->tst.epoch=epoch;
 	return retval;
 }
 
 /* internal call: read a symbolic link target */
-int um_x_readlink(struct pcb *pc, char *path, char *buf, size_t bufsiz, service_t *sercode, epoch_t *matchepoch)
+int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
 {
+	struct ht_elem *hte;
 	long oldscno = pc->sysscno;
 	int retval;
 	epoch_t epoch;
-	/* fprint2("-> um_x_readlink: %s\n",path);*/
+	/* fprint2("-> um_x_readlink: %s\n",path); */
 	oldscno = pc->sysscno;
-	epoch=pc->tst.epoch;
-	pc->tst.epoch=*matchepoch;
 	pc->sysscno = __NR_readlink;
-	if (*sercode == UM_NONE)
+	epoch=pc->tst.epoch;
+	if ((hte=ht_check(CHECKPATH,path,NULL,1)) == NULL)
 		retval = r_readlink(path,buf,bufsiz);
-	else
-		retval = service_syscall(*sercode,uscno(__NR_readlink))(path,buf,bufsiz,pc);
+	else{
+		pc->hte=hte;
+		retval = ht_syscall(hte,uscno(__NR_readlink))(path,buf,bufsiz,pc);
+	}
 	/* internal nested call restore data */
 	pc->sysscno = oldscno;
 	pc->tst.epoch=epoch;
@@ -201,9 +200,44 @@ char *um_getpath(long laddr,struct pcb *pc)
 		return um_patherror;
 }
 
+#if 0
+char *um_cutdots(char *path)
+{
+	int l=strlen(path);
+#ifdef CUTDOTSTEST
+	char *s=strdup(path);
+#endif
+	l--;
+	if (path[l]=='.') {
+		l--;
+		if(path[l]=='/') {
+			if (l!=0) path[l]=0; else path[l+1]=0;
+		} else if (path[l]=='.') {
+			l--;
+			if(path[l]=='/') {
+				while(l>0) {
+					l--;
+					if (path[l]=='/')
+						break;
+				}
+				if(path[l]=='/') {
+					if (l!=0) path[l]=0; else path[l+1]=0;
+				}
+			}
+		}
+	}
+#ifdef CUTDOTSTEST
+	if (strcmp(path,s) != 0)
+		fprint2("cutdots worked %s %s\n",path,s);
+	free(s);
+#endif
+	return path;
+}
+#endif
+
 /* get a path, convert it as an absolute path (and strdup it) 
  * from the process address space */
-char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink, service_t *sercode, epoch_t *matchepoch)
+char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink)
 {
 	char path[PATH_MAX];
 	char newpath[PATH_MAX];
@@ -212,12 +246,15 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 		if (dirfd==AT_FDCWD)
 			cwd=pc->fdfs->cwd;
 		else
-			cwd=fd_getpath(pc->fds,dirfd,sercode,matchepoch);
-		um_realpath(path,cwd,newpath,pst,dontfollowlink,pc,sercode,matchepoch);
+			cwd=fd_getpath(pc->fds,dirfd);
+		um_realpath(path,cwd,newpath,pst,dontfollowlink,pc);
 			/*fprint2("PATH %s (%s,%s) NEWPATH %s (%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->erno);*/
 		if (pc->erno)
 			return um_patherror;	//error
 		else
+#if 0
+			return strdup(um_cutdots(newpath));
+#endif
 			return strdup(newpath);
 	}
 	else {
@@ -246,7 +283,7 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
  */
 typedef void (*dsys_commonwrap_parse_arguments)(struct pcb *pc, int scno);
 typedef int (*dsys_commonwrap_index_function)(struct pcb *pc, int scno);
-typedef sysfun (*service_call)(service_t code, int scno);
+typedef sysfun (*service_call)(struct ht_elem *hte, int scno);
 int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		dsys_commonwrap_parse_arguments dcpa,
 		dsys_commonwrap_index_function dcif,
@@ -262,7 +299,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 	}
 	/* -- IN phase -- */
 	if (inout == IN) {
-		service_t sercode;
+		struct ht_elem *hte;
 		int index;
 		puterrno(0,pc);
 		/* timestamp the call */
@@ -275,7 +312,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		//fprint2("nested_commonwrap %d -> %lld\n",sc_number,pc->tst.epoch);
 		/* looks in the system call table what is the 'choice function'
 		 * and ask it the service to manage */
-		sercode=sm[index].scchoice(sc_number,pc);
+		pc->hte=hte=sm[index].scchoice(sc_number,pc);
 		/* something went wrong during a path lookup - fake the
 		 * syscall, we do not want to make it run */
 		if (pc->path == um_patherror) {
@@ -285,17 +322,17 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 #ifdef _UM_MMAP
 		/* it returns EBADF when somebody tries to access 
 		 * secret files (mmap_secret) */
-		if (sercode == UM_ERR) {
+		if (hte == HT_ERR) {
 			pc->path = um_patherror;
 			pc->erno = EBADF;
 			pc->retval = -1;
 			return SC_FAKE;
 		}
 #endif
-		//fprint2("commonwrap choice %d -> %lld %x\n",sc_number,pc->tst.epoch,sercode);
+		//fprint2("commonwrap choice %d -> %lld %x\n",sc_number,pc->tst.epoch,hte);
 		/* if some service want to manage the syscall (or the ALWAYS
 		 * flag is set), we process it */
-		if (sercode != UM_NONE || (sm[index].flags & ALWAYS)) {
+		if (hte != NULL || (sm[index].flags & ALWAYS)) {
 			/* suspend management:
 			 * when howsusp has at least one bit set (CB_R, CB_W, CB_X) 
 			 * the system checks with a select if the call is blocking or not.
@@ -318,11 +355,11 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 			else
 				/* normal management: call the wrapin function,
 				 * with the correct service syscall function */
-				return sm[index].wrapin(sc_number,pc,sercode,sc(sercode,index));
+				return sm[index].wrapin(sc_number,pc,hte,sc(hte,index));
 #if 0
 			int retval;
 			errno=0;
-			retval=sm[index].wrapin(sc_number,pc,sercode,sc(sercode,index));
+			retval=sm[index].wrapin(sc_number,pc,hte,sc(hte,index));
 			if (pc->erno==EUMWOULDBLOCK)
 				return SC_SUSPIN;
 			else
@@ -386,7 +423,7 @@ int dsys_socketwrap(int sc_number,int inout,struct pcb *pc)
 {
 	return dsys_commonwrap(sc_number, inout, pc,
 			dsys_socketwrap_parse_arguments,
-			dsys_socketwrap_index_function, service_socketcall,
+			dsys_socketwrap_index_function, ht_socketcall,
 			sockmap);
 }
 #endif
@@ -426,14 +463,13 @@ int dsys_um_sysctl(int sc_number,int inout,struct pcb *pc)
 {
 	return dsys_commonwrap(sc_number, inout, pc,
 			dsys_um_sysctl_parse_arguments,
-			dsys_um_sysctl_index_function, service_virsyscall,
+			dsys_um_sysctl_index_function, ht_virsyscall,
 			virscmap);
 }
 
 /* just the function executed by the following function (iterator) */
 static void _reg_processes(struct pcb *pc,service_t *pcode)
 {
-	// service_addproc(*pcode,pc->umpid,(pc->pp)?pc->pp->umpid:-1,pcbtablesize());
 	service_ctl(MC_PROC | MC_ADD, *pcode, -1, pc->umpid, (pc->pp) ? pc->pp->umpid : -1, pcbtablesize());
 }
 
@@ -450,7 +486,6 @@ static int reg_processes(service_t code)
 static void _dereg_processes(struct pcb *pc,service_t *pcode)
 {
 	service_ctl(MC_PROC | MC_REM, *pcode, -1, pc->umpid);
-	// service_delproc(*pcode,pc->umpid);
 }
 
 /* when a service gets deregistered, all the data structures managed by the
@@ -467,14 +502,12 @@ static void um_proc_add(struct pcb *pc)
 {
 	GDEBUG(0, "calling service_ctl %d %d %d %d %d %d", MC_PROC|MC_ADD, UM_NONE, -1, pc->umpid, (pc->pp)?pc->pp->umpid:-1, pcbtablesize());
 	service_ctl(MC_PROC | MC_ADD, UM_NONE, -1, pc->umpid, (pc->pp) ? pc->pp->umpid : -1, pcbtablesize());
-	// service_addproc(UM_NONE,pc->umpid,(pc->pp)?pc->pp->umpid:-1,pcbtablesize());
 }
 
 /* UM actions for a terminated process */
 static void um_proc_del(struct pcb *pc)
 {
 	service_ctl(MC_PROC | MC_REM, UM_NONE, -1, pc->umpid);
-	// service_delproc(UM_NONE,pc->umpid);
 }
 
 #if 0
@@ -513,10 +546,21 @@ void pcb_plus(struct pcb *pc,int flags,int npcflag)
 				r_umask(pc->fdfs->mask);
 				/* create the root of the treepoch */
 				pc->tst=tst_newfork(NULL);
+				/* set the initial uid */
+				r_getresuid(&pc->ruid,&pc->euid,&pc->suid);
+				r_getresgid(&pc->rgid,&pc->egid,&pc->sgid);
+				pc->hte=NULL;
 			} else {
 				pc->fdfs->cwd=strdup(pc->pp->fdfs->cwd);
 				pc->fdfs->root=strdup(pc->pp->fdfs->root);
 				pc->fdfs->mask=pc->pp->fdfs->mask;
+				pc->ruid=pc->pp->ruid;
+				pc->euid=pc->pp->euid;
+				pc->suid=pc->pp->suid;
+				pc->rgid=pc->pp->rgid;
+				pc->egid=pc->pp->egid;
+				pc->sgid=pc->pp->sgid;
+				pc->hte=pc->pp->hte;
 			}
 		}
 		pc->tst=tst_newproc(&(pc->pp->tst));
@@ -630,142 +674,138 @@ int dsys_error(int sc_number,int inout,struct pcb *pc)
 }
 #endif
 
-/* choicei function for system calls using a file descriptor */
-service_t choice_fd(int sc_number,struct pcb *pc)
+/* choice function for system calls using a file descriptor */
+struct ht_elem *choice_fd(int sc_number,struct pcb *pc)
 {
 	int fd=pc->sysargs[0];
-	return service_fd(pc->fds,fd,1);
+	return ht_fd(pc->fds,fd,1);
 }
 
 /* choice sd (just the system call number is the choice parameter) */
-service_t choice_sc(int sc_number,struct pcb *pc)
+struct ht_elem *choice_sc(int sc_number,struct pcb *pc)
 {
-	return service_check(CHECKSC,&sc_number,1);
+	return ht_check(CHECKSC,&sc_number,NULL,1);
 }
 
 /* choice mount (mount point must be defined + filesystemtype is used
  * instead of the pathname for service selection) */
-service_t choice_mount(int sc_number,struct pcb *pc)
+struct ht_elem *choice_mount(int sc_number,struct pcb *pc)
 {
-	service_t sercode=UM_NONE;
-	epoch_t matchepoch=0;
-	pc->path=um_abspath(AT_FDCWD,pc->sysargs[1],pc,&(pc->pathstat),0,&sercode,&matchepoch); 
+	pc->path=um_abspath(AT_FDCWD,pc->sysargs[1],pc,&(pc->pathstat),0); 
 
 	if (pc->path!=um_patherror) {
 		char filesystemtype[PATH_MAX];
 		unsigned long fstype=pc->sysargs[2];
-		if (umovestr(pc,fstype,PATH_MAX,filesystemtype) == 0) {
-			return service_check(CHECKFSTYPE,filesystemtype,0);
-		}
+		if (umovestr(pc,fstype,PATH_MAX,filesystemtype) == 0)
+			return ht_check(CHECKFSTYPE,fs_alias(filesystemtype),NULL,0);
 		else
-			return UM_NONE;
+			return NULL;
 	} else
-		return UM_NONE;
+		return NULL;
 }
 
 /* choice path (filename must be defined) */
-service_t choice_path(int sc_number,struct pcb *pc)
+struct ht_elem *choice_path(int sc_number,struct pcb *pc)
 {
-	service_t sercode=UM_NONE;
-	epoch_t matchepoch=0;
-	pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),0,&sercode,&matchepoch); 
-	//printf("choice_path %d %s\n",sc_number,pc->path);
-	if (sercode != UM_NONE)
-		pc->tst.epoch=matchepoch;
-	return sercode;
+	pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),0); 
+	//fprint2("choice_path %d %s\n",sc_number,pc->path);
+
+	if (pc->path==um_patherror){
+		/*		char buff[PATH_MAX];
+					umovestr(pc,pc->sysargs[0],PATH_MAX,buff);
+					fprintf(stderr,"um_patherror: %s",buff);*/
+		return NULL;
+	}
+	else 
+		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
 }
 
 /* choice pathat (filename must be defined) */
-service_t choice_pathat(int sc_number,struct pcb *pc)
+struct ht_elem *choice_pathat(int sc_number,struct pcb *pc)
 {
-	service_t sercode=UM_NONE;
-	epoch_t matchepoch=0;
-	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),0,&sercode,&matchepoch);
-	if (sercode != UM_NONE)
-		pc->tst.epoch=matchepoch;
-	return sercode;
+	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),0);
+	if (pc->path==um_patherror)
+		return NULL;
+	else 
+		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
 }
 
 /* choice sockpath (filename can be NULL) */
-service_t choice_sockpath(int sc_number,struct pcb *pc)
+struct ht_elem *choice_sockpath(int sc_number,struct pcb *pc)
 {
 	if (pc->sysargs[0] != 0) {
-		service_t sercode=UM_NONE;
-		epoch_t matchepoch=0;
-		pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),0,&sercode,&matchepoch); 
-		if (sercode != UM_NONE)
-			pc->tst.epoch=matchepoch;
-		return sercode;
-	} else 
-		return service_check(CHECKSOCKET, &(pc->sysargs[1]), 1);
+		pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),0); 
+
+		if (pc->path==um_patherror){
+			/*		char buff[PATH_MAX];
+						umovestr(pc,pc->sysargs[0],PATH_MAX,buff);
+						fprintf(stderr,"um_patherror: %s",buff);*/
+			return NULL;
+		} else
+			return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
+	} else
+		return ht_check(CHECKSOCKET, &(pc->sysargs[1]),NULL,1);
 }
 
 /* choice link (dirname must be defined, basename can be non-existent) */
-char choice_link(int sc_number,struct pcb *pc)
+struct ht_elem *choice_link(int sc_number,struct pcb *pc)
 {
-	service_t sercode=UM_NONE;
-	epoch_t matchepoch=0;
-	pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),1,&sercode,&matchepoch); 
+	pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),1); 
 	//printf("choice_path %d %s\n",sc_number,pc->path);
-	if (sercode != UM_NONE)
-		pc->tst.epoch=matchepoch;
-	return sercode;
+	if (pc->path==um_patherror)
+		return NULL;
+	else 
+		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
 }
 
 /* choice linkat (dirname must be defined, basename can be non-existent) */
-service_t choice_linkat(int sc_number,struct pcb *pc)
+struct ht_elem *choice_linkat(int sc_number,struct pcb *pc)
 {
-	service_t sercode=UM_NONE;
-	epoch_t matchepoch=0;
-	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),1,&sercode,&matchepoch);
-	if (sercode != UM_NONE)
-		pc->tst.epoch=matchepoch;
-	return sercode;
+	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),1);
+	if (pc->path==um_patherror)
+		return NULL;
+	else
+		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
 }
 
 /* choice unlinkat (unlink = rmdir or unlink depending on flag) */
-service_t choice_unlinkat(int sc_number,struct pcb *pc)
+struct ht_elem *choice_unlinkat(int sc_number,struct pcb *pc)
 {
-	service_t sercode=UM_NONE;
-	epoch_t matchepoch=0;
 	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),
-			!(pc->sysargs[2] & AT_REMOVEDIR),&sercode,&matchepoch);
-	if (sercode != UM_NONE)
-		pc->tst.epoch=matchepoch;
-	return sercode;
+			!(pc->sysargs[2] & AT_REMOVEDIR));
+	if (pc->path==um_patherror)
+		return NULL;
+	else 
+		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
 }
 
 /* choice path or link at (filename must be defined or can be non-existent) */
 /* depending on AT_SYMLINK_NOFOLLOW on the 4th parameter */
-service_t choice_pl4at(int sc_number,struct pcb *pc)
+struct ht_elem *choice_pl4at(int sc_number,struct pcb *pc)
 {
-	service_t sercode=UM_NONE;
-	epoch_t matchepoch=0;
 	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),
-			pc->sysargs[3] & AT_SYMLINK_NOFOLLOW,&sercode,&matchepoch);
-	if (sercode != UM_NONE)
-		pc->tst.epoch=matchepoch;
-	return sercode;
+			pc->sysargs[3] & AT_SYMLINK_NOFOLLOW);
+	if (pc->path==um_patherror)
+		return NULL;
+	else
+		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
 }
 
 /* depending on AT_SYMLINK_NOFOLLOW on the 5th parameter */
-service_t choice_pl5at(int sc_number,struct pcb *pc)
+struct ht_elem *choice_pl5at(int sc_number,struct pcb *pc)
 {
-	service_t sercode=UM_NONE;
-	epoch_t matchepoch=0;
 	pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),
-			pc->sysargs[4] & AT_SYMLINK_NOFOLLOW,&sercode,&matchepoch);
-	if (sercode != UM_NONE)
-		pc->tst.epoch=matchepoch;
-	return sercode;
+			pc->sysargs[4] & AT_SYMLINK_NOFOLLOW);
+	if (pc->path==um_patherror)
+		return NULL;
+	else
+		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
 }
 
 /* choice link (dirname must be defined, basename can be non-existent second arg)*/
-char choice_link2(int sc_number,struct pcb *pc)
+struct ht_elem *choice_link2(int sc_number,struct pcb *pc)
 {
 	int link;
-	service_t sercode=UM_NONE;
-	epoch_t matchepoch=0;
 	/* is this the right semantics? */
 #ifdef __NR_linkat
 	if (sc_number == __NR_linkat)
@@ -774,52 +814,57 @@ char choice_link2(int sc_number,struct pcb *pc)
 #endif
 		link=1;
 
-	pc->path=um_abspath(AT_FDCWD,pc->sysargs[1],pc,&(pc->pathstat),link,&sercode,&matchepoch); 
+	pc->path=um_abspath(AT_FDCWD,pc->sysargs[1],pc,&(pc->pathstat),link); 
 	//printf("choice_path %d %s\n",sc_number,pc->path);
-	if (sercode != UM_NONE)
-		pc->tst.epoch=matchepoch;
-	return sercode;
+	if (pc->path==um_patherror)
+		return NULL;
+	else 
+		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
 }
 
-char choice_link2at(int sc_number,struct pcb *pc)
+struct ht_elem *choice_link2at(int sc_number,struct pcb *pc)
 {
-	service_t sercode=UM_NONE;
-	epoch_t matchepoch=0;
-	pc->path=um_abspath(pc->sysargs[1],pc->sysargs[2],pc,&(pc->pathstat),1,&sercode,&matchepoch); 
+	pc->path=um_abspath(pc->sysargs[1],pc->sysargs[2],pc,&(pc->pathstat),1); 
 	//printf("choice_path %d %s\n",sc_number,pc->path);
-	if (sercode != UM_NONE)
-		pc->tst.epoch=matchepoch;
-	return sercode;
+	if (pc->path==um_patherror)
+		return NULL;
+	else
+		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
 }
 
-char choice_link3at(int sc_number,struct pcb *pc)
+struct ht_elem *choice_link3at(int sc_number,struct pcb *pc)
 {
-	service_t sercode=UM_NONE;
-	epoch_t matchepoch=0;
-	pc->path=um_abspath(pc->sysargs[2],pc->sysargs[3],pc,&(pc->pathstat),1,&sercode,&matchepoch); 
+	pc->path=um_abspath(pc->sysargs[2],pc->sysargs[3],pc,&(pc->pathstat),1); 
 	//printf("choice_path %d %s\n",sc_number,pc->path);
-	if (sercode != UM_NONE)
-		pc->tst.epoch=matchepoch;
-	return sercode;
+	if (pc->path==um_patherror)
+		return NULL;
+	else
+		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
 }
 
 /* choice function for 'socket', usually depends on the Protocol Family */
-char choice_socket(int sc_number,struct pcb *pc)
+struct ht_elem *choice_socket(int sc_number,struct pcb *pc)
 {
-	return service_check(CHECKSOCKET, &(pc->sysargs[0]),1);
+	return ht_check(CHECKSOCKET, &(pc->sysargs[0]),NULL,1);
 }
 
 /* choice function for mmap: only *non anonymous* mmap must be mapped
  * depending on the service responsible for the fd. */
-service_t choice_mmap(int sc_number,struct pcb *pc)
+struct ht_elem *choice_mmap(int sc_number,struct pcb *pc)
 {
 	long fd=pc->sysargs[4];
 	long flags=pc->sysargs[3];
 
 	if (flags & MAP_ANONYMOUS)
-		return UM_NONE;
+		return NULL;
 	else
-		return service_fd(pc->fds,fd,1);
+		return ht_fd(pc->fds,fd,1);
+}
+
+/* dummy choice function for unimplemented syscalls */
+struct ht_elem *always_null(int sc_number,struct pcb *pc)
+{
+	return NULL;
 }
 
 /* dummy choice function for unimplemented syscalls */
@@ -847,7 +892,7 @@ int dsys_megawrap(int sc_number,int inout,struct pcb *pc)
 {
 	return dsys_commonwrap(sc_number, inout, pc,
 			dsys_megawrap_parse_arguments,
-			dsys_megawrap_index_function, service_syscall, scmap);
+			dsys_megawrap_index_function, ht_syscall, scmap);
 }
 
 /* for modules: get the caller pid */
@@ -858,6 +903,32 @@ int um_mod_getpid()
 }
 
 /* for modules: get data from the caller process */
+void um_mod_set_hte(struct ht_elem *hte)
+{
+	struct pcb *pc=get_pcb();
+	pc->hte=hte;
+}
+
+struct ht_elem *um_mod_get_hte(void)
+{
+	struct pcb *pc=get_pcb();
+	return pc->hte;
+}
+
+void *um_mod_get_private_data(void) {
+	struct pcb *pc=get_pcb();
+	if (pc->hte) 
+		return pc->hte->private_data;
+	else
+		return NULL;
+}
+
+void um_mod_renew_hte(struct ht_elem *hte)
+{
+	if (hte)
+		hte->tst=tst_timestamp();
+}
+
 int um_mod_umoven(long addr, int len, void *_laddr)
 {
 	struct pcb *pc=get_pcb();
@@ -1004,10 +1075,58 @@ int um_mod_getsyscalltype(int escno)
 
 /* for modules: get the number of syscall for this architecture
  * (not all the archs define NR_SYSCALLS*/
-
 int um_mod_nrsyscalls(void)
 {
 	return _UM_NR_syscalls;
+}
+
+/* for modules: management of module filetab. */
+#define FILETABSTEP 4 /* must be a power of two */
+#define FILETABSTEP_1 (FILETABSTEP-1)
+static pthread_mutex_t g_filetab_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void **g_filetab=NULL;
+static int g_filetabmax=0;
+static int g_filetabsize=0;
+static int g_filetabfree=-1;
+
+int addfiletab(int size)
+{
+	int rv;
+	pthread_mutex_lock( &g_filetab_mutex );
+	if (g_filetabfree>=0) {
+		rv=g_filetabfree;
+		g_filetabfree=(int)(g_filetab[rv]);
+	} else {
+		rv=g_filetabmax++;
+		if (rv>=g_filetabsize) {
+			g_filetabsize=(rv + FILETABSTEP) & ~FILETABSTEP_1;
+			g_filetab=realloc(g_filetab,g_filetabsize* sizeof(void *));
+			assert(g_filetab);
+		}
+	}
+	g_filetab[rv]=malloc(size);
+	assert(g_filetab[rv]);
+	pthread_mutex_unlock( &g_filetab_mutex );
+	return rv;
+}
+
+void delfiletab(int i)
+{
+	free(g_filetab[i]);
+	pthread_mutex_lock( &g_filetab_mutex );
+	g_filetab[i]=(void *)g_filetabfree;
+	g_filetabfree=i;
+	pthread_mutex_unlock( &g_filetab_mutex );
+}
+
+void *getfiletab(int i)
+{
+	void *rv;
+	pthread_mutex_lock( &g_filetab_mutex );
+	rv=g_filetab[i];
+	pthread_mutex_unlock( &g_filetab_mutex );
+	return rv;
 }
 
 /* scdtab: interface between capture_* and the wrapper (wrap-in/out)

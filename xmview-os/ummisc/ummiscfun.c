@@ -108,180 +108,180 @@ sysfun getfun(struct ummisc *mh,int scno) {
 }
 
 static int umm_gettimeofday(struct timeval *tv, struct timezone *tz) {
-	struct ummisc *mh=searchmisc_sc(__NR_gettimeofday);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_gettimeofday)(tv,tz,mh);
 }
 static int umm_settimeofday(const struct timeval *tv , const struct timezone *tz) {
-	struct ummisc *mh=searchmisc_sc(__NR_settimeofday);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_settimeofday)(tv,tz,mh);
 }
 static int umm_adjtimex(struct timex *buf) {
-	struct ummisc *mh=searchmisc_sc(__NR_adjtimex);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_adjtimex)(buf,mh);
 }
 static int umm_clock_getres(clockid_t clk_id, struct timespec *res) {
-	struct ummisc *mh=searchmisc_sc(__NR_clock_getres);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_clock_getres)(clk_id,res,mh);
 }
 static int umm_clock_gettime(clockid_t clk_id, struct timespec *tp) {
-	struct ummisc *mh=searchmisc_sc(__NR_clock_gettime);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_clock_gettime)(clk_id,tp,mh);
 }
 static int umm_clock_settime(clockid_t clk_id, const struct timespec *tp) {
-	struct ummisc *mh=searchmisc_sc(__NR_clock_settime);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return (getfun(mh,__NR_clock_settime))(clk_id,tp,mh);
 }
 static int umm_uname(struct utsname *buf) {
-	struct ummisc *mh=searchmisc_sc(__NR_uname);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_uname)(buf,mh);
 }
 #ifdef __NR_gethostname
 static int umm_gethostname(char *name, size_t len) {
-	struct ummisc *mh=searchmisc_sc(__NR_gethostname);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_gethostname)(name,len,mh);
 }
 #endif
 static int umm_sethostname(const char *name, size_t len) {
-	struct ummisc *mh=searchmisc_sc(__NR_sethostname);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_sethostname)(name,len,mh);
 }
 #ifdef __NR_getdomainname
 static int umm_getdomainname(char *name, size_t len) {
-	struct ummisc *mh=searchmisc_sc(__NR_getdomainname);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_getdomainname)(name,len,mh);
 }
 #endif
 static int umm_setdomainname(const char *name, size_t len) {
-	struct ummisc *mh=searchmisc_sc(__NR_setdomainname);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_setdomainname)(name,len,mh);
 }
 static uid_t umm_getuid(void) {
-	struct ummisc *mh=searchmisc_sc(__NR_getuid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_getuid)(mh);
 }
 static int umm_setuid(uid_t uid) {
-	struct ummisc *mh=searchmisc_sc(__NR_setuid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_setuid)(uid,mh);
 }
 static uid_t umm_geteuid(void) {
-	struct ummisc *mh=searchmisc_sc(__NR_geteuid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_geteuid)(mh);
 }
 static int umm_setfsuid(uid_t fsuid) {
-	struct ummisc *mh=searchmisc_sc(__NR_setfsuid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_setfsuid)(fsuid,mh);
 }
 static int umm_setreuid(uid_t ruid, uid_t euid) {
-	struct ummisc *mh=searchmisc_sc(__NR_setreuid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_setreuid)(ruid,euid,mh);
 }
 static int umm_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid) {
-	struct ummisc *mh=searchmisc_sc(__NR_getresuid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_getresuid)(ruid,euid,suid,mh);
 }
 static int umm_setresuid(uid_t ruid, uid_t euid, uid_t suid) {
-	struct ummisc *mh=searchmisc_sc(__NR_setresuid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_setresuid)(ruid,euid,suid,mh);
 }
 static gid_t umm_getgid(void) {
-	struct ummisc *mh=searchmisc_sc(__NR_getgid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_getgid)(mh);
 }
 static int umm_setgid(gid_t gid) {
-	struct ummisc *mh=searchmisc_sc(__NR_setgid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_setgid)(gid,mh);
 }
 static gid_t umm_getegid(void) {
-	struct ummisc *mh=searchmisc_sc(__NR_geteuid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_getegid)(mh);
 }
 static int umm_setfsgid(uid_t fsgid) {
-	struct ummisc *mh=searchmisc_sc(__NR_setfsgid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_getegid)(fsgid,mh);
 }
 static int umm_setregid(gid_t rgid, gid_t egid) {
-	struct ummisc *mh=searchmisc_sc(__NR_setregid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_setregid)(rgid,egid,mh);
 }
 static int umm_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid) {
-	struct ummisc *mh=searchmisc_sc(__NR_getresgid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_getresgid)(rgid,egid,sgid,mh);
 }
 static int umm_setresgid(gid_t rgid, gid_t egid, gid_t sgid) {
-	struct ummisc *mh=searchmisc_sc(__NR_setresgid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_setresgid)(rgid,egid,sgid,mh);
 }
 
 #ifdef __NR_nice
 static int umm_nice(int inc) {
-	struct ummisc *mh=searchmisc_sc(__NR_nice);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_nice)(inc,mh);
 }
 #endif
 
 static int umm_getpriority(int which, int who) {
-	struct ummisc *mh=searchmisc_sc(__NR_getpriority);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_getpriority)(which,who,mh);
 }
 static int umm_setpriority(int which, int who, int prio) {
-	struct ummisc *mh=searchmisc_sc(__NR_setpriority);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_setpriority)(which,who,prio,mh);
 }
 static pid_t umm_getpid(void) {
-	struct ummisc *mh=searchmisc_sc(__NR_getpid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_getpid)(mh);
 }
 static pid_t umm_getppid(void) {
-	struct ummisc *mh=searchmisc_sc(__NR_getppid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_getppid)(mh);
 }
 static int umm_setpgid(pid_t pid, pid_t pgid) {
-	struct ummisc *mh=searchmisc_sc(__NR_setpgid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_setpgid)(pid,pgid,mh);
 }
 static pid_t umm_getpgid(pid_t pid) {
-	struct ummisc *mh=searchmisc_sc(__NR_setpgid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_getpgid)(pid,mh);
 }
 static pid_t umm_getsid(pid_t pid) {
-	struct ummisc *mh=searchmisc_sc(__NR_getsid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_getsid)(pid,mh);
 }
 static pid_t umm_setsid(void) {
-	struct ummisc *mh=searchmisc_sc(__NR_setsid);
+	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_setsid)(mh);
 }
