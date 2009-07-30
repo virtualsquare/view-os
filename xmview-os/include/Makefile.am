@@ -1,7 +1,5 @@
 nodist_noinst_HEADERS = syscallnames.h nrsyscalls.h
 
-noinst_HEADERS = gd64helper.h
-
 pkgincludedir = $(includedir)/umview
 
 dist_pkginclude_HEADERS = \
