@@ -90,7 +90,6 @@ static epoch_t checkip(int type, void *arg)
 {
 	if (type ==  CHECKSOCKET) {
 		int *pdomain=arg;
-		fprint2("checkip %d %d\n",*pdomain,tst_matchingepoch(&stst));
 		if(*pdomain == AF_INET)
 			return tst_matchingepoch(&stst);
 		else
