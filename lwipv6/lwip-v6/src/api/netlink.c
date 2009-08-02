@@ -268,8 +268,10 @@ netlink_recvfrom(void *sock, void *mem, int len, unsigned int flags,
 	struct stack *stack = nl->stack;	
 
 	/*printf("netlink_recvfrom\n");*/
-	memset(from,0,*fromlen);
-	from->sa_family=PF_NETLINK;
+	if (from) {
+		memset(from,0,*fromlen);
+		from->sa_family=PF_NETLINK;
+	}
 	if (nl->answer[0]==NULL) {
 		/*printf("netlink: answNULL\n");*/
 		return 0;
@@ -282,7 +284,7 @@ netlink_recvfrom(void *sock, void *mem, int len, unsigned int flags,
 			pbuf_free(nl->answer[1]);
 			nl->answer[1]=NULL;
 		}
-		//printf("LEN %d\n",len);
+		/*printf("LEN %d\n",len);*/
 		return 0;
 	} 
 	else {
