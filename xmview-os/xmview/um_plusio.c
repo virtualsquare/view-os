@@ -574,10 +574,12 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 	source = um_abspath(AT_FDCWD,argaddr,pc,&imagestat,0);
 	nestepoch=um_setepoch(0);
 	um_setepoch(nestepoch+1);
-	/* maybe the source is not a path at all.
+	/* maybe the source is not a path at all. source must exist.
 	 * source is not converted to an absolute path if it is not a path
 	 * it is simply copied "as is" */
-	if (source==um_patherror) {
+	if (source==um_patherror || imagestat.st_mode == 0) {
+		if (source != um_patherror)
+			free(source);
 		source=malloc(PATH_MAX);
 		assert(source);
 		umovestr(pc,argaddr,PATH_MAX,source);

@@ -52,7 +52,7 @@
 #include "utils.h"
 #include "canonicalize.h"
 
-#define SCRIPTBUFLEN 128
+#define BINFMTBUFLEN 128
 #define HT_SCRIPT ((struct ht_elem *) 1)
 #define STDINTERP "/bin/bash"
 
@@ -75,60 +75,45 @@ static int filecopy(struct ht_elem *hte,const char *from, const char *to)
 }
 
 /* is the executable a script? */
-static struct ht_elem *checkscript(struct ht_elem *hte,struct binfmt_req *req,char *scriptbuf)
+static struct ht_elem *checkscript(struct ht_elem *hte,struct binfmt_req *req)
 {
-	int fd,n;
-	if (hte == NULL) {
-		if ((fd=open(req->path,O_RDONLY,0)) < 0)
-			return NULL;
-		n=read(fd,scriptbuf,SCRIPTBUFLEN-1);
-		close(fd);
-	} else {
-		if ((fd=ht_syscall(hte,uscno(__NR_open))(req->path,O_RDONLY,0)) < 0)
-			return NULL;
-		n=ht_syscall(hte,uscno(__NR_read))(fd,scriptbuf,SCRIPTBUFLEN-1);
-		ht_syscall(hte,uscno(__NR_close))(fd);
-	}
-	if (n>1) {
-		/* this should include ELF, COFF and a.out */
-		if (scriptbuf[0] < '\n' || scriptbuf[0] == '\177')
-			return NULL;
-		else if (scriptbuf[0]=='#' && scriptbuf[1]=='!') {
-			/* parse the first line */
-			char *s=scriptbuf+2;
-			scriptbuf[n]=0;
-			/* skip leading spaces */
-			while(*s == ' ' || *s == '\t')
-				s++;
-			/* the first non blank is the interpreter */
-			req->interp=s; 
-			while(*s != ' ' && *s != '\t' && *s != '\n' && *s!=0)
-				s++;
-			if (*s == 0 || *s=='\n') 
-				*s=0;
-			else {
-				*s++ = 0;
-				while(*s == ' ' || *s == '\t')
-					*s++ = 0;
-				req->extraarg=s;
-				while(*s != '\n' && *s!=0)
-					s++;
-				while(*(s-1)==' ' || *(s-1)=='\t')
-					s--;
-				*s=0;
-				if (*(req->extraarg)==0)
-					req->extraarg=NULL;
-			}
-			if (*(req->interp)==0)
-				req->interp=STDINTERP;
-			return HT_SCRIPT;
-		}
+	char *scriptbuf=req->buf;
+	/* this should include ELF, COFF and a.out */
+	if (scriptbuf[0] < '\n' || scriptbuf[0] == '\177')
+		return NULL;
+	else if (scriptbuf[0]=='#' && scriptbuf[1]=='!') {
+		/* parse the first line */
+		char *s=scriptbuf+2;
+		/* skip leading spaces */
+		while(*s == ' ' || *s == '\t')
+			s++;
+		/* the first non blank is the interpreter */
+		req->interp=s; 
+		while(*s != ' ' && *s != '\t' && *s != '\n' && *s!=0)
+			s++;
+		if (*s == 0 || *s=='\n') 
+			*s=0;
 		else {
-			/* heuristics here */
-			return NULL;
+			*s++ = 0;
+			while(*s == ' ' || *s == '\t')
+				*s++ = 0;
+			req->extraarg=s;
+			while(*s != '\n' && *s!=0)
+				s++;
+			while(*(s-1)==' ' || *(s-1)=='\t')
+				s--;
+			*s=0;
+			if (*(req->extraarg)==0)
+				req->extraarg=NULL;
 		}
+		if (*(req->interp)==0)
+			req->interp=STDINTERP;
+		return HT_SCRIPT;
 	}
-	return NULL;
+	else {
+		/* heuristics here */
+		return NULL;
+	}
 }
 
 /* getparms (argv) from the user space */
@@ -191,8 +176,8 @@ static void printparms(char *what,char **parms)
 int wrap_in_execve(int sc_number,struct pcb *pc,
 		struct ht_elem *hte,sysfun um_syscall)
 {
-	struct binfmt_req req={(char *)pc->path,NULL,NULL,0};
-	char scriptbuf[SCRIPTBUFLEN];
+	char buf[BINFMTBUFLEN+1];
+	struct binfmt_req req={(char *)pc->path,NULL,NULL,buf,0};
 	epoch_t nestepoch=um_setepoch(0);
 	struct ht_elem *binfmtht;
 	if (um_x_access(req.path,X_OK,pc)!=0) {
@@ -217,18 +202,15 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 	/* The epoch should be just after the mount 
 	 * which generated the executable */
 	um_setepoch(nestepoch+1);
-	binfmtht=checkscript(hte,&req,scriptbuf);
-	if (binfmtht == NULL) {
-		/* char buf[128];
-		req.buf=buf;
-		memset(buf,0,128);
-		int fd=open(req.path,O_RDONLY);
-		if (fd >= 0) {
-			read(fd, buf, 128);
-			close(fd);
-		}  */
+	memset(buf,0,BINFMTBUFLEN+1);
+	int fd=open(req.path,O_RDONLY);
+	if (fd >= 0) {
+		read(fd, buf, BINFMTBUFLEN);
+		close(fd);
+	}
+	binfmtht=checkscript(hte,&req);
+	if (binfmtht == NULL) 
 		binfmtht=ht_check(CHECKBINFMT,&req,NULL,0);
-	} 
 	//fprint2("wrap_in_execve %x |%s| |%s|\n",binfmtht->service->code,req.interp,req.extraarg);
 	um_setepoch(nestepoch);
 	/* is there a binfmt service for this executable? */

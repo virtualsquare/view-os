@@ -70,6 +70,7 @@ struct binfmt_req {
 	char *path;
 	char *interp;
 	char *extraarg;
+	char *buf;
 	int flags;
 };
 

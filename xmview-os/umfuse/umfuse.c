@@ -597,6 +597,10 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 	GDEBUG(10, "MOUNT %s %s %s %x %s",source,target,filesystemtype,
 			mountflags, (data!=NULL)?data:"<NULL>");
 
+	if(*source != '/') {
+		errno=ENOENT;
+		return -1;
+	}
 	if(dlhandle == NULL || dlsym(dlhandle,"main") == NULL) {
 		GMESSAGE("%s",dlerror());
 		if (dlhandle != NULL)

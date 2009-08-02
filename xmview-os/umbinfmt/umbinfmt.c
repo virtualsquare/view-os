@@ -65,7 +65,6 @@
 
 static struct service s;
 static struct ht_elem *service_ht;
-static struct ht_elem *binfmt_ht;
 static struct ht_elem *binfmt_vfs_ht=NULL;
 
 struct binfileinfo {
@@ -105,6 +104,7 @@ struct umbinfmt {
 	char flags;
 	int inuse;
 	struct umregister *head;
+	struct ht_elem *binfmt_ht;
 };
 
 struct umbinfmt_dirent64 {
@@ -114,16 +114,6 @@ struct umbinfmt_dirent64 {
 	unsigned char   d_type;
 	char            d_name[0];
 };
-
-#if 0
-struct umbinfmt_dirent {
-	__ino_t            d_ino;
-	__off_t            d_off;
-	unsigned short  d_reclen;
-	//unsigned char   d_type; /* this field does not exist in getdents provided data */
-	char            d_name[0];
-};
-#endif
 
 #ifdef __UMBINFMT_DEBUG__
 static void printdebug(int level, const char *file, const int line, const char *func, const char *fmt, ...) {
@@ -145,13 +135,7 @@ static void printdebug(int level, const char *file, const int line, const char *
 
 static int searchbinfmt(struct umbinfmt *fc,struct binfmt_req *req)
 {
-	char buf[128];
-	memset(buf,0,128);
-	int fd=open(req->path,O_RDONLY);
-	if (fd >= 0) {
-		read(fd, buf, 128);
-		close(fd);
-	}
+	char *buf=req->buf;
 	if (fc->enabled) {
 		struct umregister *scan=fc->head;
 		while (scan != NULL && req->interp==NULL) {
@@ -280,6 +264,15 @@ static struct umregister *delete_allreg(struct umregister *head)
 	}
 }
 
+static int checkbinfmt(int type, void *arg, int arglen, struct ht_elem *ht)
+{
+	struct binfmt_req *req=arg;
+	if (ht->private_data)
+		return searchbinfmt(ht->private_data,req);
+	else
+		return 0;
+}
+
 static long umbinfmt_mount(char *source, char *target, char *filesystemtype,
 		unsigned long mountflags, void *data)
 {
@@ -293,8 +286,11 @@ static long umbinfmt_mount(char *source, char *target, char *filesystemtype,
 		new->inuse=0;
 		new->enabled=1;
 		new->head=NULL;
+		if (strcmp(source,"none")==0 || strcmp(source,"/")==0)
+			new->binfmt_ht=ht_tab_add(CHECKBINFMT,NULL,0,&s,checkbinfmt,new);
+		else
+			new->binfmt_ht=ht_tab_add(CHECKBINFMT,source,strlen(source),&s,checkbinfmt,new);
 		binfmt_vfs_ht=ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,data,&s,0,NULL,new);
-		binfmt_ht->private_data=new;
 		return 0;
 	}
 }
@@ -305,6 +301,7 @@ static void umbinfmt_umount_internal(struct umbinfmt *fc, int flags)
 	char *target=fc->path;
 	if (fc_norace->flags & UMBINFMT_DEBUG) 
 		fprint2("UMOUNT => path:%s flag:%d\n",target, flags);
+	ht_tab_del(fc->binfmt_ht);
 	delete_allreg(fc->head);
 	free(fc_norace->path);
 	free(fc_norace);
@@ -327,6 +324,7 @@ static long umbinfmt_umount2(char *target, int flags)
 	}
 }
 
+#if 0
 #define TRUE 1
 #define FALSE 0
 
@@ -334,16 +332,7 @@ static int alwaysfalse()
 {
 	return FALSE;
 }
-
-static int checkbinfmt(int type, void *arg, int arglen,
-		struct ht_elem *ht)
-{
-	struct binfmt_req *req=arg;
-	if (ht->private_data)
-		return searchbinfmt(ht->private_data,req);
-	else
-		return 0;
-}
+#endif
 
 static char *unwrap(struct umbinfmt *fc,char *path)
 {
@@ -930,7 +919,6 @@ init (void)
 	s.event_subscribe=umbinfmt_event_subscribe;
 	add_service(&s);
 	service_ht=ht_tab_add(CHECKFSTYPE,"umbinfmt",0,&s,NULL,NULL);
-	binfmt_ht=ht_tab_add(CHECKBINFMT,NULL,0,&s,checkbinfmt,NULL);
 }
 
 	static void
@@ -941,7 +929,6 @@ fini (void)
 		umbinfmt_umount_internal(binfmt_vfs_ht->private_data, MNT_FORCE);
 		ht_tab_del(binfmt_vfs_ht);
 	}
-	ht_tab_del(binfmt_ht);
 	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
