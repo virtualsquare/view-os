@@ -396,7 +396,7 @@ static long ummisc_mount(char *source, char *target, char *filesystemtype,
 		if (new->ummisc_ops->init) 
 			new->ummisc_ops->init(target,mountflags,data,new);
 		new->scht=ht_tab_add(CHECKSC,NULL,0,&s,misc_check_sc,new);
-		ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,data,&s,0,NULL,new);
+		ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,mountflags,data,&s,0,NULL,new);
 		return 0;
 	}
 }

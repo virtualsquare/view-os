@@ -290,7 +290,7 @@ static long umbinfmt_mount(char *source, char *target, char *filesystemtype,
 			new->binfmt_ht=ht_tab_add(CHECKBINFMT,NULL,0,&s,checkbinfmt,new);
 		else
 			new->binfmt_ht=ht_tab_add(CHECKBINFMT,source,strlen(source),&s,checkbinfmt,new);
-		binfmt_vfs_ht=ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,data,&s,0,NULL,new);
+		binfmt_vfs_ht=ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,mountflags,data,&s,0,NULL,new);
 		return 0;
 	}
 }

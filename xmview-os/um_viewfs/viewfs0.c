@@ -1349,7 +1349,7 @@ static long viewfs_mount(char *source, char *target, char *filesystemtype,
 				new->pathlen = strlen(target);
 			if (flags & VIEWFS_COW)
 				viewfs_cow_init(new);
-			ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,data,&s,0,viewfs_confirm,new);
+			ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,mountflags,data,&s,0,viewfs_confirm,new);
 		}
 	}
 	return rv;

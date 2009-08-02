@@ -619,7 +619,7 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 		new->count=(isperm(data))?1:0;
 		if (new->netops->init) 
 			new->netops->init(source,new->path,mountflags,data,new);
-		ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,data,&s,0,NULL,new);
+		ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,mountflags,data,&s,0,NULL,new);
 		return 0;
 	}
 }

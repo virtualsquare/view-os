@@ -271,8 +271,8 @@ init (void)
 	SERVICESYSCALL(s, statfs, unreal_statfs64);
 #endif
 	add_service(&s);
-	ht_tab_pathadd(CHECKPATH,"","/unreal","unreal","",&s,0,NULL,NULL);
-	ht_tab_pathadd(CHECKPATH,"","/unreal","unreal","",&s,0,NULL,NULL);
+	ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal",0,"",&s,0,NULL,NULL);
+	ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal",0,"",&s,0,NULL,NULL);
 }
 
 static void

@@ -636,7 +636,7 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 			 filesystem options
 			 and traslate options from mount syntax into fuse syntax */
 
-		um_mod_set_hte(ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,data,&s,0,umfuse_confirm,new));
+		um_mod_set_hte(ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,mountflags,data,&s,0,umfuse_confirm,new));
 		smo.new = new;
 		smo.pmountflags = &(new->fuse->flags);
 		smo.source = source;

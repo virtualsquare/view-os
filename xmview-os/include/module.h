@@ -26,6 +26,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <stdarg.h>
+#include <stdio.h>
 //#include <sys/socket.h>
 /* VIRTUAL SYSCALLS */
 #define VIRSYS_UMSERVICE 1
@@ -322,7 +323,8 @@ struct ht_elem {
 
 /* add a path to the hashtable (this creates an entry for the mounttab) */
 struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
-		const char *path, const char *fstype, const char *flags,
+		const char *path, const char *fstype, 
+		unsigned long mountflags, const char *flags,
 		struct service *service, unsigned char trailingnumbers,
 		checkfun_t checkfun, void *private_data);
 
@@ -334,7 +336,7 @@ void ht_tab_invalidate(struct ht_elem *hte);
 
 int ht_tab_del(struct ht_elem *mp); 
 
-void ht_tab_getmtab(char **buf, size_t *size);
+void ht_tab_getmtab(FILE *f);
 
 void forall_ht_tab_service_do(unsigned char type,
 		struct service *service,

@@ -127,7 +127,7 @@ init (void)
 	SERVICESYSCALL(s, _llseek, _llseek);
 #endif
 	add_service(&s);
-	ht_tab_pathadd(CHECKPATH,"","/","real","",&s,0,NULL,NULL);
+	ht_tab_pathadd(CHECKPATH,"/","/","real",0,"",&s,0,NULL,NULL);
 }
 
 static void

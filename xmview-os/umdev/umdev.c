@@ -359,7 +359,7 @@ static long umdev_mount(char *source, char *target, char *filesystemtype,
 				return -1;
 			}
 		}
-		ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,data,&s,1,umdev_confirm,new);
+		ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,mountflags,data,&s,1,umdev_confirm,new);
 		new->devht=NULL;
 		if (new->dev) {
 			if (S_ISCHR(new->mode))

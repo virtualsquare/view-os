@@ -29,6 +29,8 @@
 #include <assert.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/mount.h>
+#include <limits.h>
 #include <unistd.h>
 #include "hashtab.h"
 
@@ -376,6 +378,7 @@ struct ht_elem *ht_tab_add(unsigned char type,void *obj,int objlen,
 struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 		const char *path,
 		const char *fstype,
+		unsigned long mountflags,
 		const char *flags,
 		struct service *service, 
 		unsigned char trailingnumbers,
@@ -385,11 +388,33 @@ struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 	char *mtabline;
 	const char *addpath;
 	struct ht_elem *rv;
-	if (source)
+	if (source) {
+		char opts[PATH_MAX];
+		opts[0]=0;
+		if (mountflags & MS_REMOUNT)
+			strncat(opts,"remount,",PATH_MAX);
+		if (mountflags & MS_RDONLY)
+			strncat(opts,"ro,",PATH_MAX);
+		if (mountflags & MS_NOATIME)
+			strncat(opts,"noatime,",PATH_MAX);
+		if (mountflags & MS_NODEV)
+			strncat(opts,"nodev,",PATH_MAX);
+		if (mountflags & MS_NOEXEC)
+			strncat(opts,"noexec,",PATH_MAX);
+		if (mountflags & MS_NOSUID)
+			strncat(opts,"nosuid,",PATH_MAX);
+		if (mountflags & MS_SYNCHRONOUS)
+			strncat(opts,"sync,",PATH_MAX);
+		if (flags && *flags)
+			strncat(opts,flags,PATH_MAX);
+		else if (*opts)
+			opts[strlen(opts)-1]=0;
+		else
+			strncpy(opts,"rw",PATH_MAX);
 		asprintf(&mtabline,"%s%s %s %s %s 0 %lld",
 				(checkfun==NEGATIVE_MOUNT)?"-":"",
-				source,path,fstype,flags?flags:"\"\"",get_epoch());
-	else
+				source,path,fstype,opts,get_epoch());
+	} else
 		mtabline=NULL;
 	if (path[1]=='\0' && path[0]=='/')
 		addpath="";
@@ -418,11 +443,14 @@ static void ht_tab_del_locked(struct ht_elem *ht) {
 	ht_tab_free(ht);
 }
 
+/* invalidate: the hash table element is not searchable.
+	 It will be deleted later */
 void ht_tab_invalidate(struct ht_elem *ht) {
 	if (ht)
 		ht->type=CHECKNOCHECK;
 }
 
+/* delete an element (using a write lock) */
 int ht_tab_del(struct ht_elem *ht) {
 	if (ht) {
 		pthread_rwlock_wrlock(&ht_tab_rwlock);
@@ -433,6 +461,7 @@ int ht_tab_del(struct ht_elem *ht) {
 		return -ENOENT;
 }
 
+/* searching API */
 struct ht_elem *ht_check(int type, void *arg, struct stat64 *st, int setepoch)
 {
 	struct ht_elem *hte;
@@ -490,6 +519,7 @@ int isnosys(sysfun f)
 	return (f==errnosys);
 }
 
+/* utility functions for sctab wrappers */
 sysfun ht_syscall(struct ht_elem *hte, int scno)
 {
 	if (hte) {
@@ -535,6 +565,7 @@ sysfun ht_event_subscribe(struct ht_elem *hte)
 	return (s->event_subscribe);
 }
 
+/* reverse scan of hash table elements, useful to close all files  */
 void forall_ht_tab_service_do(unsigned char type, 
 		struct service *service,
 		void (*fun)(struct ht_elem *ht, void *arg), 
@@ -556,6 +587,8 @@ void forall_ht_tab_service_do(unsigned char type,
 	pthread_rwlock_unlock(&ht_tab_rwlock);
 }
 
+/* delete all the invalid hash table elements: 
+	 see invalidate above */
 void forall_ht_tab_del_invalid(void)
 {
 	pthread_rwlock_wrlock(&ht_tab_rwlock);
@@ -572,6 +605,7 @@ void forall_ht_tab_del_invalid(void)
 	pthread_rwlock_unlock(&ht_tab_rwlock);
 }
 
+/* forward scan of all valid ht elems */
 void forall_ht_tab_do(unsigned char type,
 		void (*fun)(struct ht_elem *ht, void *arg),
 		void *arg) {
@@ -590,16 +624,14 @@ void forall_ht_tab_do(unsigned char type,
 	pthread_rwlock_unlock(&ht_tab_rwlock);
 }
 
+/* mount table creation */
 static void ht_tab_getmtab_add(struct ht_elem *ht, void *arg) {
 	FILE *f=arg;
 	if (ht->mtabline) 
 		fprintf(f,"%s\n",ht->mtabline);
 }
 
-void ht_tab_getmtab(char **buf, size_t *size) {
-	FILE *f=open_memstream(buf,size);
+void ht_tab_getmtab(FILE *f) {
 	if (f) 
 		forall_ht_tab_do(CHECKPATH,ht_tab_getmtab_add,f);
-	fclose(f);
 }
-
