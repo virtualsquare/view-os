@@ -221,13 +221,10 @@ static int umfuse_confirm(int type, void *arg, int arglen,
 }
 
 static char *unwrap(struct fuse_context *fc,char *path);
-/* XXX EXPERIMENTAL XXX HUMAN this must be rewritten! */
-#if 0
 /*HUMAN MODE MGMT*/
 #define MAY_EXEC 1
 #define MAY_WRITE 2
 #define MAY_READ 4
-#define MAY_APPEND 8
 
 static int check_group(gid_t gid){
 	static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
@@ -242,7 +239,7 @@ static int check_group(gid_t gid){
 	uid_t myuid;
 	gid_t mygid;
 
-	fc=fuse_get_context();
+	fc=um_mod_get_private_data();
 	if (fc!=NULL) {
 		myuid=fc->uid;
 		mygid=fc->gid;
@@ -277,7 +274,7 @@ static int check_group(gid_t gid){
 }
 
 static int check_permission(mode_t mode,uid_t uid,gid_t gid,int mask){
-	struct fuse_context *fc=fuse_get_context();
+	struct fuse_context *fc=um_mod_get_private_data();
 	int res=-EACCES;
 	uid_t myuid;
 	gid_t mygid;
@@ -305,7 +302,7 @@ static int check_permission(mode_t mode,uid_t uid,gid_t gid,int mask){
 }
 
 static int path_check_permission(char *path,int mask) {
-	struct fuse_context *fc=fuse_get_context();
+	struct fuse_context *fc=um_mod_get_private_data();
 	struct stat buf;
 	int rv=fc->fuse->fops.getattr(path,&buf);
 	if (rv>=0) rv=check_permission(buf.st_mode,buf.st_uid,buf.st_gid,mask);
@@ -326,9 +323,9 @@ static char *get_parent_path (char *path){
 
 static int check_parent(char *path,int mask) {
 	char *ppath=get_parent_path(path);
-	struct fuse_context *fc= searchcontext(ppath, SUBSTR);
+	struct fuse_context *fc=um_mod_get_private_data();
 	int rv;
-	if (fc!=NULL) {
+	if (strncmp(ppath,fc->fuse->path,fc->fuse->pathlen)==0) {
 		rv=path_check_permission(unwrap(fc,ppath),mask);
 	} else {
 		struct stat buf;
@@ -355,7 +352,6 @@ int check_owner(char *path){
 	}
 }
 /**/
-#endif
 
 struct startmainopt {
 	struct fuse_context *new;
@@ -997,8 +993,7 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 		goto error;
 	}
 
-	/* XXX EXPERIMENTAL XXX HUMAN */
-#if 0
+	/* HUMAN */
 	if ((fc->fuse->flags & FUSE_HUMAN) && (exists_err == 0))
 	{
 		int mask=MAY_READ | MAY_WRITE;
@@ -1010,7 +1005,6 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 			goto error;
 		}
 	}
-#endif
 
 	if(exists_err == 0 && (flags & O_TRUNC) && (flags & O_ACCMODE)!= O_RDONLY) {
 		rv=fc->fuse->fops.truncate(ft->path, 0);
@@ -1298,8 +1292,7 @@ static long umfuse_access(char *path, int mode)
 				(mode & F_OK) ? "F_OK": "");
 	}
 
-	/* XXX EXPERIMENTAL XXX HUMAN */
-#if 0
+	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		int mask=0;
 		switch (mode) {
@@ -1314,7 +1307,6 @@ static long umfuse_access(char *path, int mode)
 			return -1;
 		}
 	}
-#endif
 
 	/* "default permission" management */
 	if (fc->fuse->fops.access != NULL)
@@ -1359,8 +1351,7 @@ static long umfuse_mkdir(char *path, int mode)
 		return -1;
 	}
 
-	/* XXX EXPERIMENTAL XXX HUMAN */
-#if 0
+	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) 
 	{
 		rv=check_parent(path,MAY_WRITE);
@@ -1370,7 +1361,6 @@ static long umfuse_mkdir(char *path, int mode)
 			return -1;
 		}
 	}
-#endif
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
@@ -1395,8 +1385,7 @@ static long umfuse_rmdir(char *path)
 		return -1;
 	}
 
-	/* XXX EXPERIMENTAL XXX HUMAN */
-#if 0
+	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) 
 	{
 		rv=check_parent(path,MAY_WRITE);
@@ -1406,7 +1395,6 @@ static long umfuse_rmdir(char *path)
 			return -1;
 		}
 	}
-#endif
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
@@ -1431,8 +1419,7 @@ static long umfuse_chmod(char *path, int mode)
 		return -1;
 	}
 
-	/* XXX EXPERIMENTAL XXX HUMAN */
-#if 0
+	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		rv=check_owner(unwrap(fc,path));
 		if (rv<0) {
@@ -1440,7 +1427,6 @@ static long umfuse_chmod(char *path, int mode)
 			return -1;
 		}
 	}
-#endif
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
@@ -1465,8 +1451,7 @@ static long umfuse_chown(char *path, uid_t owner, gid_t group)
 		return -1;
 	}
 
-	/* XXX EXPERIMENTAL XXX HUMAN */
-#if 0
+	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		if ( (fc->uid != 0) && (fc->uid != owner)) rv=-EPERM;
 		if (rv>=0) rv=check_owner(unwrap(fc,path));
@@ -1476,7 +1461,6 @@ static long umfuse_chown(char *path, uid_t owner, gid_t group)
 			return -1;
 		}
 	}
-#endif
 
 	fc->pid=um_mod_getpid();
 	rv = fc->fuse->fops.chown(
@@ -1504,8 +1488,7 @@ static long umfuse_unlink(char *path)
 		return -1;
 	}
 
-	/* XXX EXPERIMENTAL XXX HUMAN */
-#if 0
+	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		rv=check_owner(unwrap(fc,path));
 		if (rv<0) {
@@ -1520,7 +1503,6 @@ static long umfuse_unlink(char *path)
 			return -1;
 		}
 	}
-#endif
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG)
@@ -1544,8 +1526,7 @@ static long umfuse_link(char *oldpath, char *newpath)
 		return -1;
 	}
 
-	/* XXX EXPERIMENTAL XXX HUMAN */
-#if 0
+	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		rv=check_parent(newpath,MAY_WRITE);
 		if (rv<0) {
@@ -1554,7 +1535,6 @@ static long umfuse_link(char *oldpath, char *newpath)
 			return -1;
 		}
 	}
-#endif
 
 	fc->pid=um_mod_getpid();
 
@@ -1605,8 +1585,7 @@ static long umfuse_rename(char *oldpath, char *newpath)
 		GMESSAGE("RENAME [%s] => %s ->%s\n",fc->fuse->path,oldpath, newpath);
 	}
 
-	/* XXX EXPERIMENTAL XXX HUMAN */
-#if 0
+	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		rv=check_parent(newpath,MAY_WRITE);
 		if (rv<0) {
@@ -1615,7 +1594,6 @@ static long umfuse_rename(char *oldpath, char *newpath)
 			return -1;
 		}
 	}
-#endif
 
 	rv = fc->fuse->fops.rename(
 			unwrap(fc, oldpath),
@@ -1640,8 +1618,7 @@ static long umfuse_symlink(char *oldpath, char *newpath)
 		return -1;
 	}
 
-	/* XXX EXPERIMENTAL XXX HUMAN */
-#if 0
+	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		rv=check_parent(newpath,MAY_WRITE);
 		if (rv<0) {
@@ -1650,7 +1627,6 @@ static long umfuse_symlink(char *oldpath, char *newpath)
 			return -1;
 		}
 	}
-#endif
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
@@ -1688,8 +1664,7 @@ static long umfuse_truncate64(char *path, loff_t length)
 		return -1;
 	}
 
-	/* XXX EXPERIMENTAL XXX HUMAN */
-#if 0
+	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		rv=path_check_permission (unwrap(fc,path),MAY_WRITE);
 		if (rv<0) {
@@ -1698,7 +1673,6 @@ static long umfuse_truncate64(char *path, loff_t length)
 			return -1;
 		}
 	}
-#endif
 
 	fc->pid=um_mod_getpid();
 
@@ -1761,8 +1735,7 @@ static long umfuse_utime(char *path, struct utimbuf *buf)
 		return -1;
 	}
 
-	/* XXX EXPERIMENTAL XXX HUMAN */
-#if 0
+	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		rv=path_check_permission(unwrap(fc,path),MAY_WRITE);
 		if (rv<0) {
@@ -1771,7 +1744,6 @@ static long umfuse_utime(char *path, struct utimbuf *buf)
 			return -1;
 		}
 	}
-#endif
 
 	fc->pid=um_mod_getpid();
 	if (buf == NULL) {
