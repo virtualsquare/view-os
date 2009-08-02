@@ -79,10 +79,152 @@ struct lfd_vtable {
 	int ififo,ofifo;
 };
 
-static short um_maxlfd=0;
+static int lfd_tabmax=0;
 static struct lfd_table **lfd_tab=NULL;
 
-/* umproc initialization */
+#define O1LFD
+#ifndef O1LFD
+  /* look for a free local file descriptor */
+static int lfd_alloc(void)
+{
+	int lfd;
+	for (lfd=0; lfd<lfd_tabmax && lfd_tab[lfd] != NULL ; lfd++)
+		;
+	/* if there are none, expands the lfd table */
+	if (lfd >= lfd_tabmax) {
+		int i=lfd_tabmax;
+		//fprint2("lfd_tab realloc oldndf %d\n",lfd_tabmax);
+		lfd_tabmax = (lfd + OLFD_STEP) & ~OLFD_STEP_1;
+		//fprint2("lfd_tab realloc newnfd %d\n",lfd_tabmax);
+		lfd_tab=(struct lfd_table **) realloc (lfd_tab, (lfd_tabmax * sizeof (struct lfd_table *)));
+		assert (lfd_tab);
+
+		/* Clean the new entries in lfd_tab or lfd_cleanall will not work properly */
+		for (;i < lfd_tabmax;i++)
+		{
+			lfd_tab[i]=NULL;
+		}
+	}
+	assert(lfd_tab[lfd] == NULL);
+	lfd_tab[lfd] = (struct lfd_table *)malloc (sizeof(struct lfd_table));
+	assert(lfd_tab[lfd] != NULL);
+	return lfd;
+}
+
+static inline void lfd_free(int lfd)
+{
+	free(lfd_tab[lfd]);
+	lfd_tab[lfd]=NULL;
+}
+
+static inline void lfd_forall(void (*f)(int lfd,void *arg),void *arg)
+{
+	register int lfd;
+	for (lfd=0; lfd<lfd_tabmax; lfd++) {
+		if (lfd_tab[lfd] != NULL)
+			f(lfd,arg);
+	}
+}
+
+static inline void *lfd_forall_r(void *(*f)(int lfd,void *arg1,void *arg2),
+		void *arg1,void *arg2)
+{
+	register int lfd;
+	void *rv=NULL;
+	for (lfd=0; lfd<lfd_tabmax; lfd++) {
+		if (lfd_tab[lfd] != NULL) {
+			if ((rv=f(lfd,arg1,arg2)) != NULL)
+				return rv;
+		}
+	}
+	return NULL;
+}
+#else
+
+////static pthread_mutex_t lfd_tab_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+//static struct lfd_table **lfd_tab=NULL;
+//static int lfd_tabmax=0;
+static int lfd_tabsize=0;
+static int lfd_tabfree=-1;
+
+int lfd_alloc()
+{
+	int rv;
+	//pthread_mutex_lock( &lfd_tab_mutex );
+	if (lfd_tabfree>=0) {
+		rv=lfd_tabfree;
+		lfd_tabfree=(int)(lfd_tab[rv]);
+	} else {
+		rv=lfd_tabmax++;
+		if (rv>=lfd_tabsize) {
+			lfd_tabsize=(rv + OLFD_STEP) & ~OLFD_STEP_1;
+			lfd_tab=realloc(lfd_tab,lfd_tabsize* sizeof(void *));
+			assert(lfd_tab);
+		}
+	}
+	lfd_tab[rv]=malloc(sizeof(struct lfd_table));
+	assert(lfd_tab[rv]);
+	//pthread_mutex_unlock( &lfd_tab_mutex );
+	return rv;
+}
+
+void lfd_free(int lfd)
+{
+	free(lfd_tab[lfd]);
+	//pthread_mutex_lock( &lfd_tab_mutex );
+	lfd_tab[lfd]=(void *)lfd_tabfree;
+	lfd_tabfree=lfd;
+	//pthread_mutex_unlock( &lfd_tab_mutex );
+}
+
+static inline void lfd_forall(void (*f)(int lfd,void *arg),void *arg)
+{
+	int lfd;
+	//pthread_mutex_lock( &lfd_tab_mutex );
+	while (lfd_tabfree>=0) {
+		lfd=lfd_tabfree;
+		lfd_tabfree=(int)(lfd_tab[lfd]);
+		lfd_tab[lfd]=NULL;
+	}
+	for (lfd=0; lfd<lfd_tabmax; lfd++) {
+		if (lfd_tab[lfd] != NULL)
+			f(lfd,arg);
+		else {
+			lfd_tab[lfd]=(void *)lfd_tabfree;
+			lfd_tabfree=lfd;
+		}
+	}
+	//pthread_mutex_unlock( &lfd_tab_mutex );
+}
+
+static inline void *lfd_forall_r(void *(*f)(int lfd,void *arg1,void *arg2),
+		void *arg1,void *arg2)
+{
+	int lfd;
+	void *rv=NULL;
+	//pthread_mutex_lock( &lfd_tab_mutex );
+	while (lfd_tabfree>=0) {
+		lfd=lfd_tabfree;
+		lfd_tabfree=(int)(lfd_tab[lfd]);
+		lfd_tab[lfd]=NULL;
+	}
+	for (lfd=0; lfd<lfd_tabmax; lfd++) {
+		if (lfd_tab[lfd] != NULL) {
+			if (rv == NULL)
+				rv=f(lfd,arg1,arg2);
+		} else {
+			lfd_tab[lfd]=(void *)lfd_tabfree;
+			lfd_tabfree=lfd;
+		} 
+	}               
+	//pthread_mutex_unlock( &lfd_tab_mutex );
+	return rv;
+}
+
+#endif
+
+	/* umproc initialization */
 void um_proc_open()
 {
 	char path[PATH_MAX];
@@ -260,27 +402,7 @@ int lfd_open (struct ht_elem *hte, int sfd, char *path, int flags, int nested)
 	GDEBUG(3, "lfd_open sfd %d, path %s, nested %d", sfd, path, nested);
 	/*fprint2("lfd_open sfd %d, path %s, nested %d\n", sfd, path, nested);*/
 	/*fprint2("lfd_open %x sfd %d %s",hte->service->code,sfd,(path==NULL)?"<null>":path);*/
-	/* look for a free local file descriptor */
-	for (lfd=0; lfd<um_maxlfd && lfd_tab[lfd] != NULL ; lfd++)
-		;
-	/* if there are none, expands the lfd table */
-	if (lfd >= um_maxlfd) {
-		int i=um_maxlfd;
-		//fprint2("lfd_tab realloc oldndf %d\n",um_maxlfd);
-		um_maxlfd = (lfd + OLFD_STEP) & ~OLFD_STEP_1;
-		//fprint2("lfd_tab realloc newnfd %d\n",um_maxlfd);
-		lfd_tab=(struct lfd_table **) realloc (lfd_tab, (um_maxlfd * sizeof (struct lfd_table *)));
-		assert (lfd_tab);
-
-		/* Clean the new entries in lfd_tab or lfd_cleanall will not work properly */
-		for (;i < um_maxlfd;i++)
-		{
-			lfd_tab[i]=NULL;
-		}
-	}
-	assert(lfd_tab[lfd] == NULL);
-	lfd_tab[lfd] = (struct lfd_table *)malloc (sizeof(struct lfd_table));
-	assert(lfd_tab[lfd] != NULL);
+	lfd=lfd_alloc();
 	//fprint2("LEAK %x %x path=%s\n",lfd_tab,lfd_tab[lfd],path);
 	lfd_tab[lfd]->path=(path==NULL)?NULL:strdup(path);
 	lfd_tab[lfd]->hte=hte;
@@ -320,8 +442,8 @@ void lfd_close (int lfd)
 {
 	int rv;
 	GDEBUG(5, "close %d %x",lfd,lfd_tab[lfd]);
-	//fprint2("lfd close %d %d %x %d %s\n",lfd_tab[lfd]->count,lfd,um_maxlfd,lfd_tab[lfd],lfd_tab[lfd]->path);
-	assert (lfd < 0 || (lfd < um_maxlfd && lfd_tab[lfd] != NULL));
+	//fprint2("lfd close %d %d %x %d %s\n",lfd_tab[lfd]->count,lfd,lfd_tabmax,lfd_tab[lfd],lfd_tab[lfd]->path);
+	assert (lfd < 0 || (lfd < lfd_tabmax && lfd_tab[lfd] != NULL));
 	/* if this is the last reference to the lfd 
 	 * close everything*/
 	if (lfd >= 0 && --(lfd_tab[lfd]->count) == 0) {
@@ -347,8 +469,7 @@ void lfd_close (int lfd)
 		/* free path and structure */
 		if (lfd_tab[lfd]->path != NULL)
 			free(lfd_tab[lfd]->path);
-		free(lfd_tab[lfd]);
-		lfd_tab[lfd]=NULL;
+		lfd_free(lfd);
 	}
 }
 
@@ -356,7 +477,7 @@ void lfd_close (int lfd)
 int lfd_dup(int lfd)
 {
 	if (lfd >= 0) {
-		assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
+		assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
 		return ++lfd_tab[lfd]->count;
 	} else
 		return 1;
@@ -365,7 +486,7 @@ int lfd_dup(int lfd)
 /* access method to read how many process fd share the same lfd element */
 int lfd_getcount(int lfd)
 {
-	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
+	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
 	return lfd_tab[lfd]->count;
 }
 
@@ -373,15 +494,15 @@ int lfd_getcount(int lfd)
 void lfd_nullsfd(int lfd)
 {
 	//fprint2("lfd_nullsfd %d %d %x\n",
-			//lfd,um_maxlfd,lfd_tab[lfd]);
-	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
+			//lfd,lfd_tabmax,lfd_tab[lfd]);
+	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
 	lfd_tab[lfd]->sfd= -1;
 }
 
 /* lfd 2 sfd conversion */
 int lfd_getsfd(int lfd)
 {
-	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
+	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
 	return lfd_tab[lfd]->sfd;
 }
 	
@@ -390,8 +511,8 @@ struct ht_elem *lfd_getht(int lfd)
 {
 	//fprint2("getht %d -> %x\n",lfd,lfd_tab[lfd]);
 	// XXX EXP
-	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
-	if (lfd >= um_maxlfd || lfd_tab[lfd] == NULL)
+	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
+	if (lfd >= lfd_tabmax || lfd_tab[lfd] == NULL)
 		return NULL;
 	return lfd_tab[lfd]->hte;
 }
@@ -399,14 +520,14 @@ struct ht_elem *lfd_getht(int lfd)
 /* lfd: get the filename (of the fifo): for virtualized files*/
 char *lfd_getfilename(int lfd)
 {
-	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL && lfd_tab[lfd]->pvtab != NULL);
+	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL && lfd_tab[lfd]->pvtab != NULL);
 	return lfd_tab[lfd]->pvtab->filename;
 }
 
 /* lfd: get the path */
 char *lfd_getpath(int lfd)
 {
-	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
+	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
 	return lfd_tab[lfd]->path;
 }
 
@@ -469,8 +590,8 @@ char *fd_getpath(struct pcb_file *p, int fd)
 	if (fd>=0 && fd < p->nolfd) {
 		int lfd=FD2LFD(p,fd);
 		// XXX EXP
-		assert (lfd >= 0 && lfd < um_maxlfd && lfd_tab[lfd] != NULL); 
-		if (lfd >= 0 && lfd < um_maxlfd && lfd_tab[lfd] != NULL) {
+		assert (lfd >= 0 && lfd < lfd_tabmax && lfd_tab[lfd] != NULL); 
+		if (lfd >= 0 && lfd < lfd_tabmax && lfd_tab[lfd] != NULL) {
 			return lfd_tab[lfd]->path;
 		} else {
 			return NULL;
@@ -556,16 +677,18 @@ void lfd_deregister_n_close(struct pcb_file *p, int fd)
 }
 
 /* final clean up of all the fifos */
+static void lfd_closeall_item(int lfd, void *arg)
+{
+	if (lfd_tab[lfd]->pvtab != NULL) {
+		r_close(lfd_tab[lfd]->pvtab->ififo);
+		r_close(lfd_tab[lfd]->pvtab->ofifo);
+		r_unlink(lfd_tab[lfd]->pvtab->filename);
+	}
+}
+
 void lfd_closeall()
 {
-	register int lfd;
-	for (lfd=0; lfd<um_maxlfd; lfd++) {
-		if (lfd_tab[lfd] != NULL && lfd_tab[lfd]->pvtab != NULL) {
-			r_close(lfd_tab[lfd]->pvtab->ififo);
-			r_close(lfd_tab[lfd]->pvtab->ofifo);
-			r_unlink(lfd_tab[lfd]->pvtab->filename);
-		}
-	}
+	lfd_forall(lfd_closeall_item,NULL);
 }
 
 /* unblock a process waiting on a select/poll call */
@@ -573,10 +696,10 @@ void lfd_signal(int lfd)
 {
 	char ch=0;
 	//fprint2("lfd_signal %d\n",lfd);
-	//assert (lfd < um_maxlfd && lfd_tab[lfd]->pvtab != NULL);
+	//assert (lfd < lfd_tabmax && lfd_tab[lfd]->pvtab != NULL);
 	// XXX EXP
-	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL);
-	if  (lfd < um_maxlfd && lfd_tab[lfd] != NULL && lfd_tab[lfd]->pvtab != NULL) {
+	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
+	if  (lfd < lfd_tabmax && lfd_tab[lfd] != NULL && lfd_tab[lfd]->pvtab != NULL) {
 		if (lfd_tab[lfd]->pvtab->signaled == 0) {
 			lfd_tab[lfd]->pvtab->signaled = 1;
 			r_write(lfd_tab[lfd]->pvtab->ofifo,&ch,1);
@@ -588,7 +711,7 @@ void lfd_signal(int lfd)
 void lfd_delsignal(int lfd)
 {
 	char buf[1024];
-	assert (lfd < um_maxlfd && lfd_tab[lfd] != NULL && lfd_tab[lfd]->pvtab != NULL);
+	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL && lfd_tab[lfd]->pvtab != NULL);
 	if (lfd_tab[lfd]->pvtab->signaled == 1) {
 		lfd_tab[lfd]->pvtab->signaled = 0;
 		r_read(lfd_tab[lfd]->pvtab->ififo,buf,1024);
@@ -597,12 +720,18 @@ void lfd_delsignal(int lfd)
 
 /* sfd + service --2--> path conversion
  * linear scan, slow! */
+
+static void *sfd_getpath_check(int lfd, void *arg1, void *arg2)
+{
+	struct ht_elem *hte=arg1;
+	int *psfd=arg2;
+	if (lfd_tab[lfd]->hte == hte && lfd_tab[lfd]->sfd == *psfd)
+		return lfd_tab[lfd]->path;
+	else
+		return NULL;
+}
+
 char *sfd_getpath(struct ht_elem *hte, int sfd)
 {
-	int lfd;
-	for (lfd=0; lfd<um_maxlfd; lfd++)
-		if(lfd_tab[lfd] && lfd_tab[lfd]->hte == hte &&
-				lfd_tab[lfd]->sfd == sfd)
-			return lfd_tab[lfd]->path;
-	return NULL;
+	return lfd_forall_r(sfd_getpath_check,hte,&sfd);
 }
