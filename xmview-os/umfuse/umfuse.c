@@ -651,8 +651,8 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 		if (new->fuse->inuse == FUSE_ABORT)
 		{
 			struct fuse_context *fc_norace=new;
-			GERROR("UMOUNT ABORT");
-			ht_tab_del(new);
+			//GERROR("UMOUNT ABORT");
+			ht_tab_del(um_mod_get_hte());
 			pthread_join(fc_norace->fuse->thread, NULL);
 			dlclose(fc_norace->fuse->dlhandle);
 			free(fc_norace->fuse->filesystemtype);
