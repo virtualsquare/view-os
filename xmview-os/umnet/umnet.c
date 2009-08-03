@@ -740,7 +740,7 @@ fini (void)
 	free(s.socket);
 	free(s.virsc);
 	forall_ht_tab_service_do(CHECKPATH,&s,htcontextclose,NULL);
-	forall_ht_tab_del_invalid();
+	forall_ht_tab_del_invalid(CHECKPATH);
 	umnet_delallproc();
 	fprint2("umnet fini\n");
 }

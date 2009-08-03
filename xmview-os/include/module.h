@@ -312,8 +312,9 @@ struct ht_elem {
 	char *mtabline;
 	struct timestamp tst;
 	unsigned char type;
-	struct service *service;
 	unsigned char trailingnumbers;
+	unsigned char invalid;
+	struct service *service;
 	void *private_data;
 	int objlen;
 	long hashsum;
@@ -347,7 +348,7 @@ void forall_ht_tab_tst_do(unsigned char type,
 		void (*fun)(struct ht_elem *ht, void *arg),
 		void *arg);
 
-void forall_ht_tab_del_invalid(void);
+void forall_ht_tab_del_invalid(unsigned char type);
 
 struct ht_elem *ht_check(int type, void *arg, struct stat64 *st, int setepoch);
 

@@ -1017,7 +1017,7 @@ fini (void)
 	free(s.syscall);
 	free(s.socket);
 	forall_ht_tab_service_do(CHECKPATH,&s,htcontextclose,NULL);
-	forall_ht_tab_del_invalid();
+	forall_ht_tab_del_invalid(CHECKPATH);
 	fprint2("umdev fini\n");
 }
 

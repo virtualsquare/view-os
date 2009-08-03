@@ -40,7 +40,7 @@
 
 static struct ht_elem *ht_hash[MNTTAB_HASH_SIZE]; 
 static struct ht_elem *ht_hash0[NCHECKS]; 
-static struct ht_elem *ht_head;
+static struct ht_elem *ht_head[NCHECKS];
 //static struct ht_elem *ht_free;
 static pthread_rwlock_t ht_tab_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
@@ -249,7 +249,8 @@ static struct ht_elem *ht_tab_internal_search(unsigned char type, void *obj, int
 						memcmp(obj,ht->obj,len)==0 &&
 						(ht->trailingnumbers || !trailnum(objc)) &&
 						(tst->epoch > ht->tst.epoch) &&
-						(e=tst_matchingepoch(&(ht->tst))) > 0) {
+						(e=tst_matchingepoch(&(ht->tst))) > 0 &&
+						(ht->invalid == 0)) {
 					/*carrot add*/
 					if (ht->checkfun == NEGATIVE_MOUNT)
 						carh=carrot_delete(carh, ht->private_data);
@@ -332,6 +333,7 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 			new->mtabline=mtabline;
 			new->tst=tst_timestamp();
 			new->trailingnumbers=trailingnumbers;
+			new->invalid=0;
 			new->private_data=private_data;
 			new->service=service;
 			new->checkfun=checkfun;
@@ -341,14 +343,14 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 			else
 				hashhead=&ht_hash[hashmod(new->hashsum)]; 
 			pthread_rwlock_wrlock(&ht_tab_rwlock);
-			if (ht_head) {
-				new->next=ht_head->next;
-				new->prev=ht_head;
+			if (ht_head[type]) {
+				new->next=ht_head[type]->next;
+				new->prev=ht_head[type];
 				new->next->prev=new;
 				new->prev->next=new;
-				ht_head=new;
+				ht_head[type]=new;
 			} else 
-				ht_head=new->next=new->prev=new;
+				ht_head[type]=new->next=new->prev=new;
 			if (*hashhead) 
 				(*hashhead)->pprevhash=&(new->nexthash);
 			new->nexthash=*hashhead;
@@ -429,11 +431,12 @@ struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 
 /* delete an element from the hash table */
 static void ht_tab_del_locked(struct ht_elem *ht) {
-	if (ht == ht_head) {
+	int type=ht->type;
+	if (ht == ht_head[type]) {
 		if (ht->next == ht)
-			ht_head=NULL;
+			ht_head[type]=NULL;
 		else
-			ht_head = ht->prev;
+			ht_head[type] = ht->prev;
 	}
 	ht->prev->next=ht->next;
 	ht->next->prev=ht->prev;
@@ -447,7 +450,7 @@ static void ht_tab_del_locked(struct ht_elem *ht) {
 	 It will be deleted later */
 void ht_tab_invalidate(struct ht_elem *ht) {
 	if (ht)
-		ht->type=CHECKNOCHECK;
+		ht->invalid=1;
 }
 
 /* delete an element (using a write lock) */
@@ -571,36 +574,36 @@ void forall_ht_tab_service_do(unsigned char type,
 		void (*fun)(struct ht_elem *ht, void *arg), 
 		void *arg) {
 	pthread_rwlock_rdlock(&ht_tab_rwlock);
-	if (ht_head) {
-		struct ht_elem *scanht=ht_head;
+	if (ht_head[type]) {
+		struct ht_elem *scanht=ht_head[type];
 		struct ht_elem *next=scanht;
 		do {
 			scanht=next;
-			if (type==CHECKNOCHECK || scanht->type == type) {
+			if (scanht->invalid == 0) {
 				if (service == NULL || scanht->service == service)
 					fun(scanht, arg);
 			}
 			next=scanht->prev;
 			//fprint2("SCAN %p %p %s\n",next,scanht,scanht->obj);
-		} while (ht_head != NULL && next != ht_head);
+		} while (ht_head[type] != NULL && next != ht_head[type]);
 	}
 	pthread_rwlock_unlock(&ht_tab_rwlock);
 }
 
 /* delete all the invalid hash table elements: 
 	 see invalidate above */
-void forall_ht_tab_del_invalid(void)
+void forall_ht_tab_del_invalid(unsigned char type)
 {
 	pthread_rwlock_wrlock(&ht_tab_rwlock);
-	if (ht_head) {
-		struct ht_elem *scanht=ht_head;
+	if (ht_head[type]) {
+		struct ht_elem *scanht=ht_head[type];
 		struct ht_elem *next=scanht->next;
 		do {
 			scanht=next;
-			if (scanht->type == CHECKNOCHECK)
+			if (scanht->invalid) 
 				ht_tab_del_locked(scanht);
 			next=scanht->next;
-		} while (ht_head != NULL && scanht != ht_head);
+		} while (ht_head[type] != NULL && scanht != ht_head[type]);
 	}
 	pthread_rwlock_unlock(&ht_tab_rwlock);
 }
@@ -610,16 +613,16 @@ void forall_ht_tab_do(unsigned char type,
 		void (*fun)(struct ht_elem *ht, void *arg),
 		void *arg) {
 	pthread_rwlock_rdlock(&ht_tab_rwlock);
-	if (ht_head) {
-		struct ht_elem *scanht=ht_head;
+	if (ht_head[type]) {
+		struct ht_elem *scanht=ht_head[type];
 		do {
 			scanht=scanht->next;
-			if (type==CHECKNOCHECK || scanht->type == type) {
+			if (scanht->invalid == 0) {
 				if (tst_matchingepoch(&(scanht->tst)) > 0)
 					fun(scanht, arg);
 			}
 			//fprint2("SCAN %p %s\n",scanht,scanht->obj);
-		} while (ht_head != NULL && scanht != ht_head);
+		} while (ht_head[type] != NULL && scanht != ht_head[type]);
 	}
 	pthread_rwlock_unlock(&ht_tab_rwlock);
 }

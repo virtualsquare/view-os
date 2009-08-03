@@ -482,6 +482,6 @@ fini (void)
 	free(s.socket);
 	finimuscno();
 	forall_ht_tab_service_do(CHECKPATH,&s,htcontextclose,NULL);
-	forall_ht_tab_del_invalid();
+	forall_ht_tab_del_invalid(CHECKPATH);
 	fprint2("ummisc fini\n");
 }
