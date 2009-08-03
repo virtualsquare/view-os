@@ -72,5 +72,8 @@ void forall_ht_tab_del_invalid(unsigned char type);
 void *ht_get_private_data(struct ht_elem *hte);
 void ht_set_private_data(struct ht_elem *hte,void *private_data);
 char *ht_servicename(struct ht_elem *hte);
+void ht_count_plus1(struct ht_elem *hte);
+void ht_count_minus1(struct ht_elem *hte);
+int ht_get_count(struct ht_elem *hte);
 
 #endif

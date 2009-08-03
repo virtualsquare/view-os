@@ -596,24 +596,28 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 	return SC_FAKE;
 }
 
+static int wrap_in_umount_generic(struct pcb *pc,struct ht_elem *hte, 
+		sysfun um_syscall,int flags)
+{
+	if (ht_get_count(hte) > 0)
+		pc->erno=EBUSY;
+	else if ((pc->retval = um_syscall(pc->path,flags)) < 0)
+		pc->erno=errno;
+	return SC_FAKE;
+}
+
 int wrap_in_umount(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
-	unsigned int flags=0;
-	if ((pc->retval = um_syscall(pc->path,flags)) < 0)
-		pc->erno=errno;
-	return SC_FAKE;
+	return wrap_in_umount_generic(pc,hte,um_syscall,0);
 }
 
 int wrap_in_umount2(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
-	unsigned int flags=0;
 	// flags is defined as int in umount manpage.
-	flags= (int) pc->sysargs[1];
-	if ((pc->retval = um_syscall(pc->path,flags)) < 0)
-		pc->erno=errno;
-	return SC_FAKE;
+	unsigned int flags= (int) pc->sysargs[1];
+	return wrap_in_umount_generic(pc,hte,um_syscall,flags);
 }
 
 #if (defined(__powerpc__) && !defined(__powerpc64__)) || (defined (MIPS) && !defined(__mips64))

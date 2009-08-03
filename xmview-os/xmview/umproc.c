@@ -317,7 +317,7 @@ char *um_proc_fakecwd()
 }
 
 /* create a temporary file name, unique names are guaranteed by using
- * service code+lfd index in the name */
+ * service name+lfd index in the name */
 static char *um_proc_tmpfile(struct ht_elem *hte, int lfd)
 {
 	snprintf(um_tmpfile_tail,um_tmpfile_len,"%s%02d",ht_servicename(hte),lfd);
@@ -403,6 +403,8 @@ int lfd_open (struct ht_elem *hte, int sfd, char *path, int flags, int nested)
 	/*fprint2("lfd_open sfd %d, path %s, nested %d\n", sfd, path, nested);*/
 	/*fprint2("lfd_open %s sfd %d %s",ht_servicename(hte),sfd,(path==NULL)?"<null>":path);*/
 	lfd=lfd_alloc();
+	if (hte)
+		ht_count_plus1(hte);
 	//fprint2("LEAK %x %x path=%s\n",lfd_tab,lfd_tab[lfd],path);
 	lfd_tab[lfd]->path=(path==NULL)?NULL:strdup(path);
 	lfd_tab[lfd]->hte=hte;
@@ -469,6 +471,8 @@ void lfd_close (int lfd)
 		/* free path and structure */
 		if (lfd_tab[lfd]->path != NULL)
 			free(lfd_tab[lfd]->path);
+		if (hte)
+			ht_count_minus1(hte);
 		lfd_free(lfd);
 	}
 }
@@ -506,7 +510,7 @@ int lfd_getsfd(int lfd)
 	return lfd_tab[lfd]->sfd;
 }
 	
-/* lfd: get the service code */
+/* lfd: get the hash table element */
 struct ht_elem *lfd_getht(int lfd)
 {
 	//fprint2("getht %d -> %x\n",lfd,lfd_tab[lfd]);

@@ -4,6 +4,8 @@
  *   hashtab.c: main hash table
  *   
  *   Copyright 2009 Renzo Davoli University of Bologna - Italy
+ *   Credit: this ideas were tested on a preliminary version by 
+ *   Marcello Stanisci.
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License, version 2, as
@@ -34,6 +36,20 @@
 #include <unistd.h>
 #include "hashtab.h"
 
+/* struct ht_elem:
+	 @obj: hash key
+	 @mtabline: mount tab line
+	 @type: type (see CHECK* in services.c)
+	 @trailingnumbers: boolean, match pathnames with trailing numbers
+	 @invalid: boolean, the element is logially deleted
+	 @service: service associated to this item
+	 @private_data: opaque container for module data
+	 @objlen: len of the hash key
+	 @hashsum: hash sum for quick negative matching
+	 @count: usage coune
+	 @checkfun: confirmation function for exceptions
+	 @prev/next/pprevhash,nexthash: addresses for list linking
+	 */
 struct ht_elem {
 	void *obj;
 	char *mtabline;
@@ -45,6 +61,7 @@ struct ht_elem {
 	void *private_data;
 	int objlen;
 	long hashsum;
+	int count;
 	checkfun_t checkfun;
 	struct ht_elem *prev,*next,**pprevhash,*nexthash;
 };
@@ -352,6 +369,7 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 			new->private_data=private_data;
 			new->service=service;
 			new->checkfun=checkfun;
+			new->count=0;
 			new->hashsum=hashsum(type,new->obj,new->objlen);
 			if (objlen==0)
 				hashhead=&ht_hash0[type];
@@ -691,4 +709,19 @@ char *ht_servicename(struct ht_elem *hte)
 		return hte->service->name;
 	else
 		return NULL;
+}
+
+void ht_count_plus1(struct ht_elem *hte)
+{
+	hte->count++;
+}
+
+void ht_count_minus1(struct ht_elem *hte)
+{ 
+	hte->count--;
+}
+
+int ht_get_count(struct ht_elem *hte)
+{
+	return hte->count;
 }
