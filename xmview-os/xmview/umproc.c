@@ -320,7 +320,7 @@ char *um_proc_fakecwd()
  * service code+lfd index in the name */
 static char *um_proc_tmpfile(struct ht_elem *hte, int lfd)
 {
-	snprintf(um_tmpfile_tail,um_tmpfile_len,"%02x%02d",hte->service->code,lfd);
+	snprintf(um_tmpfile_tail,um_tmpfile_len,"%s%02d",ht_servicename(hte),lfd);
 	//fprint2("um_proc_tmpfile %s\n",um_tmpfile);
 	return um_tmpfile;
 }
@@ -401,7 +401,7 @@ int lfd_open (struct ht_elem *hte, int sfd, char *path, int flags, int nested)
 	int lfd,fifo;
 	GDEBUG(3, "lfd_open sfd %d, path %s, nested %d", sfd, path, nested);
 	/*fprint2("lfd_open sfd %d, path %s, nested %d\n", sfd, path, nested);*/
-	/*fprint2("lfd_open %x sfd %d %s",hte->service->code,sfd,(path==NULL)?"<null>":path);*/
+	/*fprint2("lfd_open %s sfd %d %s",ht_servicename(hte),sfd,(path==NULL)?"<null>":path);*/
 	lfd=lfd_alloc();
 	//fprint2("LEAK %x %x path=%s\n",lfd_tab,lfd_tab[lfd],path);
 	lfd_tab[lfd]->path=(path==NULL)?NULL:strdup(path);

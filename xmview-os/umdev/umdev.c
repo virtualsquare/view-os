@@ -109,7 +109,7 @@ static void printdebug(int level, const char *file, const int line, const char *
 static int umdev_confirm(int type, void *arg, int arglen, struct ht_elem *ht)
 {
 	char *path=arg;
-	struct umdev *fc=ht->private_data;
+	struct umdev *fc=ht_get_private_data(ht);
 	char *suffix=path+strlen(fc->path);
 	//fprint2("umdev_confirm path %s suffix %s\n",path,suffix);
 	int sub=atoi(suffix);
@@ -122,7 +122,7 @@ static int umdev_confirm(int type, void *arg, int arglen, struct ht_elem *ht)
 static int umdev_confirm_dev(int type, void *arg, int arglen, struct ht_elem *ht)
 {
 	dev_t *dev=arg;
-	struct umdev *fc=ht->private_data;
+	struct umdev *fc=ht_get_private_data(ht);
 	if (major(fc->dev) == major(*dev) &&
 			(minor(fc->dev) == -1 ||
 			 (minor(fc->dev) <= minor(*dev) &&
@@ -959,7 +959,8 @@ mode_t umdev_getmode(struct umdev *devhandle)
 init (void)
 {
 	fprint2("umdev init\n");
-	s.name="umdev";
+	s.name="UMDEV";
+	s.description="virtual devices";
 	s.code=UMDEV_SERVICE_CODE;
 	s.ioctlparms=umdev_ioctlparms;
 	//pthread_key_create(&context_key,NULL);

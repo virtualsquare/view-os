@@ -33,7 +33,8 @@ __attribute__ ((constructor))
 init (void)
 {
 	GMESSAGE("testmodul2 init");
-	s.name="Test Module 2";
+	s.name="TEST2";
+	s.description="Test Module 2";
 	s.code=0xfd;
 	s.syscall=NULL;
 	s.socket=NULL;

@@ -428,7 +428,7 @@ static int viewfs_confirm(int type, void *arg, int arglen,
 		struct ht_elem *ht)
 {
 	char *path=arg;
-	struct viewfs *fc=ht->private_data;
+	struct viewfs *fc=ht_get_private_data(ht);
 	return !isexception(path,fc->pathlen,fc->exceptions,fc);
 }
 
@@ -1323,12 +1323,12 @@ static long viewfs_mount(char *source, char *target, char *filesystemtype,
 	if (rv==0) {
 		if (flags & VIEWFS_RENEW){
 			flags &= ~VIEWFS_RENEW;
-			struct ht_elem *hte=ht_check(CHECKPATH,target,NULL,0);
-			if (hte && hte->objlen==strlen(target) &&
-					hte->service == &s) {
-				struct viewfs *vfs=hte->private_data;
+			struct ht_elem *hte=ht_search(CHECKPATH,target,
+					strlen(target),&s);
+			if (hte) {
+				struct viewfs *vfs=ht_get_private_data(hte);
 				if (strcmp(source,vfs->source)==0) 
-					um_mod_renew_hte(hte);
+					ht_renew(hte);
 				else {
 					errno=ENOENT;
 					rv=-1;          
@@ -1391,7 +1391,8 @@ static long viewfs_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 init (void)
 {
 	GMESSAGE("viewfs init");
-	s.name="viewfs filesystem patchwork";
+	s.name="VIEWFS";
+	s.description="filesystem patchwork";
 	s.code=0x05;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));

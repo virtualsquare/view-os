@@ -34,21 +34,6 @@ typedef int (* checkfun_t)(int type, void *arg, int arglen,
 #define NEGATIVE_MOUNT ((checkfun_t) 1)
 #define HT_ERR ((struct ht_elem *) 1)
 
-struct ht_elem {
-	void *obj;
-	char *mtabline;
-	struct timestamp tst;
-	unsigned char type;
-	unsigned char trailingnumbers;
-	unsigned char invalid;
-	struct service *service;
-	void *private_data;
-	int objlen;
-	long hashsum;
-	checkfun_t checkfun;
-	struct ht_elem *prev,*next,**pprevhash,*nexthash;
-};
-
 /* add a path to the hashtable (this creates an entry for the mounttab) */
 struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 		const char *path, const char *fstype, 
@@ -83,4 +68,9 @@ void forall_ht_tab_do(unsigned char type,
 		void *arg);
 
 void forall_ht_tab_del_invalid(unsigned char type);
+
+void *ht_get_private_data(struct ht_elem *hte);
+void ht_set_private_data(struct ht_elem *hte,void *private_data);
+char *ht_servicename(struct ht_elem *hte);
+
 #endif

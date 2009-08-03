@@ -99,7 +99,8 @@ __attribute__ ((constructor))
 init (void)
 {
 	GMESSAGE("real init");
-	s.name="Identity (server side)";
+	s.name="REAL";
+	s.description="Identity (server side)";
 	s.code=0xf8;
 	s.ctl = ctl;
 	

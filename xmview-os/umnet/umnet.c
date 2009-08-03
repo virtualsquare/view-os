@@ -183,10 +183,10 @@ static struct umnet *umnet_getdefstack(int id, int domain)
 		//fprint2("   %p %p\n",defnet[id],defnet[id]->defstack[domain-1]);
 		return defnet[id]->defstack[domain-1];
 	} else {
-		struct ht_elem *hte=ht_check(CHECKPATH,DEFAULT_NET_PATH,NULL,0);
-		if (hte && hte->objlen==strlen(DEFAULT_NET_PATH) &&
-				hte->service == &s)
-			return hte->private_data;
+		struct ht_elem *hte=ht_search(CHECKPATH,DEFAULT_NET_PATH,
+				strlen(DEFAULT_NET_PATH),&s);
+		if (hte)
+			return ht_get_private_data(hte);
 		else
 			return NULL;
 	}
@@ -687,7 +687,8 @@ static long umnet_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 init (void)
 {
 	fprint2("umnet init\n");
-	s.name="umnet";
+	s.name="UMNET";
+	s.description="virtual (multi-stack) networking";
 	s.code=UMNET_SERVICE_CODE;
 	s.ioctlparms=umnet_ioctlparms;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));

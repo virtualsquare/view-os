@@ -145,7 +145,8 @@ static long sock_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 init (void)
 {
 	GMESSAGE("sockettest init");
-	s.name="sockettest (syscall are executed server side)";
+	s.name="SOCKIP";
+	s.description="socket syscall (AF_INET) are executed server side";
 	s.code=0xfb;
 	s.ioctlparms=ioctlparms;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));

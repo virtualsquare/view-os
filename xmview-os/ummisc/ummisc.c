@@ -87,7 +87,7 @@ void *misc_getdl(struct ummisc *mh)
 int misc_check_sc(int type, void *arg, int arglen,
 		struct ht_elem *ht)
 {
-	struct ummisc *mh=ht->private_data;
+	struct ummisc *mh=ht_get_private_data(ht);
 	int *pscno=arg;
 	int scno=*pscno;
 	return FD_ISSET(scno,&(mh->scset));
@@ -450,7 +450,8 @@ void *ummisc_getprivatedata(struct ummisc *mischandle)
 init (void)
 {
 	fprint2("ummisc init\n");
-	s.name="ummisc";
+	s.name="UMMISC";
+	s.description="virtual miscellaneous (time, uname, uid/gid, ...)";
 	s.code=UMMISC_SERVICE_CODE;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));

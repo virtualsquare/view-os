@@ -537,7 +537,7 @@ int wrap_in_getdents(int sc_number,struct pcb *pc,
 	long pbuf=pc->sysargs[1];
 	unsigned long bufsiz=pc->sysargs[2];
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	//printf("wrap_in_getdents(sc:%d ,pc,sercode:%d,syscall);\n",sc_number,hte->service->code);
+	//printf("wrap_in_getdents(sc:%d ,pc,service:%s,syscall);\n",sc_numberervicename(hte));
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
@@ -559,7 +559,7 @@ int wrap_in_getdents64(int sc_number,struct pcb *pc,
 	long pbuf=pc->sysargs[1];
 	unsigned long bufsiz=pc->sysargs[2];
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	//printf("wrap_in_getdents(sc:%d ,pc,sercode:%d,syscall);\n",sc_number,hte->service->code);
+	//printf("wrap_in_getdents(sc:%d ,pc,service:%s,syscall);\n",sc_number,ht_servicename(hte));
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;

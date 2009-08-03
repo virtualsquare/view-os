@@ -34,6 +34,21 @@
 #include <unistd.h>
 #include "hashtab.h"
 
+struct ht_elem {
+	void *obj;
+	char *mtabline;
+	struct timestamp tst;
+	unsigned char type;
+	unsigned char trailingnumbers;
+	unsigned char invalid;
+	struct service *service;
+	void *private_data;
+	int objlen;
+	long hashsum;
+	checkfun_t checkfun;
+	struct ht_elem *prev,*next,**pprevhash,*nexthash;
+};
+
 /* it must be a power of two (masks are used instead of modulo) */
 #define MNTTAB_HASH_SIZE 512
 #define MNTTAB_HASH_MASK (MNTTAB_HASH_SIZE-1)
@@ -637,4 +652,43 @@ static void ht_tab_getmtab_add(struct ht_elem *ht, void *arg) {
 void ht_tab_getmtab(FILE *f) {
 	if (f) 
 		forall_ht_tab_do(CHECKPATH,ht_tab_getmtab_add,f);
+}
+
+void *ht_get_private_data(struct ht_elem *hte)
+{
+	if (hte)
+		return hte->private_data;
+	else
+		return NULL;
+}
+
+void ht_set_private_data(struct ht_elem *hte,void *private_data)
+{
+	if (hte)
+		hte->private_data=private_data;
+}
+
+struct ht_elem *ht_search(int type, void *arg, 
+		int objlen, struct service *service)
+{
+	struct ht_elem *hte=ht_check(type,arg,NULL,0);
+	if (hte &&
+			((objlen > 0 && objlen != hte->objlen) ||
+			 (service != NULL && service != hte->service)))
+				return NULL;
+	return hte;
+}
+
+void ht_renew(struct ht_elem *hte)
+{
+	if (hte)
+		hte->tst=tst_timestamp();
+}
+
+char *ht_servicename(struct ht_elem *hte)
+{
+	if (hte && hte->service)
+		return hte->service->name;
+	else
+		return NULL;
 }

@@ -71,11 +71,11 @@ static inline void fs_add_alias(char *fsalias,char *fsname)
 {
 	struct ht_elem *hte=ht_check(CHECKFSALIAS,fsalias,NULL,0);
 	if (hte) {
-		free(hte->private_data);
+		free(ht_get_private_data(hte));
 		if (*fsname==0)
 			ht_tab_del(hte);
 		else 
-			hte->private_data=strdup(fsname);
+			ht_set_private_data(hte,strdup(fsname));
 	} else {
 		if (*fsname!=0)
 			ht_tab_add(CHECKFSALIAS,fsalias,strlen(fsalias),NULL,NULL,strdup(fsname));
@@ -88,7 +88,7 @@ static char *rec_fs_alias(char *fsalias,int depth) {
 		if (depth > MAXSYMLINKS) 
 			return fsalias;
 		else
-			return rec_fs_alias(hte->private_data,depth+1);
+			return rec_fs_alias(ht_get_private_data(hte),depth+1);
 	} else
 		return fsalias;
 }

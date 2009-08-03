@@ -267,8 +267,9 @@ static struct umregister *delete_allreg(struct umregister *head)
 static int checkbinfmt(int type, void *arg, int arglen, struct ht_elem *ht)
 {
 	struct binfmt_req *req=arg;
-	if (ht->private_data)
-		return searchbinfmt(ht->private_data,req);
+	void *private_data=ht_get_private_data(ht);
+	if (private_data)
+		return searchbinfmt(private_data,req);
 	else
 		return 0;
 }
@@ -885,7 +886,8 @@ static long umbinfmt_fcntl64()
 init (void)
 {
 	printf("umbinfmt init\n");
-	s.name="umbinfmt";
+	s.name="UMBINFMT";
+	s.description="virtual binfmt_misc";
 	s.code=UMBINFMT_SERVICE_CODE;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
@@ -926,7 +928,7 @@ init (void)
 fini (void)
 {
 	if (binfmt_vfs_ht) {
-		umbinfmt_umount_internal(binfmt_vfs_ht->private_data, MNT_FORCE);
+		umbinfmt_umount_internal(ht_get_private_data(binfmt_vfs_ht), MNT_FORCE);
 		ht_tab_del(binfmt_vfs_ht);
 	}
 	ht_tab_del(service_ht);

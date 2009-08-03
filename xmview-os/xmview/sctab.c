@@ -915,20 +915,6 @@ struct ht_elem *um_mod_get_hte(void)
 	return pc->hte;
 }
 
-void *um_mod_get_private_data(void) {
-	struct pcb *pc=get_pcb();
-	if (pc->hte) 
-		return pc->hte->private_data;
-	else
-		return NULL;
-}
-
-void um_mod_renew_hte(struct ht_elem *hte)
-{
-	if (hte)
-		hte->tst=tst_timestamp();
-}
-
 int um_mod_umoven(long addr, int len, void *_laddr)
 {
 	struct pcb *pc=get_pcb();

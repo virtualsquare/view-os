@@ -218,7 +218,8 @@ __attribute__ ((constructor))
 init (void)
 {
 	GMESSAGE("unreal init");
-	s.name="/unreal Mapping to FS (server side)";
+	s.name="UNREAL";
+	s.description="/unreal Mapping to FS (server side)";
 	s.code=0xfe;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));

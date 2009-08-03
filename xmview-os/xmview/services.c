@@ -418,8 +418,7 @@ int name_service(service_t code,char *buf,int len)
 	else {
 		int pos=servmap[code]-1;
 		struct service *s=services[pos];
-		strncpy(buf,s->name,len-1);
-		buf[len]=0;
+		snprintf(buf,len,"%s: %s",s->name,s->description);
 		return 0;
 	}
 }

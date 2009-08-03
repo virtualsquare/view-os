@@ -110,7 +110,8 @@ init (void)
 {
 	GMESSAGE("testmodule init");
 	fprintf(stderr, "testmodule init\n");
-	s.name="Test Module";
+	s.name="TEST";
+	s.description="Test Module";
 	s.code=0xfc;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));

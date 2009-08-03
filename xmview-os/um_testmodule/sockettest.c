@@ -112,7 +112,8 @@ static int sockioctl(int d, int request, void *arg)
 init (void)
 {
 	GMESSAGE("sockettest init");
-	s.name="sockettest (syscall are executed server side)";
+	s.name="SOCKETTEST"; 
+	s.description="socket syscalls are executed server side";
 	s.code=0xfa;
 	s.ioctlparms=ioctlparms;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));

@@ -78,6 +78,7 @@ struct binfmt_req {
 
 struct service {
 	char *name;
+	char *description;
 	service_t code;
 
 	/* handle to service data. It is used by um_service.c to store

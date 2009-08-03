@@ -112,7 +112,11 @@ struct binfmt_req {
 
 
 struct service {
+	/* short name of the module */
 	char *name;
+	/* description */
+	char *description;
+
 	service_t code;
 
 	/* handle to service data. It is used by um_service.c to store
@@ -208,11 +212,10 @@ extern int scmap_sockmapsize;
 extern int scmap_virscmapsize;
 
 extern int um_mod_getpid(void);
-extern void *um_mod_get_private_data(void);
+//extern void *um_mod_get_private_data(void);
 extern void um_mod_set_private_data(void *private_data);
 void um_mod_set_hte(struct ht_elem *hte);
 struct ht_elem *um_mod_get_hte(void);
-void um_mod_renew_hte(struct ht_elem *hte);
 extern int um_mod_umoven(long addr, int len, void *_laddr);
 extern int um_mod_umovestr(long addr, int len, void *_laddr);
 extern int um_mod_ustoren(long addr, int len, void *_laddr);
@@ -307,21 +310,6 @@ typedef int (* checkfun_t)(int type, void *arg, int arglen,
 		struct ht_elem *ht);
 #define NEGATIVE_MOUNT ((checkfun_t) 1)
 
-struct ht_elem {
-	void *obj;
-	char *mtabline;
-	struct timestamp tst;
-	unsigned char type;
-	unsigned char trailingnumbers;
-	unsigned char invalid;
-	struct service *service;
-	void *private_data;
-	int objlen;
-	long hashsum;
-	checkfun_t checkfun;
-	struct ht_elem *prev,*next,**pprevhash,*nexthash;
-};
-
 /* add a path to the hashtable (this creates an entry for the mounttab) */
 struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 		const char *path, const char *fstype, 
@@ -350,7 +338,15 @@ void forall_ht_tab_tst_do(unsigned char type,
 
 void forall_ht_tab_del_invalid(unsigned char type);
 
-struct ht_elem *ht_check(int type, void *arg, struct stat64 *st, int setepoch);
+void *ht_get_private_data(struct ht_elem *hte);
+
+struct ht_elem *ht_search(int type, void *arg, int objlen, struct service *service);
+
+void ht_renew(struct ht_elem *hte);
+
+static inline void *um_mod_get_private_data(void){
+	return ht_get_private_data(um_mod_get_hte());
+}
 
 /* filetab management */
 int addfiletab(int size);

@@ -213,7 +213,7 @@ static int umfuse_confirm(int type, void *arg, int arglen,
 		struct ht_elem *ht)
 {
 	char *path=arg;
-	struct fuse_context *fc=ht->private_data;
+	struct fuse_context *fc=ht_get_private_data(ht);
 	if (fc->fuse->exceptions) 
 		return !isexception(path+fc->fuse->pathlen,fc->fuse->exceptions,fc);
 	else
@@ -1946,7 +1946,8 @@ static void htcontextclose(struct ht_elem *mp, void *arg)
 init (void)
 {
 	GMESSAGE("umfuse init");
-	s.name="umfuse fuse ";
+	s.name="UMFUSE";
+	s.description="virtual file systems (user level FUSE)";
 	s.code=UMFUSE_SERVICE_CODE;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
