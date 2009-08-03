@@ -473,7 +473,7 @@ static void _reg_processes(struct pcb *pc,service_t *pcode)
 	service_ctl(MC_PROC | MC_ADD, *pcode, -1, pc->umpid, (pc->pp) ? pc->pp->umpid : -1, pcbtablesize());
 }
 
-/* when a new service gets registerd all the existing process are added
+/* when a new service gets registerd all the existing processes are added
  * as a whole to the private data structures of the module, if it asked for
  * them */
 static int reg_processes(service_t code)
