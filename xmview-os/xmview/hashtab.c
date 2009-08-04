@@ -489,6 +489,8 @@ void ht_tab_invalidate(struct ht_elem *ht) {
 /* delete an element (using a write lock) */
 int ht_tab_del(struct ht_elem *ht) {
 	if (ht) {
+		if (ht->invalid==0 && ht->service && ht->service->destructor)
+			ht->service->destructor(ht->type,ht);
 		pthread_rwlock_wrlock(&ht_tab_rwlock);
 		ht_tab_del_locked(ht);
 		pthread_rwlock_unlock(&ht_tab_rwlock);
@@ -602,10 +604,7 @@ sysfun ht_event_subscribe(struct ht_elem *hte)
 }
 
 /* reverse scan of hash table elements, useful to close all files  */
-void forall_ht_tab_service_do(unsigned char type, 
-		struct service *service,
-		void (*fun)(struct ht_elem *ht, void *arg), 
-		void *arg) {
+static void forall_ht_terminate(unsigned char type) {
 	pthread_rwlock_rdlock(&ht_tab_rwlock);
 	if (ht_head[type]) {
 		struct ht_elem *scanht=ht_head[type];
@@ -613,30 +612,12 @@ void forall_ht_tab_service_do(unsigned char type,
 		do {
 			scanht=next;
 			if (scanht->invalid == 0) {
-				if (service == NULL || scanht->service == service)
-					fun(scanht, arg);
+				if (scanht->service != NULL && scanht->service->destructor != NULL)
+					scanht->service->destructor(type, scanht);
 			}
 			next=scanht->prev;
 			//fprint2("SCAN %p %p %s\n",next,scanht,scanht->obj);
 		} while (ht_head[type] != NULL && next != ht_head[type]);
-	}
-	pthread_rwlock_unlock(&ht_tab_rwlock);
-}
-
-/* delete all the invalid hash table elements: 
-	 see invalidate above */
-void forall_ht_tab_del_invalid(unsigned char type)
-{
-	pthread_rwlock_wrlock(&ht_tab_rwlock);
-	if (ht_head[type]) {
-		struct ht_elem *scanht=ht_head[type];
-		struct ht_elem *next=scanht->next;
-		do {
-			scanht=next;
-			if (scanht->invalid) 
-				ht_tab_del_locked(scanht);
-			next=scanht->next;
-		} while (ht_head[type] != NULL && scanht != ht_head[type]);
 	}
 	pthread_rwlock_unlock(&ht_tab_rwlock);
 }
@@ -744,5 +725,10 @@ int ht_get_servicecount(struct ht_elem *hte)
 		return hte->service->count;
 	else
 		return -1;
+}
+
+void ht_terminate(void)
+{
+	forall_ht_terminate(CHECKPATH);
 }
 

@@ -408,12 +408,14 @@ static long umdev_umount2(char *target, int flags)
 	}
 }
 
-static void htcontextclose(struct ht_elem *mp, void *arg)
+static void umdev_destructor(int type,struct ht_elem *mp)
 {
-	um_mod_set_hte(mp);
-	umdev_umount_internal(um_mod_get_private_data(),MNT_FORCE);
+	switch (type) {
+		case CHECKPATH:
+			um_mod_set_hte(mp);
+			umdev_umount_internal(um_mod_get_private_data(), MNT_FORCE);
+	}
 }
-
 
 #define TRUE 1
 #define FALSE 0
@@ -964,6 +966,7 @@ init (void)
 	s.name="UMDEV";
 	s.description="virtual devices";
 	s.code=UMDEV_SERVICE_CODE;
+	s.destructor=umdev_destructor;
 	s.ioctlparms=umdev_ioctlparms;
 	//pthread_key_create(&context_key,NULL);
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
@@ -1018,8 +1021,6 @@ fini (void)
 	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
-	forall_ht_tab_service_do(CHECKPATH,&s,htcontextclose,NULL);
-	forall_ht_tab_del_invalid(CHECKPATH);
 	fprint2("umdev fini\n");
 }
 

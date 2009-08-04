@@ -653,11 +653,14 @@ static long umnet_umount2(char *target, int flags)
 	}
 }
 
-static void htcontextclose(struct ht_elem *mp, void *arg)
+static void umnet_destructor(int type,struct ht_elem *mp)
 {
-	um_mod_set_hte(mp);
-	umnet_umount_internal(um_mod_get_private_data(),MNT_FORCE);
-}   
+	switch (type) {
+		case CHECKPATH:
+			um_mod_set_hte(mp);
+			umnet_umount_internal(um_mod_get_private_data(), MNT_FORCE);
+	}
+}
 
 void umnet_setprivatedata(struct umnet *nethandle, void *privatedata)
 {
@@ -692,6 +695,7 @@ init (void)
 	s.name="UMNET";
 	s.description="virtual (multi-stack) networking";
 	s.code=UMNET_SERVICE_CODE;
+	s.destructor=umnet_destructor;
 	s.ioctlparms=umnet_ioctlparms;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
@@ -741,8 +745,6 @@ fini (void)
 	free(s.syscall);
 	free(s.socket);
 	free(s.virsc);
-	forall_ht_tab_service_do(CHECKPATH,&s,htcontextclose,NULL);
-	forall_ht_tab_del_invalid(CHECKPATH);
 	umnet_delallproc();
 	fprint2("umnet fini\n");
 }

@@ -1154,4 +1154,5 @@ void scdtab_init()
 	 * the final cleaning up */
 	um_proc_open();
 	atexit(um_proc_close);
+	atexit(ht_terminate);
 }

@@ -333,7 +333,7 @@ int ht_tab_del(struct ht_elem *mp);
 
 void ht_tab_getmtab(FILE *f);
 
-void forall_ht_tab_service_do(unsigned char type,
+/*void forall_ht_tab_service_do(unsigned char type,
 		struct service *service,
 		void (*fun)(struct ht_elem *ht, void *arg),
 		void *arg);
@@ -342,7 +342,7 @@ void forall_ht_tab_tst_do(unsigned char type,
 		void (*fun)(struct ht_elem *ht, void *arg),
 		void *arg);
 
-void forall_ht_tab_del_invalid(unsigned char type);
+void forall_ht_tab_del_invalid(unsigned char type);*/
 
 void *ht_get_private_data(struct ht_elem *hte);
 

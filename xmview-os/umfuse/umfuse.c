@@ -1932,10 +1932,13 @@ static long umfuse_statfs64 (const char *file, struct statfs64 *buf)
 	}
 }
 
-static void htcontextclose(struct ht_elem *mp, void *arg)
+static void umfuse_destructor(int type,struct ht_elem *mp)
 {
-	um_mod_set_hte(mp);
-	umfuse_umount_internal(um_mod_get_private_data(), MNT_FORCE);
+	switch (type) {
+		case CHECKPATH:
+			um_mod_set_hte(mp);
+			umfuse_umount_internal(um_mod_get_private_data(), MNT_FORCE);
+	}
 }
 
 	static void
@@ -1946,6 +1949,7 @@ init (void)
 	s.name="UMFUSE";
 	s.description="virtual file systems (user level FUSE)";
 	s.code=UMFUSE_SERVICE_CODE;
+	s.destructor=umfuse_destructor;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	SERVICESYSCALL(s, mount, umfuse_mount);
@@ -2005,8 +2009,6 @@ fini (void)
 	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
-	forall_ht_tab_service_do(CHECKPATH,&s,htcontextclose,NULL);
-	forall_ht_tab_del_invalid(CHECKPATH);
 	GMESSAGE("umfuse fini");
 }
 

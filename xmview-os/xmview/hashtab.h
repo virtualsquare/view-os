@@ -58,16 +58,9 @@ int ht_tab_del(struct ht_elem *mp);
 
 void ht_tab_getmtab(FILE *f);
 
-void forall_ht_tab_service_do(unsigned char type,
-		struct service *service,
-		void (*fun)(struct ht_elem *ht, void *arg),
-		void *arg);
-
 void forall_ht_tab_do(unsigned char type,
 		void (*fun)(struct ht_elem *ht, void *arg),
 		void *arg);
-
-void forall_ht_tab_del_invalid(unsigned char type);
 
 void *ht_get_private_data(struct ht_elem *hte);
 void ht_set_private_data(struct ht_elem *hte,void *private_data);
@@ -78,4 +71,7 @@ int ht_get_count(struct ht_elem *hte);
 void ht_servicecount_plus1(struct ht_elem *hte);
 void ht_servicecount_minus1(struct ht_elem *hte);
 int ht_get_servicecount(struct ht_elem *hte);
+
+void ht_terminate(void);
+
 #endif

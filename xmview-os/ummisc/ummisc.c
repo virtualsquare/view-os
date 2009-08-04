@@ -422,17 +422,18 @@ static long ummisc_umount2(char *target, int flags)
 	} else {
 		struct ht_elem *scht=mh->scht;
 		ummisc_umount_internal(mh, flags);
-		ht_tab_del(scht);;
+		ht_tab_del(scht);
 		ht_tab_del(um_mod_get_hte());
 	}
 }
 
-static void htcontextclose(struct ht_elem *mp, void *arg)
+static void ummisc_destructor(int type,struct ht_elem *mp)
 {
-	struct ummisc *mh;
-	um_mod_set_hte(mp);
-	mh = um_mod_get_private_data();
-	ummisc_umount_internal(mh, MNT_FORCE);
+	switch (type) {
+		case CHECKPATH:
+			um_mod_set_hte(mp);
+			ummisc_umount_internal(um_mod_get_private_data(), MNT_FORCE);
+	}
 }
 
 void ummisc_setprivatedata(struct ummisc *mischandle, void *privatedata)
@@ -455,6 +456,7 @@ init (void)
 	s.name="UMMISC";
 	s.description="virtual miscellaneous (time, uname, uid/gid, ...)";
 	s.code=UMMISC_SERVICE_CODE;
+	s.destructor=ummisc_destructor;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	SERVICESYSCALL(s, mount, ummisc_mount);
@@ -483,7 +485,5 @@ fini (void)
 	free(s.syscall);
 	free(s.socket);
 	finimuscno();
-	forall_ht_tab_service_do(CHECKPATH,&s,htcontextclose,NULL);
-	forall_ht_tab_del_invalid(CHECKPATH);
 	fprint2("ummisc fini\n");
 }
