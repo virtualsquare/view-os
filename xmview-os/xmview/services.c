@@ -302,18 +302,21 @@ int add_service(void *handle)
 /* get the dynamic library handle */
 void *get_handle_service(service_t code) {
 	int i=servmap[code]-1;
-	if (invisible || locked || i<0)
+	if (invisible || locked || i<0 || services[i]==NULL)
 		return NULL;
-	else {
+	else 
 		return services[i]->dlhandle;
-	}
 }
 
 /* delete a service */
 int del_service(service_t code)
 {
+	if (code==UM_NONE || code==UM_ERR)
+		return s_error(EINVAL);
+	else if (services[servmap[code]-1]->count != 0)
+		return s_error(EBUSY);
 	/* locking and error management */
-	if (invisible)
+	else if (invisible)
 		return s_error(ENOSYS);
 	else if (locked)
 		return s_error(EACCES);

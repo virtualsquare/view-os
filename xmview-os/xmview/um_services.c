@@ -111,8 +111,9 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 				} else {
 					if (add_service(handle) < 0)
 					{
-						dlclose(handle);
+						pc->retval=-1;
 						pc->erno=errno;
+						dlclose(handle);
 					}
 				}
 			} else {
@@ -121,13 +122,14 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 			}
 			break;
 		case DEL_SERVICE:
-			pc->retval=del_service(pc->sysargs[1] & 0xff);
-			{void * handle=get_handle_service(pc->sysargs[1] & 0xff);
-				if (handle!= NULL) {
-					dlclose(handle);
-				}
+			{
+				void *handle=get_handle_service(pc->sysargs[1] & 0xff);
+				if ((pc->retval=del_service(pc->sysargs[1] & 0xff)) == 0) {
+					if (handle!= NULL) 
+						dlclose(handle);
+				} else
+					pc->erno=errno;
 			}
-			pc->erno=errno;
 			break;
 		case MOV_SERVICE:
 			pc->retval=mov_service(pc->sysargs[1] & 0xff,pc->sysargs[2]);

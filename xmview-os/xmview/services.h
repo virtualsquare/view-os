@@ -74,6 +74,8 @@ struct binfmt_req {
 	int flags;
 };
 
+struct ht_elem;
+
 #define ERESTARTSYS 512
 
 struct service {
@@ -84,6 +86,10 @@ struct service {
 	/* handle to service data. It is used by um_service.c to store
 	 * dynamic lib handle (see dlopen (3))*/
 	void *dlhandle;
+	/* usage count: number of mount and open files */
+	int count;
+	/* destructor for ht_elem's defined by this module */
+	void (*destructor)(int type, struct ht_elem *hte);
 
 	/* Generic notification/callback function. See ../include/module.h for
 	 * details. */

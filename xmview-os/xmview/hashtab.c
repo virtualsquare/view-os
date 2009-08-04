@@ -713,11 +713,13 @@ char *ht_servicename(struct ht_elem *hte)
 
 void ht_count_plus1(struct ht_elem *hte)
 {
+	if (hte->service) hte->service->count++;
 	hte->count++;
 }
 
 void ht_count_minus1(struct ht_elem *hte)
 { 
+	if (hte->service) hte->service->count--;
 	hte->count--;
 }
 
@@ -725,3 +727,22 @@ int ht_get_count(struct ht_elem *hte)
 {
 	return hte->count;
 }
+
+void ht_servicecount_plus1(struct ht_elem *hte)
+{
+	if (hte->service) hte->service->count++;
+}
+
+void ht_servicecount_minus1(struct ht_elem *hte)
+{ 
+	if (hte->service) hte->service->count--;
+}
+
+int ht_get_servicecount(struct ht_elem *hte)
+{
+	if (hte->service) 
+		return hte->service->count;
+	else
+		return -1;
+}
+

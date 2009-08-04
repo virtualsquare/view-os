@@ -122,6 +122,10 @@ struct service {
 	/* handle to service data. It is used by um_service.c to store
 	 * dynamic lib handle (see dlopen (3))*/
 	void *dlhandle;
+	/* usage count: number of mount and open files */
+	int count;
+	/* destructor for ht_elem's defined by this module */
+	void (*destructor)(int type, struct ht_elem *hte);
 
 	/* Generic notification/callback function. The first parameter identifies
 	 * the type of command. The lower 5 bits identify the class, the remaining

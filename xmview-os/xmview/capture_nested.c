@@ -353,9 +353,7 @@ int nw_sysopen(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 		scno=__NR_open;
 	}
 #endif
-	fprint2("nw_sysopen %s\n");
 	sfd=do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
-	fprint2("nw_sysopen done %s\n");
 	if (sfd >= 0) {
 		int lfd;
 		int newfd=r_dup(STDOUT_FILENO); /* fake a file descriptor! */

@@ -75,5 +75,7 @@ char *ht_servicename(struct ht_elem *hte);
 void ht_count_plus1(struct ht_elem *hte);
 void ht_count_minus1(struct ht_elem *hte);
 int ht_get_count(struct ht_elem *hte);
-
+void ht_servicecount_plus1(struct ht_elem *hte);
+void ht_servicecount_minus1(struct ht_elem *hte);
+int ht_get_servicecount(struct ht_elem *hte);
 #endif
