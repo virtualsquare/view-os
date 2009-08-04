@@ -103,7 +103,7 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 	char buf[PATH_MAX];
 	switch (pc->sysargs[0]) {
 		case ADD_SERVICE:
-			if (umovestr(pc,pc->sysargs[2],PATH_MAX,buf) == 0) {
+			if (umovestr(pc,pc->sysargs[1],PATH_MAX,buf) == 0) {
 				void *handle=open_dllib(buf);
 				if (handle==NULL) {
 					pc->retval= -1;
@@ -118,47 +118,41 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 				}
 			} else {
 				pc->retval= -1;
-				pc->erno=ENOSYS;
+				pc->erno=EINVAL;
 			}
 			break;
 		case DEL_SERVICE:
-			{
-				void *handle=get_handle_service(pc->sysargs[1] & 0xff);
-				if ((pc->retval=del_service(pc->sysargs[1] & 0xff)) == 0) {
-					if (handle!= NULL) 
-						dlclose(handle);
-				} else
+			if (umovestr(pc,pc->sysargs[1],PATH_MAX,buf) == 0) {
+				if ((pc->retval=del_service(buf)) != 0) {
 					pc->erno=errno;
+				}
+			}	else {
+				pc->retval= -1;
+				pc->erno=EINVAL;
 			}
-			break;
-		case MOV_SERVICE:
-			pc->retval=mov_service(pc->sysargs[1] & 0xff,pc->sysargs[2]);
-			pc->erno=errno;
 			break;
 		case LIST_SERVICE:
 			if (pc->sysargs[2]>PATH_MAX) pc->sysargs[2]=PATH_MAX;
-			pc->retval=list_services((unsigned char *)buf,pc->sysargs[2]);
+			pc->retval=list_services(buf,pc->sysargs[2]);
 			pc->erno=errno;
 			if (pc->retval > 0)
-				ustoren(pc,pc->sysargs[1],pc->retval,buf);
+				ustorestr(pc,pc->sysargs[1],pc->retval,buf);
 			break;
 		case NAME_SERVICE:
-			if (pc->sysargs[3]>PATH_MAX) pc->sysargs[3]=PATH_MAX;
-			pc->retval=name_service(pc->sysargs[1] & 0xff,buf,pc->sysargs[3]);
-			pc->erno=errno;
-			if (pc->retval == 0)
-				ustorestr(pc,pc->sysargs[2],pc->sysargs[3],buf);
-			break;
-		case LOCK_SERVICE:
-			if (pc->sysargs[1])
-				invisible_services();
-			else
-				lock_services();
-			pc->retval=0;
-			pc->erno=0;
-			break;
-		case RECURSIVE_UMVIEW:
-			if (pcb_newfork(pc) >= 0) {
+			if (umovestr(pc,pc->sysargs[1],PATH_MAX,buf) == 0) {
+				if (pc->sysargs[3]>PATH_MAX) pc->sysargs[3]=PATH_MAX;
+				/* buf can be reused both for name and description */
+				pc->retval=name_service(buf,buf,pc->sysargs[3]);
+				pc->erno=errno;
+				if (pc->retval == 0)
+					ustorestr(pc,pc->sysargs[2],pc->sysargs[3],buf);
+				} else {
+					pc->retval= -1;
+					pc->erno=EINVAL;
+				}
+				break;
+				case RECURSIVE_UMVIEW:
+				if (pcb_newfork(pc) >= 0) {
 				pc->retval=0;
 				pc->erno = 0;
 			} else {

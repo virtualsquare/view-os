@@ -223,6 +223,7 @@ static inline int ht_scan_stop(unsigned char type, char *objc, int len, int exac
 		case CHECKFSTYPE: /* char by char */
 			return 1;
 		case CHECKFSALIAS: /* end of string */
+		case CHECKMODULE:
 			return (*objc == 0);
 		default:
 			return 0;
@@ -236,6 +237,7 @@ static inline int ht_scan_terminate(unsigned char type, char *objc, int len, int
 		case CHECKBINFMT:
 		case CHECKFSTYPE:
 		case CHECKFSALIAS:
+		case CHECKMODULE:
 			return (*objc == 0);
 		case CHECKSOCKET:
 		case CHECKCHRDEVICE:
@@ -337,6 +339,7 @@ static inline int ht_is_obj_string(unsigned char type) {
 		case CHECKPATH:
 		case CHECKFSTYPE:
 		case CHECKFSALIAS:
+		case CHECKMODULE:
 			return 1;
 		default:
 			return 0;
@@ -533,6 +536,7 @@ struct ht_elem *ht_check(int type, void *arg, struct stat64 *st, int setepoch)
 			hte=ht_tab_search(type, arg, size*sizeof(int), um_x_gettst());
 			break;
 		case CHECKFSALIAS:
+		case CHECKMODULE:
 			hte=ht_tab_search(type, arg, strlen(arg), um_x_gettst());
 			break;
 		case CHECKBINFMT:

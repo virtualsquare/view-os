@@ -81,7 +81,7 @@ extern int msocket (char *path, int domain, int type, int protocol);
 #define MCH_ISSET(c, set)	(*(set) & (1 << c))
 #define MCH_ZERO(set)		*(set) = 0;
 
-#define CHECKNOCHECK  0
+#define CHECKMODULE   0
 #define CHECKPATH     1
 #define CHECKSOCKET   2
 #define CHECKFSTYPE   3
@@ -234,8 +234,6 @@ int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
 int um_mod_nrsyscalls(void);
 
 extern int uscno(int scno);
-// XXX: should modules have visibility of this function?
-// extern void service_ctl(unsigned long type, service_t code, int skip, ...);
 extern void service_userctl(unsigned long type, service_t sender, service_t recipient, ...);
 
 extern void *openmodule(const char *modname, int flag);

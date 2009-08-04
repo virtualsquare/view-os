@@ -47,7 +47,7 @@ typedef unsigned long c_set;
 #define MCH_ISSET(c, set)	(*(set) & (1 << c))
 #define MCH_ZERO(set)		*(set) = 0;
 
-#define CHECKNOCHECK  0
+#define CHECKMODULE   0
 #define CHECKPATH     1
 #define CHECKSOCKET   2
 #define CHECKFSTYPE   3
@@ -133,11 +133,9 @@ struct service {
 #define UM_ERR 0x00
 
 int add_service(void *dlhandle);
-void *get_handle_service(service_t code);
-int del_service(service_t code);
-int mov_service(service_t code, int position);
-int list_services(service_t *buf,int len);
-int name_service(service_t code,char *buf,int len);
+int del_service(char *name);
+int list_services(char *buf,int len);
+int name_service(char *name,char *buf,int len);
 void lock_services();
 void invisible_services();
 void service_ctl(unsigned long type, service_t code, int skip, ...);

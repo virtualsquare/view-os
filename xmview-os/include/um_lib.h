@@ -63,12 +63,10 @@ struct viewinfo {
 	char viewname[_UTSNAME_LENGTH];
 };
 
-int um_add_service(int position,char *path);
-int um_del_service(int code);
+int um_add_service(char *path);
+int um_del_service(char *name);
 int um_mov_service(int code, int position);
-int um_list_service(char *buf, int len);
-int um_name_service(int code, char *buf, int len);
-int um_lock_service(int invisible);
+int um_name_service(char *name, char *buf, int len);
 int um_view_getinfo(struct viewinfo *info);
 int um_setviewname(char *name);
 int um_killall(int signo);

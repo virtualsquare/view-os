@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <config.h>
+#include <limits.h>
 #include <um_lib.h>
 
 void usage()
@@ -31,23 +32,29 @@ void usage()
 	fprintf(stderr, "Usage:\n\tum_ls_service\n");
 }
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
-	unsigned char lsbuf[256];
-	char name[256];
-	int i,n;
+	unsigned char lsbuf[PATH_MAX];
+	char descr[PATH_MAX];
+	int n;
 	if (argc != 1)
 		usage();
 	else {
-		if ((n=um_list_service(lsbuf,256)) < 0) {
+		if ((n=um_list_service(lsbuf,PATH_MAX)) < 0) {
 			perror("um_list_service");
 			exit(-1);
-		}
-		else {
-			for (i=0;i<n;i++) {
-				if ((um_name_service(lsbuf[i],name,256))<0)
-					*name=0;
-				printf("um_service %-2d code %02x name \"%s\"\n",i+1,lsbuf[i],name);
+		} else {
+			char *name=lsbuf;
+			while (1) {
+				char *next=strchr(name,':');
+				if (next==NULL)
+					break;
+				*next=0;
+				next++;
+				if ((um_name_service(name,descr,PATH_MAX))<0)
+					*descr=0;
+				printf("%s: %s\n",name,descr);
+				name=next;
 			}
 			exit(0);
 		}

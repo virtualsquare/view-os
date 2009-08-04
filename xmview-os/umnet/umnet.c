@@ -108,10 +108,9 @@ static long umnet_addproc(int id, int ppid, int max) {
 		if (newdefnet == NULL) 
 			return -1;
 		else {
-			if (defnetsize == 0)
-				newdefnet[0]=NULL;
+			for (;defnetsize<size;defnetsize++)
+				newdefnet[defnetsize]=NULL;
 			defnet=newdefnet;
-			defnetsize=size;
 		}
 	}
 	if (id == ppid) {

@@ -28,55 +28,27 @@
 #include <config.h>
 #include <um_lib.h>
 
-#define UM_NONE 0xff
-
 void usage()
 {
-	fprintf(stderr, "Usage:\n\tum_del_service [-p #] [-c hex]\n"
-			"\t -p or -c must be specified (but not both)\n");
+	fprintf(stderr, "Usage:\n\tum_del_service service_name\n");
 }
 
 main(int argc, char *argv[])
 {
 	int c;
 	int position=0;
-	int code=UM_NONE;
 	while (1) {
 		int option_index = 0;
 		static struct option long_options[] = {
-			{"position", 1, 0, 'p'},
-			{"code", 1, 0, 'c'},
 			{0,0,0,0}
 		};
-		c=getopt_long(argc,argv,"p:c:",long_options,&option_index);
+		c=getopt_long(argc,argv,"",long_options,&option_index);
 		if (c == -1) break;
-		switch (c) {
-			case 'p':
-				position=atoi(optarg);
-				break;
-			case 'c':
-				sscanf(optarg,"%x",&code);
-				code = code &0xff;
-				break;
-		}
 	}
-	if (argc - optind != 0 || (position == 0 && code == UM_NONE) ||
-			(position != 0 && code != UM_NONE))
+	if (argc - optind != 1)
 		usage();
 	else {
-		if (position > 0) {
-			char lsbuf[256];
-			int n;
-			if ((n=um_list_service(lsbuf,256)) < 0) {
-				perror("um_del_service");
-				exit(-1);
-			}
-			if (position > n) 
-				position=n;
-			code=lsbuf[position-1];
-			
-		}
-		if (um_del_service(code) < 0) {
+		if (um_del_service(argv[optind]) < 0) {
 			perror("um_del_service");
 			exit(-1);
 		}

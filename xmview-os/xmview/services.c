@@ -54,8 +54,6 @@
  */
 static char servmap[256];
 
-static int locked=0;
-static int invisible=0;
 static int noserv=0;
 static int maxserv=0;
 
@@ -255,10 +253,6 @@ int add_service(void *handle)
 	if (!s) 
 		return s_error(EINVAL);
 	/* locking/error management */
-	else if (invisible)
-		return s_error(ENOSYS);
-	else if (locked)
-		return s_error(EACCES);
 	else if (s->code == UM_NONE || s->code == UM_ERR)
 		return s_error(EFAULT);
 	else if (servmap[s->code] != 0)
@@ -266,6 +260,7 @@ int add_service(void *handle)
 	else {
 		GDEBUG(9, "noserv == %d, adding 1", noserv);
 		noserv++;
+		/* DEPRECATED: code registration */
 		/* the "services" array is realloc-ed when there are no more
 		 * free elements */
 		if (noserv > maxserv) {
@@ -280,8 +275,11 @@ int add_service(void *handle)
 		services[noserv-1]=s;
 		/* set the servmap. noserv is the index where the service is, + 1 */
 		servmap[services[noserv-1]->code] = noserv;
+		/* NEW: hash table registration */
+		ht_tab_add(CHECKMODULE,s->name,strlen(s->name),NULL,NULL,s);
 		/* dl handle is the dynamic library handle, it is set in a second time */
 		s->dlhandle=handle;
+		
 
 		for (i = 0; i < sizeof(c_set); i++)
 			if (MCH_ISSET(i, &(s->ctlhs)))
@@ -299,31 +297,24 @@ int add_service(void *handle)
 	}
 } 
 
-/* get the dynamic library handle */
-void *get_handle_service(service_t code) {
-	int i=servmap[code]-1;
-	if (invisible || locked || i<0 || services[i]==NULL)
-		return NULL;
-	else 
-		return services[i]->dlhandle;
-}
-
 /* delete a service */
-int del_service(service_t code)
+int del_service(char *name)
 {
+	struct ht_elem *hte=ht_check(CHECKMODULE,name,NULL,0);
+	if (!hte)
+		return s_error(ENOENT);
+	struct service *s=ht_get_private_data(hte);
+	int code=s->code;
 	if (code==UM_NONE || code==UM_ERR)
 		return s_error(EINVAL);
 	else if (services[servmap[code]-1]->count != 0)
 		return s_error(EBUSY);
 	/* locking and error management */
-	else if (invisible)
-		return s_error(ENOSYS);
-	else if (locked)
-		return s_error(EACCES);
 	else if (servmap[code] == 0)
 		return s_error(ENOENT);
 	else {
 		int i;
+		void *handle=services[servmap[code]-1]->dlhandle;
 		/* call deregistrationn upcall (if any) */
 		for (i = 0; i < sizeof(c_set); i++)
 			if (MCH_ISSET(i, &(services[servmap[code]-1]->ctlhs)))
@@ -340,93 +331,42 @@ int del_service(service_t code)
 		servmap[code] = 0;
 		for (i=0;i<noserv;i++)
 			servmap[services[i]->code] = i+1;
+		ht_tab_del(hte);
 		/* notify other modules of service removal */
 		service_ctl(MC_MODULE | MC_REM, UM_NONE, -1, code);
+		dlclose(handle);
 	}
 	return 0;
 }
 
-/* mov a service */
-int mov_service(service_t code, int position)
+/* list services: returns a list of codes */
+void list_item(struct ht_elem *hte, void *arg)
 {
-	/* locking and error management */
-	if (invisible)
-		return s_error(ENOSYS);
-	else if (locked)
-		return s_error(EACCES);
-	else if (servmap[code] == 0)
-		return s_error(ENOENT);
-	else {
-		int i;
-		int oldposition=servmap[code]-1;
-		struct service *s=services[oldposition];
-		/* shift the elements */
-		position--;
-		if (position < 0 || position >= noserv)
-			position=noserv-1;
-		if (position < oldposition) /* left shift */
-		{
-			for (i=oldposition; i>position; i--)
-				services[i]=services[i-1];
-			assert(i==position);
-			services[i]=s;
-		}
-		else if (position > oldposition) /*right shift */
-		{
-			for (i=oldposition; i<position; i++)
-				services[i]=services[i+1];
-			assert(i==position);
-			services[i]=s;
-		}
-		/* update the indexes in servmap */
-		for (i=0;i<noserv;i++)
-			servmap[services[i]->code] = i+1;
-		return 0;
-	}
+	FILE *f=arg;
+	struct service *s=ht_get_private_data(hte);
+	fprintf(f,"%s:",s->name);
 }
 
-/* list services: returns a list of codes */
-int list_services(service_t *buf,int len)
+int list_services(char *buf,int len)
 {
-	/* error management */
-	if (invisible)
-		return s_error(ENOSYS);
-	else if (len < noserv)
-		return s_error(ENOBUFS);
-	{
-		int i;
-		for (i=0;i<noserv;i++)
-			buf[i]=services[i]->code;
-		return noserv;
-	}
+	FILE *f=fmemopen(buf,len,"w");
+	forall_ht_tab_do(CHECKMODULE,list_item,f);
+	fclose(f);
+	return(strlen(buf));
 }
 
 /* name services:  maps a service code to its description */
-int name_service(service_t code,char *buf,int len)
+int name_service(char *name,char *buf,int len)
 {
-	/* error management */
-	if (invisible)
-		return s_error(ENOSYS);
-	else if (servmap[code] == 0)
+	struct ht_elem *hte=ht_check(CHECKMODULE,name,NULL,0);
+	if (!hte)
 		return s_error(ENOENT);
 	else {
-		int pos=servmap[code]-1;
-		struct service *s=services[pos];
-		snprintf(buf,len,"%s: %s",s->name,s->description);
+		struct service *s=ht_get_private_data(hte);
+		snprintf(buf,len,"%s",s->description);
 		return 0;
 	}
 }
-
-void lock_services()
-{
-	locked=1;
-}
-
-void invisible_services()
-{
-	invisible=1;
-}
-
 
 /*
  * Call the ctl function of a specific service or of every service except
