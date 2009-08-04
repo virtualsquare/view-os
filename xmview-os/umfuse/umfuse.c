@@ -668,7 +668,6 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 			struct fuse_conn_info conn;
 			new->private_data=new->fuse->fops.init(&conn);
 		}
-		fprint2("return 0!\n");
 		return 0;
 	}
 }
