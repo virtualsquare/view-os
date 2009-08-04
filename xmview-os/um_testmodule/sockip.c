@@ -40,9 +40,8 @@
 #include <linux/sockios.h>
 #include <linux/if.h>
 
-
-
 static struct service s;
+VIEWOS_SERVICE(s)
 
 static long ioctlparms(int fd, int req)
 {
@@ -180,7 +179,6 @@ init (void)
 	SERVICESYSCALL(s, ioctl, sockioctl);
 	s.event_subscribe=sock_event_subscribe;
 
-	add_service(&s);
 	{
 		int socktype=AF_INET;
 		ht_tab_add(CHECKSOCKET,&socktype,sizeof(int),&s,NULL,NULL);

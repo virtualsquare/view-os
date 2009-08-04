@@ -39,6 +39,7 @@
 // int read(), write(), close();
 
 static struct service s;
+VIEWOS_SERVICE(s)
 
 static long addproc(int id, int max)
 {
@@ -127,7 +128,6 @@ init (void)
 	SERVICESYSCALL(s, fcntl64, fcntl64);
 	SERVICESYSCALL(s, _llseek, _llseek);
 #endif
-	add_service(&s);
 	ht_tab_pathadd(CHECKPATH,"/","/","real",0,"",&s,0,NULL,NULL);
 }
 

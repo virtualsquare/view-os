@@ -64,6 +64,8 @@
 #define syscall_getgid getgid
 
 static struct service s;
+VIEWOS_SERVICE(s)
+
 static struct ht_elem *service_ht;
 static struct ht_elem *binfmt_vfs_ht=NULL;
 
@@ -919,7 +921,6 @@ init (void)
 	//SERVICESYSCALL(s, _newselect, umbinfmt_select);
 	//SERVICESYSCALL(s, ioctl, umbinfmt_ioctl); 
 	s.event_subscribe=umbinfmt_event_subscribe;
-	add_service(&s);
 	service_ht=ht_tab_add(CHECKFSTYPE,"umbinfmt",0,&s,NULL,NULL);
 }
 

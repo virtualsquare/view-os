@@ -247,12 +247,15 @@ void modify_um_syscall(struct service *s)
 }
 
 /* add a new service module */
-int add_service(struct service *s)
+int add_service(void *handle)
 {
 	int i;
 
+	struct service *s=dlsym(handle,"viewos_service");
+	if (!s) 
+		return s_error(EINVAL);
 	/* locking/error management */
-	if (invisible)
+	else if (invisible)
 		return s_error(ENOSYS);
 	else if (locked)
 		return s_error(EACCES);
@@ -278,7 +281,7 @@ int add_service(struct service *s)
 		/* set the servmap. noserv is the index where the service is, + 1 */
 		servmap[services[noserv-1]->code] = noserv;
 		/* dl handle is the dynamic library handle, it is set in a second time */
-		s->dlhandle=NULL;
+		s->dlhandle=handle;
 
 		for (i = 0; i < sizeof(c_set); i++)
 			if (MCH_ISSET(i, &(s->ctlhs)))
@@ -294,19 +297,7 @@ int add_service(struct service *s)
 		service_ctl(MC_MODULE | MC_ADD, UM_NONE, s->code, s->code);
 		return 0;
 	}
-}
-
-/* set the new service dl handle and move it to the right position */
-int set_handle_new_service(void *dlhandle,int position)
-{
-	if (noserv == 0 || services[noserv-1]->dlhandle != NULL)
-		return s_error(EFAULT);
-	else {
-		services[noserv-1]->dlhandle = dlhandle;
-		mov_service(services[noserv-1]->code,position);
-		return 0;
-	}
-}
+} 
 
 /* get the dynamic library handle */
 void *get_handle_service(service_t code) {

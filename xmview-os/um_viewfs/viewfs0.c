@@ -43,6 +43,8 @@
 #define MAXSIZE ((1LL<<((sizeof(size_t)*8)-1))-1)
 
 static struct service s;
+VIEWOS_SERVICE(s)
+
 static struct ht_elem *service_ht;
 static fd_set viewfs_dirset;
 static fd_set fastsysset;
@@ -1448,7 +1450,6 @@ init (void)
 	s.event_subscribe=viewfs_event_subscribe;
 	FD_ZERO(&viewfs_dirset);
 	createscset();
-	add_service(&s);
 	service_ht=ht_tab_add(CHECKFSTYPE,"viewfs",0,&s,NULL,NULL);
 }
 

@@ -230,7 +230,6 @@ int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
 int um_mod_nrsyscalls(void);
 
 extern int uscno(int scno);
-extern int add_service(struct service *);
 // XXX: should modules have visibility of this function?
 // extern void service_ctl(unsigned long type, service_t code, int skip, ...);
 extern void service_userctl(unsigned long type, service_t sender, service_t recipient, ...);
@@ -304,6 +303,9 @@ extern int vfprint2(const char *fmt, va_list ap);
 #define SERVICESOCKET(s, scno, sfun) GENSERVICESOCKET(s, scno, sfun, sysfun)
 
 #define SERVICEVIRSYSCALL(s, scno, sfun) ((s).virsc[MAKE_NAME(__NR_, scno)] = (sysfun) (sfun))
+
+#define VIEWOS_SERVICE(s) \
+	extern __typeof__ (s) viewos_service __attribute__ ((alias (#s)));
 
 /* modules can define check functions to test for exceptions */
 typedef int (* checkfun_t)(int type, void *arg, int arglen,

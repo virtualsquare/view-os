@@ -61,6 +61,8 @@
 #endif
 
 static struct service s;
+VIEWOS_SERVICE(s)
+
 static struct ht_elem *service_ht;
 
 struct umdev {
@@ -1006,7 +1008,6 @@ init (void)
 	SERVICESYSCALL(s, pread64, umdev_pread64); 
 	SERVICESYSCALL(s, pwrite64, umdev_pwrite64); 
 	s.event_subscribe=umdev_event_subscribe;
-	add_service(&s);
 	service_ht=ht_tab_add(CHECKFSTYPE,"umdev",0,&s,NULL,NULL);
 }
 

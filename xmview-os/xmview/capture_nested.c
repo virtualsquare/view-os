@@ -102,7 +102,6 @@ static char *nest_abspath(int dirfd, long laddr,struct npcb *npc,struct stat64 *
 {
 	char *path=(char*)laddr;
 	char newpath[PATH_MAX];
-	char *cwd;
 	/* modules/thread call should refer to absolute paths.
 	 * management of cwd is missing and should be carefully 
 	 * studied 
@@ -111,14 +110,10 @@ static char *nest_abspath(int dirfd, long laddr,struct npcb *npc,struct stat64 *
 	 * else
 	 *  cwd= ...path of dirfd... 
 	 */
-	cwd=NULL;
-	um_realpath(path,cwd,newpath,pst,dontfollowlink,npc);
+	um_realpath(path,NULL,newpath,pst,dontfollowlink,npc);
 	if (npc->erno)
 		return um_patherror;  //error
 	else
-#if 0
-		return strdup(um_cutdots(newpath));
-#endif
 		return strdup(newpath);
 }
 
@@ -358,7 +353,9 @@ int nw_sysopen(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 		scno=__NR_open;
 	}
 #endif
+	fprint2("nw_sysopen %s\n");
 	sfd=do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+	fprint2("nw_sysopen done %s\n");
 	if (sfd >= 0) {
 		int lfd;
 		int newfd=r_dup(STDOUT_FILENO); /* fake a file descriptor! */

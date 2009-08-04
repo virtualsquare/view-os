@@ -26,7 +26,8 @@
 #include "module.h"
 #include "gdebug.h"
 
-struct service s;
+static struct service s;
+VIEWOS_SERVICE(s)
 
 static void
 __attribute__ ((constructor))
@@ -38,7 +39,6 @@ init (void)
 	s.code=0xfd;
 	s.syscall=NULL;
 	s.socket=NULL;
-	add_service(&s);
 }
 
 static void

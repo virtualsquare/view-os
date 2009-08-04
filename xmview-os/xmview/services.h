@@ -126,8 +126,7 @@ struct service {
 #define UM_NONE 0xff
 #define UM_ERR 0x00
 
-int add_service(struct service *s);
-int set_handle_new_service(void *dlhandle,int position);
+int add_service(void *dlhandle);
 void *get_handle_service(service_t code);
 int del_service(service_t code);
 int mov_service(service_t code, int position);

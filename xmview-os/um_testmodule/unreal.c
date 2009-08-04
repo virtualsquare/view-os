@@ -43,6 +43,7 @@
 // int read(), write(), close();
 
 static struct service s;
+VIEWOS_SERVICE(s)
 
 static long addproc(int id, int max)
 {
@@ -271,7 +272,6 @@ init (void)
 #else
 	SERVICESYSCALL(s, statfs, unreal_statfs64);
 #endif
-	add_service(&s);
 	ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal",0,"",&s,0,NULL,NULL);
 	ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal",0,"",&s,0,NULL,NULL);
 }

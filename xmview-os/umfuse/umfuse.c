@@ -83,8 +83,9 @@
 #define PRINTDEBUG(level,args...)
 #endif
 
-
 static struct service s;
+VIEWOS_SERVICE(s)
+
 static struct ht_elem *service_ht;
 
 struct fuse {
@@ -597,10 +598,6 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 	GDEBUG(10, "MOUNT %s %s %s %x %s",source,target,filesystemtype,
 			mountflags, (data!=NULL)?data:"<NULL>");
 
-	if(*source != '/') {
-		errno=ENOENT;
-		return -1;
-	}
 	if(dlhandle == NULL || dlsym(dlhandle,"main") == NULL) {
 		GMESSAGE("%s",dlerror());
 		if (dlhandle != NULL)
@@ -1998,7 +1995,6 @@ init (void)
 	SERVICESYSCALL(s, pread64, umfuse_pread64);
 	SERVICESYSCALL(s, pwrite64, umfuse_pwrite64);
 	SERVICESYSCALL(s, utimes, umfuse_utimes);
-	add_service(&s);
 	service_ht=ht_tab_add(CHECKFSTYPE,"umfuse",0,&s,NULL,NULL);
 }
 

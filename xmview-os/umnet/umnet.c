@@ -57,6 +57,8 @@
 #endif
 
 static struct service s;
+VIEWOS_SERVICE(s)
+
 static struct ht_elem *service_ht;
 struct ht_elem *socket_ht;
 
@@ -726,7 +728,6 @@ init (void)
 	SERVICESYSCALL(s, chown, umnet_chown);
 	SERVICESYSCALL(s, ioctl, umnet_ioctl);
 	s.event_subscribe=umnet_event_subscribe;
-	add_service(&s);
 	service_ht=ht_tab_add(CHECKFSTYPE,"umnet",0,&s,NULL,NULL);
 	socket_ht=ht_tab_add(CHECKSOCKET,NULL,0,&s,checksocket,NULL);
 }

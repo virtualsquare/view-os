@@ -47,6 +47,8 @@
 
 #define PROC_MOUNTS 1
 static struct service s;
+VIEWOS_SERVICE(s)
+
 static struct ht_elem *service_ht;
 
 struct fileinfo {
@@ -202,7 +204,6 @@ init (void)
 	SERVICESYSCALL(s, access, umproc_access);
 	SERVICESYSCALL(s, lseek, umproc_lseek);
 
-	add_service(&s);
 	service_ht=ht_tab_pathadd(CHECKPATH,"none","/proc/mounts","proc",0,"ro",&s,0,NULL,&proc_mounts);
 }
 

@@ -267,31 +267,36 @@ char *um_realpath(const char *name, const char *cwd, char *resolved,
 			return NULL;
 		}
 		memcpy(cdata.ebuf+cdata.rootlen,name+1,namelen);
-	} else 
+	} else {
 		/* relative path 
 		   append 'name' to the cwd */
-	{ 
-		int namelen=strlen(name);
-		int cwdlen=strlen(cwd);
-		memcpy(cdata.ebuf,cwd,cwdlen);
-		if (cdata.ebuf[cwdlen-1] != '/') {
-			cdata.ebuf[cwdlen]='/';
-			cwdlen++;
-		}
-		/* cwd inside the current root:
-			 set the immutable part of the path (inside the chroot cage) */
-		if (strncmp(cdata.ebuf,root,cdata.rootlen)==0 &&
-				(root[cdata.rootlen-1]=='/' || cdata.ebuf[cdata.rootlen]=='/')) {
-			if (root[cdata.rootlen-1]!='/')
-				cdata.rootlen++;
-		} else
-			cdata.rootlen=1;
-		/* overflow check */
-		if (cwdlen + namelen>= PATH_MAX) {
-			um_set_errno(xpc,ENAMETOOLONG);
+		/* cwd == NULL (unlikely) means relative filenames forbidden */
+		if (__builtin_expect((cwd==NULL),0)) {
+			um_set_errno(xpc,EINVAL);
 			return NULL;
+		} else {
+			int namelen=strlen(name);
+			int cwdlen=strlen(cwd);
+			memcpy(cdata.ebuf,cwd,cwdlen);
+			if (cdata.ebuf[cwdlen-1] != '/') {
+				cdata.ebuf[cwdlen]='/';
+				cwdlen++;
+			}
+			/* cwd inside the current root:
+				 set the immutable part of the path (inside the chroot cage) */
+			if (strncmp(cdata.ebuf,root,cdata.rootlen)==0 &&
+					(root[cdata.rootlen-1]=='/' || cdata.ebuf[cdata.rootlen]=='/')) {
+				if (root[cdata.rootlen-1]!='/')
+					cdata.rootlen++;
+			} else
+				cdata.rootlen=1;
+			/* overflow check */
+			if (cwdlen + namelen>= PATH_MAX) {
+				um_set_errno(xpc,ENAMETOOLONG);
+				return NULL;
+			}
+			memcpy(cdata.ebuf+cwdlen,name,namelen+1);
 		}
-		memcpy(cdata.ebuf+cwdlen,name,namelen+1);
 	}
 	/* fprint2("PATH! %s (inside %s)\n",cdata.ebuf,cdata.ebuf+cdata.rootlen);*/
 	resolved[0]='/';

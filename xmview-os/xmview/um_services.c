@@ -104,21 +104,17 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 	switch (pc->sysargs[0]) {
 		case ADD_SERVICE:
 			if (umovestr(pc,pc->sysargs[2],PATH_MAX,buf) == 0) {
-				//if (access(buf,R_OK) != 0) {
-				//	pc->retval=-1;
-				//	pc->erno=errno;
-				//} else {
 				void *handle=open_dllib(buf);
 				if (handle==NULL) {
 					pc->retval= -1;
 					pc->erno=EINVAL;
 				} else {
-					if ((pc->retval=set_handle_new_service(handle,pc->sysargs[1])) != 0) {
+					if (add_service(handle) < 0)
+					{
 						dlclose(handle);
 						pc->erno=errno;
 					}
 				}
-				//}
 			} else {
 				pc->retval= -1;
 				pc->erno=ENOSYS;

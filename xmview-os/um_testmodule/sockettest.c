@@ -45,6 +45,7 @@
 // int read(), write(), close();
 
 static struct service s;
+VIEWOS_SERVICE(s)
 
 static long ioctlparms(int fd,int req)
 {
@@ -145,7 +146,6 @@ init (void)
 	SERVICESYSCALL(s, _newselect, select);
 	SERVICESYSCALL(s, poll, poll);
 
-	add_service(&s);
 	ht_tab_add(CHECKSOCKET,NULL,0,&s,NULL,NULL);
 }
 

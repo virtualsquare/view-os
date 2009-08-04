@@ -111,13 +111,11 @@ static int do_preload(struct prelist *head)
 		void *handle;
 		int rv=do_preload(head->next);
 		handle=open_dllib(head->module);
-		if (handle==NULL) {
+		if (handle==NULL || add_service(handle) < 0) {
 			fprintf(stderr, "%s\n",dlerror());
 			return -1;
-		} else {
-			set_handle_new_service(handle,0);
+		} else 
 			return rv;
-		}
 		free(head);
 	} else
 		return 0;

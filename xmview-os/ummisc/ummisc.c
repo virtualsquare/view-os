@@ -53,6 +53,8 @@
 #endif
 
 static struct service s;
+VIEWOS_SERVICE(s)
+
 static struct ht_elem *service_ht;
 
 struct ummisc {
@@ -470,7 +472,6 @@ init (void)
 	SERVICESYSCALL(s, getdents64, ummisc_getdents64);
 
 	initmuscno(&s);
-	add_service(&s);
 	service_ht=ht_tab_add(CHECKFSTYPE,"ummisc",0,&s,NULL,NULL);
 }
 

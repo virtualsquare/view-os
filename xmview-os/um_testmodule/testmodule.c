@@ -27,7 +27,8 @@
 #include "module.h"
 #include "gdebug.h"
 
-struct service s;
+static struct service s;
+VIEWOS_SERVICE(s)
 
 static long addproc(int id, int max)
 {
@@ -120,8 +121,6 @@ init (void)
 	MCH_ZERO(&s.ctlhs);
 	MCH_SET(MC_PROC, &s.ctlhs);
 	MCH_SET(MC_MODULE, &s.ctlhs);
-
-	add_service(&s);
 }
 
 static void
