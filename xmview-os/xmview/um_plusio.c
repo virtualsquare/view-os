@@ -591,9 +591,10 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 	if ((pc->retval = um_syscall(source,pc->path,fs_alias(filesystemtype),
 					mountflags,datax)) < 0)
 		pc->erno=errno;
+	else
+		ht_servicecount_plus1(hte);
 	free(source);
 	um_setepoch(nestepoch);
-	ht_servicecount_plus1(hte);
 	return SC_FAKE;
 }
 

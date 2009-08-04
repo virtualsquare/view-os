@@ -540,7 +540,7 @@ int fuse_loop(struct fuse *f)
 
 int umfuse_abort(struct fuse *f)
 {
-	//printf("ABORT!\n");
+	//fprint2("ABORT!\n");
 	f->inuse = FUSE_ABORT;
 	pthread_mutex_lock( &condition_mutex );
 	pthread_cond_signal( &f->startloop );
@@ -653,13 +653,14 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 		{
 			struct fuse_context *fc_norace=new;
 			//GERROR("UMOUNT ABORT");
-			ht_tab_del(um_mod_get_hte());
+			ht_tab_invalidate(um_mod_get_hte());
 			pthread_join(fc_norace->fuse->thread, NULL);
 			dlclose(fc_norace->fuse->dlhandle);
 			free(fc_norace->fuse->filesystemtype);
 			freeexceptions(fc_norace->fuse->exceptions);
 			free(fc_norace->fuse->path);
 			free(fc_norace->fuse);
+			ht_tab_del(um_mod_get_hte());
 			errno = EIO;
 			return -1;
 		}
@@ -667,6 +668,7 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 			struct fuse_conn_info conn;
 			new->private_data=new->fuse->fops.init(&conn);
 		}
+		fprint2("return 0!\n");
 		return 0;
 	}
 }
