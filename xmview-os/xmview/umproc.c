@@ -410,7 +410,7 @@ int lfd_open (struct ht_elem *hte, int sfd, char *path, int flags, int nested)
 	lfd_tab[lfd]->hte=hte;
 	lfd_tab[lfd]->sfd=sfd;
 	lfd_tab[lfd]->flags=flags;
-	lfd_tab[lfd]->epoch=um_setepoch(0);
+	lfd_tab[lfd]->epoch=um_setnestepoch(0);
 	lfd_tab[lfd]->count=1;
 	lfd_tab[lfd]->pvtab=NULL;
 	if (hte != NULL && !nested) {
@@ -514,7 +514,6 @@ int lfd_getsfd(int lfd)
 struct ht_elem *lfd_getht(int lfd)
 {
 	//fprint2("getht %d -> %x\n",lfd,lfd_tab[lfd]);
-	// XXX EXP
 	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
 	if (lfd >= lfd_tabmax || lfd_tab[lfd] == NULL)
 		return NULL;
@@ -593,7 +592,6 @@ char *fd_getpath(struct pcb_file *p, int fd)
 {
 	if (fd>=0 && fd < p->nolfd) {
 		int lfd=FD2LFD(p,fd);
-		// XXX EXP
 		assert (lfd >= 0 && lfd < lfd_tabmax && lfd_tab[lfd] != NULL); 
 		if (lfd >= 0 && lfd < lfd_tabmax && lfd_tab[lfd] != NULL) {
 			return lfd_tab[lfd]->path;
@@ -635,7 +633,7 @@ struct ht_elem *ht_fd(struct pcb_file *p, int fd, int setepoch)
 			/* XXX side effect: when ht_fd finds a virtual file,
 			 * it sets also the epoch */
 			if (setepoch)
-				um_setepoch(lfd_tab[FD2LFD(p,fd)]->epoch);
+				um_setnestepoch(lfd_tab[FD2LFD(p,fd)]->epoch);
 			return lfd_tab[FD2LFD(p,fd)]->hte;
 		} else
 			return NULL;
@@ -700,8 +698,6 @@ void lfd_signal(int lfd)
 {
 	char ch=0;
 	//fprint2("lfd_signal %d\n",lfd);
-	//assert (lfd < lfd_tabmax && lfd_tab[lfd]->pvtab != NULL);
-	// XXX EXP
 	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
 	if  (lfd < lfd_tabmax && lfd_tab[lfd] != NULL && lfd_tab[lfd]->pvtab != NULL) {
 		if (lfd_tab[lfd]->pvtab->signaled == 0) {

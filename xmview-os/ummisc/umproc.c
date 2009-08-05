@@ -33,8 +33,6 @@
 #include <config.h>
 #include "module.h"
 
-#define UMPROC_SERVICE_CODE 0x10
-
 #ifndef __UMPROC_DEBUG_LEVEL__
 #define __UMPROC_DEBUG_LEVEL__ 0
 #endif
@@ -191,7 +189,6 @@ init (void)
 	fprint2("umproc init\n");
 	s.name="UMPROC";
 	s.description="/proc virtualization";
-	s.code=UMPROC_SERVICE_CODE;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	SERVICESYSCALL(s, open, umproc_open);

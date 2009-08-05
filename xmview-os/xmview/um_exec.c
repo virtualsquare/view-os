@@ -178,7 +178,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 {
 	char buf[BINFMTBUFLEN+1];
 	struct binfmt_req req={(char *)pc->path,NULL,NULL,buf,0};
-	epoch_t nestepoch=um_setepoch(0);
+	epoch_t nestepoch=um_setnestepoch(0);
 	struct ht_elem *binfmtht;
 	if (um_x_access(req.path,X_OK,pc)!=0) {
 		pc->erno=errno;
@@ -201,7 +201,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 	}
 	/* The epoch should be just after the mount 
 	 * which generated the executable */
-	um_setepoch(nestepoch+1);
+	um_setnestepoch(nestepoch+1);
 	memset(buf,0,BINFMTBUFLEN+1);
 	int fd=open(req.path,O_RDONLY);
 	if (fd >= 0) {
@@ -212,7 +212,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 	if (binfmtht == NULL) 
 		binfmtht=ht_check(CHECKBINFMT,&req,NULL,0);
 	//fprint2("wrap_in_execve %s |%s| |%s|\n",ht_servicename(binfmtht),req.interp,req.extraarg);
-	um_setepoch(nestepoch);
+	um_setnestepoch(nestepoch);
 	/* is there a binfmt service for this executable? */
 	if (binfmtht != NULL) {
 		char *umbinfmtarg0;

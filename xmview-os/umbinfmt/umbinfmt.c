@@ -43,8 +43,6 @@
 #include "libummod.h"
 //#include "umbinfmt.h"
 
-#define UMBINFMT_SERVICE_CODE 0x03
-
 /* Enable umbinfmt own debug output */
 
 //#define __UMBINFMT_DEBUG__ 1   /* it is better to enable it from makefile */
@@ -890,7 +888,6 @@ init (void)
 	printf("umbinfmt init\n");
 	s.name="UMBINFMT";
 	s.description="virtual binfmt_misc";
-	s.code=UMBINFMT_SERVICE_CODE;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	SERVICESYSCALL(s, mount, umbinfmt_mount);

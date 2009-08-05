@@ -146,7 +146,6 @@ init (void)
 	GMESSAGE("sockettest init");
 	s.name="SOCKIP";
 	s.description="socket syscall (AF_INET) are executed server side";
-	s.code=0xfb;
 	s.ioctlparms=ioctlparms;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));

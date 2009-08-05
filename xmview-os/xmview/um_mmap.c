@@ -387,12 +387,12 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 		offset >>= um_mmap_pageshift;
 	/* compute the size in pages */
 	pgsize=offset+(length >> um_mmap_pageshift)+1;
-	epoch_t nestepoch=um_setepoch(0);
-	um_setepoch(nestepoch +1);
+	epoch_t nestepoch=um_setnestepoch(0);
+	um_setnestepoch(nestepoch +1);
 	/* get the stat info about the file */
 	if (um_mmap_getstat(path, hte, &sbuf, pc) < 0) {
 		pc->retval = -1;
-		um_setepoch(nestepoch);
+		um_setnestepoch(nestepoch);
 		return SC_FAKE;
 	} else {
 		struct mmap_sf_entry *sf_entry;
@@ -406,20 +406,20 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 							prot,hte,length)) == NULL) {
 				/* there is something wrong, we cannot allocate space on the secret file*/
 				pc->retval = -1;
-				um_setepoch(nestepoch);
+				um_setnestepoch(nestepoch);
 				return SC_FAKE;
 			}
 			if (add_mmap_secret(hte, path, sf_entry->pgoffset) <= 0) {
 				/* there is something wrong, cannot load the file! */
 				pc->retval = -1;
-				um_setepoch(nestepoch);
+				um_setnestepoch(nestepoch);
 				return SC_FAKE;
 			}
 		}
 		/* add the new item in the *process* mmap table */
 		pc->um_mmap = pcb_mmap_add(pc->um_mmap, 0, length, sf_entry);
 		sf_entry->counter++;
-		um_setepoch(nestepoch);
+		um_setnestepoch(nestepoch);
 		pc->retval = 0;
 		
 		/* rewrite the syscall parms: mmap->mmap2 if needed, using the secret

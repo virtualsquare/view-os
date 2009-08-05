@@ -60,7 +60,6 @@
 #error UMFUSE NEEDS FUSE >= 2.6
 #endif 
 
-#define UMFUSE_SERVICE_CODE 0x01
 #define FUSE_SUPER_MAGIC 0x65735546
 
 /* Enable Experimental code */
@@ -629,11 +628,8 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 		new->private_data = NULL;
 		new->fuse->flags = mountflags; /* all the mount flags + FUSE_DEBUG */
 
-		/* parse mount options: split fuse options from 
-			 filesystem options
-			 and traslate options from mount syntax into fuse syntax */
-
 		um_mod_set_hte(ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,mountflags,data,&s,0,umfuse_confirm,new));
+
 		smo.new = new;
 		smo.pmountflags = &(new->fuse->flags);
 		smo.source = source;
@@ -649,6 +645,7 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 		if (new->fuse->inuse== WAITING_FOR_LOOP)
 			pthread_cond_wait( &(new->fuse->startloop), &condition_mutex);
 		pthread_mutex_unlock( &condition_mutex );
+
 		if (new->fuse->inuse == FUSE_ABORT)
 		{
 			struct fuse_context *fc_norace=new;
@@ -1949,7 +1946,6 @@ init (void)
 	GMESSAGE("umfuse init");
 	s.name="UMFUSE";
 	s.description="virtual file systems (user level FUSE)";
-	s.code=UMFUSE_SERVICE_CODE;
 	s.destructor=umfuse_destructor;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));

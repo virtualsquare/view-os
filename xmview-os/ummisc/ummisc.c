@@ -40,8 +40,6 @@
 #define TRUE 1
 #define FALSE 0
 
-#define UMMISC_SERVICE_CODE 0x06
-
 #ifndef __UMMISC_DEBUG_LEVEL__
 #define __UMMISC_DEBUG_LEVEL__ 0
 #endif
@@ -455,7 +453,6 @@ init (void)
 	fprint2("ummisc init\n");
 	s.name="UMMISC";
 	s.description="virtual miscellaneous (time, uname, uid/gid, ...)";
-	s.code=UMMISC_SERVICE_CODE;
 	s.destructor=ummisc_destructor;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));

@@ -43,7 +43,6 @@
 #define TRUE 1
 #define FALSE 0
 
-#define UMNET_SERVICE_CODE 0x07
 #define DEFAULT_NET_PATH "/dev/net/default"
 
 #ifndef __UMNET_DEBUG_LEVEL__
@@ -193,7 +192,7 @@ static struct umnet *umnet_getdefstack(int id, int domain)
 	}
 }
 
-static long umnet_ctl(int type, va_list ap)
+static long umnet_ctl(int type, char *sender, va_list ap)
 {
 	int id, ppid, max;
 
@@ -693,7 +692,6 @@ init (void)
 	fprint2("umnet init\n");
 	s.name="UMNET";
 	s.description="virtual (multi-stack) networking";
-	s.code=UMNET_SERVICE_CODE;
 	s.destructor=umnet_destructor;
 	s.ioctlparms=umnet_ioctlparms;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));

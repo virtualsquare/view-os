@@ -26,12 +26,12 @@
 #include "treepoch.h"
 
 typedef long (*sysfun)();
-typedef unsigned char service_t;
 
 typedef unsigned long c_set;
+#define MC_USER 1
 #define MC_CORECTLCLASS(x) ((x) << 1)
 #define MC_CORECTLOPT(x) ((x) << 6)
-#define MC_USERCTL(sercode, ctl) (1 | (sercode << 1) | (ctl << 9))
+#define MC_USERCTL(ctl) (MC_USER | (ctl << 1))
 
 #define MC_PROC			MC_CORECTLCLASS(0)
 #define MC_MODULE		MC_CORECTLCLASS(1)
@@ -39,8 +39,6 @@ typedef unsigned long c_set;
 
 #define MC_ADD			MC_CORECTLOPT(0)
 #define MC_REM			MC_CORECTLOPT(1)
-
-#define MC_ALLSERVICES	((1 << (sizeof(service_t) * 8)) - 1)
 
 #define MCH_SET(c, set)		*(set) |= (1 << c)
 #define MCH_CLR(c, set)		*(set) &= ~(1 << c)
@@ -81,7 +79,6 @@ struct ht_elem;
 struct service {
 	char *name;
 	char *description;
-	service_t code;
 
 	/* handle to service data. It is used by um_service.c to store
 	 * dynamic lib handle (see dlopen (3))*/
@@ -136,9 +133,7 @@ int add_service(void *dlhandle);
 int del_service(char *name);
 int list_services(char *buf,int len);
 int name_service(char *name,char *buf,int len);
-void lock_services();
-void invisible_services();
-void service_ctl(unsigned long type, service_t code, int skip, ...);
+void service_ctl(unsigned long type, char *sender, char *destination, ...);
 void _service_init();
 void service_addregfun(int, sysfun, sysfun);
 

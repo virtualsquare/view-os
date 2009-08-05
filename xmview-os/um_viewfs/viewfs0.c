@@ -1395,7 +1395,6 @@ init (void)
 	GMESSAGE("viewfs init");
 	s.name="VIEWFS";
 	s.description="filesystem patchwork";
-	s.code=0x05;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	s.virsc=(sysfun *)calloc(scmap_virscmapsize,sizeof(sysfun));

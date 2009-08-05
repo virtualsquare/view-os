@@ -59,24 +59,24 @@ static long delproc(int id)
 	return 0;
 }
 
-static long addmodule(int code)
+static long addmodule(char *sender)
 {
-	fprintf(stderr, "add module 0x%02x\n", code);
-	GDEBUG(3, "new module loaded. code 0x%02x", code);
+	fprintf(stderr, "add module %s\n", sender);
+	GDEBUG(3, "new module loaded. %s", sender);
 	return 0;
 }
 
-static long delmodule(int code)
+static long delmodule(char *sender)
 {
-	fprintf(stderr, "del module 0x%02x\n", code);
-	GDEBUG(3, "module 0x%02x removed", code);
+	fprintf(stderr, "del module %s\n", sender);
+	GDEBUG(3, "module %s removed", sender);
 	return 0;
 }
 
 
-static long ctl(int type, va_list ap)
+static long ctl(int type, char *sender, va_list ap)
 {
-	int id, ppid, max, code;
+	int id, ppid, max;
 
 	switch(type)
 	{
@@ -91,12 +91,10 @@ static long ctl(int type, va_list ap)
 			return delproc(id);
 
 		case MC_MODULE | MC_ADD:
-			code = va_arg(ap, int);
-			return addmodule(code);
+			return addmodule(sender);
 
 		case MC_MODULE | MC_REM:
-			code = va_arg(ap, int);
-			return delmodule(code);
+			return delmodule(sender);
 		
 		default:
 			return -1;
@@ -114,9 +112,9 @@ static char *unwrap(char *path)
 static long unreal_open(char *pathname, int flags, mode_t mode)
 {
 	/* send the file name to every module except myself (just for testing) */
-	service_userctl(42, s.code, MC_ALLSERVICES, pathname);
-	/* send the file name to module 0xfc (i.e. testmodule) */
-	//	service_userctl(42, s.code, 0xfc, pathname);
+	service_userctl(42, &s, NULL, pathname);
+	/* send the file name to module TEST (i.e. testmodule) */
+	//	service_userctl(42, &s, "TEST", pathname);
 	return open(unwrap(pathname),flags,mode);
 }
 
@@ -221,7 +219,6 @@ init (void)
 	GMESSAGE("unreal init");
 	s.name="UNREAL";
 	s.description="/unreal Mapping to FS (server side)";
-	s.code=0xfe;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	s.ctl = ctl;

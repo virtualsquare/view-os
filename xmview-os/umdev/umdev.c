@@ -44,7 +44,6 @@
 #include "libummod.h"
 #include "umdev.h"
 
-#define UMDEV_SERVICE_CODE 0x04
 //static pthread_mutex_t devicetab_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* Enable umdev own debug output */
@@ -965,7 +964,6 @@ init (void)
 	fprint2("umdev init\n");
 	s.name="UMDEV";
 	s.description="virtual devices";
-	s.code=UMDEV_SERVICE_CODE;
 	s.destructor=umdev_destructor;
 	s.ioctlparms=umdev_ioctlparms;
 	//pthread_key_create(&context_key,NULL);

@@ -74,7 +74,7 @@ struct seldata {
 
 static void cleanup_pending(struct pcb *pc)
 {
-	epoch_t oldepoch=um_setepoch(0);
+	epoch_t oldepoch=um_setnestepoch(0);
   struct seldata *sd=pc->selset;
 	if (sd) {
 		int i;
@@ -85,7 +85,7 @@ static void cleanup_pending(struct pcb *pc)
 			int sfd=fd2sfd(pc->fds,sd->pending[i].fd);
 			assert(local_event_subscribe != NULL && sfd >= 0);
 			local_event_subscribe(NULL,pc,sfd,sd->pending[i].how);
-			um_setepoch(oldepoch);
+			um_setnestepoch(oldepoch);
 		}
 		pc->selset=NULL;
 		bq_terminate(pc);
@@ -100,7 +100,7 @@ static void cleanup_pending(struct pcb *pc)
  */
 static void suspend_signaled(struct pcb *pc)
 {
-	epoch_t oldepoch=um_setepoch(0);
+	epoch_t oldepoch=um_setnestepoch(0);
 	struct seldata *sd=pc->selset;
 	if (!sd)
 		printf("UH? %d\n",pc->pid);
@@ -112,7 +112,7 @@ static void suspend_signaled(struct pcb *pc)
 	assert(local_event_subscribe != NULL && sfd >= 0);
 	local_event_subscribe(NULL,pc,sfd,sd->pending[0].how);
 	pc->selset=NULL;
-	um_setepoch(oldepoch);
+	um_setnestepoch(oldepoch);
 	free(sd->pending);
 	free(sd);
 	sc_resume(pc);
@@ -120,7 +120,7 @@ static void suspend_signaled(struct pcb *pc)
 
 int check_suspend_on(struct pcb *pc, int fd, int how)
 {
-	epoch_t oldepoch=um_setepoch(0);
+	epoch_t oldepoch=um_setnestepoch(0);
 	struct ht_elem *hte=ht_fd(pc->fds,fd,1);
 	int sfd;
 	/*int i;*/
@@ -150,13 +150,13 @@ int check_suspend_on(struct pcb *pc, int fd, int how)
 				sd->pending[0].how=how;
 				pc->selset=sd;
 				bq_add(suspend_signaled,pc);
-				um_setepoch(oldepoch);
+				um_setnestepoch(oldepoch);
 				return SC_SUSPENDED;
 			} else
 				bq_unblock(pc);
 		}
 	}
-	um_setepoch(oldepoch);
+	um_setnestepoch(oldepoch);
 	return STD_BEHAVIOR;
 }
 
@@ -196,7 +196,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,
 	int i,fd,count;
 	long pfds[3];
 	fd_set wfds[3]; /* modified waiting fds virtual files are R-waiting on the FIFOs */ 
-	epoch_t oldepoch=um_setepoch(0);
+	epoch_t oldepoch=um_setnestepoch(0);
 	/*long ptimeout=pc->sysargs[4];
 	struct timeval *lptimeout;
 	struct timeval ltimeout;*/
@@ -270,7 +270,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,
 						count++;
 					}
 				}
-				um_setepoch(oldepoch);
+				um_setnestepoch(oldepoch);
 			}
 		}
 		for (i=0;i<3;i++)  
@@ -283,7 +283,7 @@ int wrap_out_select(int sc_number,struct pcb *pc)
 {
 	struct seldata *sd=pc->selset;
 	if (sd != NULL) {
-		epoch_t oldepoch=um_setepoch(0);
+		epoch_t oldepoch=um_setnestepoch(0);
 		register int n=pc->sysargs[0];
 		int pfds[3];
 		fd_set lfds[3]; /* local copy of the signaled SC fds */
@@ -310,7 +310,7 @@ int wrap_out_select(int sc_number,struct pcb *pc)
 				else
 					FD_CLR(sd->pending[i].fd,&lfds[j]);
 			}
-			um_setepoch(oldepoch);
+			um_setnestepoch(oldepoch);
 		}
 		pc->selset=NULL;
 		/* retval must be evaluated again */
@@ -337,7 +337,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 	unsigned int nfds=pc->sysargs[1];
 	unsigned long pufds=pc->sysargs[0];
 	int i,count;
-	epoch_t oldepoch=um_setepoch(0);
+	epoch_t oldepoch=um_setnestepoch(0);
 
 	ufds=alloca(nfds*sizeof(struct pollfd));
 	umoven(pc,pufds,nfds*sizeof(struct pollfd),ufds);
@@ -382,7 +382,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 						count++;
 					}
 				}
-				um_setepoch(oldepoch);
+				um_setnestepoch(oldepoch);
 			}
 		}
 		ustoren(pc,pufds,nfds*sizeof(struct pollfd),ufds);
@@ -394,7 +394,7 @@ int wrap_out_poll(int sc_number,struct pcb *pc)
 {
 	struct seldata *sd=pc->selset;
 	if (sd != NULL) {
-		epoch_t oldepoch=um_setepoch(0);
+		epoch_t oldepoch=um_setnestepoch(0);
 		struct pollfd *ufds;
 		unsigned long pufds=pc->sysargs[0];
 		unsigned int nfds=pc->sysargs[1];
@@ -417,7 +417,7 @@ int wrap_out_poll(int sc_number,struct pcb *pc)
 					ufds[i].events=sd->pending[j].how;
 					ufds[i].revents=howret;
 					/* XXX ERR/HUP ??? */
-					um_setepoch(oldepoch);
+					um_setnestepoch(oldepoch);
 					j++;
 				} 
 				if (ufds[i].revents)

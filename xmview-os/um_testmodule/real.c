@@ -43,7 +43,6 @@ VIEWOS_SERVICE(s)
 
 static long addproc(int id, int max)
 {
-	fprintf(stderr, "new proc %d %d\n", id, max);
 	GDEBUG(3, "new process id %d  pid %d   max %d",id,um_mod_getpid(),max);
 	return 0;
 }
@@ -54,19 +53,20 @@ static long delproc(int id)
 	return 0;
 }
 
-static long addmodule(int code)
+static long addmodule(char *sender)
 {
-	GDEBUG(3, "new module loaded. code", code);
+	GDEBUG(3, "new module loaded. %s", sender);
 	return 0;
 }
 
-static long delmodule(int code)
+static long delmodule(char *sender)
 {
-	GDEBUG(3, "module %d removed", code);
+	GDEBUG(3, "module %s removed", sender);
+	return 0;
 }
 
 
-static long ctl(int type, va_list ap)
+static long ctl(int type, char *sender, va_list ap)
 {
 	int id, ppid, max, code;
 
@@ -83,12 +83,10 @@ static long ctl(int type, va_list ap)
 			return delproc(id);
 
 		case MC_MODULE | MC_ADD:
-			code = va_arg(ap, int);
-			return addmodule(code);
+			return addmodule(sender);
 
 		case MC_MODULE | MC_REM:
-			code = va_arg(ap, int);
-			return delmodule(code);
+			return delmodule(sender);
 		
 		default:
 			return -1;
@@ -102,7 +100,6 @@ init (void)
 	GMESSAGE("real init");
 	s.name="REAL";
 	s.description="Identity (server side)";
-	s.code=0xf8;
 	s.ctl = ctl;
 	
 

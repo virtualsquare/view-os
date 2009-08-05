@@ -75,7 +75,7 @@ char *um_getroot(struct pcb *pc);
 int um_x_access(char *filename,int mode, struct pcb *pc);
 int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc);
 int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc);
-epoch_t um_setepoch(epoch_t epoch);
+epoch_t um_setnestepoch(epoch_t epoch);
 
 struct timestamp *um_x_gettst();
 

@@ -51,21 +51,19 @@ extern epoch_t get_epoch();
 extern epoch_t um_setepoch(epoch_t epoch);
 
 typedef epoch_t (*epochfun)();
-typedef unsigned char service_t;
 
 typedef unsigned long c_set;
 
 extern int msocket (char *path, int domain, int type, int protocol);
 
 #define MC_USER 1
-
 #define MC_CORECTLCLASS(x) ((x) << 1)
 #define MC_CORECTLOPT(x) ((x) << 6)
-#define MC_USERCTL(sercode, ctl) (MC_USER | (sercode << 1) | (ctl << 9))
+#define MC_USERCTL(ctl) (MC_USER | (ctl << 1))
 
 /* To be tested. Bits are fun!  */
-#define MC_USERCTL_SERCODE(x) (((x) >> 1) & ((1L << (sizeof(service_t) * 8)) - 1))
-#define MC_USERCTL_CTL(x) (((x) >> 9) & ((1L << (sizeof(long) * 8 - 9)) - 1))
+#define MC_ISUSER(x) ((x) & MC_USER)
+#define MC_USERCTL_CTL(x) (((x) >> 1))
 
 #define MC_PROC			MC_CORECTLCLASS(0)
 #define MC_MODULE		MC_CORECTLCLASS(1)
@@ -73,8 +71,6 @@ extern int msocket (char *path, int domain, int type, int protocol);
 
 #define MC_ADD			MC_CORECTLOPT(0)
 #define MC_REM			MC_CORECTLOPT(1)
-
-#define MC_ALLSERVICES	((1 << (sizeof(service_t) * 8)) - 1)
 
 #define MCH_SET(c, set)		*(set) |= (1 << c)
 #define MCH_CLR(c, set)		*(set) &= ~(1 << c)
@@ -116,8 +112,6 @@ struct service {
 	char *name;
 	/* description */
 	char *description;
-
-	service_t code;
 
 	/* handle to service data. It is used by um_service.c to store
 	 * dynamic lib handle (see dlopen (3))*/
@@ -165,7 +159,7 @@ struct service {
 	 * MC_MOUNT | MC_REM:
 	 *
 	 */
-	long (*ctl)(int, va_list);
+	long (*ctl)(int, char *, va_list);
 
 	/* Mask of ctl classes for which the module want synthetized
 	 * notifications. For example, at module loading time, it may want one
@@ -234,7 +228,8 @@ int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
 int um_mod_nrsyscalls(void);
 
 extern int uscno(int scno);
-extern void service_userctl(unsigned long type, service_t sender, service_t recipient, ...);
+extern void service_userctl(unsigned long type, struct service *sender, 
+		char *recipient, ...);
 
 extern void *openmodule(const char *modname, int flag);
 

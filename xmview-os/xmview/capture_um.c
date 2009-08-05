@@ -249,6 +249,8 @@ static void droppcb(struct pcb *pc)
 	 * the termination of all modules */
 	/* otherwise the "nesting" mechanism misunderstands
 	 * the pcb by a npcb */
+	/* XXX rd235 20090805: it seems not a problem any more
+		 in the new version. deleted for dup delproc notication for proc #1 */
 #ifdef _PROC_MEM_TEST
 	if (pc->memfd >= 0)
 		close(pc->memfd);
@@ -256,7 +258,9 @@ static void droppcb(struct pcb *pc)
 	nprocs--;
 	forallpcbdo(_cut_pp,pc);
 	pcb_destructor(pc,0/*flags*/,0);
+#if 0
 	if (nprocs > 0)
+#endif
 		pc->flags = 0; /*NOT PCB_INUSE */;
 }
 

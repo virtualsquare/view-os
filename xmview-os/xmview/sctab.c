@@ -107,7 +107,7 @@ struct timestamp *um_x_gettst()
 /* set the epoch for nesting (further system calls)
  * this call returns the previous value.
  * If epoch == 0, the new epoch is not set */
-epoch_t um_setepoch(epoch_t epoch)
+epoch_t um_setnestepoch(epoch_t epoch)
 {
 	struct pcb *pc=get_pcb();
 	epoch_t oldepoch=pc->nestepoch;
@@ -468,32 +468,32 @@ int dsys_um_sysctl(int sc_number,int inout,struct pcb *pc)
 }
 
 /* just the function executed by the following function (iterator) */
-static void _reg_processes(struct pcb *pc,service_t *pcode)
+static void _reg_processes(struct pcb *pc,char *destination)
 {
-	service_ctl(MC_PROC | MC_ADD, *pcode, -1, pc->umpid, (pc->pp) ? pc->pp->umpid : -1, pcbtablesize());
+	service_ctl(MC_PROC | MC_ADD, NULL, destination, pc->umpid, (pc->pp) ? pc->pp->umpid : -1, pcbtablesize());
 }
 
 /* when a new service gets registerd all the existing processes are added
  * as a whole to the private data structures of the module, if it asked for
  * them */
-static int reg_processes(service_t code)
+static int reg_processes(char *destination)
 {
-	forallpcbdo(_reg_processes,&code);
+	forallpcbdo(_reg_processes, destination);
 	return 0;
 }
 
 /* just the function executed by the following function (iterator) */
-static void _dereg_processes(struct pcb *pc,service_t *pcode)
+static void _dereg_processes(struct pcb *pc,char *destination)
 {
-	service_ctl(MC_PROC | MC_REM, *pcode, -1, pc->umpid);
+	service_ctl(MC_PROC | MC_REM, NULL, destination, pc->umpid);
 }
 
 /* when a service gets deregistered, all the data structures managed by the
  * module related to the processes must be deleted (if the module asked for
  * the processes birth history upon insertion */
-static int dereg_processes(service_t code)
+static int dereg_processes(char *destination)
 {
-	forallpcbdo(_dereg_processes, &code);
+	forallpcbdo(_dereg_processes, destination);
 	return 0;
 }
 
@@ -501,13 +501,13 @@ static int dereg_processes(service_t code)
 static void um_proc_add(struct pcb *pc)
 {
 	GDEBUG(0, "calling service_ctl %d %d %d %d %d %d", MC_PROC|MC_ADD, UM_NONE, -1, pc->umpid, (pc->pp)?pc->pp->umpid:-1, pcbtablesize());
-	service_ctl(MC_PROC | MC_ADD, UM_NONE, -1, pc->umpid, (pc->pp) ? pc->pp->umpid : -1, pcbtablesize());
+	service_ctl(MC_PROC | MC_ADD, NULL, NULL, pc->umpid, (pc->pp) ? pc->pp->umpid : -1, pcbtablesize());
 }
 
 /* UM actions for a terminated process */
 static void um_proc_del(struct pcb *pc)
 {
-	service_ctl(MC_PROC | MC_REM, UM_NONE, -1, pc->umpid);
+	service_ctl(MC_PROC | MC_REM, NULL, NULL, pc->umpid);
 }
 
 #if 0
@@ -1122,8 +1122,8 @@ void *getfiletab(int i)
 void scdtab_init()
 {
 	register int i;
-	/* init service management */
 	_service_init();
+	/* init service management */
 	service_addregfun(MC_PROC, (sysfun)reg_processes, (sysfun)dereg_processes);
 
 	/* sysctl is used to define private system calls */

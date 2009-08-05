@@ -557,6 +557,7 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 }
 
 /* MOUNT */
+/* XXX rd235 20090805 nestepoch seems useless in the new version */
 int wrap_in_mount(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
@@ -569,11 +570,11 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 	unsigned int mountflags=pc->sysargs[3];
 	unsigned long pdata=pc->sysargs[4];
 	struct stat64 imagestat;
-	epoch_t nestepoch;
+	//epoch_t nestepoch;
 	umovestr(pc,fstype,PATH_MAX,filesystemtype);
 	source = um_abspath(AT_FDCWD,argaddr,pc,&imagestat,0);
-	nestepoch=um_setepoch(0);
-	um_setepoch(nestepoch+1);
+	//nestepoch=um_setnestepoch(0);
+	//um_setnestepoch(nestepoch+1);
 	/* maybe the source is not a path at all. source must exist.
 	 * source is not converted to an absolute path if it is not a path
 	 * it is simply copied "as is" */
@@ -594,7 +595,7 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 	else
 		ht_servicecount_plus1(hte);
 	free(source);
-	um_setepoch(nestepoch);
+	//um_setnestepoch(nestepoch);
 	return SC_FAKE;
 }
 

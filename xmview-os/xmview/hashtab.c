@@ -249,9 +249,9 @@ static inline int ht_scan_terminate(unsigned char type, char *objc, int len, int
 	}
 }
 static inline int call_checkfun(int (*checkfun)(),unsigned char type,void *checkobj,int len,struct ht_elem *ht) {
-	epoch_t epoch=um_setepoch(ht->tst.epoch);
+	epoch_t epoch=um_setnestepoch(ht->tst.epoch);
 	int rv=checkfun(type,checkobj,len,ht);
-	um_setepoch(epoch);
+	um_setnestepoch(epoch);
 	return rv;
 }
 
@@ -272,11 +272,11 @@ static struct ht_elem *ht_tab_internal_search(unsigned char type, void *obj, int
 			hash=hashmod(sum);
 			ht=(len)?ht_hash[hash]:ht_hash0[type];
 			/* if (type== XXXXXX )
-				fprint2("CHECK %s %ld %d %p\n",obj,sum,hash,ht); */
+				 fprint2("CHECK %s %ld %d %p\n",obj,sum,hash,ht); */
 			while (ht != NULL) {
 				epoch_t e;
 				/* if (type== XXXXXXX && type==ht->type)
-					fprint2("CHECK %s %s\n",obj,ht->obj); */
+					 fprint2("CHECK %s %s\n",obj,ht->obj); */
 				if (type==ht->type &&
 						sum==ht->hashsum &&
 						(ht->objlen >= len) &&
@@ -546,7 +546,7 @@ struct ht_elem *ht_check(int type, void *arg, struct stat64 *st, int setepoch)
 			hte=NULL;
 	}
 	if (hte && setepoch)
-		um_setepoch(hte->tst.epoch);
+		um_setnestepoch(hte->tst.epoch);
 	return hte;
 }
 

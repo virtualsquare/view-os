@@ -115,7 +115,6 @@ init (void)
 	GMESSAGE("sockettest init");
 	s.name="SOCKETTEST"; 
 	s.description="socket syscalls are executed server side";
-	s.code=0xfa;
 	s.ioctlparms=ioctlparms;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
