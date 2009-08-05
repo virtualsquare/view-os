@@ -234,7 +234,6 @@ int add_service(void *handle)
 	else {
 		int i;
 		struct timestamp *tst=um_x_gettst();
-		GDEBUG(9, "noserv == %d, adding 1", noserv);
 		if (s->dlhandle==NULL)
 			modify_um_syscall(s);
 		/* dl handle is the dynamic library handle*/

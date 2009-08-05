@@ -804,7 +804,9 @@ static struct npcb *new_npcb(struct pcb *old)
 	/* inherit the current hash table element during clone*/
 	npcb->hte=old->hte;
 	/* timestamp the new thread with the current time (is it correct?) */
-	npcb->tst.epoch=npcb->nestepoch=get_epoch();
+	//npcb->tst.epoch=npcb->nestepoch=get_epoch();
+	/* XXX rd235 20090805 inherit the time of the creating thread */
+	npcb->nestepoch=npcb->tst.epoch;
 	//fprint2("new_npcb %lld\n",npcb->tst.epoch);
 	pcb_constructor((struct pcb *)npcb,0,1);
 	return npcb;
