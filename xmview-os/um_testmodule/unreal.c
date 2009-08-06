@@ -221,16 +221,14 @@ void *viewos_init(char *args)
 	struct twohte *two=malloc(sizeof(struct twohte));
 	two->ht1=ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal",0,"",&s,0,NULL,NULL);
 	two->ht2=ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal",0,"",&s,0,NULL,NULL);
-	fprint2("INIT %p %p \n",two->ht1,two->ht2);
 	return two;
 }
 
 void *viewos_fini(void *data)
 {
 	struct twohte *two=data;
-	fprint2("FINI %p %p \n",two->ht1,two->ht2);
-	ht_tab_del(two->ht1);
 	ht_tab_del(two->ht2);
+	ht_tab_del(two->ht1);
 	free(two);
 }
 
@@ -292,8 +290,6 @@ init (void)
 #else
 	SERVICESYSCALL(s, statfs, unreal_statfs64);
 #endif
-	ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal",0,"",&s,0,NULL,NULL);
-	ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal",0,"",&s,0,NULL,NULL);
 }
 
 static void
