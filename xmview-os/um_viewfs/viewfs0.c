@@ -1393,7 +1393,7 @@ static long viewfs_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 init (void)
 {
 	GMESSAGE("viewfs init");
-	s.name="VIEWFS";
+	s.name="viewfs";
 	s.description="filesystem patchwork";
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));

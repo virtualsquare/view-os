@@ -1944,7 +1944,7 @@ static void umfuse_destructor(int type,struct ht_elem *mp)
 init (void)
 {
 	GMESSAGE("umfuse init");
-	s.name="UMFUSE";
+	s.name="umfuse";
 	s.description="virtual file systems (user level FUSE)";
 	s.destructor=umfuse_destructor;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));

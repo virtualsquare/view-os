@@ -962,7 +962,7 @@ mode_t umdev_getmode(struct umdev *devhandle)
 init (void)
 {
 	fprint2("umdev init\n");
-	s.name="UMDEV";
+	s.name="umdev";
 	s.description="virtual devices";
 	s.destructor=umdev_destructor;
 	s.ioctlparms=umdev_ioctlparms;

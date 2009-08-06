@@ -59,7 +59,6 @@ static struct service s;
 VIEWOS_SERVICE(s)
 
 static struct ht_elem *service_ht;
-struct ht_elem *socket_ht;
 
 struct umnet {
 	char *path;
@@ -74,6 +73,7 @@ struct umnet {
 	time_t mounttime;
 	time_t sockettime;
 	void *private_data;
+	struct ht_elem *socket_ht;
 };
 
 struct fileinfo {
@@ -619,6 +619,7 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 		new->count=(isperm(data))?1:0;
 		if (new->netops->init) 
 			new->netops->init(source,new->path,mountflags,data,new);
+		new->socket_ht=ht_tab_add(CHECKSOCKET,NULL,0,&s,checksocket,NULL);
 		ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,mountflags,data,&s,0,NULL,new);
 		return 0;
 	}
@@ -626,6 +627,7 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 
 static void umnet_umount_internal(struct umnet *mh, int flags)
 {
+	ht_tab_invalidate(mh->socket_ht);
 	ht_tab_invalidate(um_mod_get_hte());
 	if (mh->netops->fini)
 		mh->netops->fini(mh);
@@ -644,7 +646,9 @@ static long umnet_umount2(char *target, int flags)
 			errno=EBUSY;
 			return -1;
 		} else {
+			struct ht_elem *socket_ht=mh->socket_ht;
 			umnet_umount_internal(mh,flags);
+			ht_tab_del(socket_ht);
 			ht_tab_del(um_mod_get_hte());
 			return 0;
 		}
@@ -690,7 +694,7 @@ static long umnet_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 init (void)
 {
 	fprint2("umnet init\n");
-	s.name="UMNET";
+	s.name="umnet";
 	s.description="virtual (multi-stack) networking";
 	s.destructor=umnet_destructor;
 	s.ioctlparms=umnet_ioctlparms;
@@ -730,14 +734,12 @@ init (void)
 	SERVICESYSCALL(s, ioctl, umnet_ioctl);
 	s.event_subscribe=umnet_event_subscribe;
 	service_ht=ht_tab_add(CHECKFSTYPE,"umnet",0,&s,NULL,NULL);
-	socket_ht=ht_tab_add(CHECKSOCKET,NULL,0,&s,checksocket,NULL);
 }
 
 	static void
 	__attribute__ ((destructor))
 fini (void)
 {
-	ht_tab_del(socket_ht);
 	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);

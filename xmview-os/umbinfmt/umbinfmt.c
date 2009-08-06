@@ -65,7 +65,6 @@ static struct service s;
 VIEWOS_SERVICE(s)
 
 static struct ht_elem *service_ht;
-static struct ht_elem *binfmt_vfs_ht=NULL;
 
 struct binfileinfo {
 	struct umregister *reg;
@@ -277,23 +276,19 @@ static int checkbinfmt(int type, void *arg, int arglen, struct ht_elem *ht)
 static long umbinfmt_mount(char *source, char *target, char *filesystemtype,
 		unsigned long mountflags, void *data)
 {
-	if (binfmt_vfs_ht) 
-		return -EBUSY;
-	else {
-		struct umbinfmt *new = (struct umbinfmt *) malloc(sizeof(struct umbinfmt));
-		assert(new);
-		new->path = strdup(target);
-		new->flags=(data && strcmp((char*)data,"debug")==0)?UMBINFMT_DEBUG:0;
-		new->inuse=0;
-		new->enabled=1;
-		new->head=NULL;
-		if (strcmp(source,"none")==0 || strcmp(source,"/")==0)
-			new->binfmt_ht=ht_tab_add(CHECKBINFMT,NULL,0,&s,checkbinfmt,new);
-		else
-			new->binfmt_ht=ht_tab_add(CHECKBINFMT,source,strlen(source),&s,checkbinfmt,new);
-		binfmt_vfs_ht=ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,mountflags,data,&s,0,NULL,new);
-		return 0;
-	}
+	struct umbinfmt *new = (struct umbinfmt *) malloc(sizeof(struct umbinfmt));
+	assert(new);
+	new->path = strdup(target);
+	new->flags=(data && strcmp((char*)data,"debug")==0)?UMBINFMT_DEBUG:0;
+	new->inuse=0;
+	new->enabled=1;
+	new->head=NULL;
+	if (strcmp(source,"none")==0 || strcmp(source,"/")==0)
+		new->binfmt_ht=ht_tab_add(CHECKBINFMT,NULL,0,&s,checkbinfmt,new);
+	else
+		new->binfmt_ht=ht_tab_add(CHECKBINFMT,source,strlen(source),&s,checkbinfmt,new);
+	ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,mountflags,data,&s,0,NULL,new);
+	return 0;
 }
 
 static void umbinfmt_umount_internal(struct umbinfmt *fc, int flags)
@@ -302,7 +297,8 @@ static void umbinfmt_umount_internal(struct umbinfmt *fc, int flags)
 	char *target=fc->path;
 	if (fc_norace->flags & UMBINFMT_DEBUG) 
 		fprint2("UMOUNT => path:%s flag:%d\n",target, flags);
-	ht_tab_del(fc->binfmt_ht);
+	ht_tab_invalidate(fc->binfmt_ht);
+	ht_tab_invalidate(um_mod_get_hte());
 	delete_allreg(fc->head);
 	free(fc_norace->path);
 	free(fc_norace);
@@ -318,9 +314,10 @@ static long umbinfmt_umount2(char *target, int flags)
 		errno=EBUSY;
 		return -1;
 	} else {
+		struct ht_elem *binfmt_ht=fc->binfmt_ht;
 		umbinfmt_umount_internal(fc,flags);
+		ht_tab_del(binfmt_ht);
 		ht_tab_del(um_mod_get_hte());
-		binfmt_vfs_ht=NULL;
 		return 0;
 	}
 }
@@ -881,13 +878,23 @@ static long umbinfmt_fcntl64()
 	return 0;
 }
 
+static void umbinfmt_destructor(int type,struct ht_elem *mp)
+{
+	switch (type) {
+		case CHECKPATH:
+			um_mod_set_hte(mp);
+			umbinfmt_umount_internal(um_mod_get_private_data(), MNT_FORCE);
+	}
+}
+
 	static void
 	__attribute__ ((constructor))
 init (void)
 {
 	printf("umbinfmt init\n");
-	s.name="UMBINFMT";
+	s.name="umbinfmt";
 	s.description="virtual binfmt_misc";
+	s.destructor=umbinfmt_destructor;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	SERVICESYSCALL(s, mount, umbinfmt_mount);
@@ -925,14 +932,9 @@ init (void)
 	__attribute__ ((destructor))
 fini (void)
 {
-	if (binfmt_vfs_ht) {
-		umbinfmt_umount_internal(ht_get_private_data(binfmt_vfs_ht), MNT_FORCE);
-		ht_tab_del(binfmt_vfs_ht);
-	}
 	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
-	//	foralldevicetabdo(contextclose);
 	printf("umbinfmt fini\n");
 }
 

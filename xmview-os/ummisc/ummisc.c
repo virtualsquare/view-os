@@ -451,7 +451,7 @@ void *ummisc_getprivatedata(struct ummisc *mischandle)
 init (void)
 {
 	fprint2("ummisc init\n");
-	s.name="UMMISC";
+	s.name="ummisc";
 	s.description="virtual miscellaneous (time, uname, uid/gid, ...)";
 	s.destructor=ummisc_destructor;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));

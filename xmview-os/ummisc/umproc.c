@@ -187,7 +187,7 @@ static loff_t umproc_lseek(int fd, off_t offset, int whence)
 init (void)
 {
 	fprint2("umproc init\n");
-	s.name="UMPROC";
+	s.name="umproc";
 	s.description="/proc virtualization";
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
