@@ -1,0 +1,8 @@
+20090806
+pcb_allocation/deallocation can run in O(1), now there is a linear search
+
+aptitude or the second execution of apt-get on mincow viewfs SIGSEGV (maybe
+there is a problem on mmap)
+
+submachines (nested umview) may leave data around when terminate, 
+the termination cleanup is not complete.
