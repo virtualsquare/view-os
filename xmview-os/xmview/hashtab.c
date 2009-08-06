@@ -220,11 +220,13 @@ static inline int ht_scan_stop(unsigned char type, char *objc, int len, int exac
 		case CHECKBLKDEVICE:
 		case CHECKSC: /* array of int, or null keys */
 			return ((len % sizeof(int))==0);
-		case CHECKFSTYPE: /* char by char */
-			return 1;
 		case CHECKFSALIAS: /* end of string */
-		case CHECKMODULE:
 			return (*objc == 0);
+		case CHECKMODULE:
+			if (exact)
+				return (*objc == 0);
+			else
+				return 1; /* CHECKFSTYPE char by char */
 		default:
 			return 0;
 	}
@@ -235,7 +237,6 @@ static inline int ht_scan_terminate(unsigned char type, char *objc, int len, int
 	switch (type) {
 		case CHECKPATH:
 		case CHECKBINFMT:
-		case CHECKFSTYPE:
 		case CHECKFSALIAS:
 		case CHECKMODULE:
 			return (*objc == 0);
@@ -327,8 +328,8 @@ static inline struct ht_elem *ht_tab_binfmtsearch(unsigned char type,
 }
 
 static inline struct ht_elem *ht_tab_search(unsigned char type, void *obj, 
-		int objlen, struct timestamp *tst) {
-	return ht_tab_internal_search(type,obj,objlen,obj,tst,0);
+		int objlen, struct timestamp *tst, int exact) {
+	return ht_tab_internal_search(type,obj,objlen,obj,tst,exact);
 }
 
 /* for debugging: otherwise strings are not null terminated, so cannot 
@@ -406,8 +407,6 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 	 (tralingnumbers=1 causes scan to skip the check) */
 struct ht_elem *ht_tab_add(unsigned char type,void *obj,int objlen,
 		struct service *service, checkfun_t checkfun, void *private_data) {
-	if (type==CHECKFSTYPE)
-		objlen=strlen(obj);
 	return internal_ht_tab_add(type, obj, objlen, NULL,
 			service, 1, checkfun, private_data);
 }
@@ -514,13 +513,13 @@ struct ht_elem *ht_check(int type, void *arg, struct stat64 *st, int setepoch)
 				if (__builtin_expect(S_ISCHR(st->st_mode),0)) {
 					struct ht_elem *devhte;
 					devhte=ht_tab_search(CHECKCHRDEVICE, &st->st_rdev, 
-							sizeof(dev_t), um_x_gettst());
+							sizeof(dev_t), um_x_gettst(),0);
 					if (devhte != NULL)
 						hte=devhte;
 				} else if (__builtin_expect(S_ISBLK(st->st_mode),0)) {
 					struct ht_elem *devhte;
 					devhte=ht_tab_search(CHECKBLKDEVICE, &st->st_rdev,
-							sizeof(dev_t), um_x_gettst());
+							sizeof(dev_t), um_x_gettst(),0);
 					if (devhte != NULL)
 						hte=devhte;
 				}
@@ -532,12 +531,14 @@ struct ht_elem *ht_check(int type, void *arg, struct stat64 *st, int setepoch)
 		case CHECKSOCKET:
 		case CHECKSC:
 			size++;
-		case CHECKFSTYPE:
-			hte=ht_tab_search(type, arg, size*sizeof(int), um_x_gettst());
+			hte=ht_tab_search(type, arg, size*sizeof(int), um_x_gettst(),0);
 			break;
 		case CHECKFSALIAS:
 		case CHECKMODULE:
-			hte=ht_tab_search(type, arg, strlen(arg), um_x_gettst());
+			hte=ht_tab_search(type, arg, 0, um_x_gettst(), 1);
+			break;
+		case CHECKFSTYPE:
+			hte=ht_tab_search(CHECKMODULE, arg, 0, um_x_gettst(), 0);
 			break;
 		case CHECKBINFMT:
 			hte=ht_tab_binfmtsearch(type, arg, um_x_gettst(), 0);

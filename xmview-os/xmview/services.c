@@ -261,8 +261,8 @@ static int add_handle_service(void *handle)
 		/* dl handle is the dynamic library handle*/
 		s->dlhandle=handle;
 
-		ht_tab_add(CHECKMODULE,s->name,strlen(s->name),NULL,NULL,s);
-		ht_tab_add(CHECKFSTYPE,s->name,0,s,NULL,s);
+		ht_tab_add(CHECKMODULE,s->name,strlen(s->name),s,NULL,s);
+		//ht_tab_add(CHECKFSTYPE,s->name,strlen(s->name),s,NULL,s);
 		/* update the process time */
 		tst->epoch=get_epoch();
 		for (i = 0; i < sizeof(c_set); i++)
@@ -311,11 +311,6 @@ static void del_service_internal(struct ht_elem *hte,void *arg)
 	ht_tab_invalidate(hte);
 }
 
-static void del_fstype_internal(struct ht_elem *hte,void *arg)
-{
-	ht_tab_invalidate(hte);
-}
-
 int del_service(char *name)
 {
 	struct ht_elem *hte=ht_check(CHECKMODULE,name,NULL,0);
@@ -326,12 +321,7 @@ int del_service(char *name)
 		return s_error(EBUSY);
 	else {
 		void *handle=s->dlhandle;
-		struct ht_elem *hte_fstype=ht_check(CHECKFSTYPE,name,NULL,0);
 		del_service_internal(hte,NULL);
-		if (hte_fstype) {
-			del_fstype_internal(hte_fstype,NULL);
-			ht_tab_del(hte_fstype);
-		}
 		ht_tab_del(hte);
 		dlclose(handle);
 	}
@@ -483,7 +473,6 @@ void service_addregfun(int class, sysfun regfun, sysfun deregfun)
 
 static void _service_fini()
 {
-	forall_ht_tab_do(CHECKFSTYPE,del_fstype_internal,NULL);
 	forall_ht_tab_do(CHECKMODULE,del_service_internal,NULL);
 }
 
