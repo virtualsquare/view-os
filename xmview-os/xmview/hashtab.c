@@ -58,6 +58,7 @@ struct ht_elem {
 	unsigned char trailingnumbers;
 	unsigned char invalid;
 	struct service *service;
+	struct ht_elem *service_hte;
 	void *private_data;
 	int objlen;
 	long hashsum;
@@ -372,6 +373,7 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 			new->invalid=0;
 			new->private_data=private_data;
 			new->service=service;
+			new->service_hte=NULL; /*lazy*/
 			new->checkfun=checkfun;
 			new->count=0;
 			new->hashsum=hashsum(type,new->obj,new->objlen);
@@ -689,7 +691,7 @@ void ht_renew(struct ht_elem *hte)
 		hte->tst=tst_timestamp();
 }
 
-char *ht_servicename(struct ht_elem *hte)
+char *ht_get_servicename(struct ht_elem *hte)
 {
 	if (hte && hte->service)
 		return hte->service->name;
@@ -697,39 +699,35 @@ char *ht_servicename(struct ht_elem *hte)
 		return NULL;
 }
 
+struct service *ht_get_service(struct ht_elem *hte)
+{
+	if (hte)
+		return hte->service;
+	else
+		return NULL;
+}
+
 void ht_count_plus1(struct ht_elem *hte)
 {
-	if (hte->service) hte->service->count++;
+	if (hte->service_hte == NULL) {
+		if (hte->service)
+			/*ht_check(CHECKMODULE,hte->service->name,NULL,0);*/
+			hte->service_hte=ht_tab_search(CHECKMODULE, hte->service->name, 0, 
+					um_x_gettst(), 1);
+	}
+	if (hte->service_hte) hte->service_hte->count++;
 	hte->count++;
 }
 
 void ht_count_minus1(struct ht_elem *hte)
 { 
-	if (hte->service) hte->service->count--;
+	if (hte->service_hte) hte->service_hte->count--;
 	hte->count--;
 }
 
 int ht_get_count(struct ht_elem *hte)
 {
 	return hte->count;
-}
-
-void ht_servicecount_plus1(struct ht_elem *hte)
-{
-	if (hte->service) hte->service->count++;
-}
-
-void ht_servicecount_minus1(struct ht_elem *hte)
-{ 
-	if (hte->service) hte->service->count--;
-}
-
-int ht_get_servicecount(struct ht_elem *hte)
-{
-	if (hte->service) 
-		return hte->service->count;
-	else
-		return -1;
 }
 
 void ht_terminate(void)

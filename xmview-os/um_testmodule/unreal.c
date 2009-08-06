@@ -212,12 +212,35 @@ static long unreal_lseek(int fildes, int offset, int whence)
 	return (int) lseek64(fildes, (off_t) offset, whence);
 }
 
+struct twohte {
+	struct ht_elem *ht1,*ht2;
+};
+
+void *viewos_init(char *args)
+{
+	struct twohte *two=malloc(sizeof(struct twohte));
+	two->ht1=ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal",0,"",&s,0,NULL,NULL);
+	two->ht2=ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal",0,"",&s,0,NULL,NULL);
+	fprint2("INIT %p %p \n",two->ht1,two->ht2);
+	return two;
+}
+
+void *viewos_fini(void *data)
+{
+	struct twohte *two=data;
+	fprint2("FINI %p %p \n",two->ht1,two->ht2);
+	ht_tab_del(two->ht1);
+	ht_tab_del(two->ht2);
+	free(two);
+}
+
+
 static void
 __attribute__ ((constructor))
 init (void)
 {
 	GMESSAGE("unreal init");
-	s.name="UNREAL";
+	s.name="unreal";
 	s.description="/unreal Mapping to FS (server side)";
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));

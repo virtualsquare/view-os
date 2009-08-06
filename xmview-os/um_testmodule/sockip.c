@@ -139,12 +139,24 @@ static long sock_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 	return um_mod_event_subscribe(cb,arg,fd,how);
 }
 
+void *viewos_init(char *args)
+{
+	int socktype=AF_INET;
+	return ht_tab_add(CHECKSOCKET,&socktype,sizeof(int),&s,NULL,NULL);
+}
+
+void *viewos_fini(void *data)
+{
+	struct ht_elem *proc_ht=data;
+	ht_tab_del(proc_ht);
+}
+
 	static void
 	__attribute__ ((constructor))
 init (void)
 {
 	GMESSAGE("sockettest init");
-	s.name="SOCKIP";
+	s.name="sockip";
 	s.description="socket syscall (AF_INET) are executed server side";
 	s.ioctlparms=ioctlparms;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
@@ -177,11 +189,6 @@ init (void)
 #endif
 	SERVICESYSCALL(s, ioctl, sockioctl);
 	s.event_subscribe=sock_event_subscribe;
-
-	{
-		int socktype=AF_INET;
-		ht_tab_add(CHECKSOCKET,&socktype,sizeof(int),&s,NULL,NULL);
-	}
 }
 
 	static void

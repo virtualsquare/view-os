@@ -211,7 +211,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 	binfmtht=checkscript(hte,&req);
 	if (binfmtht == NULL) 
 		binfmtht=ht_check(CHECKBINFMT,&req,NULL,0);
-	//fprint2("wrap_in_execve %s |%s| |%s|\n",ht_servicename(binfmtht),req.interp,req.extraarg);
+	//fprint2("wrap_in_execve %s |%s| |%s|\n",ht_get_servicename(binfmtht),req.interp,req.extraarg);
 	um_setnestepoch(nestepoch);
 	/* is there a binfmt service for this executable? */
 	if (binfmtht != NULL) {

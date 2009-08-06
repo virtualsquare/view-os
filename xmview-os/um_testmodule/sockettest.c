@@ -106,6 +106,16 @@ static int sockioctl(int d, int request, void *arg)
 	return ioctl(d,request,arg);
 }
 
+void *viewos_init(char *args)
+{
+	return ht_tab_add(CHECKSOCKET,NULL,0,&s,NULL,NULL);
+}
+
+void *viewos_fini(void *data)
+{
+	struct ht_elem *proc_ht=data;
+	ht_tab_del(proc_ht);
+}
 
 
 	static void
@@ -113,7 +123,7 @@ static int sockioctl(int d, int request, void *arg)
 init (void)
 {
 	GMESSAGE("sockettest init");
-	s.name="SOCKETTEST"; 
+	s.name="sockettest"; 
 	s.description="socket syscalls are executed server side";
 	s.ioctlparms=ioctlparms;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
@@ -144,8 +154,6 @@ init (void)
 	SERVICESYSCALL(s, ioctl, sockioctl);
 	SERVICESYSCALL(s, _newselect, select);
 	SERVICESYSCALL(s, poll, poll);
-
-	ht_tab_add(CHECKSOCKET,NULL,0,&s,NULL,NULL);
 }
 
 	static void

@@ -398,7 +398,7 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 		struct mmap_sf_entry *sf_entry;
 		if ((sbuf.st_size >> um_mmap_pageshift) + 1 > pgsize)
 			pgsize = (sbuf.st_size >> um_mmap_pageshift) + 1;
-		//fprint2("%s(%s/%o): MMAP SIZE %lld pgsize %ld %ld \n", path, ht_servicename(hte), fd,sbuf.st_size,(unsigned long)((sbuf.st_size >> um_mmap_pageshift) + 1),pgsize);
+		//fprint2("%s(%s/%o): MMAP SIZE %lld pgsize %ld %ld \n", path, ht_get_servicename(hte), fd,sbuf.st_size,(unsigned long)((sbuf.st_size >> um_mmap_pageshift) + 1),pgsize);
 		/* there is already in the secret file? */
 		if ((sf_entry=mmap_sf_find(path,nestepoch,sbuf.st_mtime,pgsize)) == NULL) {
 			/* NO. must be loaded */

@@ -64,13 +64,11 @@ void forall_ht_tab_do(unsigned char type,
 
 void *ht_get_private_data(struct ht_elem *hte);
 void ht_set_private_data(struct ht_elem *hte,void *private_data);
-char *ht_servicename(struct ht_elem *hte);
+char *ht_get_servicename(struct ht_elem *hte);
+struct service *ht_get_service(struct ht_elem *hte);
 void ht_count_plus1(struct ht_elem *hte);
 void ht_count_minus1(struct ht_elem *hte);
 int ht_get_count(struct ht_elem *hte);
-void ht_servicecount_plus1(struct ht_elem *hte);
-void ht_servicecount_minus1(struct ht_elem *hte);
-int ht_get_servicecount(struct ht_elem *hte);
 
 void ht_terminate(void);
 

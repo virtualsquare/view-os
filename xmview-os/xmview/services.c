@@ -157,7 +157,7 @@ static struct syscall_unifier sockunify[] = {
 #define OSER_STEP 8 /*only power of 2 values */
 #define OSER_STEP_1 (OSER_STEP - 1)
 
-static int s_error(int err)
+static inline int s_error(int err)
 {
 	errno=err;
 	return -1;
@@ -224,80 +224,71 @@ void modify_um_syscall(struct service *s)
 	}
 }
 
+static inline int s_error_dlclose(int err,void *handle) {
+	dlclose(handle);
+	errno=err;
+	return -1;
+}
 
-static void *open_dllib(char *name)
+static void *nullinit(char *args) {
+	return NULL;
+}
+
+/* add a new service */
+int add_service(char *file)
 {
 	char *args;
 	void *handle;
-	for (args=name;*args != 0 && *args != ',';args++)
+	for (args=file;*args != 0 && *args != ',';args++)
 		;
 	if (*args == ',') {
 		*args = 0;
 		args++;
 	}
-	handle=openmodule(name,RTLD_LAZY|RTLD_GLOBAL);
+	handle=openmodule(file,RTLD_LAZY|RTLD_GLOBAL);
 	if (handle != NULL) {
-		void (*pinit)() = dlsym(handle,"_um_mod_init");
-		if (pinit != NULL) {
-			pinit(args);
+		struct service *s=dlsym(handle,"viewos_service");
+		if (!s) 
+			return s_error_dlclose(EINVAL,handle);
+		else if (ht_check(CHECKMODULE,s->name,NULL,0))
+			return s_error_dlclose(EEXIST,handle);
+		else {
+			int i;
+			struct timestamp *tst=um_x_gettst();
+			void *(*pinit)() = dlsym(handle,"viewos_init");
+			if (s->dlhandle==NULL)
+				modify_um_syscall(s);
+			/* dl handle is the dynamic library handle*/
+			s->dlhandle=handle;
+			if (pinit == NULL) 
+				pinit=nullinit;
+			ht_tab_add(CHECKMODULE,s->name,strlen(s->name),s,NULL,pinit(args));
+			/* update the process time */
+			tst->epoch=get_epoch();
+			for (i = 0; i < sizeof(c_set); i++)
+				if (MCH_ISSET(i, &(s->ctlhs)))
+					if (reg_service[i])
+					{
+						GDEBUG(3, "calling reg_service[%d](%s)", i, s->name);
+						reg_service[i](s->name);
+					}
+			/* NEW: hash table registration */
+			service_ctl(MC_MODULE | MC_ADD, s->name, NULL);
+			return 0;
 		}
-	}
-	return handle;
-}
-
-/* add a new service module */
-static int add_handle_service(void *handle)
-{
-	struct service *s=dlsym(handle,"viewos_service");
-	if (!s) 
-		return s_error(EINVAL);
-	else if (ht_check(CHECKMODULE,s->name,NULL,0))
-		return s_error(EEXIST);
-	else {
-		int i;
-		struct timestamp *tst=um_x_gettst();
-		if (s->dlhandle==NULL)
-			modify_um_syscall(s);
-		/* dl handle is the dynamic library handle*/
-		s->dlhandle=handle;
-
-		ht_tab_add(CHECKMODULE,s->name,strlen(s->name),s,NULL,s);
-		//ht_tab_add(CHECKFSTYPE,s->name,strlen(s->name),s,NULL,s);
-		/* update the process time */
-		tst->epoch=get_epoch();
-		for (i = 0; i < sizeof(c_set); i++)
-			if (MCH_ISSET(i, &(s->ctlhs)))
-				if (reg_service[i])
-				{
-					GDEBUG(3, "calling reg_service[%d](%s)", i, s->name);
-					reg_service[i](s->name);
-				}
-		/* NEW: hash table registration */
-		service_ctl(MC_MODULE | MC_ADD, s->name, NULL);
-		return 0;
-	}
-} 
-
-int add_service(char *file)
-{
-	void *handle;
-	handle=open_dllib(file);
-	if (handle) {
-		int rv;
-		if ((rv=add_handle_service(handle))<0) 
-			dlclose(handle);
-		return rv;
 	} else {
 		fprint2("module error: %s\n",dlerror());
 		return s_error(EFAULT);
 	}
 }
 
+
+
 /* delete a service */
 static void del_service_internal(struct ht_elem *hte,void *arg)
 {
 	int i;
-	struct service *s=ht_get_private_data(hte);
+	struct service *s=ht_get_service(hte);
 	/* notify other modules of service removal */
 	service_ctl(MC_MODULE | MC_REM, s->name, NULL);
 	/* call deregistration upcall (if any) */
@@ -316,11 +307,14 @@ int del_service(char *name)
 	struct ht_elem *hte=ht_check(CHECKMODULE,name,NULL,0);
 	if (!hte)
 		return s_error(ENOENT);
-	struct service *s=ht_get_private_data(hte);
-	if (s->count != 0)
+	struct service *s=ht_get_service(hte);
+	if (ht_get_count(hte) != 0)
 		return s_error(EBUSY);
 	else {
 		void *handle=s->dlhandle;
+		void (*pfini)() = dlsym(handle,"viewos_fini");
+		if (pfini != NULL)
+			pfini(ht_get_private_data(hte));
 		del_service_internal(hte,NULL);
 		ht_tab_del(hte);
 		dlclose(handle);
@@ -332,7 +326,7 @@ int del_service(char *name)
 void list_item(struct ht_elem *hte, void *arg)
 {
 	FILE *f=arg;
-	struct service *s=ht_get_private_data(hte);
+	struct service *s=ht_get_service(hte);
 	fprintf(f,"%s:",s->name);
 }
 
@@ -351,7 +345,7 @@ int name_service(char *name,char *buf,int len)
 	if (!hte)
 		return s_error(ENOENT);
 	else {
-		struct service *s=ht_get_private_data(hte);
+		struct service *s=ht_get_service(hte);
 		snprintf(buf,len,"%s",s->description);
 		return 0;
 	}
@@ -377,7 +371,7 @@ struct vservice {
 
 static void vservice_ctl_item(struct ht_elem *hte, void *arg)
 {
-	struct service *s=ht_get_private_data(hte);
+	struct service *s=ht_get_service(hte);
 	struct vservice *varg=arg;
 	if (s->ctl && varg->sender != s->name) {
 		va_list aq;
@@ -442,7 +436,7 @@ void service_userctl(unsigned long type, struct service *sender,
 
 static void reg_mod_item(struct ht_elem *ht, void *arg)
 {
-	struct service *s=ht_get_private_data(ht);
+	struct service *s=ht_get_service(ht);
 	service_ctl(MC_MODULE | MC_ADD, s->name, arg, NULL);
 }
 
@@ -453,7 +447,7 @@ static void reg_modules(char *destination)
 
 static void dereg_mod_item(struct ht_elem *ht, void *arg)
 {
-	struct service *s=ht_get_private_data(ht);
+	struct service *s=ht_get_service(ht);
 	service_ctl(MC_MODULE | MC_REM, s->name, arg, NULL);
 }
 

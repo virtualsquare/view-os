@@ -182,6 +182,17 @@ static loff_t umproc_lseek(int fd, off_t offset, int whence)
 	if (ft->pos < 0) ft->pos=0;
 }
 
+void *viewos_init(char *args)
+{
+	return ht_tab_pathadd(CHECKPATH,"none","/proc/mounts","proc",0,"ro",&s,0,NULL,&proc_mounts);
+}
+
+void *viewos_fini(void *data)
+{
+	struct ht_elem *proc_ht=data;
+	ht_tab_del(proc_ht);
+}
+
 	static void
 	__attribute__ ((constructor))
 init (void)
@@ -201,7 +212,7 @@ init (void)
 	SERVICESYSCALL(s, access, umproc_access);
 	SERVICESYSCALL(s, lseek, umproc_lseek);
 
-	service_ht=ht_tab_pathadd(CHECKPATH,"none","/proc/mounts","proc",0,"ro",&s,0,NULL,&proc_mounts);
+	//service_ht=ht_tab_pathadd(CHECKPATH,"none","/proc/mounts","proc",0,"ro",&s,0,NULL,&proc_mounts);
 }
 
 	static void

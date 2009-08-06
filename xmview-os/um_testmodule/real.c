@@ -93,12 +93,23 @@ static long ctl(int type, char *sender, va_list ap)
 	}
 }
 
+void *viewos_init(char *args)
+{
+	return ht_tab_pathadd(CHECKPATH,"/","/","real",0,"",&s,0,NULL,NULL);
+}
+
+void *viewos_fini(void *data)
+{
+	struct ht_elem *proc_ht=data;
+	ht_tab_del(proc_ht);
+}
+
 static void
 __attribute__ ((constructor))
 init (void)
 {
 	GMESSAGE("real init");
-	s.name="REAL";
+	s.name="real";
 	s.description="Identity (server side)";
 	s.ctl = ctl;
 	
@@ -125,7 +136,6 @@ init (void)
 	SERVICESYSCALL(s, fcntl64, fcntl64);
 	SERVICESYSCALL(s, _llseek, _llseek);
 #endif
-	ht_tab_pathadd(CHECKPATH,"/","/","real",0,"",&s,0,NULL,NULL);
 }
 
 static void

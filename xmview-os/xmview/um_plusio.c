@@ -593,7 +593,7 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 					mountflags,datax)) < 0)
 		pc->erno=errno;
 	else
-		ht_servicecount_plus1(hte);
+		ht_count_plus1(hte);
 	free(source);
 	//um_setnestepoch(nestepoch);
 	return SC_FAKE;
@@ -606,8 +606,11 @@ static int wrap_in_umount_generic(struct pcb *pc,struct ht_elem *hte,
 		pc->erno=EBUSY;
 	else if ((pc->retval = um_syscall(pc->path,flags)) < 0)
 		pc->erno=errno;
-	else
-		ht_servicecount_minus1(hte);
+	else {
+		struct ht_elem *module_hte=ht_check(CHECKMODULE,ht_get_servicename(hte),NULL,0);
+		if (module_hte) 
+			ht_count_minus1(module_hte);
+	}
 	return SC_FAKE;
 }
 
