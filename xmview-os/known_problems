@@ -9,3 +9,7 @@ the termination cleanup is not complete.
 
 hashtab support a negative mount mechanism for a fast management of
 mount exceptions. All the modules use already a confirmation function.
+
+iso9660 with exceptions 
+mount -t umfuseiso9660 -o merge,except="/usr/lib/libglib-2.0.so.0" ~/tests/cmg/grisbi_0.5.9-0p1.cmg /
+segfault

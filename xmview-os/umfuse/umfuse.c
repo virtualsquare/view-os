@@ -185,9 +185,12 @@ static inline int isexception(char *path, char **exceptions, struct fuse_context
 			}
 		}
 		if (fc->fuse->flags & FUSE_MERGE) {
-			struct stat buf;
-			int rv=fc->fuse->fops.getattr(path,&buf);
-			return (rv < 0);
+			if (*path) {
+				struct stat buf;
+				int rv=fc->fuse->fops.getattr(path,&buf);
+				return (rv < 0);
+			} else
+				return 0;
 		}
 		return 0;
 	}
@@ -212,10 +215,7 @@ static int umfuse_confirm(int type, void *arg, int arglen,
 {
 	char *path=arg;
 	struct fuse_context *fc=ht_get_private_data(ht);
-	if (fc->fuse->exceptions) 
-		return !isexception(path+fc->fuse->pathlen,fc->fuse->exceptions,fc);
-	else
-		return 1;
+	return !isexception(path+fc->fuse->pathlen,fc->fuse->exceptions,fc);
 }
 
 static char *unwrap(struct fuse_context *fc,char *path);

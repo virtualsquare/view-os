@@ -4,6 +4,7 @@ dist_man1_MANS = \
 	um_ls_service.1 \
 	vuname.1 \
 	viewname.1 \
+	viewmount.1 \
 	umshutdown.1 \
 	mstack.1 \
 	viewsu.1
@@ -16,6 +17,7 @@ bin_PROGRAMS = \
 	um_ls_service \
 	vuname \
 	viewname \
+	viewmount \
 	umshutdown \
 	mstack \
 	viewsu
