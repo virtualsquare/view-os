@@ -45,7 +45,6 @@
 static struct service s;
 VIEWOS_SERVICE(s)
 
-static struct ht_elem *service_ht;
 static fd_set viewfs_dirset;
 static fd_set fastsysset;
 static fd_set parentsysset;
@@ -1449,14 +1448,12 @@ init (void)
 	s.event_subscribe=viewfs_event_subscribe;
 	FD_ZERO(&viewfs_dirset);
 	createscset();
-	service_ht=ht_tab_add(CHECKFSTYPE,"viewfs",0,&s,NULL,NULL);
 }
 
 	static void
 	__attribute__ ((destructor))
 fini (void)
 {
-	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
 	free(s.virsc);

@@ -28,6 +28,7 @@
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <errno.h>
 #include <sys/select.h>
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -108,13 +109,11 @@ static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,lon
 static int do_preload(struct prelist *head)
 {
 	if (head != NULL) {
-		void *handle;
 		int rv=do_preload(head->next);
-		handle=open_dllib(head->module);
-		if (handle==NULL || add_service(handle) < 0) {
-			fprintf(stderr, "%s\n",dlerror());
-			return -1;
-		} else 
+		if (add_service(head->module) < 0) {
+			fprint2("module preload %s",strerror(errno));
+			return -1 ;
+		} else
 			return rv;
 		free(head);
 	} else
@@ -134,7 +133,7 @@ static int do_preload_recursive(struct prelist *head)
 {
 	if (head != NULL) {
 		do_preload_recursive(head->next);
-		int_virnsyscall(__NR_UM_SERVICE,3,ADD_SERVICE,0,(long)head->module,0,0,0);
+		int_virnsyscall(__NR_UM_SERVICE,3,ADD_SERVICE,(long)head->module,0,0,0,0);
 		free(head);
 		return 0;
 	} else

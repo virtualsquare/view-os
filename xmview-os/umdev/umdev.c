@@ -62,8 +62,6 @@
 static struct service s;
 VIEWOS_SERVICE(s)
 
-static struct ht_elem *service_ht;
-
 struct umdev {
 	char *path;
 	void *dlhandle;
@@ -1009,14 +1007,12 @@ init (void)
 	SERVICESYSCALL(s, pread64, umdev_pread64); 
 	SERVICESYSCALL(s, pwrite64, umdev_pwrite64); 
 	s.event_subscribe=umdev_event_subscribe;
-	service_ht=ht_tab_add(CHECKFSTYPE,"umdev",0,&s,NULL,NULL);
 }
 
 	static void
 	__attribute__ ((destructor))
 fini (void)
 {
-	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
 	fprint2("umdev fini\n");

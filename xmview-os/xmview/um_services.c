@@ -44,28 +44,7 @@
 #include "hashtab.h"
 #include "capture.h"
 #include "utils.h"
-#include "modutils.h"
 #include "gdebug.h"
-
-void *open_dllib(char *name)
-{
-	char *args;
-	void *handle;
-	for (args=name;*args != 0 && *args != ',';args++)
-		;
-	if (*args == ',') {
-		*args = 0;
-		args++;
-	}
-	handle=openmodule(name,RTLD_LAZY|RTLD_GLOBAL);
-	if (handle != NULL) {
-		void (*pinit)() = dlsym(handle,"_um_mod_init");
-		if (pinit != NULL) {
-			pinit(args);
-		}
-	}
-	return handle;
-}
 
 static inline void fs_add_alias(char *fsalias,char *fsname)
 {
@@ -104,17 +83,10 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 	switch (pc->sysargs[0]) {
 		case ADD_SERVICE:
 			if (umovestr(pc,pc->sysargs[1],PATH_MAX,buf) == 0) {
-				void *handle=open_dllib(buf);
-				if (handle==NULL) {
-					pc->retval= -1;
-					pc->erno=EINVAL;
-				} else {
-					if (add_service(handle) < 0)
-					{
-						pc->retval=-1;
-						pc->erno=errno;
-						dlclose(handle);
-					}
+				if (add_service(buf) < 0)
+				{
+					pc->retval=-1;
+					pc->erno=errno;
 				}
 			} else {
 				pc->retval= -1;

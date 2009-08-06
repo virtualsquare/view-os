@@ -38,6 +38,7 @@
 #include "gdebug.h"
 #include "scmap.h"
 #include "hashtab.h"
+#include "modutils.h"
 #include "bits/wordsize.h"
 
 static sysfun reg_service[sizeof(c_set)], dereg_service[sizeof(c_set)];
@@ -223,8 +224,29 @@ void modify_um_syscall(struct service *s)
 	}
 }
 
+
+static void *open_dllib(char *name)
+{
+	char *args;
+	void *handle;
+	for (args=name;*args != 0 && *args != ',';args++)
+		;
+	if (*args == ',') {
+		*args = 0;
+		args++;
+	}
+	handle=openmodule(name,RTLD_LAZY|RTLD_GLOBAL);
+	if (handle != NULL) {
+		void (*pinit)() = dlsym(handle,"_um_mod_init");
+		if (pinit != NULL) {
+			pinit(args);
+		}
+	}
+	return handle;
+}
+
 /* add a new service module */
-int add_service(void *handle)
+static int add_handle_service(void *handle)
 {
 	struct service *s=dlsym(handle,"viewos_service");
 	if (!s) 
@@ -240,6 +262,7 @@ int add_service(void *handle)
 		s->dlhandle=handle;
 
 		ht_tab_add(CHECKMODULE,s->name,strlen(s->name),NULL,NULL,s);
+		ht_tab_add(CHECKFSTYPE,s->name,0,s,NULL,s);
 		/* update the process time */
 		tst->epoch=get_epoch();
 		for (i = 0; i < sizeof(c_set); i++)
@@ -254,6 +277,21 @@ int add_service(void *handle)
 		return 0;
 	}
 } 
+
+int add_service(char *file)
+{
+	void *handle;
+	handle=open_dllib(file);
+	if (handle) {
+		int rv;
+		if ((rv=add_handle_service(handle))<0) 
+			dlclose(handle);
+		return rv;
+	} else {
+		fprint2("module error: %s\n",dlerror());
+		return s_error(EFAULT);
+	}
+}
 
 /* delete a service */
 static void del_service_internal(struct ht_elem *hte,void *arg)
@@ -273,6 +311,11 @@ static void del_service_internal(struct ht_elem *hte,void *arg)
 	ht_tab_invalidate(hte);
 }
 
+static void del_fstype_internal(struct ht_elem *hte,void *arg)
+{
+	ht_tab_invalidate(hte);
+}
+
 int del_service(char *name)
 {
 	struct ht_elem *hte=ht_check(CHECKMODULE,name,NULL,0);
@@ -283,7 +326,12 @@ int del_service(char *name)
 		return s_error(EBUSY);
 	else {
 		void *handle=s->dlhandle;
+		struct ht_elem *hte_fstype=ht_check(CHECKFSTYPE,name,NULL,0);
 		del_service_internal(hte,NULL);
+		if (hte_fstype) {
+			del_fstype_internal(hte_fstype,NULL);
+			ht_tab_del(hte_fstype);
+		}
 		ht_tab_del(hte);
 		dlclose(handle);
 	}
@@ -435,6 +483,7 @@ void service_addregfun(int class, sysfun regfun, sysfun deregfun)
 
 static void _service_fini()
 {
+	forall_ht_tab_do(CHECKFSTYPE,del_fstype_internal,NULL);
 	forall_ht_tab_do(CHECKMODULE,del_service_internal,NULL);
 }
 

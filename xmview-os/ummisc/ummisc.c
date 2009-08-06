@@ -53,8 +53,6 @@
 static struct service s;
 VIEWOS_SERVICE(s)
 
-static struct ht_elem *service_ht;
-
 struct ummisc {
 	char *path;
 	int pathlen;
@@ -471,14 +469,12 @@ init (void)
 	SERVICESYSCALL(s, getdents64, ummisc_getdents64);
 
 	initmuscno(&s);
-	service_ht=ht_tab_add(CHECKFSTYPE,"ummisc",0,&s,NULL,NULL);
 }
 
 	static void
 	__attribute__ ((destructor))
 fini (void)
 {
-	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
 	finimuscno();

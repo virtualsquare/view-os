@@ -26,6 +26,6 @@
 
 char *fs_alias(char *fsalias);
 
-void *open_dllib(char *name);
+//void *open_dllib(char *name);
 
 #endif

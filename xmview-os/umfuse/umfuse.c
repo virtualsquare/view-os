@@ -85,8 +85,6 @@
 static struct service s;
 VIEWOS_SERVICE(s)
 
-static struct ht_elem *service_ht;
-
 struct fuse {
 	char *filesystemtype;
 	char *path;
@@ -1996,14 +1994,12 @@ init (void)
 	SERVICESYSCALL(s, pread64, umfuse_pread64);
 	SERVICESYSCALL(s, pwrite64, umfuse_pwrite64);
 	SERVICESYSCALL(s, utimes, umfuse_utimes);
-	service_ht=ht_tab_add(CHECKFSTYPE,"umfuse",0,&s,NULL,NULL);
 }
 
 	static void
 	__attribute__ ((destructor))
 fini (void)
 {
-	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
 	GMESSAGE("umfuse fini");

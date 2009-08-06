@@ -58,8 +58,6 @@
 static struct service s;
 VIEWOS_SERVICE(s)
 
-static struct ht_elem *service_ht;
-
 struct umnet {
 	char *path;
 	int pathlen;
@@ -733,14 +731,12 @@ init (void)
 	SERVICESYSCALL(s, chown, umnet_chown);
 	SERVICESYSCALL(s, ioctl, umnet_ioctl);
 	s.event_subscribe=umnet_event_subscribe;
-	service_ht=ht_tab_add(CHECKFSTYPE,"umnet",0,&s,NULL,NULL);
 }
 
 	static void
 	__attribute__ ((destructor))
 fini (void)
 {
-	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
 	free(s.virsc);
