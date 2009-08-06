@@ -252,6 +252,7 @@ static inline int ht_scan_terminate(unsigned char type, char *objc, int len, int
 }
 static inline int call_checkfun(int (*checkfun)(),unsigned char type,void *checkobj,int len,struct ht_elem *ht) {
 	epoch_t epoch=um_setnestepoch(ht->tst.epoch);
+	um_mod_set_hte(ht);
 	int rv=checkfun(type,checkobj,len,ht);
 	um_setnestepoch(epoch);
 	return rv;
