@@ -413,12 +413,25 @@ struct ht_elem *ht_tab_add(unsigned char type,void *obj,int objlen,
 			service, 1, checkfun, private_data);
 }
 
+static int permanent_mount(const char *opts)
+{
+	char *match;
+	if (opts==NULL)
+		return 0;
+	return (((match=strstr(opts,"permanent")) != NULL &&
+			(match == opts || match[-1]==',') &&
+			(match[9] == '\0' || match[9] == ',')) ||
+			((match=strstr(opts,"perm")) != NULL &&
+			 (match == opts || match[-1]==',') &&
+			 (match[4] == '\0' || match[4] == ',')));
+}
+	
 /* add a path to the hashtable (this creates an entry for the mounttab) */
 struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 		const char *path,
 		const char *fstype,
 		unsigned long mountflags,
-		const char *flags,
+		const char *mountopts,
 		struct service *service, 
 		unsigned char trailingnumbers,
 		checkfun_t checkfun,
@@ -444,8 +457,8 @@ struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 			strncat(opts,"nosuid,",PATH_MAX);
 		if (mountflags & MS_SYNCHRONOUS)
 			strncat(opts,"sync,",PATH_MAX);
-		if (flags && *flags)
-			strncat(opts,flags,PATH_MAX);
+		if (mountopts && *mountopts)
+			strncat(opts,mountopts,PATH_MAX);
 		else if (*opts)
 			opts[strlen(opts)-1]=0;
 		else
@@ -461,6 +474,8 @@ struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 		addpath=path;
 	rv=internal_ht_tab_add(type, addpath, strlen(addpath), mtabline,
 			service, trailingnumbers, checkfun, private_data);
+	if (permanent_mount(mountopts))
+		rv->count++;
 	if (rv == NULL && mtabline != NULL)
 		free(mtabline);
 	return rv;

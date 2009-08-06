@@ -602,9 +602,10 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 static int wrap_in_umount_generic(struct pcb *pc,struct ht_elem *hte, 
 		sysfun um_syscall,int flags)
 {
-	if (ht_get_count(hte) > 0)
+	if (ht_get_count(hte) > 0) {
+		pc->retval=-1;
 		pc->erno=EBUSY;
-	else if ((pc->retval = um_syscall(pc->path,flags)) < 0)
+	} else if ((pc->retval = um_syscall(pc->path,flags)) < 0)
 		pc->erno=errno;
 	else {
 		struct ht_elem *module_hte=ht_check(CHECKMODULE,ht_get_servicename(hte),NULL,0);

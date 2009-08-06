@@ -6,3 +6,6 @@ there is a problem on mmap)
 
 submachines (nested umview) may leave data around when terminate, 
 the termination cleanup is not complete.
+
+hashtab support a negative mount mechanism for a fast management of
+mount exceptions. All the modules use already a confirmation function.

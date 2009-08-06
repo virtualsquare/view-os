@@ -83,7 +83,8 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 	switch (pc->sysargs[0]) {
 		case ADD_SERVICE:
 			if (umovestr(pc,pc->sysargs[1],PATH_MAX,buf) == 0) {
-				if (add_service(buf) < 0)
+				int permanent=pc->sysargs[2];
+				if (add_service(buf,permanent) < 0)
 				{
 					pc->retval=-1;
 					pc->erno=errno;

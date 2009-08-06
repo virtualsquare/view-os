@@ -235,7 +235,7 @@ static void *nullinit(char *args) {
 }
 
 /* add a new service */
-int add_service(char *file)
+int add_service(char *file,int permanent)
 {
 	char *args;
 	void *handle;
@@ -255,6 +255,7 @@ int add_service(char *file)
 		else {
 			int i;
 			struct timestamp *tst=um_x_gettst();
+			struct ht_elem *hte;
 			void *(*pinit)() = dlsym(handle,"viewos_init");
 			if (s->dlhandle==NULL)
 				modify_um_syscall(s);
@@ -262,7 +263,10 @@ int add_service(char *file)
 			s->dlhandle=handle;
 			if (pinit == NULL) 
 				pinit=nullinit;
-			ht_tab_add(CHECKMODULE,s->name,strlen(s->name),s,NULL,pinit(args));
+			hte=ht_tab_add(CHECKMODULE,s->name,strlen(s->name),s,NULL,pinit(args));
+			if (permanent) {
+				ht_count_plus1(hte);
+			}
 			/* update the process time */
 			tst->epoch=get_epoch();
 			for (i = 0; i < sizeof(c_set); i++)

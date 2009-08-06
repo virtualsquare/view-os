@@ -62,7 +62,6 @@ struct umnet {
 	char *path;
 	int pathlen;
 	void *dlhandle;
-	long count;
 	struct umnet_operations *netops;
 	unsigned long flags;
 	long mode;
@@ -269,7 +268,6 @@ static long umnet_msocket(char *path, int domain, int type, int protocol)
 			struct fileinfo *ft=getfiletab(fd);
 			ft->nfd = rv;
 			ft->umnet = mh;
-			mh->count++;
 			rv=fd;
 			mh->sockettime=time(NULL);
 		}
@@ -330,7 +328,6 @@ static long umnet_accept(int fd, struct sockaddr *addr, socklen_t *addrlen)
 			struct fileinfo *ft2=getfiletab(fd2);
 			ft2->nfd = rv;
 			ft2->umnet = ft->umnet;
-			ft2->umnet->count++;
 			rv=fd2;
 		}
 		return rv;
@@ -484,7 +481,6 @@ static long umnet_close(int fd)
 		rv=ft->umnet->netops->close(
 				ft->nfd);
 		if (rv >=0) {
-			ft->umnet->count--;
 			delfiletab(fd);
 		}
 		return rv;
@@ -563,26 +559,6 @@ static long umnet_chown(char *path, uid_t owner, gid_t group)
 	return 0;
 }
 
-static int isperm(char *opt)
-{
-	while (opt){
-		opt=strstr(opt,"perm");
-		if (opt) {
-			if (opt[4]=='\0'){
-				memmove(opt,opt+4,strlen(opt+4)+1);
-				return 1;
-			}
-			if (opt[4]==',') {
-				memmove(opt,opt+5,strlen(opt+5)+1);
-				return 1;
-			}
-			else
-				opt+=4;
-		}
-	}
-	return 0;
-}
-
 static long umnet_mount(char *source, char *target, char *filesystemtype,
 		unsigned long mountflags, void *data)
 {
@@ -614,7 +590,6 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 		new->uid=0;
 		new->gid=0;
 		new->flags=mountflags;
-		new->count=(isperm(data))?1:0;
 		if (new->netops->init) 
 			new->netops->init(source,new->path,mountflags,data,new);
 		new->socket_ht=ht_tab_add(CHECKSOCKET,NULL,0,&s,checksocket,NULL);
@@ -640,16 +615,11 @@ static long umnet_umount2(char *target, int flags)
 		errno=EINVAL;
 		return -1;
 	} else {
-		if (mh->count > 0 && !(flags & MNT_FORCE)) {
-			errno=EBUSY;
-			return -1;
-		} else {
-			struct ht_elem *socket_ht=mh->socket_ht;
-			umnet_umount_internal(mh,flags);
-			ht_tab_del(socket_ht);
-			ht_tab_del(um_mod_get_hte());
-			return 0;
-		}
+		struct ht_elem *socket_ht=mh->socket_ht;
+		umnet_umount_internal(mh,flags);
+		ht_tab_del(socket_ht);
+		ht_tab_del(um_mod_get_hte());
+		return 0;
 	}
 }
 

@@ -63,7 +63,7 @@ struct viewinfo {
 	char viewname[_UTSNAME_LENGTH];
 };
 
-int um_add_service(char *path);
+int um_add_service(char *path,int permament);
 int um_del_service(char *name);
 int um_mov_service(int code, int position);
 int um_name_service(char *name, char *buf, int len);

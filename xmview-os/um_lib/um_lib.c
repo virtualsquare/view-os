@@ -41,9 +41,9 @@ static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,lon
 
 long (*virnsyscall)() = int_virnsyscall;
 
-int um_add_service(char *path)
+int um_add_service(char *path,int permanent)
 {
-	return virsyscall2(VIRUMSERVICE,ADD_SERVICE,path);
+	return virsyscall3(VIRUMSERVICE,ADD_SERVICE,path,permanent);
 }
 
 int um_del_service(char *name)

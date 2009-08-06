@@ -127,7 +127,7 @@ struct service {
 #define UM_NONE 0xff
 #define UM_ERR 0x00
 
-int add_service(char *file);
+int add_service(char *file,int permanent);
 int del_service(char *name);
 int list_services(char *buf,int len);
 int name_service(char *name,char *buf,int len);
