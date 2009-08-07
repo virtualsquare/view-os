@@ -71,7 +71,7 @@ wrapinfun wrap_in_kill;
 wrapinfun wrap_in_getxid16,wrap_in_setuid16, wrap_in_setgid16;
 wrapinfun wrap_in_getxid,wrap_in_setuid,wrap_in_setreuid;
 wrapinfun wrap_in_getresuid, wrap_in_setresuid,wrap_in_setgid;
-wrapinfun wrap_in_setresgid,wrap_in_setregid;
+wrapinfun wrap_in_getresgid, wrap_in_setresgid,wrap_in_setregid;
 wrapinfun wrap_in_nice, wrap_in_getpriority, wrap_in_setpriority;
 wrapinfun wrap_in_getpid, wrap_in_setpid, wrap_in_getpid_1, wrap_in_setpgid;
 wrapinfun wrap_in_getpgrp, wrap_in_setpgrp;
@@ -306,7 +306,7 @@ struct sc_map scmap[]={
 	{__NR_getegid,	choice_sc,	wrap_in_getxid16, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
 	{__NR_setfsgid,	choice_sc,	wrap_in_setgid16, wrap_out_std, 	always_null,	NULL, 0,	1, SOC_UID},
 	{__NR_setregid,	choice_sc,	wrap_in_setregid, wrap_out_std, 	always_null,	NULL, ALWAYS,	2, SOC_UID},
-	{__NR_getresgid, choice_sc,	wrap_in_setresuid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
+	{__NR_getresgid, choice_sc,	wrap_in_getresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	{__NR_setresgid, choice_sc,	wrap_in_setresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	{__NR_getuid32,	choice_sc,	wrap_in_getxid, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
 	{__NR_setuid32,	choice_sc,	wrap_in_setuid, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
@@ -320,7 +320,7 @@ struct sc_map scmap[]={
 	{__NR_getegid32,	choice_sc,	wrap_in_getxid, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
 	{__NR_setfsgid32,	choice_sc,	wrap_in_setgid, wrap_out_std, 	always_null,	NULL, 0,	1, SOC_UID},
 	{__NR_setregid32,	choice_sc,	wrap_in_setregid, wrap_out_std, 	always_null,	NULL, ALWAYS,	2, SOC_UID},
-	{__NR_getresgid32, choice_sc,	wrap_in_setresuid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
+	{__NR_getresgid32, choice_sc,	wrap_in_getresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	{__NR_setresgid32, choice_sc,	wrap_in_setresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	  
 	/* priority related calls */

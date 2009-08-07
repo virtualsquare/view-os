@@ -189,11 +189,13 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 	if (pc->pathstat.st_mode & S_ISUID) {
 		pc->suid=pc->euid;
 		pc->euid=pc->pathstat.st_uid;
-	}
+	} else if (pc->ruid == pc->euid)
+		pc->suid=pc->ruid;
 	if (pc->pathstat.st_mode & S_ISGID) {
 		pc->sgid=pc->egid;
 		pc->egid=pc->pathstat.st_gid;
-	}
+	} else if (pc->rgid == pc->egid)
+		pc->sgid=pc->rgid;
 	if (strcmp(pc->path,"/bin/mount") == 0 || 
 		strcmp(pc->path,"/bin/umount") == 0) {
 		pc->suid=pc->euid;
