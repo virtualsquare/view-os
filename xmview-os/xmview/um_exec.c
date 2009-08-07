@@ -62,6 +62,8 @@ static int filecopy(struct ht_elem *hte,const char *from, const char *to)
 	char buf[BUFSIZ];
 	int fdf,fdt;
 	int n;
+	/* NO need for hte search. from is the path so hte and private data
+		 is already set for modules */
 	if ((fdf=ht_syscall(hte,uscno(__NR_open))(from,O_RDONLY,0)) < 0)
 		return -errno;
 	if ((fdt=open(to,O_CREAT|O_TRUNC|O_WRONLY,0600)) < 0)

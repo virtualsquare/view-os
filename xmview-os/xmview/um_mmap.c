@@ -330,6 +330,8 @@ static long add_mmap_secret(struct ht_elem *hte,const char *from, unsigned long 
 #else
 	r_lseek(um_mmap_secret,pgoffset << um_mmap_pageshift,SEEK_SET);
 #endif
+	/* No need for hte search. from is the mmap path so hte and
+		 private data is already set for submodules */
 	if ((fdf=ht_syscall(hte,uscno(__NR_open))(from,O_RDONLY,0)) < 0)
 		return -errno;
 	while ((n=ht_syscall(hte,uscno(__NR_read))(fdf,buf,BUFSIZ)) > 0) {
@@ -347,7 +349,8 @@ static void store_mmap_secret(struct ht_elem *hte,const char *to, unsigned long 
 	char buf[BUFSIZ];
 	int fdf;
 	int n;
-	//fprint2("store_mmap_secret %s %ld\n",to, pgoffset);
+	struct ht_elem *shte;
+	//fprint2("store_mmap_secret %s %ld %p\n",to, pgoffset,hte);
 #if __NR__llseek != __NR_doesnotexist
 	loff_t result;
 	r_llseek(um_mmap_secret, pgoffset >> ((sizeof (long)*8) - um_mmap_pageshift),
@@ -355,6 +358,9 @@ static void store_mmap_secret(struct ht_elem *hte,const char *to, unsigned long 
 #else
 	r_lseek(um_mmap_secret,pgoffset << um_mmap_pageshift,SEEK_SET);
 #endif
+	/* hte is *not* set. search for "to".*/
+	shte=ht_check(CHECKPATH,(void *)to,NULL,0);
+	assert(hte==shte);
 	if ((fdf=ht_syscall(hte,uscno(__NR_open))(to,O_WRONLY | O_TRUNC | O_CREAT,0)) < 0)
 		return;
 	while (length > 0) {
@@ -363,6 +369,7 @@ static void store_mmap_secret(struct ht_elem *hte,const char *to, unsigned long 
 	  if (n<=0)
 			break;
 	  ht_syscall(hte,uscno(__NR_write))(fdf,buf,n);
+		length -= n;
 	}
 	ht_syscall(hte,uscno(__NR_close))(fdf);
 	return; 
@@ -452,20 +459,21 @@ int wrap_in_munmap(int sc_number,struct pcb *pc,
 	unsigned long start=pc->sysargs[0];
 	unsigned long length=pc->sysargs[1];
 	
-	//fprint2("======== wrap_in_munmap %ld %ld!!!\n",start,length);
+	//fprint2("======== wrap_in_munmap %lx %ld!!!\n",start,length);
 	if (pcb_mmap_sfsearch_n_movetohead(&(pc->um_mmap),start,length))
 		return SC_CALLONXIT;
 	else
 		return STD_BEHAVIOR;
 }
 
-/* remap: search the chunk and move it ti the head of the process mmap table */
+/* remap: search the chunk and move it to the head of the process mmap table */
 int wrap_in_mremap(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned long start=pc->sysargs[0];
 	unsigned long length=pc->sysargs[1];
 	//unsigned long new_length=pc->sysargs[2];
+	//fprint2("======== wrap_in_mremap %lx %ld!!!\n",start,length,new_length);
 	if (pcb_mmap_sfsearch_n_movetohead(&(pc->um_mmap),start,length)) {
 		/* TODO check that remap does not overlap next mmap chunk on the secret
 		 * file */
