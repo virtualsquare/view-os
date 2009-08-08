@@ -48,10 +48,6 @@ main(int argc, char *argv[])
 {
 	int c;
 	struct viewinfo vi;
-	if (um_check_viewos()==0) {
-		fprintf(stderr,"This is a View-OS command. It works only inside a umview/kmview virtual machine\n");
-		usage();
-	}            
 	while (1) {
 		int option_index = 0;
 		static struct option long_options[] = {
