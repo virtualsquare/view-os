@@ -27,6 +27,7 @@
 #define _DEFS_H
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <endian.h>
 #include <stdarg.h>
 #include <gdebug.h>
@@ -165,6 +166,23 @@ extern unsigned int quiet;
 
 #define WORDLEN sizeof(int *)
 #define WORDALIGN(X) (((X) + WORDLEN) & ~(WORDLEN-1))
+
+#define MAX_SOCKET_NAME 1024
+#define MAX_SOCKOPT_LEN 4096
+#define MAX_SOCK_CONTROLLEN (1<<16) /*64K*/
+#define _LARGE_ALLOCA_PROTECTION
+#ifdef _LARGE_ALLOCA_PROTECTION
+#define lalloca(L) ({ void *m; if (__builtin_expect(((L)>>16),0)) \
+		{ if ((m=malloc(L))==NULL) \
+		{ pc->retval= -1; pc->erno=ENOMEM; return SC_FAKE; } \
+	 	} \
+		else m=alloca(L); m; })
+#define lfree(B,L) ({if (__builtin_expect(((L)>>16),0)) free(B); })
+#define lfree(B,L) ({if (__builtin_expect(((L)>>16),0)) free(B); })
+#else
+#define lalloca(L) alloca(L)
+#define lfree(B,L)
+#endif
 
 #if 0
 #ifdef _MALLOC_DEBUG

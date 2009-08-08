@@ -173,7 +173,10 @@ int wrap_in_accept(int sc_number,struct pcb *pc,
 			pc->erno= EINVAL;
 		} else {
 			long sock_addr=pc->sysargs[1];
-			char *sock=(char *)alloca(sock_len);
+			char *sock;
+			if (__builtin_expect((sock_len > MAX_SOCKET_NAME),0)) 
+				sock_len=MAX_SOCKET_NAME;
+			sock=(char *)alloca(sock_len);
 			/* get the sock_addr */
 				umoven(pc,sock_addr,sock_len,sock);
 				/* virtual syscall */
@@ -245,7 +248,10 @@ int wrap_in_bind_connect(int sc_number,struct pcb *pc,
 	} else {
 		long sock_addr=pc->sysargs[1];
 		long sock_len=pc->sysargs[2];
-		char *sock=(char *)alloca(sock_len);
+		char *sock;
+		if (__builtin_expect((sock_len > MAX_SOCKET_NAME),0)) 
+			sock_len=MAX_SOCKET_NAME;
+		sock=(char *)alloca(sock_len);
 		umoven(pc,sock_addr,sock_len,sock);
 		if ((pc->retval = um_syscall(sfd,sock,sock_len)) < 0)
 			pc->erno=errno;
@@ -281,7 +287,10 @@ int wrap_in_getsock(int sc_number,struct pcb *pc,
 		int sock_len;
 		if (sock_plen != umNULL)
 			umoven(pc,sock_plen,4,&sock_len);
-		char *sock=(char *)alloca(sock_len);
+		char *sock;
+		if (__builtin_expect((sock_len > MAX_SOCKET_NAME),0)) 
+			sock_len=MAX_SOCKET_NAME;
+		sock=(char *)alloca(sock_len);
 		umoven(pc,sock_addr,sock_len,sock);
 		if ((pc->retval = um_syscall(sfd,sock,&sock_len)) < 0)
 			pc->erno=errno;
@@ -307,7 +316,7 @@ int wrap_in_send(int sc_number,struct pcb *pc,
 		long buf=pc->sysargs[1];
 		int len=pc->sysargs[2];
 		int flags=pc->sysargs[3];
-		char *lbuf=(char *)alloca(len); 
+		char *lbuf=(char *)lalloca(len); 
 #ifdef SNDRCVMSGUNIFY
 		struct iovec iov = {lbuf,len};
 		struct msghdr msg = {
@@ -327,6 +336,7 @@ int wrap_in_send(int sc_number,struct pcb *pc,
 		if ((pc->retval=um_syscall(sfd,lbuf,len,flags)) < 0)
 			pc->erno=errno;
 #endif
+		lfree(lbuf,len);
 	}
 	return SC_FAKE;
 }
@@ -342,7 +352,7 @@ int wrap_in_recv(int sc_number,struct pcb *pc,
 		long buf=pc->sysargs[1];
 		int len=pc->sysargs[2];
 		int flags=pc->sysargs[3];
-		char *lbuf=(char *)alloca(len);
+		char *lbuf=(char *)lalloca(len);
 #ifdef SNDRCVMSGUNIFY
 		struct iovec iov = {lbuf,len};
 		struct msghdr msg = {
@@ -361,6 +371,7 @@ int wrap_in_recv(int sc_number,struct pcb *pc,
 #endif
 		if (pc->retval > 0)
 			ustoren(pc,buf,pc->retval,lbuf);
+		lfree(lbuf,len);
 	}
 	return SC_FAKE;
 }
@@ -378,7 +389,7 @@ int wrap_in_sendto(int sc_number,struct pcb *pc,
 		int flags=pc->sysargs[3];
 		long pto=pc->sysargs[4];
 		int tolen=pc->sysargs[5];
-		char *lbuf=(char *)alloca(len); 
+		char *lbuf=(char *)lalloca(len); 
 		char *tosock=NULL;
 #ifdef SNDRCVMSGUNIFY
 		struct iovec iov = {lbuf,len};
@@ -393,6 +404,8 @@ int wrap_in_sendto(int sc_number,struct pcb *pc,
 #endif
 		umoven(pc,buf,len,lbuf);
 		if (pto != umNULL) {
+			if (__builtin_expect((tolen > MAX_SOCKET_NAME),0)) 
+				tolen=MAX_SOCKET_NAME;
 			tosock=alloca(tolen);
 			umoven(pc,pto,tolen,tosock);
 #ifdef SNDRCVMSGUNIFY
@@ -407,6 +420,7 @@ int wrap_in_sendto(int sc_number,struct pcb *pc,
 		if ((pc->retval=um_syscall(sfd,lbuf,len,flags,tosock,tolen)) < 0)
 			pc->erno=errno;
 #endif
+		lfree(lbuf,len);
 	}
 	return SC_FAKE;
 }
@@ -425,7 +439,7 @@ int wrap_in_recvfrom(int sc_number,struct pcb *pc,
 		long pfrom=pc->sysargs[4];
 		long pfromlen=pc->sysargs[5];
 		int fromlen=0;
-		char *lbuf=(char *)alloca(len);
+		char *lbuf=(char *)lalloca(len);
 		char *fromsock=NULL;
 #ifdef SNDRCVMSGUNIFY
 		struct iovec iov = {lbuf,len};
@@ -441,6 +455,8 @@ int wrap_in_recvfrom(int sc_number,struct pcb *pc,
 		if (pfromlen != umNULL) {
 			umoven(pc,pfromlen,4,(char *)&fromlen);
 			if (pfrom != umNULL && fromlen != 0) {
+				if (__builtin_expect((fromlen > MAX_SOCKET_NAME),0)) 
+					fromlen=MAX_SOCKET_NAME;
 				fromsock=alloca(fromlen);
 				umoven(pc,pfrom,fromlen,fromsock);
 			}
@@ -463,6 +479,7 @@ int wrap_in_recvfrom(int sc_number,struct pcb *pc,
 			if (pfromlen != umNULL)
 				ustoren(pc,pfromlen,4,&fromlen);
 		}
+		lfree(lbuf,len);
 	}
 	return SC_FAKE;
 }
@@ -498,6 +515,8 @@ int wrap_in_getsockopt(int sc_number,struct pcb *pc,
 		void *optval;
 		if (poptlen != umNULL) {
 			umoven(pc,poptlen,4,(char *)&optlen);
+			if (__builtin_expect((optlen > MAX_SOCKOPT_LEN),0))
+				optlen=MAX_SOCKOPT_LEN;
 			optval=(optlen > 0)?alloca(optlen):NULL;
 		} else {
 			optlen=0;
@@ -528,6 +547,8 @@ int wrap_in_setsockopt(int sc_number,struct pcb *pc,
 		void *optval;
 		//printf("setsockopt fd %d level %d optname %d poptval %x optlen %d\n",pc->sysargs[0],level,optname,poptval,optlen);
 		if (optlen > 0 && poptval != umNULL) { 
+			if (__builtin_expect((optlen > MAX_SOCKOPT_LEN),0))
+				optlen=MAX_SOCKOPT_LEN;
 			optval=alloca(optlen);
 			umoven(pc,poptval,optlen,optval);
 		} else
@@ -557,10 +578,13 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,
 		umoven(pc,pmsg,sizeof(struct msghdr),&msg);
 		lmsg=msg;
 		if (msg.msg_namelen > 0 && msg.msg_name != NULL) {
+			if (__builtin_expect((msg.msg_namelen > MAX_SOCKET_NAME),0)) 
+				msg.msg_namelen=MAX_SOCKET_NAME;
 			lmsg.msg_name=alloca(msg.msg_namelen);
 			umoven(pc,(long)msg.msg_name,msg.msg_namelen,lmsg.msg_name);
 		}
 		if (msg.msg_iovlen > 0 && msg.msg_iov != NULL) {
+			if (__builtin_expect((msg.msg_iovlen > IOV_MAX),0)) msg.msg_iovlen=IOV_MAX;
 			iovec=alloca(msg.msg_iovlen * sizeof(struct iovec));
 			umoven(pc,(long)msg.msg_iov,msg.msg_iovlen * sizeof(struct iovec),iovec);
 		} else {
@@ -568,6 +592,8 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,
 			msg.msg_iovlen = 0;
 		}
 		if (msg.msg_controllen > 0 && msg.msg_control != NULL) {
+			if (__builtin_expect((msg.msg_controllen > MAX_SOCK_CONTROLLEN),0))
+				msg.msg_controllen=MAX_SOCK_CONTROLLEN;
 			lmsg.msg_control=alloca(msg.msg_controllen);
 			umoven(pc,(long)msg.msg_control,msg.msg_controllen,lmsg.msg_control);
 		}
@@ -576,7 +602,7 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,
 			char *lbuf;
 			for (i=0,totalsize=0;i<msg.msg_iovlen;i++)
 				totalsize += iovec[i].iov_len;
-			lbuf=(char *)alloca(totalsize);
+			lbuf=(char *)lalloca(totalsize);
 			//fprint2("RECVMSG fd %d namesize %d msg_iovlen %d msg_controllen %d total %d\n",
 			//		pc->sysargs[0],msg.msg_namelen, msg.msg_iovlen, msg.msg_controllen, totalsize);
 			liovec.iov_base=lbuf;
@@ -604,6 +630,7 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,
 			}
 			msg.msg_flags=lmsg.msg_flags;
 			ustoren(pc,pmsg,sizeof(struct msghdr),&msg);
+			lfree(lbuf,totalsize);
 		}
 	}
 	return SC_FAKE;
@@ -626,10 +653,13 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,
 		struct iovec liovec;
 		struct iovec *iovec;
 		if (msg.msg_namelen > 0 && msg.msg_name != NULL) {
+			if (__builtin_expect((msg.msg_namelen > MAX_SOCKET_NAME),0)) 
+				msg.msg_namelen=MAX_SOCKET_NAME;
 			lmsg.msg_name=alloca(msg.msg_namelen);
 			umoven(pc,(long)msg.msg_name,msg.msg_namelen,lmsg.msg_name);
 		}
 		if (msg.msg_iovlen > 0 && msg.msg_iov != NULL) {
+			if (__builtin_expect((msg.msg_iovlen > IOV_MAX),0)) msg.msg_iovlen=IOV_MAX;
 			iovec=alloca(msg.msg_iovlen * sizeof(struct iovec));
 			umoven(pc,(long)msg.msg_iov,msg.msg_iovlen * sizeof(struct iovec),iovec);
 		} else {
@@ -637,6 +667,8 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,
 			msg.msg_iovlen = 0;
 		}
 		if (msg.msg_controllen > 0 && msg.msg_control != NULL) {
+			if (__builtin_expect((msg.msg_controllen > MAX_SOCK_CONTROLLEN),0))
+				msg.msg_controllen=MAX_SOCK_CONTROLLEN;
 			lmsg.msg_control=alloca(msg.msg_controllen);
 			umoven(pc,(long)msg.msg_control,msg.msg_controllen,lmsg.msg_control);
 		}
@@ -645,7 +677,7 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,
 			char *lbuf;
 			for (i=0,totalsize=0;i<msg.msg_iovlen;i++)
 				totalsize += iovec[i].iov_len;
-			lbuf=(char *)alloca(totalsize);
+			lbuf=(char *)lalloca(totalsize);
 			liovec.iov_base=lbuf;
 			liovec.iov_len=totalsize;
 			lmsg.msg_iov=&liovec;
@@ -661,6 +693,7 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,
 			if ((size=pc->retval = um_syscall(sfd,&lmsg,flags)) < 0)
 				pc->erno=errno;
 			//printf("%d size->%d\n",sfd,size);
+			lfree(lbuf,totalsize);
 		}
 	}
 	return SC_FAKE;
