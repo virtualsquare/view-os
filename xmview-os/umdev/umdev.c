@@ -94,12 +94,12 @@ static void printdebug(int level, const char *file, const int line, const char *
 	if (level >= __UMDEV_DEBUG_LEVEL__) {
 		va_start(ap, fmt);
 #ifdef _PTHREAD_H
-		fprint2( "[%d:%lu] dev %s:%d %s(): ", getpid(), pthread_self(), file, line, func);
+		printk( "[%d:%lu] dev %s:%d %s(): ", getpid(), pthread_self(), file, line, func);
 #else
-		fprint2( "[%d] dev %s:%d %s(): ", getpid(), file, line, func);
+		printk( "[%d] dev %s:%d %s(): ", getpid(), file, line, func);
 #endif
-		vfprint2(fmt, ap);
-		fprint2( "\n");
+		vprintk(fmt, ap);
+		printk( "\n");
 		va_end(ap);
 	}
 }
@@ -110,7 +110,7 @@ static int umdev_confirm(int type, void *arg, int arglen, struct ht_elem *ht)
 	char *path=arg;
 	struct umdev *fc=ht_get_private_data(ht);
 	char *suffix=path+strlen(fc->path);
-	//fprint2("umdev_confirm path %s suffix %s\n",path,suffix);
+	//printk("umdev_confirm path %s suffix %s\n",path,suffix);
 	int sub=atoi(suffix);
 	if (sub <= fc->nsubdev)
 		return 1;
@@ -158,7 +158,7 @@ static int set_dev(dev_t *dev, struct umdev *umdev,char *path)
 			*dev= umdev->dev;
 	}
 	mode= umdev->mode;
-	//fprint2("SET_DEV %s %x %d %d\n",path,mode,major(*dev),minor(*dev));
+	//printk("SET_DEV %s %x %d %d\n",path,mode,major(*dev),minor(*dev));
 	return mode2char(mode);
 }
 
@@ -167,7 +167,7 @@ static int set_dev(dev_t *dev, struct umdev *umdev,char *path)
 static void debugfun(char *s,struct umdev *fc)
 {
 #ifdef DEBUGUMDEVARGS
-	fprint2("DEBUG\n");
+	printk("DEBUG\n");
 #endif
 	fc->flags |= UMDEV_DEBUG;
 }
@@ -176,7 +176,7 @@ static void charfun(char *s,struct umdev *fc)
 {
 	fc->mode=(fc->mode & ~S_IFMT) | S_IFCHR;
 #ifdef DEBUGUMDEVARGS
-	fprint2("CHAR %o\n",fc->mode);
+	printk("CHAR %o\n",fc->mode);
 #endif
 }
 
@@ -184,7 +184,7 @@ static void blockfun(char *s,struct umdev *fc)
 {
 	fc->mode=(fc->mode & ~S_IFMT) | S_IFBLK;
 #ifdef DEBUGUMDEVARGS
-	fprint2("BLK %o\n",fc->mode);
+	printk("BLK %o\n",fc->mode);
 #endif
 }
 
@@ -192,7 +192,7 @@ static void majorfun(char *s,struct umdev *fc)
 {
 	int majx,minx;
 #ifdef DEBUGUMDEVARGS
-	fprint2("MAJ %s\n",s);
+	printk("MAJ %s\n",s);
 #endif
 	majx=atoi(s);
 	minx=minor(fc->dev);
@@ -203,7 +203,7 @@ static void minorfun(char *s,struct umdev *fc)
 {
 	int majx,minx;
 #ifdef DEBUGUMDEVARGS
-	fprint2("MIN %s\n",s);
+	printk("MIN %s\n",s);
 #endif
 	majx=major(fc->dev);
 	if (strcmp(s,"any")==0)
@@ -216,7 +216,7 @@ static void minorfun(char *s,struct umdev *fc)
 static void plusnum(char *s,struct umdev *fc)
 {
 #ifdef DEBUGUMDEVARGS
-	fprint2("PLUSNUM %s\n",s);
+	printk("PLUSNUM %s\n",s);
 #endif
 	fc->nsubdev=atoi(s);
 }
@@ -227,14 +227,14 @@ static void modefun(char *s,struct umdev *fc)
 	sscanf(s,"%o",&mode);
 	fc->mode=(fc->mode & S_IFMT) | (mode & 0777);
 #ifdef DEBUGUMDEVARGS
-	fprint2("MODE %o %o\n",mode,fc->mode);
+	printk("MODE %o %o\n",mode,fc->mode);
 #endif
 }
 
 static void uidfun(char *s,struct umdev *fc)
 {
 #ifdef DEBUGUMDEVARGS
-	fprint2("UID %s\n",s);
+	printk("UID %s\n",s);
 #endif
 	fc->uid=atoi(s);
 }
@@ -242,7 +242,7 @@ static void uidfun(char *s,struct umdev *fc)
 static void gidfun(char *s,struct umdev *fc)
 {
 #ifdef DEBUGUMDEVARGS
-	fprint2("GID %s\n",s);
+	printk("GID %s\n",s);
 #endif
 	fc->gid=atoi(s);
 }
@@ -257,7 +257,7 @@ void devargs(char *opts, struct devargitem *devargtab, int devargsize, void *arg
 	char *s=optcopy;
 	char quote=0,olds;
 #ifdef DEBUGUMDEVARGS
-	fprint2("devargs opts %s\n",s);
+	printk("devargs opts %s\n",s);
 #endif
 	/* PHASE 1: tokenize options */
 	for (quote=0,s=opts,olds=*s;olds != 0 && nsepopts < MAXARGS;s++) {
@@ -279,7 +279,7 @@ void devargs(char *opts, struct devargitem *devargtab, int devargsize, void *arg
 	}
 #ifdef DEBUGUMDEVARGS
 	for (i=0;i<nsepopts;i++)
-		fprint2("separg %d = %s\n",i,sepopts[i]);
+		printk("separg %d = %s\n",i,sepopts[i]);
 #endif
 	/* PHASE 2 recognize UMUMDEV options */
 	for (i=0;i<nsepopts;i++) {
@@ -316,7 +316,7 @@ static long umdev_mount(char *source, char *target, char *filesystemtype,
 			mountflags, (data!=NULL)?data:"<NULL>");
 
 	if(dlhandle == NULL || (umdev_ops=dlsym(dlhandle,"umdev_ops")) == NULL) {
-		fprint2("%s\n",dlerror());
+		printk("%s\n",dlerror());
 		if(dlhandle != NULL)
 			dlclose(dlhandle);
 		errno=ENODEV;
@@ -376,7 +376,7 @@ static void umdev_umount_internal(struct umdev *fc,int flags) {
 	if (fc->devht)
 		ht_tab_invalidate(fc->devht);
 	if (fc->flags & UMDEV_DEBUG)
-		fprint2("UMOUNT => path:%s flag:%d\n",target, flags);
+		printk("UMOUNT => path:%s flag:%d\n",target, flags);
 	if (fc->devops->fini)
 		fc->devops->fini(mode2char(fc->mode),fc->dev,fc);
 	free(fc->path);
@@ -503,7 +503,7 @@ static long umdev_open(char *path, int flags, mode_t mode)
 	if (rv < 0)
 	{
 		if (fc->flags & UMDEV_DEBUG) 
-			fprint2("OPEN[%d: %c(%d,%d)] ERROR => path:%s flags:0x%x\n",
+			printk("OPEN[%d: %c(%d,%d)] ERROR => path:%s flags:0x%x\n",
 					fd, ft->type, major(ft->device), minor(ft->device), path, flags);	
 		delfiletab(fd);
 		errno = -rv;
@@ -511,7 +511,7 @@ static long umdev_open(char *path, int flags, mode_t mode)
 	} else {
 		ft->count += 1;
 		if (fc->flags & UMDEV_DEBUG) 
-			fprint2("OPEN[%d: %c(%d:%d)] => path:%s flags:0x%x\n",
+			printk("OPEN[%d: %c(%d:%d)] => path:%s flags:0x%x\n",
 					fd, ft->type, major(ft->device), minor(ft->device), path, flags);
 		fc->inuse++;
 		return fd;
@@ -528,7 +528,7 @@ static long umdev_close(int fd)
 	di.flags = ft->umdev->flags;
 	di.devhandle=ft->umdev;
 	if (ft->umdev->flags & UMDEV_DEBUG) 
-		fprint2("CLOSE[%d %c(%d:%d)] %p\n",fd,
+		printk("CLOSE[%d %c(%d:%d)] %p\n",fd,
 				ft->type, major(ft->device), minor(ft->device),ft);
 	ft->count--;
 	PRINTDEBUG(10,"->CLOSE %c(%d:%d) %d\n",
@@ -540,7 +540,7 @@ static long umdev_close(int fd)
 		else
 			rv=0;
 		if (ft->umdev->flags & UMDEV_DEBUG) 
-			fprint2("RELEASE[%d %c(%d:%d)] => flags:0x%x rv=%d\n",
+			printk("RELEASE[%d %c(%d:%d)] => flags:0x%x rv=%d\n",
 					fd, ft->type, major(ft->device), minor(ft->device), ft->umdev->flags,rv);
 		delfiletab(fd);
 	}
@@ -567,7 +567,7 @@ static long umdev_read(int fd, void *buf, size_t count)
 	else
 		rv= -EINVAL;
 	if (ft->umdev->flags & UMDEV_DEBUG) 
-		fprint2("READ[%d %c(%d:%d)] => count:%u\n",
+		printk("READ[%d %c(%d:%d)] => count:%u\n",
 				fd, ft->type, major(ft->device), minor(ft->device), count);
 	if (rv<0) {
 		errno= -rv;
@@ -594,7 +594,7 @@ static long umdev_write(int fd, void *buf, size_t count)
 	} else
 		rv= -EINVAL;
 	if (ft->umdev->flags & UMDEV_DEBUG) 
-		fprint2("WRITE[%d %c(%d:%d)] => count:0x%x\n",
+		printk("WRITE[%d %c(%d:%d)] => count:0x%x\n",
 				fd, ft->type, major(ft->device), minor(ft->device), count);
 
 	PRINTDEBUG(10,"WRITE rv:%d\n",rv); 
@@ -642,7 +642,7 @@ static int common_stat64(struct umdev *fc, char type, dev_t device, struct stat6
 		rv=0;
 	}
 	if (fc->flags & UMDEV_DEBUG) 
-		fprint2("stat->GETATTR %c(%d:%d) => status: %s\n",
+		printk("stat->GETATTR %c(%d:%d) => status: %s\n",
 				type, major(device), minor(device), rv ? "Error" : "Success");
 	if (rv<0) {
 		errno= -rv;
@@ -678,7 +678,7 @@ static long umdev_access(char *path, int mode)
 	type=set_dev(&device,fc,path);
 	assert(fc!=NULL);
 	if (fc->flags & UMDEV_DEBUG) 
-		fprint2("ACCESS %c(%d,%d) => path:%s mode:%s%s%s%s\n", 
+		printk("ACCESS %c(%d,%d) => path:%s mode:%s%s%s%s\n", 
 				type, major(device), minor(device),
 				path,
 				(mode & R_OK) ? "R_OK": "",
@@ -705,7 +705,7 @@ static long umdev_access(char *path, int mode)
 	 assert(fc != NULL);
 	 device_set_context(fc);
 	 if (fc->device->flags & UMDEV_DEBUG)
-	 fprint2("MKNOD => path:%s\n",path);
+	 printk("MKNOD => path:%s\n",path);
 	 rv = fc->device->fops.mknod(
 	 path, mode, dev);
 	 if (rv < 0) {
@@ -729,7 +729,7 @@ static long umdev_chmod(char *path, int mode)
 	type=set_dev(&device,umdev,path);
 
 	if (umdev->flags & UMDEV_DEBUG) 
-		fprint2("CHMOD => path:%s\n",path);
+		printk("CHMOD => path:%s\n",path);
 	if (umdev->devops->chmod)
 		rv= umdev->devops->chmod(type,device,mode,umdev);
 	else {
@@ -782,7 +782,7 @@ static long umdev_fsync(int fd)
 	else
 		rv= 0;
 	if (ft->umdev->flags & UMDEV_DEBUG) 
-		fprint2("FSYNC[%d %c(%d:%d)] rv=%d\n",
+		printk("FSYNC[%d %c(%d:%d)] rv=%d\n",
 				fd, ft->type, major(ft->device), minor(ft->device), rv);
 	if (rv<0) {
 		errno= -rv;
@@ -804,7 +804,7 @@ static loff_t umdev_x_lseek(int fd, off_t offset, int whence)
 		rv=ft->umdev->devops->lseek(
 				ft->type, ft->device, offset, whence, ft->pos, &di);
 		if (ft->umdev->flags & UMDEV_DEBUG) 
-			fprint2("SEEK[%d %c(%d:%d)] OFF %lld WHENCE %d -> %lld\n",
+			printk("SEEK[%d %c(%d:%d)] OFF %lld WHENCE %d -> %lld\n",
 					fd, ft->type, major(ft->device), minor(ft->device),
 					offset,whence, rv);
 		if (rv<0) {
@@ -878,7 +878,7 @@ static long umdev_ioctl(int fd, int req, void *arg)
 	} else
 		rv= -EINVAL;
 	if (ft->umdev->flags & UMDEV_DEBUG) 
-		fprint2("IOCTL[%d %c(%d:%d)] => req:%x\n",
+		printk("IOCTL[%d %c(%d:%d)] => req:%x\n",
 				fd, ft->type, major(ft->device), minor(ft->device), req);
 	if (rv<0) {
 		errno= -rv;
@@ -959,7 +959,7 @@ mode_t umdev_getmode(struct umdev *devhandle)
 	__attribute__ ((constructor))
 init (void)
 {
-	fprint2("umdev init\n");
+	printk("umdev init\n");
 	s.name="umdev";
 	s.description="virtual devices";
 	s.destructor=umdev_destructor;
@@ -1015,6 +1015,6 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	fprint2("umdev fini\n");
+	printk("umdev fini\n");
 }
 

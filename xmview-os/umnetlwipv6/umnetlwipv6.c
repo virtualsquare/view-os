@@ -247,7 +247,7 @@ int umnetlwipv6_fini (struct umnet *nethandle){
 #if 0
 int umnetlwipv6_event_subscribe(voidfun cb, void *arg, int fd, int how)
 {
-	//fprint2("umnetlwipv6_event_subscribe %d %d\n",fd,how);
+	//printk("umnetlwipv6_event_subscribe %d %d\n",fd,how);
 	return lwip_event_subscribe(cb,arg,fd,how);
 }
 #endif
@@ -282,7 +282,7 @@ typedef int (*intfun)();
 	__attribute__ ((constructor))
 init (void)
 {
-	/*fprint2("umnetlwipv6 constructor\n");*/
+	/*printk("umnetlwipv6 constructor\n");*/
 	UMNETLWIPV6(bind);
 	UMNETLWIPV6(connect);
 	UMNETLWIPV6(listen);
@@ -306,5 +306,5 @@ init (void)
 	__attribute__ ((destructor))
 fini (void)
 {
-	/*fprint2("umnetlwipv6 destructor\n");*/
+	/*printk("umnetlwipv6 destructor\n");*/
 }

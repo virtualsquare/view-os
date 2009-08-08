@@ -123,7 +123,7 @@ int um_x_access(char *filename, int mode, struct pcb *pc)
 	int retval;
 	long oldscno;
 	epoch_t epoch;
-	/* fprint2("-> um_x_access: %s\n",filename);  */
+	/* printk("-> um_x_access: %s\n",filename);  */
 	/* internal nested call save data */
 	oldscno = pc->sysscno;
 	epoch=pc->tst.epoch;
@@ -147,7 +147,7 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
 	int retval;
 	long oldscno;
 	epoch_t epoch;
-	/* fprint2("-> um_lstat: %s\n",filename); */
+	/* printk("-> um_lstat: %s\n",filename); */
 	/* internal nested call save data */
 	oldscno = pc->sysscno;
 	pc->sysscno = NR64_lstat;
@@ -171,7 +171,7 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
 	long oldscno = pc->sysscno;
 	int retval;
 	epoch_t epoch;
-	/* fprint2("-> um_x_readlink: %s\n",path); */
+	/* printk("-> um_x_readlink: %s\n",path); */
 	oldscno = pc->sysscno;
 	pc->sysscno = __NR_readlink;
 	epoch=pc->tst.epoch;
@@ -228,7 +228,7 @@ char *um_cutdots(char *path)
 	}
 #ifdef CUTDOTSTEST
 	if (strcmp(path,s) != 0)
-		fprint2("cutdots worked %s %s\n",path,s);
+		printk("cutdots worked %s %s\n",path,s);
 	free(s);
 #endif
 	return path;
@@ -248,7 +248,7 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 		else
 			cwd=fd_getpath(pc->fds,dirfd);
 		um_realpath(path,cwd,newpath,pst,dontfollowlink,pc);
-			/*fprint2("PATH %s (%s,%s) NEWPATH %s (%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->erno);*/
+			/*printk("PATH %s (%s,%s) NEWPATH %s (%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->erno);*/
 		if (pc->erno)
 			return um_patherror;	//error
 		else
@@ -309,7 +309,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		/* and get the index of the system call table
 		 * regarding this syscall */
 		index = dcif(pc, sc_number);
-		//fprint2("nested_commonwrap %d -> %lld\n",sc_number,pc->tst.epoch);
+		//printk("nested_commonwrap %d -> %lld\n",sc_number,pc->tst.epoch);
 		/* looks in the system call table what is the 'choice function'
 		 * and ask it the service to manage */
 		pc->hte=hte=sm[index].scchoice(sc_number,pc);
@@ -329,7 +329,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 			return SC_FAKE;
 		}
 #endif
-		//fprint2("commonwrap choice %d -> %lld %x\n",sc_number,pc->tst.epoch,hte);
+		//printk("commonwrap choice %d -> %lld %x\n",sc_number,pc->tst.epoch,hte);
 		/* if some service want to manage the syscall (or the ALWAYS
 		 * flag is set), we process it */
 		if (hte != NULL || (sm[index].flags & ALWAYS)) {
@@ -648,9 +648,9 @@ void killall(struct pcb *pc, int signo)
 	viewid_t viewid=te_getviewid(pc->tst.treepoch);
 	
 	if (viewname)
-		fprint2("View %d (%s): Sending processes the %s signal\n",viewid,viewname,_sys_sigabbrev[signo]);
+		printk("View %d (%s): Sending processes the %s signal\n",viewid,viewname,_sys_sigabbrev[signo]);
 	else
-		fprint2("View %d: Sending processes the %s signal\n",viewid,_sys_sigabbrev[signo]);
+		printk("View %d: Sending processes the %s signal\n",viewid,_sys_sigabbrev[signo]);
 	forallpcbdo(killone,&ks);
 }
 	
@@ -708,7 +708,7 @@ struct ht_elem *choice_mount(int sc_number,struct pcb *pc)
 struct ht_elem *choice_path(int sc_number,struct pcb *pc)
 {
 	pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),0); 
-	//fprint2("choice_path %d %s\n",sc_number,pc->path);
+	//printk("choice_path %d %s\n",sc_number,pc->path);
 
 	if (pc->path==um_patherror){
 		/*		char buff[PATH_MAX];
@@ -723,7 +723,7 @@ struct ht_elem *choice_path(int sc_number,struct pcb *pc)
 struct ht_elem *choice_path_exact(int sc_number,struct pcb *pc)
 {
 	pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),1);
-	//fprint2("choice_path_exact %d %s\n",sc_number,pc->path);
+	//printk("choice_path_exact %d %s\n",sc_number,pc->path);
 	if (pc->path==um_patherror){
 		return NULL;
 	}

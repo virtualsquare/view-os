@@ -457,7 +457,6 @@ int wrap_in_fstat64(int sc_number,struct pcb *pc,
 {
 	long pbuf=pc->sysargs[1];
 	char *path=fd_getpath(pc->fds,pc->sysargs[0]);
-	/*fprint2("wrap_in_fstat: %d\n",sfd);*/
 	if (path==NULL) {
 		pc->retval= -1;
 		pc->erno= EBADF;

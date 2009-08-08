@@ -165,9 +165,9 @@ static void freeparms(char **parms)
 /*
 static void printparms(char *what,char **parms)
 {
-	fprint2("%s\n",what);
+	printk("%s\n",what);
 	while (*parms != 0) {
-		fprint2("--> %s\n",*parms);
+		printk("--> %s\n",*parms);
 		parms++;
 	}
 }
@@ -215,7 +215,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 	binfmtht=checkscript(hte,&req);
 	if (binfmtht == NULL) 
 		binfmtht=ht_check(CHECKBINFMT,&req,NULL,0);
-	//fprint2("wrap_in_execve %s |%s| |%s|\n",ht_get_servicename(binfmtht),req.interp,req.extraarg);
+	//printk("wrap_in_execve %s |%s| |%s|\n",ht_get_servicename(binfmtht),req.interp,req.extraarg);
 	um_setnestepoch(nestepoch);
 	/* is there a binfmt service for this executable? */
 	if (binfmtht != NULL) {
@@ -235,7 +235,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		}
 		/* create the argv for the wrapper! */
 		rv=umoven(pc,largv,sizeof(char *),&(larg0));
-		//fprint2("%s %d %ld %ld rv=%d\n",pc->path,getpc(pc),largv,larg0,rv); 
+		//printk("%s %d %ld %ld rv=%d\n",pc->path,getpc(pc),largv,larg0,rv); 
 		/* XXX this is a workaround. strace has the same error!
 		 * exec seems to cause an extra prace in a strange address space
 		 * to be solved (maybe using PTRACE OPTIONS!) */
@@ -277,7 +277,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		larg0=sp-filenamelen-arg0len;
 		ustoren(pc,larg0,arg0len,umbinfmtarg0);
 		ustoren(pc,largv,sizeof(char *),&larg0);
-		//fprint2("%s %s\n",UMBINWRAP,umbinfmtarg0);
+		//printk("%s %s\n",UMBINWRAP,umbinfmtarg0);
 		/* exec the wrapper instead of the executable! */
 		free(umbinfmtarg0);
 #endif
@@ -305,7 +305,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		 * to require the real execve */
 		if (pc->retval==ERESTARTSYS){
 			char *filename=strdup(um_proc_tmpname());
-			//fprint2("wrap_in_execve! %s %p %d\n",(char *)pc->path,um_syscall,isnosys(um_syscall));
+			//printk("wrap_in_execve! %s %p %d\n",(char *)pc->path,um_syscall,isnosys(um_syscall));
 
 			/* copy the file and change the first arg of execve to 
 			 * address the copy */
@@ -335,7 +335,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 int wrap_out_execve(int sc_number,struct pcb *pc) 
 { 
 	/* If this function is executed it means that something went wrong! */
-	//fprint2("wrap_out_execve %d\n",pc->retval);
+	//printk("wrap_out_execve %d\n",pc->retval);
 	/* The tmp file gets automagically deleted (see sctab.c) */
 	if (pc->retval < 0) {
 		pc->euid=pc->suid;

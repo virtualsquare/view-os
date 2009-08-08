@@ -275,11 +275,11 @@ static struct ht_elem *ht_tab_internal_search(unsigned char type, void *obj, int
 			hash=hashmod(sum);
 			ht=(len)?ht_hash[hash]:ht_hash0[type];
 			/* if (type== XXXXXX )
-				 fprint2("CHECK %s %ld %d %p\n",obj,sum,hash,ht); */
+				 printk("CHECK %s %ld %d %p\n",obj,sum,hash,ht); */
 			while (ht != NULL) {
 				epoch_t e;
 				/* if (type== XXXXXXX && type==ht->type)
-					 fprint2("CHECK %s %s\n",obj,ht->obj); */
+					 printk("CHECK %s %s\n",obj,ht->obj); */
 				if (type==ht->type &&
 						sum==ht->hashsum &&
 						(ht->objlen >= len) &&
@@ -315,7 +315,7 @@ static struct ht_elem *ht_tab_internal_search(unsigned char type, void *obj, int
 		carrot_free(carh);
 	}
 	pthread_rwlock_unlock(&ht_tab_rwlock);
-	/*fprint2("ht_tab_search %s %p\n",(char *)obj,rv);*/
+	/*printk("ht_tab_search %s %p\n",(char *)obj,rv);*/
 	return rv;
 }
 
@@ -643,7 +643,7 @@ static void forall_ht_terminate(unsigned char type) {
 					scanht->service->destructor(type, scanht);
 			}
 			next=scanht->prev;
-			//fprint2("SCAN %p %p %s\n",next,scanht,scanht->obj);
+			//printk("SCAN %p %p %s\n",next,scanht,scanht->obj);
 		} while (ht_head[type] != NULL && next != ht_head[type]);
 	}
 	pthread_rwlock_unlock(&ht_tab_rwlock);
@@ -662,7 +662,7 @@ void forall_ht_tab_do(unsigned char type,
 				if (tst_matchingepoch(&(scanht->tst)) > 0)
 					fun(scanht, arg);
 			}
-			//fprint2("SCAN %p %s\n",scanht,scanht->obj);
+			//printk("SCAN %p %s\n",scanht,scanht->obj);
 		} while (ht_head[type] != NULL && scanht != ht_head[type]);
 	}
 	pthread_rwlock_unlock(&ht_tab_rwlock);

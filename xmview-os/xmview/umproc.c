@@ -93,9 +93,9 @@ static int lfd_alloc(void)
 	/* if there are none, expands the lfd table */
 	if (lfd >= lfd_tabmax) {
 		int i=lfd_tabmax;
-		//fprint2("lfd_tab realloc oldndf %d\n",lfd_tabmax);
+		//printk("lfd_tab realloc oldndf %d\n",lfd_tabmax);
 		lfd_tabmax = (lfd + OLFD_STEP) & ~OLFD_STEP_1;
-		//fprint2("lfd_tab realloc newnfd %d\n",lfd_tabmax);
+		//printk("lfd_tab realloc newnfd %d\n",lfd_tabmax);
 		lfd_tab=(struct lfd_table **) realloc (lfd_tab, (lfd_tabmax * sizeof (struct lfd_table *)));
 		assert (lfd_tab);
 
@@ -234,7 +234,7 @@ void um_proc_open()
 	/* path of the directory umview creates to store temporary and management
 	 * files */
 	snprintf(path,PATH_MAX,"/tmp/.umview%ld",(long int)r_getpid());
-	//fprint2("um_proc_open %s\n",path);
+	//printk("um_proc_open %s\n",path);
 
 	if(r_mkdir(path,0700) < 0) {
 		perror("um_proc mkdir");
@@ -305,7 +305,7 @@ static void rec_rm_all(char *name)
 /* um_proc destructor: all the files get closed and the dir removed */
 void um_proc_close()
 {
-	/* fprint2("um_proc_close %s\n",um_proc_root);*/
+	/* printk("um_proc_close %s\n",um_proc_root);*/
 	lfd_closeall();
 	rec_rm_all(um_proc_root);
 }
@@ -321,7 +321,7 @@ char *um_proc_fakecwd()
 static char *um_proc_tmpfile(struct ht_elem *hte, int lfd)
 {
 	snprintf(um_tmpfile_tail,um_tmpfile_len,"%s%02d",ht_get_servicename(hte),lfd);
-	//fprint2("um_proc_tmpfile %s\n",um_tmpfile);
+	//printk("um_proc_tmpfile %s\n",um_tmpfile);
 	return um_tmpfile;
 }
 
@@ -333,16 +333,16 @@ char *um_proc_tmpname()
 	static int n;
 	n = (n+1) % NMAX;
 	snprintf(um_tmpfile_tail,um_tmpfile_len,"%06d",n);
-	//fprint2("um_proc_tmpname %s\n",um_tmpfile);
+	//printk("um_proc_tmpname %s\n",um_tmpfile);
 	return um_tmpfile;
 }
 
 /* set up the umproc data structure needed by a new process */
 void umproc_addproc(struct pcb *pc,int flags,int npcbflag)
 {
-	//fprint2("umproc_addproc %d %x %x %d\n", npcbflag, flags, pc->pp, pc->pp->fds);
+	//printk("umproc_addproc %d %x %x %d\n", npcbflag, flags, pc->pp, pc->pp->fds);
 	//if (pc)
-		//fprint2("umproc_addproc %d(%d) %d %x\n", pc->pid, (pc->pp)?pc->pp->pid:0, npcbflag, flags);
+		//printk("umproc_addproc %d(%d) %d %x\n", pc->pid, (pc->pp)?pc->pp->pid:0, npcbflag, flags);
 	if (!npcbflag) {
 		if (flags & CLONE_FILES) {
 			pc->fds=pc->pp->fds;
@@ -378,7 +378,7 @@ void umproc_delproc(struct pcb *pc,int flags,int npcbflag)
 			for (i=0; i<p->nolfd;  i++) {
 				register int lfd=fd2lfd(p,i);
 				if (lfd >= 0) {
-					//fprint2("DELPROCclose pid %d fd %d LFD %d\n",pc->pid,i,lfd);
+					//printk("DELPROCclose pid %d fd %d LFD %d\n",pc->pid,i,lfd);
 					lfd_close(lfd);
 				}
 			}
@@ -400,12 +400,12 @@ int lfd_open (struct ht_elem *hte, int sfd, char *path, int flags, int nested)
 {
 	int lfd,fifo;
 	GDEBUG(3, "lfd_open sfd %d, path %s, nested %d", sfd, path, nested);
-	/*fprint2("lfd_open sfd %d, path %s, nested %d\n", sfd, path, nested);*/
-	/*fprint2("lfd_open %s sfd %d %s",ht_get_servicename(hte),sfd,(path==NULL)?"<null>":path);*/
+	/*printk("lfd_open sfd %d, path %s, nested %d\n", sfd, path, nested);*/
+	/*printk("lfd_open %s sfd %d %s",ht_get_servicename(hte),sfd,(path==NULL)?"<null>":path);*/
 	lfd=lfd_alloc();
 	if (hte)
 		ht_count_plus1(hte);
-	//fprint2("LEAK %x %x path=%s\n",lfd_tab,lfd_tab[lfd],path);
+	//printk("LEAK %x %x path=%s\n",lfd_tab,lfd_tab[lfd],path);
 	lfd_tab[lfd]->path=(path==NULL)?NULL:strdup(path);
 	lfd_tab[lfd]->hte=hte;
 	lfd_tab[lfd]->sfd=sfd;
@@ -432,10 +432,10 @@ int lfd_open (struct ht_elem *hte, int sfd, char *path, int flags, int nested)
 		assert(lfd_tab[lfd]->pvtab->ofifo >= 0);
 		lfd_tab[lfd]->pvtab->signaled=0;
 	} else {
-		//fprint2("add lfd %d file %s\n",lfd,lfd_tab[lfd]->path);
+		//printk("add lfd %d file %s\n",lfd,lfd_tab[lfd]->path);
 		lfd_tab[lfd]->pvtab=NULL;
 	}
-	//fprint2("lfd_open: lfd %d sfd %d file %s\n",lfd,sfd,lfd_tab[lfd]->path);
+	//printk("lfd_open: lfd %d sfd %d file %s\n",lfd,sfd,lfd_tab[lfd]->path);
 	return lfd;
 }
 
@@ -444,7 +444,7 @@ void lfd_close (int lfd)
 {
 	int rv;
 	GDEBUG(5, "close %d %x",lfd,lfd_tab[lfd]);
-	//fprint2("lfd close %d %d %x %d %s\n",lfd_tab[lfd]->count,lfd,lfd_tabmax,lfd_tab[lfd],lfd_tab[lfd]->path);
+	//printk("lfd close %d %d %x %d %s\n",lfd_tab[lfd]->count,lfd,lfd_tabmax,lfd_tab[lfd],lfd_tab[lfd]->path);
 	assert (lfd < 0 || (lfd < lfd_tabmax && lfd_tab[lfd] != NULL));
 	/* if this is the last reference to the lfd 
 	 * close everything*/
@@ -463,7 +463,7 @@ void lfd_close (int lfd)
 			free(lfd_tab[lfd]->pvtab);
 		} 
 		//else
-			//fprint2("del lfd %d file %s\n",lfd,lfd_tab[lfd]->path);
+			//printk("del lfd %d file %s\n",lfd,lfd_tab[lfd]->path);
 		hte=lfd_tab[lfd]->hte;
 		/* call the close method of the service module */
 		if (hte != NULL && lfd_tab[lfd]->sfd >= 0) 
@@ -497,7 +497,7 @@ int lfd_getcount(int lfd)
 /* set sfd to null (to avoid double close) */
 void lfd_nullsfd(int lfd)
 {
-	//fprint2("lfd_nullsfd %d %d %x\n",
+	//printk("lfd_nullsfd %d %d %x\n",
 			//lfd,lfd_tabmax,lfd_tab[lfd]);
 	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
 	lfd_tab[lfd]->sfd= -1;
@@ -513,7 +513,7 @@ int lfd_getsfd(int lfd)
 /* lfd: get the hash table element */
 struct ht_elem *lfd_getht(int lfd)
 {
-	//fprint2("getht %d -> %x\n",lfd,lfd_tab[lfd]);
+	//printk("getht %d -> %x\n",lfd,lfd_tab[lfd]);
 	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
 	if (lfd >= lfd_tabmax || lfd_tab[lfd] == NULL)
 		return NULL;
@@ -615,13 +615,13 @@ int fd2sfd(struct pcb_file *p, int fd)
  * service handle it */
 struct ht_elem *ht_fd(struct pcb_file *p, int fd, int setepoch)
 {
-	/*fprint2("service fd p=%x\n",p);
+	/*printk("service fd p=%x\n",p);
 	if (p != NULL)
-		fprint2("service fd p->lfdlist=%x\n",p->lfdlist);
+		printk("service fd p->lfdlist=%x\n",p->lfdlist);
 	if (fd < p->nolfd)
-		fprint2("service fd p=%d %x\n",fd, p->lfdlist[fd]);
+		printk("service fd p=%d %x\n",fd, p->lfdlist[fd]);
 	else
-		fprint2("service fd p=%d xxx\n",fd); */
+		printk("service fd p=%d xxx\n",fd); */
 #ifdef _UM_MMAP
   /* ummap secret file is not accessible by processes, it is just a 
 	 * non-existent descriptor */
@@ -644,7 +644,7 @@ struct ht_elem *ht_fd(struct pcb_file *p, int fd, int setepoch)
  * of the fifo */
 void lfd_register (struct pcb_file *p, int fd, int lfd)
 {
-	//fprint2("lfd_register fd %d lfd %d\n",fd,lfd);
+	//printk("lfd_register fd %d lfd %d\n",fd,lfd);
 	if (fd >= p->nolfd) {
 		int i=p->nolfd;
 		/* adds about OLDFD_STEP=8 entries in the array */
@@ -654,7 +654,7 @@ void lfd_register (struct pcb_file *p, int fd, int lfd)
 		p->nolfd = (fd + OLFD_STEP) & ~OLFD_STEP_1;
 		p->lfdlist = (int *) realloc(p->lfdlist, p->nolfd * sizeof(int));
 		assert (p->lfdlist);
-		//fprint2("lfd_add realloc oldndf %d new %d\n",i,p->nolfd);
+		//printk("lfd_add realloc oldndf %d new %d\n",i,p->nolfd);
 		if (p->lfdlist == NULL) {
 			perror("no mem");
 		}
@@ -662,17 +662,17 @@ void lfd_register (struct pcb_file *p, int fd, int lfd)
 			p->lfdlist[i]= -1;
 	}
 	p->lfdlist[fd]=lfd; /* CLOEXEC unset */
-	//fprint2("lfd_register fd %d lfd %d %x\n", fd, lfd, lfd_tab[lfd]);
+	//printk("lfd_register fd %d lfd %d %x\n", fd, lfd, lfd_tab[lfd]);
 }
 
 /* when a process closes a file must be closed (lfd element) and deregistered
  * from the process file table */
 void lfd_deregister_n_close(struct pcb_file *p, int fd)
 {
-	//fprint2("lfd_deregister_n_close %d %d %d\n",fd,p->nolfd,p->lfdlist[fd]);
+	//printk("lfd_deregister_n_close %d %d %d\n",fd,p->nolfd,p->lfdlist[fd]);
 	//assert(fd < p->nolfd && p->lfdlist[fd] != -1);
 	if (p->lfdlist != NULL && fd < p->nolfd && p->lfdlist[fd] >= 0) {
-		//fprint2("lfd_deregister_n_close LFD %d\n",FD2LFD(p,fd));
+		//printk("lfd_deregister_n_close LFD %d\n",FD2LFD(p,fd));
 		lfd_close(FD2LFD(p,fd));
 		p->lfdlist[fd] = -1;
 	}
@@ -697,7 +697,7 @@ void lfd_closeall()
 void lfd_signal(int lfd)
 {
 	char ch=0;
-	//fprint2("lfd_signal %d\n",lfd);
+	//printk("lfd_signal %d\n",lfd);
 	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
 	if  (lfd < lfd_tabmax && lfd_tab[lfd] != NULL && lfd_tab[lfd]->pvtab != NULL) {
 		if (lfd_tab[lfd]->pvtab->signaled == 0) {

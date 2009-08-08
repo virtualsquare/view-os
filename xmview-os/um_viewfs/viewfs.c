@@ -173,7 +173,7 @@ static int copyfile (char *oldpath, char *newpath, size_t truncate)
 		}
 		fdout=open(newpath,O_WRONLY|O_CREAT|O_TRUNC,(oldstat.st_mode & 0777) | 0600);
 	}
-	//fprint2("copyfile %s %s %d\n",oldpath,newpath,truncate);
+	//printk("copyfile %s %s %d\n",oldpath,newpath,truncate);
   if (fdin >= 0 && fdout >= 0) {
 		size_t nread,readsize=4096;
 		if (truncate < readsize) readsize=truncate;
@@ -204,7 +204,7 @@ static inline int isdeleted (struct viewfs *vfs,char *path)
 		char *wipefile=wipeunwrap(vfs,path);
 		char wiped[4];
 		int out=readlink(wipefile,wiped,4);
-		//fprint2("isdeleted %s %s %d\n",path,wipefile,out);
+		//printk("isdeleted %s %s %d\n",path,wipefile,out);
 		free(wipefile);
 		return (out>=0); /*if the readlink succeeded the file is deleted*/
 	}
@@ -241,7 +241,7 @@ static inline int wipeoutfile (struct viewfs *vfs,char *path)
 static char *unwrap(struct viewfs *vfs,char *path,int pre)
 {
 	char *vfspath;
-	//fprint2("unwrap %s %d\n",path,pre);
+	//printk("unwrap %s %d\n",path,pre);
 	asprintf(&vfspath,"%s%s",vfs->source,path+vfs->pathlen);
 	/*if (!pre && isdeleted(vfs,path)) {
 		free(vfspath);
@@ -252,7 +252,7 @@ static char *unwrap(struct viewfs *vfs,char *path,int pre)
 
 static inline int cownoenterror(struct viewfs *vfs,char *path,char *vfspath)
 {
-	//fprint2("cownoenterror %s %d %d %d\n",path,file_exist(vfspath),file_exist(path),isdeleted(vfs,path));
+	//printk("cownoenterror %s %d %d %d\n",path,file_exist(vfspath),file_exist(path),isdeleted(vfs,path));
 	if (file_exist(vfspath) || (file_exist(path) && !isdeleted(vfs,path)))	
 		return 0;
 	else {
@@ -263,7 +263,7 @@ static inline int cownoenterror(struct viewfs *vfs,char *path,char *vfspath)
 
 static inline int cowexisterror(struct viewfs *vfs,char *path,char *vfspath)
 {
-	//fprint2("cowexisterror %s %d %d %d\n",path,file_exist(vfspath),file_exist(path),isdeleted(vfs,path));
+	//printk("cowexisterror %s %d %d %d\n",path,file_exist(vfspath),file_exist(path),isdeleted(vfs,path));
 	if (file_exist(vfspath) || (file_exist(path) && !isdeleted(vfs,path)))	{
 
 		errno=EEXIST;
@@ -321,7 +321,7 @@ static int open_exception(struct viewfs *vfs, char *path, long flags)
 		rv= 1;
 	else  /* MERGE */
 		rv= 0;
-	//fprint2("open_exception %s %d %x\n",path,rv,vfs->flags);
+	//printk("open_exception %s %d %x\n",path,rv,vfs->flags);
 	return rv;
 }
 
@@ -353,7 +353,7 @@ static inline int isexception(char *path, int pathlen, char **exceptions, struct
 		if (sysno==__NR_chdir || sysno==__NR_fchdir) {
 			int rv;
 			rv=file_isdir(path);
-			//fprint2("chdir %s %d\n",path,file_exist(path));
+			//printk("chdir %s %d\n",path,file_exist(path));
 			return rv;
 		}
 		/* MERGE + COW */
@@ -376,7 +376,7 @@ static inline int isexception(char *path, int pathlen, char **exceptions, struct
 						long *scargs=um_mod_getargs();
 						long sysno=um_mod_getsyscallno();
 						int origrv=lstat64(path,&buf);
-						fprint2("%d(%s) %s(%d) %s(%d) -> ",sysno, 
+						printk("%d(%s) %s(%d) %s(%d) -> ",sysno, 
 								SYSCALLNAME(sysno), 
 								path, origrv==0,
 								vfspath, vfsrv==0);
@@ -400,7 +400,7 @@ static inline int isexception(char *path, int pathlen, char **exceptions, struct
 							break;
 					}
 					free(vfspath);
-					//fprint2("+++%d\n",vfsrv<0);
+					//printk("+++%d\n",vfsrv<0);
 					return (vfsrv<0);
 				} else {
 					return 0;
@@ -439,8 +439,8 @@ static long viewfs_open(char *path, int flags, mode_t mode)
 	char *vfspath=unwrap(vfs,path,0);
 	int rv;
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_OPEN %s->%s 0%o\n",path,vfspath,flags);
-	/*fprint2("OPEN  %s %s %d %d 0%o\n",
+		printk("VIEWFS_OPEN %s->%s 0%o\n",path,vfspath,flags);
+	/*printk("OPEN  %s %s %d %d 0%o\n",
 			path,vfspath,file_exist(vfspath),isdeleted(vfs,path),flags);*/
 	if ((flags & O_ACCMODE) && (vfs->flags & VIEWFS_COW)) {
 		create_path(vfspath);
@@ -477,7 +477,7 @@ static long viewfs_truncate64(char *path, loff_t length)
 	int rv=0;
 	char *vfspath=unwrap(vfs,path,0);
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_TRUNCATE %s->%s %d\n",path,vfspath,length);
+		printk("VIEWFS_TRUNCATE %s->%s %d\n",path,vfspath,length);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
@@ -517,8 +517,8 @@ static long viewfs_link(char *oldpath, char *newpath)
 	char *vfsnewpath=unwrap(vfs,newpath,1);
 	int rv=0;
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_LINK %s %s->%s\n",oldpath,newpath,vfsnewpath);
-	//fprint2("link %s %s %s\n",oldpath, newpath, vfsnewpath);
+		printk("VIEWFS_LINK %s %s->%s\n",oldpath,newpath,vfsnewpath);
+	//printk("link %s %s %s\n",oldpath, newpath, vfsnewpath);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cowexisterror(vfs,newpath,vfsnewpath))==0) { /* EEXIST */
 			char *vfsoldpath=unwrap(vfs,oldpath,1);
@@ -561,7 +561,7 @@ static long viewfs_rename(char *oldpath, char *newpath)
 	struct viewfs *vfs = um_mod_get_private_data();
 	char *vfsnewpath=unwrap(vfs,newpath,1);
 	int rv=0;
-	//fprint2("rename %s %s %s\n",oldpath, newpath, vfsnewpath);
+	//printk("rename %s %s %s\n",oldpath, newpath, vfsnewpath);
 	if (vfs->flags & VIEWFS_MERGE) {
 		char *vfsoldpath=unwrap(vfs,oldpath,1);
 		char *thisoldpath;
@@ -609,7 +609,7 @@ static long viewfs_rename(char *oldpath, char *newpath)
 	} else /* MOVE */
 		rv=rename(oldpath,vfsnewpath);
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_RENAME %s %s->%s %d\n",oldpath,newpath,vfsnewpath,rv);
+		printk("VIEWFS_RENAME %s %s->%s %d\n",oldpath,newpath,vfsnewpath,rv);
 	free(vfsnewpath);
 	return rv;
 }
@@ -647,7 +647,7 @@ static long viewfs_statfs64(char *path, struct statfs64 *buf)
 	char *vfspath=unwrap(vfs,path,0);
 	int rv= statfs64(vfspath,buf);
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_STATFS %s->%s rv %d\n",path,vfspath,rv);
+		printk("VIEWFS_STATFS %s->%s rv %d\n",path,vfspath,rv);
 	if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
 		rv= statfs64(path,buf);
 	free(vfspath);
@@ -662,11 +662,11 @@ static long viewfs_stat64(char *path, struct stat64 *buf)
 	if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
 		rv= stat64(path,buf);
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_STAT %s->%s rv %d\n",path,vfspath,rv);
+		printk("VIEWFS_STAT %s->%s rv %d\n",path,vfspath,rv);
 	free(vfspath);
 	if (rv==0 && vfs->flags & VIEWFS_WOK)
 		buf->st_mode |= 0222;
-	//fprint2("viewfs_stat64 %s rv=%d\n",path,rv);
+	//printk("viewfs_stat64 %s rv=%d\n",path,rv);
 	return rv;
 }
 
@@ -678,11 +678,11 @@ static long viewfs_lstat64(char *path, struct stat64 *buf)
 	if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
 		rv= lstat64(path,buf);
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_LSTAT %s->%s rv %d\n",path,vfspath,rv);
+		printk("VIEWFS_LSTAT %s->%s rv %d\n",path,vfspath,rv);
 	free(vfspath);
 	if (rv==0 && vfs->flags & VIEWFS_WOK)
 		buf->st_mode |= 0222;
-	//fprint2("viewfs_lstat64 %s rv=%d\n",path,rv);
+	//printk("viewfs_lstat64 %s rv=%d\n",path,rv);
 	return rv;
 }
 
@@ -692,7 +692,7 @@ static long viewfs_readlink(char *path, char *buf, size_t bufsiz)
 	char *vfspath=unwrap(vfs,path,0);
 	int rv= readlink(vfspath,buf,bufsiz);
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_READLINK %s->%s rv %d\n",path,vfspath,rv);
+		printk("VIEWFS_READLINK %s->%s rv %d\n",path,vfspath,rv);
 	if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
 		rv= readlink(path,buf,bufsiz);
 	free(vfspath);
@@ -704,16 +704,16 @@ static long viewfs_access(char *path, int mode)
 	struct viewfs *vfs = um_mod_get_private_data();
 	if (mode==W_OK && (vfs->flags & VIEWFS_WOK)) {
 		if (vfs->flags & VIEWFS_DEBUG)
-			fprint2("VIEWFS_ACCESS %s WOK\n",path);
+			printk("VIEWFS_ACCESS %s WOK\n",path);
 		return 0;
 	} else {
 		char *vfspath=unwrap(vfs,path,0);
 		int rv= access(vfspath,mode);
 		if (vfs->flags & VIEWFS_DEBUG)
-			fprint2("VIEWFS_ACCESS %s->%s %d rv %d\n",path,vfspath,mode,rv);
+			printk("VIEWFS_ACCESS %s->%s %d rv %d\n",path,vfspath,mode,rv);
 		if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
 			rv= access(path,mode);
-		//fprint2("access %s %d-> %d\n",path,mode,rv);
+		//printk("access %s %d-> %d\n",path,mode,rv);
 		free(vfspath);
 		return rv;
 	}
@@ -726,7 +726,7 @@ static long viewfs_mkdir(char *path, int mode)
 	int rv=0;
 	char *vfspath=unwrap(vfs,path,1);
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_MKDIR %s->%s \n",path,vfspath);
+		printk("VIEWFS_MKDIR %s->%s \n",path,vfspath);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cowexisterror(vfs,path,vfspath))==0) { /* EEXIST */
 			if (vfs->flags & VIEWFS_COW) {
@@ -758,7 +758,7 @@ static long viewfs_symlink(char *oldpath, char *newpath)
 	char *vfspath=unwrap(vfs,newpath,1);
 	int rv=0;
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_SYMLINK %s %s->%s \n",oldpath,newpath,vfspath);
+		printk("VIEWFS_SYMLINK %s %s->%s \n",oldpath,newpath,vfspath);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cowexisterror(vfs,newpath,vfspath))==0) { /* EEXIST */
 			if (vfs->flags & VIEWFS_COW) {
@@ -792,8 +792,8 @@ static long viewfs_unlink(char *path)
 	int rv=0;
 	int saverrno;
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_UNLINK %s->%s \n",path,vfspath);
-	//fprint2("viewfs_unlink %s\n",path);
+		printk("VIEWFS_UNLINK %s->%s \n",path,vfspath);
+	//printk("viewfs_unlink %s\n",path);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
@@ -863,7 +863,7 @@ static int isemptydir(struct viewfs *vfs,char *path)
 				if (!isdot(de->d_name)) {
 					char *this;
 					asprintf(&this,"%s/%s",path,de->d_name);
-					//fprint2("isemptydir %s %s %d\n",de->d_name,this,isdeleted(vfs,this));
+					//printk("isemptydir %s %s %d\n",de->d_name,this,isdeleted(vfs,this));
 					if (!isdeleted(vfs,this))
 						count++;
 					free(this);
@@ -890,7 +890,7 @@ static void zapwipedir(struct viewfs *vfs,char *path)
 				struct dirent64 *de=(struct dirent64 *)(buf+off);
 				if (!isdot(de->d_name)) {
 					asprintf(&this,"%s/.-%s/%s",vfs->source,path+vfs->pathlen,de->d_name);
-					//fprint2("zapwipe %s %s\n",de->d_name,this);
+					//printk("zapwipe %s %s\n",de->d_name,this);
 					unlink(this);
 					free(this);
 				}
@@ -899,7 +899,7 @@ static void zapwipedir(struct viewfs *vfs,char *path)
 		}
 		close(dirfd);
 		asprintf(&this,"%s/.-%s",vfs->source,path+vfs->pathlen);
-		//fprint2("zapwipe %s\n",this);
+		//printk("zapwipe %s\n",this);
 		rmdir(this);
 		free(this);
 	}
@@ -911,9 +911,9 @@ static long viewfs_rmdir(char *path)
 	char *vfspath=unwrap(vfs,path,0);
 	int rv;
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_RMDIR %s->%s \n",path,vfspath);
-	//fprint2("viewfs_rmdir %s\n",path);
-	//fprint2("ISEMPTY %s %d\n",path,isemptydir(vfs,path));
+		printk("VIEWFS_RMDIR %s->%s \n",path,vfspath);
+	//printk("viewfs_rmdir %s\n",path);
+	//printk("ISEMPTY %s %d\n",path,isemptydir(vfs,path));
 	if (vfs->flags & VIEWFS_MERGE) {
 		if (isemptydir(vfs,path)) {
 			if (vfs->flags & VIEWFS_COW) {
@@ -975,7 +975,7 @@ static long viewfs_chmod(char *path, int mode)
 	int rv=0;
 	char *vfspath=unwrap(vfs,path,0);
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_CHMOD %s->%s 0%o\n",path,vfspath,mode);
+		printk("VIEWFS_CHMOD %s->%s 0%o\n",path,vfspath,mode);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
@@ -1017,7 +1017,7 @@ static long viewfs_chown(char *path, uid_t owner, gid_t group)
 	int rv=0;
 	char *vfspath=unwrap(vfs,path,0);
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_CHOWN %s->%s %d %d\n",path,vfspath,owner,group);
+		printk("VIEWFS_CHOWN %s->%s %d %d\n",path,vfspath,owner,group);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
@@ -1064,7 +1064,7 @@ static long viewfs_lchown(char *path, uid_t owner, gid_t group)
 	int rv=0;
 	char *vfspath=unwrap(vfs,path,0);
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_LCHOWN %s->%s %d %d\n",path,vfspath,owner,group);
+		printk("VIEWFS_LCHOWN %s->%s %d %d\n",path,vfspath,owner,group);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
@@ -1111,7 +1111,7 @@ static long viewfs_utimes(char *path, struct timeval *tv)
 	int rv=0;
 	char *vfspath=unwrap(vfs,path,0);
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_UTIMES %s->%s %ld %ld\n",path,(tv)?vfspath,tv[0].tv_sec:0,(tv)?tv[1].tv_sec:0);
+		printk("VIEWFS_UTIMES %s->%s %ld %ld\n",path,(tv)?vfspath,tv[0].tv_sec:0,(tv)?tv[1].tv_sec:0);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
@@ -1159,7 +1159,7 @@ static long viewfs_msocket(char *path, int domain, int type, int protocol)
 	char *vfspath=unwrap(vfs,path,0);
 	int rv= msocket(vfspath,domain,type,protocol);
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_MSOCKET %s->%s rv %d\n",path,vfspath,rv);
+		printk("VIEWFS_MSOCKET %s->%s rv %d\n",path,vfspath,rv);
 	free(vfspath);
 	return rv;
 }
@@ -1320,7 +1320,7 @@ static long viewfs_mount(char *source, char *target, char *filesystemtype,
 	char **exceptions=NULL;
 	rv=viewfsargs(data,&flags,&exceptions);
 	if (flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_MOUNT source %s target %s\n",source,target);
+		printk("VIEWFS_MOUNT source %s target %s\n",source,target);
 	if (rv==0) {
 		if (flags & VIEWFS_RENEW){
 			flags &= ~VIEWFS_RENEW;
@@ -1359,7 +1359,7 @@ static long viewfs_mount(char *source, char *target, char *filesystemtype,
 static long viewfs_umountinternal(struct viewfs *vfs, int flags)
 {
 	if (vfs->flags & VIEWFS_DEBUG)
-		fprint2("VIEWFS_UMOUNT source %s target %s\n",vfs->source,vfs->path);
+		printk("VIEWFS_UMOUNT source %s target %s\n",vfs->source,vfs->path);
 	free(vfs->path);
 	free(vfs->source);
 	freeexceptions(vfs->exceptions);

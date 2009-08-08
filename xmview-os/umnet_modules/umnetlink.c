@@ -134,7 +134,7 @@ static void umnetlink_setproto(char *args,char *proto,char *flags)
 								 }
 			case ',' : args++;
 								 break;
-			default: fprint2("umnetlink mount unknown option %c\n",*args);
+			default: printk("umnetlink mount unknown option %c\n",*args);
 							 args++;
 							 break;
 		}

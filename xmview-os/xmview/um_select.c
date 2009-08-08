@@ -142,7 +142,7 @@ int check_suspend_on(struct pcb *pc, int fd, int how)
 			if (local_event_subscribe(bq_signal, pc, sfd, how) == 0)
 			{
 				struct seldata *sd=malloc(sizeof(struct seldata));
-				/*fprint2("check_suspend_on_block %d %x\n",sfd,how);*/
+				/*printk("check_suspend_on_block %d %x\n",sfd,how);*/
 				sd->pending=malloc(sizeof(struct pendingdata));
 				sd->len=1;
 				sd->lfd=-1;
@@ -178,9 +178,9 @@ static void selectpoll_signal(struct pcb *pc)
 {
 	struct seldata *sd=pc->selset;
 	if (!sd)
-		fprint2("sd err %p\n",sd);
+		printk("sd err %p\n",sd);
 	else if (sd->lfd < 0)
-		fprint2("lfd err\n",sd->lfd);
+		printk("lfd err\n",sd->lfd);
 	else {
 		assert(sd->lfd >= 0);
 		lfd_signal(sd->lfd);
@@ -374,7 +374,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 						sd->pending[count].fd = fd;
 						sd->pending[count].how = ufds[i].events;
 						ufds[i].events=POLLIN;
-						//fprint2("POLL %d %x\n",sfd,sd->pending[count].how);
+						//printk("POLL %d %x\n",sfd,sd->pending[count].how);
 						if (signaled==0 && local_event_subscribe(selectpoll_signal, pc, sfd, sd->pending[count].how) > 0) {
 							signaled++;
 							lfd_signal(lfd);
@@ -412,7 +412,7 @@ int wrap_out_poll(int sc_number,struct pcb *pc)
 					assert(local_event_subscribe != NULL && sfd >= 0);
 					int lfd=fd2lfd(pc->fds,sd->pending[j].fd);
 					int howret=local_event_subscribe(NULL,pc ,sfd,sd->pending[j].how);
-					//fprint2("POLLOUT %d %x %x\n",sfd,sd->pending[j].how,howret);
+					//printk("POLLOUT %d %x %x\n",sfd,sd->pending[j].how,howret);
 					lfd_delsignal(lfd);
 					ufds[i].events=sd->pending[j].how;
 					ufds[i].revents=howret;

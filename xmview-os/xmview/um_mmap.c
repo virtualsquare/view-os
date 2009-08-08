@@ -79,7 +79,7 @@ static struct pcb_mmap_entry *pcb_mmap_add(
 		struct mmap_sf_entry *sf_entry)
 {
 	struct pcb_mmap_entry *new=malloc(sizeof (struct pcb_mmap_entry));
-	//fprint2("pcb_mmap_add %ld %ld\n",start,len);
+	//printk("pcb_mmap_add %ld %ld\n",start,len);
 	new->start=start;
 	new->len=len;
 	new->sf_entry=sf_entry;
@@ -129,7 +129,7 @@ static int pcb_mmap_sfsearch_n_movetohead(
 	struct pcb_mmap_entry **scan=head;
 	struct pcb_mmap_entry *this;
 	while ((this = *scan) != NULL) {
-		//fprint2("CMP! %p %p %ld %ld\n",this->start,start,this->len,len);
+		//printk("CMP! %p %p %ld %ld\n",this->start,start,this->len,len);
 		if (this->start == start && this->len == len) {
 			if (*scan != *head) {
 				/* it is not already the first one*/
@@ -195,7 +195,7 @@ static struct mmap_sf_entry *mmap_sf_find (
 	struct mmap_sf_entry *scan=mmap_sf_head;
 	while (scan) {
 		/* integers are faster to compare, it is better to test them first */
-		//fprint2("scan find %s %lld %d %d %x\n",scan->path,scan->epoch,scan->mtime,scan->pgsize,  scan->lastuse);
+		//printk("scan find %s %lld %d %d %x\n",scan->path,scan->epoch,scan->mtime,scan->pgsize,  scan->lastuse);
 		if (epoch == scan->epoch &&
 				mtime == scan->mtime &&
 				pgsize <= scan->pgsize &&
@@ -322,7 +322,7 @@ static long add_mmap_secret(struct ht_elem *hte,const char *from, unsigned long 
 	int fdf;
 	int n;
 	unsigned long long size=0;
-	//fprint2("add_mmap_secret %s %ld\n",from, pgoffset);
+	//printk("add_mmap_secret %s %ld\n",from, pgoffset);
 #if __NR__llseek != __NR_doesnotexist
 	loff_t result;
 	r_llseek(um_mmap_secret, pgoffset >> ((sizeof (long)*8) - um_mmap_pageshift),
@@ -350,7 +350,7 @@ static void store_mmap_secret(struct ht_elem *hte,const char *to, unsigned long 
 	int fdf;
 	int n;
 	struct ht_elem *shte;
-	//fprint2("store_mmap_secret %s %ld %p\n",to, pgoffset,hte);
+	//printk("store_mmap_secret %s %ld %p\n",to, pgoffset,hte);
 #if __NR__llseek != __NR_doesnotexist
 	loff_t result;
 	r_llseek(um_mmap_secret, pgoffset >> ((sizeof (long)*8) - um_mmap_pageshift),
@@ -388,7 +388,7 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 	struct stat64 sbuf;
 	char *path=fd_getpath(pc->fds,fd);
 	/*if ((!(flags & MAP_PRIVATE)) && (prot & PROT_WRITE))
-		fprint2("MMAP: %s only MAP_PRIVATE has been implemented\n",path);*/
+		printk("MMAP: %s only MAP_PRIVATE has been implemented\n",path);*/
 	/* convert mmap into mmap2 */
 	if (sc_number == __NR_mmap)
 		offset >>= um_mmap_pageshift;
@@ -405,7 +405,7 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 		struct mmap_sf_entry *sf_entry;
 		if ((sbuf.st_size >> um_mmap_pageshift) + 1 > pgsize)
 			pgsize = (sbuf.st_size >> um_mmap_pageshift) + 1;
-		//fprint2("%s(%s/%o): MMAP SIZE %lld pgsize %ld %ld \n", path, ht_get_servicename(hte), fd,sbuf.st_size,(unsigned long)((sbuf.st_size >> um_mmap_pageshift) + 1),pgsize);
+		//printk("%s(%s/%o): MMAP SIZE %lld pgsize %ld %ld \n", path, ht_get_servicename(hte), fd,sbuf.st_size,(unsigned long)((sbuf.st_size >> um_mmap_pageshift) + 1),pgsize);
 		/* there is already in the secret file? */
 		if ((sf_entry=mmap_sf_find(path,nestepoch,sbuf.st_mtime,pgsize)) == NULL) {
 			/* NO. must be loaded */
@@ -446,7 +446,7 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 		pc->sysargs[5] = (sf_entry->pgoffset + offset) * pgsize;
 #		endif
 		
-		//fprint2("MMAP2 path %s epoch %lld %ld %ld %ld\n", path, nestepoch, sf_entry->pgoffset, offset,pgsize);
+		//printk("MMAP2 path %s epoch %lld %ld %ld %ld\n", path, nestepoch, sf_entry->pgoffset, offset,pgsize);
 		return SC_CALLONXIT;
 	}
 }
@@ -459,7 +459,7 @@ int wrap_in_munmap(int sc_number,struct pcb *pc,
 	unsigned long start=pc->sysargs[0];
 	unsigned long length=pc->sysargs[1];
 	
-	//fprint2("======== wrap_in_munmap %lx %ld!!!\n",start,length);
+	//printk("======== wrap_in_munmap %lx %ld!!!\n",start,length);
 	if (pcb_mmap_sfsearch_n_movetohead(&(pc->um_mmap),start,length))
 		return SC_CALLONXIT;
 	else
@@ -473,7 +473,7 @@ int wrap_in_mremap(int sc_number,struct pcb *pc,
 	unsigned long start=pc->sysargs[0];
 	unsigned long length=pc->sysargs[1];
 	//unsigned long new_length=pc->sysargs[2];
-	//fprint2("======== wrap_in_mremap %lx %ld!!!\n",start,length,new_length);
+	//printk("======== wrap_in_mremap %lx %ld!!!\n",start,length,new_length);
 	if (pcb_mmap_sfsearch_n_movetohead(&(pc->um_mmap),start,length)) {
 		/* TODO check that remap does not overlap next mmap chunk on the secret
 		 * file */
@@ -509,7 +509,7 @@ int wrap_out_mmap(int sc_number,struct pcb *pc)
  * user mode syscall succeeded */
 int wrap_out_munmap(int sc_number,struct pcb *pc)
 {
-	//fprint2("======== wrap_out_munmap !!!\n");
+	//printk("======== wrap_out_munmap !!!\n");
 	long rv=getrv(pc);
 	if (rv != -1) 
 		pcb_mmap_deletehead(&(pc->um_mmap),0);	

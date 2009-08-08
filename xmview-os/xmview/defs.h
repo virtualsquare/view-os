@@ -148,8 +148,8 @@ extern sfun native_syscall;
 #endif
 
 /* debugging functions */
-extern int fprint2(const char *fmt, ...);
-extern int vfprint2(const char *fmt, va_list ap);
+extern int printk(const char *fmt, ...);
+extern int vprintk(const char *fmt, va_list ap);
 
 /* verbosity/quietness */
 extern unsigned int quiet;

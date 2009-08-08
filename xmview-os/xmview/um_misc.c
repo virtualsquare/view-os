@@ -54,7 +54,7 @@ int wrap_in_getxid(int sc_number,struct pcb *pc,
 			case __NR_getegid32: 
 				pc->retval=pc->egid; break;
 		}
-		/*fprint2("%d->%d\n",sc_number,pc->retval);*/
+		/*printk("%d->%d\n",sc_number,pc->retval);*/
 		pc->erno=0;
 	}
 	return SC_FAKE;

@@ -139,7 +139,7 @@ struct fileinfo {
 struct fuse_context *fuse_get_context(void)
 {
 	//struct ht_elem *hte=um_mod_get_hte();
-	//fprint2("fuse_get_context %p %p \n",hte,hte->private_data);
+	//printk("fuse_get_context %p %p \n",hte,hte->private_data);
 	return um_mod_get_private_data();
 }
 
@@ -417,7 +417,7 @@ static void *startmain(void *vsmo)
 	}
 
 	if (psmo->new->fuse->flags & FUSE_HUMAN)
-		fprint2("UmFUSE Human mode\n");
+		printk("UmFUSE Human mode\n");
 
 	/* some modules could change argv! */
 	if ((newnewargv=malloc(newargc * sizeof (char *))) != NULL) {
@@ -537,7 +537,7 @@ int fuse_loop(struct fuse *f)
 
 int umfuse_abort(struct fuse *f)
 {
-	//fprint2("ABORT!\n");
+	//printk("ABORT!\n");
 	f->inuse = FUSE_ABORT;
 	pthread_mutex_lock( &condition_mutex );
 	pthread_cond_signal( &f->startloop );
@@ -678,7 +678,7 @@ static void umfuse_umount_internal(struct fuse_context *fc, int flags)
 	//struct fuse_context *mountpointfc = searchcontext(ppath,SUBSTR);
 	//free(ppath);
 	//if (mountpointfc != NULL) mountpointfc->fuse->inuse--;
-	//fprint2("umount %s\n",target);
+	//printk("umount %s\n",target);
 	if (fc_norace->fuse->flags & FUSE_DEBUG) {
 		GMESSAGE("UMOUNT => path:%s flag:%d",target, flags);
 	}
@@ -1213,7 +1213,7 @@ static int common_stat(char *path,  struct stat *buf,int wrapped)
 {
 	int rv;
 	struct fuse_context *fc=um_mod_get_private_data();
-	//fprint2("FUSESTAT%s\n",path);
+	//printk("FUSESTAT%s\n",path);
 	assert(fc != NULL);
 	fc->pid=um_mod_getpid();
 	memset(buf, 0, sizeof(struct stat));

@@ -235,8 +235,8 @@ extern void service_userctl(unsigned long type, struct service *sender,
 
 extern void *openmodule(const char *modname, int flag);
 
-extern int fprint2(const char *fmt, ...);
-extern int vfprint2(const char *fmt, va_list ap);
+extern int printk(const char *fmt, ...);
+extern int vprintk(const char *fmt, va_list ap);
 
 #define __NR_doesnotexist -1
 

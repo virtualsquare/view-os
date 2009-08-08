@@ -163,7 +163,7 @@ void bq_ppolltry()
 /* add a callback related to a fd */
 void mp_add(int fd, short events, void (*fun)(void *), void *arg, int persistent)
 {
-	//fprint2("mp_add %d %p\n",fd,arg);
+	//printk("mp_add %d %p\n",fd,arg);
 	if (gnfds >= maxgnfds) {
 		maxgnfds += STEP_SIZE_POLLFD_TABLE;
 		gpollfd = realloc(gpollfd,maxgnfds * sizeof(struct pollfd));
@@ -185,14 +185,14 @@ void mp_add(int fd, short events, void (*fun)(void *), void *arg, int persistent
 void mp_del(int fd,void *arg)
 {
 	int i;
-	//fprint2("mp_del %d %p\n",fd,arg);
+	//printk("mp_del %d %p\n",fd,arg);
 	for (i=0;i<gnfds;i++)
 		if (gpollfd[i].fd == fd && pollext[i]->arg == arg)
 			break;
 	if (i<gnfds) {
 		pollext[i]->fun=NULL;
 		/*
-			 fprint2("FOUND\n");
+			 printk("FOUND\n");
 			 free(pollext[i]);
 			 memmove(gpollfd+i,gpollfd+(i+1),(gnfds-(i+1))*sizeof(struct pollfd));
 			 memmove(pollext+i,pollext+(i+1),(gnfds-(i+1))*sizeof(struct pollext *));
@@ -223,7 +223,7 @@ int mp_poll()
 {
 #ifndef USE_SELECT_INSTEAD_OF_POLL
 	/* poll implementation */
-	//fprint2("r_poll %d\n",gnfds);
+	//printk("r_poll %d\n",gnfds);
 	int rv=r_poll(gpollfd,gnfds,-1);
 	int i;
 	for (i=0; rv>0; i++) {
@@ -272,17 +272,17 @@ int mp_ppoll( const sigset_t *sigmask)
 	int rv;
 	int i;
 
-	//fprint2("mp_ppoll %d\n",gnfds);
+	//printk("mp_ppoll %d\n",gnfds);
 	/* if there are just signals to wait use sigsuspend instead of ppoll */
 	if (gnfds==0) {
 		rv=r_sigsuspend(sigmask);
 	} else {
 		rv=r_ppoll(gpollfd,gnfds,NULL,sigmask,_KERNEL_SIGSET_SIZE);
 		if (rv < 0 && errno != EINTR)
-			fprint2("ppoll ERR %s\n",strerror(errno));
+			printk("ppoll ERR %s\n",strerror(errno));
 #if 0
 		if (gnfds>0)
-			fprint2("mp_rv (%d,%d,%d) %d %s\n",
+			printk("mp_rv (%d,%d,%d) %d %s\n",
 					gpollfd[0].fd,
 					gpollfd[0].events,
 					gpollfd[0].revents,
@@ -290,13 +290,13 @@ int mp_ppoll( const sigset_t *sigmask)
 		if (rv<0 && gnfds>0) {
 			struct stat buf;
 			int x=fstat(gpollfd[0].fd,&buf);
-			fprint2("%d %d\n",x,buf.st_mode);
+			printk("%d %d\n",x,buf.st_mode);
 		}
 #endif
 		/* callbacks for file events */
 		for (i=0; rv>0; i++) {
 			assert(i<gnfds);
-			//fprint2("mp_ppoll awake %d\n",i);
+			//printk("mp_ppoll awake %d\n",i);
 			if (gpollfd[i].revents)	{
 				rv--;
 				if (pollext[i]->fun) {

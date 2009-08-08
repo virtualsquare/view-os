@@ -367,7 +367,7 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 					if ((pc->retval = um_syscall(sfd,cmd,&flock)) == -1)
 						pc->erno= errno;
 					if (pc->retval < 0 && pc->erno == ENOSYS) { /* last chance */
-						fprint2("Locking unsupported\n");
+						printk("Locking unsupported\n");
 						pc->retval= -1;
 						pc->erno= EBADF;
 						return SC_FAKE;
@@ -390,7 +390,7 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 						put_flock64(pc,arg,&flock);
 #endif
 					}
-					//fprint2("LOCK %d %d %d %d\n",sc_number,fd,cmd,pc->retval,pc->erno);
+					//printk("LOCK %d %d %d %d\n",sc_number,fd,cmd,pc->retval,pc->erno);
 					break;
 				}
 			default:

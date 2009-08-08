@@ -61,7 +61,7 @@ pthread_key_t pcb_key=0; /* key to grab the current thread pcb */
 sfun native_syscall=syscall;
 
 /* debugging output, (bypass pure_libc when loaded) */
-int fprint2(const char *fmt, ...) {
+int printk(const char *fmt, ...) {
 	char *s;
 	int rv;
 	va_list ap;
@@ -74,7 +74,7 @@ int fprint2(const char *fmt, ...) {
 	return rv;
 }
 
-int vfprint2(const char *fmt, va_list ap) {
+int vprintk(const char *fmt, va_list ap) {
 	char *s;
 	int rv;
 	rv=vasprintf(&s, fmt, ap);
@@ -270,7 +270,7 @@ void tracehand(void *useless)
 							first_child_init();
 						}
 						else {
-							fprint2("[pcb table full]\n");
+							printk("[pcb table full]\n");
 							exit(1);
 						}
 					}

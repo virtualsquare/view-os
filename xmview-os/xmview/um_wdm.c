@@ -103,7 +103,7 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,
 		int pathlen;
 		if (hte != NULL) {
 			char *chdir_fake_dir = um_proc_fakecwd();
-			//fprint2("virtual path chdir to %s\n", chdir_fake_dir);
+			//printk("virtual path chdir to %s\n", chdir_fake_dir);
 			pathlen = WORDALIGN(strlen(chdir_fake_dir));
 			ustoren(pc, sp-pathlen, pathlen, chdir_fake_dir);
 		} else {
@@ -134,7 +134,7 @@ int wrap_out_chdir(int sc_number,struct pcb *pc)
 			free(pc->fdfs->cwd);
 			pc->fdfs->cwd = pc->path;
 			pc->path=NULL;
-			//fprint2("new dir %d - %s\n",pc->pid, pc->fdfs->cwd);
+			//printk("new dir %d - %s\n",pc->pid, pc->fdfs->cwd);
 		} 
 		return STD_BEHAVIOR;
 	}
@@ -148,7 +148,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 	char *path;
 
 	if ((path=fd_getpath(pc->fds,pc->sysargs[0])) != NULL) {
-		//fprint2("fchdir to %s\n",path);
+		//printk("fchdir to %s\n",path);
 		pc->path=strdup(path);
 		um_x_lstat64(pc->path, &(pc->pathstat), pc);
 		/* If there is a real directory with this name, and it is chdir-able,
@@ -217,7 +217,7 @@ int wrap_in_umask(int sc_number,struct pcb *pc,
 int wrap_in_chroot(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
-	//fprint2("CHROOT %s\n",pc->path);
+	//printk("CHROOT %s\n",pc->path);
 	if (pc->erno != 0) {
 		/* TODO management of chroot */
 		/*free(pc->fdfs->root);

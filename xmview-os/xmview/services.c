@@ -281,7 +281,7 @@ int add_service(char *file,int permanent)
 			return 0;
 		}
 	} else {
-		fprint2("module error: %s\n",dlerror());
+		printk("module error: %s\n",dlerror());
 		return s_error(EFAULT);
 	}
 }

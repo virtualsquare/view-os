@@ -64,7 +64,7 @@ pthread_key_t pcb_key=0; /* key to grab the current thread pcb */
 sfun native_syscall=syscall;
 
 /* debugging output, (bypass pure_libc when loaded) */
-int fprint2(const char *fmt, ...) {
+int printk(const char *fmt, ...) {
 	char *s;
 	int rv;
 	va_list ap;
@@ -77,7 +77,7 @@ int fprint2(const char *fmt, ...) {
 	return rv;
 }
 
-int vfprint2(const char *fmt, va_list ap) {
+int vprintk(const char *fmt, va_list ap) {
 	char *s;
 	int rv;
 	rv=vasprintf(&s, fmt, ap);
@@ -286,9 +286,9 @@ static int handle_new_proc(int pid, struct pcb *pp)
 	struct pcb *oldpc,*pc;
 	long saved_regs[VIEWOS_FRAME_SIZE];
 
-	//fprint2("handle_new_proc %d %p\n",pid,pp);
+	//printk("handle_new_proc %d %p\n",pid,pp);
 	if ((oldpc=pc=pid2pcb(pid)) == NULL && (pc = newpcb(pid))== NULL) {
-		fprint2("[pcb table full]\n");
+		printk("[pcb table full]\n");
 		if(ptrace(PTRACE_KILL, pid, 0, 0) < 0){
 			GPERROR(0, "KILL");
 			exit(1);
@@ -304,7 +304,7 @@ static int handle_new_proc(int pid, struct pcb *pp)
 			getregs(pc);
 			putargn(0,pp->sysargs[0],pc);
 			putargn(1,pp->sysargs[1],pc);
-			////fprint2("starting1 %x %x was %x %x\n",pp->sysargs[0],pp->sysargs[1],getargn(0,pc),getargn(1,pc));
+			////printk("starting1 %x %x was %x %x\n",pp->sysargs[0],pp->sysargs[1],getargn(0,pc),getargn(1,pc));
 			if(setregs(pc,PTRACE_SYSCALL,0,SIGSTOP) < 0){
 				GPERROR(0, "continuing");
 				exit(1);
@@ -364,7 +364,7 @@ void offspring_enter(struct pcb *pc)
 	//printf("offspring_enter:%d\n",pc->pid);
 	pc->sysargs[0]=getargn(0,pc);
 	pc->sysargs[1]=getargn(1,pc);
-	//fprint2("offspring_enter %x %x\n",pc->sysargs[0],pc->sysargs[1]);
+	//printk("offspring_enter %x %x\n",pc->sysargs[0],pc->sysargs[1]);
 	if (pc->sysscno == __NR_fork || pc->sysscno == __NR_vfork) {
 		putscno(__NR_clone,pc);
 		putargn(0,CLONE_PTRACE|SIGCHLD, pc);
@@ -404,12 +404,12 @@ void tracehand()
 			if(WIFSTOPPED(status) && (WSTOPSIG(status) == SIGSTOP)) {
 				/* create the descriptor, block the process
 				 * until the parent complete the pcb */
-				////fprint2("RACE CONDITION %d\n",pid);
+				////printk("RACE CONDITION %d\n",pid);
 				handle_new_proc(pid,NULL);
 				continue;
 			}
 			/* error case */
-			fprint2("signal from unknown pid %d: killed\n",pid);
+			printk("signal from unknown pid %d: killed\n",pid);
 			GDEBUG(0, "signal from unknown pid %d: killed",pid);
 			if(ptrace(PTRACE_KILL, pid, 0, 0) < 0){
 				GPERROR(0, "KILL");
@@ -486,7 +486,7 @@ void tracehand()
 				}
 #if __NR_socketcall != __NR_doesnotexist
 				if (scno==__NR_socketcall) {
-					//fprint2("socketcall %d %x\n",pc->sysargs[0],pc->sysargs[1]);
+					//printk("socketcall %d %x\n",pc->sysargs[0],pc->sysargs[1]);
 					pc->sysscno=pc->sysargs[0];
 					pc->sockaddr=pc->sysargs[1];
 					umoven(pc,pc->sockaddr,
@@ -544,7 +544,7 @@ void tracehand()
 			} else { /* POST syscall management (OUT phase) */
 				divfun fun;
 				GDEBUG(3, "<-- pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
-				//fprint2("OUT\n");
+				//printk("OUT\n");
 				if (isreproducing) {
 					long newpid;
 					newpid=getrv(pc);
@@ -590,7 +590,7 @@ void tracehand()
 			if ((pc->behavior & SC_SUSPENDED) == 0) {
 				if ((pc->behavior & SC_SAVEREGS) || isreproducing) {
 					if (PT_VM_OK) {
-						/*fprint2("SC %s %d\n",SYSCALLNAME(scno),pc->behavior);*/
+						/*printk("SC %s %d\n",SYSCALLNAME(scno),pc->behavior);*/
 						if(setregs(pc,PTRACE_SYSVM, (isreproducing ? 0 : (pc->behavior & SC_VM_MASK)),pc->signum) == -1)
 							GPERROR(0, "setregs");
 						if(!isreproducing && (pc->behavior & PTRACE_VM_SKIPEXIT))
@@ -600,7 +600,7 @@ void tracehand()
 							GPERROR(0, "setregs");
 				} else /* register not modified */
 				{
-					//fprint2 ("RESTART\n");
+					//printk ("RESTART\n");
 					if (PT_VM_OK) {
 						if (ptrace(PTRACE_SYSVM,pc->pid,pc->behavior & SC_VM_MASK,pc->signum) < 0)
 							GPERROR(0, "restart");
@@ -652,7 +652,7 @@ void tracehand()
 					pc->flags &= ~PCB_STARTING;
 #ifdef LIBC_VFORK_DIRTY_TRICKS
 					getregs(pc);
-					////fprint2("starting2 %x %x was %x %x\n",pc->sysargs[0],pc->sysargs[1],getargn(0,pc),getargn(1,pc));
+					////printk("starting2 %x %x was %x %x\n",pc->sysargs[0],pc->sysargs[1],getargn(0,pc),getargn(1,pc));
 					putargn(0,pc->sysargs[0],pc);
 					putargn(1,pc->sysargs[1],pc);
 					setregs(pc,PTRACE_SYSCALL,0,SIGSTOP);
@@ -685,7 +685,7 @@ void tracehand()
 void sc_resume(struct pcb *pc)
 {
 	/* int pid=pc->pid; */
-	//fprint2("RESUME %d\n",pc->pid);
+	//printk("RESUME %d\n",pc->pid);
 	int scno=pc->sysscno;
 	int inout=pc->behavior-SC_SUSPENDED;
 	int	isreproducing=(scno == __NR_fork ||
@@ -744,7 +744,7 @@ void sc_resume(struct pcb *pc)
 			pc->behavior = SC_SUSPOUT;
 		signum=pc->signum;
 	}
-	//fprint2("RESTARTED %d %d\n",pc->pid,pc->behavior);
+	//printk("RESTARTED %d %d\n",pc->pid,pc->behavior);
 	/* restore registers and restart ONLY IF the call is not already blocking */
 	if ((pc->behavior & SC_SUSPENDED) == 0) {
 		if (PT_VM_OK) {

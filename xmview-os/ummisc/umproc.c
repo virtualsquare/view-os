@@ -91,7 +91,7 @@ static long umproc_open(char *path, int flags, mode_t mode)
 	ft->pos = 0;
 	ft->flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
 	ft->path=strdup(path);
-	//fprint2("%d %lld %s\n",fd,ft->pos,ft->path);
+	//printk("%d %lld %s\n",fd,ft->pos,ft->path);
 	ft->umproc=mh;
 	ft->buf=NULL;
 	switch (mh->tag) {
@@ -117,7 +117,7 @@ static long umproc_read(int fd, char *buf, size_t count)
 {
 	int rv;
 	struct fileinfo *ft=getfiletab(fd);
-	//fprint2("READIN %d c%d p%lld s%lld \n",rv,
+	//printk("READIN %d c%d p%lld s%lld \n",rv,
 	//count, ft->pos, ft->size);
 	for (rv=0; rv< count; rv++) {
 		if (ft->pos > ft->size)
@@ -127,7 +127,7 @@ static long umproc_read(int fd, char *buf, size_t count)
 		buf[rv]=ft->buf[ft->pos];
 		ft->pos++;
 	}
-	//fprint2("READ %d c%d p%lld s%lld %s\n",rv,
+	//printk("READ %d c%d p%lld s%lld %s\n",rv,
 	//	count, ft->pos, ft->size, buf);
 	return rv;
 }
@@ -142,7 +142,7 @@ static long umproc_stat64(char *path, struct stat64 *buf64)
 {
 	struct umproc *mh = um_mod_get_private_data();
 	assert(mh);
-	//fprint2("stat64 %s %p\n",path,fse);
+	//printk("stat64 %s %p\n",path,fse);
 	setstat64(buf64,0);
 	return 0;
 }
@@ -197,7 +197,7 @@ void *viewos_fini(void *data)
 	__attribute__ ((constructor))
 init (void)
 {
-	fprint2("umproc init\n");
+	printk("umproc init\n");
 	s.name="umproc";
 	s.description="/proc virtualization";
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
@@ -222,5 +222,5 @@ fini (void)
 	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
-	fprint2("umproc fini\n");
+	printk("umproc fini\n");
 }

@@ -121,12 +121,12 @@ static void printdebug(int level, const char *file, const int line, const char *
 	if (level >= __UMBINFMT_DEBUG_LEVEL__) {
 		va_start(ap, fmt);
 #ifdef _PTHREAD_H
-		fprint2("[%d:%lu] dev %s:%d %s(): ", getpid(), pthread_self(), file, line, func);
+		printk("[%d:%lu] dev %s:%d %s(): ", getpid(), pthread_self(), file, line, func);
 #else
-		fprint2("[%d] dev %s:%d %s(): ", getpid(), file, line, func);
+		printk("[%d] dev %s:%d %s(): ", getpid(), file, line, func);
 #endif
-		vfprint2(fmt, ap);
-		fprint2("\n");
+		vprintk(fmt, ap);
+		printk("\n");
 		va_end(ap);
 	}
 }
@@ -148,7 +148,7 @@ static int searchbinfmt(struct umbinfmt *fc,struct binfmt_req *req)
 				} else if (scan->type == 'M') {
 					int i,j,diff;
 					/*for (i=scan->offset,j=0,diff=0;i<128 && j<scan->len && diff==0;i++,j++)
-						fprint2("%02x %02x %02x %2x\n",buf[i],scan->magic[j],scan->mask[j],
+						printk("%02x %02x %02x %2x\n",buf[i],scan->magic[j],scan->mask[j],
 						(buf[i] ^ scan->magic[j]) & scan->mask[j]);*/
 					for (i=scan->offset,j=0,diff=0;i<128 && j<scan->len && diff==0;i++,j++)
 						diff=(buf[i] ^ scan->magic[j]) & scan->mask[j];
@@ -161,7 +161,7 @@ static int searchbinfmt(struct umbinfmt *fc,struct binfmt_req *req)
 			scan=scan->next;
 		}
 	}
-	//fprint2("searchbinfmt %s %s\n",req->path,req->interp);
+	//printk("searchbinfmt %s %s\n",req->path,req->interp);
 	if (req->interp!=NULL)
 		return 1;
 	else
@@ -296,7 +296,7 @@ static void umbinfmt_umount_internal(struct umbinfmt *fc, int flags)
 	struct umbinfmt *fc_norace=fc;
 	char *target=fc->path;
 	if (fc_norace->flags & UMBINFMT_DEBUG) 
-		fprint2("UMOUNT => path:%s flag:%d\n",target, flags);
+		printk("UMOUNT => path:%s flag:%d\n",target, flags);
 	ht_tab_invalidate(fc->binfmt_ht);
 	ht_tab_invalidate(um_mod_get_hte());
 	delete_allreg(fc->head);
@@ -521,12 +521,12 @@ static long umbinfmt_open(char *path, int flags, mode_t mode)
 	if (rv < 0)
 	{
 		if (fc->flags & UMBINFMT_DEBUG) 
-			fprint2("OPEN[%d] ERROR => path:%s flags:0x%x\n", fd, path, flags);	
+			printk("OPEN[%d] ERROR => path:%s flags:0x%x\n", fd, path, flags);	
 		errno = -rv;
 		return -1;
 	} else {
 		if (fc->flags & UMBINFMT_DEBUG) 
-			fprint2("OPEN[%d] => path:%s flags:0x%x\n", fd, path, flags);
+			printk("OPEN[%d] => path:%s flags:0x%x\n", fd, path, flags);
 		return fd;
 	}
 }
@@ -539,7 +539,7 @@ static long umbinfmt_close(int fd)
 	struct binfileinfo *ft=getfiletab(fd);
 
 	if (ft->bfmount->flags & UMBINFMT_DEBUG) 
-		fprint2("CLOSE[%d]\n",fd);
+		printk("CLOSE[%d]\n",fd);
 	if (ft->contents != NULL)
 		free(ft->contents);
 	ft->bfmount->inuse--;
@@ -747,7 +747,7 @@ static int common_stat64(struct umbinfmt *fc,struct umregister *reg, struct stat
 		buf64->st_mode=S_IFREG | 0644;
 	rv=0;
 	if (fc->flags & UMBINFMT_DEBUG) 
-		fprint2("stat->GETATTR => status: %s\n",
+		printk("stat->GETATTR => status: %s\n",
 				rv ? "Error" : "Success");
 	return rv;
 }
@@ -771,7 +771,7 @@ static long umbinfmt_access(char *path, int mode)
 	int rv;
 	assert(fc!=NULL);
 	if (fc->flags & UMBINFMT_DEBUG) 
-		fprint2("ACCESS => path:%s mode:%s%s%s%s\n", 
+		printk("ACCESS => path:%s mode:%s%s%s%s\n", 
 				path,
 				(mode & R_OK) ? "R_OK": "",
 				(mode & W_OK) ? "W_OK": "",

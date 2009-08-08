@@ -55,7 +55,7 @@ struct ummisc_operations ummisc_ops = {
 
 int misc_uname(struct utsname *buf, struct ummisc *mh)
 {
-	//fprint2("DEBUG, misc_uname\n");
+	//printk("DEBUG, misc_uname\n");
 	memcpy(buf,ummisc_getprivatedata(mh),sizeof(struct utsname));
 	return 0;
 }
@@ -115,12 +115,12 @@ void ummisc_uname_init(char *path, unsigned long flags, char *args, struct ummis
 	assert(buf);
 	uname(buf);
 	ummisc_setprivatedata(mh,buf);
-	//fprint2("ummisc_uname_init \n");
+	//printk("ummisc_uname_init \n");
 }
 
 void ummisc_uname_fini(struct ummisc *mh) {
 	struct utsname *buf=ummisc_getprivatedata(mh);
 	free(buf);
-	//fprint2("ummisc_uname_fini \n");
+	//printk("ummisc_uname_fini \n");
 }
 

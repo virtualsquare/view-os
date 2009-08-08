@@ -109,7 +109,7 @@ static int do_preload(struct prelist *head)
 	if (head != NULL) {
 		int rv=do_preload(head->next);
 		if (add_service(head->module,0) < 0) {
-			fprint2("module preload %s",strerror(errno));
+			printk("module preload %s",strerror(errno));
 			return -1 ;
 		} else
 			return rv;
@@ -428,7 +428,7 @@ int main(int argc,char *argv[])
 	sigprocmask(SIG_BLOCK,NULL,&unblockchild);
 	pcb_inits(0);
 	if (capture_main(argv+optind,root_process_init,rcfile) < 0) {
-		fprint2("Kmview: kernel module not loaded\n");
+		printk("Kmview: kernel module not loaded\n");
 		exit(1);
 	}
 	mp_add(kmviewfd,POLLIN,tracehand,NULL,1);

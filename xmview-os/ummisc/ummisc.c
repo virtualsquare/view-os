@@ -111,7 +111,7 @@ static int strpathcmp(char *s1,char *s2)
 
 static struct fsentry *recsearch(struct fsentry *fsdir,struct fsentry *fse,char *path)
 {
-	//fprint2("%p %p %s\n",fsdir,fse,path);
+	//printk("%p %p %s\n",fsdir,fse,path);
 	if (*path == 0)
 		return(fsdir);
 	else{
@@ -120,7 +120,7 @@ static struct fsentry *recsearch(struct fsentry *fsdir,struct fsentry *fse,char 
 		if (fse==NULL || fse->name==NULL)
 			return NULL;
 		else {
-			//fprint2("|%s|%s| %d\n",fse->name,path,strpathcmp(fse->name,path));
+			//printk("|%s|%s| %d\n",fse->name,path,strpathcmp(fse->name,path));
 			if (strpathcmp(fse->name,path) == 0)
 			{
 				path+=strlen(fse->name);
@@ -145,9 +145,9 @@ static long ummisc_open(char *path, int flags, mode_t mode)
 	struct ummisc *mh = um_mod_get_private_data();
 	assert(mh);
 	char *upath=unwrap(mh,path);
-	//fprint2("open |%s| %d\n",upath,*upath);
+	//printk("open |%s| %d\n",upath,*upath);
 	struct fsentry *fse=searchentry(mh,upath);
-	//fprint2("ummisc_open %s %p\n",upath,fse);
+	//printk("ummisc_open %s %p\n",upath,fse);
 	if (fse != NULL) {
 		int fd = addfiletab(sizeof(struct fileinfo));
 		struct fileinfo *ft=getfiletab(fd);
@@ -155,7 +155,7 @@ static long ummisc_open(char *path, int flags, mode_t mode)
 		ft->pos = 0;
 		ft->flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
 		ft->path=strdup(upath);
-		//fprint2("%d %lld %s\n",fd,ft->pos,ft->path);
+		//printk("%d %lld %s\n",fd,ft->pos,ft->path);
 		ft->fse=fse;
 		ft->ummisc=mh;
 		/* is a dir, root is always a dir! */
@@ -185,7 +185,7 @@ static long ummisc_close(int fd)
 	struct fileinfo *ft=getfiletab(fd);
 
 	struct ummisc *mh = ft->ummisc;
-	//fprint2("close %s\n",ft->path);
+	//printk("close %s\n",ft->path);
 	if (ft->fse->getputfun != NULL &&
 			ft->flags & O_ACCMODE != 0) { /*O_WRONLY or O_RDWR */
 		ft->fse->getputfun(UMMISC_PUT,ft->buf,ft->size,mh,
@@ -202,7 +202,7 @@ static long ummisc_read(int fd, char *buf, size_t count)
 {
 	int rv;
 	struct fileinfo *ft=getfiletab(fd);
-	//fprint2("READIN %d c%d p%lld s%lld \n",rv,
+	//printk("READIN %d c%d p%lld s%lld \n",rv,
 	//count, ft->pos, ft->size);
 	for (rv=0; rv< count; rv++) {
 		if (ft->pos > ft->size)
@@ -212,7 +212,7 @@ static long ummisc_read(int fd, char *buf, size_t count)
 		buf[rv]=ft->buf[ft->pos];
 		ft->pos++;
 	}
-	//fprint2("READ %d c%d p%lld s%lld %s\n",rv,
+	//printk("READ %d c%d p%lld s%lld %s\n",rv,
 	//	count, ft->pos, ft->size, buf);
 	return rv;
 }
@@ -249,7 +249,7 @@ static long ummisc_stat64(char *path, struct stat64 *buf64)
 	assert(mh);
 	char *upath=unwrap(mh,path);
 	struct fsentry *fse=searchentry(mh,upath);
-	//fprint2("stat64 %s %p\n",path,fse);
+	//printk("stat64 %s %p\n",path,fse);
 	if (fse != NULL) {
 		setstat64(buf64,fse->getputfun == NULL);
 		return 0;
@@ -306,7 +306,7 @@ static long dirsize(struct fsentry *fsdir)
 	int size=0;
 	if (fsdir != NULL) {
 		while (fsdir->name != NULL) {
-			//fprint2("dirsize add %s %d\n",fsdir->name,WORDALIGN(SIZEDIRENT64NONAME+strlen(fsdir->name)+1));
+			//printk("dirsize add %s %d\n",fsdir->name,WORDALIGN(SIZEDIRENT64NONAME+strlen(fsdir->name)+1));
 			size+=WORDALIGN(SIZEDIRENT64NONAME+strlen(fsdir->name)+1);
 			fsdir++;
 		}
@@ -320,7 +320,7 @@ static void dirpopulate(struct fsentry *fsdir,char *dirp)
 	if (fsdir != NULL) {
 		while (fsdir->name != NULL) {
 			struct dirent64 *this=(struct dirent64 *) dirp;
-			//fprint2("dirpop add %s %d\n",fsdir->name,WORDALIGN(SIZEDIRENT64NONAME+strlen(fsdir->name)+1));
+			//printk("dirpop add %s %d\n",fsdir->name,WORDALIGN(SIZEDIRENT64NONAME+strlen(fsdir->name)+1));
 			this->d_ino=2;
 			this->d_reclen=WORDALIGN(SIZEDIRENT64NONAME+strlen(fsdir->name)+1);
 			off+=this->d_reclen;
@@ -343,11 +343,11 @@ static long ummisc_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned i
 		struct dirent64 *this;
 		if (ft->buf==NULL) {
 			ft->size=dirsize(ft->fse->subdir);
-			//fprint2("ummisc_getdents64 size=%d\n",ft->size);
+			//printk("ummisc_getdents64 size=%d\n",ft->size);
 			ft->buf=malloc(ft->size);
 			assert(ft->buf != NULL);
 			dirpopulate(ft->fse->subdir,ft->buf);
-			//fprint2("ummisc_dirpopulate size=%d\n",ft->size);
+			//printk("ummisc_dirpopulate size=%d\n",ft->size);
 		}
 		while (rv+ft->pos < ft->size) {
 			this=(struct dirent64 *)(ft->buf+ft->pos+rv);
@@ -359,7 +359,7 @@ static long ummisc_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned i
 		}
 		memcpy((char*) dirp, ft->buf + ft->pos, rv);
 		ft->pos += rv;
-		//fprint2("getdents64 returns %d\n",rv);
+		//printk("getdents64 returns %d\n",rv);
 		return rv;
 	}
 }
@@ -374,7 +374,7 @@ static long ummisc_mount(char *source, char *target, char *filesystemtype,
 			mountflags, (data!=NULL)?data:"<NULL>");
 
 	if(dlhandle == NULL || (ummisc_ops=dlsym(dlhandle,"ummisc_ops")) == NULL) {
-		fprint2("%s\n",dlerror());
+		printk("%s\n",dlerror());
 		if(dlhandle != NULL)
 			dlclose(dlhandle);
 		errno=ENODEV;
@@ -448,7 +448,7 @@ void *ummisc_getprivatedata(struct ummisc *mischandle)
 	__attribute__ ((constructor))
 init (void)
 {
-	fprint2("ummisc init\n");
+	printk("ummisc init\n");
 	s.name="ummisc";
 	s.description="virtual miscellaneous (time, uname, uid/gid, ...)";
 	s.destructor=ummisc_destructor;
@@ -478,5 +478,5 @@ fini (void)
 	free(s.syscall);
 	free(s.socket);
 	finimuscno();
-	fprint2("ummisc fini\n");
+	printk("ummisc fini\n");
 }

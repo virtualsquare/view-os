@@ -86,7 +86,7 @@ static long ioctlparms(int fd, int req)
 /*
 static int myread(int fd, char *buf, int size)
 {
-	fprint2("READ %d %d\n ",fd,size);
+	printk("READ %d %d\n ",fd,size);
 	int rv=read(fd,buf,size);
 	int i;
 	for (i=0;i<rv;i++)
@@ -109,7 +109,7 @@ static int mywrite(int fd, char *buf, int size)
 static int mysocket(int domain, int type, int protocol)
 {
 	int rv=socket(domain,type,protocol);
-	fprint2("socket %d %d %d -> %d\n",domain,type,protocol,rv);
+	printk("socket %d %d %d -> %d\n",domain,type,protocol,rv);
 	return rv;
 }
 */

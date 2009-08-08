@@ -110,13 +110,13 @@ static long umnet_addproc(int id, int ppid, int max) {
 		}
 	}
 	if (id == ppid) {
-		//fprint2("defnet ROOT %d\n",id);
+		//printk("defnet ROOT %d\n",id);
 		defnet[id]=NULL;
 	} else {
-		//fprint2("+net %d<-%d %p %p\n",id,ppid,defnet[ppid],defnet[ppid]?defnet[ppid]->defstack[1]:0);
+		//printk("+net %d<-%d %p %p\n",id,ppid,defnet[ppid],defnet[ppid]?defnet[ppid]->defstack[1]:0);
 		defnet[id]=defnet[ppid];
 		if (defnet[id] != NULL) {
-			//fprint2("+net %d<-%d %x %d\n",id,defnet[id],defnet[id]->count);
+			//printk("+net %d<-%d %x %d\n",id,defnet[id],defnet[id]->count);
 			defnet[id]->count++;
 		}
 	}
@@ -125,7 +125,7 @@ static long umnet_addproc(int id, int ppid, int max) {
 
 static long umnet_delproc(int id) {
 	if (defnet[id] != NULL) {
-		//fprint2("-net %d %p %d\n",id,defnet[id],defnet[id]->count);
+		//printk("-net %d %p %d\n",id,defnet[id],defnet[id]->count);
 		if (defnet[id]->count <= 0)
 			free(defnet[id]);
 		else
@@ -146,7 +146,7 @@ static void umnet_delallproc(void)
 static long umnet_setdefstack(int id, int domain, struct umnet *defstack)
 {
 	if (domain > 0 && domain < AF_MAXMAX) {
-		//fprint2("umnet_setdefstack %d %d %p\n",id,domain,defstack);
+		//printk("umnet_setdefstack %d %d %p\n",id,domain,defstack);
 		if (defnet[id] == NULL) 
 			defnet[id] = calloc(1,sizeof (struct umnetdefault));
 		if (defnet[id] != NULL) {
@@ -176,8 +176,8 @@ static long umnet_setdefstack(int id, int domain, struct umnet *defstack)
 static struct umnet *umnet_getdefstack(int id, int domain)
 {
 	if (domain > 0 && domain <= AF_MAXMAX && defnet[id] != NULL) {
-		//fprint2("umnet_getdefstack %d %d\n",id,domain);
-		//fprint2("   %p %p\n",defnet[id],defnet[id]->defstack[domain-1]);
+		//printk("umnet_getdefstack %d %d\n",id,domain);
+		//printk("   %p %p\n",defnet[id],defnet[id]->defstack[domain-1]);
 		return defnet[id]->defstack[domain-1];
 	} else {
 		struct ht_elem *hte=ht_search(CHECKPATH,DEFAULT_NET_PATH,
@@ -199,12 +199,12 @@ static long umnet_ctl(int type, char *sender, va_list ap)
 			id = va_arg(ap, int);
 			ppid = va_arg(ap, int);
 			max = va_arg(ap, int);
-			/*fprint2("umnet_addproc %d %d %d\n",id,ppid,max);*/
+			/*printk("umnet_addproc %d %d %d\n",id,ppid,max);*/
 			return umnet_addproc(id, ppid, max);
 
 		case MC_PROC | MC_REM:
 			id = va_arg(ap, int);
-			/*fprint2("umnet_delproc %d\n",id);*/
+			/*printk("umnet_delproc %d\n",id);*/
 			return umnet_delproc(id);
 
 		default:
@@ -214,7 +214,7 @@ static long umnet_ctl(int type, char *sender, va_list ap)
 
 static long umnet_ioctlparms(int fd,int req)
 {
-	//fprint2("fd %d arg %d\n",fd,req);
+	//printk("fd %d arg %d\n",fd,req);
 	struct fileinfo *ft=getfiletab(fd);
 
 	if(ft->umnet->netops->ioctlparms) {
@@ -230,7 +230,7 @@ static int checksocket(int type, void *arg, int arglen,
 {
 	int *sock=arg;
 	struct umnet *mc=umnet_getdefstack(um_mod_getumpid(),*sock);
-	/*fprint2("checksocket %d %d %p\n",um_mod_getpid(),type,mc);*/
+	/*printk("checksocket %d %d %p\n",um_mod_getpid(),type,mc);*/
 	if (mc==NULL)
 		return 0;
 	else {
@@ -250,7 +250,7 @@ static long umnet_msocket(char *path, int domain, int type, int protocol)
 		mh = umnet_getdefstack(um_mod_getumpid(),domain);
 	assert(mh!=NULL);
 
-	//fprint2("msocket %s %d %d %d\n",path,domain, type, protocol);
+	//printk("msocket %s %d %d %d\n",path,domain, type, protocol);
 	if (type == SOCK_DEFAULT) {
 		if (domain == PF_UNSPEC) {
 			for (domain=1; domain<=AF_MAXMAX; domain++)
@@ -515,7 +515,7 @@ static long umnet_stat64(char *path, struct stat64 *buf64)
 {
 	struct umnet *mh = um_mod_get_private_data();
 	assert(mh);
-	//fprint2("stat64 %s %p\n",path,fse);
+	//printk("stat64 %s %p\n",path,fse);
 	setstat64(buf64,mh);
 	return 0;
 }
@@ -569,7 +569,7 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 			mountflags, (data!=NULL)?data:"<NULL>");
 
 	if(dlhandle == NULL || (netops=dlsym(dlhandle,"umnet_ops")) == NULL) {
-		fprint2("%s\n",dlerror());
+		printk("%s\n",dlerror());
 		if(dlhandle != NULL)
 			dlclose(dlhandle);
 		errno=ENODEV;
@@ -647,7 +647,7 @@ void *umnet_getprivatedata(struct umnet *nethandle)
 static long umnet_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 {
 	struct fileinfo *ft=getfiletab(fd);
-	//fprint2("umnet_event_subscribe %d %d\n",fd,how);
+	//printk("umnet_event_subscribe %d %d\n",fd,how);
 	if (ft->umnet->netops->event_subscribe) {
 		return ft->umnet->netops->event_subscribe(
 				cb, arg, ft->nfd, how);
@@ -661,7 +661,7 @@ static long umnet_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 	__attribute__ ((constructor))
 init (void)
 {
-	fprint2("umnet init\n");
+	printk("umnet init\n");
 	s.name="umnet";
 	s.description="virtual (multi-stack) networking";
 	s.destructor=umnet_destructor;
@@ -711,5 +711,5 @@ fini (void)
 	free(s.socket);
 	free(s.virsc);
 	umnet_delallproc();
-	fprint2("umnet fini\n");
+	printk("umnet fini\n");
 }

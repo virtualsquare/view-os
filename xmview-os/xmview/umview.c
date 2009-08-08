@@ -111,7 +111,7 @@ static int do_preload(struct prelist *head)
 	if (head != NULL) {
 		int rv=do_preload(head->next);
 		if (add_service(head->module,0) < 0) {
-			fprint2("module preload %s",strerror(errno));
+			printk("module preload %s",strerror(errno));
 			return -1 ;
 		} else
 			return rv;

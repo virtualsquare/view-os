@@ -69,7 +69,7 @@ int wrap_in_msocket(int sc_number,struct pcb *pc,
 				if ((pc->retval = um_syscall(pc->path,domain,type,protocol)) < 0) {
 					pc->erno = errno;
 				}
-				//fprint2("SOCK_DEFAULT %s %d\n",pc->path,domain);
+				//printk("SOCK_DEFAULT %s %d\n",pc->path,domain);
 			}
 			return SC_FAKE;
 		} else {
@@ -210,7 +210,7 @@ int wrap_in_accept(int sc_number,struct pcb *pc,
 /* SOCKET & MSOCKET & ACCEPT wrap out */
 int wrap_out_socket(int sc_number,struct pcb *pc) {
 	/*int lerno=errno;*/
-	//fprint2("wrap_out_socket %d %d\n",pc->behavior,SC_FAKE);
+	//printk("wrap_out_socket %d %d\n",pc->behavior,SC_FAKE);
 	/* if everything was okay for the virtual call */
 	if (pc->behavior==SC_CALLONXIT && pc->retval >= 0) {
 		int fd=getrv(pc);	
@@ -228,7 +228,7 @@ int wrap_out_socket(int sc_number,struct pcb *pc) {
 		} else {
 			putrv(pc->retval,pc);
 			puterrno(pc->erno,pc);
-			//fprint2("wrap_out_socket!!\n");
+			//printk("wrap_out_socket!!\n");
 			lfd_close(pc->retval);
 		}
 	} else {
@@ -603,13 +603,13 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,
 			for (i=0,totalsize=0;i<msg.msg_iovlen;i++)
 				totalsize += iovec[i].iov_len;
 			lbuf=(char *)lalloca(totalsize);
-			//fprint2("RECVMSG fd %d namesize %d msg_iovlen %d msg_controllen %d total %d\n",
+			//printk("RECVMSG fd %d namesize %d msg_iovlen %d msg_controllen %d total %d\n",
 			//		pc->sysargs[0],msg.msg_namelen, msg.msg_iovlen, msg.msg_controllen, totalsize);
 			liovec.iov_base=lbuf;
 			liovec.iov_len=totalsize;
 			lmsg.msg_iov=&liovec;
 			lmsg.msg_iovlen=1;
-			//fprint2("%d size->%d\n",sfd,size);
+			//printk("%d size->%d\n",sfd,size);
 			if ((size=pc->retval = um_syscall(sfd,&lmsg,flags)) < 0)
 				pc->erno=errno;
 			if (size > 0) {

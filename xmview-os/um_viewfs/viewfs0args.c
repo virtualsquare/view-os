@@ -145,7 +145,7 @@ int viewfsargs(char *data,int *pflags,char ***pexceptions)
 				*pflags &= ~VIEWFS_WOK;
 				break;
 			case 0:
-				fprint2("viewfs unknown option %s\n",sepopts[i]);
+				printk("viewfs unknown option %s\n",sepopts[i]);
 				break;
 		}
 	}

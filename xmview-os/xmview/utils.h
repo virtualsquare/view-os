@@ -66,13 +66,13 @@ static inline int ustorestr(struct pcb *pc, long addr, int len, void *_laddr) {
 
 static inline int addfd(struct pcb *pc, int fd) {
 	struct kmview_fd kmfd={pc->kmpid,fd};
-	//fprint2("FD ADD pid %d fd %d\n",pc->pid,fd);
+	//printk("FD ADD pid %d fd %d\n",pc->pid,fd);
 	return (ioctl(kmviewfd,KMVIEW_ADDFD,&kmfd));
 }
 
 static inline int delfd(struct pcb *pc, int fd) {
 	struct kmview_fd kmfd={pc->kmpid,fd};
-	//fprint2("FD DEL pid %d fd %d\n",pc->pid,fd);
+	//printk("FD DEL pid %d fd %d\n",pc->pid,fd);
 	return (ioctl(kmviewfd,KMVIEW_DELFD,&kmfd));
 }
 #endif
