@@ -8,7 +8,8 @@ dist_man1_MANS = \
 	viewumount.1 \
 	umshutdown.1 \
 	mstack.1 \
-	viewsu.1
+	viewsu.1 \
+	viewsudo.1
 
 CPPFLAGS = -I../include
 
@@ -22,7 +23,8 @@ bin_PROGRAMS = \
 	viewumount \
 	umshutdown \
 	mstack \
-	viewsu
+	viewsu \
+	viewsudo
 
 debug release: all
 

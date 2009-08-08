@@ -75,7 +75,7 @@ char *fname[AF_MAXMAX+1]={
 void usage()
 {
 	fprintf(stderr, "Usage:\n\tmstack [-u46npbihv] [-f #] stack_mountpoint command\n");
-	exit(0);
+	exit(2);
 }
 
 main(int argc, char *argv[])
@@ -133,7 +133,7 @@ main(int argc, char *argv[])
 				fprintf(stderr, "pid %d: stack %s for all supported protocol families\n",getpid(),argv[0]);
 			if ((fd=msocket(argv[0],0,SOCK_DEFAULT,0)) < 0) {
 				perror("mstack");
-				exit(-1);
+				exit(1);
 			}
 		}	else {
 			int i;
@@ -143,7 +143,7 @@ main(int argc, char *argv[])
 						fprintf(stderr, "pid %d: stack %s for %d=%s\n",getpid(),argv[0],i,fname[i]);
 					if ((fd=msocket(argv[0],i,SOCK_DEFAULT,0)) < 0) {
 						perror("mstack: msocket");
-						exit(-1);
+						exit(1);
 					}
 				}
 		}

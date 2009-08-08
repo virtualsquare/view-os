@@ -23,15 +23,15 @@
 .SH NAME
 viewsu \- change (virtual) user ID or become (virtual) superuser
 .SH "SYNOPSIS"
-.HP \w'\fBsu\fR\ 'u
-\fBsu\fR [\fIoptions\fR] [\fIusername\fR]
+.HP \w'\fBviewsu\fR\ 'u
+\fBviewsu\fR [\fIoptions\fR] [\fIusername\fR]
 .SH "DESCRIPTION"
 .PP
 The
-\fBsu\fR
+\fBviewsu\fR
 command is used to become another user during a login session\&. Invoked without a
 \fBusername\fR,
-\fBsu\fR
+\fBviewsu\fR
 defaults to becoming the superuser\&. The optional argument
 \fB\-\fR
 may be used to provide an environment similar to what the user would expect had the user logged in directly\&.
@@ -51,7 +51,7 @@ definitions in
 .SH OPTIONS
 .PP
 The options which apply to the
-\fBsu\fR
+\fBviewsu\fR
 command are:
 .PP
 \fB\-c\fR, \fB\-\-command\fR \fICOMMAND\fR
@@ -67,7 +67,7 @@ Provide an environment similar to what the user would expect had the user logged
 When
 \fB\-\fR
 is used, it must be specified as the last
-\fBsu\fR
+\fBviewsu\fR
 option\&. The other forms (\fB\-l\fR
 and
 \fB\-\-login\fR) do not have this restriction\&.

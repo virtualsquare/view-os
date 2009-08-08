@@ -143,7 +143,7 @@ static int do_preload_recursive(struct prelist *head)
 static void do_set_viewname_recursive(char *viewname)
 {
 	if (viewname) {
-		int_virnsyscall(__NR_UM_SERVICE,2,UMVIEW_SETVIEWNAME,(long)viewname,0,0,0,0);
+		int_virnsyscall(__NR_UM_SERVICE,2,VIEWOS_SETVIEWNAME,(long)viewname,0,0,0,0);
 	}
 }
 #endif
@@ -361,7 +361,7 @@ int main(int argc,char *argv[])
 		 * otherwise nobody is notified and the call fails*/
 #ifdef KMVIEW_USER_NESTING
 		if (test_recursion(argc,argv)) {
-			if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_UMVIEW,0,0,0,0,0) >= 0)
+			if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_VIEWOS,0,0,0,0,0) >= 0)
 				kmview_recursive(argc,argv);	/* do not return!*/
 		}
 #endif

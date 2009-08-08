@@ -143,7 +143,7 @@ static int do_preload_recursive(struct prelist *head)
 static void do_set_viewname_recursive(char *viewname)
 {
 	if (viewname) {
-		int_virnsyscall(__NR_UM_SERVICE,2,UMVIEW_SETVIEWNAME,(long)viewname,0,0,0,0);
+		int_virnsyscall(__NR_UM_SERVICE,2,VIEWOS_SETVIEWNAME,(long)viewname,0,0,0,0);
 	}
 }
 
@@ -336,7 +336,7 @@ int main(int argc,char *argv[])
 	 * try the nested invocation notifying virtual syscall, 
 	 * if it succeeded it is actually a nested invocation,
 	 * otherwise nobody is notified and the call fails*/
-		if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_UMVIEW,0,0,0,0,0) >= 0)
+		if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_VIEWOS,0,0,0,0,0) >= 0)
 			umview_recursive(argc,argv);	/* do not return!*/
 		/* umview loads itself twice if there is pure_libc, to trace module 
 		 * generated syscalls, this condition manages the first call */
@@ -477,7 +477,7 @@ int main(int argc,char *argv[])
 		mp_add(wt,POLLIN,do_wake_tracer,NULL,1);
 		pcb_inits(0);
 		capture_main(argv+optind,0,NULL);
-		setenv("_INSIDE_UMVIEW_MODULE","",1);
+		setenv("_INSIDE_VIEWOS_MODULE","",1);
 		do_preload(prehead);
 		do_set_viewname(viewname);
 		while (nprocs)  {

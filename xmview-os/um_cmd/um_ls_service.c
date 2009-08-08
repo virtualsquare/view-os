@@ -30,6 +30,7 @@
 void usage()
 {
 	fprintf(stderr, "Usage:\n\tum_ls_service\n");
+	exit(2);
 }
 
 int main(int argc, char *argv[])
@@ -37,12 +38,16 @@ int main(int argc, char *argv[])
 	unsigned char lsbuf[PATH_MAX];
 	char descr[PATH_MAX];
 	int n;
+	if (um_check_viewos()==0) {
+		fprintf(stderr,"This is a View-OS command. It works only inside a umview/kmview virtual machine\n");
+		usage();
+	}            
 	if (argc != 1)
 		usage();
 	else {
 		if ((n=um_list_service(lsbuf,PATH_MAX)) < 0) {
 			perror("um_list_service");
-			exit(-1);
+			exit(1);
 		} else {
 			char *name=lsbuf;
 			while (1) {

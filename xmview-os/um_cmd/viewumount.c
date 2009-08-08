@@ -33,7 +33,6 @@ void usage(void)
 			"    viewumount [-f] [-l] special | node : ordinary mount command\n"
 			"For many more details, say man 1 viewumount\n"
 			);
-
 	exit(2);
 }
 

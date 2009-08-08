@@ -124,7 +124,7 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 					pc->erno=EINVAL;
 				}
 				break;
-				case RECURSIVE_UMVIEW:
+				case RECURSIVE_VIEWOS:
 				if (pcb_newfork(pc) >= 0) {
 				pc->retval=0;
 				pc->erno = 0;
@@ -133,7 +133,7 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 				pc->erno = ENOMEM;
 			}
 			break;
-		case UMVIEW_GETINFO:
+		case VIEWOS_GETINFO:
 			{
 				struct viewinfo vi;
 				memset (&vi,0,sizeof(struct viewinfo));
@@ -143,7 +143,7 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 				pc->erno = 0;
 			}
 			break;
-		case UMVIEW_SETVIEWNAME: 
+		case VIEWOS_SETVIEWNAME: 
 			{
 				char name[_UTSNAME_LENGTH];
 				umovestr(pc,pc->sysargs[1],_UTSNAME_LENGTH,name);
@@ -153,19 +153,19 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 				pc->erno = 0;
 			}
 			break; 
-		case UMVIEW_KILLALL: 
+		case VIEWOS_KILLALL: 
 			killall(pc,pc->sysargs[1]);
 			pc->retval=0;
 			pc->erno = 0;
 			break;
-		case UMVIEW_ATTACH:
+		case VIEWOS_ATTACH:
 			pc->retval=capture_attach(pc,pc->sysargs[1]);
 			if (pc->retval < 0) {
 				pc->erno = - pc->retval;
 				pc->retval = -1;
 			}
 			break;
-		case UMVIEW_FSALIAS:
+		case VIEWOS_FSALIAS:
 			{
 				char fsalias[256];
 				char fsname[256];

@@ -6,6 +6,8 @@
 #include <getopt.h>
 #include <pwd.h>
 #include <string.h>
+#include <libgen.h>
+#include <um_lib.h>
 
 static struct option long_options[] = {
 	{"command", 1, 0, 'c'},
@@ -25,10 +27,11 @@ int uid;
 int gid;
 char *arg0;
 
-void usage(void)
+void usage(char *argv0)
 {
+	char *name=basename(argv0);
 	fprintf(stderr,
-			"Usage: su [options] [LOGIN]\n"
+			"Usage: %s [options] [LOGIN]\n"
 			"\n"
 			"Options:\n"
 			"  -c, --command COMMAND         pass COMMAND to the invoked shell\n"
@@ -38,7 +41,8 @@ void usage(void)
 			//"  --preserve-environment        do not reset environment variables, and\n"
 			"                                keep the same shell\n"
 			"  -s, --shell SHELL             use SHELL instead of the default in passwd\n"
-			"\n"
+			"\n",
+			name
 			);
 	exit(2);
 }
@@ -81,6 +85,11 @@ int main(int argc, char *argv[])
 	int status;
 	int c;
 	struct passwd *pwd;
+	
+	if (um_check_viewos()==0) {
+		fprintf(stderr,"This is a View-OS command. It works only inside a umview/kmview virtual machine\n");
+		usage(argv[0]);
+	}
 	while (1) {
 		int option_index = 0;
 		c = getopt_long(argc, argv, "c:ls:mph",
@@ -97,13 +106,13 @@ int main(int argc, char *argv[])
 		//	case 'm':
 		//	case 'p': preserve_environment=1;
 		//						break;
-			case 'h': usage();
+			case 'h': usage(argv[0]);
 								break;
 		}
 	}
 
 	if (argc > optind+1)
-		usage();
+		usage(argv[0]);
 
 	if (argc > optind) {
 		if (strcmp(argv[optind],"-")==0)
@@ -139,7 +148,7 @@ int main(int argc, char *argv[])
 		arg0=shell;
 
 	switch (pid=fork()) {
-		case -1: exit(2);
+		case -1: exit(1);
 		case 0: 
 						 setresuid(uid,uid,uid);
 						 setresgid(gid,gid,gid);

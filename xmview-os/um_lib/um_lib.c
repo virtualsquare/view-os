@@ -41,6 +41,13 @@ static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,lon
 
 long (*virnsyscall)() = int_virnsyscall;
 
+int um_check_viewos(void)
+{
+	struct viewinfo info;
+	int rv=um_view_getinfo(&info);
+	return (rv==0);
+}
+
 int um_add_service(char *path,int permanent)
 {
 	return virsyscall3(VIRUMSERVICE,ADD_SERVICE,path,permanent);
@@ -63,25 +70,25 @@ int um_name_service(char *name, char *buf, int len)
 
 int um_view_getinfo(struct viewinfo *info)
 {
-	return virsyscall2(VIRUMSERVICE,UMVIEW_GETINFO,info);
+	return virsyscall2(VIRUMSERVICE,VIEWOS_GETINFO,info);
 }
 
 int um_setviewname(char *name)
 {
-	return virsyscall2(VIRUMSERVICE,UMVIEW_SETVIEWNAME,name);
+	return virsyscall2(VIRUMSERVICE,VIEWOS_SETVIEWNAME,name);
 }
 
 int um_killall(int signo)
 {
-	return virsyscall2(VIRUMSERVICE,UMVIEW_KILLALL,signo);
+	return virsyscall2(VIRUMSERVICE,VIEWOS_KILLALL,signo);
 }
 
 int um_attach(int pid)
 {
-	return virsyscall2(VIRUMSERVICE,UMVIEW_ATTACH,pid);
+	return virsyscall2(VIRUMSERVICE,VIEWOS_ATTACH,pid);
 }
 
 int um_fsalias(char *alias,char *filesystemname)
 {
-	  return virsyscall3(VIRUMSERVICE,UMVIEW_FSALIAS,alias,filesystemname);
+	  return virsyscall3(VIRUMSERVICE,VIEWOS_FSALIAS,alias,filesystemname);
 }
