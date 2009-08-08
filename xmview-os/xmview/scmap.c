@@ -39,6 +39,7 @@ htfunt choice_sockpath;
 htfunt choice_pathat, choice_linkat, choice_pl5at, choice_pl4at, choice_link3at;
 htfunt choice_link2at, choice_unlinkat;
 htfunt always_null, choice_mount, choice_sc;
+htfunt choice_path_exact;
 #ifdef _UM_MMAP
 htfunt choice_mmap;
 #endif
@@ -182,8 +183,8 @@ struct sc_map scmap[]={
 	{__NR_dup3,	choice_fd,	wrap_in_dup,	wrap_out_dup,	nchoice_fd, nw_sysdup, ALWAYS,	3, SOC_FILE|SOC_NET},
 #endif
 	{__NR_mount,	choice_mount,	wrap_in_mount,	wrap_out_std,	always_null,	NULL, 0,	5, SOC_FILE},
-	{__NR_umount,	choice_path,	wrap_in_umount,	wrap_out_std,	always_null,	NULL, 0,	1, SOC_FILE},
-	{__NR_umount2,	choice_path,	wrap_in_umount2,wrap_out_std,	always_null,	NULL, 0,	2, SOC_FILE},
+	{__NR_umount,	choice_path_exact,	wrap_in_umount,	wrap_out_std,	always_null,	NULL, 0,	1, SOC_FILE},
+	{__NR_umount2,	choice_path_exact,	wrap_in_umount2,wrap_out_std,	always_null,	NULL, 0,	2, SOC_FILE},
 	{__NR_ioctl,	choice_fd,	wrap_in_ioctl,	wrap_out_std, 	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
 	{__NR_read,	choice_fd,	wrap_in_read,	wrap_out_std,	nchoice_fd,	nw_sysfd_std, CB_R,	3, SOC_FILE|SOC_NET},
 	{__NR_write,	choice_fd,	wrap_in_write,	wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE|SOC_NET},

@@ -362,6 +362,7 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 		checkfun_t checkfun,
 		void *private_data) {
 	struct ht_elem *new=ht_tab_alloc();
+	assert(type < NCHECKS);
 	if (new) {
 		if ((new->obj=malloc(objlen+ht_is_obj_string(type))) != NULL) {
 			struct ht_elem **hashhead;
@@ -542,6 +543,9 @@ struct ht_elem *ht_check(int type, void *arg, struct stat64 *st, int setepoch)
 						hte=devhte;
 				}
 			}
+			break;
+		case CHECKPATHEXACT:
+			hte=ht_tab_pathsearch(CHECKPATH, arg, um_x_gettst(), 1);
 			break;
 		case CHECKCHRDEVICE:
 		case CHECKBLKDEVICE:

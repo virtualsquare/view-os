@@ -9,7 +9,8 @@ dist_man1_MANS = \
 	umshutdown.1 \
 	mstack.1 \
 	viewsu.1 \
-	viewsudo.1
+	viewsudo.1 \
+	um_fsalias.1 
 
 CPPFLAGS = -I../include
 
@@ -24,7 +25,10 @@ bin_PROGRAMS = \
 	umshutdown \
 	mstack \
 	viewsu \
-	viewsudo
+	viewsudo \
+	um_fsalias 
+
+um_fsalias_SOURCES=um_alias.c
 
 debug release: all
 

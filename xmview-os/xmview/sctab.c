@@ -697,7 +697,7 @@ struct ht_elem *choice_mount(int sc_number,struct pcb *pc)
 		char filesystemtype[PATH_MAX];
 		unsigned long fstype=pc->sysargs[2];
 		if (umovestr(pc,fstype,PATH_MAX,filesystemtype) == 0)
-			return ht_check(CHECKFSTYPE,fs_alias(filesystemtype),NULL,0);
+			return ht_check(CHECKFSTYPE,get_alias(CHECKFSALIAS,filesystemtype),NULL,0);
 		else
 			return NULL;
 	} else
@@ -718,6 +718,19 @@ struct ht_elem *choice_path(int sc_number,struct pcb *pc)
 	}
 	else 
 		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
+}
+
+struct ht_elem *choice_path_exact(int sc_number,struct pcb *pc)
+{
+	pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),1);
+	//fprint2("choice_path_exact %d %s\n",sc_number,pc->path);
+	if (pc->path==um_patherror){
+		return NULL;
+	}
+	else if (strcmp(pc->path,"/")==0) 
+		return ht_check(CHECKPATHEXACT,"",&(pc->pathstat),1);
+	else
+		return ht_check(CHECKPATHEXACT,pc->path,&(pc->pathstat),1);
 }
 
 /* choice pathat (filename must be defined) */

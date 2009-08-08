@@ -45,16 +45,18 @@ typedef unsigned long c_set;
 #define MCH_ISSET(c, set)	(*(set) & (1 << c))
 #define MCH_ZERO(set)		*(set) = 0;
 
+#define PSEUDO_CHECK  0x80
 #define CHECKMODULE   0
 #define CHECKPATH     1
 #define CHECKSOCKET   2
-#define CHECKFSTYPE   3
-#define CHECKCHRDEVICE   4
-#define CHECKBLKDEVICE   5
-#define CHECKSC 6
-#define CHECKBINFMT 7
-#define CHECKFSALIAS 8
-#define NCHECKS 9
+#define CHECKCHRDEVICE   3
+#define CHECKBLKDEVICE   4
+#define CHECKSC 5
+#define CHECKBINFMT 6
+#define CHECKFSALIAS 7
+#define NCHECKS 8
+#define CHECKFSTYPE      (PSEUDO_CHECK | CHECKMODULE)
+#define CHECKPATHEXACT   (PSEUDO_CHECK | CHECKPATH)
 
 // for IOCTL mgmt
 #define CHECKIOCTLPARMS   0x40000000

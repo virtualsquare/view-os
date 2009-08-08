@@ -589,7 +589,7 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 		umovestr(pc,pdata,PATH_MAX,data);
 	else
 		datax=NULL;
-	if ((pc->retval = um_syscall(source,pc->path,fs_alias(filesystemtype),
+	if ((pc->retval = um_syscall(source,pc->path,get_alias(CHECKFSALIAS,filesystemtype),
 					mountflags,datax)) < 0)
 		pc->erno=errno;
 	else

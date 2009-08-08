@@ -46,9 +46,9 @@
 #include "utils.h"
 #include "gdebug.h"
 
-static inline void fs_add_alias(char *fsalias,char *fsname)
+static inline void add_alias(int type,char *alias,char *fsname)
 {
-	struct ht_elem *hte=ht_check(CHECKFSALIAS,fsalias,NULL,0);
+	struct ht_elem *hte=ht_check(type,alias,NULL,0);
 	if (hte) {
 		free(ht_get_private_data(hte));
 		if (*fsname==0)
@@ -57,23 +57,23 @@ static inline void fs_add_alias(char *fsalias,char *fsname)
 			ht_set_private_data(hte,strdup(fsname));
 	} else {
 		if (*fsname!=0)
-			ht_tab_add(CHECKFSALIAS,fsalias,strlen(fsalias),NULL,NULL,strdup(fsname));
+			ht_tab_add(type,alias,strlen(alias),NULL,NULL,strdup(fsname));
 	}
 }
 
-static char *rec_fs_alias(char *fsalias,int depth) {
-	struct ht_elem *hte=ht_check(CHECKFSALIAS,fsalias,NULL,0);
+static char *rec_alias(int type,char *alias,int depth) {
+	struct ht_elem *hte=ht_check(type,alias,NULL,0);
 	if (hte) {
 		if (depth > MAXSYMLINKS) 
-			return fsalias;
+			return alias;
 		else
-			return rec_fs_alias(ht_get_private_data(hte),depth+1);
+			return rec_alias(type,ht_get_private_data(hte),depth+1);
 	} else
-		return fsalias;
+		return alias;
 }
 
-char *fs_alias(char *fsalias) {
-	return rec_fs_alias(fsalias,0);
+char *get_alias(int type,char *alias) {
+	return rec_alias(type,alias,0);
 }
 
 int wrap_in_umservice(int sc_number,struct pcb *pc,
@@ -171,7 +171,7 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 				char fsname[256];
 				umovestr(pc,pc->sysargs[1],256,fsalias);
 				umovestr(pc,pc->sysargs[2],256,fsname);
-				fs_add_alias(fsalias,fsname);
+				add_alias(CHECKFSALIAS,fsalias,fsname);
 				pc->retval=0;
 				pc->erno = 0;
 			}

@@ -86,10 +86,10 @@ int main(int argc, char *argv[])
 	int c;
 	struct passwd *pwd;
 	
-	if (um_check_viewos()==0) {
-		fprintf(stderr,"This is a View-OS command. It works only inside a umview/kmview virtual machine\n");
-		usage(argv[0]);
-	}
+	/* outside viewos use su(1) */
+	if (um_check_viewos()==0) 
+		execvp("su",argv);
+	
 	while (1) {
 		int option_index = 0;
 		c = getopt_long(argc, argv, "c:ls:mph",

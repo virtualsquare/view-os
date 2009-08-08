@@ -139,6 +139,7 @@ struct ht_elem * nchoice_sc(int sc_number,struct npcb *npc) {
 }
 
 /* choice function for nested calls: mount */
+/* currently unused */
 struct ht_elem * nchoice_mount(int sc_number,struct npcb *npc) {
 	npc->path=nest_abspath(AT_FDCWD,npc->sysargs[1],npc,&(npc->pathstat),0);
 	if(npc->path==um_patherror) 
