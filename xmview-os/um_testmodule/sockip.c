@@ -145,7 +145,7 @@ void *viewos_init(char *args)
 	return ht_tab_add(CHECKSOCKET,&socktype,sizeof(int),&s,NULL,NULL);
 }
 
-void *viewos_fini(void *data)
+void viewos_fini(void *data)
 {
 	struct ht_elem *proc_ht=data;
 	ht_tab_del(proc_ht);

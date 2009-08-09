@@ -224,7 +224,7 @@ void *viewos_init(char *args)
 	return two;
 }
 
-void *viewos_fini(void *data)
+void viewos_fini(void *data)
 {
 	struct twohte *two=data;
 	ht_tab_del(two->ht2);

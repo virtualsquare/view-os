@@ -47,7 +47,7 @@
 	 @objlen: len of the hash key
 	 @hashsum: hash sum for quick negative matching
 	 @count: usage coune
-	 @checkfun: confirmation function for exceptions
+	 @confirmfun: confirmation function for exceptions
 	 @prev/next/pprevhash,nexthash: addresses for list linking
 	 */
 struct ht_elem {
@@ -63,7 +63,7 @@ struct ht_elem {
 	int objlen;
 	long hashsum;
 	int count;
-	checkfun_t checkfun;
+	confirmfun_t confirmfun;
 	struct ht_elem *prev,*next,**pprevhash,*nexthash;
 };
 
@@ -116,7 +116,7 @@ static inline long hashsum (unsigned char type,const char *c,int len) {
 	 have exceptions */
 static inline int ht_elem_has_exceptions(struct ht_elem *elem)
 {
-	return (elem->checkfun != NULL);
+	return (elem->confirmfun != NULL);
 }
 
 struct carrot {
@@ -250,10 +250,10 @@ static inline int ht_scan_terminate(unsigned char type, char *objc, int len, int
 			return 0;
 	}
 }
-static inline int call_checkfun(int (*checkfun)(),unsigned char type,void *checkobj,int len,struct ht_elem *ht) {
+static inline int call_confirmfun(int (*confirmfun)(),unsigned char type,void *checkobj,int len,struct ht_elem *ht) {
 	epoch_t epoch=um_setnestepoch(ht->tst.epoch);
 	um_mod_set_hte(ht);
-	int rv=checkfun(type,checkobj,len,ht);
+	int rv=confirmfun(type,checkobj,len,ht);
 	um_setnestepoch(epoch);
 	return rv;
 }
@@ -289,7 +289,7 @@ static struct ht_elem *ht_tab_internal_search(unsigned char type, void *obj, int
 						(e=tst_matchingepoch(&(ht->tst))) > 0 &&
 						(ht->invalid == 0)) {
 					/*carrot add*/
-					if (ht->checkfun == NEGATIVE_MOUNT)
+					if (ht->confirmfun == NEGATIVE_MOUNT)
 						carh=carrot_delete(carh, ht->private_data);
 					else
 						carh=carrot_insert(carh, ht, e); 
@@ -307,7 +307,7 @@ static struct ht_elem *ht_tab_internal_search(unsigned char type, void *obj, int
 		struct carrot *curcar=carh;
 		for (curcar=carh; curcar!=NULL;curcar=curcar->next) {
 			ht=curcar->elem;
-			if (ht->checkfun==NULL || call_checkfun(ht->checkfun,type,checkobj,len,ht))
+			if (ht->confirmfun==NULL || call_confirmfun(ht->confirmfun,type,checkobj,len,ht))
 				break;
 		}
 		if (curcar != NULL)
@@ -359,7 +359,7 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 		char *mtabline,
 		struct service *service, 
 		unsigned char trailingnumbers,
-		checkfun_t checkfun,
+		confirmfun_t confirmfun,
 		void *private_data) {
 	struct ht_elem *new=ht_tab_alloc();
 	assert(type < NCHECKS);
@@ -376,7 +376,7 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 			new->private_data=private_data;
 			new->service=service;
 			new->service_hte=NULL; /*lazy*/
-			new->checkfun=checkfun;
+			new->confirmfun=confirmfun;
 			new->count=0;
 			new->hashsum=hashsum(type,new->obj,new->objlen);
 			if (objlen==0)
@@ -410,9 +410,9 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 /* add a "normal" item to the hash table:
 	 (tralingnumbers=1 causes scan to skip the check) */
 struct ht_elem *ht_tab_add(unsigned char type,void *obj,int objlen,
-		struct service *service, checkfun_t checkfun, void *private_data) {
+		struct service *service, confirmfun_t confirmfun, void *private_data) {
 	return internal_ht_tab_add(type, obj, objlen, NULL,
-			service, 1, checkfun, private_data);
+			service, 1, confirmfun, private_data);
 }
 
 static int permanent_mount(const char *opts)
@@ -436,7 +436,7 @@ struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 		const char *mountopts,
 		struct service *service, 
 		unsigned char trailingnumbers,
-		checkfun_t checkfun,
+		confirmfun_t confirmfun,
 		void *private_data)
 {
 	char *mtabline;
@@ -466,7 +466,7 @@ struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 		else
 			strncpy(opts,"rw",PATH_MAX);
 		asprintf(&mtabline,"%s%s %s %s %s 0 %lld",
-				(checkfun==NEGATIVE_MOUNT)?"-":"",
+				(confirmfun==NEGATIVE_MOUNT)?"-":"",
 				source,path,fstype,opts,get_epoch());
 	} else
 		mtabline=NULL;
@@ -475,7 +475,7 @@ struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 	else
 		addpath=path;
 	rv=internal_ht_tab_add(type, addpath, strlen(addpath), mtabline,
-			service, trailingnumbers, checkfun, private_data);
+			service, trailingnumbers, confirmfun, private_data);
 	if (permanent_mount(mountopts))
 		rv->count++;
 	if (rv == NULL && mtabline != NULL)

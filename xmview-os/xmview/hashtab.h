@@ -29,9 +29,9 @@
 
 struct ht_elem;
 /* modules can define check functions to test for exceptions */
-typedef int (* checkfun_t)(int type, void *arg, int arglen,
+typedef int (* confirmfun_t)(int type, void *arg, int arglen,
 		struct ht_elem *ht);
-#define NEGATIVE_MOUNT ((checkfun_t) 1)
+#define NEGATIVE_MOUNT ((confirmfun_t) 1)
 #define HT_ERR ((struct ht_elem *) 1)
 
 /* add a path to the hashtable (this creates an entry for the mounttab) */
@@ -39,11 +39,11 @@ struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 		const char *path, const char *fstype, 
 		unsigned long mountflags, const char *flags,
 		struct service *service, unsigned char trailingnumbers,
-		checkfun_t checkfun, void *private_data);
+		confirmfun_t confirmfun, void *private_data);
 
 /* add a generic element to the hashtable */
 struct ht_elem *ht_tab_add(unsigned char type,void *obj,int objlen,
-		struct service *service, checkfun_t checkfun, void *private_data);
+		struct service *service, confirmfun_t confirmfun, void *private_data);
 
 int isnosys(sysfun f);
 struct ht_elem *ht_check(int type, void *arg, struct stat64 *st, int setepoch);

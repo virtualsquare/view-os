@@ -23,6 +23,7 @@
  */
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <config.h>
 #include "module.h"
 #include "gdebug.h"
@@ -124,5 +125,7 @@ static void
 __attribute__ ((destructor))
 fini (void)
 {
+	free(s.syscall);
+	free(s.socket);
 	GMESSAGE("testmodule fini");
 }

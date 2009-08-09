@@ -77,7 +77,6 @@ extern int msocket (char *path, int domain, int type, int protocol);
 #define MCH_ISSET(c, set)	(*(set) & (1 << c))
 #define MCH_ZERO(set)		*(set) = 0;
 
-#define PSEUDO_CHECK  0x80
 #define CHECKMODULE   0
 #define CHECKPATH     1
 #define CHECKSOCKET   2
@@ -86,9 +85,6 @@ extern int msocket (char *path, int domain, int type, int protocol);
 #define CHECKSC 5
 #define CHECKBINFMT 6
 #define CHECKFSALIAS 7
-#define NCHECKS 8
-#define CHECKFSTYPE      (PSEUDO_CHECK | CHECKMODULE)
-#define CHECKPATHEXACT   (PSEUDO_CHECK | CHECKPATH)
 
 // for IOCTL mgmt
 #define CHECKIOCTLPARMS   0x40000000
@@ -307,20 +303,20 @@ extern int vprintk(const char *fmt, va_list ap);
 	extern __typeof__ (s) viewos_service __attribute__ ((alias (#s)));
 
 /* modules can define check functions to test for exceptions */
-typedef int (* checkfun_t)(int type, void *arg, int arglen,
+typedef int (* confirmfun_t)(int type, void *arg, int arglen,
 		struct ht_elem *ht);
-#define NEGATIVE_MOUNT ((checkfun_t) 1)
+#define NEGATIVE_MOUNT ((confirmfun_t) 1)
 
 /* add a path to the hashtable (this creates an entry for the mounttab) */
 struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 		const char *path, const char *fstype, 
 		unsigned long mountflags, const char *flags,
 		struct service *service, unsigned char trailingnumbers,
-		checkfun_t checkfun, void *private_data);
+		confirmfun_t confirmfun, void *private_data);
 
 /* add a generic element to the hashtable */
 struct ht_elem *ht_tab_add(unsigned char type,void *obj,int objlen,
-		struct service *service, checkfun_t checkfun, void *private_data);
+		struct service *service, confirmfun_t confirmfun, void *private_data);
 
 void ht_tab_invalidate(struct ht_elem *hte);
 

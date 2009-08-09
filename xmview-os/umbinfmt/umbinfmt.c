@@ -64,8 +64,6 @@
 static struct service s;
 VIEWOS_SERVICE(s)
 
-static struct ht_elem *service_ht;
-
 struct binfileinfo {
 	struct umregister *reg;
 	struct umbinfmt *bfmount;
@@ -925,14 +923,12 @@ init (void)
 	//SERVICESYSCALL(s, _newselect, umbinfmt_select);
 	//SERVICESYSCALL(s, ioctl, umbinfmt_ioctl); 
 	s.event_subscribe=umbinfmt_event_subscribe;
-	service_ht=ht_tab_add(CHECKFSTYPE,"umbinfmt",0,&s,NULL,NULL);
 }
 
 	static void
 	__attribute__ ((destructor))
 fini (void)
 {
-	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
 	printf("umbinfmt fini\n");
