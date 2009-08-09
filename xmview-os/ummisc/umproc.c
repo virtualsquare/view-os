@@ -47,8 +47,6 @@
 static struct service s;
 VIEWOS_SERVICE(s)
 
-static struct ht_elem *service_ht;
-
 struct fileinfo {
 	loff_t pos;        /* file offset */
 	loff_t size;        /* file size */
@@ -180,6 +178,7 @@ static loff_t umproc_lseek(int fd, off_t offset, int whence)
 		case SEEK_END: ft->pos=strlen(ft->buf)+offset; break;
 	}
 	if (ft->pos < 0) ft->pos=0;
+	if (ft->pos > ft->size) ft->pos=ft->size;
 }
 
 void *viewos_init(char *args)
@@ -211,15 +210,12 @@ init (void)
 	SERVICESYSCALL(s, fsync, umproc_fsync);
 	SERVICESYSCALL(s, access, umproc_access);
 	SERVICESYSCALL(s, lseek, umproc_lseek);
-
-	//service_ht=ht_tab_pathadd(CHECKPATH,"none","/proc/mounts","proc",0,"ro",&s,0,NULL,&proc_mounts);
 }
 
 	static void
 	__attribute__ ((destructor))
 fini (void)
 {
-	ht_tab_del(service_ht);
 	free(s.syscall);
 	free(s.socket);
 	printk("umproc fini\n");
