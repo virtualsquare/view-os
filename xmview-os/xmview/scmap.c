@@ -37,7 +37,7 @@ int scmap_virscmapsize;
 htfunt choice_path, choice_link, choice_fd, choice_socket, choice_link2;
 htfunt choice_sockpath;
 htfunt choice_pathat, choice_linkat, choice_pl5at, choice_pl4at, choice_link3at;
-htfunt choice_link2at, choice_unlinkat;
+htfunt choice_link2at, choice_unlinkat, choice_utimensat;
 htfunt always_null, choice_mount, choice_sc;
 htfunt choice_path_exact;
 #ifdef _UM_MMAP
@@ -264,7 +264,7 @@ struct sc_map scmap[]={
 	{__NR_fchmodat, choice_pl4at, wrap_in_chmod, wrap_out_std, nchoice_pl4at, nw_sysatpath_std, 0, 4, SOC_FILE},
 	{__NR_faccessat, choice_pl4at, wrap_in_access, wrap_out_std, nchoice_pl4at, nw_sysatpath_std, 0, 4, SOC_FILE},
 #ifdef __NR_utimensat
-	{__NR_utimensat, choice_pl4at, wrap_in_utime,  wrap_out_std, nchoice_pl4at, nw_sysatpath_std, 0, 4, SOC_FILE},
+	{__NR_utimensat, choice_utimensat, wrap_in_utime,  wrap_out_std, nchoice_pl4at, nw_sysatpath_std, 0, 4, SOC_FILE},
 #endif
 #endif
 

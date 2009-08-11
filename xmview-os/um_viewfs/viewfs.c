@@ -64,7 +64,7 @@ struct viewfs {
 	char *source;
 	char **exceptions;
 	int pathlen;
-	// XXX EXP struct timestamp tst;
+	int sourcelen;
 	int flags;
 };
 
@@ -142,11 +142,12 @@ static void create_path(char *path)
 }
 
 /* eliminate all the empty useless dirs in the path */
-static void destroy_path(char *path)
+static void destroy_path(struct viewfs *vfs,char *path,int wipe)
 {
 	char *s=path+(strlen(path)-1);
+	char *base=path+(vfs->sourcelen+((wipe==0)?0:3)); /* protect ".-/" */
 	int rv=0;
-	while (rv==0 && s > path) {
+	while (rv==0 && s > base) {
 		if (*s=='/') {
 			*s=0;
 			rv=rmdir(path);
@@ -225,9 +226,10 @@ static inline void wipeunlink (struct viewfs *vfs,char *path)
 {
 	int erno=errno;
 	if (vfs->flags & VIEWFS_COW) {
+		char *realfile=unwrap(vfs,path);
 		char *wipefile=wipeunwrap(vfs,path);
 		if (unlink(wipefile) >= 0)
-			destroy_path(wipefile);
+			destroy_path(vfs,wipefile,1);
 		free(wipefile);
 	}
 	errno=erno;
@@ -348,11 +350,11 @@ static inline int isexception(char *path, int pathlen, char **exceptions, struct
 		}
 		if (strcmp(path+pathlen,"/.-")==0)
 			return 1;
-		/* chdir to real dir when possible */
+		/* chdir to real dir when possible (is a dir & accessible) */
 		if (sysno==__NR_chdir || sysno==__NR_fchdir) {
 			int rv;
-			rv=file_isdir(path);
-			//printk("chdir %s %d\n",path,file_exist(path));
+			rv=file_isdir(path) && (access(path,X_OK)==0);
+			//printk("chdir %s %d %d\n",path,file_isdir(path),access(path,X_OK));
 			return rv;
 		}
 		/* MERGE + COW */
@@ -674,14 +676,21 @@ static long viewfs_lstat64(char *path, struct stat64 *buf)
 	struct viewfs *vfs = um_mod_get_private_data();
 	char *vfspath=unwrap(vfs,path);
 	int rv= lstat64(vfspath,buf);
-	if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
+	if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) {
 		rv= lstat64(path,buf);
+		/* the path resolution process passes through the file system tree
+			 to the leaf node. If lstat64 returns EACCESS means that:
+			 - the dir is virtual.
+			 - the file does not exist
+			 - the (real) dir is protected. So the error is converted to ENOENT */
+		if (errno==EACCES) errno=ENOENT;
+	}
 	if (vfs->flags & VIEWFS_DEBUG)
 		printk("VIEWFS_LSTAT %s->%s rv %d\n",path,vfspath,rv);
 	free(vfspath);
 	if (rv==0 && vfs->flags & VIEWFS_WOK)
 		buf->st_mode |= 0222;
-	//printk("viewfs_lstat64 %s rv=%d\n",path,rv);
+	//printk("viewfs_lstat64 %s rv=%d errno=%d\n",path,rv,errno);
 	return rv;
 }
 
@@ -716,7 +725,7 @@ static long viewfs_access(char *path, int mode)
 		int rv= access(vfspath,mode);
 		if (vfs->flags & VIEWFS_DEBUG)
 			printk("VIEWFS_ACCESS %s->%s %d rv %d\n",path,vfspath,mode,rv);
-		if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
+		if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path))
 			rv= access(path,mode);
 		//printk("access %s %d-> %d\n",path,mode,rv);
 		free(vfspath);
@@ -926,7 +935,7 @@ static long viewfs_rmdir(char *path)
 					rv=rmdir(vfspath); /* try delete virtual  (what about dangling symlink?)*/
 					if (rv<0 && errno==ENOENT) { /* doesn't exist */
 						rv=rmdir(path); /* try delete real */
-						if (rv<0 && (errno==EPERM || errno==EROFS || errno==ENOTEMPTY)) {
+						if (rv<0 && (errno==EACCES || errno==EPERM || errno==EROFS || errno==ENOTEMPTY)) {
 							zapwipedir(vfs,path);
 							rv=wipeoutfile(vfs,path);
 						} 
@@ -1364,6 +1373,7 @@ static long viewfs_mount(char *source, char *target, char *filesystemtype,
 			new->source = strdup(source);
 			new->exceptions=exceptions;
 			new->flags=flags;
+			new->sourcelen = strlen(source);
 			if (strcmp(target,"/")==0)
 				new->pathlen = 0;
 			else

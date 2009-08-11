@@ -235,27 +235,51 @@ char *um_cutdots(char *path)
 }
 #endif
 
+/* utimensat has a (crazy) behavior with filename==NULL */
+static char *utimensat_nullpath(int dirfd,struct pcb *pc,struct stat64 *pst,int dontfollowlink)
+{
+	if (dirfd==AT_FDCWD) {
+		pc->erno = EFAULT;
+		return um_patherror;
+	} else if (dontfollowlink) {
+		pc->erno = EINVAL;
+		return um_patherror;
+	} else {
+		char *path=fd_getpath(pc->fds,dirfd);
+		if (path==NULL) {
+			pc->erno = EBADF;
+			return um_patherror;
+		} else
+			return strdup(path);
+	}
+}
+
 /* get a path, convert it as an absolute path (and strdup it) 
  * from the process address space */
 char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink)
 {
 	char path[PATH_MAX];
-	char newpath[PATH_MAX];
 	if (umovestr(pc,laddr,PATH_MAX,path) == 0) {
+		char newpath[PATH_MAX];
 		char *cwd;
 		if (dirfd==AT_FDCWD)
 			cwd=pc->fdfs->cwd;
-		else
+		else {
 			cwd=fd_getpath(pc->fds,dirfd);
+			if (cwd==NULL) {
+				pc->erno = EBADF;
+				return um_patherror;
+			}
+		}
 		um_realpath(path,cwd,newpath,pst,dontfollowlink,pc);
-			/*printk("PATH %s (%s,%s) NEWPATH %s (%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->erno);*/
+		/*printk("PATH %s (%s,%s) NEWPATH %s (%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->erno);*/
 		if (pc->erno)
 			return um_patherror;	//error
 		else
 #if 0
 			return strdup(um_cutdots(newpath));
 #endif
-			return strdup(newpath);
+		return strdup(newpath);
 	}
 	else {
 		pc->erno = EINVAL;
@@ -789,6 +813,21 @@ struct ht_elem *choice_unlinkat(int sc_number,struct pcb *pc)
 	if (pc->path==um_patherror)
 		return NULL;
 	else 
+		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
+}
+
+/* utimensat has a (crazy) behavior with filename==NULL */
+struct ht_elem *choice_utimensat(int sc_number,struct pcb *pc)
+{
+	if (pc->sysargs[1] == umNULL)
+		pc->path=utimensat_nullpath(pc->sysargs[0],pc,&(pc->pathstat),
+				pc->sysargs[3] & AT_SYMLINK_NOFOLLOW);
+	else
+		pc->path=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&(pc->pathstat),
+				pc->sysargs[3] & AT_SYMLINK_NOFOLLOW);
+	if (pc->path==um_patherror)
+		return NULL;
+	else
 		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
 }
 
