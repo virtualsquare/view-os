@@ -702,7 +702,13 @@ static long viewfs_readlink(char *path, char *buf, size_t bufsiz)
 static long viewfs_access(char *path, int mode)
 {
 	struct viewfs *vfs = um_mod_get_private_data();
-	if (mode==W_OK && (vfs->flags & VIEWFS_WOK)) {
+	uid_t euid;
+	um_mod_getresuid(NULL,&euid,NULL);
+	if (euid==0) {
+		if (vfs->flags & VIEWFS_DEBUG)
+			printk("VIEWFS_ACCESS %s ROOT ACCESS\n",path);
+		return 0;
+	} else if (mode==W_OK && (vfs->flags & VIEWFS_WOK)) {
 		if (vfs->flags & VIEWFS_DEBUG)
 			printk("VIEWFS_ACCESS %s WOK\n",path);
 		return 0;

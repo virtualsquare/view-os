@@ -1060,6 +1060,54 @@ char *um_mod_getpath(void)
 		return NULL;
 }
 
+int um_mod_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid)
+{
+	struct pcb *pc=get_pcb();
+	if (pc) {
+		if (ruid) *ruid=pc->ruid;
+		if (euid) *euid=pc->euid;
+		if (suid) *suid=pc->suid;
+		return 0;
+	} else
+		return -1;
+}
+
+int um_mod_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid)
+{
+	struct pcb *pc=get_pcb();
+	if (pc) {
+		if (rgid) *rgid=pc->rgid;
+		if (egid) *egid=pc->egid;
+		if (sgid) *sgid=pc->sgid;
+		return 0;
+	} else
+		return -1;
+}
+
+int um_mod_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+{
+	struct pcb *pc=get_pcb();
+	if (pc) {
+		if (ruid != -1) pc->ruid=ruid;
+		if (euid != -1) pc->euid=euid;
+		if (suid != -1) pc->suid=suid;
+		return 0;
+	} else
+		return -1;
+}
+
+int um_mod_setresgid(gid_t rgid, gid_t egid, gid_t sgid)
+{
+	struct pcb *pc=get_pcb();
+	if (pc) {
+		if (rgid != -1) pc->rgid=rgid;
+		if (egid != -1) pc->egid=egid;
+		if (sgid != -1) pc->sgid=sgid;
+		return 0;
+	} else
+		return -1;
+}
+
 /* for modules: get the system call type*/ 
 int um_mod_getsyscalltype(int escno)
 {
