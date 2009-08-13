@@ -74,7 +74,7 @@ struct ext2_file {
 
 static inline int old_valid_dev(dev_t dev)
 {
-	return major(dev) < 256 && major(dev) < 256;
+	return major(dev) < 256 && minor(dev) < 256;
 }
 
 static __u32 le32_to_cpu(__u32 n)
@@ -401,12 +401,14 @@ static int ext2_mknod(const char *path, mode_t mode, dev_t dev)
 	
 	struct fuse_context *mycontext = fuse_get_context();
 	e2fs = (ext2_filsys) mycontext->private_data;
-	/*check if the file exist, but I do it in high level?!
-	retval = ext2fs_namei(current_fs, EXT2_ROOT_INO, EXT2_ROOT_INO, path, &newfile);
+	/*check if the file exist, but I do it in high level?!*/
+	retval = ext2fs_namei(e2fs, EXT2_ROOT_INO, EXT2_ROOT_INO, path, &newfile);
 	if (retval == 0) {
+#ifdef DEBUG
 		fprintf(stderr, "The file '%s' already exists\n", path);
-		return 1;
-	}*/
+#endif
+		return -EEXIST;
+	}
 	#ifdef DEBUG
 	printf("\text2_mknod:%s\n",path);
 	#endif
@@ -443,7 +445,9 @@ static int ext2_mknod(const char *path, mode_t mode, dev_t dev)
 		#endif
 		retval = ext2fs_expand_dir(e2fs, parent);
 		if (retval) {
+		#ifdef DEBUG
 			fprintf(stderr, "while expanding directory\n");
+		#endif
 			free(path_parent);
 			return -ENOSPC;
 		}
@@ -469,7 +473,9 @@ static int ext2_mknod(const char *path, mode_t mode, dev_t dev)
 	}
 	retval = ext2fs_write_new_inode(e2fs, newfile, &inode);
 	if (retval) {
+#ifdef DEBUG
 		fprintf(stderr, "Error while creating inode %u\n", newfile);
+#endif
 		return -EIO;
 	}
 	return 0;
@@ -658,7 +664,9 @@ static int ext2_mkdir(const char *path, mode_t mode)
 		#endif
 		err = ext2fs_expand_dir(e2fs, parent);
 		if (err) {
+#ifdef DEBUG
 			fprintf(stderr, "Error while expanding directory\n");
+#endif
 			free(path_parent);
 			free(name);
 			return -ENOENT;
@@ -675,8 +683,10 @@ static int ext2_mkdir(const char *path, mode_t mode)
 		free(name);
 	}
 	if (err) {
+#ifdef DEBUG
 		fprintf(stderr, "Mkdir error:%d\n",err);
-		return -ENOENT;
+#endif
+		return -EEXIST;
 	}
 
 	err = ext2fs_namei(e2fs, EXT2_ROOT_INO, EXT2_ROOT_INO, path, &ino_n);
@@ -803,7 +813,9 @@ static int kill_file_by_inode(ext2_filsys e2fs, ext2_ino_t inode,int nlink)
 	printf("\text2_rmdir\n\t\tpath:%s\n\t\tnameiErr:%d\n",path, retval);
 	#endif
 	if (retval) {
+#ifdef DEBUG
 		fprintf(stderr, "while trying to resolve filename %s\n",path);
+#endif
 		return -ENOENT;
 	}
 	
@@ -819,7 +831,9 @@ static int kill_file_by_inode(ext2_filsys e2fs, ext2_ino_t inode,int nlink)
 
 	retval = ext2fs_dir_iterate2(e2fs, inode_num, 0, 0, rmdir_proc, &rds);
 	if (retval) {
+#ifdef DEBUG
 		printf("while iterating over directory\n");
+#endif
 		return -ENOENT;
 	}
 	#ifdef DEBUG
@@ -922,7 +936,9 @@ static int ext2_symlink(const char *sourcename, const char *destname)
 #endif
 		retval = ext2fs_expand_dir(e2fs, dir);
 		if (retval) {
+#ifdef DEBUG
 			fprintf(stderr, "while expanding directory\n");
+#endif
 			return -ENOSPC;
 		}
 		retval = ext2fs_link(e2fs, dir, dest, ino, EXT2_FT_SYMLINK);
@@ -1017,7 +1033,9 @@ static int ext2_link(const char *sourcename, const char *destname)
 	}
 	retval = ext2fs_read_inode(e2fs, ino, &inode);
 	if (retval) {
+#ifdef DEBUG
 		fprintf(stderr, "while reading inode %u", ino);
+#endif
 		return -EIO;
 	}
 	retval = ext2fs_link(e2fs, dir, dest, ino, ext2_file_type(inode.i_mode));
@@ -1027,7 +1045,9 @@ static int ext2_link(const char *sourcename, const char *destname)
 		#endif
 		retval = ext2fs_expand_dir(e2fs, dir);
 		if (retval) {
+#ifdef DEBUG
 			fprintf(stderr, "while expanding directory\n");
+#endif
 			return -ENOSPC;
 		}
 		retval = ext2fs_link(e2fs, dir, dest, ino, ext2_file_type(inode.i_mode));
@@ -1059,18 +1079,24 @@ static int ext2_unlink(const char *path)
 
 	retval = ext2fs_namei(e2fs, EXT2_ROOT_INO, EXT2_ROOT_INO, path, &inode_num);
 	if (retval) {
+#ifdef DEBUG
 		printf("while trying to resolve filename %s\n",path);
+#endif
 		return -ENOENT;
 	}
 	
 	retval = ext2fs_read_inode(e2fs, inode_num, &inode);
 	if (retval) {
+#ifdef DEBUG
 		printf("while reading inode %u", inode_num);
+#endif
 		return 1;
 	}
 
 	if (LINUX_S_ISDIR(inode.i_mode)) {
+#ifdef DEBUG
 		fprintf(stderr, "file is a directory");
+#endif
 		return -EISDIR;
 	}
 
@@ -1112,7 +1138,9 @@ static int ext2_chmod(const char *path, mode_t mode)
 	ino.i_mode = (mode & S_IALLUGO) | (ino.i_mode & ~S_IALLUGO);
 	err = ext2fs_write_inode(e2fs, ino_n, &ino);
 	if (err) {
+#ifdef DEBUG
 		fprintf(stderr, "Error while writing inode %u\n", ino_n);
+#endif
 		return err;
 	}
 	return 0;
@@ -1150,7 +1178,9 @@ static int ext2_chown(const char *path, uid_t owner, gid_t group)
 	ino.i_gid = group;
 	err = ext2fs_write_inode(e2fs, ino_n, &ino);
 	if (err) {
+#ifdef DEBUG
 		fprintf(stderr, "Error while writing inode %u\n", ino_n);
+#endif
 		return err;
 	}
 	return 0;
@@ -1249,7 +1279,7 @@ static int ext2_rename(const char *oldpath, const char *newpath)
 
 			if (LINUX_S_ISDIR(newinode.i_mode)) {
 				/* oldpath can specify a directory.  In this case, newpath must either not
-				 *        exist, or it must specify an empty directory. */
+					 exist, or it must specify an empty directory. */
 				if (!LINUX_S_ISDIR(inode.i_mode)) {
 					return -EISDIR;
 				} else {
@@ -1258,11 +1288,15 @@ static int ext2_rename(const char *oldpath, const char *newpath)
 					rds.empty = 1;
 					retval = ext2fs_dir_iterate2(e2fs, ino_new, 0, 0, rmdir_proc, &rds);
 					if (retval) {
+#ifdef DEBUG
 						printf("while iterating over directory\n");
+#endif
 						return -ENOENT;
 					}
 					if (rds.empty == 0) {
+#ifdef DEBUG
 						printf("directory not empty\n");
+#endif
 						return -ENOTEMPTY;
 					}
 				}
@@ -1398,9 +1432,9 @@ static int ext2_release(const char *path, struct fuse_file_info *fi)
 	fprintf(stderr, "\text2_Release,file:%lu\n",fi->fh);
 	#endif
 
-	#ifdef DEBUG
+	#ifdef WRITEDEBUG
 	if ((e2file->flags & EXT2_FILE_BUF_VALID) || (e2file->flags & EXT2_FILE_BUF_DIRTY))
-		printf("La roba gli aRRIVA!!!!!!!!!!!!!!!!!\n");
+		printf("it writes!\n");
 	#endif
 	err = ext2fs_file_close(e2file);
 	#ifdef DEBUG
