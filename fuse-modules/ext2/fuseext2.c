@@ -70,6 +70,57 @@ struct ext2_file {
 	char 			*buf;
 };
 
+/* conversion for special files */
+
+static inline int old_valid_dev(dev_t dev)
+{
+	return major(dev) < 256 && major(dev) < 256;
+}
+
+static __u32 le32_to_cpu(__u32 n)
+{
+	__u8 *le=(__u8 *)&n;
+	__u32 rv;
+	rv=(le[0]+(le[1]<<8)+(le[2]<<16)+(le[3]<<24));
+	return rv;
+}
+
+static __u32 cpu_to_le32(__u32 n)
+{
+	__u32 rv;
+	__u8 *le=(__u8 *)&rv;
+	le[0]=n; n>>=8;
+	le[1]=n; n>>=8;
+	le[2]=n; n>>=8;
+	le[3]=n;
+	return rv;
+}
+
+static inline __u16 old_encode_dev(dev_t dev)
+{
+	return (major(dev) << 8) | minor(dev);
+}
+
+static inline dev_t old_decode_dev(__u16 val)
+{
+	return makedev((val >> 8) & 255, val & 255);
+}
+
+static inline __u32 new_encode_dev(dev_t dev)
+{
+	unsigned major = major(dev);
+	unsigned minor = minor(dev);
+	return (minor & 0xff) | (major << 8) | ((minor & ~0xff) << 12);
+}
+
+static inline dev_t new_decode_dev(__u32 dev)
+{
+	unsigned major = (dev & 0xfff00) >> 8;
+	unsigned minor = (dev & 0xff) | ((dev >> 12) & 0xfff00);
+	return makedev(major, minor);
+}
+
+/* get file attributes */
 static int ext2_getattr(const char *path, struct stat *stbuf)
 {
 	ext2_ino_t ino_n;
@@ -106,7 +157,13 @@ static int ext2_getattr(const char *path, struct stat *stbuf)
 	stbuf->st_nlink = ino.i_links_count;
 	stbuf->st_uid = ino.i_uid;
 	stbuf->st_gid = ino.i_gid;
-	stbuf->st_rdev = 0; /* TODO special files mgmt */
+	if (S_ISCHR(ino.i_mode) || S_ISBLK(ino.i_mode)) {
+		if (ino.i_block[0])
+			stbuf->st_rdev = old_decode_dev(le32_to_cpu(ino.i_block[0]));
+		else
+			stbuf->st_rdev = new_decode_dev(le32_to_cpu(ino.i_block[1]));
+	} else
+		stbuf->st_rdev = 0;
 	stbuf->st_size = ino.i_size;
 	stbuf->st_blksize = e2fs->blocksize;
 	stbuf->st_blocks = ino.i_blocks;
@@ -404,7 +461,12 @@ static int ext2_mknod(const char *path, mode_t mode, dev_t dev)
 	inode.i_size = 0; //initial size of file
 	inode.i_uid=mycontext->uid;
 	inode.i_gid=mycontext->gid;
-	
+	if (S_ISCHR(mode) || S_ISBLK(mode)) {
+		if (old_valid_dev(dev))
+			inode.i_block[0]= cpu_to_le32(old_encode_dev(dev));
+		else
+			inode.i_block[1]= cpu_to_le32(new_encode_dev(dev));
+	}
 	retval = ext2fs_write_new_inode(e2fs, newfile, &inode);
 	if (retval) {
 		fprintf(stderr, "Error while creating inode %u\n", newfile);
