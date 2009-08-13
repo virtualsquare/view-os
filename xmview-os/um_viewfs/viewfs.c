@@ -75,7 +75,16 @@ static int viewfstabmax=0;
 #define WORDALIGN(X) (((X) + WORDLEN) & ~(WORDLEN-1))
 #define SIZEDIRENT64NONAME (sizeof(__u64)+sizeof(__s64)+sizeof(unsigned short)+sizeof(unsigned char))
 
-#define DT_DIR 4
+#define DT_UNKNOWN  0
+#define DT_FIFO   1
+#define DT_CHR    2
+#define DT_DIR    4
+#define DT_BLK    6
+#define DT_REG    8
+#define DT_LNK    10
+#define DT_SOCK   12
+#define DT_WHT    14
+
 struct viewfs_dirent64 {
 	__u64             d_ino;
 	__s64             d_off;
@@ -212,11 +221,12 @@ static inline int isdeleted (struct viewfs *vfs,char *path)
 {
 	if (vfs->flags & VIEWFS_MERGE) {
 		char *wipefile=wipeunwrap(vfs,path);
-		char wiped[4];
-		int out=readlink(wipefile,wiped,4);
-		//printk("isdeleted %s %s %d\n",path,wipefile,out);
+		struct stat64 buf;
+		int rv=lstat64(wipefile,&buf);
+		rv=(rv==0 && S_ISREG(buf.st_mode));
+		//printk("isdeleted %s %s %lo %d\n",path,wipefile,buf.st_mode,rv);
 		free(wipefile);
-		return (out>=0); /*if the readlink succeeded the file is deleted*/
+		return rv;
 	}
 	return FALSE;
 }
@@ -244,7 +254,9 @@ static inline int wipeoutfile (struct viewfs *vfs,char *path)
 		char *wipefile=wipeunwrap(vfs,path);
 		create_path(realfile);
 		create_path(wipefile);
-		rv=symlink("DEL",wipefile);
+		/* DELETE OTHER info */
+		unlink(wipefile);
+		rv=mknod(wipefile,S_IFREG|0666,0);
 		free(realfile);
 		free(wipefile);
 	}
@@ -1207,8 +1219,8 @@ static struct umdirent *umadddirinfo(int fd, struct umdirent *head,
 			off_t off=0;
 			while (off<len) {
 				struct dirent64 *de=(struct dirent64 *)(buf+off);
-				if (!(wipeout && de->d_type == DT_DIR) &&
-						merge_newentry(de->d_name,head,oldtail))
+				if (!(wipeout && de->d_type != DT_REG) && 
+						merge_newentry(de->d_name,head,oldtail)) 
 				{
 					/* .- must not appear in the dir listing! */
 					if (!rootdir || (strcmp(de->d_name,".-") != 0)) {
