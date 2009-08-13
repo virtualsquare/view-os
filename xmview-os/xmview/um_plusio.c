@@ -71,11 +71,20 @@ int wrap_in_mkdir(int sc_number,struct pcb *pc,
 	return SC_FAKE;
 }
 
+/* mknod uses a horrible encoding of device major/minor */
+/* XXX dunno what is the situation on 64bit machine */
+static inline dev_t new_decode_dev(unsigned long dev)
+{
+	unsigned major = (dev & 0xfff00) >> 8;
+	unsigned minor = (dev & 0xff) | ((dev >> 12) & 0xfff00);
+	return makedev(major, minor);
+}
+
 int wrap_in_mknod(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
-	int mode;
-	int dev;
+	unsigned long mode;
+	unsigned long dev;
 #ifdef __NR_mknodat
 	if (sc_number == __NR_mknodat) {
 		mode=pc->sysargs[2];
@@ -84,9 +93,9 @@ int wrap_in_mknod(int sc_number,struct pcb *pc,
 #endif
 	{
 		mode=pc->sysargs[1];
-		dev=pc->sysargs[3];
+		dev=pc->sysargs[2];
 	}
-	if ((pc->retval = um_syscall(pc->path,mode & ~ (pc->fdfs->mask),dev)) < 0)
+	if ((pc->retval = um_syscall(pc->path,mode & ~ (pc->fdfs->mask),new_decode_dev(dev))) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }
