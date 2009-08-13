@@ -1321,23 +1321,24 @@ static long umfuse_access(char *path, int mode)
 		return 0;
 	}
 }
-/*
-	 static long umfuse_mknod(const char *path, mode_t mode, dev_t dev)
-	 {
-	 struct fuse_context *fc = um_mod_get_private_data();
-	 int rv;
-	 assert(fc != NULL);
-	 if (fc->fuse->flags & FUSE_DEBUG)
-	 fprintf(stderr, "MKNOD [%s] => path:%s\n",fc->fuse->path,path);
-	 rv = fc->fuse->fops.mknod(
-	 unwrap(fc, path), mode, dev);
-	 if (rv < 0) {
-	 errno = -rv;
-	 return -1;
-	 }
-	 return rv;
-	 }
- */
+
+static long umfuse_mknod(const char *path, mode_t mode, dev_t dev)
+{
+	struct fuse_context *fc = um_mod_get_private_data();
+	int rv;
+	assert(fc != NULL);
+	if (fc->fuse->flags & FUSE_DEBUG)
+		fprintf(stderr, "MKNOD [%s] => path:%s %d %d\n",fc->fuse->path,path,
+				major(dev),minor(dev));
+	rv = fc->fuse->fops.mknod(
+			unwrap(fc, path), mode, dev);
+	if (rv < 0) {
+		errno = -rv;
+		return -1;
+	}
+	return rv;
+}
+
 static long umfuse_mkdir(char *path, int mode)
 {
 	struct fuse_context *fc=um_mod_get_private_data();
@@ -1971,7 +1972,7 @@ init (void)
 	SERVICESYSCALL(s, _llseek, umfuse__llseek);
 #endif
 	SERVICESYSCALL(s, lseek, umfuse_lseek);
-	//SERVICESYSCALL(s, mknod, umfuse_mknod);
+	SERVICESYSCALL(s, mknod, umfuse_mknod);
 	SERVICESYSCALL(s, mkdir, umfuse_mkdir);
 	SERVICESYSCALL(s, rmdir, umfuse_rmdir);
 	SERVICESYSCALL(s, chown, umfuse_chown);
