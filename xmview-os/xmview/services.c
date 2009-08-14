@@ -85,7 +85,6 @@ static struct syscall_unifier scunify[] = {
 	{__NR_openat,	__NR_open},
 	{__NR_mkdirat,	__NR_mkdir},
 	{__NR_mknodat,	__NR_mknod},
-	{__NR_fchownat,	__NR_chown},
 	{__NR_futimesat,	__NR_utimes},
 #ifdef __NR_utimensat
 	{__NR_utimensat,	__NR_utimes},
@@ -127,6 +126,9 @@ static struct syscall_unifier scunify[] = {
 	//{__NR_lchown, __NR_lchown32},
 	//{__NR_fchown, __NR_chown32},
 	{__NR_fchown32, __NR_chown32},
+	{__NR_fchownat, __NR_chown32},
+#else
+	{__NR_fchownat, __NR_chown},
 #endif
 #ifdef SNDRCVMSGUNIFY
 #if (__NR_socketcall == __NR_doesnotexist)
