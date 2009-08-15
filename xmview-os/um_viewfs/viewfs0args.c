@@ -41,8 +41,8 @@
 #define VIEWFSARGRENEW 13 //"renew"
 #define VIEWFSARGMINCOW 14 //"mincow"
 #define VIEWFSARGWOK 15 //"wok"
-#define VIEWFSARGNOWOK 16 //"nowok"
 #define VIEWFSPERMANENT 17 //"permanent"
+#define VIEWFSARGVSTAT 18 //"permanent"
 #define VIEWFSFLAGHASSTRING 1
 
 static struct viewfsargitem {
@@ -58,9 +58,9 @@ static struct viewfsargitem {
 	{"renew", VIEWFSARGRENEW, 0},
 	{"mincow", VIEWFSARGMINCOW, 0},
 	{"wok", VIEWFSARGWOK, 0},
-	{"nowok", VIEWFSARGNOWOK, 0},
 	{"perm", VIEWFSPERMANENT, 0},
-	{"permanent", VIEWFSPERMANENT, 0}
+	{"permanent", VIEWFSPERMANENT, 0},
+	{"vstat", VIEWFSARGVSTAT, 0}
 };
 #define VIEWFSARGTABSIZE sizeof(viewfsargtab)/sizeof(struct viewfsargitem)
 
@@ -129,11 +129,11 @@ int viewfsargs(char *data,int *pflags,char ***pexceptions)
 				break;
 			case VIEWFSARGCOW:
 				typeoption++;
-				*pflags |= VIEWFS_MERGE | VIEWFS_COW | VIEWFS_WOK;
+				*pflags |= VIEWFS_MERGE | VIEWFS_COW;
 				break;
 			case VIEWFSARGMINCOW:
 				typeoption++;
-				*pflags |= VIEWFS_MERGE | VIEWFS_COW | VIEWFS_MINCOW | VIEWFS_WOK;
+				*pflags |= VIEWFS_MERGE | VIEWFS_COW | VIEWFS_MINCOW;
 				break;
 			case VIEWFSARGRENEW:
 				*pflags |= VIEWFS_RENEW;
@@ -141,13 +141,17 @@ int viewfsargs(char *data,int *pflags,char ***pexceptions)
 			case VIEWFSARGWOK:
 				*pflags |= VIEWFS_WOK;
 				break;
-			case VIEWFSARGNOWOK:
-				*pflags &= ~VIEWFS_WOK;
+			case VIEWFSARGVSTAT:
+				*pflags |= VIEWFS_VSTAT;
 				break;
 			case 0:
 				printk("viewfs unknown option %s\n",sepopts[i]);
 				break;
 		}
+	}
+	if ((*pflags & VIEWFS_VSTAT) && !(*pflags & VIEWFS_MERGE)) {
+		printk ("vstat is for merge or cow file systems: vstat disabled\n");
+		*pflags &= ~VIEWFS_VSTAT;
 	}
 	if (typeoption>1) {
 		free(opts);

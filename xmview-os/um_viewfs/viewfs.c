@@ -40,8 +40,10 @@
 #include "syscallnames.h"
 
 #include "gdebug.h"
+#define INFOEXT "\377"
 #define MAXSIZE ((1LL<<((sizeof(size_t)*8)-1))-1)
 #define MERGEROFS
+#define FILEINFO
 
 static struct service s;
 VIEWOS_SERVICE(s)
@@ -49,6 +51,8 @@ VIEWOS_SERVICE(s)
 static fd_set viewfs_dirset;
 static fd_set fastsysset;
 static fd_set parentsysset;
+static uid_t xuid;
+static gid_t xgid;
 static short fastsc[]={
 	__NR_creat,
 	__NR_open,
@@ -119,27 +123,27 @@ struct viewfsdir *viewfs_opendirs=NULL;
 #define TRUE 1
 #define FALSE 0
 
-/* Does this file exist? */
-static int file_exist(char *path)
+static inline mode_t getumaskx(void)
 {
-	struct stat buf;
-	return stat(path,&buf)==0;
+	mode_t mask = umask( 0 );
+	umask(mask);
+	return mask;
 }
 
 /* Does this file exist? */
-static int file_isdir(char *path)
+static mode_t file_exist(char *path)
 {
 	struct stat buf;
 	if (stat(path,&buf)==0)
-		return S_ISDIR(buf.st_mode);
+		return buf.st_mode;
 	else
 		return 0;
 }
 
 /* create all the missing dirs in the path */
-static void create_path(char *path)
+static void create_path(struct viewfs *vfs,char *path)
 {
-	char *s=path+1;
+	char *s=path+(vfs->sourcelen+1); /* avoid the path to the source dir */
 	while (*s) {
 		if (*s=='/') {
 			*s=0;
@@ -175,7 +179,6 @@ static int copyfile (char *oldpath, char *newpath, size_t truncate)
 	char buf[4096];
 	size_t outsize=0;
 
-	create_path(newpath);
 	if (stat(oldpath,&oldstat)==0) {
 		if (S_ISDIR(oldstat.st_mode)) {
 			close(fdin);
@@ -209,10 +212,10 @@ static char *unwrap(struct viewfs *vfs,char *path)
 }
 
 /* path of the hidden file for wipeouts (and rights) */
-static inline char *wipeunwrap(struct viewfs *vfs,char *path)
+static inline char *wipeunwrap(struct viewfs *vfs,char *path,char *ext)
 {
 	char *wipefile;
-	asprintf(&wipefile,"%s/.-%s",vfs->source,path+vfs->pathlen);
+	asprintf(&wipefile,"%s/.-%s%s",vfs->source,path+vfs->pathlen,ext);
 	return wipefile;
 }
 
@@ -220,7 +223,7 @@ static inline char *wipeunwrap(struct viewfs *vfs,char *path)
 static inline int isdeleted (struct viewfs *vfs,char *path)
 {
 	if (vfs->flags & VIEWFS_MERGE) {
-		char *wipefile=wipeunwrap(vfs,path);
+		char *wipefile=wipeunwrap(vfs,path,"");
 		struct stat64 buf;
 		int rv=lstat64(wipefile,&buf);
 		rv=(rv==0 && S_ISREG(buf.st_mode));
@@ -237,7 +240,7 @@ static inline void wipeunlink (struct viewfs *vfs,char *path)
 	int erno=errno;
 	if (vfs->flags & VIEWFS_COW) {
 		char *realfile=unwrap(vfs,path);
-		char *wipefile=wipeunwrap(vfs,path);
+		char *wipefile=wipeunwrap(vfs,path,"");
 		if (unlink(wipefile) >= 0)
 			destroy_path(vfs,wipefile,1);
 		free(wipefile);
@@ -245,22 +248,250 @@ static inline void wipeunlink (struct viewfs *vfs,char *path)
 	errno=erno;
 }
 
+static void create_vpath(struct viewfs *vfs,char *oldpath,char *path);
 /* wipe out a file */
 static inline int wipeoutfile (struct viewfs *vfs,char *path)
 {
 	int rv=0;
 	if (vfs->flags & VIEWFS_COW) {
 		char *realfile=unwrap(vfs,path);
-		char *wipefile=wipeunwrap(vfs,path);
-		create_path(realfile);
-		create_path(wipefile);
+		char *wipefile=wipeunwrap(vfs,path,"");
+		char *infofile=wipeunwrap(vfs,path,INFOEXT);
+		create_vpath(vfs,path,realfile);
+		create_path(vfs,wipefile);
 		/* DELETE OTHER info */
-		unlink(wipefile);
+		unlink(infofile);
 		rv=mknod(wipefile,S_IFREG|0666,0);
 		free(realfile);
 		free(wipefile);
+		free(infofile);
 	}
 	return rv;
+}
+
+static inline void deleteinfo (struct viewfs *vfs,char *path)
+{
+	int rv=0;
+	if (vfs->flags & VIEWFS_COW && vfs->flags & VIEWFS_VSTAT) {
+		char *infofile=wipeunwrap(vfs,path,INFOEXT);
+		if(unlink(infofile)>=0)
+			destroy_path(vfs,infofile,1);
+		free(infofile);
+	}
+}
+
+static inline unsigned int new_encode_dev(dev_t dev)
+{
+	unsigned major = major(dev);
+	unsigned minor = minor(dev);
+	return (minor & 0xff) | (major << 8) | ((minor & ~0xff) << 12);
+}
+
+static inline dev_t new_decode_dev(unsigned int dev)
+{
+	unsigned major = (dev & 0xfff00) >> 8;
+	unsigned minor = (dev & 0xff) | ((dev >> 12) & 0xfff00);
+	return makedev(major, minor);
+}
+
+static void gethexstat(struct viewfs *vfs,char *path,struct stat64 *st)
+{ 
+	char *infofile;
+	char hexstat[60];
+	int len;
+	
+#ifdef FILEINFO
+	int fd;
+  infofile=wipeunwrap(vfs,path,INFOEXT);
+	if ((fd=open(infofile,O_RDONLY))>=0 && (len=read(fd,hexstat,60)) >= 24) {
+#else
+	infofile=wipeunwrap(vfs,path,INFOEXT);
+	if ((len=readlink(infofile,hexstat,60)) >= 24) {
+#endif
+		if (*hexstat != ' ') {
+			mode_t mode;
+			sscanf(hexstat,"%08x",&mode);
+			if (mode & S_IFMT)
+				st->st_mode = mode;
+			else
+				st->st_mode = (st->st_mode & S_IFMT) | mode;
+		}
+		if (hexstat[8] != ' ') 
+			sscanf(hexstat+8,"%08x",&st->st_uid);
+		if (hexstat[16] != ' ') 
+			sscanf(hexstat+16,"%08x",&st->st_gid);
+		if (len>24) {
+		  unsigned int kdev;	
+			sscanf(hexstat+24,"%08x",&kdev);
+			st->st_rdev=new_decode_dev(kdev);
+		}
+#ifdef FILEINFO
+		close(fd);
+#endif
+	}
+	free(infofile);
+}
+
+static void hexencode32(char *s,unsigned int v)
+{
+	static char hex[]={'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
+	int i,j;
+	for (i=0,j=7;i<8;i++,j--,v>>=4)
+		s[j]=hex[v&0xf];
+}
+
+static void puthexstat(struct viewfs *vfs,char *path,
+		mode_t mode, uid_t uid, gid_t gid, dev_t rdev)
+{
+	char *infofile;
+	char hexstat[60];
+	int len;
+#ifdef FILEINFO
+	int fd;
+	infofile=wipeunwrap(vfs,path,INFOEXT);
+	create_path(vfs,infofile);
+	if ((fd=open(infofile,O_RDWR|O_CREAT,0644))<0 || (len=read(fd,hexstat,60)) < 24) 
+	{
+		memset(hexstat,' ',24);
+		hexstat[24]=0;
+		len=24;
+	}
+#else
+	infofile=wipeunwrap(vfs,path,INFOEXT);
+	if ((len=readlink(infofile,hexstat,60)) >= 24)
+		unlink(infofile);
+	else {
+		memset(hexstat,' ',24);
+		hexstat[24]=0;
+	}
+#endif
+	if (mode) {
+		if ((mode & S_IFMT) == 0 && len >= 24) {
+			mode_t oldmode;
+			sscanf(hexstat,"%08x",&oldmode);
+			mode |= oldmode & S_IFMT;
+		}
+		hexencode32(hexstat,mode);
+	}
+	if (uid != -1) 
+		hexencode32(hexstat+8,uid);
+	if (gid != -1) 
+		hexencode32(hexstat+16,gid);
+	if (rdev) {
+		unsigned int kdev=new_encode_dev(rdev);
+		hexencode32(hexstat+24,kdev);
+		hexstat[32]=0;
+		len=32;
+	}
+#ifdef FILEINFO
+	pwrite(fd,hexstat,len,0);
+	close(fd);
+#else
+	create_path(vfs,infofile);
+	//printk("%x %d %d %d=%s=\n",mode,uid,gid,rdev,hexstat);
+	symlink(hexstat,infofile);
+#endif
+	free(infofile);
+}
+
+static void new_vstat(struct viewfs *vfs,char *path,mode_t mode,dev_t dev)
+{
+	uid_t euid;
+	gid_t egid;
+	um_mod_getresuid(NULL,&euid,NULL);
+	um_mod_getresgid(NULL,&egid,NULL);
+	//printk("new_vstat %s\n",path);
+	if (euid != xuid || egid != xgid || dev != 0 || mode != 0) {
+		puthexstat(vfs,path,mode,
+				(euid == xuid)? -1:euid,
+				(egid == xgid)? -1:egid,
+				dev);
+	}
+}
+
+/* the file move/link/rename so permissions must follow it */
+static void copy_vvstat(struct viewfs *vfs,
+		char *oldvpath, char *newvpath, /* pathnames as seen by users */
+		char *oldpath,char *newpath) /* these must exist, as seen by the system */
+{
+	struct stat64 stold;
+	struct stat64 stnew;
+	/*printk("copy_vvstat %s->%s %s->%s %d->%d\n",oldvpath,newvpath,oldpath,newpath,
+			lstat64(oldpath,&stold),lstat64(newpath,&stnew));*/
+	if (lstat64(oldpath,&stold) == 0 && lstat64(newpath,&stnew) == 0) {
+		gethexstat(vfs,oldvpath,&stold); /* update for virtual vstat */
+		if (stold.st_mode&0777 != stnew.st_mode&0777) {
+			if (chmod(newpath,stold.st_mode)==0)
+				stnew.st_mode = stnew.st_mode&(~0777) | stold.st_mode&0777;
+		}
+		if (stold.st_uid != stnew.st_uid || stold.st_gid != stnew.st_gid) {
+			if (chown(newpath,
+						(stold.st_uid==stnew.st_uid)?-1:stold.st_uid,
+						(stold.st_gid==stnew.st_gid)?-1:stold.st_gid)==0) {
+				stnew.st_uid = stold.st_uid;
+				stnew.st_gid = stold.st_gid;
+			}
+		}
+		if (stold.st_mode != stnew.st_mode || stold.st_uid != stnew.st_uid || stold.st_gid != stnew.st_gid) 
+			puthexstat(vfs,newvpath,
+					(stold.st_mode==stnew.st_mode)?0:stold.st_mode,
+					(stold.st_uid==stnew.st_uid)?-1:stold.st_uid,
+					(stold.st_gid==stnew.st_gid)?-1:stold.st_gid,
+					0);
+	}
+}
+
+/* create a path (and set up permissions and owner/group if vstat */
+static void create_vpath(struct viewfs *vfs,char *path,char *vfspath)
+{
+	if (vfs->flags & VIEWFS_VSTAT) {
+		char *s=vfspath+(vfs->sourcelen+1);
+		char *t=path+(vfs->pathlen+1);
+		int mode=0777 & ~getumaskx();
+		//printk("create_vpath %s %s %s %s\n",path,vfspath,s,t);
+		while (*s) {
+			if (*s=='/') {
+				*s=0;
+				if (mkdir(vfspath,mode) == 0) {
+					struct stat64 stold;
+					int rv;
+					*t=0;
+					rv=lstat64(path,&stold);
+					if (stold.st_mode & 07777 != mode)
+						chmod(vfspath,stold.st_mode);
+					if (rv==0 && (stold.st_uid != xuid || stold.st_gid != xgid))
+						puthexstat(vfs,path,0,
+								(stold.st_uid == xuid)? -1:stold.st_uid,
+								(stold.st_gid == xgid)? -1:stold.st_gid ,
+								0);
+					*t='/';
+				}
+				*s='/';
+			}
+			s++;
+			t++;
+		}
+	} else
+		create_path(vfs,vfspath);
+}
+
+/* rename virtual to virtual simply move the infofile */
+static void copy_vvlinkrename(struct viewfs *vfs, int (*linkrename)(),
+		char *oldvpath, char *newvpath)
+{
+	char *oldinfo=wipeunwrap(vfs,oldvpath,INFOEXT);
+	char *newinfo=wipeunwrap(vfs,newvpath,INFOEXT);
+	linkrename(oldinfo,newinfo);
+	free(oldinfo);
+	free(newinfo);
+}
+
+/* copy from the real to the real world. The file does not move
+	 (as seen from the users) */
+static inline void copy_vstat(struct viewfs *vfs,
+		char *oldpath,char *newpath) {
+	//printk("copy_vstat %s %s\n",oldpath,newpath);
+	copy_vvstat(vfs,oldpath,oldpath,oldpath,newpath);
 }
 
 static inline int cownoenterror(struct viewfs *vfs,char *path,char *vfspath)
@@ -307,28 +538,39 @@ static int open_exception(struct viewfs *vfs, char *path, long flags)
 		if (wok<0 && errno==ENOENT)
 			realexists=0;
 		if (realexists) {
-			if (wok)
-				rv= 1;
-			else
+			if (wok == 0) /* wok==0 means writable */
 				rv= 0;
+			else
+				rv= 1;
 		} else {
-			if (flags & O_CREAT) {
-				char tmpch;
-				char *tmpchp;
-				int wok_parent; /* can write real parent dir*/
-				for (tmpchp=path+(strlen(path)-1); *tmpchp!='/' && tmpchp>path; tmpchp--)
-					;
-				if (tmpchp==path) tmpchp++;
-				tmpch=*tmpchp; /*tricky temporary change path into parent's path */
-				*tmpchp='\0';
-				wok_parent=access(path,W_OK);
-				*tmpchp=tmpch;
-				if (wok_parent)
-					rv= 1;
-				else
-					rv= 0;
-			} else
-				rv= 1; /* error case open !CREAT nonexistent file */
+			rv=0;
+			if (vfs->flags & VIEWFS_VSTAT) {
+				uid_t euid;
+				gid_t egid;
+				um_mod_getresuid(NULL,&euid,NULL);
+				um_mod_getresgid(NULL,&egid,NULL);
+				if (euid != xuid || egid != xgid)
+					rv=1;
+			}
+			if (rv==0) {
+				if (flags & O_CREAT) {
+					char tmpch;
+					char *tmpchp;
+					int wok_parent; /* can write real parent dir*/
+					for (tmpchp=path+(strlen(path)-1); *tmpchp!='/' && tmpchp>path; tmpchp--)
+						;
+					if (tmpchp==path) tmpchp++;
+					tmpch=*tmpchp; /*tricky temporary change path into parent's path */
+					*tmpchp='\0';
+					wok_parent=access(path,W_OK);
+					*tmpchp=tmpch;
+					if (wok_parent == 0) /* means writable */
+						rv= 0;
+					else
+						rv= 1;
+				} else
+					rv= 1; /* error case open !CREAT nonexistent file */
+			}
 		}
 	} else if (vfs->flags & VIEWFS_COW) /* COW but not MIN */
 		rv= 1;
@@ -365,8 +607,8 @@ static inline int isexception(char *path, int pathlen, char **exceptions, struct
 		/* chdir to real dir when possible (is a dir & accessible) */
 		if (sysno==__NR_chdir || sysno==__NR_fchdir) {
 			int rv;
-			rv=file_isdir(path) && (access(path,X_OK)==0);
-			//printk("chdir %s %d %d\n",path,file_isdir(path),access(path,X_OK));
+			rv=S_ISDIR(file_exist(path)) && (access(path,X_OK)==0);
+			//printk("chdir %s %d %d\n",path,S_ISDIR(file_exist(path)),access(path,X_OK));
 			return rv;
 		}
 		/* MERGE + COW */
@@ -376,7 +618,7 @@ static inline int isexception(char *path, int pathlen, char **exceptions, struct
 				return 0;
 			} else {
 				/* all rare and non-dangerous calls gets managed by the modules
-				 * *but* the fastfysset */
+				 * *but* the fastsysset */
 				if (FD_ISSET(sysno,&fastsysset)) {
 					struct stat64 buf;
 					char *vfspath=unwrap(vfs,path);
@@ -451,16 +693,22 @@ static long viewfs_open(char *path, int flags, mode_t mode)
 	struct viewfs *vfs = um_mod_get_private_data();
 	char *vfspath=unwrap(vfs,path);
 	int rv;
+	int cownewfile=0;
 	if (vfs->flags & VIEWFS_DEBUG)
 		printk("VIEWFS_OPEN %s->%s 0%o\n",path,vfspath,flags);
 	/*printk("OPEN  %s %s %d %d 0%o\n",
 			path,vfspath,file_exist(vfspath),isdeleted(vfs,path),flags);*/
+	/* ACCMODE means O_WRONLY or O_RDWR - not O_RDONLY */
 	if ((flags & O_ACCMODE) && (vfs->flags & VIEWFS_COW)) {
-		create_path(vfspath);
+		create_vpath(vfs,path,vfspath);
 		/* is not in cow but it exists, copy it! */
-		if (!file_exist(vfspath) && 
-				file_exist(path) && !isdeleted(vfs,path)) {
-			copyfile(path,vfspath,(flags & O_TRUNC)?0:MAXSIZE);
+		if (!file_exist(vfspath)) {
+			if (file_exist(path) && !isdeleted(vfs,path)) {
+				rv=copyfile(path,vfspath,(flags & O_TRUNC)?0:MAXSIZE);
+				if (rv >= 0 && (vfs->flags & VIEWFS_VSTAT))
+					copy_vstat(vfs,path,vfspath);
+			} else if (flags & O_CREAT)
+				cownewfile=1;
 		}
 		rv=open(vfspath,flags,mode);
 	} else
@@ -468,7 +716,7 @@ static long viewfs_open(char *path, int flags, mode_t mode)
 	if (rv >= 0) {
 		wipeunlink(vfs,path);
 		if ((vfs->flags & VIEWFS_MERGE) &&
-				((flags & O_DIRECTORY) || file_isdir(vfspath))) {
+				((flags & O_DIRECTORY) || S_ISDIR(file_exist(vfspath)))) {
 			struct viewfsdir *vfsdir=malloc(sizeof(struct viewfsdir));
 			vfsdir->vfs=vfs;
 			vfsdir->fd=rv;
@@ -479,6 +727,8 @@ static long viewfs_open(char *path, int flags, mode_t mode)
 			viewfs_opendirs=vfsdir;
 			FD_SET(rv,&viewfs_dirset);
 		}
+		if (cownewfile)
+			new_vstat(vfs,path,0,0);
 	}
 	free(vfspath);
 	return rv;
@@ -500,10 +750,16 @@ static long viewfs_truncate64(char *path, loff_t length)
 					if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
 						rv=truncate64(path,length);
 						if (rv<0) {
+							create_path(vfs,vfspath);
 							rv=copyfile(path,vfspath,length);
+							if (rv >= 0 && (vfs->flags & VIEWFS_VSTAT))
+								copy_vstat(vfs,path,vfspath);
 						}
 					} else { /* COW  !MIN */
+						create_path(vfs,vfspath);
 						rv=copyfile(path,vfspath,length);
+						if (rv >= 0 && (vfs->flags & VIEWFS_VSTAT))
+							copy_vstat(vfs,path,vfspath);
 					}
 				}
 			} else { /* MERGE */
@@ -544,18 +800,36 @@ static long viewfs_link(char *oldpath, char *newpath)
 				if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
 					rv=link(thisoldpath,newpath);
 					if (rv<0) {
-						create_path(vfsnewpath);
+						create_vpath(vfs,newpath,vfsnewpath);
 						rv=link(thisoldpath,vfsnewpath);
-						if (rv<0)
+						//printk("link %s-%s -> %d\n",thisoldpath,vfsnewpath,rv);
+						if (rv<0) {
 							rv=copyfile(thisoldpath,vfsnewpath,MAXSIZE);
-						if (rv>=0) wipeunlink(vfs,newpath);
+							if (rv>=0) {
+								wipeunlink(vfs,newpath);
+								if (vfs->flags & VIEWFS_VSTAT)
+									copy_vvstat(vfs,oldpath,newpath,thisoldpath,vfsnewpath);
+							}
+						} else {
+							wipeunlink(vfs,newpath);
+							copy_vvlinkrename(vfs,link,oldpath,newpath);
+						}
 					}
 				} else { /* COW but not MIN */
-					create_path(vfsnewpath);
+					create_vpath(vfs,newpath,vfsnewpath);
 					rv=link(thisoldpath,vfsnewpath);
-					if (rv<0)
+					//printk("link %s-%s -> %d\n",thisoldpath,vfsnewpath,rv);
+					if (rv<0) {
 						rv=copyfile(thisoldpath,vfsnewpath,MAXSIZE);
-					if (rv>=0) wipeunlink(vfs,newpath);
+						if (rv>=0) {
+							wipeunlink(vfs,newpath);
+							if (vfs->flags & VIEWFS_VSTAT)
+								copy_vvstat(vfs,oldpath,newpath,thisoldpath,vfsnewpath);
+						}
+					} else {
+						wipeunlink(vfs,newpath);
+						copy_vvlinkrename(vfs,link,oldpath,newpath);
+					}
 				}
 			} else { /* MERGE */
 				rv=link(thisoldpath,newpath);
@@ -574,7 +848,7 @@ static long viewfs_rename(char *oldpath, char *newpath)
 	struct viewfs *vfs = um_mod_get_private_data();
 	char *vfsnewpath=unwrap(vfs,newpath);
 	int rv=0;
-	//printk("rename %s %s %s\n",oldpath, newpath, vfsnewpath);
+	/*printk("rename %s %s %s\n",oldpath, newpath, vfsnewpath);*/
 	if (vfs->flags & VIEWFS_MERGE) {
 		char *vfsoldpath=unwrap(vfs,oldpath);
 		char *thisoldpath;
@@ -584,37 +858,59 @@ static long viewfs_rename(char *oldpath, char *newpath)
 			thisoldpath=oldpath;
 		else {
 			errno=ENOENT;
+			free(vfsnewpath);
+			free(vfsoldpath);
 			return -1;
 		}
 		if (vfs->flags & VIEWFS_COW) {
 			if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
 				rv=rename(thisoldpath,newpath);
 				if (rv<0) {
-					create_path(vfsnewpath);
+					create_vpath(vfs,newpath,vfsnewpath);
 					rv=rename(thisoldpath,vfsnewpath);
-					if (rv<0)
+					if (rv<0) {
 						rv=copyfile(thisoldpath,vfsnewpath,MAXSIZE);
-					if (rv>=0) {
+						if (rv>=0) {
+							wipeunlink(vfs,newpath);
+							if (vfs->flags & VIEWFS_VSTAT)
+								copy_vvstat(vfs,oldpath,newpath,thisoldpath,vfsnewpath);
+						}
+					} else {
 						wipeunlink(vfs,newpath);
+						if (vfs->flags & VIEWFS_VSTAT)
+							copy_vvlinkrename(vfs,rename,oldpath,newpath);
+					}
+					if (rv>=0) {
 						if(thisoldpath==vfsoldpath)
 							unlink(vfsoldpath);
 						if(file_exist(oldpath))
 							wipeoutfile(vfs,oldpath);
 					}
+					/*printk("rename %s %s %d\n",oldpath,newpath,rv);*/
 				}
 			} else { /* COW but not MIN */
-				create_path(vfsnewpath);
+				create_vpath(vfs,newpath,vfsnewpath);
 				rv=rename(thisoldpath,vfsnewpath);
-				if (rv<0)
+				if (rv<0) {
 					rv=copyfile(thisoldpath,vfsnewpath,MAXSIZE);
-				if (rv>=0) {
+					if (rv>=0) {
+						wipeunlink(vfs,newpath);
+						if (vfs->flags & VIEWFS_VSTAT)
+							copy_vvstat(vfs,oldpath,newpath,thisoldpath,vfsnewpath);
+					}
+				} else {
 					wipeunlink(vfs,newpath);
+					if (vfs->flags & VIEWFS_VSTAT)
+						copy_vvlinkrename(vfs,link,oldpath,newpath);
+				}
+				if (rv>=0) {
 					if(thisoldpath==vfsoldpath)
 						unlink(vfsoldpath);
 					if(file_exist(oldpath))
 						wipeoutfile(vfs,oldpath);
 				}
 			}
+			if (rv>=0) deleteinfo(vfs,oldpath);
 		} else { /* MERGE */
 			rv=rename(thisoldpath,newpath);
 		}
@@ -674,6 +970,8 @@ static long viewfs_stat64(char *path, struct stat64 *buf)
 	int rv= stat64(vfspath,buf);
 	if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
 		rv= stat64(path,buf);
+	if ((vfs->flags & VIEWFS_VSTAT) && rv==0)
+		gethexstat(vfs,path,buf);
 	if (vfs->flags & VIEWFS_DEBUG)
 		printk("VIEWFS_STAT %s->%s rv %d\n",path,vfspath,rv);
 	free(vfspath);
@@ -697,6 +995,8 @@ static long viewfs_lstat64(char *path, struct stat64 *buf)
 			 - the (real) dir is protected. So the error is converted to ENOENT */
 		if (errno==EACCES) errno=ENOENT;
 	}
+	if ((vfs->flags & VIEWFS_VSTAT) && rv==0)
+		gethexstat(vfs,path,buf);
 	if (vfs->flags & VIEWFS_DEBUG)
 		printk("VIEWFS_LSTAT %s->%s rv %d\n",path,vfspath,rv);
 	free(vfspath);
@@ -759,14 +1059,18 @@ static long viewfs_mkdir(char *path, int mode)
 				if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
 					rv=mkdir(path,mode);
 					if (rv<0) {
-						create_path(vfspath);
+						create_vpath(vfs,path,vfspath);
 						rv=mkdir(vfspath,mode);
 						if (rv>=0) wipeunlink(vfs,path);
 					}
+					if (rv >= 0 && (vfs->flags & VIEWFS_VSTAT))
+						new_vstat(vfs,path,0,0);
 				} else { /* COW but not MIN */
-					create_path(vfspath);
+					create_vpath(vfs,path,vfspath);
 					rv=mkdir(vfspath,mode);
 					if (rv>=0) wipeunlink(vfs,path);
+					if (rv >= 0 && (vfs->flags & VIEWFS_VSTAT))
+						new_vstat(vfs,path,0,0);
 				}
 			} else { /* MERGE */
 				rv=mkdir(path,mode);
@@ -774,6 +1078,46 @@ static long viewfs_mkdir(char *path, int mode)
 		}
 	} else /* MOVE */
 		rv=mkdir(vfspath,mode);
+	free(vfspath);
+	return rv;
+}
+
+static int viewfs_mknod(char *path, mode_t mode, dev_t dev)
+{
+	struct viewfs *vfs = um_mod_get_private_data();
+	int rv=0;
+	char *vfspath=unwrap(vfs,path);
+	if (vfs->flags & VIEWFS_DEBUG)
+		printk("VIEWFS_MKNOD %s->%s \n",path,vfspath);
+	if (vfs->flags & VIEWFS_MERGE) {
+		if ((rv=cowexisterror(vfs,path,vfspath))==0) { /* EEXIST */
+			if (vfs->flags & VIEWFS_COW) {
+				if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
+					rv=mknod(path,mode,dev);
+					if (rv<0) {
+						create_vpath(vfs,path,vfspath);
+						rv=mknod(vfspath,mode,dev);
+						if (rv<0) 
+							rv=mknod(vfspath,mode&0777|S_IFREG,0);
+						if (rv>=0) wipeunlink(vfs,path);
+					}
+					if (rv >= 0 && (vfs->flags & VIEWFS_VSTAT))
+						new_vstat(vfs,path,mode& ~getumaskx(),dev);
+				} else { /* COW but not MIN */
+					create_vpath(vfs,path,vfspath);
+					rv=mknod(vfspath,mode,dev);
+					if (rv<0) 
+						rv=mknod(vfspath,mode&0777|S_IFREG,0);
+					if (rv>=0) wipeunlink(vfs,path);
+					if (rv >= 0 && (vfs->flags & VIEWFS_VSTAT))
+						new_vstat(vfs,path,mode& ~getumaskx(),dev);
+				}
+			} else { /* MERGE */
+				rv=mknod(path,mode,dev);
+			}
+		}
+	} else /* MOVE */
+		rv=mknod(vfspath,mode,dev);
 	free(vfspath);
 	return rv;
 }
@@ -791,14 +1135,18 @@ static long viewfs_symlink(char *oldpath, char *newpath)
 				if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
 					rv=symlink(oldpath,newpath);
 					if (rv<0) {
-						create_path(vfspath);
+						create_vpath(vfs,newpath,vfspath);
 						rv=symlink(oldpath,vfspath);
 						if (rv>=0) wipeunlink(vfs,newpath);
 					}
+					if (rv >= 0 && (vfs->flags & VIEWFS_VSTAT))
+						new_vstat(vfs,newpath,0,0);
 				} else { /* COW but not MIN */
-					create_path(vfspath);
+					create_vpath(vfs,newpath,vfspath);
 					rv=symlink(oldpath,vfspath);
 					if (rv>=0) wipeunlink(vfs,newpath);
+					if (rv >= 0 && (vfs->flags & VIEWFS_VSTAT))
+						new_vstat(vfs,oldpath,0,0);
 				}
 			} else { /* MERGE */
 				rv=symlink(oldpath,newpath);
@@ -846,6 +1194,8 @@ static long viewfs_unlink(char *path)
 						errno=saverrno;
 					}
 				}
+				if (rv>=0)
+					deleteinfo(vfs,path);
 			} else { /* MERGE */
 				if (file_exist(vfspath)) {
 #ifdef MERGEROFS
@@ -973,6 +1323,8 @@ static long viewfs_rmdir(char *path)
 						errno=saverrno;
 					}
 				}
+				if (rv>=0)
+					deleteinfo(vfs,path);
 			} else { /* MERGE */
 				if (file_exist(vfspath)) {
 #ifdef MERGEROFS
@@ -994,6 +1346,24 @@ static long viewfs_rmdir(char *path)
 	return rv;
 }
 
+static int vchmod(struct viewfs *vfs, char *path,
+		char *vfspath, mode_t mode, int copy)
+{
+	if (vfs->flags & VIEWFS_VSTAT) {
+		if (chmod(vfspath,mode) < 0)
+			chmod(vfspath,mode&0777);
+		puthexstat(vfs,path,mode,-1,-1,0);
+		errno = 0;
+		return 0;
+	} else {
+		if (copy) {
+			create_vpath(vfs,path,vfspath);
+			copyfile(path,vfspath,MAXSIZE);
+		}
+		return chmod(vfspath,mode);
+	}
+}
+
 /* change something ch{mod,own} / utime(s) */
 static long viewfs_chmod(char *path, int mode)
 {
@@ -1006,17 +1376,15 @@ static long viewfs_chmod(char *path, int mode)
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
 				if (file_exist(vfspath)) {/* virt file */
-					rv=chmod(vfspath,mode);
+					rv=vchmod(vfs,path,vfspath,mode,0);
 				} else {
 					if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
 						rv=chmod(path,mode);
 						if (rv<0) {
-							copyfile(path,vfspath,MAXSIZE);
-							rv=chmod(vfspath,mode);
+							rv=vchmod(vfs,path,vfspath,mode,1);
 						}
 					} else { /* COW  !MIN */
-						copyfile(path,vfspath,MAXSIZE);
-						rv=chmod(vfspath,mode);
+						rv=vchmod(vfs,path,vfspath,mode,1);
 					}
 				}
 			} else { /* MERGE */
@@ -1037,6 +1405,24 @@ static long viewfs_chmod(char *path, int mode)
 	return rv;
 }
 
+
+static int vchown(struct viewfs *vfs, int (*chownf)(), char *path,
+		char *vfspath, uid_t owner, gid_t group, int copy)
+{
+	if (vfs->flags & VIEWFS_VSTAT) {
+		chown(vfspath,owner,group);
+		puthexstat(vfs,path,0,owner,group,0);
+	} else {
+		if (copy){
+			create_vpath(vfs,path,vfspath);
+			copyfile(path,vfspath,MAXSIZE);
+		}
+		chown(vfspath,owner,group);
+	}
+	errno = 0;
+	return 0;
+}
+
 static long viewfs_chown(char *path, uid_t owner, gid_t group)
 {
 	struct viewfs *vfs = um_mod_get_private_data();
@@ -1048,22 +1434,16 @@ static long viewfs_chown(char *path, uid_t owner, gid_t group)
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
 				if (file_exist(vfspath)) {/* virt file */
-					rv=chown(vfspath,owner,group);
-					if (rv<0 && errno==EPERM)  {
-						rv=0;
-						errno=0;
-					}
+					rv=vchown(vfs,chown,path,vfspath,owner,group,0);
 				}
 				else { 
 					if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
 						rv=chown(path,owner,group);
 						if (rv<0) {
-							copyfile(path,vfspath,MAXSIZE);
-							rv=chown(vfspath,owner,group);
+							rv=vchown(vfs,chown,path,vfspath,owner,group,1);
 						}
 					} else { /* COW  !MIN */
-						copyfile(path,vfspath,MAXSIZE);
-						rv=chown(vfspath,owner,group);
+						rv=vchown(vfs,chown,path,vfspath,owner,group,1);
 					}
 				}
 			} else { /* MERGE */
@@ -1094,22 +1474,17 @@ static long viewfs_lchown(char *path, uid_t owner, gid_t group)
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
-				if (file_exist(vfspath)) /* virt file */
-					rv=lchown(vfspath,owner,group);
-					if (rv<0 && errno==EPERM)  {
-						rv=0;
-						errno=0;
-					}
+				if (file_exist(vfspath)) { /* virt file */
+					rv=vchown(vfs,lchown,path,vfspath,owner,group,0);
+				}
 				else {         
 					if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
 						rv=lchown(path,owner,group);
 						if (rv<0) {
-							copyfile(path,vfspath,MAXSIZE);
-							rv=lchown(vfspath,owner,group);
+							rv=vchown(vfs,lchown,path,vfspath,owner,group,1);
 						}
 					} else { /* COW  !MIN */
-						copyfile(path,vfspath,MAXSIZE);
-						rv=lchown(vfspath,owner,group);
+						rv=vchown(vfs,lchown,path,vfspath,owner,group,1);
 					}
 				}
 			} else { /* MERGE */
@@ -1137,7 +1512,7 @@ static long viewfs_utimes(char *path, struct timeval *tv)
 	int rv=0;
 	char *vfspath=unwrap(vfs,path);
 	if (vfs->flags & VIEWFS_DEBUG)
-		printk("VIEWFS_UTIMES %s->%s %ld %ld\n",path,(tv)?vfspath,tv[0].tv_sec:0,(tv)?tv[1].tv_sec:0);
+		printk("VIEWFS_UTIMES %s->%s %ld %ld\n",path,vfspath,(tv)?tv[0].tv_sec:0,(tv)?tv[1].tv_sec:0);
 	if (vfs->flags & VIEWFS_MERGE) {
 		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
 			if (vfs->flags & VIEWFS_COW) {
@@ -1147,11 +1522,17 @@ static long viewfs_utimes(char *path, struct timeval *tv)
 					if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
 						rv=utimes(path,tv);
 						if (rv<0) {
-							copyfile(path,vfspath,MAXSIZE);
+							create_path(vfs,vfspath);
+							rv=copyfile(path,vfspath,MAXSIZE);
+							if (rv >= 0 && (vfs->flags & VIEWFS_VSTAT))
+								copy_vstat(vfs,path,vfspath);
 							rv=utimes(vfspath,tv);
 						}
 					} else { /* COW  !MIN */
-						copyfile(path,vfspath,MAXSIZE);
+						create_path(vfs,vfspath);
+						rv=copyfile(path,vfspath,MAXSIZE);
+						if (rv >= 0 && (vfs->flags & VIEWFS_VSTAT))
+							copy_vstat(vfs,path,vfspath);
 						rv=utimes(vfspath,tv);
 					}
 				}
@@ -1266,7 +1647,7 @@ static struct umdirent *umfilldirinfo(int fd,char *mergepath,struct viewfs *vfs)
 	/* add the entries of the destination dir*/
 	struct umdirent *result=umadddirinfo(fd,NULL,0,*(mergepath+real_pathlen(vfs))==0);
 	if (vfs->flags & VIEWFS_MERGE) {
-		char *wipedir=wipeunwrap(vfs,mergepath);
+		char *wipedir=wipeunwrap(vfs,mergepath,"");
 		int mergefd=open(wipedir,O_RDONLY|O_DIRECTORY);
 		/* add NULL entries of the deleted files */
 		if (mergefd>=0) {
@@ -1329,7 +1710,7 @@ static long viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned i
 						current->d_type=vfsdir->dirpos->de.d_type;
 						strcpy(current->d_name,vfsdir->dirpos->de.d_name);
 						/* workaround: some FS do not set d_ino, but
-						 *          * inode 0 is special and is skipped by libc */
+						 * inode 0 is special and is skipped by libc */
 						if (current->d_ino == 0)
 							current->d_ino = 2;
 						base+=vfsdir->dirpos->de.d_reclen;
@@ -1439,6 +1820,8 @@ init (void)
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	s.virsc=(sysfun *)calloc(scmap_virscmapsize,sizeof(sysfun));
+	xuid=getuid();
+	xgid=getgid();
 	SERVICESYSCALL(s, mount, viewfs_mount);
 	SERVICESYSCALL(s, umount2, viewfs_umount2);
 	SERVICESYSCALL(s, open, viewfs_open);
@@ -1486,6 +1869,7 @@ init (void)
 	SERVICESYSCALL(s, pread64, pread64);
 	SERVICESYSCALL(s, pwrite64, pwrite64);
 	SERVICESYSCALL(s, utimes, viewfs_utimes);
+	SERVICESYSCALL(s, mknod, viewfs_mknod);
 	SERVICEVIRSYSCALL(s, msocket, viewfs_msocket);
 	s.event_subscribe=viewfs_event_subscribe;
 	FD_ZERO(&viewfs_dirset);
