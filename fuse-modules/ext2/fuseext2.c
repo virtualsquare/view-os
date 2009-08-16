@@ -1174,8 +1174,10 @@ static int ext2_chown(const char *path, uid_t owner, gid_t group)
 	if(err)
 		return -ENOENT;
 	
-	ino.i_uid = owner;
-	ino.i_gid = group;
+	if (owner != -1)
+		ino.i_uid = owner;
+	if (group != -1)
+		ino.i_gid = group;
 	err = ext2fs_write_inode(e2fs, ino_n, &ino);
 	if (err) {
 #ifdef DEBUG
