@@ -460,7 +460,6 @@ init (void)
 	SERVICESYSCALL(s, read, ummisc_read);
 	SERVICESYSCALL(s, write, ummisc_write);
 	SERVICESYSCALL(s, close, ummisc_close);
-	//SERVICESYSCALL(s, stat64, ummisc_stat64);
 	SERVICESYSCALL(s, lstat64, ummisc_lstat64);
 	SERVICESYSCALL(s, fcntl64, ummisc_fcntl64);
 	SERVICESYSCALL(s, fsync, ummisc_fsync);

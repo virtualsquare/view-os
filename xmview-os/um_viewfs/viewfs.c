@@ -963,26 +963,6 @@ static long viewfs_statfs64(char *path, struct statfs64 *buf)
 	return rv;
 }
 
-#if 0
-static long viewfs_stat64(char *path, struct stat64 *buf)
-{
-	struct viewfs *vfs = um_mod_get_private_data();
-	char *vfspath=unwrap(vfs,path);
-	int rv= stat64(vfspath,buf);
-	if (rv<0 && errno==ENOENT && (vfs->flags & VIEWFS_MERGE) && !isdeleted(vfs,path)) 
-		rv= stat64(path,buf);
-	if ((vfs->flags & VIEWFS_VSTAT) && rv==0)
-		gethexstat(vfs,path,buf);
-	if (vfs->flags & VIEWFS_DEBUG)
-		printk("VIEWFS_STAT %s->%s rv %d\n",path,vfspath,rv);
-	free(vfspath);
-	if (rv==0 && vfs->flags & VIEWFS_WOK)
-		buf->st_mode |= 0222;
-	//printk("viewfs_stat64 %s rv=%d\n",path,rv);
-	return rv;
-}
-#endif
-
 static long viewfs_lstat64(char *path, struct stat64 *buf)
 {
 	struct viewfs *vfs = um_mod_get_private_data();
@@ -1425,49 +1405,6 @@ static int vchown(struct viewfs *vfs, int (*chownf)(), char *path,
 	return 0;
 }
 
-#if 0
-static long viewfs_chown(char *path, uid_t owner, gid_t group)
-{
-	struct viewfs *vfs = um_mod_get_private_data();
-	int rv=0;
-	char *vfspath=unwrap(vfs,path);
-	if (vfs->flags & VIEWFS_DEBUG)
-		printk("VIEWFS_CHOWN %s->%s %d %d\n",path,vfspath,owner,group);
-	if (vfs->flags & VIEWFS_MERGE) {
-		if ((rv=cownoenterror(vfs,path,vfspath))==0) { /* ENOENT */
-			if (vfs->flags & VIEWFS_COW) {
-				if (file_exist(vfspath)) {/* virt file */
-					rv=vchown(vfs,chown,path,vfspath,owner,group,0);
-				}
-				else { 
-					if (vfs->flags & VIEWFS_MINCOW) { /* MINCOW */
-						rv=chown(path,owner,group);
-						if (rv<0) {
-							rv=vchown(vfs,chown,path,vfspath,owner,group,1);
-						}
-					} else { /* COW  !MIN */
-						rv=vchown(vfs,chown,path,vfspath,owner,group,1);
-					}
-				}
-			} else { /* MERGE */
-				if (file_exist(vfspath)) {
-#ifdef MERGEROFS
-					rv=-1;
-					errno=EROFS;
-#else
-					rv=chown(vfspath,owner,group);
-#endif
-				} else
-					rv=chown(path,owner,group);
-			}
-		}
-	} else /* MOVE */
-		rv=chown(vfspath,owner,group);
-	free(vfspath);
-	return rv;
-}
-#endif
-
 static long viewfs_lchown(char *path, uid_t owner, gid_t group)
 {
 	struct viewfs *vfs = um_mod_get_private_data();
@@ -1833,11 +1770,9 @@ init (void)
 	SERVICESYSCALL(s, write, write);
 	SERVICESYSCALL(s, close, viewfs_close);
 #if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have these
-	//SERVICESYSCALL(s, stat64, viewfs_stat64);
 	SERVICESYSCALL(s, lstat64, viewfs_lstat64);
 	SERVICESYSCALL(s, statfs64, viewfs_statfs64);
 #else
-	//SERVICESYSCALL(s, stat, viewfs_stat64);
 	SERVICESYSCALL(s, lstat, viewfs_lstat64);
 	SERVICESYSCALL(s, statfs, viewfs_statfs64);
 #endif
@@ -1854,7 +1789,6 @@ init (void)
 	SERVICESYSCALL(s, lseek,  viewfs_lseek);
 	SERVICESYSCALL(s, mkdir, viewfs_mkdir);
 	SERVICESYSCALL(s, rmdir, viewfs_rmdir);
-	//SERVICESYSCALL(s, chown, viewfs_chown);
 	SERVICESYSCALL(s, lchown, viewfs_lchown);
 	SERVICESYSCALL(s, chmod, viewfs_chmod);
 	SERVICESYSCALL(s, unlink, viewfs_unlink);

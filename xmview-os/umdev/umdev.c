@@ -625,7 +625,7 @@ static int stat2stat64(struct stat64 *s64, struct stat *s)
 	return 0;
 }
 
-static int common_stat64(struct umdev *fc, char type, dev_t device, struct stat64 *buf64)
+static inline int common_stat64(struct umdev *fc, char type, dev_t device, struct stat64 *buf64)
 {
 	int rv;
 	assert(fc != NULL);
@@ -650,16 +650,6 @@ static int common_stat64(struct umdev *fc, char type, dev_t device, struct stat6
 	} else
 		return rv;
 }
-
-/*
-static long umdev_stat64(char *path, struct stat64 *buf64)
-{
-	dev_t device;
-	int type;
-	struct umdev *umdev=um_mod_get_private_data();
-	type=set_dev(&device,umdev,path);
-	return common_stat64(umdev,type,device,buf64);
-}*/
 
 static long umdev_lstat64(char *path, struct stat64 *buf64)
 {
@@ -969,28 +959,13 @@ init (void)
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	SERVICESYSCALL(s, mount, umdev_mount);
-#if 0
-#if ! defined(__x86_64__)
-	SERVICESYSCALL(s, umount, umdev_umount2); /* umount must be mapped onto umount2 */
-#endif
-#endif
 	SERVICESYSCALL(s, umount2, umdev_umount2);
 	SERVICESYSCALL(s, open, umdev_open);
-#if 0
-	SERVICESYSCALL(s, creat, umdev_open); /*creat is an open with (O_CREAT|O_WRONLY|O_TRUNC)*/
-#endif
 	SERVICESYSCALL(s, read, umdev_read);
 	SERVICESYSCALL(s, write, umdev_write);
 	SERVICESYSCALL(s, close, umdev_close);
-#if 0
-	SERVICESYSCALL(s, stat, umdev_stat);
-	SERVICESYSCALL(s, lstat, umdev_lstat);
-	SERVICESYSCALL(s, fstat, umdev_fstat);
-#endif
 #if !defined(__x86_64__)
-	//SERVICESYSCALL(s, stat64, umdev_stat64);
 	SERVICESYSCALL(s, lstat64, umdev_lstat64);
-	//SERVICESYSCALL(s, fstat64, umdev_fstat64);
 #else
 	SERVICESYSCALL(s, lstat, umdev_lstat64);
 #endif
@@ -1001,9 +976,7 @@ init (void)
 #endif
 	//SERVICESYSCALL(s, mknod, umdev_mknod);
 	SERVICESYSCALL(s, lchown, umdev_lchown);
-	//SERVICESYSCALL(s, fchown, fchown);
 	SERVICESYSCALL(s, chmod, umdev_chmod);
-	//SERVICESYSCALL(s, fchmod, fchmod);
 	SERVICESYSCALL(s, fsync, umdev_fsync); 
 	//SERVICESYSCALL(s, _newselect, umdev_select);
 	SERVICESYSCALL(s, ioctl, umdev_ioctl); 

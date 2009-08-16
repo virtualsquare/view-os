@@ -606,12 +606,10 @@ static long umfuse_mount(char *source, char *target, char *filesystemtype,
 		errno=ENODEV;
 		return -1;
 	} else {
-		//struct fuse_context *mountpointfc = searchcontext(target,SUBSTR);
 		struct fuse_context *new = (struct fuse_context *)
 			malloc(sizeof(struct fuse_context));
 		struct startmainopt smo;
 		assert(new);
-		//if (mountpointfc != NULL) mountpointfc->fuse->inuse++; /* this must be moved in hashtab*/
 		new->fuse = (struct fuse *)malloc(sizeof(struct fuse));
 		assert(new->fuse);
 		new->fuse->path = strdup(target);
@@ -678,10 +676,6 @@ static void umfuse_umount_internal(struct fuse_context *fc, int flags)
 	char *ppath;
 	ht_tab_invalidate(um_mod_get_hte());
 	fc_norace->pid=um_mod_getpid();
-	//ppath=get_parent_path (target);
-	//struct fuse_context *mountpointfc = searchcontext(ppath,SUBSTR);
-	//free(ppath);
-	//if (mountpointfc != NULL) mountpointfc->fuse->inuse--;
 	//printk("umount %s\n",target);
 	if (fc_norace->fuse->flags & FUSE_DEBUG) {
 		GMESSAGE("UMOUNT => path:%s flag:%d",target, flags);
@@ -1213,7 +1207,7 @@ static inline unsigned long hashnodeid (const char *s) {
 	return sum;
 }
 
-static int common_stat(char *path,  struct stat *buf,int wrapped)
+static inline int common_stat(char *path,  struct stat *buf)
 {
 	int rv;
 	struct fuse_context *fc=um_mod_get_private_data();
@@ -1221,8 +1215,7 @@ static int common_stat(char *path,  struct stat *buf,int wrapped)
 	assert(fc != NULL);
 	fc->pid=um_mod_getpid();
 	memset(buf, 0, sizeof(struct stat));
-	rv = fc->fuse->fops.getattr(
-			(wrapped)?unwrap(fc,path):path,buf);
+	rv = fc->fuse->fops.getattr(unwrap(fc,path),buf);
 	if (fc->fuse->flags & FUSE_DEBUG) {
 		GMESSAGE("%s: stat->GETATTR => path:%s status: %s Err:%d\n",
 				fc->fuse->path, path, rv ? "Error" : "Success", (rv < 0) ? -rv : 0);
@@ -1240,24 +1233,13 @@ static int common_stat(char *path,  struct stat *buf,int wrapped)
 		return rv;
 }
 
-static int common_stat64(char *path,  struct stat64 *buf64,int wrapped)
+static long umfuse_lstat64(char *path, struct stat64 *buf64)
 {
 	int rv;
 	struct stat buf;
-	if ((rv=common_stat(path,&buf,wrapped))>=0)
+	if ((rv=common_stat(path,&buf))>=0)
 		stat2stat64(buf64,&buf);
 	return rv;
-}
-
-/*
-static long umfuse_stat64(char *path, struct stat64 *buf64)
-{
-	return common_stat64(path,buf64,1);
-}*/
-
-static long umfuse_lstat64(char *path, struct stat64 *buf64)
-{
-	return common_stat64(path,buf64,1);
 }
 
 static long umfuse_readlink(char *path, char *buf, size_t bufsiz)
@@ -1474,14 +1456,6 @@ static long umfuse_lchown(char *path, uid_t owner, gid_t group)
 	} else
 		return rv;
 }
-
-/*
-static long umfuse_lchown(char *path, uid_t owner, gid_t group)
-{
-	//	Do not follow symlinks
-	//		and call chown
-}
-*/
 
 static long umfuse_unlink(char *path)
 {
@@ -1962,11 +1936,9 @@ init (void)
 	SERVICESYSCALL(s, write, umfuse_write);
 	SERVICESYSCALL(s, close, umfuse_close);
 #if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have these
-	//SERVICESYSCALL(s, stat64, umfuse_stat64);
 	SERVICESYSCALL(s, lstat64, umfuse_lstat64);
 	SERVICESYSCALL(s, statfs64, umfuse_statfs64);
 #else 
-	//SERVICESYSCALL(s, stat, umfuse_stat64);
 	SERVICESYSCALL(s, lstat, umfuse_lstat64);
 	SERVICESYSCALL(s, statfs, umfuse_statfs64);
 #endif
@@ -1982,9 +1954,7 @@ init (void)
 	SERVICESYSCALL(s, mknod, umfuse_mknod);
 	SERVICESYSCALL(s, mkdir, umfuse_mkdir);
 	SERVICESYSCALL(s, rmdir, umfuse_rmdir);
-	//SERVICESYSCALL(s, chown, umfuse_chown);
 	SERVICESYSCALL(s, lchown, umfuse_lchown);
-	//SERVICESYSCALL(s, fchown, fchown);
 	SERVICESYSCALL(s, chmod, umfuse_chmod);
 	SERVICESYSCALL(s, unlink, umfuse_unlink);
 	SERVICESYSCALL(s, fsync, umfuse_fsync); //not the syscall meaning

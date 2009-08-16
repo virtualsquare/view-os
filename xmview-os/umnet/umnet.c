@@ -693,7 +693,6 @@ init (void)
 	SERVICESYSCALL(s, read, umnet_read);
 	SERVICESYSCALL(s, write, umnet_write);
 	SERVICESYSCALL(s, close, umnet_close);
-	//SERVICESYSCALL(s, stat64, umnet_stat64);
 	SERVICESYSCALL(s, lstat64, umnet_lstat64);
 	SERVICESYSCALL(s, fcntl64, umnet_fcntl64);
 	SERVICESYSCALL(s, access, umnet_access);

@@ -726,7 +726,7 @@ static long umbinfmt_write(int fd, void *buf, size_t count)
 	}
 }
 
-static int common_stat64(struct umbinfmt *fc,struct umregister *reg, struct stat64 *buf64)
+static inline int common_stat64(struct umbinfmt *fc,struct umregister *reg, struct stat64 *buf64)
 {
 	int rv;
 	if (reg == NULL) {
@@ -756,12 +756,6 @@ static long umbinfmt_lstat64(char *path, struct stat64 *buf64)
 	struct umregister *reg=searchfile(path,umbinfmt);
 	return common_stat64(umbinfmt,reg,buf64);
 }
-
-/*
-static long umbinfmt_lstat64(char *path, struct stat64 *buf64)
-{
-	return umbinfmt_stat64(path,buf64);
-}*/
 
 static long umbinfmt_access(char *path, int mode)
 {
@@ -903,10 +897,8 @@ init (void)
 	SERVICESYSCALL(s, write, umbinfmt_write);
 	SERVICESYSCALL(s, close, umbinfmt_close);
 #if !defined(__x86_64__)
-	//SERVICESYSCALL(s, stat64, umbinfmt_stat64);
 	SERVICESYSCALL(s, lstat64, umbinfmt_lstat64);
 #else
-	//SERVICESYSCALL(s, stat, umbinfmt_stat64);
 	SERVICESYSCALL(s, lstat, umbinfmt_lstat64);
 #endif
 	SERVICESYSCALL(s, access, umbinfmt_access);
