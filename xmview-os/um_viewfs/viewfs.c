@@ -133,8 +133,8 @@ static inline mode_t getumaskx(void)
 /* Does this file exist? */
 static mode_t file_exist(char *path)
 {
-	struct stat buf;
-	if (stat(path,&buf)==0)
+	struct stat64 buf;
+	if (lstat64(path,&buf)==0)
 		return buf.st_mode;
 	else
 		return 0;
