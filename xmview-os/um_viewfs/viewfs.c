@@ -182,7 +182,7 @@ static int copyfile (char *oldpath, char *newpath, size_t truncate)
 	if (stat(oldpath,&oldstat)==0) {
 		if (S_ISDIR(oldstat.st_mode)) {
 			close(fdin);
-			errno=EPERM;
+			errno=EXDEV;
 			return -1;
 		}
 		fdout=open(newpath,O_WRONLY|O_CREAT|O_TRUNC,(oldstat.st_mode & 0777) | 0600);
