@@ -511,7 +511,7 @@ static setstat64(struct stat64 *buf64, struct umnet *um)
 	buf64->st_atime=um->sockettime;
 }
 
-static long umnet_stat64(char *path, struct stat64 *buf64)
+static long umnet_lstat64(char *path, struct stat64 *buf64)
 {
 	struct umnet *mh = um_mod_get_private_data();
 	assert(mh);
@@ -549,7 +549,7 @@ static long umnet_chmod(char *path, int mode)
 	return 0;
 }
 
-static long umnet_chown(char *path, uid_t owner, gid_t group)
+static long umnet_lchown(char *path, uid_t owner, gid_t group)
 {
 	struct umnet *mh = um_mod_get_private_data();
 	if (owner != -1)
@@ -693,12 +693,12 @@ init (void)
 	SERVICESYSCALL(s, read, umnet_read);
 	SERVICESYSCALL(s, write, umnet_write);
 	SERVICESYSCALL(s, close, umnet_close);
-	SERVICESYSCALL(s, stat64, umnet_stat64);
-	SERVICESYSCALL(s, lstat64, umnet_stat64);
+	//SERVICESYSCALL(s, stat64, umnet_stat64);
+	SERVICESYSCALL(s, lstat64, umnet_lstat64);
 	SERVICESYSCALL(s, fcntl64, umnet_fcntl64);
 	SERVICESYSCALL(s, access, umnet_access);
 	SERVICESYSCALL(s, chmod, umnet_chmod);
-	SERVICESYSCALL(s, chown, umnet_chown);
+	SERVICESYSCALL(s, lchown, umnet_lchown);
 	SERVICESYSCALL(s, ioctl, umnet_ioctl);
 	s.event_subscribe=umnet_event_subscribe;
 }

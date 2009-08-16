@@ -123,10 +123,10 @@ static long unreal_statfs64(char *pathname, struct statfs64 *buf)
 	return statfs64(unwrap(pathname),buf);
 }
 
-static long unreal_stat64(char *pathname, struct stat64 *buf)
+/*static long unreal_stat64(char *pathname, struct stat64 *buf)
 {
 	return stat64(unwrap(pathname),buf);
-}
+}*/
 
 static long unreal_lstat64(char *pathname, struct stat64 *buf)
 {
@@ -158,10 +158,10 @@ static long unreal_chmod(char *path, int mode)
 	return chmod(unwrap(path),mode);
 }
 
-static long unreal_chown(char *path, uid_t owner, gid_t group)
+/*static long unreal_chown(char *path, uid_t owner, gid_t group)
 {
 	return chown(unwrap(path),owner,group);
-}
+}*/
 
 static long unreal_lchown(char *path, uid_t owner, gid_t group)
 {
@@ -253,10 +253,10 @@ init (void)
 	SERVICESYSCALL(s, write, write);
 	SERVICESYSCALL(s, close, close);
 #if !defined(__x86_64__)
-	SERVICESYSCALL(s, stat64, unreal_stat64);
+	//SERVICESYSCALL(s, stat64, unreal_stat64);
 	SERVICESYSCALL(s, lstat64, unreal_lstat64);
 #else
-	SERVICESYSCALL(s, stat, unreal_stat64);
+	//SERVICESYSCALL(s, stat, unreal_stat64);
 	SERVICESYSCALL(s, lstat, unreal_lstat64);
 #endif
 	SERVICESYSCALL(s, readlink, unreal_readlink);
@@ -272,7 +272,7 @@ init (void)
 	SERVICESYSCALL(s, lseek,  unreal_lseek);
 	SERVICESYSCALL(s, mkdir, unreal_mkdir);
 	SERVICESYSCALL(s, rmdir, unreal_rmdir);
-	SERVICESYSCALL(s, chown, unreal_chown);
+	//SERVICESYSCALL(s, chown, unreal_chown);
 	SERVICESYSCALL(s, lchown, unreal_lchown);
 	SERVICESYSCALL(s, chmod, unreal_chmod);
 	SERVICESYSCALL(s, unlink, unreal_unlink);

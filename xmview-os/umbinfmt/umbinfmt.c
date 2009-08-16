@@ -750,17 +750,18 @@ static int common_stat64(struct umbinfmt *fc,struct umregister *reg, struct stat
 	return rv;
 }
 
-static long umbinfmt_stat64(char *path, struct stat64 *buf64)
+static long umbinfmt_lstat64(char *path, struct stat64 *buf64)
 {
 	struct umbinfmt *umbinfmt=um_mod_get_private_data();
 	struct umregister *reg=searchfile(path,umbinfmt);
 	return common_stat64(umbinfmt,reg,buf64);
 }
 
+/*
 static long umbinfmt_lstat64(char *path, struct stat64 *buf64)
 {
 	return umbinfmt_stat64(path,buf64);
-}
+}*/
 
 static long umbinfmt_access(char *path, int mode)
 {
@@ -902,10 +903,10 @@ init (void)
 	SERVICESYSCALL(s, write, umbinfmt_write);
 	SERVICESYSCALL(s, close, umbinfmt_close);
 #if !defined(__x86_64__)
-	SERVICESYSCALL(s, stat64, umbinfmt_stat64);
+	//SERVICESYSCALL(s, stat64, umbinfmt_stat64);
 	SERVICESYSCALL(s, lstat64, umbinfmt_lstat64);
 #else
-	SERVICESYSCALL(s, stat, umbinfmt_stat64);
+	//SERVICESYSCALL(s, stat, umbinfmt_stat64);
 	SERVICESYSCALL(s, lstat, umbinfmt_lstat64);
 #endif
 	SERVICESYSCALL(s, access, umbinfmt_access);
@@ -915,13 +916,6 @@ init (void)
 #endif
 	SERVICESYSCALL(s, getdents64, umbinfmt_getdents64);
 	SERVICESYSCALL(s, fcntl64, umbinfmt_fcntl64);
-	//SERVICESYSCALL(s, chown, umbinfmt_chown);
-	//SERVICESYSCALL(s, fchown, fchown);
-	//SERVICESYSCALL(s, chmod, umbinfmt_chmod);
-	//SERVICESYSCALL(s, fchmod, fchmod);
-	//SERVICESYSCALL(s, fsync, umbinfmt_fsync); 
-	//SERVICESYSCALL(s, _newselect, umbinfmt_select);
-	//SERVICESYSCALL(s, ioctl, umbinfmt_ioctl); 
 	s.event_subscribe=umbinfmt_event_subscribe;
 }
 

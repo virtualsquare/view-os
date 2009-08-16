@@ -125,8 +125,10 @@ init (void)
 	SERVICESYSCALL(s, write, write);
 	SERVICESYSCALL(s, close, close);
 #if !defined(__x86_64__)
-	SERVICESYSCALL(s, stat64, stat64);
+	//SERVICESYSCALL(s, stat64, stat64);
 	SERVICESYSCALL(s, lstat64, lstat64);
+#else
+	SERVICESYSCALL(s, lstat, lstat);
 #endif
 	SERVICESYSCALL(s, readlink, readlink);
 	SERVICESYSCALL(s, getdents64, getdents64);

@@ -54,7 +54,6 @@ static struct syscall_unifier scunify[] = {
 	{__NR_readv,	__NR_read},
 	{__NR_writev,	__NR_write},
 	{__NR_time,	  __NR_gettimeofday},
-	{__NR_fchown,	__NR_chown},
 	{__NR_fchmod,	__NR_chmod},
 #if (__NR_olduname != __NR_doesnotexist)
 	{__NR_olduname, __NR_uname},
@@ -68,10 +67,11 @@ static struct syscall_unifier scunify[] = {
 	{__NR_getpgrp,__NR_getpgid},
 #if ! defined(__x86_64__)
 	{__NR_umount,	__NR_umount2},
-	{__NR_stat,		__NR_stat64},
+	{__NR_stat,		__NR_lstat64},
 	{__NR_lstat,	__NR_lstat64},
-	{__NR_fstat,	__NR_stat64},
-	{__NR_fstat64,__NR_stat64},
+	{__NR_fstat,	__NR_lstat64},
+	{__NR_stat64, __NR_lstat64},
+	{__NR_fstat64,__NR_lstat64},
 	{__NR_getdents,	__NR_getdents64},
 	{__NR_truncate,	__NR_truncate64},
 	{__NR_ftruncate,__NR_ftruncate64},
@@ -80,6 +80,7 @@ static struct syscall_unifier scunify[] = {
 	{__NR_fstatfs64,	__NR_statfs64},
 #else
 	{__NR_fstatfs,	__NR_statfs},
+	{__NR_stat,	__NR_lstat},
 	{__NR_fstat,	__NR_stat},
 #endif 
 	{__NR_openat,	__NR_open},
@@ -91,10 +92,10 @@ static struct syscall_unifier scunify[] = {
 #endif
 	{__NR_utime,	__NR_utimes},
 #ifdef __NR_newfstatat
-	{__NR_newfstatat,	__NR_stat64},
+	{__NR_newfstatat,	__NR_lstat64},
 #endif
 #ifdef __NR_fstatat64
-	{__NR_fstatat64,	__NR_stat64},
+	{__NR_fstatat64,	__NR_lstat64},
 #endif
 	{__NR_unlinkat,	__NR_unlink},
 	{__NR_renameat,	__NR_rename},
@@ -122,13 +123,16 @@ static struct syscall_unifier scunify[] = {
 	{__NR_setfsgid, __NR_setfsgid32},
 #endif
 #if defined(__NR_chown32) && __NR_chown32 != __NR_chown
-	//{__NR_chown, __NR_chown32},
-	//{__NR_lchown, __NR_lchown32},
-	//{__NR_fchown, __NR_chown32},
-	{__NR_fchown32, __NR_chown32},
-	{__NR_fchownat, __NR_chown32},
+	{__NR_chown, __NR_lchown32},
+	{__NR_fchown, __NR_lchown32},
+	{__NR_lchown, __NR_lchown32},
+	{__NR_chown32, __NR_lchown32},
+	{__NR_fchown32, __NR_lchown32},
+	{__NR_fchownat, __NR_lchown32},
 #else
-	{__NR_fchownat, __NR_chown},
+	{__NR_chown, __NR_lchown},
+	{__NR_fchown, __NR_lchown},
+	{__NR_fchownat, __NR_lchown},
 #endif
 #ifdef SNDRCVMSGUNIFY
 #if (__NR_socketcall == __NR_doesnotexist)

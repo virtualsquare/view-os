@@ -136,7 +136,7 @@ static void setstat64(struct stat64 *buf64, int isdir)
 	buf64->st_mode=S_IFREG | 0444;
 }
 
-static long umproc_stat64(char *path, struct stat64 *buf64)
+static long umproc_lstat64(char *path, struct stat64 *buf64)
 {
 	struct umproc *mh = um_mod_get_private_data();
 	assert(mh);
@@ -204,8 +204,8 @@ init (void)
 	SERVICESYSCALL(s, open, umproc_open);
 	SERVICESYSCALL(s, read, umproc_read);
 	SERVICESYSCALL(s, close, umproc_close);
-	SERVICESYSCALL(s, stat64, umproc_stat64);
-	SERVICESYSCALL(s, lstat64, umproc_stat64);
+	//SERVICESYSCALL(s, stat64, umproc_stat64);
+	SERVICESYSCALL(s, lstat64, umproc_lstat64);
 	SERVICESYSCALL(s, fcntl64, umproc_fcntl64);
 	SERVICESYSCALL(s, fsync, umproc_fsync);
 	SERVICESYSCALL(s, access, umproc_access);

@@ -651,6 +651,7 @@ static int common_stat64(struct umdev *fc, char type, dev_t device, struct stat6
 		return rv;
 }
 
+/*
 static long umdev_stat64(char *path, struct stat64 *buf64)
 {
 	dev_t device;
@@ -658,7 +659,7 @@ static long umdev_stat64(char *path, struct stat64 *buf64)
 	struct umdev *umdev=um_mod_get_private_data();
 	type=set_dev(&device,umdev,path);
 	return common_stat64(umdev,type,device,buf64);
-}
+}*/
 
 static long umdev_lstat64(char *path, struct stat64 *buf64)
 {
@@ -743,7 +744,7 @@ static long umdev_chmod(char *path, int mode)
 	return rv;
 }
 
-static long umdev_chown(char *path, uid_t owner, gid_t group)
+static long umdev_lchown(char *path, uid_t owner, gid_t group)
 {
 	int rv;
 	struct umdev *umdev;
@@ -987,9 +988,11 @@ init (void)
 	SERVICESYSCALL(s, fstat, umdev_fstat);
 #endif
 #if !defined(__x86_64__)
-	SERVICESYSCALL(s, stat64, umdev_stat64);
+	//SERVICESYSCALL(s, stat64, umdev_stat64);
 	SERVICESYSCALL(s, lstat64, umdev_lstat64);
 	//SERVICESYSCALL(s, fstat64, umdev_fstat64);
+#else
+	SERVICESYSCALL(s, lstat, umdev_lstat64);
 #endif
 	SERVICESYSCALL(s, access, umdev_access);
 	SERVICESYSCALL(s, lseek, umdev_lseek);
@@ -997,7 +1000,7 @@ init (void)
 	SERVICESYSCALL(s, _llseek, umdev__llseek);
 #endif
 	//SERVICESYSCALL(s, mknod, umdev_mknod);
-	SERVICESYSCALL(s, chown, umdev_chown);
+	SERVICESYSCALL(s, lchown, umdev_lchown);
 	//SERVICESYSCALL(s, fchown, fchown);
 	SERVICESYSCALL(s, chmod, umdev_chmod);
 	//SERVICESYSCALL(s, fchmod, fchmod);

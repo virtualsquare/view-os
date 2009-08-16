@@ -1249,10 +1249,11 @@ static int common_stat64(char *path,  struct stat64 *buf64,int wrapped)
 	return rv;
 }
 
+/*
 static long umfuse_stat64(char *path, struct stat64 *buf64)
 {
 	return common_stat64(path,buf64,1);
-}
+}*/
 
 static long umfuse_lstat64(char *path, struct stat64 *buf64)
 {
@@ -1443,7 +1444,7 @@ static long umfuse_chmod(char *path, int mode)
 	return rv;
 }
 
-static long umfuse_chown(char *path, uid_t owner, gid_t group)
+static long umfuse_lchown(char *path, uid_t owner, gid_t group)
 {
 	struct fuse_context *fc = um_mod_get_private_data();
 	int rv=0;
@@ -1474,11 +1475,13 @@ static long umfuse_chown(char *path, uid_t owner, gid_t group)
 		return rv;
 }
 
+/*
 static long umfuse_lchown(char *path, uid_t owner, gid_t group)
 {
 	//	Do not follow symlinks
 	//		and call chown
 }
+*/
 
 static long umfuse_unlink(char *path)
 {
@@ -1959,11 +1962,11 @@ init (void)
 	SERVICESYSCALL(s, write, umfuse_write);
 	SERVICESYSCALL(s, close, umfuse_close);
 #if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have these
-	SERVICESYSCALL(s, stat64, umfuse_stat64);
+	//SERVICESYSCALL(s, stat64, umfuse_stat64);
 	SERVICESYSCALL(s, lstat64, umfuse_lstat64);
 	SERVICESYSCALL(s, statfs64, umfuse_statfs64);
 #else 
-	SERVICESYSCALL(s, stat, umfuse_stat64);
+	//SERVICESYSCALL(s, stat, umfuse_stat64);
 	SERVICESYSCALL(s, lstat, umfuse_lstat64);
 	SERVICESYSCALL(s, statfs, umfuse_statfs64);
 #endif
@@ -1979,8 +1982,8 @@ init (void)
 	SERVICESYSCALL(s, mknod, umfuse_mknod);
 	SERVICESYSCALL(s, mkdir, umfuse_mkdir);
 	SERVICESYSCALL(s, rmdir, umfuse_rmdir);
-	SERVICESYSCALL(s, chown, umfuse_chown);
-	//SERVICESYSCALL(s, lchown, umfuse_lchown);
+	//SERVICESYSCALL(s, chown, umfuse_chown);
+	SERVICESYSCALL(s, lchown, umfuse_lchown);
 	//SERVICESYSCALL(s, fchown, fchown);
 	SERVICESYSCALL(s, chmod, umfuse_chmod);
 	SERVICESYSCALL(s, unlink, umfuse_unlink);

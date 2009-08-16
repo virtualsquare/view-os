@@ -242,7 +242,7 @@ static setstat64(struct stat64 *buf64, int isdir)
 	buf64->st_size=MISCFILESIZE;
 }
 
-static long ummisc_stat64(char *path, struct stat64 *buf64)
+static long ummisc_lstat64(char *path, struct stat64 *buf64)
 {
 	//struct ummisc *mh = searchmisc(path,SUBSTR);
 	struct ummisc *mh = um_mod_get_private_data();
@@ -460,8 +460,8 @@ init (void)
 	SERVICESYSCALL(s, read, ummisc_read);
 	SERVICESYSCALL(s, write, ummisc_write);
 	SERVICESYSCALL(s, close, ummisc_close);
-	SERVICESYSCALL(s, stat64, ummisc_stat64);
-	SERVICESYSCALL(s, lstat64, ummisc_stat64);
+	//SERVICESYSCALL(s, stat64, ummisc_stat64);
+	SERVICESYSCALL(s, lstat64, ummisc_lstat64);
 	SERVICESYSCALL(s, fcntl64, ummisc_fcntl64);
 	SERVICESYSCALL(s, fsync, ummisc_fsync);
 	SERVICESYSCALL(s, access, ummisc_access);
