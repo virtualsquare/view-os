@@ -673,7 +673,6 @@ void lfd_deregister_n_close(struct pcb_file *p, int fd)
 	//assert(fd < p->nolfd && p->lfdlist[fd] != -1);
 	if (p->lfdlist != NULL && fd < p->nolfd && p->lfdlist[fd] >= 0) {
 		//printk("lfd_deregister_n_close LFD %d\n",FD2LFD(p,fd));
-		printk("lfd_deregister_n_close %p\n",um_mod_get_hte());
 		lfd_close(FD2LFD(p,fd));
 		p->lfdlist[fd] = -1;
 	}
