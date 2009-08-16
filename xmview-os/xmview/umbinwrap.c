@@ -126,7 +126,7 @@ int main(int argc,char* argv[])
 	newargv[i+sargc]=0;
 #if 0
 	for (i=0;i<argc+sargc;i++)
-		printf("%d %s\n",i,newargv[i]);
+		printk("%d %s\n",i,newargv[i]);
 #endif
 	if (mmap_not_ok(newargv[1])) 
 		execv_nommap(cmd,newargv);

@@ -55,7 +55,7 @@ int wrap_in_getcwd(int sc_number,struct pcb *pc,
 		pc->retval=(long) NULL;
 		pc->erno=EFAULT;
 	} else {
-		//printf("dsys_getcwd %s\n",pc->fdfs->cwd);
+		//printk("dsys_getcwd %s\n",pc->fdfs->cwd);
 		int len;
 		char *root=um_getroot(pc);
 		char *cwd=pc->fdfs->cwd;
@@ -121,7 +121,7 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,
 int wrap_out_chdir(int sc_number,struct pcb *pc) 
 {
 	if (pc->behavior == SC_FAKE) {
-		//printf("chdir err %d\n",pc->erno);
+		//printk("chdir err %d\n",pc->erno);
 		putrv(pc->retval,pc);
 		puterrno(pc->erno,pc);
 		/* we use pc->path. it has been dup-ped already */

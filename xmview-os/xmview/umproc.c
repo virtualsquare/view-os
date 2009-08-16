@@ -378,7 +378,7 @@ void umproc_delproc(struct pcb *pc,int flags,int npcbflag)
 			for (i=0; i<p->nolfd;  i++) {
 				register int lfd=fd2lfd(p,i);
 				if (lfd >= 0) {
-					//printk("DELPROCclose pid %d fd %d LFD %d\n",pc->pid,i,lfd);
+					pc->hte=lfd_tab[lfd]->hte;
 					lfd_close(lfd);
 				}
 			}
@@ -673,6 +673,7 @@ void lfd_deregister_n_close(struct pcb_file *p, int fd)
 	//assert(fd < p->nolfd && p->lfdlist[fd] != -1);
 	if (p->lfdlist != NULL && fd < p->nolfd && p->lfdlist[fd] >= 0) {
 		//printk("lfd_deregister_n_close LFD %d\n",FD2LFD(p,fd));
+		printk("lfd_deregister_n_close %p\n",um_mod_get_hte());
 		lfd_close(FD2LFD(p,fd));
 		p->lfdlist[fd] = -1;
 	}

@@ -103,7 +103,7 @@ static void suspend_signaled(struct pcb *pc)
 	epoch_t oldepoch=um_setnestepoch(0);
 	struct seldata *sd=pc->selset;
 	if (!sd)
-		printf("UH? %d\n",pc->pid);
+		printk("suspend_signaled warning %d\n",pc->pid);
 	assert(sd);
 	assert(sd->pending);
 	struct ht_elem *hte=ht_fd(pc->fds,sd->pending[0].fd,1);
@@ -200,7 +200,7 @@ int wrap_in_select(int sc_number,struct pcb *pc,
 	/*long ptimeout=pc->sysargs[4];
 	struct timeval *lptimeout;
 	struct timeval ltimeout;*/
-	//printf("SELECT %d PID %d\n",sc_number,pc->pid);
+	//printk("SELECT %d PID %d\n",sc_number,pc->pid);
 
 	/* Does two things:
 	 * - copies the sets passed as arguments to the syscall in lfds[i]

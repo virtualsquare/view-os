@@ -75,7 +75,7 @@ int wrap_in_open(int sc_number,struct pcb *pc,
 		/* call the module's open */
 		if ((pc->retval = um_syscall(pc->path,flags,mode & ~(pc->fdfs->mask))) < 0)
 			pc->erno = errno;
-		//printf("open exit a %d %d %s\n",pc->retval,pc->erno,pc->path);
+		//printk("open exit a %d %d %s\n",pc->retval,pc->erno,pc->path);
 		if (pc->retval >= 0 && 
 				(pc->retval=lfd_open(hte,pc->retval,pc->path,flags,0)) >= 0) {
 			/* change the syscall parms, open the fifo instead of the file */
@@ -117,7 +117,7 @@ int wrap_out_open(int sc_number,struct pcb *pc) {
 	/* user mode open succeeded */
 	if (pc->retval >= 0) {
 		int fd=getrv(pc);	
-		//printf("open: true return value: %d  %d %d\n", fd,pc->retval,getscno(pc));
+		//printk("open: true return value: %d  %d %d\n", fd,pc->retval,getscno(pc));
 		/* process syscall succeeded, too */
 		if (fd >= 0 &&
 				(lfd_getht(pc->retval) == NULL
@@ -138,11 +138,11 @@ int wrap_out_open(int sc_number,struct pcb *pc) {
 int wrap_in_close(int sc_number,struct pcb *pc,
 		                struct ht_elem *hte, sysfun um_syscall)
 {
-	//printf("wrap in close %d\n", pc->sysargs[0]);
+	//printk("wrap in close %d\n", pc->sysargs[0]);
 	if (hte != NULL) {
 		int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 		int lfd=fd2lfd(pc->fds,pc->sysargs[0]);
-		//printf("UM_SERVICE close %d %d %d\n",pc->sysargs[0],lfd,sfd);
+		//printk("UM_SERVICE close %d %d %d\n",pc->sysargs[0],lfd,sfd);
 		if (sfd < 0) {
 			pc->retval= -1;
 			pc->erno= EBADF;
@@ -167,7 +167,7 @@ int wrap_in_close(int sc_number,struct pcb *pc,
 int wrap_out_close(int sc_number,struct pcb *pc) 
 {
 	int lfd=fd2lfd(pc->fds,pc->sysargs[0]);
-	//printf("close %d ->%d\n",pc->sysargs[0],lfd);
+	//printk("close %d ->%d\n",pc->sysargs[0],lfd);
 	/* delete the lfd table element */
 	if (lfd>=0) {
 		struct ht_elem *hte=lfd_getht(lfd);
@@ -542,7 +542,7 @@ int wrap_in_getdents(int sc_number,struct pcb *pc,
 	long pbuf=pc->sysargs[1];
 	unsigned long bufsiz=pc->sysargs[2];
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	//printf("wrap_in_getdents(sc:%d ,pc,service:%s,syscall);\n",sc_numberervicename(hte));
+	//printk("wrap_in_getdents(sc:%d ,pc,service:%s,syscall);\n",sc_numberervicename(hte));
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
@@ -565,7 +565,7 @@ int wrap_in_getdents64(int sc_number,struct pcb *pc,
 	long pbuf=pc->sysargs[1];
 	unsigned long bufsiz=pc->sysargs[2];
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	//printf("wrap_in_getdents(sc:%d ,pc,service:%s,syscall);\n",sc_number,ht_get_servicename(hte));
+	//printk("wrap_in_getdents(sc:%d ,pc,service:%s,syscall);\n",sc_number,ht_get_servicename(hte));
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
@@ -659,7 +659,7 @@ int wrap_in_llseek(int sc_number,struct pcb *pc,
 int wrap_in_notsupp(int sc_number,struct pcb *pc,
 		                struct ht_elem *hte, sysfun um_syscall)
 {
-	//printf("wrap_in_notsupp %d\n",sc_number);
+	//printk("wrap_in_notsupp %d\n",sc_number);
 	pc->retval= -1;
 	pc->erno= EOPNOTSUPP;
 	return SC_FAKE;

@@ -545,7 +545,7 @@ int wrap_in_setsockopt(int sc_number,struct pcb *pc,
 		long poptval=pc->sysargs[3];
 		int optlen=pc->sysargs[4];
 		void *optval;
-		//printf("setsockopt fd %d level %d optname %d poptval %x optlen %d\n",pc->sysargs[0],level,optname,poptval,optlen);
+		//printk("setsockopt fd %d level %d optname %d poptval %x optlen %d\n",pc->sysargs[0],level,optname,poptval,optlen);
 		if (optlen > 0 && poptval != umNULL) { 
 			if (__builtin_expect((optlen > MAX_SOCKOPT_LEN),0))
 				optlen=MAX_SOCKOPT_LEN;
@@ -683,7 +683,7 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,
 			lmsg.msg_iov=&liovec;
 			lmsg.msg_iovlen=1;
 			char *p=lbuf;
-			//printf("SNDMSG fd %d namesize %d msg_iovlen %d msg_controllen %d total %d\n",
+			//printk("SNDMSG fd %d namesize %d msg_iovlen %d msg_controllen %d total %d\n",
 			//		pc->sysargs[0], msg.msg_namelen, msg.msg_iovlen, msg.msg_controllen, totalsize);
 			for (i=0;i<msg.msg_iovlen;i++) {
 				int qty=iovec[i].iov_len;
@@ -692,7 +692,7 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,
 			}
 			if ((size=pc->retval = um_syscall(sfd,&lmsg,flags)) < 0)
 				pc->erno=errno;
-			//printf("%d size->%d\n",sfd,size);
+			//printk("%d size->%d\n",sfd,size);
 			lfree(lbuf,totalsize);
 		}
 	}

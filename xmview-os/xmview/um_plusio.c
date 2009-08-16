@@ -245,9 +245,13 @@ int wrap_out_dup(int sc_number,struct pcb *pc)
 				int oldlfd=fd2lfd(pc->fds,oldfd);
 				if (oldlfd >= 0) /* socket and stdin/out/err are -1*/
 				{
-					if (lfd_getht(oldlfd) != NULL)
+					/* set pc->hte: module's um_get_hte/um_get_private data may use it*/
+					/* pc->hte for newfd is saved and restored */
+					struct ht_elem *newhte=pc->hte;
+					if ((pc->hte=lfd_getht(oldlfd)) != NULL)
 						delfd(pc,pc->sysargs[1]);
 					lfd_deregister_n_close(pc->fds,oldfd);
+					pc->hte=newhte;
 				}
 			}
 			if (pc->retval >= 0)
@@ -322,7 +326,7 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 	int cmd= pc->sysargs[1];
 	unsigned long arg=pc->sysargs[2];
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	//printf("wrap_in_fcntl %d %d %d %d \n",pc->sysargs[0],sfd,cmd,fd2lfd(pc->fds,pc->sysargs[0]));
+	//printk("wrap_in_fcntl %d %d %d %d \n",pc->sysargs[0],sfd,cmd,fd2lfd(pc->fds,pc->sysargs[0]));
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
@@ -430,7 +434,7 @@ int wrap_out_fcntl(int sc_number,struct pcb *pc)
 	switch (pc->sysargs[1]) {
 		case F_DUPFD:
 			fd=getrv(pc);
-			//printf("F_DUPFD %d->%d\n",pc->retval,fd);
+			//printk("F_DUPFD %d->%d\n",pc->retval,fd);
 			if (fd>=0)
 				lfd_register(pc->fds,fd,pc->retval);
 			else
@@ -438,7 +442,7 @@ int wrap_out_fcntl(int sc_number,struct pcb *pc)
 			return STD_BEHAVIOR;
 			break;
 		default:
-			//printf("fcntl returns %d %d\n",pc->retval,pc->erno);
+			//printk("fcntl returns %d %d\n",pc->retval,pc->erno);
 			putrv(pc->retval,pc);
 			puterrno(pc->erno,pc);
 			return SC_MODICALL;

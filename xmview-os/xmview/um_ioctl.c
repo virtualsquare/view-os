@@ -93,9 +93,9 @@ int wrap_in_ioctl(int sc_number,struct pcb *pc,
 			pc->erno=errno;
 			ioctl_putarg(pc,ioctlparms & ~IOCTL_W,arg,larg);
 		}
-		/* printf("wrap_in_ioctl %d req %x arg %x parms %x -> %d\n",sfd,req,larg,ioctlparms,pc->retval);*/
+		/*printk("wrap_in_ioctl %d req %x arg %x parms %x -> %d\n",sfd,req,larg,ioctlparms,pc->retval);*/
 
-		/*printf("wrap_in_ioctl %d %d\n",pc->retval,pc->erno);*/
+		/*printk("wrap_in_ioctl %d %d\n",pc->retval,pc->erno);*/
 	}
 	return SC_FAKE;
 }

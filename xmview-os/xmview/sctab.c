@@ -602,7 +602,7 @@ void pcb_plus(struct pcb *pc,int flags,int npcflag)
 void pcb_minus(struct pcb *pc,int flags,int npcbflag)
 {
 	if (!npcbflag) {
-		//printf("pcb_desctructor %d\n",pc->pid);
+		//printk("pcb_desctructor %d\n",pc->pid);
 #if 0
 		/* delete all the file descriptors */
 		lfd_delproc(pc->fds);
@@ -737,7 +737,7 @@ struct ht_elem *choice_path(int sc_number,struct pcb *pc)
 	if (pc->path==um_patherror){
 		/*		char buff[PATH_MAX];
 					umovestr(pc,pc->sysargs[0],PATH_MAX,buff);
-					fprintf(stderr,"um_patherror: %s",buff);*/
+					printk("um_patherror: %s",buff);*/
 		return NULL;
 	}
 	else 
@@ -776,7 +776,7 @@ struct ht_elem *choice_sockpath(int sc_number,struct pcb *pc)
 		if (pc->path==um_patherror){
 			/*		char buff[PATH_MAX];
 						umovestr(pc,pc->sysargs[0],PATH_MAX,buff);
-						fprintf(stderr,"um_patherror: %s",buff);*/
+						printk("um_patherror: %s",buff);*/
 			return NULL;
 		} else
 			return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
@@ -788,7 +788,7 @@ struct ht_elem *choice_sockpath(int sc_number,struct pcb *pc)
 struct ht_elem *choice_link(int sc_number,struct pcb *pc)
 {
 	pc->path=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&(pc->pathstat),1); 
-	//printf("choice_path %d %s\n",sc_number,pc->path);
+	//printk("choice_path %d %s\n",sc_number,pc->path);
 	if (pc->path==um_patherror)
 		return NULL;
 	else 
@@ -867,7 +867,7 @@ struct ht_elem *choice_link2(int sc_number,struct pcb *pc)
 		link=1;
 
 	pc->path=um_abspath(AT_FDCWD,pc->sysargs[1],pc,&(pc->pathstat),link); 
-	//printf("choice_path %d %s\n",sc_number,pc->path);
+	//printk("choice_path %d %s\n",sc_number,pc->path);
 	if (pc->path==um_patherror)
 		return NULL;
 	else 
@@ -877,7 +877,7 @@ struct ht_elem *choice_link2(int sc_number,struct pcb *pc)
 struct ht_elem *choice_link2at(int sc_number,struct pcb *pc)
 {
 	pc->path=um_abspath(pc->sysargs[1],pc->sysargs[2],pc,&(pc->pathstat),1); 
-	//printf("choice_path %d %s\n",sc_number,pc->path);
+	//printk("choice_path %d %s\n",sc_number,pc->path);
 	if (pc->path==um_patherror)
 		return NULL;
 	else
@@ -887,7 +887,7 @@ struct ht_elem *choice_link2at(int sc_number,struct pcb *pc)
 struct ht_elem *choice_link3at(int sc_number,struct pcb *pc)
 {
 	pc->path=um_abspath(pc->sysargs[2],pc->sysargs[3],pc,&(pc->pathstat),1); 
-	//printf("choice_path %d %s\n",sc_number,pc->path);
+	//printk("choice_path %d %s\n",sc_number,pc->path);
 	if (pc->path==um_patherror)
 		return NULL;
 	else
