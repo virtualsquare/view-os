@@ -181,8 +181,7 @@ static int rd_ioctl(char type, dev_t device, int req, void * arg, struct dev_inf
 			case BLKGETSIZE: *(int *)arg = ramdisk->rd_size * 
 											    ((ramdisk->flags & MBR)?1:STD_SECTORSIZE);
 											 break;
-			case BLKGETSIZE64: *(long long *)arg = ramdisk->rd_size *
-											    ((ramdisk->flags & MBR)?1:STD_SECTORSIZE);
+			case BLKGETSIZE64: *(long long *)arg = ramdisk->rd_size * STD_SECTORSIZE;
 												 break;
 			case HDIO_GETGEO: {
 													struct hd_geometry *hdg = arg;

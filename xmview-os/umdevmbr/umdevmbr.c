@@ -177,7 +177,7 @@ static int hdmbr_ioctl(char type, dev_t device, int req, void * arg, struct dev_
 		case BLKGETSIZE64: {
 												 int partno=minor(device)-minor(umdev_getbasedev(di->devhandle));
 												 if (partno==0)
-													 *(long long *)arg = (mbr->size >> IDE_BLOCKSIZE_LOG);
+													 *(long long *)arg = mbr->size;
 												 else { /* access a partition */
 													 struct partition *partition=mbr->part[partno-1];
 													 if (partition) 
