@@ -573,16 +573,18 @@ void pcb_plus(struct pcb *pc,int flags,int npcflag)
 				/* set the initial uid */
 				r_getresuid(&pc->ruid,&pc->euid,&pc->suid);
 				r_getresgid(&pc->rgid,&pc->egid,&pc->sgid);
+				pc->fsuid=pc->euid;
+				pc->fsgid=pc->egid;
 				pc->hte=NULL;
 			} else {
 				pc->fdfs->cwd=strdup(pc->pp->fdfs->cwd);
 				pc->fdfs->root=strdup(pc->pp->fdfs->root);
 				pc->fdfs->mask=pc->pp->fdfs->mask;
 				pc->ruid=pc->pp->ruid;
-				pc->euid=pc->pp->euid;
+				pc->euid=pc->fsuid=pc->pp->euid;
 				pc->suid=pc->pp->suid;
 				pc->rgid=pc->pp->rgid;
-				pc->egid=pc->pp->egid;
+				pc->egid=pc->fsgid=pc->pp->egid;
 				pc->sgid=pc->pp->sgid;
 				pc->hte=pc->pp->hte;
 			}
@@ -1142,6 +1144,28 @@ int um_mod_setresgid(gid_t rgid, gid_t egid, gid_t sgid)
 		if (rgid != -1) pc->rgid=rgid;
 		if (egid != -1) pc->egid=egid;
 		if (sgid != -1) pc->sgid=sgid;
+		return 0;
+	} else
+		return -1;
+}
+
+int um_mod_getfs_uid_gid(uid_t *fsuid, gid_t *fsgid)
+{
+	struct pcb *pc=get_pcb();
+	if (pc) {
+		if (fsuid) *fsuid=pc->fsuid;
+		if (fsgid) *fsgid=pc->fsgid;
+		return 0;
+	} else
+		return -1;
+}
+
+int um_mod_setfs_uid_gid(uid_t fsuid, gid_t fsgid)
+{
+	struct pcb *pc=get_pcb();
+	if (pc) {
+		if (fsuid != -1) pc->fsuid=fsuid;
+		if (fsgid != -1) pc->fsgid=fsgid;
 		return 0;
 	} else
 		return -1;

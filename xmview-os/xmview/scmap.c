@@ -69,7 +69,7 @@ wrapinfun wrap_in_statfs64, wrap_in_fstatfs64;
 wrapinfun wrap_in_mmap,wrap_in_mremap,wrap_in_munmap;
 #endif
 wrapinfun wrap_in_kill;
-wrapinfun wrap_in_getxid16,wrap_in_setuid16, wrap_in_setgid16;
+wrapinfun wrap_in_getxid16;
 wrapinfun wrap_in_getxid,wrap_in_setuid,wrap_in_setreuid;
 wrapinfun wrap_in_getresuid, wrap_in_setresuid,wrap_in_setgid;
 wrapinfun wrap_in_getresgid, wrap_in_setresgid,wrap_in_setregid;
@@ -296,16 +296,16 @@ struct sc_map scmap[]={
 
 	/* user mgmt calls */
 	{__NR_getuid,	choice_sc,	wrap_in_getxid16, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
-	{__NR_setuid,	choice_sc,	wrap_in_setuid16, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
+	{__NR_setuid,	choice_sc,	wrap_in_setuid, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
 	{__NR_geteuid,	choice_sc,	wrap_in_getxid16, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
 	{__NR_setfsuid,	choice_sc,	wrap_in_setuid, wrap_out_std, 	always_null,	NULL, 0,	1, SOC_UID},
 	{__NR_setreuid,	choice_sc,	wrap_in_setreuid, wrap_out_std, 	always_null,	NULL, ALWAYS,	2, SOC_UID},
 	{__NR_getresuid, choice_sc,	wrap_in_getresuid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	{__NR_setresuid, choice_sc,	wrap_in_setresuid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	{__NR_getgid,	choice_sc,	wrap_in_getxid16, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
-	{__NR_setgid,	choice_sc,	wrap_in_setgid16, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
+	{__NR_setgid,	choice_sc,	wrap_in_setgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
 	{__NR_getegid,	choice_sc,	wrap_in_getxid16, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
-	{__NR_setfsgid,	choice_sc,	wrap_in_setgid16, wrap_out_std, 	always_null,	NULL, 0,	1, SOC_UID},
+	{__NR_setfsgid,	choice_sc,	wrap_in_setgid, wrap_out_std, 	always_null,	NULL, 0,	1, SOC_UID},
 	{__NR_setregid,	choice_sc,	wrap_in_setregid, wrap_out_std, 	always_null,	NULL, ALWAYS,	2, SOC_UID},
 	{__NR_getresgid, choice_sc,	wrap_in_getresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	{__NR_setresgid, choice_sc,	wrap_in_setresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},

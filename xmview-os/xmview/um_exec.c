@@ -190,12 +190,12 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 	/* management of set[ug]id executables */
 	if (pc->pathstat.st_mode & S_ISUID) {
 		pc->suid=pc->euid;
-		pc->euid=pc->pathstat.st_uid;
+		pc->euid=pc->fsuid=pc->pathstat.st_uid;
 	} else if (pc->ruid == pc->euid)
 		pc->suid=pc->ruid;
 	if (pc->pathstat.st_mode & S_ISGID) {
 		pc->sgid=pc->egid;
-		pc->egid=pc->pathstat.st_gid;
+		pc->egid=pc->fsgid=pc->pathstat.st_gid;
 	} else if (pc->rgid == pc->egid)
 		pc->sgid=pc->rgid;
 	if (strcmp(pc->path,"/bin/mount") == 0 || 
@@ -338,8 +338,8 @@ int wrap_out_execve(int sc_number,struct pcb *pc)
 	//printk("wrap_out_execve %d\n",pc->retval);
 	/* The tmp file gets automagically deleted (see sctab.c) */
 	if (pc->retval < 0) {
-		pc->euid=pc->suid;
-		pc->egid=pc->sgid;
+		pc->euid=pc->fsuid=pc->suid;
+		pc->egid=pc->fsgid=pc->sgid;
 		putrv(pc->retval,pc);
 		puterrno(pc->erno,pc);
 		return SC_MODICALL;

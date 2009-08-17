@@ -398,8 +398,10 @@ static void new_vstat(struct viewfs *vfs,char *path,mode_t mode,dev_t dev)
 {
 	uid_t euid;
 	gid_t egid;
-	um_mod_getresuid(NULL,&euid,NULL);
-	um_mod_getresgid(NULL,&egid,NULL);
+	/* fs rights must be used here, usually fsuid and fsgid 
+		 are the same of euid/egid but users could use
+		 set_fsuid/setfsgid */
+	um_mod_getfs_uid_gid(&euid,&egid);
 	//printk("new_vstat %s\n",path);
 	if (euid != xuid || egid != xgid || dev != 0 || mode != 0) {
 		puthexstat(vfs,path,mode,
@@ -547,8 +549,8 @@ static int open_exception(struct viewfs *vfs, char *path, long flags)
 			if (vfs->flags & VIEWFS_VSTAT) {
 				uid_t euid;
 				gid_t egid;
-				um_mod_getresuid(NULL,&euid,NULL);
-				um_mod_getresgid(NULL,&egid,NULL);
+				/* fs ids  (more precise than effective ids) */
+				um_mod_getfs_uid_gid(&euid,&egid);
 				if (euid != xuid || egid != xgid)
 					rv=1;
 			}
@@ -1005,7 +1007,7 @@ static long viewfs_access(char *path, int mode)
 {
 	struct viewfs *vfs = um_mod_get_private_data();
 	uid_t euid;
-	um_mod_getresuid(NULL,&euid,NULL);
+	um_mod_getfs_uid_gid(&euid,NULL);
 	if (euid==0) {
 		if (vfs->flags & VIEWFS_DEBUG)
 			printk("VIEWFS_ACCESS %s ROOT ACCESS\n",path);

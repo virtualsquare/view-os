@@ -68,20 +68,12 @@ struct misc_call misc_calls[]={
 	{__NR_setdomainname,"misc_setdomainname"},
 
 	/* user mgmt calls */
-	{__NR_getuid,"misc_getuid"},
-	{__NR_setuid,"misc_setuid"},
-	{__NR_geteuid,"misc_geteuid"},
-	{__NR_setfsuid,"misc_setfsuid"},
-	{__NR_setreuid,"misc_setreuid"},
 	{__NR_getresuid,"misc_getresuid"},
 	{__NR_setresuid,"misc_setresuid"},
-	{__NR_getgid,"misc_getgid"},
-	{__NR_setgid,"misc_setgid"},
-	{__NR_getegid,"misc_getegid"},
-	{__NR_setfsgid,"misc_setfsgid"},
-	{__NR_setregid,"misc_setregid"},
 	{__NR_getresgid,"misc_getresgid"},
 	{__NR_setresgid,"misc_setresgid"},
+	{__NR_setfsuid,"misc_setfsuid"},
+	{__NR_setfsgid,"misc_setfsgid"},
 
 	/* priority related calls */
 #ifdef __NR_nice
@@ -166,30 +158,10 @@ static int umm_setdomainname(const char *name, size_t len) {
 	assert (mh != NULL);
 	return getfun(mh,__NR_setdomainname)(name,len,mh);
 }
-static uid_t umm_getuid(void) {
-	struct ummisc *mh = um_mod_get_private_data();
-	assert (mh != NULL);
-	return getfun(mh,__NR_getuid)(mh);
-}
-static int umm_setuid(uid_t uid) {
-	struct ummisc *mh = um_mod_get_private_data();
-	assert (mh != NULL);
-	return getfun(mh,__NR_setuid)(uid,mh);
-}
-static uid_t umm_geteuid(void) {
-	struct ummisc *mh = um_mod_get_private_data();
-	assert (mh != NULL);
-	return getfun(mh,__NR_geteuid)(mh);
-}
 static int umm_setfsuid(uid_t fsuid) {
 	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_setfsuid)(fsuid,mh);
-}
-static int umm_setreuid(uid_t ruid, uid_t euid) {
-	struct ummisc *mh = um_mod_get_private_data();
-	assert (mh != NULL);
-	return getfun(mh,__NR_setreuid)(ruid,euid,mh);
 }
 static int umm_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid) {
 	struct ummisc *mh = um_mod_get_private_data();
@@ -201,30 +173,10 @@ static int umm_setresuid(uid_t ruid, uid_t euid, uid_t suid) {
 	assert (mh != NULL);
 	return getfun(mh,__NR_setresuid)(ruid,euid,suid,mh);
 }
-static gid_t umm_getgid(void) {
-	struct ummisc *mh = um_mod_get_private_data();
-	assert (mh != NULL);
-	return getfun(mh,__NR_getgid)(mh);
-}
-static int umm_setgid(gid_t gid) {
-	struct ummisc *mh = um_mod_get_private_data();
-	assert (mh != NULL);
-	return getfun(mh,__NR_setgid)(gid,mh);
-}
-static gid_t umm_getegid(void) {
-	struct ummisc *mh = um_mod_get_private_data();
-	assert (mh != NULL);
-	return getfun(mh,__NR_getegid)(mh);
-}
 static int umm_setfsgid(uid_t fsgid) {
 	struct ummisc *mh = um_mod_get_private_data();
 	assert (mh != NULL);
 	return getfun(mh,__NR_getegid)(fsgid,mh);
-}
-static int umm_setregid(gid_t rgid, gid_t egid) {
-	struct ummisc *mh = um_mod_get_private_data();
-	assert (mh != NULL);
-	return getfun(mh,__NR_setregid)(rgid,egid,mh);
 }
 static int umm_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid) {
 	struct ummisc *mh = um_mod_get_private_data();
@@ -319,18 +271,10 @@ void initmuscno(struct service *s)
 	SERVICESYSCALL(*s,getdomainname, umm_getdomainname);
 #endif
 	SERVICESYSCALL(*s,setdomainname,umm_setdomainname);
-	SERVICESYSCALL(*s,getuid, umm_getuid);
-	SERVICESYSCALL(*s,setuid, umm_setuid);
-	SERVICESYSCALL(*s,geteuid, umm_geteuid);
 	SERVICESYSCALL(*s,setfsuid, umm_setfsuid);
-	SERVICESYSCALL(*s,setreuid, umm_setreuid);
 	SERVICESYSCALL(*s,getresuid, umm_getresuid);
 	SERVICESYSCALL(*s,setresuid, umm_setresuid);
-	SERVICESYSCALL(*s,getgid, umm_getgid);
-	SERVICESYSCALL(*s,setgid, umm_setgid);
-	SERVICESYSCALL(*s,getegid, umm_getegid);
 	SERVICESYSCALL(*s,setfsgid, umm_setfsgid);
-	SERVICESYSCALL(*s,setregid, umm_setregid);
 	SERVICESYSCALL(*s,getresgid, umm_getresgid);
 	SERVICESYSCALL(*s,setresgid, umm_setresgid);
 #ifdef __NR_nice

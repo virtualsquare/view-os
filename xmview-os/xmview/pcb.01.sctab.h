@@ -17,8 +17,8 @@ epoch_t nestepoch;
 /* path for tmp files that must be deleted over the next syscall */
 /* see execve mgmt */
 void *tmpfile2unlink_n_free;
-uid_t ruid,euid,suid;
-gid_t rgid,egid,sgid;
+uid_t ruid,euid,suid,fsuid;
+gid_t rgid,egid,sgid,fsgid;
 int private_scno;
 #endif
 

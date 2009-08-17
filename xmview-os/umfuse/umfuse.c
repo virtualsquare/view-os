@@ -141,8 +141,8 @@ struct fuse_context *fuse_get_context(void)
 	//struct ht_elem *hte=um_mod_get_hte();
 	//printk("fuse_get_context %p %p \n",hte,hte->private_data);
 	struct fuse_context *context=um_mod_get_private_data();
-	um_mod_getresuid(NULL,&(context->uid),NULL);
-	um_mod_getresgid(NULL,&(context->gid),NULL);
+	/* fs ids are more consistent than effective ids */
+	um_mod_getfs_uid_gid(&(context->uid),&(context->gid));
 	context->pid=um_mod_getpid();
 	return um_mod_get_private_data();
 }
