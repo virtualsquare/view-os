@@ -49,7 +49,10 @@ wrapinfun wrap_in_select, wrap_in_poll, wrap_in_ioctl;
 wrapinfun wrap_in_readv, wrap_in_writev;
 wrapinfun wrap_in_stat, wrap_in_fstat;
 wrapinfun wrap_in_stat64, wrap_in_fstat64;
-wrapinfun wrap_in_getxattr;
+wrapinfun wrap_in_getxattr,wrap_in_fgetxattr;
+wrapinfun wrap_in_setxattr,wrap_in_fsetxattr;
+wrapinfun wrap_in_listxattr,wrap_in_flistxattr;
+wrapinfun wrap_in_removexattr,wrap_in_fremovexattr;
 wrapinfun wrap_in_readlink, wrap_in_getdents,wrap_in_getdents64, wrap_in_access;
 wrapinfun wrap_in_fcntl, wrap_in_notsupp, wrap_in_llseek, wrap_in_lseek;
 wrapinfun wrap_in_mkdir, wrap_in_unlink, wrap_in_chown, wrap_in_fchown;
@@ -204,9 +207,6 @@ struct sc_map scmap[]={
 	{__NR_fchown32,	choice_fd,	wrap_in_fchown, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE|SOC_UID},
 	{__NR_chmod,	choice_path,	wrap_in_chmod, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	2, SOC_FILE},
 	{__NR_fchmod,	choice_fd,	wrap_in_fchmod, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	2, SOC_FILE},
-	{__NR_getxattr,	choice_path,	wrap_in_getxattr, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	4, SOC_FILE},
-	{__NR_lgetxattr,choice_link,	wrap_in_notsupp, wrap_out_std,	nchoice_link,	nw_notsupp, 0,	4, SOC_FILE},
-	{__NR_fgetxattr,choice_fd,	wrap_in_notsupp, wrap_out_std,	nchoice_fd,	nw_notsupp, 0,	4, SOC_FILE},
 	{__NR_readlink,	choice_link,	wrap_in_readlink,wrap_out_std,	nchoice_link,	nw_syspath_std, 0,	3, SOC_FILE},
 	{__NR_getdents,	choice_fd,	wrap_in_getdents,wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
 	{__NR_getdents64,choice_fd,	wrap_in_getdents64,wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
@@ -266,6 +266,21 @@ struct sc_map scmap[]={
 #ifdef __NR_utimensat
 	{__NR_utimensat, choice_utimensat, wrap_in_utime,  wrap_out_std, nchoice_pl4at, nw_sysatpath_std, 0, 4, SOC_FILE},
 #endif
+#endif /* __NR_openat */
+	/* ATTR */
+#ifdef __NR_getxattr
+	{__NR_getxattr,	choice_path,	wrap_in_getxattr, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	4, SOC_FILE},
+	{__NR_lgetxattr,choice_link,	wrap_in_getxattr, wrap_out_std,	nchoice_link,	nw_syspath_std, 0,	4, SOC_FILE},
+	{__NR_fgetxattr,choice_fd,	  wrap_in_fgetxattr, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	4, SOC_FILE},
+	{__NR_setxattr,	choice_path,	wrap_in_setxattr, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	5, SOC_FILE},
+	{__NR_lsetxattr,choice_link,	wrap_in_setxattr, wrap_out_std,	nchoice_link,	nw_syspath_std, 0,	5, SOC_FILE},
+	{__NR_fsetxattr,choice_fd,	  wrap_in_fsetxattr, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	5, SOC_FILE},
+	{__NR_listxattr,choice_path,	wrap_in_listxattr, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	3, SOC_FILE},
+	{__NR_llistxattr,choice_link,	wrap_in_listxattr, wrap_out_std,	nchoice_link,	nw_syspath_std, 0,	3, SOC_FILE},
+	{__NR_flistxattr,choice_fd,	  wrap_in_flistxattr, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
+	{__NR_removexattr,choice_path,	wrap_in_removexattr, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	2, SOC_FILE},
+	{__NR_lremovexattr,choice_link,	wrap_in_removexattr, wrap_out_std,	nchoice_link,	nw_syspath_std, 0,	2, SOC_FILE},
+	{__NR_fremovexattr,choice_fd,	  wrap_in_fremovexattr, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	2, SOC_FILE},
 #endif
 
 #ifdef _UM_MMAP

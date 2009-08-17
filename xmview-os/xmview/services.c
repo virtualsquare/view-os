@@ -143,6 +143,16 @@ static struct syscall_unifier scunify[] = {
 	{__NR_fchown, __NR_lchown},
 	{__NR_fchownat, __NR_lchown},
 #endif
+#ifdef __NR_getxattr
+	{__NR_lgetxattr, __NR_getxattr},
+	{__NR_fgetxattr, __NR_getxattr},
+	{__NR_lsetxattr, __NR_setxattr},
+	{__NR_fsetxattr, __NR_setxattr},
+	{__NR_llistxattr, __NR_listxattr},
+	{__NR_flistxattr, __NR_listxattr},
+	{__NR_lremovexattr, __NR_removexattr},
+	{__NR_fremovexattr, __NR_removexattr},
+#endif
 #ifdef SNDRCVMSGUNIFY
 #if (__NR_socketcall == __NR_doesnotexist)
 	{__NR_send, __NR_sendmsg},

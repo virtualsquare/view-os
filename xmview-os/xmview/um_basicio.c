@@ -470,23 +470,6 @@ int wrap_in_fstat64(int sc_number,struct pcb *pc,
 	return SC_FAKE;
 }
 
-int wrap_in_getxattr(int sc_number, struct pcb *pc,
-		struct ht_elem *hte, sysfun um_syscall)
-{
-	char *name = (char *)(pc->sysargs[1]);
-	long pbuf = pc->sysargs[2];
-	size_t size = pc->sysargs[3];
-	char *buf = lalloca(size);
-
-	if ((pc->retval = um_syscall(pc->path, name, buf, size)) >= 0)
-		ustoren(pc, pbuf, size, buf);
-	else
-		pc->erno = errno;
-
-	lfree(buf,size);
-	return SC_FAKE;
-}
-
 int wrap_in_readlink(int sc_number,struct pcb *pc,
 		                struct ht_elem *hte, sysfun um_syscall)
 {
@@ -732,3 +715,160 @@ int wrap_in_writev(int sc_number,struct pcb *pc,
 	}
 	return SC_FAKE;
 }
+
+/* ATTR management */
+#ifdef __NR_getxattr
+int wrap_in_getxattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pname = pc->sysargs[1];
+	long pbuf = pc->sysargs[2];
+	size_t size = pc->sysargs[3];
+	char name[XATTR_NAME_MAX];
+	char *buf;
+
+	if (size > XATTR_SIZE_MAX) size=XATTR_SIZE_MAX;
+	buf = alloca(size);
+
+	umovestr(pc,pname,XATTR_NAME_MAX,name);
+	if ((pc->retval = um_syscall(pc->path, name, buf, size)) >= 0)
+		ustoren(pc, pbuf, size, buf);
+	else
+		pc->erno = errno;
+
+	return SC_FAKE;
+}
+
+int wrap_in_fgetxattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pname = pc->sysargs[1];
+	long pbuf = pc->sysargs[2];
+	size_t size = pc->sysargs[3];
+	char name[XATTR_NAME_MAX];
+	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	char *buf;
+
+	if (size > XATTR_SIZE_MAX) size=XATTR_SIZE_MAX;
+	buf = alloca(size);
+
+	umovestr(pc,pname,XATTR_NAME_MAX,name);
+	if ((pc->retval = um_syscall(path, name, buf, size)) >= 0)
+		ustoren(pc, pbuf, size, buf);
+	else
+		pc->erno = errno;
+
+	return SC_FAKE;
+}
+
+
+int wrap_in_setxattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pname = pc->sysargs[1];
+	long pbuf = pc->sysargs[2];
+	size_t size = pc->sysargs[3];
+	int flags = pc->sysargs[4];
+	char name[XATTR_NAME_MAX];
+	char *buf;
+
+	if (size > XATTR_SIZE_MAX) size=XATTR_SIZE_MAX;
+	buf = alloca(size);
+
+	umovestr(pc,pname,XATTR_NAME_MAX,name);
+	umoven(pc,pbuf,size,buf);
+
+	if ((pc->retval = um_syscall(pc->path, name, buf, size, flags)) < 0)
+		pc->erno = errno;
+
+	return SC_FAKE; 
+}
+
+int wrap_in_fsetxattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pname = pc->sysargs[1];
+	long pbuf = pc->sysargs[2];
+	size_t size = pc->sysargs[3];
+	int flags = pc->sysargs[4];
+	char name[XATTR_NAME_MAX];
+	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	char *buf;
+
+	if (size > XATTR_SIZE_MAX) size=XATTR_SIZE_MAX;
+	buf = alloca(size);
+
+	umovestr(pc,pname,XATTR_NAME_MAX,name);
+	umoven(pc,pbuf,size,buf);
+
+	if ((pc->retval = um_syscall(path, name, buf, size, flags)) < 0)
+		pc->erno = errno;
+
+	return SC_FAKE; 
+}
+
+int wrap_in_listxattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pbuf = pc->sysargs[1];
+	size_t size = pc->sysargs[2];
+	char *buf;
+
+	if (size > XATTR_LIST_MAX) size=XATTR_LIST_MAX;
+	buf = alloca(size);
+
+	if ((pc->retval = um_syscall(pc->path, buf, size)) >= 0)
+		ustoren(pc, pbuf, size, buf);
+	else
+		pc->erno = errno;
+
+	return SC_FAKE;
+}
+
+
+int wrap_in_flistxattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pbuf = pc->sysargs[1];
+	size_t size = pc->sysargs[2];
+	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	char *buf;
+
+	if (size > XATTR_LIST_MAX) size=XATTR_LIST_MAX;
+	buf = alloca(size);
+
+	if ((pc->retval = um_syscall(path, buf, size)) >= 0)
+		ustoren(pc, pbuf, size, buf);
+	else
+		pc->erno = errno;
+
+	return SC_FAKE;
+}
+
+int wrap_in_removexattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pname = pc->sysargs[1];
+	char name[XATTR_NAME_MAX];
+
+	umovestr(pc,pname,XATTR_NAME_MAX,name);
+	if ((pc->retval = um_syscall(pc->path, name)) < 0)
+		pc->erno = errno;
+
+	return SC_FAKE;
+}
+
+int wrap_in_fremovexattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pname = pc->sysargs[1];
+	char name[XATTR_NAME_MAX];
+	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+
+	umovestr(pc,pname,XATTR_NAME_MAX,name);
+	if ((pc->retval = um_syscall(path, name)) < 0)
+		pc->erno = errno;
+
+	return SC_FAKE;
+}
+#endif
