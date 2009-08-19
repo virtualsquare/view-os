@@ -1642,10 +1642,12 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 					/* UNIMPL case SO_DEBUG: */
 					/* UNIMPL case SO_DONTROUTE: */
 				case SO_KEEPALIVE:
-				case SO_SNDBUF:
 					/* UNIMPL case SO_OOBINLINE: */
 					/* UNIMPL case SO_RCVBUF: */
 					/* UNIMPL case SO_SNDBUF: */
+					/* FAKE SO_SNDBUF, SO_RCVBUF */
+				case SO_RCVBUF:
+				case SO_SNDBUF:
 					/* UNIMPL case SO_RCVLOWAT: */
 					/* UNIMPL case SO_SNDLOWAT: */
 #if SO_REUSE
