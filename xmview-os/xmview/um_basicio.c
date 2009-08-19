@@ -242,20 +242,20 @@ int wrap_in_write(int sc_number,struct pcb *pc,
 int wrap_in_pread(int sc_number,struct pcb *pc,
 		                struct ht_elem *hte, sysfun um_syscall)
 {
-	unsigned long pbuf=pc->sysargs[1];
-	unsigned long count=pc->sysargs[2];
-	unsigned long long offset;
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-#ifdef __NR_pread64
-	offset=LONG_LONG(pc->sysargs[3+PALIGN],pc->sysargs[4+PALIGN]);
-#else
-	offset=pc->sysargs[3];
-#endif
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
+		unsigned long pbuf=pc->sysargs[1];
+		unsigned long count=pc->sysargs[2];
+		unsigned long long offset;
 		char *lbuf=(char *)lalloca(count);
+#ifdef __NR_pread64
+		offset=LONG_LONG(pc->sysargs[3+PALIGN],pc->sysargs[4+PALIGN]);
+#else
+		offset=pc->sysargs[3];
+#endif
 		if ((pc->retval = um_syscall(sfd,lbuf,count,offset)) < 0)
 			pc->erno=errno;
 		if (pc->retval > 0)
@@ -268,20 +268,20 @@ int wrap_in_pread(int sc_number,struct pcb *pc,
 int wrap_in_pwrite(int sc_number,struct pcb *pc,
 		                struct ht_elem *hte, sysfun um_syscall)
 {
-	unsigned long pbuf=pc->sysargs[1];
-	unsigned long count=pc->sysargs[2];
-	unsigned long long offset;
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-#ifdef __NR_pwrite64
-	offset=LONG_LONG(pc->sysargs[3+PALIGN],pc->sysargs[4+PALIGN]);
-#else
-	offset=pc->sysargs[3];
-#endif
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
+		unsigned long pbuf=pc->sysargs[1];
+		unsigned long count=pc->sysargs[2];
+		unsigned long long offset;
 		char *lbuf=(char *)lalloca(count);
+#ifdef __NR_pwrite64
+		offset=LONG_LONG(pc->sysargs[3+PALIGN],pc->sysargs[4+PALIGN]);
+#else
+		offset=pc->sysargs[3];
+#endif
 		umoven(pc,pbuf,count,lbuf);
 		if ((pc->retval = um_syscall(sfd,lbuf,count,offset)) < 0)
 			pc->erno=errno;
@@ -289,6 +289,91 @@ int wrap_in_pwrite(int sc_number,struct pcb *pc,
 	}
 	return SC_FAKE;
 }
+
+#ifdef __NR_preadv
+int wrap_in_preadv(int sc_number,struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
+	if (sfd < 0) {
+		pc->retval= -1;
+		pc->erno= EBADF;
+	} else {
+		unsigned long vecp=pc->sysargs[1];
+		unsigned long count=pc->sysargs[2];
+		unsigned long i,totalsize,size;
+		struct iovec *iovec;
+		char *lbuf;
+		unsigned long long offset;
+#ifdef __NR_pread64
+		offset=LONG_LONG(pc->sysargs[3+PALIGN],pc->sysargs[4+PALIGN]);
+#else
+		offset=pc->sysargs[3];
+#endif
+		if (__builtin_expect((count > IOV_MAX),0)) count=IOV_MAX;
+		iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
+		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
+		for (i=0,totalsize=0;i<count;i++)
+			totalsize += iovec[i].iov_len;
+		lbuf=(char *)lalloca(totalsize);
+		/* PREADV is mapped onto PREAD */
+		if ((size=pc->retval = um_syscall(sfd,lbuf,totalsize,offset)) >= 0) {
+			for (i=0;i<count && size>0;i++) {
+				long qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
+				ustoren(pc,(long)iovec[i].iov_base,qty,lbuf);
+				lbuf += qty;
+				size -= qty;
+			}
+		}
+		else
+			pc->erno=errno;
+		lfree(lbuf,totalsize);
+	}
+	return SC_FAKE;
+}
+#endif
+
+#ifdef __NR_pwritev
+int wrap_in_pwritev(int sc_number,struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
+	if (sfd < 0) {
+		pc->retval= -1;
+		pc->erno= EBADF;
+	} else {
+		unsigned long vecp=pc->sysargs[1];
+		unsigned long count=pc->sysargs[2];
+		unsigned long i,totalsize;
+		struct iovec *iovec;
+		char *lbuf, *p;
+		unsigned long long offset;
+#ifdef __NR_pwrite64
+		offset=LONG_LONG(pc->sysargs[3+PALIGN],pc->sysargs[4+PALIGN]);
+#else
+		offset=pc->sysargs[3];
+#endif
+		if (__builtin_expect((count > IOV_MAX),0)) count=IOV_MAX;
+		iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
+		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
+		for (i=0,totalsize=0;i<count;i++)
+			totalsize += iovec[i].iov_len;
+		lbuf=(char *)lalloca(totalsize);
+		p=lbuf;
+		for (i=0;i<count;i++) {
+			long qty=iovec[i].iov_len;
+			umoven(pc,(long)iovec[i].iov_base,qty,p);
+			p += qty;
+		}
+		/* PWRITEV is mapped onto PWRITE */
+		if ((pc->retval = um_syscall(sfd,lbuf,totalsize)) < 0)
+			pc->erno=errno;
+		lfree(lbuf,totalsize);
+	}
+	return SC_FAKE;
+}
+#endif
+
 #undef PALIGN
 
 /* DAMNED! the kernel stat are different! so glibc converts the 

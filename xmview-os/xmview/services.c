@@ -53,6 +53,20 @@ static struct syscall_unifier scunify[] = {
 	{__NR_creat,	__NR_open},
 	{__NR_readv,	__NR_read},
 	{__NR_writev,	__NR_write},
+#ifdef __NR_preadv
+#ifdef __NR_pread64
+	{__NR_preadv,	__NR_pread64},
+#else
+	{__NR_preadv,	__NR_pread},
+#endif
+#endif
+#ifdef __NR_pwritev
+#ifdef __NR_pwrite64
+	{__NR_pwritev,__NR_pwrite64},
+#else
+	{__NR_pwritev,__NR_pwrite},
+#endif
+#endif
 	{__NR_time,	  __NR_gettimeofday},
 	{__NR_fchmod,	__NR_chmod},
 #if (__NR_olduname != __NR_doesnotexist)
@@ -144,14 +158,14 @@ static struct syscall_unifier scunify[] = {
 	{__NR_fchownat, __NR_lchown},
 #endif
 #ifdef __NR_getxattr
-	{__NR_lgetxattr, __NR_getxattr},
-	{__NR_fgetxattr, __NR_getxattr},
-	{__NR_lsetxattr, __NR_setxattr},
-	{__NR_fsetxattr, __NR_setxattr},
-	{__NR_llistxattr, __NR_listxattr},
-	{__NR_flistxattr, __NR_listxattr},
-	{__NR_lremovexattr, __NR_removexattr},
-	{__NR_fremovexattr, __NR_removexattr},
+	{__NR_getxattr, __NR_lgetxattr},
+	{__NR_fgetxattr, __NR_lgetxattr},
+	{__NR_setxattr, __NR_lsetxattr},
+	{__NR_fsetxattr, __NR_lsetxattr},
+	{__NR_listxattr, __NR_llistxattr},
+	{__NR_flistxattr, __NR_llistxattr},
+	{__NR_removexattr, __NR_lremovexattr},
+	{__NR_fremovexattr, __NR_lremovexattr},
 #endif
 #ifdef SNDRCVMSGUNIFY
 #if (__NR_socketcall == __NR_doesnotexist)
@@ -179,8 +193,22 @@ static struct syscall_unifier sockunify[] = {
 #define SIZESOCKUNIFY (sizeof(sockunify)/sizeof(struct syscall_unifier))
 #endif
 
-#define OSER_STEP 8 /*only power of 2 values */
-#define OSER_STEP_1 (OSER_STEP - 1)
+struct syscall_default_maganer {
+	long proc_sc;
+	sysfun defmgr;
+};
+
+static long erropnotsupp()
+{
+	errno=EOPNOTSUPP;
+	return -1;
+}
+
+static struct syscall_default_maganer scdefmgr[]={
+	{__NR_lgetxattr, erropnotsupp},
+};
+#define SIZESCDEFMGR (sizeof(scdefmgr)/sizeof(struct syscall_default_maganer))
+
 
 static inline int s_error(int err)
 {
@@ -247,6 +275,9 @@ void modify_um_syscall(struct service *s)
 		s->um_syscall[uscno(__NR_socket)]=s->um_virsc[VIRSYS_MSOCKET];
 #endif
 	}
+
+	for (i = 0; i < SIZESCDEFMGR; i++)
+		s->um_syscall[uscno(scdefmgr[i].proc_sc)] = scdefmgr[i].defmgr;
 }
 
 static inline int s_error_dlclose(int err,void *handle) {

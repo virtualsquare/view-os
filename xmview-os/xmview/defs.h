@@ -213,6 +213,9 @@ typedef	int (*divfun)(int sc_number,int inout,struct pcb *ppcb);
 
 //#####################################
 // SYSCALL STRANGE STUFF
+// define __NR_doesnotexist all non-existent syscall
+// in this way the sequence in scmap is preserved through
+// different architectures
 #define __NR_doesnotexist -1
 #if defined(__x86_64__)
 #define NR64_stat	__NR_stat
@@ -245,6 +248,43 @@ typedef	int (*divfun)(int sc_number,int inout,struct pcb *ppcb);
 #define __NR_olduname __NR_uname
 #endif
 
+#ifndef __NR_dup3
+#define __NR_dup3 __NR_doesnotexist
+#endif
+
+#ifndef __NR_openat
+#define __NR_openat __NR_doesnotexist
+#define __NR_mkdirat __NR_doesnotexist
+#define __NR_mknodat __NR_doesnotexist
+#define __NR_fchownat __NR_doesnotexist
+#define __NR_futimesat  __NR_doesnotexist
+#endif
+
+#ifndef __NR_utimensat
+#define __NR_utimensat __NR_doesnotexist
+#endif
+
+#ifndef __NR_getxattr
+#define __NR_getxattr __NR_doesnotexist
+#define __NR_lgetxattr __NR_doesnotexist
+#define __NR_fgetxattr __NR_doesnotexist
+#define __NR_setxattr __NR_doesnotexist
+#define __NR_lsetxattr __NR_doesnotexist
+#define __NR_fsetxattr __NR_doesnotexist
+#define __NR_listxattr __NR_doesnotexist
+#define __NR_llistxattr __NR_doesnotexist
+#define __NR_flistxattr __NR_doesnotexist
+#define __NR_removexattr __NR_doesnotexist
+#define __NR_lremovexattr __NR_doesnotexist
+#define __NR_fremovexattr __NR_doesnotexist
+#endif
+
+#ifndef __NR_preadv
+#define __NR_preadv __NR_doesnotexist
+#endif
+#ifndef __NR_pwritev
+#define __NR_pwritev __NR_doesnotexist
+#endif
 
 //#####################################
 

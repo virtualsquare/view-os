@@ -441,6 +441,14 @@ int nw_sysfd_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall
 	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
 }
 
+/* nested wrapper for standard system calls using fd converted to path*/
+int nw_sysfdpath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	int fd=npc->sysargs[0];
+	npc->sysargs[0]=(long)fd_getpath(&umview_file,fd);
+	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+}
+
 /* nested wrapper for standard socket calls */
 int nw_sockfd_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
