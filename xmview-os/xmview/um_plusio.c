@@ -642,12 +642,6 @@ int wrap_in_umount2(int sc_number,struct pcb *pc,
 	return wrap_in_umount_generic(pc,hte,um_syscall,flags);
 }
 
-#if (defined(__powerpc__) && !defined(__powerpc64__)) || (defined (MIPS) && !defined(__mips64))
-#define PALIGN 1
-#else
-#define PALIGN 0
-#endif
-
 int wrap_in_truncate(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {

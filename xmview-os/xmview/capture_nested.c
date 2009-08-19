@@ -279,7 +279,7 @@ struct ht_elem * nchoice_socket(int sc_number,struct npcb *npc) {
 /* call the implementation */
 int do_nested_call(sysfun um_syscall,unsigned long *args,int n)
 {
-		return um_syscall(args[0],args[1],args[2],args[3],args[4],args[5]);
+	return um_syscall(args[0],args[1],args[2],args[3],args[4],args[5]);
 }
 
 /* nested wrapper for syscall with a path*/
@@ -335,6 +335,31 @@ int nw_syslink(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 		free(source);
 		return rv;
 	}
+}
+
+int nw_systruncate(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	__off64_t off;
+#if (__NR_truncate64 != __NR_doesnotexist)
+	if (scno == __NR_truncate64)
+		off=LONG_LONG(npc->sysargs[1+PALIGN], npc->sysargs[2+PALIGN]);
+	else
+#endif
+		off=npc->sysargs[1];
+	return um_syscall(npc->path,off);
+}
+
+int nw_sysftruncate(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	 int fd=npc->sysargs[0];
+	__off64_t off;
+#if (__NR_truncate64 != __NR_doesnotexist)
+	if (scno == __NR_truncate64)
+		off=LONG_LONG(npc->sysargs[1+PALIGN], npc->sysargs[2+PALIGN]);
+	else
+#endif
+		off=npc->sysargs[1];
+	return um_syscall(fd_getpath(&umview_file,fd),off);
 }
 
 /* nested wrapper for open*/
@@ -448,6 +473,107 @@ int nw_sysfdpath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sys
 	npc->sysargs[0]=(long)fd_getpath(&umview_file,fd);
 	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
 }
+
+int nw_sysreadv(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	int sfd=fd2sfd(&umview_file,npc->sysargs[0]);
+	struct iovec *iovec=(struct iovec *)npc->sysargs[1];
+	unsigned long count=npc->sysargs[2];
+	unsigned long i,totalsize,size;
+	char *lbuf,*p;
+	for (i=0,totalsize=0;i<count;i++)
+		totalsize += iovec[i].iov_len;
+	lbuf=p=(char *)lnalloca(totalsize);
+	/* MAPPED ONTO READ */
+	if ((size=um_syscall(sfd,lbuf,totalsize)) >= 0) {
+		for (i=0;i<count && size>0;i++) {
+			long qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
+			memcpy(iovec[i].iov_base,p,qty);
+			p += qty;
+			size -= qty;
+		}
+	}
+	lfree(lbuf,totalsize);
+	return size;
+}
+
+int nw_syswritev(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	int sfd=fd2sfd(&umview_file,npc->sysargs[0]);
+	struct iovec *iovec=(struct iovec *)npc->sysargs[1];
+	unsigned long count=npc->sysargs[2];
+	unsigned long i,totalsize,size;
+	char *lbuf,*p;
+	for (i=0,totalsize=0;i<count;i++)
+		totalsize += iovec[i].iov_len;
+	lbuf=p=(char *)lnalloca(totalsize);
+	for (i=0;i<count;i++) {
+		long qty=iovec[i].iov_len;
+		memcpy(p,iovec[i].iov_base,qty);
+		p += qty;
+	}
+	/* MAPPED ONTO WRITE */
+	size=um_syscall(sfd,lbuf,totalsize);
+	lfree(lbuf,totalsize);
+	return size;
+}
+
+int nw_syspreadv(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	int sfd=fd2sfd(&umview_file,npc->sysargs[0]);
+	struct iovec *iovec=(struct iovec *)npc->sysargs[1];
+	unsigned long count=npc->sysargs[2];
+	unsigned long i,totalsize,size;
+	char *lbuf,*p;
+	unsigned long long offset;
+#ifdef __NR_pread64
+	offset=LONG_LONG(npc->sysargs[3],npc->sysargs[4]);
+#else
+	offset=npc->sysargs[3];
+#endif
+	for (i=0,totalsize=0;i<count;i++)
+		totalsize += iovec[i].iov_len;
+	lbuf=p=(char *)lnalloca(totalsize);
+	/* MAPPED ONTO PREAD */
+	if ((size=um_syscall(sfd,lbuf,totalsize,offset)) >= 0) {
+		for (i=0;i<count && size>0;i++) {
+			long qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
+			memcpy(iovec[i].iov_base,p,qty);
+			p += qty;
+			size -= qty;
+		}
+	}
+	lfree(lbuf,totalsize);
+	return size;
+}
+
+int nw_syspwritev(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	int sfd=fd2sfd(&umview_file,npc->sysargs[0]);
+	struct iovec *iovec=(struct iovec *)npc->sysargs[1];
+	unsigned long count=npc->sysargs[2];
+	unsigned long i,totalsize,size;
+	char *lbuf,*p;
+	unsigned long long offset;
+#ifdef __NR_pread64
+	offset=LONG_LONG(npc->sysargs[3],npc->sysargs[4]);
+#else
+	offset=npc->sysargs[3];
+#endif
+	for (i=0,totalsize=0;i<count;i++)
+		totalsize += iovec[i].iov_len;
+	lbuf=p=(char *)lnalloca(totalsize);
+	for (i=0;i<count;i++) {
+		long qty=iovec[i].iov_len;
+		memcpy(p,iovec[i].iov_base,qty);
+		p += qty;
+	}
+	/* MAPPED ONTO PWRITE */
+	size=um_syscall(sfd,lbuf,totalsize,offset);
+	lfree(lbuf,totalsize);
+	return size;
+}
+
 
 /* nested wrapper for standard socket calls */
 int nw_sockfd_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)

@@ -232,13 +232,6 @@ int wrap_in_write(int sc_number,struct pcb *pc,
 }
 
 
-/* there is a memory alignment problem in these architectures */
-#if (defined(__powerpc__) && !defined(__powerpc64__)) || (defined (MIPS) && !defined(__mips64))
-#define PALIGN 1
-#else
-#define PALIGN 0
-#endif
-
 int wrap_in_pread(int sc_number,struct pcb *pc,
 		                struct ht_elem *hte, sysfun um_syscall)
 {
@@ -303,7 +296,7 @@ int wrap_in_preadv(int sc_number,struct pcb *pc,
 		unsigned long count=pc->sysargs[2];
 		unsigned long i,totalsize,size;
 		struct iovec *iovec;
-		char *lbuf;
+		char *lbuf,*p;
 		unsigned long long offset;
 #ifdef __NR_pread64
 		offset=LONG_LONG(pc->sysargs[3+PALIGN],pc->sysargs[4+PALIGN]);
@@ -315,13 +308,13 @@ int wrap_in_preadv(int sc_number,struct pcb *pc,
 		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
 		for (i=0,totalsize=0;i<count;i++)
 			totalsize += iovec[i].iov_len;
-		lbuf=(char *)lalloca(totalsize);
+		lbuf=p=(char *)lalloca(totalsize);
 		/* PREADV is mapped onto PREAD */
 		if ((size=pc->retval = um_syscall(sfd,lbuf,totalsize,offset)) >= 0) {
 			for (i=0;i<count && size>0;i++) {
 				long qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
-				ustoren(pc,(long)iovec[i].iov_base,qty,lbuf);
-				lbuf += qty;
+				ustoren(pc,(long)iovec[i].iov_base,qty,p);
+				p += qty;
 				size -= qty;
 			}
 		}
@@ -358,8 +351,7 @@ int wrap_in_pwritev(int sc_number,struct pcb *pc,
 		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
 		for (i=0,totalsize=0;i<count;i++)
 			totalsize += iovec[i].iov_len;
-		lbuf=(char *)lalloca(totalsize);
-		p=lbuf;
+		lbuf=p=(char *)lalloca(totalsize);
 		for (i=0;i<count;i++) {
 			long qty=iovec[i].iov_len;
 			umoven(pc,(long)iovec[i].iov_base,qty,p);
@@ -373,8 +365,6 @@ int wrap_in_pwritev(int sc_number,struct pcb *pc,
 	return SC_FAKE;
 }
 #endif
-
-#undef PALIGN
 
 /* DAMNED! the kernel stat are different! so glibc converts the 
  * kernel structure. We have to make the reverse conversion! */
@@ -745,19 +735,19 @@ int wrap_in_readv(int sc_number,struct pcb *pc,
 		unsigned long count=pc->sysargs[2];
 		unsigned long i,totalsize,size;
 		struct iovec *iovec;
-		char *lbuf;
+		char *lbuf,*p;
 		if (__builtin_expect((count > IOV_MAX),0)) count=IOV_MAX;
 		iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
 		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
 		for (i=0,totalsize=0;i<count;i++)
 			totalsize += iovec[i].iov_len;
-		lbuf=(char *)lalloca(totalsize);
+		lbuf=p=(char *)lalloca(totalsize);
 		/* READV is mapped onto READ */
 		if ((size=pc->retval = um_syscall(sfd,lbuf,totalsize)) >= 0) {
 			for (i=0;i<count && size>0;i++) {
 				long qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
-				ustoren(pc,(long)iovec[i].iov_base,qty,lbuf);
-				lbuf += qty;
+				ustoren(pc,(long)iovec[i].iov_base,qty,p);
+				p += qty;
 				size -= qty;
 			}
 		}
@@ -786,8 +776,7 @@ int wrap_in_writev(int sc_number,struct pcb *pc,
 		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
 		for (i=0,totalsize=0;i<count;i++)
 			totalsize += iovec[i].iov_len;
-		lbuf=(char *)lalloca(totalsize);
-		p=lbuf;
+		lbuf=p=(char *)lalloca(totalsize);
 		for (i=0;i<count;i++) {
 			long qty=iovec[i].iov_len;
 			umoven(pc,(long)iovec[i].iov_base,qty,p);

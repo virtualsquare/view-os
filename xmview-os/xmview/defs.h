@@ -177,11 +177,25 @@ extern unsigned int quiet;
 		{ pc->retval= -1; pc->erno=ENOMEM; return SC_FAKE; } \
 	 	} \
 		else m=alloca(L); m; })
+#define lnalloca(L) ({ void *m; if (__builtin_expect(((L)>>16),0)) \
+		{ if ((m=malloc(L))==NULL) \
+		{ errno=ENOMEM; return -1; } \
+		} \
+		else m=alloca(L); m; })
 #define lfree(B,L) ({if (__builtin_expect(((L)>>16),0)) free(B); })
 #define lfree(B,L) ({if (__builtin_expect(((L)>>16),0)) free(B); })
 #else
 #define lalloca(L) alloca(L)
+#define lnalloca(L) alloca(L)
 #define lfree(B,L)
+#endif
+
+/* there is a memory alignment problem in these architectures */
+/* long long syscall args are 2 regs aligned */
+#if (defined(__powerpc__) && !defined(__powerpc64__)) || (defined (MIPS) && !defined(__mips64))
+#define PALIGN 1
+#else
+#define PALIGN 0
 #endif
 
 #if 0
