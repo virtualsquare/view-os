@@ -116,30 +116,6 @@ epoch_t um_setnestepoch(epoch_t epoch)
 	return oldepoch;
 }
 
-/* internal call: check the permissions for a file */
-int um_x_access(char *filename, int mode, struct pcb *pc)
-{
-	struct ht_elem *hte;
-	int retval;
-	long oldscno;
-	epoch_t epoch;
-	/* printk("-> um_x_access: %s\n",filename);  */
-	/* internal nested call save data */
-	oldscno = pc->sysscno;
-	epoch=pc->tst.epoch;
-	pc->sysscno = __NR_access;
-	if ((hte=ht_check(CHECKPATH,filename,NULL,1)) == NULL)
-		retval = r_access(filename,mode);
-	else{
-		pc->hte=hte;
-		retval = ht_syscall(hte,uscno(__NR_access))(filename,mode,pc);
-	}
-	/* internal nested call restore data */
-	pc->sysscno=oldscno;
-	pc->tst.epoch = epoch;
-	return retval;
-}
-										 
 /* internal call: load the stat info for a file */
 int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
 {
@@ -164,23 +140,68 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
 	return retval;
 }
 
-/* internal call: read a symbolic link target */
-int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
+/* internal call: check the permissions for a file,
+   search for module */
+int um_xx_access(char *filename, int mode, struct pcb *pc)
 {
 	struct ht_elem *hte;
+	int retval;
+	long oldscno;
+	epoch_t epoch;
+	/* printk("-> um_xx_access: %s\n",filename); */
+	/* internal nested call save data */
+	oldscno = pc->sysscno;
+	epoch=pc->tst.epoch;
+	pc->sysscno = __NR_access;
+	if ((hte=ht_check(CHECKPATH,filename,NULL,1)) == NULL)
+		retval = r_access(filename,mode);
+	else{
+		pc->hte=hte;
+		retval = ht_syscall(hte,uscno(__NR_access))(filename,mode,pc);
+	}
+	/* internal nested call restore data */
+	pc->sysscno=oldscno;
+	pc->tst.epoch = epoch;
+	return retval;
+}
+										 
+/* internal call: check the permissions for a file,
+   this must follow a um_x_lstat64 */
+int um_x_access(char *filename, int mode, struct pcb *pc)
+{
+	int retval;
+	long oldscno;
+	epoch_t epoch;
+	/* printk("-> um_x_access: %s %p\n",filename,pc->hte); */
+	/* internal nested call save data */
+	oldscno = pc->sysscno;
+	epoch=pc->tst.epoch;
+	pc->sysscno = __NR_access;
+	if (pc->hte == NULL)
+		retval = r_access(filename,mode);
+	else
+		retval = ht_syscall(pc->hte,uscno(__NR_access))(filename,mode,pc);
+	/* internal nested call restore data */
+	pc->sysscno=oldscno;
+	pc->tst.epoch = epoch;
+	return retval;
+}
+										 
+/* internal call: read a symbolic link target 
+   this must follow a um_x_lstat64 */
+int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
+{
 	long oldscno = pc->sysscno;
 	int retval;
 	epoch_t epoch;
-	/* printk("-> um_x_readlink: %s\n",path); */
+	/* printk("-> um_x_readlink: %s %p\n",path,pc->hte); */
 	oldscno = pc->sysscno;
 	pc->sysscno = __NR_readlink;
 	epoch=pc->tst.epoch;
-	if ((hte=ht_check(CHECKPATH,path,NULL,1)) == NULL)
+	if (pc->hte == NULL)
 		retval = r_readlink(path,buf,bufsiz);
-	else{
-		pc->hte=hte;
-		retval = ht_syscall(hte,uscno(__NR_readlink))(path,buf,bufsiz,pc);
-	}
+	else
+		retval = ht_syscall(pc->hte,uscno(__NR_readlink))(path,buf,bufsiz,pc);
 	/* internal nested call restore data */
 	pc->sysscno = oldscno;
 	pc->tst.epoch=epoch;
@@ -271,6 +292,7 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 				return um_patherror;
 			}
 		}
+		pc->hte=NULL;
 		um_realpath(path,cwd,newpath,pst,dontfollowlink,pc);
 		/*printk("PATH %s (%s,%s) NEWPATH %s (%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->erno);*/
 		if (pc->erno)

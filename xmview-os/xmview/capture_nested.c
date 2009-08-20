@@ -110,6 +110,7 @@ static char *nest_abspath(int dirfd, long laddr,struct npcb *npc,struct stat64 *
 	 * else
 	 *  cwd= ...path of dirfd... 
 	 */
+	npc->hte=NULL;
 	um_realpath(path,NULL,newpath,pst,dontfollowlink,npc);
 	if (npc->erno)
 		return um_patherror;  //error

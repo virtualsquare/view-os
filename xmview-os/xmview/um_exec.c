@@ -182,7 +182,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 	struct binfmt_req req={(char *)pc->path,NULL,NULL,buf,0};
 	epoch_t nestepoch=um_setnestepoch(0);
 	struct ht_elem *binfmtht;
-	if (um_x_access(req.path,X_OK,pc)!=0) {
+	if (um_xx_access(req.path,X_OK,pc)!=0) {
 		pc->erno=errno;
 		pc->retval=-1;
 		return SC_FAKE;

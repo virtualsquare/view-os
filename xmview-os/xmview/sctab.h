@@ -72,9 +72,11 @@ void killall(struct pcb *pc, int signo);
 void um_set_errno(struct pcb *pc,int i);
 //char *um_getcwd(struct pcb *pc,char *buf,int size);
 char *um_getroot(struct pcb *pc);
-int um_x_access(char *filename,int mode, struct pcb *pc);
 int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc);
+/* um_x_access and um_x_readlink must follow a um_x_lstat64 */
+int um_x_access(char *filename,int mode, struct pcb *pc);
 int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc);
+int um_xx_access(char *filename,int mode, struct pcb *pc);
 epoch_t um_setnestepoch(epoch_t epoch);
 
 struct timestamp *um_x_gettst();

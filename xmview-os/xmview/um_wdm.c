@@ -157,7 +157,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 		/* (rd) maybe there is a virtual dir with the same name of
 		 * a real file with X permission... 
 		 * commented out 20080626*/
-		if (S_ISDIR(pc->pathstat.st_mode) && (access(pc->path,X_OK) == 0))
+		if (S_ISDIR(pc->pathstat.st_mode) && (r_access(pc->path,X_OK) == 0))
 		{
 			pathlen = WORDALIGN(strlen(pc->path));
 			ustoren(pc, sp - pathlen, pathlen, pc->path);
@@ -167,8 +167,6 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 			return SC_CALLONXIT;
 		}
 		else
-#if 0
-#endif
 		{
 			if (S_ISDIR(pc->pathstat.st_mode)) {
 				if (um_x_access(pc->path,X_OK,pc)!=0) {
