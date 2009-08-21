@@ -79,36 +79,26 @@ int wrap_in_open(int sc_number,struct pcb *pc,
 		if (pc->retval >= 0 && 
 				(pc->retval=lfd_open(hte,pc->retval,pc->path,flags,0)) >= 0) {
 			/* change the syscall parms, open the fifo instead of the file */
-			char *filename=lfd_getfilename(pc->retval);
-			int filenamelen=WORDALIGN(strlen(filename));
-			long sp=getsp(pc);
-			ustoren(pc,sp-filenamelen,filenamelen,filename);
+			um_x_rewritepath(pc,lfd_getfilename(pc->retval),0,0);
 			putscno(__NR_open,pc);
-			pc->sysargs[0]=sp-filenamelen;
 			pc->sysargs[1]=O_RDONLY;
 			return SC_CALLONXIT;
 		} else
 			return SC_FAKE;
 	} else {
-#if 0
-		/* load the complete path (to avoid border effects -- like open(..) */
-		/* open problem: all the paths should be rewritten on borders
-		 * not only for "open" */
-		int filenamelen=WORDALIGN(strlen(pc->path));
-		long sp=getsp(pc);
-		ustoren(pc,sp-filenamelen,filenamelen,pc->path);
+		if (__builtin_expect(pc->needs_dotdot_path_rewrite,0)) {
+			// printk("needs_dotdot_path_rewrite OPEN %s %d\n",pc->path,pc->sysscno);
 #ifdef __NR_openat
-		if (sc_number == __NR_openat) 
-			pc->sysargs[1]=sp-filenamelen;
-		else 
+			um_x_rewritepath(pc,pc->path,(sc_number == __NR_openat)?1:0,0);
+#else
+			um_x_rewritepath(pc,pc->path,0,0);
 #endif
-			pc->sysargs[0]=sp-filenamelen;
-		/* keep track of the open file */
-		pc->retval=lfd_open(hte,-1,pc->path,flags,0);
-		return SC_CALLONXIT;
-#endif
-		pc->retval=lfd_open(hte,-1,pc->path,flags,0);
-		return SC_TRACEONLY;
+			pc->retval=lfd_open(hte,-1,pc->path,flags,0);
+			return SC_CALLONXIT;
+		} else {
+			pc->retval=lfd_open(hte,-1,pc->path,flags,0);
+			return SC_TRACEONLY;
+		}
 	}
 }
 

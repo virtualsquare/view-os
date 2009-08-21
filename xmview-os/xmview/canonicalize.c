@@ -82,6 +82,7 @@ struct canonstruct {
 static int rec_realpath(struct canonstruct *cdata, char *dest)
 {
 	char *newdest;
+	int recoutput=ROOT; /* force the first lstat */
 	/* LOOP (***) This loop manages '.'
 		 '..' (DOTDOT) from an inner call
 		 ROOT if this is the root dir layer */
@@ -111,8 +112,9 @@ static int rec_realpath(struct canonstruct *cdata, char *dest)
 				else
 					continue; /* CONTINUE: NEXT ITERATION OF THE LOOP (***) */
 			}
-			if (cdata->statbuf->st_mode==0)
-				um_x_lstat64(cdata->resolved,cdata->statbuf,cdata->xpc);
+			//if (cdata->statbuf->st_mode==0)
+			if (recoutput != 0) /* ROOT or DOTDOT */
+				um_x_lstat64(cdata->resolved,cdata->statbuf,cdata->xpc,recoutput==DOTDOT);
 			/* nothing more to do */
 			if (lastlen == 0) 
 				return 0;
@@ -129,7 +131,7 @@ static int rec_realpath(struct canonstruct *cdata, char *dest)
 			*newdest=0;
 		}
 		/* does the file exist? */
-		if (um_x_lstat64(cdata->resolved,cdata->statbuf,cdata->xpc) < 0) {
+		if (um_x_lstat64(cdata->resolved,cdata->statbuf,cdata->xpc,0) < 0) {
 			cdata->statbuf->st_mode=0;
 #ifdef PERMIT_NONEXISTENT_LEAF
 			if (errno != ENOENT || *cdata->end == '/') {
@@ -203,19 +205,20 @@ static int rec_realpath(struct canonstruct *cdata, char *dest)
 		}
 		/* okay: recursive call for the next component */
 		cdata->start=cdata->end;
-		switch(rec_realpath(cdata,newdest)) {
+		switch(recoutput=rec_realpath(cdata,newdest)) {
 			/* success. close recursion */
 			case 0 : return 0;
 			/* DOTDOT: cycle at this layer */
 			case DOTDOT: 
-							   cdata->statbuf->st_mode=0;
-							   continue; /* CONTINUE: NEXT ITERATION OF THE LOOP (***) */
+							 //cdata->statbuf->st_mode=0;
+							 continue; /* CONTINUE: NEXT ITERATION OF THE LOOP (***) */
 			/* ROOT: close recursive calls up the root */
-			case ROOT: cdata->statbuf->st_mode=0;
-								 if (dest > cdata->resolved+cdata->rootlen) 
-									 return ROOT;
-								 else
-									 continue; /* CONTINUE: NEXT ITERATION OF THE LOOP (***) */
+			case ROOT: 
+							 //cdata->statbuf->st_mode=0;
+							 if (dest > cdata->resolved+cdata->rootlen) 
+								 return ROOT;
+							 else
+								 continue; /* CONTINUE: NEXT ITERATION OF THE LOOP (***) */
 			/* Error */
 			default: return -1;
 		}

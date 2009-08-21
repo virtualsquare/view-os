@@ -195,12 +195,12 @@ struct service {
 };
 
 /* 
- * #define ESCNO_SOCKET is defined 0x40000000 or 0x0
+ * #define ESCNO_SOCKET is defined 0x4000 or 0x0
  * depending on the presence of the single socketcall system call
  * or one syscall for each socket call*/
-#define ESCNO_VIRSC 0x80000000
-#define ESCNO_MASK  0x3fffffff
-#define ESCNO_MAP   0xC0000000
+#define ESCNO_VIRSC 0x8000
+#define ESCNO_MASK  0x3fff
+#define ESCNO_MAP   0xC000
 
 extern int _lwip_version;
 extern int scmap_scmapsize;

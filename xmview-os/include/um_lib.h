@@ -32,10 +32,8 @@ typedef unsigned long viewid_t;
 
 #define ADD_SERVICE 0
 #define DEL_SERVICE 1
-#define MOV_SERVICE 2
 #define LIST_SERVICE 3
 #define NAME_SERVICE 4
-#define LOCK_SERVICE 5
 
 #define RECURSIVE_VIEWOS   0x100
 #define VIEWOS_GETINFO     0x101

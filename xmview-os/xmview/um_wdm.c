@@ -99,18 +99,10 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,
 			pc->erno=EACCES;
 	}
 	if (pc->erno == 0 && S_ISDIR(pc->pathstat.st_mode)) {
-		long sp=getsp(pc);
-		int pathlen;
-		if (hte != NULL) {
-			char *chdir_fake_dir = um_proc_fakecwd();
-			//printk("virtual path chdir to %s\n", chdir_fake_dir);
-			pathlen = WORDALIGN(strlen(chdir_fake_dir));
-			ustoren(pc, sp-pathlen, pathlen, chdir_fake_dir);
-		} else {
-			pathlen = WORDALIGN(strlen(pc->path));
-			ustoren(pc, sp-pathlen, pathlen, pc->path);
-		}
-		pc->sysargs[0]=sp-pathlen;
+		if (hte != NULL)
+			um_x_rewritepath(pc,um_proc_fakecwd(),0,0);
+		else
+			um_x_rewritepath(pc,pc->path,0,0);
 		return SC_CALLONXIT;
 	} else {
 		pc->retval = -1;
@@ -143,14 +135,12 @@ int wrap_out_chdir(int sc_number,struct pcb *pc)
 int wrap_in_fchdir(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
-	long sp=getsp(pc);
-	int pathlen;
 	char *path;
 
 	if ((path=fd_getpath(pc->fds,pc->sysargs[0])) != NULL) {
 		//printk("fchdir to %s\n",path);
 		pc->path=strdup(path);
-		um_x_lstat64(pc->path, &(pc->pathstat), pc);
+		um_x_lstat64(pc->path, &(pc->pathstat), pc, 0);
 		/* If there is a real directory with this name, and it is chdir-able,
 		 * we can chdir there instead of /tmp/ so the core and the process
 		 * will see the same cwd. */
@@ -159,9 +149,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 		 * commented out 20080626*/
 		if (S_ISDIR(pc->pathstat.st_mode) && (r_access(pc->path,X_OK) == 0))
 		{
-			pathlen = WORDALIGN(strlen(pc->path));
-			ustoren(pc, sp - pathlen, pathlen, pc->path);
-			pc->sysargs[0]=sp-pathlen;
+			um_x_rewritepath(pc,pc->path,0,0);
 			putscno(__NR_chdir, pc);
 			GDEBUG(4, "FCHDIR making fake chdir to real %s", pc->path);
 			return SC_CALLONXIT;
@@ -175,17 +163,10 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 					pc->retval = -1;
 					return SC_FAKE;
 				} else {
-					if (hte != NULL) {
-						char *chdir_fake_dir= um_proc_fakecwd();
-						GDEBUG(4, "FCHDIR making chdir to %s (instead of %s)", chdir_fake_dir, pc->path);
-						pathlen = WORDALIGN(strlen(chdir_fake_dir));
-						ustoren(pc, sp-pathlen, pathlen, chdir_fake_dir);
-					} else {
-						GDEBUG(4, "FCHDIR making chdir to unmanaged %s", pc->path);
-						pathlen = WORDALIGN(strlen(pc->path));
-						ustoren(pc, sp-pathlen, pathlen, pc->path);
-					}
-					pc->sysargs[0]=sp-pathlen;
+					if (hte != NULL)
+						um_x_rewritepath(pc,um_proc_fakecwd(),0,0);
+					else
+						um_x_rewritepath(pc,pc->path,0,0);
 					putscno(__NR_chdir,pc);
 					return SC_CALLONXIT;
 				}

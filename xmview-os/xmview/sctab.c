@@ -72,19 +72,6 @@ void um_set_errno(struct pcb *pc,int i) {
 	}
 }
 
-#if 0
-/*  get the current working dir */
-char *um_getcwd(struct pcb *pc,char *buf,int size) {
-	if (pc->flags && PCB_INUSE) {
-		strncpy(buf,pc->fdfs->cwd,size);
-		return buf;
-	} else
-		/* TO BE DECIDED! Modules should never use
-		 * relative paths*/ 
-		return NULL;
-}
-#endif
-
 char *um_getroot(struct pcb *pc)
 {
 	if (pc->flags && PCB_INUSE) 
@@ -117,20 +104,25 @@ epoch_t um_setnestepoch(epoch_t epoch)
 }
 
 /* internal call: load the stat info for a file */
-int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc)
+int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdot)
 {
 	struct ht_elem *hte;
 	int retval;
 	long oldscno;
 	epoch_t epoch;
-	/* printk("-> um_lstat: %s\n",filename); */
+	/* printk("-> um_lstat: %s %d\n",filename,isdotdot); */
 	/* internal nested call save data */
 	oldscno = pc->sysscno;
 	pc->sysscno = NR64_lstat;
 	epoch=pc->tst.epoch;
-	if ((hte=ht_check(CHECKPATH,filename,NULL,1)) == NULL)
+	if ((hte=ht_check(CHECKPATH,filename,NULL,1)) == NULL) {
+		if (pc->hte!=NULL && isdotdot) {
+			pc->needs_dotdot_path_rewrite=1;
+			// printk("dotdot cage error %s %d\n",filename,pc->sysscno);
+		}
+		pc->hte=hte;
 		retval = r_lstat64(filename,buf);
-	else{
+	} else {
 		pc->hte=hte;
 		retval = ht_syscall(hte,uscno(NR64_lstat))(filename,buf,pc);
 	}
@@ -208,6 +200,17 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
 	return retval;
 }
 
+/* rewrite the path argument of a call */
+int um_x_rewritepath(struct pcb *pc, char *path, int arg, long offset)
+{
+	long sp=getsp(pc);
+	int pathlen=WORDALIGN(strlen(path));
+	long pos=sp-(pathlen+offset);
+	ustoren(pc, pos, pathlen, path);
+	pc->sysargs[arg]=pos;
+	return offset+pathlen;
+}
+
 /* one word string used as a tag for mistaken paths */
 char um_patherror[]="PE";
 
@@ -220,41 +223,6 @@ char *um_getpath(long laddr,struct pcb *pc)
 	else
 		return um_patherror;
 }
-
-#if 0
-char *um_cutdots(char *path)
-{
-	int l=strlen(path);
-#ifdef CUTDOTSTEST
-	char *s=strdup(path);
-#endif
-	l--;
-	if (path[l]=='.') {
-		l--;
-		if(path[l]=='/') {
-			if (l!=0) path[l]=0; else path[l+1]=0;
-		} else if (path[l]=='.') {
-			l--;
-			if(path[l]=='/') {
-				while(l>0) {
-					l--;
-					if (path[l]=='/')
-						break;
-				}
-				if(path[l]=='/') {
-					if (l!=0) path[l]=0; else path[l+1]=0;
-				}
-			}
-		}
-	}
-#ifdef CUTDOTSTEST
-	if (strcmp(path,s) != 0)
-		printk("cutdots worked %s %s\n",path,s);
-	free(s);
-#endif
-	return path;
-}
-#endif
 
 /* utimensat has a (crazy) behavior with filename==NULL */
 static char *utimensat_nullpath(int dirfd,struct pcb *pc,struct stat64 *pst,int dontfollowlink)
@@ -294,7 +262,7 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 		}
 		pc->hte=NULL;
 		um_realpath(path,cwd,newpath,pst,dontfollowlink,pc);
-		/*printk("PATH %s (%s,%s) NEWPATH %s (%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->erno);*/
+		/* printk("PATH %s (%s,%s) NEWPATH %s (%p,%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->hte,pc->erno); */
 		if (pc->erno)
 			return um_patherror;	//error
 		else
@@ -355,6 +323,9 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		/* and get the index of the system call table
 		 * regarding this syscall */
 		index = dcif(pc, sc_number);
+		/* dotdot cage: syscalls need path rewriting when leaving
+			 a virtual area by a relative .. path */
+		pc->needs_dotdot_path_rewrite=0;
 		//printk("nested_commonwrap %d -> %lld\n",sc_number,pc->tst.epoch);
 		/* looks in the system call table what is the 'choice function'
 		 * and ask it the service to manage */
@@ -413,12 +384,20 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 #endif
 		}
 		else {
+			int retval;
+			if (__builtin_expect(pc->needs_dotdot_path_rewrite,0)) {
+				// printk("needs_dotdot_path_rewrite %s %d\n",pc->path,pc->sysscno);
+				if (ISPATHARG(sm[index].nargx))
+					um_x_rewritepath(pc,pc->path,PATHARG(sm[index].nargx),0);
+				retval=SC_MODICALL;
+			} else
+				retval=STD_BEHAVIOR;
 			/* we do not want to manage the syscall: free the path
 			 * field in case, since we do not need it, and ask for
 			 * a standard behavior */
 			if (pc->path != NULL)
 				free(pc->path);
-			return STD_BEHAVIOR;
+			return retval;
 		}
 	/* -- OUT phase -- */
 	} else {
@@ -501,7 +480,7 @@ void dsys_um_sysctl_parse_arguments(struct pcb *pc, int scno)
  * number of syscall in sysargs[1]*/
 int dsys_um_sysctl_index_function(struct pcb *pc, int scno)
 {
-	return (pc->private_scno & 0x3fffffff);
+	return (pc->private_scno & ESCNO_MASK);
 }
 
 /* megawrap for sysctl */
@@ -1284,7 +1263,7 @@ void scdtab_init()
 		int scno=scmap[i].scno;
 		if (scno >= 0)  {
 			scdtab[scno]=dsys_megawrap;
-			scdnarg[scno]=scmap[i].nargs;
+			scdnarg[scno]=NARGS(scmap[i].nargx);
 		}
 	}
 

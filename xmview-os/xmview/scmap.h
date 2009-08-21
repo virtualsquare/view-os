@@ -32,15 +32,15 @@
 #define __NR_msocket VIRSYS_MSOCKET
 
 /* macro for privatescno (as viewed by modules)
- * E-xtended scno */
+ * E-xtended scno (max 16384 syscall per type) */
 #if __NR_socketcall != __NR_doesnotexist
-#define ESCNO_SOCKET	0x40000000
+#define ESCNO_SOCKET	0x4000
 #else
-#define ESCNO_SOCKET	0x00000000
+#define ESCNO_SOCKET	0x0000
 #endif
-#define ESCNO_VIRSC		0x80000000
-#define ESCNO_MASK	0x3fffffff
-#define ESCNO_MAP		0xC0000000
+#define ESCNO_VIRSC		0x8000
+#define ESCNO_MASK	0x3fff
+#define ESCNO_MAP		0xC000
 
 //typedef struct service *sss;
 typedef struct ht_elem *(*htfun)();
@@ -83,11 +83,25 @@ struct sc_map {
 	 * flag, the CB_R flag, etc... (look below) */
 	short flags;
 	/* number of arguments of this system call - used for some
-	 * optimizations */
-	char nargs;
+	 * optimizations (lower three bits) */
+	/* path argument (for rewriting) in three more bits
+		 bits 7,6 unused
+		 bits 5,4,3 path arg (+1 !! path is arg 0
+		 bits 2,1,0 nargs */
+	char nargx;
 	/* set of calls, for a better selection (choice fun)*/
 	unsigned char setofcall;
 };
+
+#define NARGS(X) (X & 0x7)
+#define ISPATHARG(X) ((X >> 3) & 0x7)
+#define PATHARG(X) (((X >> 3) & 0x7) - 1)
+#define PATH0 (1<<3)
+#define PATH1 (2<<3)
+#define PATH2 (3<<3)
+#define PATH3 (4<<3)
+#define PATH4 (5<<3)
+#define PATH5 (6<<3)
 
 extern struct sc_map scmap[];
 extern int scmap_scmapsize;

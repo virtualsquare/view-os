@@ -74,12 +74,15 @@ int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 	int rv;
 	//printk("um_mod_event_subscribe %p %p %d %d ",cb,arg,fd,how);
 	//printk("epoch %lld n %lld \n",epoch,nestepoch);
-	hte=ht_fd(&umview_file,fd,1);
-	//printk("service %d \n",hte);
+	pc->hte=hte=ht_fd(&umview_file,fd,1);
+	//printk("service %p \n",hte);
 	if (hte != NULL) {
 		int sfd=fd2sfd(&umview_file,fd);
 		sysfun local_event_subscribe=ht_event_subscribe(hte);
-		rv=local_event_subscribe(cb,arg,sfd,how);
+		if(local_event_subscribe != NULL) 
+			rv=local_event_subscribe(cb,arg,sfd,how);
+		else
+			rv=how;
 	} else {
 		struct pollfd pdf={fd,how,0};
 		rv=poll(&pdf,1,0);
@@ -122,7 +125,7 @@ static char *nest_abspath(int dirfd, long laddr,struct npcb *npc,struct stat64 *
 struct ht_elem * nchoice_fd(int sc_number,struct npcb *npc)
 {
 	int fd=npc->sysargs[0];
-	//printk("nchoice_fd sc %d %d %lld\n",sc_number,fd,npc->tst.epoch);
+	//printk("nchoice_fd sc %d %d %lld %p\n",sc_number,fd,npc->tst.epoch,ht_fd(&umview_file,fd,1));
 	return ht_fd(&umview_file,fd,1);
 }
 
@@ -278,8 +281,9 @@ struct ht_elem * nchoice_socket(int sc_number,struct npcb *npc) {
 }
 
 /* call the implementation */
-int do_nested_call(sysfun um_syscall,unsigned long *args,int n)
+int do_nested_call(sysfun um_syscall,unsigned long *args,int nargx)
 {
+	/* int narg=NARGS(nargx)*/
 	return um_syscall(args[0],args[1],args[2],args[3],args[4],args[5]);
 }
 
@@ -287,7 +291,7 @@ int do_nested_call(sysfun um_syscall,unsigned long *args,int n)
 int nw_syspath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	npc->sysargs[0]=(long) npc->path;
-	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 }
 
 /* nested wrapper for syscall WITH DIRFD (*at) with a path*/
@@ -298,14 +302,14 @@ int nw_sysatpath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sys
 	npc->sysargs[2]=npc->sysargs[3];
 	npc->sysargs[3]=npc->sysargs[4];
 	npc->sysargs[4]=npc->sysargs[5];
-	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 }
 
 /* nested wrapper for syscall with a path on the sencond arg*/
 int nw_syssymlink(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	npc->sysargs[1]=(long) npc->path;
-	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 }
 
 /* nested wrapper for link*/
@@ -332,7 +336,7 @@ int nw_syslink(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 		long rv;
 		npc->sysargs[0]=(long) source;
 		npc->sysargs[1]=(long) npc->path;
-		rv=do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+		rv=do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 		free(source);
 		return rv;
 	}
@@ -380,7 +384,7 @@ int nw_sysopen(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 		scno=__NR_open;
 	}
 #endif
-	sfd=do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+	sfd=do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 	if (sfd >= 0) {
 		int lfd;
 		int newfd=r_dup(STDOUT_FILENO); /* fake a file descriptor! */
@@ -399,7 +403,7 @@ int nw_sysclose(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 	int lfd=fd2lfd(&umview_file,fd);
 	if (lfd >= 0 && lfd_getcount(lfd) <= 1) { //no more opened lfd on this file:
 		npc->sysargs[0]=fd2sfd(&umview_file,fd);
-		rv=do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+		rv=do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 		if (rv >= 0) {
 			lfd_nullsfd(lfd);
 			lfd_deregister_n_close(&umview_file,fd);
@@ -425,7 +429,7 @@ int nw_sysdup(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 	}else {
 		int rv;
 		int lfd=fd2lfd(&umview_file,npc->sysargs[0]);
-		rv=do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+		rv=do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 		if (rv >= 0) {
 			int newfd;
 			if (npc->sysargs[1] != -1) {
@@ -447,7 +451,7 @@ int nw_sysstatfs64(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sysca
 {
 	npc->sysargs[0]=(long) npc->path;
 	npc->sysargs[1]=npc->sysargs[2]; /* there is an extra arg (size) */
-	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 }
 
 /* nested wrapper for fstatfs64*/
@@ -456,7 +460,7 @@ int nw_sysfstatfs64(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sysc
 	int fd=npc->sysargs[0];
 	npc->sysargs[0]=fd2sfd(&umview_file,fd);
 	npc->sysargs[1]=npc->sysargs[2]; /* there is an extra arg (size) */
-	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 }
 
 /* nested wrapper for standard system calls using fd*/
@@ -464,7 +468,7 @@ int nw_sysfd_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall
 {
 	int fd=npc->sysargs[0];
 	npc->sysargs[0]=fd2sfd(&umview_file,fd);
-	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 }
 
 /* nested wrapper for standard system calls using fd converted to path*/
@@ -472,7 +476,7 @@ int nw_sysfdpath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sys
 {
 	int fd=npc->sysargs[0];
 	npc->sysargs[0]=(long)fd_getpath(&umview_file,fd);
-	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 }
 
 int nw_sysreadv(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
@@ -582,9 +586,9 @@ int nw_sockfd_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscal
 	int fd=npc->sysargs[0];
 	npc->sysargs[0]=fd2sfd(&umview_file,fd);
 #if __NR_socketcall != __NR_doesnotexist
-	return do_nested_call(um_syscall,&(npc->sysargs[0]),sockmap[scno].nargs);
+	return do_nested_call(um_syscall,&(npc->sysargs[0]),sockmap[scno].nargx);
 #else
-	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargs);
+	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 #endif
 }
 
@@ -764,6 +768,14 @@ static void nsaveargs(struct pcb *caller,struct npcb *callee,long int sysno){
 	callee->tst=caller->tst;
 	callee->tst.epoch=caller->nestepoch;
 	callee->nestepoch=callee->tst.epoch;
+	callee->ruid=caller->ruid;
+	callee->euid=caller->euid;
+	callee->suid=caller->suid;
+	callee->fsuid=caller->fsuid;
+	callee->rgid=caller->rgid;
+	callee->egid=caller->egid;
+	callee->sgid=caller->sgid;
+	callee->fsgid=caller->fsgid;
 	pcb_constructor((struct pcb *)callee,0,1);
 }
 
@@ -783,7 +795,7 @@ int msocket (char *path, int domain, int type, int protocol)
 static long int capture_nested_virsc(long int sysno, ...){
 	va_list ap;
 	register int i;
-	register int narg=virscmap[sysno].nargs;
+	register int narg=NARGS(virscmap[sysno].nargx);
 	long rv;
 	struct pcb *caller_pcb=get_pcb();
 	/* this is a new pcb, the actual pcb for syscall evaluation */
@@ -830,7 +842,7 @@ static long int capture_nested_virsc(long int sysno, ...){
 static long int capture_nested_socketcall(long int sysno, ...){
 	va_list ap;
 	register int i;
-	register int narg=sockmap[sysno].nargs;
+	register int narg=NARGS(sockmap[sysno].nargx);
 	long rv;
 	struct pcb *caller_pcb=get_pcb();
 	/* this is a new pcb, the actual pcb for syscall evaluation */
@@ -877,6 +889,7 @@ static long int capture_nested_syscall(long int sysno, ...)
 	/* this is a new pcb, the actual pcb for syscall evaluation */
 	struct npcb callee_pcb;
 	register int i;
+	register int narg=NARGS(scmap[uscno(sysno)].nargx);
 	va_start (ap, sysno);
 #if 0
 	if( caller_pcb == NULL ){
@@ -888,7 +901,7 @@ static long int capture_nested_syscall(long int sysno, ...)
 	nsaveargs(caller_pcb, &callee_pcb,sysno);
 	set_pcb(&callee_pcb);
 	for (i=0;i<6;i++){
-		if( i < scmap[uscno(sysno)].nargs ) 
+		if(i < narg) 
 			callee_pcb.sysargs[i]=va_arg(ap,long int);
 		else
 			callee_pcb.sysargs[i]=0;

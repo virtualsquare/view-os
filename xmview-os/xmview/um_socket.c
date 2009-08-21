@@ -92,16 +92,8 @@ int wrap_in_msocket(int sc_number,struct pcb *pc,
 			/* create the comm fifo with the user process */
 			if (pc->retval >= 0 &&
 					(pc->retval=lfd_open(hte,pc->retval,NULL,O_RDWR,0)) >= 0) {
-				char *filename=lfd_getfilename(pc->retval);
-				int filenamelen=WORDALIGN(strlen(filename));
-				long sp=getsp(pc);
-				/* change the system call arguments (open the fifo) */
-				/* could give some trouble if a process tests the
-				 * "type" of the file connected to the fd and the
-				 * module does not give the right answer!*/
-				ustoren(pc,sp-filenamelen,filenamelen,filename); /*socket?*/
+				um_x_rewritepath(pc,lfd_getfilename(pc->retval),0,0);
 				putscno(__NR_open,pc);
-				pc->sysargs[0]=sp-filenamelen;
 				pc->sysargs[1]=O_RDONLY;
 				return SC_CALLONXIT;
 			} else
@@ -193,12 +185,8 @@ int wrap_in_accept(int sc_number,struct pcb *pc,
 		/* open the new fifo, (accept creates a new fd) */
 		if (pc->retval >= 0 && 
 				(pc->retval=lfd_open(hte,pc->retval,NULL,O_RDWR,0)) >= 0) {
-			char *filename=lfd_getfilename(pc->retval);
-			int filenamelen=WORDALIGN(strlen(filename));
-			int sp=getsp(pc);
-			ustorestr(pc,sp-filenamelen,filenamelen,filename); /*socket?*/
+			um_x_rewritepath(pc,lfd_getfilename(pc->retval),0,0);
 			putscno(__NR_open,pc);
-			pc->sysargs[0]=sp-filenamelen;
 			pc->sysargs[1]=O_RDONLY;
 			return SC_CALLONXIT;
 		} else

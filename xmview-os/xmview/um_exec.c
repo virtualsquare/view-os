@@ -255,8 +255,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 			;
 		if (req.extraarg==NULL)
 			req.extraarg="";
-#ifdef NOUMBINWRAP
-#else
+#ifndef NOUMBINWRAP
 		/* collapse all the args in only one arg */
 		if (req.flags & BINFMT_KEEP_ARG0) 
 			asprintf(&umbinfmtarg0,"%c%s%c%s%c%s%c%s",
@@ -310,13 +309,9 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 			/* copy the file and change the first arg of execve to 
 			 * address the copy */
 			if ((pc->retval=filecopy(hte,pc->path,filename))>=0) {
-				long sp=getsp(pc);
-				int filenamelen=WORDALIGN(strlen(filename));
-				pc->retval=0;
+				um_x_rewritepath(pc,filename,0,0);
 				/* remember to clean up the copy as soon as possible */
 				pc->tmpfile2unlink_n_free=filename;
-				ustoren(pc,sp-filenamelen,filenamelen,filename);
-				pc->sysargs[0]=sp-filenamelen;
 				return SC_CALLONXIT;
 			} else {
 				/* something went wrong during the copy */
@@ -328,7 +323,11 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		} else 
 			return SC_FAKE;
 	} else 
-		return STD_BEHAVIOR;
+		if (__builtin_expect(pc->needs_dotdot_path_rewrite,0)) {
+			um_x_rewritepath(pc,pc->path,0,0);
+			return SC_CALLONXIT;
+		} else
+			return STD_BEHAVIOR;
 }
 
 

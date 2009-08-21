@@ -1,6 +1,8 @@
 #ifndef _PCB_H
 #define _PCB_H
+#include <stdint.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/ptrace.h>
 #include <asm/ptrace.h>
 #include "treepoch.h"
