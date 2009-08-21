@@ -838,8 +838,11 @@ static long viewfs_link(char *oldpath, char *newpath)
 			}
 			free(vfsoldpath);
 		}
-	} else /* MOVE */ /* XXX vfsoldpath? */
-		rv=link(oldpath,vfsnewpath);
+	} else {  /* MOVE */
+		char *vfsoldpath=unwrap(vfs,oldpath);
+		rv=link(vfsoldpath,vfsnewpath);
+		free(vfsoldpath);
+	}
 	free(vfsnewpath);
 	return rv;
 }
@@ -917,8 +920,11 @@ static long viewfs_rename(char *oldpath, char *newpath)
 			rv=rename(thisoldpath,newpath);
 		}
 		free(vfsoldpath);
-	} else /* MOVE */
-		rv=rename(oldpath,vfsnewpath);
+	} else { /* MOVE */
+		char *vfsoldpath=unwrap(vfs,oldpath);
+		rv=rename(vfsoldpath,vfsnewpath);
+		free(vfsoldpath);
+	}
 	if (vfs->flags & VIEWFS_DEBUG)
 		printk("VIEWFS_RENAME %s %s->%s %d\n",oldpath,newpath,vfsnewpath,rv);
 	free(vfsnewpath);
