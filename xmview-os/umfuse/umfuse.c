@@ -56,6 +56,8 @@
 #include <sys/statvfs.h>
 #include <config.h>
 
+#define UMFUSE_FUSE_VERSION 26
+
 #if ( FUSE_MINOR_VERSION <= 5 )
 #error UMFUSE NEEDS FUSE >= 2.6
 #endif 
@@ -135,6 +137,10 @@ struct fileinfo {
 																 dirent. Dir head pointer */
 	struct umdirent *dirpos;		/* same conversion above: current pos entry */
 };
+
+int fuse_version(void) {
+	return UMFUSE_FUSE_VERSION;
+}
 
 struct fuse_context *fuse_get_context(void)
 {

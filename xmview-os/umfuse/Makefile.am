@@ -4,7 +4,7 @@ mod_LTLIBRARIES = umfuse.la
 
 dist_man1_MANS = umfuse.1viewos
 
-umfuse_la_SOURCES = umfuse.c umfusestd.c umfuseargs.c umfusestd.h
+umfuse_la_SOURCES = umfuse.c umfusestd.c umfuseargs.c umfusestd.h fuse_opt.c
 umfuse_la_LDFLAGS = $(AM_LDFLAGS) -lpthread
 umfuse_la_CPPFLAGS = $(AM_CPPFLAGS) -DFUSE_USE_VERSION=26
 
