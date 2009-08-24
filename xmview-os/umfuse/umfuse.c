@@ -230,13 +230,6 @@ static int umfuse_confirm(int type, void *arg, int arglen,
 
 static char *unwrap(struct fuse_context *fc,char *path);
 
-static int file_exists(char *path)
-{
-	struct fuse_context *fc=um_mod_get_private_data();
-	struct stat buf;
-	return (fc->fuse->fops.getattr(unwrap(fc, path),&buf)==0);
-}
-
 /*HUMAN MODE MGMT*/
 #define MAY_EXEC 1
 #define MAY_WRITE 2
@@ -1329,11 +1322,6 @@ static long umfuse_mknod(const char *path, mode_t mode, dev_t dev)
 	int rv;
 	assert(fc != NULL);
 
-	if (file_exists(path)) {
-		errno = EEXIST;
-		return -1;
-	}
-
 	if (fc->fuse->flags & FUSE_DEBUG)
 		fprintf(stderr, "MKNOD [%s] => path:%s %d %d\n",fc->fuse->path,path,
 				major(dev),minor(dev));
@@ -1351,11 +1339,6 @@ static long umfuse_mkdir(char *path, int mode)
 	struct fuse_context *fc=um_mod_get_private_data();
 	int rv=0;
 	assert(fc != NULL);
-
-	if (file_exists(path)) {
-		errno = EEXIST;
-		return -1;
-	}
 
 	if (fc->fuse->flags & MS_RDONLY) {
 		errno = EROFS;
@@ -1527,11 +1510,6 @@ static long umfuse_link(char *oldpath, char *newpath)
 	int rv=0;
 	assert(fc != NULL);
 
-	if (file_exists(newpath)) {
-		errno = EEXIST;
-		return -1;
-	}
-
 	if (fc->fuse->flags & MS_RDONLY) {
 		errno = EROFS;
 		return -1;
@@ -1625,11 +1603,6 @@ static long umfuse_symlink(char *oldpath, char *newpath)
 	int rv=0;
 
 	assert(fc != NULL);
-
-	if (file_exists(newpath)) {
-		errno = EEXIST;
-		return -1;
-	}
 
 	if (fc->fuse->flags & MS_RDONLY) {
 		errno = EROFS;

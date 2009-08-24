@@ -272,12 +272,16 @@ static inline int wipeoutfile (struct viewfs *vfs,char *path)
 static inline void deleteinfo (struct viewfs *vfs,char *path)
 {
 	int rv=0;
-	if (vfs->flags & VIEWFS_COW && vfs->flags & VIEWFS_VSTAT) {
+	int saveerrno=errno;
+	/* infofile must be eliminated when a VSTAT file system is later
+		 mounted without vstat */
+	if (vfs->flags & VIEWFS_COW /*&& vfs->flags & VIEWFS_VSTAT*/) {
 		char *infofile=wipeunwrap(vfs,path,INFOEXT);
 		if(unlink(infofile)>=0)
 			destroy_path(vfs,infofile,1);
 		free(infofile);
 	}
+	errno=saveerrno;
 }
 
 static inline unsigned int new_encode_dev(dev_t dev)
@@ -461,7 +465,7 @@ static void create_vpath(struct viewfs *vfs,char *path,char *vfspath)
 					rv=lstat64(path,&stold);
 					if (stold.st_mode & 07777 != mode)
 						chmod(vfspath,stold.st_mode);
-					if (rv==0 && (stold.st_uid != xuid || stold.st_gid != xgid))
+					if ((vfs->flags & VIEWFS_VSTAT) && rv==0 && (stold.st_uid != xuid || stold.st_gid != xgid))
 						puthexstat(vfs,path,0,
 								(stold.st_uid == xuid)? -1:stold.st_uid,
 								(stold.st_gid == xgid)? -1:stold.st_gid ,
@@ -729,7 +733,7 @@ static long viewfs_open(char *path, int flags, mode_t mode)
 			viewfs_opendirs=vfsdir;
 			FD_SET(rv,&viewfs_dirset);
 		}
-		if (cownewfile)
+		if (cownewfile && (vfs->flags & VIEWFS_VSTAT))
 			new_vstat(vfs,path,0,0);
 	}
 	free(vfspath);

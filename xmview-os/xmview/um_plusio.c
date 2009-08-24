@@ -66,7 +66,10 @@ int wrap_in_mkdir(int sc_number,struct pcb *pc,
 	else
 #endif
 		mode=pc->sysargs[1];
-	if ((pc->retval = um_syscall(pc->path,mode & ~ (pc->fdfs->mask))) < 0)
+	if (pc->pathstat.st_mode != 0) {
+		pc->retval= -1; 
+		pc->erno= EEXIST; 
+	} else if ((pc->retval = um_syscall(pc->path,mode & ~ (pc->fdfs->mask))) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }
@@ -95,7 +98,10 @@ int wrap_in_mknod(int sc_number,struct pcb *pc,
 		mode=pc->sysargs[1];
 		dev=pc->sysargs[2];
 	}
-	if ((pc->retval = um_syscall(pc->path,mode & ~ (pc->fdfs->mask),new_decode_dev(dev))) < 0)
+	if (pc->pathstat.st_mode != 0) {
+		pc->retval= -1;
+		pc->erno= EEXIST;
+	} else if ((pc->retval = um_syscall(pc->path,mode & ~ (pc->fdfs->mask),new_decode_dev(dev))) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }
@@ -486,7 +492,10 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 
 	source=um_abspath(olddirfd,oldpath,pc,&sourcest,0);
 
-	if (source==um_patherror) {
+	if (pc->pathstat.st_mode != 0) {
+		pc->retval= -1;
+		pc->erno= EEXIST;
+	} else if (source==um_patherror) {
 		pc->retval= -1;
 		pc->erno= ENOENT;
 	} else {
@@ -508,10 +517,12 @@ int wrap_in_symlink(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
 	char *source;
-	
 	source=um_getpath(pc->sysargs[0],pc);
 
-	if (source==um_patherror) {
+	if (pc->pathstat.st_mode != 0) {
+		pc->retval= -1;
+		pc->erno= EEXIST;
+	} else if (source==um_patherror) {
 		pc->retval= -1;
 		pc->erno= ENOENT;
 	} else {

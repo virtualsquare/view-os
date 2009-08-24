@@ -112,7 +112,6 @@ static int rec_realpath(struct canonstruct *cdata, char *dest)
 				else
 					continue; /* CONTINUE: NEXT ITERATION OF THE LOOP (***) */
 			}
-			//if (cdata->statbuf->st_mode==0)
 			if (recoutput != 0) /* ROOT or DOTDOT */
 				um_x_lstat64(cdata->resolved,cdata->statbuf,cdata->xpc,recoutput==DOTDOT);
 			/* nothing more to do */
@@ -210,11 +209,9 @@ static int rec_realpath(struct canonstruct *cdata, char *dest)
 			case 0 : return 0;
 			/* DOTDOT: cycle at this layer */
 			case DOTDOT: 
-							 //cdata->statbuf->st_mode=0;
 							 continue; /* CONTINUE: NEXT ITERATION OF THE LOOP (***) */
 			/* ROOT: close recursive calls up the root */
 			case ROOT: 
-							 //cdata->statbuf->st_mode=0;
 							 if (dest > cdata->resolved+cdata->rootlen) 
 								 return ROOT;
 							 else
