@@ -1736,10 +1736,17 @@ static long umfuse_utimes(char *path, struct timeval tv[2])
 	}
 
 	fc->pid=um_mod_getpid();
-
-	if (fc->fuse->fops.utimens) 
-		rv = fc->fuse->fops.utimens(unwrap(fc, path), tv);
-	else {
+	if (fc->fuse->fops.utimens) {
+		if (fc->fuse->flags & FUSE_DEBUG)
+			GMESSAGE("UTIMENS [%s] => %s \n", fc->fuse->path, path);
+		if (tv == NULL) {
+			struct timeval nowtv[2];
+			gettimeofday(&nowtv[0],NULL);
+			nowtv[1]=nowtv[0];
+			rv = fc->fuse->fops.utimens(unwrap(fc, path), nowtv);
+		} else
+			rv = fc->fuse->fops.utimens(unwrap(fc, path), tv);
+	} else {
 		struct utimbuf buf;
 		if (tv == NULL) 
 			buf.actime=buf.modtime=time(NULL);
@@ -1747,8 +1754,15 @@ static long umfuse_utimes(char *path, struct timeval tv[2])
 			buf.actime=tv[0].tv_sec;
 			buf.modtime=tv[1].tv_sec;
 		}
+		if (fc->fuse->flags & FUSE_DEBUG)
+			GMESSAGE("UTIME [%s] => %s \n", fc->fuse->path, path);
 		rv = fc->fuse->fops.utime(unwrap(fc, path), &buf);
 	}
+	if (rv < 0) {
+		errno = -rv;
+		return -1;
+	} else
+		return rv;
 }
 
 static ssize_t umfuse_pread64(int fd, void *buf, size_t count, long long offset)
