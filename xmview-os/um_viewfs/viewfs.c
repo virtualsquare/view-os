@@ -225,10 +225,12 @@ static inline int isdeleted (struct viewfs *vfs,char *path)
 	if (vfs->flags & VIEWFS_MERGE) {
 		char *wipefile=wipeunwrap(vfs,path,"");
 		struct stat64 buf;
+		int erno=errno;
 		int rv=lstat64(wipefile,&buf);
 		rv=(rv==0 && S_ISREG(buf.st_mode));
 		//printk("isdeleted %s %s %lo %d\n",path,wipefile,buf.st_mode,rv);
 		free(wipefile);
+		errno=erno;
 		return rv;
 	}
 	return FALSE;

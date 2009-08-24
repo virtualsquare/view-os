@@ -110,7 +110,7 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdo
 	int retval;
 	long oldscno;
 	epoch_t epoch;
-	/* printk("-> um_lstat: %s %d\n",filename,isdotdot); */
+	/* printk("-> um_lstat: %s %p %d\n",filename,pc->hte,isdotdot); */
 	/* internal nested call save data */
 	oldscno = pc->sysscno;
 	pc->sysscno = NR64_lstat;
@@ -266,10 +266,7 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 		if (pc->erno)
 			return um_patherror;	//error
 		else
-#if 0
-			return strdup(um_cutdots(newpath));
-#endif
-		return strdup(newpath);
+			return strdup(newpath);
 	}
 	else {
 		pc->erno = EINVAL;
