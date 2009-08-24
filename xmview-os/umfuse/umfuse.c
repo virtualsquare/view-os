@@ -1742,8 +1742,7 @@ static long umfuse_ftruncate64(int fd, off_t length)
 	}
 }
 
-/** Change the access and/or modification times of a file */
-static long umfuse_utime(char *path, struct utimbuf *buf)
+static long umfuse_utimes(char *path, struct timeval tv[2])
 {
 	struct fuse_context *fc = um_mod_get_private_data();
 	int rv;
@@ -1764,29 +1763,18 @@ static long umfuse_utime(char *path, struct utimbuf *buf)
 	}
 
 	fc->pid=um_mod_getpid();
-	if (buf == NULL) {
-		struct utimbuf localbuf;
-		localbuf.actime=localbuf.modtime=time(NULL);
-		rv = fc->fuse->fops.utime(unwrap(fc, path), &localbuf);
-	} else
-		rv = fc->fuse->fops.utime(unwrap(fc, path), buf);
-	if (rv < 0) {
-		errno = -rv;
-		return -1;
-	}
-	return rv;	
-}
 
-static long umfuse_utimes(char *path, struct timeval tv[2])
-{
-	//approximate solution. drop microseconds
-	if (tv == NULL) {
-		return umfuse_utime(path, NULL);	
-	} else {
+	if (fc->fuse->fops.utimens) 
+		rv = fc->fuse->fops.utimens(unwrap(fc, path), tv);
+	else {
 		struct utimbuf buf;
-		buf.actime=tv[0].tv_sec;
-		buf.modtime=tv[1].tv_sec;
-		return umfuse_utime(path, &buf);
+		if (tv == NULL) 
+			buf.actime=buf.modtime=time(NULL);
+		else {
+			buf.actime=tv[0].tv_sec;
+			buf.modtime=tv[1].tv_sec;
+		}
+		rv = fc->fuse->fops.utime(unwrap(fc, path), &buf);
 	}
 }
 
