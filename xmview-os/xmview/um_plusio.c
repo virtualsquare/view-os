@@ -491,8 +491,10 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 	} 
 
 	source=um_abspath(olddirfd,oldpath,pc,&sourcest,0);
+	/*um_abspath updates pc->hte*/
 
-	if (pc->pathstat.st_mode != 0) {
+	if (pc->pathstat.st_mode != 0 &&
+			sc_number != __NR_rename && sc_number != __NR_renameat) {
 		pc->retval= -1;
 		pc->erno= EEXIST;
 	} else if (source==um_patherror) {
@@ -500,8 +502,7 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 		pc->erno= ENOENT;
 	} else {
 		/* inter module file hard link are unsupported! */
-		struct ht_elem *hte2=ht_check(CHECKPATH,source,&sourcest,0);
-		if (hte != hte2) {
+		if (hte != pc->hte) {
 			pc->retval= -1;
 			pc->erno= EXDEV;
 		} else {

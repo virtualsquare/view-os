@@ -329,9 +329,13 @@ int nw_syslink(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 		oldpath=npc->sysargs[0];
 	} 
 	source=nest_abspath(olddirfd,oldpath,npc,&(npc->pathstat),0);
+	/* nest_abspath sets npc->hte */
 	if (npc->path==um_patherror) {
 		npc->erno= ENOENT;
 		return -1;
+	} else if (hte != npc->hte) {
+		return -1;
+		npc->erno= EXDEV;
 	} else {
 		long rv;
 		npc->sysargs[0]=(long) source;
