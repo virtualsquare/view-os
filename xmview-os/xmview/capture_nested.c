@@ -368,7 +368,7 @@ int nw_sysftruncate(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sysc
 	else
 #endif
 		off=npc->sysargs[1];
-	return um_syscall(fd_getpath(&umview_file,fd),off);
+	return um_syscall(fd2sfd(&umview_file,fd),off);
 }
 
 /* nested wrapper for open*/
@@ -406,8 +406,7 @@ int nw_sysclose(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 	int fd=npc->sysargs[0];
 	int lfd=fd2lfd(&umview_file,fd);
 	if (lfd >= 0 && lfd_getcount(lfd) <= 1) { //no more opened lfd on this file:
-		npc->sysargs[0]=fd2sfd(&umview_file,fd);
-		rv=do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
+		rv=um_syscall(fd2sfd(&umview_file,fd));
 		if (rv >= 0) {
 			lfd_nullsfd(lfd);
 			lfd_deregister_n_close(&umview_file,fd);
