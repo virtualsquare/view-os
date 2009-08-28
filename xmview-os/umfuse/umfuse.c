@@ -1139,7 +1139,7 @@ static long umfuse_read(int fd, void *buf, size_t count)
 	}
 }
 
-static long umfuse_lseek(int fd, int offset, int whence);
+static loff_t umfuse_lseek64(int fd, loff_t offset, int whence);
 static long umfuse_write(int fd, void *buf, size_t count)
 {
 	//TODO write page?!
@@ -1158,7 +1158,7 @@ static long umfuse_write(int fd, void *buf, size_t count)
 		struct fuse_context *fc=ft->context;
 		fc->pid=um_mod_getpid();
 		if (ft->ffi.flags & O_APPEND)
-			rv=umfuse_lseek(fd,0,SEEK_END);
+			rv=umfuse_lseek64(fd,0,SEEK_END);
 		if (rv!=-1) {
 			rv = fc->fuse->fops.write(ft->path,
 					buf, count, ft->pos, &ft->ffi);
@@ -1837,7 +1837,7 @@ static long umfuse_fcntl64(int fd, int cmd, void *arg)
 	return 0;
 }
 
-static long umfuse_lseek(int fd, int offset, int whence)
+static loff_t umfuse_lseek64(int fd, loff_t offset, int whence)
 {
 	struct fileinfo *ft=getfiletab(fd);
 	switch (whence) {
@@ -1862,13 +1862,19 @@ static long umfuse_lseek(int fd, int offset, int whence)
 					errno=EBADF;
 					return -1;
 				}
-			}
+																																																		      }
 			break;
 	}
 
 	return ft->pos;
 }
 
+static long umfuse_lseek(int fd, int offset, int whence)
+{
+	return (long) umfuse_lseek64(fd, offset, whence);
+}
+
+#if __WORDSIZE == 32 
 static long umfuse__llseek(unsigned int fd, unsigned long offset_high,  unsigned  long offset_low, loff_t *result, unsigned int whence)
 {
 	//GDEBUG(10,"umfuse__llseek [%s] %d %d %d %d",
@@ -1876,12 +1882,10 @@ static long umfuse__llseek(unsigned int fd, unsigned long offset_high,  unsigned
 	if (result == NULL) {
 		errno = EFAULT;
 		return -1;
-	} else if (offset_high != 0) {
-		errno = EINVAL;
-		return -1;
 	} else {
-		long rv;
-		rv=umfuse_lseek(fd,offset_low,whence);
+		loff_t offset = (((loff_t) offset_high)<<32)  |  offset_low;
+		loff_t rv;
+		rv=umfuse_lseek64(fd,offset,whence);
 		if (rv >= 0) {
 			*result=rv;
 			return 0;
@@ -1891,6 +1895,7 @@ static long umfuse__llseek(unsigned int fd, unsigned long offset_high,  unsigned
 		}
 	}
 }
+#endif
 
 static long umfuse_statfs64 (const char *file, struct statfs64 *buf)
 {
@@ -1963,8 +1968,9 @@ init (void)
 #if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have these
 	SERVICESYSCALL(s, fcntl64, umfuse_fcntl64);
 	SERVICESYSCALL(s, _llseek, umfuse__llseek);
-#endif
+#else
 	SERVICESYSCALL(s, lseek, umfuse_lseek);
+#endif
 	SERVICESYSCALL(s, mknod, umfuse_mknod);
 	SERVICESYSCALL(s, mkdir, umfuse_mkdir);
 	SERVICESYSCALL(s, rmdir, umfuse_rmdir);

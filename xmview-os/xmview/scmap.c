@@ -105,6 +105,7 @@ wrapfun nw_sysatpath_std,nw_sysatpath_stdnew;
 wrapfun nw_sysreadv, nw_syswritev;
 wrapfun nw_syspreadv, nw_syspwritev;
 wrapfun nw_systruncate, nw_sysftruncate;
+wrapfun nw_syslseek, nw_sysllseek;
 
 wrapinfun wrap_in_socket, wrap_out_socket;
 wrapinfun wrap_in_bind_connect, wrap_in_listen, wrap_in_getsock, wrap_in_send;
@@ -217,8 +218,13 @@ struct sc_map scmap[]={
 	{__NR_access,	choice_path,	wrap_in_access, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	PATH0 | 2, SOC_FILE},
 	{__NR_fcntl,	choice_fd,	wrap_in_fcntl, wrap_out_fcntl,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
 	{__NR_fcntl64,	choice_fd,	wrap_in_fcntl, wrap_out_fcntl,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
+#if (__NR__llseek == __NR_doesnotexist)
 	{__NR_lseek,	choice_fd,	wrap_in_lseek, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
 	{__NR__llseek,	choice_fd,	wrap_in_llseek, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	5, SOC_FILE},
+#else
+	{__NR_lseek,	choice_fd,	wrap_in_lseek, wrap_out_std,	nchoice_fd,	nw_syslseek, 0,	3, SOC_FILE},
+	{__NR__llseek,	choice_fd,	wrap_in_llseek, wrap_out_std,	nchoice_fd,	nw_sysllseek, 0,	5, SOC_FILE},
+#endif
 	{__NR_mkdir,	choice_link,	wrap_in_mkdir, wrap_out_std,	nchoice_link,	nw_syspath_stdnew, 0,	PATH0 | 2, SOC_FILE},
 	{__NR_rmdir,	choice_path,	wrap_in_unlink, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	PATH0 | 1, SOC_FILE},
 	{__NR_link,	choice_link2,	wrap_in_link, wrap_out_std,	nchoice_link2,	nw_syslink, 0,	PATH1 | 2, SOC_FILE},

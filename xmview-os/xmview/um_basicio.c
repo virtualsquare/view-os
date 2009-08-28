@@ -650,6 +650,7 @@ int wrap_in_access(int sc_number,struct pcb *pc,
 	return SC_FAKE;
 }
 
+#if (__NR__llseek == __NR_doesnotexist)
 int wrap_in_lseek(int sc_number,struct pcb *pc,
 		                struct ht_elem *hte, sysfun um_syscall)
 {
@@ -665,6 +666,38 @@ int wrap_in_lseek(int sc_number,struct pcb *pc,
 	}
 	return SC_FAKE;
 }
+
+#else
+int wrap_in_lseek(int sc_number,struct pcb *pc,
+		                    struct ht_elem *hte, sysfun um_syscall)
+{
+	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
+	if (sfd < 0) {
+		pc->retval= -1;
+		pc->erno= EBADF;
+	} else {
+		long offset =pc->sysargs[1];
+		long whence =pc->sysargs[2];
+		if (isnosys(um_syscall)) {
+			loff_t lresult;
+			um_syscall=ht_syscall(hte,uscno(__NR__llseek));
+			pc->retval = um_syscall(sfd,
+					(offset>0)?0:-1,offset,&lresult,whence);
+			if (pc->retval != -1) {
+				pc->retval=lresult;
+				if (pc->retval != lresult) {
+					pc->retval = -1;
+					pc->erno = EOVERFLOW;
+				}
+			}
+		} else {
+			if ((pc->retval = um_syscall(sfd,offset,whence)) == -1)
+				pc->erno=errno;
+		}
+	}
+	return SC_FAKE;
+}
+
 
 int wrap_in_llseek(int sc_number,struct pcb *pc,
 		                struct ht_elem *hte, sysfun um_syscall)
@@ -704,6 +737,7 @@ int wrap_in_llseek(int sc_number,struct pcb *pc,
 	}
 	return SC_FAKE;
 }
+#endif
 
 int wrap_in_notsupp(int sc_number,struct pcb *pc,
 		                struct ht_elem *hte, sysfun um_syscall)

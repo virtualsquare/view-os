@@ -288,14 +288,14 @@ int do_nested_call(sysfun um_syscall,unsigned long *args,int nargx)
 }
 
 /* nested wrapper for syscall with a path*/
-int nw_syspath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_syspath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	npc->sysargs[0]=(long) npc->path;
 	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 }
 
 /* nested wrapper for syscall with a path, EEXIST if the file already exists*/
-int nw_syspath_stdnew(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_syspath_stdnew(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	if (npc->pathstat.st_mode != 0) {
 		npc->erno= EEXIST;
@@ -307,7 +307,7 @@ int nw_syspath_stdnew(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sy
 }
 
 /* nested wrapper for syscall WITH DIRFD (*at) with a path*/
-int nw_sysatpath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_sysatpath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	npc->sysargs[0]=(long) npc->path;
 	npc->sysargs[1]=npc->sysargs[2];
@@ -318,7 +318,7 @@ int nw_sysatpath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sys
 }
 
 /* nested wrapper for syscall WITH DIRFD (*at) with a path + EEXIST error*/
-int nw_sysatpath_stdnew(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_sysatpath_stdnew(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	if (npc->pathstat.st_mode != 0) {
 		npc->erno= EEXIST;
@@ -328,7 +328,7 @@ int nw_sysatpath_stdnew(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_
 }
 
 /* nested wrapper for symlinks */
-int nw_syssymlink(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_syssymlink(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	if (npc->pathstat.st_mode != 0) {
 		npc->erno= EEXIST;
@@ -340,7 +340,7 @@ int nw_syssymlink(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscal
 }
 
 /* nested wrapper for link*/
-int nw_syslink(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_syslink(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	char *source;
 	int olddirfd;
@@ -378,7 +378,7 @@ int nw_syslink(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 	}
 }
 
-int nw_systruncate(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_systruncate(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	__off64_t off;
 #if (__NR_truncate64 != __NR_doesnotexist)
@@ -390,7 +390,7 @@ int nw_systruncate(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sysca
 	return um_syscall(npc->path,off);
 }
 
-int nw_sysftruncate(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_sysftruncate(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	 int fd=npc->sysargs[0];
 	__off64_t off;
@@ -404,7 +404,7 @@ int nw_sysftruncate(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sysc
 }
 
 /* nested wrapper for open*/
-int nw_sysopen(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_sysopen(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	int sfd;
 	npc->sysargs[0]=(long) npc->path;
@@ -432,7 +432,7 @@ int nw_sysopen(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 }
 
 /* nested wrapper for close*/
-int nw_sysclose(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_sysclose(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	int rv;
 	int fd=npc->sysargs[0];
@@ -450,7 +450,7 @@ int nw_sysclose(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 }
 
 /* nested wrapper for dup*/
-int nw_sysdup(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_sysdup(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	int fd=npc->sysargs[0];
 	int sfd;
@@ -482,7 +482,7 @@ int nw_sysdup(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 }
 
 /* nested wrapper for statfs64*/
-int nw_sysstatfs64(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_sysstatfs64(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	npc->sysargs[0]=(long) npc->path;
 	npc->sysargs[1]=npc->sysargs[2]; /* there is an extra arg (size) */
@@ -490,7 +490,7 @@ int nw_sysstatfs64(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sysca
 }
 
 /* nested wrapper for fstatfs64*/
-int nw_sysfstatfs64(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_sysfstatfs64(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	int fd=npc->sysargs[0];
 	npc->sysargs[0]=fd2sfd(&umview_file,fd);
@@ -499,7 +499,7 @@ int nw_sysfstatfs64(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sysc
 }
 
 /* nested wrapper for standard system calls using fd*/
-int nw_sysfd_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_sysfd_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	int fd=npc->sysargs[0];
 	npc->sysargs[0]=fd2sfd(&umview_file,fd);
@@ -507,14 +507,66 @@ int nw_sysfd_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall
 }
 
 /* nested wrapper for standard system calls using fd converted to path*/
-int nw_sysfdpath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_sysfdpath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	int fd=npc->sysargs[0];
 	npc->sysargs[0]=(long)fd_getpath(&umview_file,fd);
 	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 }
 
-int nw_sysreadv(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+#if (__NR__llseek != __NR_doesnotexist)
+long nw_syslseek(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	int fd=npc->sysargs[0];
+	int sfd=fd2sfd(&umview_file,fd);
+	long offset=npc->sysargs[1];
+	int whence=npc->sysargs[2];
+	long rv;
+	if (isnosys(um_syscall)) {
+		loff_t lresult;
+		um_syscall=ht_syscall(hte,uscno(__NR__llseek));
+		rv = um_syscall(sfd,(offset>0)?0:-1,offset,&lresult,whence);
+		if (rv != -1) {
+			rv=lresult;
+			if (rv != lresult) {
+				npc->erno = EOVERFLOW;
+				return -1;
+			}
+		} 
+		return rv;
+	} else
+		return um_syscall(sfd,offset,whence);
+}
+
+
+long nw_sysllseek(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	int fd=npc->sysargs[0];
+	int sfd=fd2sfd(&umview_file,fd);
+	unsigned long offhi=npc->sysargs[1];
+	unsigned long offlo=npc->sysargs[2];
+	loff_t *result=(loff_t *) npc->sysargs[3];
+	unsigned int whence=npc->sysargs[4];
+	if (!isnosys(um_syscall)) 
+		return um_syscall(sfd,offhi,offlo,result,whence);
+	else {
+		if ((offhi==0 && !(offlo & 1<<31)) || ((offhi == ~0 && (offlo & 1<<31)))) {
+			long shortresult;
+			um_syscall=ht_syscall(hte,uscno(__NR_lseek));
+			if ((shortresult=um_syscall(sfd,offlo,whence)) != -1) {
+				*result=shortresult;
+				return 0;
+			} else
+				return -1;
+		}	else {
+			npc->erno=EFAULT;
+			return -1;
+		}
+	}
+}
+#endif
+
+long nw_sysreadv(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	int sfd=fd2sfd(&umview_file,npc->sysargs[0]);
 	struct iovec *iovec=(struct iovec *)npc->sysargs[1];
@@ -537,7 +589,7 @@ int nw_sysreadv(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 	return size;
 }
 
-int nw_syswritev(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_syswritev(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	int sfd=fd2sfd(&umview_file,npc->sysargs[0]);
 	struct iovec *iovec=(struct iovec *)npc->sysargs[1];
@@ -558,7 +610,7 @@ int nw_syswritev(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall
 	return size;
 }
 
-int nw_syspreadv(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_syspreadv(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	int sfd=fd2sfd(&umview_file,npc->sysargs[0]);
 	struct iovec *iovec=(struct iovec *)npc->sysargs[1];
@@ -587,7 +639,7 @@ int nw_syspreadv(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall
 	return size;
 }
 
-int nw_syspwritev(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_syspwritev(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	int sfd=fd2sfd(&umview_file,npc->sysargs[0]);
 	struct iovec *iovec=(struct iovec *)npc->sysargs[1];
@@ -616,7 +668,7 @@ int nw_syspwritev(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscal
 
 
 /* nested wrapper for standard socket calls */
-int nw_sockfd_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_sockfd_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	int fd=npc->sysargs[0];
 	npc->sysargs[0]=fd2sfd(&umview_file,fd);
@@ -627,7 +679,7 @@ int nw_sockfd_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscal
 #endif
 }
 
-int nw_msocket(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_msocket(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	npc->sysargs[0]=(long) npc->path;
 	//printk("nw_msocket %s %d\n",npc->sysargs[0],hte);
@@ -683,7 +735,7 @@ int nw_msocket(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 }
 
 /* nested wrapper for standard socket calls */
-int nw_accept(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_accept(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	int fd=npc->sysargs[0];
 	int sfd;
@@ -700,7 +752,7 @@ int nw_accept(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 		return -1;
 }
 
-int nw_socket(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_socket(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	npc->sysargs[3]=npc->sysargs[2];
 	npc->sysargs[2]=npc->sysargs[1];
@@ -710,7 +762,7 @@ int nw_socket(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 }
 
 /* nested wrapper for not supported call */
-int nw_notsupp(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+long nw_notsupp(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
 	npc->erno=EOPNOTSUPP;
 	return -1;
