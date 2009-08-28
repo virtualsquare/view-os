@@ -352,7 +352,7 @@ int check_owner(char *path){
 
 	if (fc->fuse->fops.getattr) rv=fc->fuse->fops.getattr(path,&buf);
 	if (rv<0) {
-		PRINTDEBUG (10,"check_owner.Getattr failed:%s\n",path);
+		PRINTDEBUG (10,"check_owner.Getattr failed:%s",path);
 		return rv;
 	}
 
@@ -932,42 +932,42 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 	fc->pid=um_mod_getpid();
 
 #ifdef __UMFUSE_DEBUG__
-	GDEBUG(10,"FLAGOPEN path:%s unwrap:%s\nFLAGS:0x%x MODE:%d\n",path,unwrap(fc,path),flags,mode);
+	GDEBUG(10,"FLAGOPEN path:%s unwrap:%s\nFLAGS:0x%x MODE:%d",path,unwrap(fc,path),flags,mode);
 
 	if(flags &  O_CREAT)
-		GDEBUG(10, "O_CREAT\n");
+		GDEBUG(10, "O_CREAT");
 	if(flags & O_TRUNC)
-		GDEBUG(10, "O_TRUNC\n");
+		GDEBUG(10, "O_TRUNC");
 	if((flags &  O_ACCMODE) == O_RDONLY)
-		GDEBUG(10, "O_RDONLY:\n");
+		GDEBUG(10, "O_RDONLY:");
 	if(flags &  O_APPEND)
-		GDEBUG(10, "O_APPEND\n");
+		GDEBUG(10, "O_APPEND");
 	if((flags & O_ACCMODE) ==  O_WRONLY)
-		GDEBUG(10, "O_WRONLY\n");
+		GDEBUG(10, "O_WRONLY");
 	if((flags & O_ACCMODE) ==  O_RDWR)
-		GDEBUG(10, "O_RDWR\n");
+		GDEBUG(10, "O_RDWR");
 	if(flags &  O_ASYNC)
-		GDEBUG(10, "O_ASYNC\n");
+		GDEBUG(10, "O_ASYNC");
 	if(flags &  O_DIRECT)
-		GDEBUG(10, "O_DIRECT\n");
+		GDEBUG(10, "O_DIRECT");
 	if(flags &  O_DIRECTORY)
-		GDEBUG(10, "O_DIRECTORY\n");
+		GDEBUG(10, "O_DIRECTORY");
 	if(flags &  O_EXCL)
-		GDEBUG(10, "O_EXCL\n");
+		GDEBUG(10, "O_EXCL");
 	if(flags &  O_LARGEFILE)
-		GDEBUG(10, "O_LARGEFILE\n");
+		GDEBUG(10, "O_LARGEFILE");
 	if(flags &  O_DIRECT)
-		GDEBUG(10, "O_NOATIME\n");
+		GDEBUG(10, "O_NOATIME");
 	if(flags &  O_DIRECTORY)
-		GDEBUG(10, "O_NOCTTY\n");
+		GDEBUG(10, "O_NOCTTY");
 	if(flags &  O_EXCL)
-		GDEBUG(10, "O_NOCTTY\n");
+		GDEBUG(10, "O_NOCTTY");
 	if(flags &  O_NOFOLLOW)
-		GDEBUG(10, "O_NOFOLLOW\n");
+		GDEBUG(10, "O_NOFOLLOW");
 	if(flags &  (O_NONBLOCK | O_NDELAY))
-		GDEBUG(10, "O_NONBLOCK o O_NDELAY\n");
+		GDEBUG(10, "O_NONBLOCK o O_NDELAY");
 	if(flags &  O_SYNC)
-		GDEBUG(10, "SYNC\n");
+		GDEBUG(10, "SYNC");
 #endif
 
 	ft->context = fc;
@@ -1026,7 +1026,7 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 					goto error;
 				} 
 			} else {
-				GDEBUG(10, "umfuse open MKNOD call\n");
+				GDEBUG(10, "umfuse open MKNOD call");
 				rv = fc->fuse->fops.mknod(ft->path, S_IFREG | mode, (dev_t) 0);
 				if (rv < 0) {
 					errno = -rv;
@@ -1034,7 +1034,7 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 				}
 			}
 		}
-		GDEBUG(10,"open_fuse_filesystem CALL!\n");
+		GDEBUG(10,"open_fuse_filesystem CALL!");
 		if ((flags & O_DIRECTORY) && fc->fuse->fops.readdir)
 			rv = fc->fuse->fops.opendir(ft->path, &ft->ffi);
 		else 
@@ -1044,14 +1044,14 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 	if (rv < 0)
 	{
 		if (fc->fuse->flags & FUSE_DEBUG) {
-			GERROR("OPEN[%s:%d] ERROR => path:%s flags:0x%x Err:%d\n",
+			GERROR("OPEN[%s:%d] ERROR => path:%s flags:0x%x Err:%d",
 					fc->fuse->path, fd, path, flags, -rv);	
 		}		
 		errno = -rv;
 		goto error;
 	} else {
 		if (fc->fuse->flags & FUSE_DEBUG) {
-			GMESSAGE("OPEN[%s:%d] => path:%s flags:0x%x\n",
+			GMESSAGE("OPEN[%s:%d] => path:%s flags:0x%x",
 					fc->fuse->path, fd, path, flags);
 		}
 
@@ -1074,26 +1074,26 @@ static long umfuse_close(int fd)
 	fc->pid=um_mod_getpid();
 
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		GMESSAGE("CLOSE[%s:%d] %s %p\n",fc->fuse->path,fd,ft->path,fc);
+		GMESSAGE("CLOSE[%s:%d] %s %p",fc->fuse->path,fd,ft->path,fc);
 	}
 
 	if (!(ft->ffi.flags & O_DIRECTORY)) {
 		rv=fc->fuse->fops.flush(ft->path, &ft->ffi);
 
 		if (fc->fuse->flags & FUSE_DEBUG) {
-			GMESSAGE("FLUSH[%s:%d] => path:%s\n",
+			GMESSAGE("FLUSH[%s:%d] => path:%s",
 					fc->fuse->path, fd, ft->path);
 		}
 	}
 
-	GDEBUG(10,"->CLOSE %s %d\n",ft->path, ft->count);
+	GDEBUG(10,"->CLOSE %s %d",ft->path, ft->count);
 	fc->fuse->inuse--;
 	if ((ft->ffi.flags & O_DIRECTORY) && fc->fuse->fops.readdir)
 		rv = fc->fuse->fops.releasedir(ft->path, &ft->ffi);
 	else
 		rv=fc->fuse->fops.release(ft->path, &ft->ffi);
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		GMESSAGE("RELEASE[%s:%d] => path:%s flags:0x%x\n",
+		GMESSAGE("RELEASE[%s:%d] => path:%s flags:0x%x",
 				fc->fuse->path, fd, ft->path, fc->fuse->flags);
 	}
 	umcleandirinfo(ft->dirinfo);
@@ -1126,7 +1126,7 @@ static long umfuse_read(int fd, void *buf, size_t count)
 				ft->pos,
 				&ft->ffi);
 		if (fc->fuse->flags & FUSE_DEBUG) {
-			GMESSAGE("READ[%s:%d] => path:%s count:%u rv:%d\n",
+			GMESSAGE("READ[%s:%d] => path:%s count:%u rv:%d",
 					fc->fuse->path,fd, ft->path, count, rv);
 		}
 		if (rv<0) {
@@ -1164,11 +1164,11 @@ static long umfuse_write(int fd, void *buf, size_t count)
 					buf, count, ft->pos, &ft->ffi);
 		}
 		if (fc->fuse->flags & FUSE_DEBUG) {
-			GMESSAGE("WRITE[%s:%d] => path:%s count:0x%x rv:%d\n",
+			GMESSAGE("WRITE[%s:%d] => path:%s count:0x%x rv:%d",
 					fc->fuse->path, fd, ft->path, count, rv);
 		}
 
-		GDEBUG(10,"WRITE rv:%d\n",rv); 
+		GDEBUG(10,"WRITE rv:%d",rv); 
 
 		//		if (fc->fuse->flags & FUSE_DEBUG)
 		//      		fprintf(stderr, "WRITE[%lu] => path:%s count:0x%x\n",
@@ -1224,7 +1224,7 @@ static inline int common_stat(char *path,  struct stat *buf)
 	memset(buf, 0, sizeof(struct stat));
 	rv = fc->fuse->fops.getattr(unwrap(fc,path),buf);
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		GMESSAGE("%s: stat->GETATTR => path:%s status: %s Err:%d\n",
+		GMESSAGE("%s: stat->GETATTR => path:%s status: %s Err:%d",
 				fc->fuse->path, path, rv ? "Error" : "Success", (rv < 0) ? -rv : 0);
 	}
 	/*heuristics for file system which does not set st_ino */
@@ -1259,7 +1259,7 @@ static long umfuse_readlink(char *path, char *buf, size_t bufsiz)
 			unwrap(fc, path), buf, bufsiz);
 	if (rv == 0)
 		rv=strnlen(buf,bufsiz);
-	GDEBUG(10,"umfuse_readlink %s %s %d\n",unwrap(fc,path),buf,rv);
+	GDEBUG(10,"umfuse_readlink %s %s %d",unwrap(fc,path),buf,rv);
 	if (rv < 0) {
 		errno = -rv;
 		return -1;
@@ -1276,7 +1276,7 @@ static long umfuse_access(char *path, int mode)
 	assert(fc!=NULL);
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		GMESSAGE("ACCESS [%s] => path:%s mode:%s%s%s%s\n", fc->fuse->path, path,
+		GMESSAGE("ACCESS [%s] => path:%s mode:%s%s%s%s", fc->fuse->path, path,
 				(mode & R_OK) ? "R_OK": "",
 				(mode & W_OK) ? "W_OK": "",
 				(mode & X_OK) ? "X_OK": "",
@@ -1323,7 +1323,7 @@ static long umfuse_mknod(const char *path, mode_t mode, dev_t dev)
 	assert(fc != NULL);
 
 	if (fc->fuse->flags & FUSE_DEBUG)
-		fprintf(stderr, "MKNOD [%s] => path:%s %d %d\n",fc->fuse->path,path,
+		GMESSAGE(stderr, "MKNOD [%s] => path:%s %d %d",fc->fuse->path,path,
 				major(dev),minor(dev));
 	rv = fc->fuse->fops.mknod(
 			unwrap(fc, path), mode, dev);
@@ -1350,7 +1350,7 @@ static long umfuse_mkdir(char *path, int mode)
 	{
 		rv=check_parent(path,MAY_WRITE);
 		if (rv<0) {
-			PRINTDEBUG (10,"Not MAY_WRITE on %s\n",get_parent_path(path));
+			PRINTDEBUG (10,"Not MAY_WRITE on %s",get_parent_path(path));
 			errno=-rv;
 			return -1;
 		}
@@ -1358,7 +1358,7 @@ static long umfuse_mkdir(char *path, int mode)
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		GMESSAGE("MKDIR [%s] => path:%s\n",fc->fuse->path,path);
+		GMESSAGE("MKDIR [%s] => path:%s",fc->fuse->path,path);
 	}
 	rv = fc->fuse->fops.mkdir(
 			unwrap(fc, path), mode);
@@ -1392,7 +1392,7 @@ static long umfuse_rmdir(char *path)
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		GMESSAGE("RMDIR [%s] => path:%s\n",fc->fuse->path,path);
+		GMESSAGE("RMDIR [%s] => path:%s",fc->fuse->path,path);
 	}
 	rv= fc->fuse->fops.rmdir(
 			unwrap(fc, path));
@@ -1424,7 +1424,7 @@ static long umfuse_chmod(char *path, int mode)
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		GMESSAGE("CHMOD [%s] => path:%s\n",fc->fuse->path,path);
+		GMESSAGE("CHMOD [%s] => path:%s",fc->fuse->path,path);
 	}
 	rv= fc->fuse->fops.chmod(
 			unwrap(fc ,path), mode);
@@ -1486,7 +1486,7 @@ static long umfuse_unlink(char *path)
 
 		rv=check_parent(path,MAY_WRITE);
 		if (rv<0) {
-			PRINTDEBUG (10,"NO MAY_WRITE on %s\n",get_parent_path(path));
+			PRINTDEBUG (10,"NO MAY_WRITE on %s",get_parent_path(path));
 			errno=-rv;
 			return -1;
 		}
@@ -1494,7 +1494,7 @@ static long umfuse_unlink(char *path)
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG)
-		GMESSAGE("UNLINK [%s] => path:%s\n",fc->fuse->path,path);
+		GMESSAGE("UNLINK [%s] => path:%s",fc->fuse->path,path);
 	rv = fc->fuse->fops.unlink(
 			unwrap(fc, path));
 	if (rv < 0) {
@@ -1519,7 +1519,7 @@ static long umfuse_link(char *oldpath, char *newpath)
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		rv=check_parent(newpath,MAY_WRITE);
 		if (rv<0) {
-			PRINTDEBUG (10,"not MAY_WRITE on %s\n",get_parent_path(newpath));
+			PRINTDEBUG (10,"not MAY_WRITE on %s",get_parent_path(newpath));
 			errno=-rv;
 			return -1;
 		}
@@ -1528,7 +1528,7 @@ static long umfuse_link(char *oldpath, char *newpath)
 	fc->pid=um_mod_getpid();
 
 	if (fc->fuse->flags & FUSE_DEBUG)
-		GMESSAGE("LINK [%s] => oldpath:%s newpath:%s\n",fc->fuse->path,oldpath, newpath);
+		GMESSAGE("LINK [%s] => oldpath:%s newpath:%s",fc->fuse->path,oldpath, newpath);
 	rv = fc->fuse->fops.link(
 			unwrap(fc, oldpath),
 			unwrap(fc, newpath));
@@ -1545,7 +1545,7 @@ static long umfuse_fsync(int fd)
 	struct fileinfo *ft=getfiletab(fd);
 	struct fuse_context *fc=ft->context;
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		GMESSAGE("kernel FSYNC. It has a different semantics in fuse\n");
+		GMESSAGE("kernel FSYNC. It has a different semantics in fuse");
 	}
 
 	/*	//	rv = fc->fuse->fops.read
@@ -1571,14 +1571,14 @@ static long umfuse_rename(char *oldpath, char *newpath)
 	assert(fc != NULL);
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		GMESSAGE("RENAME [%s] => %s ->%s\n",fc->fuse->path,oldpath, newpath);
+		GMESSAGE("RENAME [%s] => %s ->%s",fc->fuse->path,oldpath, newpath);
 	}
 
 	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		rv=check_parent(newpath,MAY_WRITE);
 		if (rv<0) {
-			PRINTDEBUG ("no MAY_WRITE on %s\n",get_parent_path(newpath));
+			PRINTDEBUG ("no MAY_WRITE on %s",get_parent_path(newpath));
 			errno=-rv;
 			return -1;
 		}
@@ -1613,7 +1613,7 @@ static long umfuse_symlink(char *oldpath, char *newpath)
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		rv=check_parent(newpath,MAY_WRITE);
 		if (rv<0) {
-			PRINTDEBUG ("no MAY_WRITE on %s\n",get_parent_path(newpath));
+			PRINTDEBUG ("no MAY_WRITE on %s",get_parent_path(newpath));
 			errno=-rv;
 			return -1;
 		}
@@ -1621,7 +1621,7 @@ static long umfuse_symlink(char *oldpath, char *newpath)
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		GMESSAGE("SYMLINK [%s] => %s -> %s\n",
+		GMESSAGE("SYMLINK [%s] => %s -> %s",
 				fc->fuse->path,newpath, oldpath);
 	}
 	rv = fc->fuse->fops.symlink(
@@ -1659,7 +1659,7 @@ static long umfuse_truncate64(char *path, loff_t length)
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		rv=path_check_permission (unwrap(fc,path),MAY_WRITE);
 		if (rv<0) {
-			PRINTDEBUG ("no MAY_WRITE on %s\n",get_parent_path(path));
+			PRINTDEBUG ("no MAY_WRITE on %s",get_parent_path(path));
 			errno=-rv;
 			return -1;
 		}
@@ -1668,7 +1668,7 @@ static long umfuse_truncate64(char *path, loff_t length)
 	fc->pid=um_mod_getpid();
 
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		GMESSAGE("TRUNCATE [%s] debug => path %s\n",fc->fuse->path,path);		
+		GMESSAGE("TRUNCATE [%s] debug => path %s",fc->fuse->path,path);		
 	}
 	rv = fc->fuse->fops.truncate(
 			unwrap(fc, path),(off_t)length);
@@ -1705,7 +1705,7 @@ static long umfuse_ftruncate64(int fd, off_t length)
 		rv = fc->fuse->fops.ftruncate(
 				ft->path,(off_t)length,&ft->ffi);
 		if (fc->fuse->flags & FUSE_DEBUG) {
-			GMESSAGE("FTRUNCATE [%s] debug => path %s\n",fc->fuse->path,ft->path);		
+			GMESSAGE("FTRUNCATE [%s] debug => path %s",fc->fuse->path,ft->path);		
 		}
 		if (rv < 0) {
 			errno = -rv;
@@ -1729,7 +1729,7 @@ static long umfuse_utimes(char *path, struct timeval tv[2])
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		rv=path_check_permission(unwrap(fc,path),MAY_WRITE);
 		if (rv<0) {
-			PRINTDEBUG ("utime:no MAY_WRITE on %s\n",unwrap(fc,path));
+			PRINTDEBUG ("utime:no MAY_WRITE on %s",unwrap(fc,path));
 			errno=-rv;
 			return -1;
 		}
@@ -1738,7 +1738,7 @@ static long umfuse_utimes(char *path, struct timeval tv[2])
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->fops.utimens) {
 		if (fc->fuse->flags & FUSE_DEBUG)
-			GMESSAGE("UTIMENS [%s] => %s \n", fc->fuse->path, path);
+			GMESSAGE("UTIMENS [%s] => %s ", fc->fuse->path, path);
 		if (tv == NULL) {
 			struct timeval nowtv[2];
 			gettimeofday(&nowtv[0],NULL);
@@ -1755,7 +1755,7 @@ static long umfuse_utimes(char *path, struct timeval tv[2])
 			buf.modtime=tv[1].tv_sec;
 		}
 		if (fc->fuse->flags & FUSE_DEBUG)
-			GMESSAGE("UTIME [%s] => %s \n", fc->fuse->path, path);
+			GMESSAGE("UTIME [%s] => %s ", fc->fuse->path, path);
 		rv = fc->fuse->fops.utime(unwrap(fc, path), &buf);
 	}
 	if (rv < 0) {
@@ -1784,7 +1784,7 @@ static ssize_t umfuse_pread64(int fd, void *buf, size_t count, long long offset)
 				offset,
 				&ft->ffi);
 		if (fc->fuse->flags & FUSE_DEBUG) {
-			GMESSAGE("PREAD[%s:%d] => path:%s count:%u pos:%lld rv:%d\n",
+			GMESSAGE("PREAD[%s:%d] => path:%s count:%u pos:%lld rv:%d",
 					fc->fuse->path,fd, ft->path, count, offset, rv);
 		}
 		if (rv<0) {
@@ -1810,7 +1810,7 @@ static ssize_t umfuse_pwrite64(int fd, const void *buf, size_t count, long long 
 		rv = fc->fuse->fops.write(ft->path,
 				buf, count, offset, &ft->ffi);
 		if (fc->fuse->flags & FUSE_DEBUG) {
-			GMESSAGE("PWRITE[%s:%d] => path:%s count:%u pos:%lld rv:%d\n",
+			GMESSAGE("PWRITE[%s:%d] => path:%s count:%u pos:%lld rv:%d",
 					fc->fuse->path, fd, ft->path, count, offset, rv);
 		}
 		if (rv<0) {
@@ -1871,7 +1871,7 @@ static long umfuse_lseek(int fd, int offset, int whence)
 
 static long umfuse__llseek(unsigned int fd, unsigned long offset_high,  unsigned  long offset_low, loff_t *result, unsigned int whence)
 {
-	//GDEBUG(10,"umfuse__llseek [%s] %d %d %d %d\n",
+	//GDEBUG(10,"umfuse__llseek [%s] %d %d %d %d",
 	//		fc->fuse->path,fd,offset_high,offset_low,whence);
 	if (result == NULL) {
 		errno = EFAULT;

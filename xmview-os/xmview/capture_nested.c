@@ -294,6 +294,18 @@ int nw_syspath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sysca
 	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 }
 
+/* nested wrapper for syscall with a path, EEXIST if the file already exists*/
+int nw_syspath_stdnew(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	if (npc->pathstat.st_mode != 0) {
+		npc->erno= EEXIST;
+		return -1;
+	} else {
+		npc->sysargs[0]=(long) npc->path;
+		return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
+	}
+}
+
 /* nested wrapper for syscall WITH DIRFD (*at) with a path*/
 int nw_sysatpath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
@@ -305,11 +317,26 @@ int nw_sysatpath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sys
 	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 }
 
-/* nested wrapper for syscall with a path on the sencond arg*/
+/* nested wrapper for syscall WITH DIRFD (*at) with a path + EEXIST error*/
+int nw_sysatpath_stdnew(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	if (npc->pathstat.st_mode != 0) {
+		npc->erno= EEXIST;
+		return -1;
+	} else
+		return nw_sysatpath_std(scno,npc,hte,um_syscall);
+}
+
+/* nested wrapper for symlinks */
 int nw_syssymlink(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
-	npc->sysargs[1]=(long) npc->path;
-	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
+	if (npc->pathstat.st_mode != 0) {
+		npc->erno= EEXIST;
+		return -1;
+	} else {
+		/* symlinkat is mapped onto symlink */
+		return um_syscall(npc->sysargs[0],npc->path);
+	}
 }
 
 /* nested wrapper for link*/
@@ -318,6 +345,7 @@ int nw_syslink(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 	char *source;
 	int olddirfd;
 	long oldpath;
+	struct stat64 sourcest;
 #ifdef __NR_linkat
 	if (scno == __NR_linkat || scno == __NR_renameat) {
 		olddirfd=npc->sysargs[0];
@@ -328,14 +356,18 @@ int nw_syslink(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 		olddirfd=AT_FDCWD;
 		oldpath=npc->sysargs[0];
 	} 
-	source=nest_abspath(olddirfd,oldpath,npc,&(npc->pathstat),0);
+	source=nest_abspath(olddirfd,oldpath,npc,&sourcest,0);
 	/* nest_abspath sets npc->hte */
-	if (npc->path==um_patherror) {
+	if (npc->pathstat.st_mode != 0 &&
+			scno != __NR_rename && scno != __NR_renameat) {
+		npc->erno= EEXIST;
+		return -1;
+	} else if (npc->path==um_patherror) {
 		npc->erno= ENOENT;
 		return -1;
 	} else if (hte != npc->hte) {
-		return -1;
 		npc->erno= EXDEV;
+		return -1;
 	} else {
 		long rv;
 		npc->sysargs[0]=(long) source;

@@ -95,11 +95,13 @@ htfunt nchoice_sockpath;
 htfunt nchoice_pathat, nchoice_linkat, nchoice_pl5at, nchoice_pl4at, nchoice_link3at;
 htfunt nchoice_link2at, nchoice_unlinkat;
 
-wrapfun nw_syspath_std,nw_sysfd_std,nw_sysfdpath_std,nw_sockfd_std,nw_sysopen,nw_syslink,nw_syssymlink, nw_notsupp;
+wrapfun nw_syspath_std,nw_syspath_stdnew;
+wrapfun nw_sysfd_std;
+wrapfun nw_sysfdpath_std,nw_sockfd_std,nw_sysopen,nw_syslink,nw_syssymlink, nw_notsupp;
 wrapfun nw_sysdup,nw_sysclose;
 wrapfun nw_sysstatfs64,nw_sysfstatfs64;
 wrapfun nw_socket,nw_msocket,nw_accept;
-wrapfun nw_sysatpath_std;
+wrapfun nw_sysatpath_std,nw_sysatpath_stdnew;
 wrapfun nw_sysreadv, nw_syswritev;
 wrapfun nw_syspreadv, nw_syspwritev;
 wrapfun nw_systruncate, nw_sysftruncate;
@@ -217,7 +219,7 @@ struct sc_map scmap[]={
 	{__NR_fcntl64,	choice_fd,	wrap_in_fcntl, wrap_out_fcntl,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
 	{__NR_lseek,	choice_fd,	wrap_in_lseek, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
 	{__NR__llseek,	choice_fd,	wrap_in_llseek, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	5, SOC_FILE},
-	{__NR_mkdir,	choice_link,	wrap_in_mkdir, wrap_out_std,	nchoice_link,	nw_syspath_std, 0,	PATH0 | 2, SOC_FILE},
+	{__NR_mkdir,	choice_link,	wrap_in_mkdir, wrap_out_std,	nchoice_link,	nw_syspath_stdnew, 0,	PATH0 | 2, SOC_FILE},
 	{__NR_rmdir,	choice_path,	wrap_in_unlink, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	PATH0 | 1, SOC_FILE},
 	{__NR_link,	choice_link2,	wrap_in_link, wrap_out_std,	nchoice_link2,	nw_syslink, 0,	PATH1 | 2, SOC_FILE},
 	{__NR_symlink,	choice_link2,	wrap_in_symlink, wrap_out_std,	nchoice_link2,	nw_syssymlink, 0,	PATH1 | 2, SOC_FILE},
@@ -255,10 +257,10 @@ struct sc_map scmap[]={
 #else
 	{__NR_pwritev, choice_fd,  wrap_in_pwritev, wrap_out_std, nchoice_fd, nw_syspwritev, 0,  4, SOC_FILE},
 #endif
-	{__NR_mknod, choice_link, wrap_in_mknod, wrap_out_std, nchoice_path, nw_syspath_std, 0, PATH0 | 3, SOC_FILE},
+	{__NR_mknod, choice_link, wrap_in_mknod, wrap_out_std, nchoice_link, nw_syspath_stdnew, 0, PATH0 | 3, SOC_FILE},
 	{__NR_openat, choice_pathat, wrap_in_open, wrap_out_open, nchoice_pathat, nw_sysopen, ALWAYS, PATH1 | 4, SOC_FILE},
-	{__NR_mkdirat, choice_linkat, wrap_in_mkdir, wrap_out_std, nchoice_linkat, nw_sysatpath_std, 0, PATH1 | 3, SOC_FILE},
-	{__NR_mknodat, choice_linkat, wrap_in_mknod, wrap_out_std, nchoice_linkat, nw_sysatpath_std, 0, PATH1 | 4, SOC_FILE},
+	{__NR_mkdirat, choice_linkat, wrap_in_mkdir, wrap_out_std, nchoice_linkat, nw_sysatpath_stdnew, 0, PATH1 | 3, SOC_FILE},
+	{__NR_mknodat, choice_linkat, wrap_in_mknod, wrap_out_std, nchoice_linkat, nw_sysatpath_stdnew, 0, PATH1 | 4, SOC_FILE},
 	{__NR_fchownat, choice_pl5at, wrap_in_chown, wrap_out_std, nchoice_pl5at, nw_sysatpath_std, 0, PATH1 | 5, SOC_FILE},
 	{__NR_futimesat, choice_pathat, wrap_in_utime, wrap_out_std, nchoice_pathat, nw_sysatpath_std, 0, PATH1 | 3, SOC_FILE},
 #ifdef __NR_newfstatat
