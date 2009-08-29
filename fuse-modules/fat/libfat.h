@@ -11,14 +11,35 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <dirent.h>
+#include <stdarg.h>
 #include <linux/types.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "unicode.h"
-//#include <glib.h>
 #include <sys/vfs.h>
 #include <sys/statvfs.h>
 #include <utime.h>
+
+#define ENABLE_DEBUG 0
+#if ENABLE_DEBUG
+static inline void debug_printf (const char *function, char *file, int line, const char *fmt, ...)
+{
+	va_list args;
+	printf("%s: ", PACKAGE);
+	va_start(args, fmt);
+	vprintf(fmt, args);
+	va_end(args);
+	printf(" [%s (%s:%d)]\n", function, file, line);
+}
+
+#define debugf(a...) { \
+	debug_printf(__FUNCTION__, __FILE__, __LINE__, a); \
+}
+#else /* ENABLE_DEBUG */
+
+#define debugf(a...) do { } while(0)
+
+#endif /* ENABLE_DEBUG */
 
 /* All data types are UNSIGNED . types from  <stdint.h> */
 

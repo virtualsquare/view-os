@@ -22,10 +22,10 @@ static int fusefat_getattr(const char *path, struct stat *stbuf) {
 	Volume_t *V;
 	fusefat_getvolume(V);
 	fat_lock(V);
-	if ((res = fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-	if ((res = fat_stat(&F, stbuf)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__);return -1; }
+	if ((res = fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); debugf("--"); return -ENOENT; }
+	if ((res = fat_stat(&F, stbuf)) != 0) { fat_unlock(V); debugf("--");return -1; }
 	fat_unlock(V);
-	fprintf(stderr,"getattr(%s)\n",path);
+	//debugf("getattr(%s)\n",path);
     return 0;
 }
 
@@ -36,10 +36,10 @@ static int fusefat_open(const char *path, struct fuse_file_info *fi) {
 	fusefat_getvolume(V);
 	F = malloc(sizeof(File_t));
 	fat_lock(V);
-	if ((res = fat_open(path, F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); free(F); return -ENOENT; }
+	if ((res = fat_open(path, F, V, O_RDWR)) != 0) { fat_unlock(V); debugf("--"); free(F); return -ENOENT; }
 	fat_unlock(V);
 	fi->fh = (long)F;
-	fprintf(stderr,"open(%s)\n",path);
+	//debugf("open(%s)\n",path);
     return 0;
 }
 
@@ -56,9 +56,9 @@ static int fusefat_readdir(const char *path, void *buf, fuse_fill_dir_t filler, 
 	File_t F;
 	Volume_t *V;
 	fusefat_getvolume(V);
-	fprintf(stderr,"readdir(%s)\n",path);
+	//debugf("readdir(%s)\n",path);
 	fat_lock(V);
-    if ((res =  fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
+    if ((res =  fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); debugf("--"); return -ENOENT; }
 
     while ((res = fat_readdir(&F, &de)) == 0) {
         struct stat st;
@@ -104,9 +104,9 @@ static int fusefat_mknod(const char *path, mode_t mode, dev_t rdev) {
 	fat_dirname(path, dirname);
   fat_filename(path, filename);
 	fat_lock(V);
-	fprintf(stderr,"dirname: %s, filename: %s\n", dirname, filename);
-	if ((res =  fat_open(dirname, &Parent, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-	if ((res =  fat_create(V, &Parent, filename , NULL, S_IFREG, 0)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+	//debugf("dirname: %s, filename: %s\n", dirname, filename);
+	if ((res =  fat_open(dirname, &Parent, V, O_RDWR)) != 0) { fat_unlock(V); debugf("--"); return -ENOENT; }
+	if ((res =  fat_create(V, &Parent, filename , NULL, S_IFREG, 0)) != 0) { fat_unlock(V); debugf("--"); return -1; }
 	fat_unlock(V);
     return 0;
 }
@@ -122,8 +122,8 @@ static int fusefat_mkdir(const char *path, mode_t mode) {
     fat_filename(path, filename);
 
 	fat_lock(V);
-    if ((res =  fat_open(dirname, &Parent, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-    if ((res =  fat_mkdir(V, &Parent, filename , NULL, S_IFDIR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+    if ((res =  fat_open(dirname, &Parent, V, O_RDWR)) != 0) { fat_unlock(V); debugf("--"); return -ENOENT; }
+    if ((res =  fat_mkdir(V, &Parent, filename , NULL, S_IFDIR)) != 0) { fat_unlock(V); debugf("--"); return -1; }
 
 	fat_unlock(V);
     return 0;
@@ -135,8 +135,8 @@ static int fusefat_unlink(const char *path) {
 	Volume_t *V;
 	fusefat_getvolume(V);
 	fat_lock(V);
-	if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-	if ((res =  fat_delete(&F, 0)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+	if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); debugf("--"); return -ENOENT; }
+	if ((res =  fat_delete(&F, 0)) != 0) { fat_unlock(V); debugf("--"); return -1; }
 	fat_unlock(V);
     return 0;
 }
@@ -147,8 +147,8 @@ static int fusefat_rmdir(const char *path) {
 	Volume_t *V;
 	fusefat_getvolume(V);
 	fat_lock(V);
-	if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-	if ((res =  fat_rmdir(&F)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+	if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); debugf("--"); return -ENOENT; }
+	if ((res =  fat_rmdir(&F)) != 0) { fat_unlock(V); debugf("--"); return -1; }
 	fat_unlock(V);
     return 0;
 }
@@ -159,10 +159,10 @@ static int fusefat_rename(const char *from, const char *to) {
 	Volume_t *V;
 	fusefat_getvolume(V);
 
-	fprintf(stderr,"from: %s, to: %s\n",from,to);
+	//debugf("from: %s, to: %s\n",from,to);
 	fat_lock(V);
 
-	if ((res =  fat_rename(V,from,to)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return res; }
+	if ((res =  fat_rename(V,from,to)) != 0) { fat_unlock(V); debugf("--"); return res; }
 
 	fat_unlock(V);
     return 0;
@@ -173,10 +173,10 @@ static int fusefat_truncate(const char *path, off_t size) {
 	File_t F;
 	Volume_t *V;
 	fusefat_getvolume(V);
-	fprintf(stderr,"truncate(%s, %d)\n",path,(int) size);
+	//debugf("truncate(%s, %d)\n",path,(int) size);
 	fat_lock(V);
-    if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-    if ((res =  fat_truncate(&F, size)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+    if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); debugf("--"); return -ENOENT; }
+    if ((res =  fat_truncate(&F, size)) != 0) { fat_unlock(V); debugf("--"); return -1; }
 	fat_unlock(V);
     return 0;
 }
@@ -187,8 +187,8 @@ static int fusefat_utime(const char *path, struct utimbuf *buf) {
 	Volume_t *V;
 	fusefat_getvolume(V);
 	fat_lock(V);
-    if ((res =  fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-    if ((res =  fat_utime(&F, buf)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+    if ((res =  fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); debugf("--"); return -ENOENT; }
+    if ((res =  fat_utime(&F, buf)) != 0) { fat_unlock(V); debugf("--"); return -1; }
 	fat_unlock(V);
     return 0;
 }
@@ -199,7 +199,7 @@ static int fusefat_read(const char *path, char *buf, size_t size, off_t offset, 
 	File_t *F;
 	Volume_t *V;
 	fusefat_getvolume(V);
-	F = (File_t *) fi->fh;
+	F = (File_t *) ((long) fi->fh);
 	fat_lock(V);
 	
 	fsize = EFD(F->DirEntry->DIR_FileSize);
@@ -208,11 +208,11 @@ static int fusefat_read(const char *path, char *buf, size_t size, off_t offset, 
 	mode = F->Mode;
 	F->Mode = O_RDONLY;
 	
-//    if ((res =  fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-    if ((res =  fat_seek(F, offset, SEEK_SET)) != offset) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
-	if ((fat_iseoc(V, F->CurClus)) || fat_isfree(V,F->CurClus)) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+//    if ((res =  fat_open(path, &F, V, O_RDONLY)) != 0) { fat_unlock(V); debugf("--"); return -ENOENT; }
+    if ((res =  fat_seek(F, offset, SEEK_SET)) != offset) { fat_unlock(V); debugf("--"); return -1; }
+	if ((fat_iseoc(V, F->CurClus)) || fat_isfree(V,F->CurClus)) { fat_unlock(V); debugf("--"); return -1; }
 	
-    if ((res =  fat_read_data(V, &(F->CurClus), &(F->CurOff), buf, size )) <= 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
+    if ((res =  fat_read_data(V, &(F->CurClus), &(F->CurOff), buf, size )) <= 0) { fat_unlock(V); debugf("--"); return -1; }
 	F->CurAbsOff += res;
 	F->Mode = mode;
 	fat_unlock(V);
@@ -224,18 +224,18 @@ static int fusefat_write(const char *path, const char *buf, size_t size, off_t o
 	File_t *F;
 	Volume_t *V;
 	fusefat_getvolume(V);
-	F=(File_t *)fi->fh;
-	//if ((fi->flags & O_RDONLY) == O_RDONLY) { fprintf(stderr,"fusefat_write(): file opened in read only mode\n");; return -1; }
+	F = (File_t *) ((long) fi->fh);
+	//if ((fi->flags & O_RDONLY) == O_RDONLY) { debugf("fusefat_write(): file opened in read only mode\n");; return -1; }
 	
 	fat_lock(V);
-//    if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -ENOENT; }
-//	fprintf(stderr,"fusefat_write: performing seek at offset %d\n", (int) offset);
-    if ((res =  fat_seek(F, offset, SEEK_SET)) < 0) { fat_update_file(F); fat_unlock(V); fprintf(stderr,"-- %d",__LINE__); return -1; }
-//	fprintf(stderr,"fusefat_write: performing write_data at clus: %u, off: %u\n", F->CurClus, F->CurOff);
-    if ((res =  fat_write_data(V, F,&(F->CurClus), &(F->CurOff), buf, size )) != size) { 
-		fat_update_file(F); fat_unlock(V); fprintf(stderr,"-- %d:",__LINE__); fprintf(stderr,"fat_write_data() error\n");   return -1; }
-//	fprintf(stderr,"fusefat_write: performing update\n");		
-	if ((res =  fat_update_file(F)) != 0) { fat_unlock(V); fprintf(stderr,"fat_update_file() error\n"); fprintf(stderr,"-- %d",__LINE__); return -1; }
+//    if ((res =  fat_open(path, &F, V, O_RDWR)) != 0) { fat_unlock(V); debugf("--"); return -ENOENT; }
+//	debugf("fusefat_write: performing seek at offset %d\n", (int) offset);
+    if ((res =  fat_seek(F, offset, SEEK_SET)) < 0) { fat_update_file(F); fat_unlock(V); debugf("--"); return -1; }
+//	debugf("fusefat_write: performing write_data at clus: %u, off: %u\n", F->CurClus, F->CurOff);
+    if ((res =  fat_write_data(V, F,&(F->CurClus), &(F->CurOff), (char *) buf, size )) != size) { 
+		fat_update_file(F); fat_unlock(V); debugf("-- %d:",__LINE__); debugf("fat_write_data() error\n");   return -1; }
+//	debugf("fusefat_write: performing update\n");		
+	if ((res =  fat_update_file(F)) != 0) { fat_unlock(V); debugf("fat_update_file() error\n"); debugf("--"); return -1; }
 	fat_unlock(V);
     return size;
 }
@@ -284,9 +284,7 @@ void *fusefat_init(struct fuse_conn_info *conn)
 {
 	struct fuse_context *mycontext;
 	mycontext=fuse_get_context();
-#ifndef DEBUG
-	printf("INIT %p\n",mycontext->private_data);
-#endif
+	debugf("INIT %p\n",mycontext->private_data);
 	return mycontext->private_data;
 }   
 #endif
