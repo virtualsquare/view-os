@@ -104,6 +104,9 @@ extern sfun native_syscall;
 #define r_lstat64(p,b) (native_syscall(NR64_lstat,(p),(b)))
 #define r_readlink(p,b,sz) (native_syscall(__NR_readlink,(p),(b),(sz)))
 #define r_fcntl(f,c,a) (native_syscall(__NR_fcntl,(f),(c),(a)))
+#ifdef __NR_fcntl64
+#define r_fcntl64(f,c,a) (native_syscall(__NR_fcntl64,(f),(c),(a)))
+#endif
 #define r_umask(m) (native_syscall(__NR_umask,(m)))
 #define r_pipe(v) (native_syscall(__NR_pipe,(v)))
 #define r_access(p,m) (native_syscall(__NR_access,(p),(m)))

@@ -1794,8 +1794,7 @@ init (void)
 	SERVICESYSCALL(s, getdents64, viewfs_getdents64);
 	SERVICESYSCALL(s, access, viewfs_access);
 #if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have these
-	SERVICESYSCALL(s, fcntl, fcntl32);
-	SERVICESYSCALL(s, fcntl64, fcntl64);
+	SERVICESYSCALL(s, fcntl, fcntl64);
 	SERVICESYSCALL(s, _llseek, _llseek);
 #else
 	SERVICESYSCALL(s, fcntl, fcntl);

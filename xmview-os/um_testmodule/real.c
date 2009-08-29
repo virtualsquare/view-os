@@ -133,9 +133,12 @@ init (void)
 	SERVICESYSCALL(s, readlink, readlink);
 	SERVICESYSCALL(s, getdents64, getdents64);
 	SERVICESYSCALL(s, access, access);
-	SERVICESYSCALL(s, fcntl, fcntl32);
+#ifdef __NR_fcntl64
+	SERVICESYSCALL(s, fcntl, fcntl64);
+#else
+	SERVICESYSCALL(s, fcntl, fcntl);
+#endif
 #if !defined(__x86_64__)
-	SERVICESYSCALL(s, fcntl64, fcntl64);
 	SERVICESYSCALL(s, _llseek, _llseek);
 #endif
 }

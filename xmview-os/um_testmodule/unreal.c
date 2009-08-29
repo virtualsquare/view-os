@@ -262,12 +262,13 @@ init (void)
 	SERVICESYSCALL(s, readlink, unreal_readlink);
 	SERVICESYSCALL(s, getdents64, getdents64);
 	SERVICESYSCALL(s, access, unreal_access);
-#if !defined(__x86_64__)
-	SERVICESYSCALL(s, fcntl, fcntl32);
-	SERVICESYSCALL(s, fcntl64, fcntl64);
-	SERVICESYSCALL(s, _llseek, _llseek);
+#ifdef __NR_fcntl64
+	SERVICESYSCALL(s, fcntl, fcntl64);
 #else
 	SERVICESYSCALL(s, fcntl, fcntl);
+#endif
+#if !defined(__x86_64__)
+	SERVICESYSCALL(s, _llseek, _llseek);
 #endif
 	SERVICESYSCALL(s, lseek,  unreal_lseek);
 	SERVICESYSCALL(s, mkdir, unreal_mkdir);

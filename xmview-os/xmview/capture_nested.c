@@ -481,6 +481,122 @@ long nw_sysdup(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 	}
 }
 
+struct um_flock32 {
+	short l_type;
+	short l_whence;
+	off_t l_start;
+	off_t l_len;
+	pid_t l_pid;
+};
+
+struct um_flock64 {
+	short  l_type;
+	short  l_whence;
+	loff_t l_start;
+	loff_t l_len;
+	pid_t  l_pid;
+};
+
+static inline void flock32to64(struct um_flock32 *fl32,struct um_flock64 *fl64)
+{
+	fl64->l_type=fl32->l_type;
+	fl64->l_whence=fl32->l_whence;
+	fl64->l_start=fl32->l_start;
+	fl64->l_len=fl32->l_len;
+	fl64->l_pid=fl32->l_pid;
+
+}
+
+static inline void flock64to32(struct um_flock64 *fl64,struct um_flock32 *fl32)
+{
+	fl32->l_type=fl64->l_type;
+	fl32->l_whence=fl64->l_whence;
+	fl32->l_start=fl64->l_start;
+	fl32->l_len=fl64->l_len;
+	fl32->l_pid=fl64->l_pid;
+
+}
+
+/* nested wrapper for fcntl/fcntl64 */
+long nw_sysfcntl(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	int sfd;
+	int fd= npc->sysargs[0];
+	int cmd= npc->sysargs[1];
+	unsigned long arg=npc->sysargs[2];
+	long rv;
+	sfd=fd2sfd(&umview_file,npc->sysargs[0]);
+	if (sfd < 0 && hte != NULL) {
+		npc->erno=EBADF;
+		return -1;
+	}else {
+		switch (cmd) {
+			case F_DUPFD: {
+											int newfd;
+											int lfd=fd2lfd(&umview_file,fd);
+#if (__NR_fcntl64 != __NR_doesnotexist)
+											newfd=r_fcntl64(fd,cmd,arg);
+#else
+											newfd=r_fcntl(fd,cmd,arg);
+#endif
+											if (newfd >= 0) {
+												lfd_dup(lfd);
+												lfd_register(&umview_file,newfd,lfd);
+											}
+											rv=newfd;
+										}
+			case F_GETFD:
+										if ((rv=fd_getfdfl(&umview_file,fd)) < 0)
+											npc->erno=EBADF;
+			case F_SETFD:
+										if ((rv=fd_setfdfl(&umview_file,fd,arg)) < 0)
+											npc->erno=EBADF;
+			case F_GETLK:
+			case F_SETLK:
+			case F_SETLKW:
+#ifdef F_GETLK64
+# if (F_GETLK64 != F_GETLK)
+			case F_GETLK64:
+			case F_SETLK64:
+			case F_SETLKW64:
+# endif
+#endif
+										{
+											struct um_flock64 *flock=(struct um_flock64 *)npc->sysargs[2];
+#ifdef __NR_fcntl64
+											if (scno == __NR_fcntl && 
+													(cmd == F_GETLK || cmd == F_SETLK || F_SETLKW)) {
+												struct um_flock64 *flock64=alloca(sizeof(struct um_flock64));
+												struct um_flock32 *flock32=(struct um_flock32 *)npc->sysargs[2];
+												flock32to64(flock32,flock64);
+												flock=flock64;
+											}
+#endif
+											rv=um_syscall(sfd,cmd,flock);
+#ifdef __NR_fcntl64
+											if (scno == __NR_fcntl && 
+													(cmd == F_GETLK || cmd == F_SETLK || F_SETLKW)) {
+												struct um_flock64 *flock64=flock;
+												struct um_flock32 *flock32=(struct um_flock32 *)npc->sysargs[2];
+												flock64to32(flock64,flock32);
+											}
+#endif
+										}
+			default:
+										if ((rv=um_syscall(sfd,cmd,arg)) == -1) {
+											switch (cmd) {
+												case F_GETFL:
+													if ((rv=fd_getflfl(&umview_file,fd)) < 0)
+														npc->erno=EBADF;
+													else
+														npc->erno=0;
+											}
+										}
+		}
+		return rv;
+	}
+}
+
 /* nested wrapper for statfs64*/
 long nw_sysstatfs64(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {

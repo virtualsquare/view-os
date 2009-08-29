@@ -461,7 +461,7 @@ init (void)
 	SERVICESYSCALL(s, write, ummisc_write);
 	SERVICESYSCALL(s, close, ummisc_close);
 	SERVICESYSCALL(s, lstat64, ummisc_lstat64);
-	SERVICESYSCALL(s, fcntl64, ummisc_fcntl64);
+	SERVICESYSCALL(s, fcntl, ummisc_fcntl64);
 	SERVICESYSCALL(s, fsync, ummisc_fsync);
 	SERVICESYSCALL(s, access, ummisc_access);
 	SERVICESYSCALL(s, lseek, ummisc_lseek);

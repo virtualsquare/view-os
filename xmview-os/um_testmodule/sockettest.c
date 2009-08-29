@@ -147,9 +147,10 @@ init (void)
 	SERVICESYSCALL(s, read, read);
 	SERVICESYSCALL(s, write, write);
 	SERVICESYSCALL(s, close, close);
-	SERVICESYSCALL(s, fcntl, fcntl32);
-#if !defined(__x86_64__)
-	SERVICESYSCALL(s, fcntl64, fcntl64);
+#ifdef __NR_fcntl64
+	SERVICESYSCALL(s, fcntl, fcntl64);
+#else
+	SERVICESYSCALL(s, fcntl, fcntl);
 #endif
 	SERVICESYSCALL(s, ioctl, sockioctl);
 	SERVICESYSCALL(s, _newselect, select);

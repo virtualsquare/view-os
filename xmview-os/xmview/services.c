@@ -97,6 +97,9 @@ static struct syscall_unifier scunify[] = {
 	{__NR_stat,	__NR_lstat},
 	{__NR_fstat,	__NR_stat},
 #endif 
+#if (__NR_fcntl64 != __NR_doesnotexist)
+	{__NR_fcntl64,	__NR_fcntl},
+#endif
 	{__NR_openat,	__NR_open},
 	{__NR_mkdirat,	__NR_mkdir},
 	{__NR_mknodat,	__NR_mknod},

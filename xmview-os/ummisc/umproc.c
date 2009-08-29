@@ -205,7 +205,7 @@ init (void)
 	SERVICESYSCALL(s, read, umproc_read);
 	SERVICESYSCALL(s, close, umproc_close);
 	SERVICESYSCALL(s, lstat64, umproc_lstat64);
-	SERVICESYSCALL(s, fcntl64, umproc_fcntl64);
+	SERVICESYSCALL(s, fcntl, umproc_fcntl64);
 	SERVICESYSCALL(s, fsync, umproc_fsync);
 	SERVICESYSCALL(s, access, umproc_access);
 	SERVICESYSCALL(s, lseek, umproc_lseek);

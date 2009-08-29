@@ -530,7 +530,7 @@ static long umnet_fcntl64(int fd, int cmd, void *arg)
 
 static long umnet_fsync(int fd, int cmd, void *arg)
 {
-	//print2("umnet_fcntl64\n");
+	//print2("umnet_fsync\n");
 	errno=0;
 	return 0;
 }
@@ -694,7 +694,7 @@ init (void)
 	SERVICESYSCALL(s, write, umnet_write);
 	SERVICESYSCALL(s, close, umnet_close);
 	SERVICESYSCALL(s, lstat64, umnet_lstat64);
-	SERVICESYSCALL(s, fcntl64, umnet_fcntl64);
+	SERVICESYSCALL(s, fcntl, umnet_fcntl64);
 	SERVICESYSCALL(s, access, umnet_access);
 	SERVICESYSCALL(s, chmod, umnet_chmod);
 	SERVICESYSCALL(s, lchown, umnet_lchown);

@@ -1822,16 +1822,20 @@ static ssize_t umfuse_pwrite64(int fd, const void *buf, size_t count, long long 
 	}
 }
 
-/* TODO management of fcntl */
-static long umfuse_fcntl32(int fd, int cmd, void *arg)
-{
-	//printf("umfuse_fcntl32\n");
-	errno=0;
-	return 0;
-}
 
+#define SETFL_BITS (O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC | O_ACCMODE)
+/* TODO management of fcntl */
 static long umfuse_fcntl64(int fd, int cmd, void *arg)
 {
+	struct fileinfo *ft=getfiletab(fd);
+	switch (cmd) {
+		case F_GETFL:
+			return ft->ffi.flags;
+		case F_SETFL:
+			ft->ffi.flags = (ft->ffi.flags & SETFL_BITS) |
+				(((long) arg) & ~SETFL_BITS);
+			return 0;
+	}
 	//printf("umfuse_fcntl64\n");
 	errno=0;
 	return 0;
@@ -1964,9 +1968,8 @@ init (void)
 	SERVICESYSCALL(s, readlink, umfuse_readlink);
 	SERVICESYSCALL(s, getdents64, umfuse_getdents64);
 	SERVICESYSCALL(s, access, umfuse_access);
-	SERVICESYSCALL(s, fcntl, umfuse_fcntl32);
+	SERVICESYSCALL(s, fcntl, umfuse_fcntl64);
 #if __WORDSIZE == 32 //TODO: verify that ppc64 doesn't have these
-	SERVICESYSCALL(s, fcntl64, umfuse_fcntl64);
 	SERVICESYSCALL(s, _llseek, umfuse__llseek);
 #else
 	SERVICESYSCALL(s, lseek, umfuse_lseek);

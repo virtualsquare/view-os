@@ -907,7 +907,7 @@ init (void)
 	SERVICESYSCALL(s, _llseek, umbinfmt__llseek);
 #endif
 	SERVICESYSCALL(s, getdents64, umbinfmt_getdents64);
-	SERVICESYSCALL(s, fcntl64, umbinfmt_fcntl64);
+	SERVICESYSCALL(s, fcntl, umbinfmt_fcntl64);
 	s.event_subscribe=umbinfmt_event_subscribe;
 }
 

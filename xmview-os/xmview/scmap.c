@@ -96,7 +96,7 @@ htfunt nchoice_pathat, nchoice_linkat, nchoice_pl5at, nchoice_pl4at, nchoice_lin
 htfunt nchoice_link2at, nchoice_unlinkat;
 
 wrapfun nw_syspath_std,nw_syspath_stdnew;
-wrapfun nw_sysfd_std;
+wrapfun nw_sysfd_std,nw_sysfcntl;
 wrapfun nw_sysfdpath_std,nw_sockfd_std,nw_sysopen,nw_syslink,nw_syssymlink, nw_notsupp;
 wrapfun nw_sysdup,nw_sysclose;
 wrapfun nw_sysstatfs64,nw_sysfstatfs64;
@@ -216,8 +216,8 @@ struct sc_map scmap[]={
 	{__NR_getdents,	choice_fd,	wrap_in_getdents,wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
 	{__NR_getdents64,choice_fd,	wrap_in_getdents64,wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
 	{__NR_access,	choice_path,	wrap_in_access, wrap_out_std,	nchoice_path,	nw_syspath_std, 0,	PATH0 | 2, SOC_FILE},
-	{__NR_fcntl,	choice_fd,	wrap_in_fcntl, wrap_out_fcntl,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
-	{__NR_fcntl64,	choice_fd,	wrap_in_fcntl, wrap_out_fcntl,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
+	{__NR_fcntl,	choice_fd,	wrap_in_fcntl, wrap_out_fcntl,	nchoice_fd,	nw_sysfcntl, 0,	3, SOC_FILE},
+	{__NR_fcntl64,	choice_fd,	wrap_in_fcntl, wrap_out_fcntl,	nchoice_fd,	nw_sysfcntl, 0,	3, SOC_FILE},
 #if (__NR__llseek == __NR_doesnotexist)
 	{__NR_lseek,	choice_fd,	wrap_in_lseek, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
 	{__NR__llseek,	choice_fd,	wrap_in_llseek, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	5, SOC_FILE},
