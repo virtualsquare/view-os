@@ -114,7 +114,7 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdo
 	/* internal nested call save data */
 	oldscno = pc->sysscno;
 	pc->sysscno = NR64_lstat;
-	epoch=pc->tst.epoch;
+	epoch=pc->nestepoch;
 	if ((hte=ht_check(CHECKPATH,filename,NULL,1)) == NULL) {
 		if (pc->hte!=NULL && isdotdot) {
 			pc->needs_dotdot_path_rewrite=1;
@@ -127,8 +127,9 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdo
 		retval = ht_syscall(hte,uscno(NR64_lstat))(filename,buf,pc);
 	}
 	/* internal nested call restore data */
+	//printk("%s %lld->%lld\n",filename,epoch,pc->nestepoch);
 	pc->sysscno = oldscno;
-	pc->tst.epoch=epoch;
+	pc->nestepoch=epoch;
 	return retval;
 }
 
@@ -143,7 +144,7 @@ int um_xx_access(char *filename, int mode, struct pcb *pc)
 	/* printk("-> um_xx_access: %s\n",filename); */
 	/* internal nested call save data */
 	oldscno = pc->sysscno;
-	epoch=pc->tst.epoch;
+	epoch=pc->nestepoch;
 	pc->sysscno = __NR_access;
 	if ((hte=ht_check(CHECKPATH,filename,NULL,1)) == NULL)
 		retval = r_access(filename,mode);
@@ -153,7 +154,7 @@ int um_xx_access(char *filename, int mode, struct pcb *pc)
 	}
 	/* internal nested call restore data */
 	pc->sysscno=oldscno;
-	pc->tst.epoch = epoch;
+	pc->nestepoch=epoch;
 	return retval;
 }
 										 
@@ -163,19 +164,20 @@ int um_x_access(char *filename, int mode, struct pcb *pc)
 {
 	int retval;
 	long oldscno;
-	epoch_t epoch;
 	/* printk("-> um_x_access: %s %p\n",filename,pc->hte); */
 	/* internal nested call save data */
 	oldscno = pc->sysscno;
-	epoch=pc->tst.epoch;
 	pc->sysscno = __NR_access;
 	if (pc->hte == NULL)
 		retval = r_access(filename,mode);
-	else
+	else {
+		epoch_t epoch=pc->nestepoch;
+		pc->nestepoch=ht_get_epoch(pc->hte);
 		retval = ht_syscall(pc->hte,uscno(__NR_access))(filename,mode,pc);
+		pc->nestepoch=epoch;
+	}
 	/* internal nested call restore data */
 	pc->sysscno=oldscno;
-	pc->tst.epoch = epoch;
 	return retval;
 }
 										 
@@ -185,18 +187,19 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
 {
 	long oldscno = pc->sysscno;
 	int retval;
-	epoch_t epoch;
 	/* printk("-> um_x_readlink: %s %p\n",path,pc->hte); */
 	oldscno = pc->sysscno;
 	pc->sysscno = __NR_readlink;
-	epoch=pc->tst.epoch;
 	if (pc->hte == NULL)
 		retval = r_readlink(path,buf,bufsiz);
-	else
+	else {
+		epoch_t epoch=pc->nestepoch;
+		pc->nestepoch=ht_get_epoch(pc->hte);
 		retval = ht_syscall(pc->hte,uscno(__NR_readlink))(path,buf,bufsiz,pc);
+		pc->nestepoch=epoch;
+	}
 	/* internal nested call restore data */
 	pc->sysscno = oldscno;
-	pc->tst.epoch=epoch;
 	return retval;
 }
 
@@ -262,7 +265,7 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 		}
 		pc->hte=NULL;
 		um_realpath(path,cwd,newpath,pst,dontfollowlink,pc);
-		/* printk("PATH %s (%s,%s) NEWPATH %s (%p,%d)\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->hte,pc->erno); */
+		/*printk("PATH %s (%s,%s) NEWPATH %s (%p,%d) %lld\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->hte,pc->erno,pc->nestepoch);  */
 		if (pc->erno)
 			return um_patherror;	//error
 		else

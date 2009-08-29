@@ -727,6 +727,16 @@ struct service *ht_get_service(struct ht_elem *hte)
 		return NULL;
 }
 
+epoch_t ht_get_epoch(struct ht_elem *hte)
+{
+	/* this check could be eliminated:
+		 this function is always called with hte != NULL */
+	if (hte)
+		return hte->tst.epoch;
+	else
+		return 0;
+}
+
 void ht_count_plus1(struct ht_elem *hte)
 {
 	if (hte->service_hte == NULL) {
