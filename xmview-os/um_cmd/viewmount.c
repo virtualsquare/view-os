@@ -43,7 +43,7 @@ int main(int argc, char * argv[])
 	char *source=NULL;
 	char *target=NULL;
 	char *options=NULL;
-	unsigned long mountflags;
+	unsigned long mountflags=0;
 	int opt;
 
 	while ((opt = getopt(argc, argv, "hVt:o:r")) != -1) {
