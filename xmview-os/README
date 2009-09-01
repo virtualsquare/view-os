@@ -166,3 +166,17 @@ sockets).  Two operational modules have also been released:
   instead of the kernel stack. An unprivileged user can configure the IP
   address, routing, etc. for his/her processes.
 
+September 2009:
+VIEWOS has two implementations:
+umview and kmview. umview runs on vanilla kernel (or run faster by a simple
+and safe kernel patch). kmview needs utrace and a specific kernel module.
+
+There are several modules and submodules.
+umfuse: it is a compatibility layer between UMView and Fuse (see
+fuse.sourceforge.net). 
+umdev: virtual devices
+umnet: virtual networking
+viewfs: filesystem patchworking
+ummisc: other virtualizations time, uname
+umproc: /proc virtualization (/proc/mounts)
+
