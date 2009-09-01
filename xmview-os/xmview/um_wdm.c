@@ -40,7 +40,7 @@
 #include <config.h>
 #include "defs.h"
 #include "umproc.h"
-#include "services.h"
+#include "hashtab.h"
 #include "um_services.h"
 #include "sctab.h"
 #include "scmap.h"
@@ -48,14 +48,14 @@
 #include "gdebug.h"
 
 int wrap_in_getcwd(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	long arg1=pc->sysargs[1];
 	if (pc->sysargs[0]==(long) NULL) {
 		pc->retval=(long) NULL;
 		pc->erno=EFAULT;
 	} else {
-		//printf("dsys_getcwd %s\n",pc->fdfs->cwd);
+		//printk("dsys_getcwd %s\n",pc->fdfs->cwd);
 		int len;
 		char *root=um_getroot(pc);
 		char *cwd=pc->fdfs->cwd;
@@ -87,7 +87,7 @@ int wrap_in_getcwd(int sc_number,struct pcb *pc,
  * the correct check and where to put it, so I haven't done it at the moment.
  * But it should be changed. */
 int wrap_in_chdir(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	if (!S_ISDIR(pc->pathstat.st_mode)) {
 		if (pc->pathstat.st_mode == 0)
@@ -99,18 +99,10 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,
 			pc->erno=EACCES;
 	}
 	if (pc->erno == 0 && S_ISDIR(pc->pathstat.st_mode)) {
-		long sp=getsp(pc);
-		int pathlen;
-		if (sercode != UM_NONE) {
-			char *chdir_fake_dir = um_proc_fakecwd();
-			//fprint2("virtual path chdir to %s\n", chdir_fake_dir);
-			pathlen = WORDALIGN(strlen(chdir_fake_dir));
-			ustoren(pc, sp-pathlen, pathlen, chdir_fake_dir);
-		} else {
-			pathlen = WORDALIGN(strlen(pc->path));
-			ustoren(pc, sp-pathlen, pathlen, pc->path);
-		}
-		pc->sysargs[0]=sp-pathlen;
+		if (hte != NULL)
+			um_x_rewritepath(pc,um_proc_fakecwd(),0,0);
+		else
+			um_x_rewritepath(pc,pc->path,0,0);
 		return SC_CALLONXIT;
 	} else {
 		pc->retval = -1;
@@ -121,7 +113,7 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,
 int wrap_out_chdir(int sc_number,struct pcb *pc) 
 {
 	if (pc->behavior == SC_FAKE) {
-		//printf("chdir err %d\n",pc->erno);
+		//printk("chdir err %d\n",pc->erno);
 		putrv(pc->retval,pc);
 		puterrno(pc->erno,pc);
 		/* we use pc->path. it has been dup-ped already */
@@ -134,41 +126,35 @@ int wrap_out_chdir(int sc_number,struct pcb *pc)
 			free(pc->fdfs->cwd);
 			pc->fdfs->cwd = pc->path;
 			pc->path=NULL;
-			//fprint2("new dir %d - %s\n",pc->pid, pc->fdfs->cwd);
+			//printk("new dir %d - %s\n",pc->pid, pc->fdfs->cwd);
 		} 
 		return STD_BEHAVIOR;
 	}
 }
 
 int wrap_in_fchdir(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
-	long sp=getsp(pc);
-	int pathlen;
 	char *path;
 
 	if ((path=fd_getpath(pc->fds,pc->sysargs[0])) != NULL) {
-		//fprint2("fchdir to %s\n",path);
+		//printk("fchdir to %s\n",path);
 		pc->path=strdup(path);
-		um_x_lstat64(pc->path, &(pc->pathstat), pc);
+		um_x_lstat64(pc->path, &(pc->pathstat), pc, 0);
 		/* If there is a real directory with this name, and it is chdir-able,
 		 * we can chdir there instead of /tmp/ so the core and the process
 		 * will see the same cwd. */
 		/* (rd) maybe there is a virtual dir with the same name of
 		 * a real file with X permission... 
 		 * commented out 20080626*/
-		if (S_ISDIR(pc->pathstat.st_mode) && (access(pc->path,X_OK) == 0))
+		if (S_ISDIR(pc->pathstat.st_mode) && (r_access(pc->path,X_OK) == 0))
 		{
-			pathlen = WORDALIGN(strlen(pc->path));
-			ustoren(pc, sp - pathlen, pathlen, pc->path);
-			pc->sysargs[0]=sp-pathlen;
+			um_x_rewritepath(pc,pc->path,0,0);
 			putscno(__NR_chdir, pc);
 			GDEBUG(4, "FCHDIR making fake chdir to real %s", pc->path);
 			return SC_CALLONXIT;
 		}
 		else
-#if 0
-#endif
 		{
 			if (S_ISDIR(pc->pathstat.st_mode)) {
 				if (um_x_access(pc->path,X_OK,pc)!=0) {
@@ -177,17 +163,10 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 					pc->retval = -1;
 					return SC_FAKE;
 				} else {
-					if (sercode != UM_NONE) {
-						char *chdir_fake_dir= um_proc_fakecwd();
-						GDEBUG(4, "FCHDIR making chdir to %s (instead of %s)", chdir_fake_dir, pc->path);
-						pathlen = WORDALIGN(strlen(chdir_fake_dir));
-						ustoren(pc, sp-pathlen, pathlen, chdir_fake_dir);
-					} else {
-						GDEBUG(4, "FCHDIR making chdir to unmanaged %s", pc->path);
-						pathlen = WORDALIGN(strlen(pc->path));
-						ustoren(pc, sp-pathlen, pathlen, pc->path);
-					}
-					pc->sysargs[0]=sp-pathlen;
+					if (hte != NULL)
+						um_x_rewritepath(pc,um_proc_fakecwd(),0,0);
+					else
+						um_x_rewritepath(pc,pc->path,0,0);
 					putscno(__NR_chdir,pc);
 					return SC_CALLONXIT;
 				}
@@ -207,7 +186,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_umask(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	mode_t mode=pc->sysargs[0];
 	pc->fdfs->mask = mode;
@@ -215,9 +194,9 @@ int wrap_in_umask(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_chroot(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
-	//fprint2("CHROOT %s\n",pc->path);
+	//printk("CHROOT %s\n",pc->path);
 	if (pc->erno != 0) {
 		/* TODO management of chroot */
 		/*free(pc->fdfs->root);
@@ -227,7 +206,7 @@ int wrap_in_chroot(int sc_number,struct pcb *pc,
 		pc->erno = ENOENT;
 		return SC_FAKE;
 	} else {
-		if (sercode == UM_NONE) {
+		if (hte == NULL) {
 			return SC_CALLONXIT;
 		} else {
 			free(pc->fdfs->root);

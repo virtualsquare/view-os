@@ -29,6 +29,7 @@
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <errno.h>
 #include <sys/select.h>
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -106,20 +107,17 @@ static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,lon
 static int do_preload(struct prelist *head)
 {
 	if (head != NULL) {
-		void *handle;
 		int rv=do_preload(head->next);
-		handle=open_dllib(head->module);
-		if (handle==NULL) {
-			fprintf(stderr, "%s\n",dlerror());
-			return -1;
-		} else {
-			set_handle_new_service(handle,0);
+		if (add_service(head->module,0) < 0) {
+			printk("module preload %s",strerror(errno));
+			return -1 ;
+		} else
 			return rv;
-		}
 		free(head);
 	} else
 		return 0;
 }
+
 
 static void do_set_viewname(char *viewname)
 {
@@ -135,7 +133,7 @@ static int do_preload_recursive(struct prelist *head)
 {
 	if (head != NULL) {
 		do_preload_recursive(head->next);
-		int_virnsyscall(__NR_UM_SERVICE,3,ADD_SERVICE,0,(long)head->module,0,0,0);
+		int_virnsyscall(__NR_UM_SERVICE,3,ADD_SERVICE,(long)head->module,0,0,0,0);
 		free(head);
 		return 0;
 	} else
@@ -145,7 +143,7 @@ static int do_preload_recursive(struct prelist *head)
 static void do_set_viewname_recursive(char *viewname)
 {
 	if (viewname) {
-		int_virnsyscall(__NR_UM_SERVICE,2,UMVIEW_SETVIEWNAME,(long)viewname,0,0,0,0);
+		int_virnsyscall(__NR_UM_SERVICE,2,VIEWOS_SETVIEWNAME,(long)viewname,0,0,0,0);
 	}
 }
 #endif
@@ -363,7 +361,7 @@ int main(int argc,char *argv[])
 		 * otherwise nobody is notified and the call fails*/
 #ifdef KMVIEW_USER_NESTING
 		if (test_recursion(argc,argv)) {
-			if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_UMVIEW,0,0,0,0,0) >= 0)
+			if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_VIEWOS,0,0,0,0,0) >= 0)
 				kmview_recursive(argc,argv);	/* do not return!*/
 		}
 #endif
@@ -430,7 +428,7 @@ int main(int argc,char *argv[])
 	sigprocmask(SIG_BLOCK,NULL,&unblockchild);
 	pcb_inits(0);
 	if (capture_main(argv+optind,root_process_init,rcfile) < 0) {
-		fprint2("Kmview: kernel module not loaded\n");
+		printk("Kmview: kernel module not loaded\n");
 		exit(1);
 	}
 	mp_add(kmviewfd,POLLIN,tracehand,NULL,1);

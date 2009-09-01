@@ -39,6 +39,7 @@ COMMON_SOURCES = \
 	umproc.c umproc.h \
 	utils.h \
 	loginshell.c loginshell.h \
+	hashtab.c hashtab.h \
 	kmview.h
 # kmview.h must be removed, it will be part of the dev package of the
 # kmview.ko kernel module
@@ -82,7 +83,7 @@ dist_man1_MANS = kmview.1 umview.1
 dist_man2_MANS = msocket.2viewos
 dist_man5_MANS = viewospasswd.5
 
-CBASEFLAGS =
+CBASEFLAGS = -DNDEBUG
 CDEBUGFLAGS = -g3 -ggdb3
 
 CPPBASEFLAGS = -Wall -I../include -D_GNU_SOURCE -DLIBEXECDIR=\"$(libexecdir)\" -DMODULES_DIR=\"$(pkglibdir)/modules\" -D_UM_MMAP -D_USE_PSELECT

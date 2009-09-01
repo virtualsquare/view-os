@@ -72,15 +72,22 @@ void killall(struct pcb *pc, int signo);
 void um_set_errno(struct pcb *pc,int i);
 //char *um_getcwd(struct pcb *pc,char *buf,int size);
 char *um_getroot(struct pcb *pc);
+int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdot);
+/* um_x_access and um_x_readlink must follow a um_x_lstat64 */
 int um_x_access(char *filename,int mode, struct pcb *pc);
-int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc);
 int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc);
-epoch_t um_setepoch(epoch_t epoch);
+int um_xx_access(char *filename,int mode, struct pcb *pc);
+/* rewrite the path argument of a call */
+int um_x_rewritepath(struct pcb *pc, char *path, int arg, long offset);
+epoch_t um_setnestepoch(epoch_t epoch);
 
 struct timestamp *um_x_gettst();
 
 /* modules callbacks for extra args */
-int um_mod_getpid();
+int um_mod_getpid(void);
+void um_mod_set_hte(struct ht_elem *hte);
+struct ht_elem *um_mod_get_hte(void);
+extern void *um_mod_get_private_data(void);
 int um_mod_umoven(long addr, int len, void *_laddr);
 int um_mod_umovestr(long addr, int len, void *_laddr);
 int um_mod_ustoren(long addr, int len, void *_laddr);

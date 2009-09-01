@@ -30,11 +30,11 @@
 #include <alloca.h>
 #include <config.h>
 #include "defs.h"
-#include "services.h"
+#include "hashtab.h"
 #include "utils.h"
 
 int wrap_in_uname(int sc_number,struct pcb *pc,
-		    service_t sercode, sysfun um_syscall)
+		    struct ht_elem *hte, sysfun um_syscall)
 {
 	long addr=pc->sysargs[0];
 	if (addr != umNULL) {
@@ -65,7 +65,7 @@ int wrap_in_uname(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_gethostname(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	long addr=pc->sysargs[0];
 	if (addr != umNULL) {
@@ -96,7 +96,7 @@ int wrap_in_gethostname(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_sethostname(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	long addr=pc->sysargs[0];
 	if (addr != umNULL) {

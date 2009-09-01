@@ -42,7 +42,7 @@
 static int umstd_getattr (const char *path, struct stat *stat)
 {
 	PRINTCALL("default getattr %s\n", path);
-	return -ENOSYS;
+	return -ENOTSUP;
 }
 
 /** Read the target of a symbolic link

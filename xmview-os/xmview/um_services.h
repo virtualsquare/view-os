@@ -24,8 +24,8 @@
 #ifndef _UM_SERVICES_H
 #define _UM_SERVICES_H
 
-char *fs_alias(char *fsalias);
+char *get_alias(int type,char *fsalias);
 
-void *open_dllib(char *name);
+//void *open_dllib(char *name);
 
 #endif

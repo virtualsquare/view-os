@@ -61,7 +61,7 @@ pthread_key_t pcb_key=0; /* key to grab the current thread pcb */
 sfun native_syscall=syscall;
 
 /* debugging output, (bypass pure_libc when loaded) */
-int fprint2(const char *fmt, ...) {
+int printk(const char *fmt, ...) {
 	char *s;
 	int rv;
 	va_list ap;
@@ -74,7 +74,7 @@ int fprint2(const char *fmt, ...) {
 	return rv;
 }
 
-int vfprint2(const char *fmt, va_list ap) {
+int vprintk(const char *fmt, va_list ap) {
 	char *s;
 	int rv;
 	rv=vasprintf(&s, fmt, ap);
@@ -214,6 +214,8 @@ static void droppcb(struct pcb *pc)
 	 * the termination of all modules */
 	/* otherwise the "nesting" mechanism misunderstands
 	 * the pcb by a npcb */
+	/* XXX rd235 20090805: it seems not a problem any more
+		 in the new version. deleted for dup delproc notication for proc #1 */
 #ifdef _PROC_MEM_TEST
 	if (pc->memfd >= 0)
 		close(pc->memfd);
@@ -221,7 +223,9 @@ static void droppcb(struct pcb *pc)
 	nprocs--;
 	forallpcbdo(_cut_pp,pc);
 	pcb_destructor(pc,0/*flags*/,0);
+#if 0
 	if (nprocs > 0)
+#endif
 		pc->flags = 0; /*NOT PCB_INUSE */;
 }
 
@@ -266,7 +270,7 @@ void tracehand(void *useless)
 							first_child_init();
 						}
 						else {
-							fprint2("[pcb table full]\n");
+							printk("[pcb table full]\n");
 							exit(1);
 						}
 					}

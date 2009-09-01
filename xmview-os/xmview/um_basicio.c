@@ -49,13 +49,14 @@
 #include "sctab.h"
 #include "scmap.h"
 #include "utils.h"
+#include "hashtab.h"
 
 #include "gdebug.h"
 
 /* OPEN & CREAT wrapper "in" phase 
- * always called (also when service == UM_NONE)*/
+ * always called (also when service == NULL)*/
 int wrap_in_open(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int mode,flags;
 	if (sc_number== __NR_open) {
@@ -70,44 +71,34 @@ int wrap_in_open(int sc_number,struct pcb *pc,
 		flags=O_CREAT|O_WRONLY|O_TRUNC;
 		mode=pc->sysargs[1];
 	}
-	if (sercode != UM_NONE) {
+	if (hte != NULL) {
 		/* call the module's open */
 		if ((pc->retval = um_syscall(pc->path,flags,mode & ~(pc->fdfs->mask))) < 0)
 			pc->erno = errno;
-		//printf("open exit a %d %d %s\n",pc->retval,pc->erno,pc->path);
+		//printk("open exit a %d %d %s\n",pc->retval,pc->erno,pc->path);
 		if (pc->retval >= 0 && 
-				(pc->retval=lfd_open(sercode,pc->retval,pc->path,flags,0)) >= 0) {
+				(pc->retval=lfd_open(hte,pc->retval,pc->path,flags,0)) >= 0) {
 			/* change the syscall parms, open the fifo instead of the file */
-			char *filename=lfd_getfilename(pc->retval);
-			int filenamelen=WORDALIGN(strlen(filename));
-			long sp=getsp(pc);
-			ustoren(pc,sp-filenamelen,filenamelen,filename);
+			um_x_rewritepath(pc,lfd_getfilename(pc->retval),0,0);
 			putscno(__NR_open,pc);
-			pc->sysargs[0]=sp-filenamelen;
 			pc->sysargs[1]=O_RDONLY;
 			return SC_CALLONXIT;
 		} else
 			return SC_FAKE;
 	} else {
-#if 0
-		/* load the complete path (to avoid border effects -- like open(..) */
-		/* open problem: all the paths should be rewritten on borders
-		 * not only for "open" */
-		int filenamelen=WORDALIGN(strlen(pc->path));
-		long sp=getsp(pc);
-		ustoren(pc,sp-filenamelen,filenamelen,pc->path);
+		if (__builtin_expect(pc->needs_dotdot_path_rewrite,0)) {
+			// printk("needs_dotdot_path_rewrite OPEN %s %d\n",pc->path,pc->sysscno);
 #ifdef __NR_openat
-		if (sc_number == __NR_openat) 
-			pc->sysargs[1]=sp-filenamelen;
-		else 
+			um_x_rewritepath(pc,pc->path,(sc_number == __NR_openat)?1:0,0);
+#else
+			um_x_rewritepath(pc,pc->path,0,0);
 #endif
-			pc->sysargs[0]=sp-filenamelen;
-		/* keep track of the open file */
-		pc->retval=lfd_open(sercode,-1,pc->path,flags,0);
-		return SC_CALLONXIT;
-#endif
-		pc->retval=lfd_open(sercode,-1,pc->path,flags,0);
-		return SC_TRACEONLY;
+			pc->retval=lfd_open(hte,-1,pc->path,flags,0);
+			return SC_CALLONXIT;
+		} else {
+			pc->retval=lfd_open(hte,-1,pc->path,flags,0);
+			return SC_TRACEONLY;
+		}
 	}
 }
 
@@ -116,10 +107,10 @@ int wrap_out_open(int sc_number,struct pcb *pc) {
 	/* user mode open succeeded */
 	if (pc->retval >= 0) {
 		int fd=getrv(pc);	
-		//printf("open: true return value: %d  %d %d\n", fd,pc->retval,getscno(pc));
+		//printk("open: true return value: %d  %d %d\n", fd,pc->retval,getscno(pc));
 		/* process syscall succeeded, too */
 		if (fd >= 0 &&
-				(lfd_getservice(pc->retval) == UM_NONE
+				(lfd_getht(pc->retval) == NULL
 				 || addfd(pc,fd) == 0)) {
 			/* update open file table*/
 			lfd_register(pc->fds,fd,pc->retval);
@@ -135,13 +126,13 @@ int wrap_out_open(int sc_number,struct pcb *pc) {
 
 /* CLOSE wrapper: "in" phase ALWAYS called*/
 int wrap_in_close(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
-	//printf("wrap in close %d\n", pc->sysargs[0]);
-	if (sercode != UM_NONE) {
+	//printk("wrap in close %d\n", pc->sysargs[0]);
+	if (hte != NULL) {
 		int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 		int lfd=fd2lfd(pc->fds,pc->sysargs[0]);
-		//printf("UM_SERVICE close %d %d %d\n",pc->sysargs[0],lfd,sfd);
+		//printk("UM_SERVICE close %d %d %d\n",pc->sysargs[0],lfd,sfd);
 		if (sfd < 0) {
 			pc->retval= -1;
 			pc->erno= EBADF;
@@ -166,12 +157,12 @@ int wrap_in_close(int sc_number,struct pcb *pc,
 int wrap_out_close(int sc_number,struct pcb *pc) 
 {
 	int lfd=fd2lfd(pc->fds,pc->sysargs[0]);
-	//printf("close %d ->%d\n",pc->sysargs[0],lfd);
+	//printk("close %d ->%d\n",pc->sysargs[0],lfd);
 	/* delete the lfd table element */
 	if (lfd>=0) {
-		int service=lfd_getservice(lfd);
+		struct ht_elem *hte=lfd_getht(lfd);
 		lfd_deregister_n_close(pc->fds,pc->sysargs[0]);
-		if (service != UM_NONE) {
+		if (hte != NULL) {
 			delfd(pc,pc->sysargs[0]);
 			putrv(pc->retval,pc);
 			puterrno(pc->erno,pc);
@@ -192,7 +183,7 @@ int wrap_out_std(int sc_number,struct pcb *pc)
 }
 
 int wrap_in_read(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned long pbuf=pc->sysargs[1];
 	unsigned long count=pc->sysargs[2];
@@ -201,17 +192,18 @@ int wrap_in_read(int sc_number,struct pcb *pc,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		char *lbuf=(char *)alloca(count);
+		char *lbuf=(char *)lalloca(count);
 		if ((pc->retval = um_syscall(sfd,lbuf,count)) < 0)
 			pc->erno=errno;
 		if (pc->retval > 0)
 			ustoren(pc,pbuf,pc->retval,lbuf);
+		lfree(lbuf,count);
 	}
 	return SC_FAKE;
 }
 
 int wrap_in_write(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned long pbuf=pc->sysargs[1];
 	unsigned long count=pc->sysargs[2];
@@ -220,71 +212,149 @@ int wrap_in_write(int sc_number,struct pcb *pc,
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		char *lbuf=(char *)alloca(count);
+		char *lbuf=(char *)lalloca(count);
 		umoven(pc,pbuf,count,lbuf);
 		if ((pc->retval = um_syscall(sfd,lbuf,count)) < 0)
 			pc->erno=errno;
+		lfree(lbuf,count);
 	}
 	return SC_FAKE;
 }
 
 
-/* there is a memory alignment problem in these architectures */
-#if (defined(__powerpc__) && !defined(__powerpc64__)) || (defined (MIPS) && !defined(__mips64))
-#define PALIGN 1
-#else
-#define PALIGN 0
-#endif
-
 int wrap_in_pread(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
-	unsigned long pbuf=pc->sysargs[1];
-	unsigned long count=pc->sysargs[2];
-	unsigned long long offset;
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-#ifdef __NR_pread64
-	offset=LONG_LONG(pc->sysargs[3+PALIGN],pc->sysargs[4+PALIGN]);
-#else
-	offset=pc->sysargs[3];
-#endif
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		char *lbuf=(char *)alloca(count);
+		unsigned long pbuf=pc->sysargs[1];
+		unsigned long count=pc->sysargs[2];
+		unsigned long long offset;
+		char *lbuf=(char *)lalloca(count);
+#ifdef __NR_pread64
+		offset=LONG_LONG(pc->sysargs[3+PALIGN],pc->sysargs[4+PALIGN]);
+#else
+		offset=pc->sysargs[3];
+#endif
 		if ((pc->retval = um_syscall(sfd,lbuf,count,offset)) < 0)
 			pc->erno=errno;
 		if (pc->retval > 0)
 			ustoren(pc,pbuf,pc->retval,lbuf);
+		lfree(lbuf,count);
 	}
 	return SC_FAKE;
 }
 
 int wrap_in_pwrite(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
-	unsigned long pbuf=pc->sysargs[1];
-	unsigned long count=pc->sysargs[2];
-	unsigned long long offset;
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-#ifdef __NR_pwrite64
-	offset=LONG_LONG(pc->sysargs[3+PALIGN],pc->sysargs[4+PALIGN]);
-#else
-	offset=pc->sysargs[3];
-#endif
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		char *lbuf=(char *)alloca(count);
+		unsigned long pbuf=pc->sysargs[1];
+		unsigned long count=pc->sysargs[2];
+		unsigned long long offset;
+		char *lbuf=(char *)lalloca(count);
+#ifdef __NR_pwrite64
+		offset=LONG_LONG(pc->sysargs[3+PALIGN],pc->sysargs[4+PALIGN]);
+#else
+		offset=pc->sysargs[3];
+#endif
 		umoven(pc,pbuf,count,lbuf);
 		if ((pc->retval = um_syscall(sfd,lbuf,count,offset)) < 0)
 			pc->erno=errno;
+		lfree(lbuf,count);
 	}
 	return SC_FAKE;
 }
-#undef PALIGN
+
+#ifdef __NR_preadv
+int wrap_in_preadv(int sc_number,struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
+	if (sfd < 0) {
+		pc->retval= -1;
+		pc->erno= EBADF;
+	} else {
+		unsigned long vecp=pc->sysargs[1];
+		unsigned long count=pc->sysargs[2];
+		unsigned long i,totalsize,size;
+		struct iovec *iovec;
+		char *lbuf,*p;
+		unsigned long long offset;
+#ifdef __NR_pread64
+		offset=LONG_LONG(pc->sysargs[3+PALIGN],pc->sysargs[4+PALIGN]);
+#else
+		offset=pc->sysargs[3];
+#endif
+		if (__builtin_expect((count > IOV_MAX),0)) count=IOV_MAX;
+		iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
+		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
+		for (i=0,totalsize=0;i<count;i++)
+			totalsize += iovec[i].iov_len;
+		lbuf=p=(char *)lalloca(totalsize);
+		/* PREADV is mapped onto PREAD */
+		if ((size=pc->retval = um_syscall(sfd,lbuf,totalsize,offset)) >= 0) {
+			for (i=0;i<count && size>0;i++) {
+				long qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
+				ustoren(pc,(long)iovec[i].iov_base,qty,p);
+				p += qty;
+				size -= qty;
+			}
+		}
+		else
+			pc->erno=errno;
+		lfree(lbuf,totalsize);
+	}
+	return SC_FAKE;
+}
+#endif
+
+#ifdef __NR_pwritev
+int wrap_in_pwritev(int sc_number,struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
+	if (sfd < 0) {
+		pc->retval= -1;
+		pc->erno= EBADF;
+	} else {
+		unsigned long vecp=pc->sysargs[1];
+		unsigned long count=pc->sysargs[2];
+		unsigned long i,totalsize;
+		struct iovec *iovec;
+		char *lbuf, *p;
+		unsigned long long offset;
+#ifdef __NR_pwrite64
+		offset=LONG_LONG(pc->sysargs[3+PALIGN],pc->sysargs[4+PALIGN]);
+#else
+		offset=pc->sysargs[3];
+#endif
+		if (__builtin_expect((count > IOV_MAX),0)) count=IOV_MAX;
+		iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
+		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
+		for (i=0,totalsize=0;i<count;i++)
+			totalsize += iovec[i].iov_len;
+		lbuf=p=(char *)lalloca(totalsize);
+		for (i=0;i<count;i++) {
+			long qty=iovec[i].iov_len;
+			umoven(pc,(long)iovec[i].iov_base,qty,p);
+			p += qty;
+		}
+		/* PWRITEV is mapped onto PWRITE */
+		if ((pc->retval = um_syscall(sfd,lbuf,totalsize)) < 0)
+			pc->erno=errno;
+		lfree(lbuf,totalsize);
+	}
+	return SC_FAKE;
+}
+#endif
 
 /* DAMNED! the kernel stat are different! so glibc converts the 
  * kernel structure. We have to make the reverse conversion! */
@@ -384,7 +454,7 @@ static void stat64_2kstat(struct stat64 *buf,struct kstat *kbuf)
 #endif // if not defined _x86_64
 
 int wrap_in_stat(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	long pbuf=pc->sysargs[1];
 	struct stat64 buf64;
@@ -400,7 +470,7 @@ int wrap_in_stat(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_fstat(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
 	long pbuf=pc->sysargs[1];
 	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
@@ -422,7 +492,7 @@ int wrap_in_fstat(int sc_number,struct pcb *pc,
 #endif // if not defined _x86_64
 
 int wrap_in_stat64(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
 	long pbuf;
 	struct stat64 buf;
@@ -436,7 +506,7 @@ int wrap_in_stat64(int sc_number,struct pcb *pc,
 		 ) {
 		pbuf=pc->sysargs[2];
 		if (pc->sysargs[3] & AT_SYMLINK_NOFOLLOW) 
-			um_syscall=service_syscall(sercode,uscno(NR64_lstat));
+			um_syscall=ht_syscall(hte,uscno(NR64_lstat));
 	} else
 #endif
 	pbuf=pc->sysargs[1];
@@ -448,11 +518,10 @@ int wrap_in_stat64(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_fstat64(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
 	long pbuf=pc->sysargs[1];
 	char *path=fd_getpath(pc->fds,pc->sysargs[0]);
-	/*fprint2("wrap_in_fstat: %d\n",sfd);*/
 	if (path==NULL) {
 		pc->retval= -1;
 		pc->erno= EBADF;
@@ -466,24 +535,8 @@ int wrap_in_fstat64(int sc_number,struct pcb *pc,
 	return SC_FAKE;
 }
 
-int wrap_in_getxattr(int sc_number, struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
-{
-	char *name = (char *)(pc->sysargs[1]);
-	long pbuf = pc->sysargs[2];
-	size_t size = pc->sysargs[3];
-	char *buf = alloca(size);
-
-	if ((pc->retval = um_syscall(pc->path, name, buf, size)) >= 0)
-		ustoren(pc, pbuf, size, buf);
-	else
-		pc->erno = errno;
-
-	return SC_FAKE;
-}
-
 int wrap_in_readlink(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned long pbuf;
 	unsigned long bufsiz;
@@ -498,11 +551,12 @@ int wrap_in_readlink(int sc_number,struct pcb *pc,
 		pbuf=pc->sysargs[1];
 		bufsiz=pc->sysargs[2];
 	}
-	lbuf=(char *)alloca(bufsiz);
+	lbuf=(char *)lalloca(bufsiz);
 	if ((pc->retval = (long) um_syscall(pc->path,lbuf,bufsiz)) >= 0)
 		ustoren(pc,pbuf,pc->retval,lbuf);
 	else
 		pc->erno=errno;
+	lfree(lbuf,bufsiz);
 	GDEBUG(10,"wrap_in_readlink - rv=%ld\n",pc->retval);
 	return SC_FAKE;
 }
@@ -521,6 +575,7 @@ void dents64_to_dents(void* buf,int count){
 		dirp->d_ino = (unsigned long) dirp64->d_ino;
 		dirp->d_off = (unsigned long) dirp64->d_off;
 		buf_len = dirp->d_reclen = dirp64->d_reclen;
+		*((char *) dirp + buf_len - 1)=dirp64->d_type;
 		strcpy(dirp->d_name,dirp64->d_name);
 		counter= counter + dirp->d_reclen; //bad...
 		GDEBUG(10,"dirent: ino:%ld - off:%ld - reclen:%d - name:%s",dirp->d_ino,dirp->d_off,dirp->d_reclen,(dirp->d_name));
@@ -531,49 +586,51 @@ void dents64_to_dents(void* buf,int count){
 }
 
 int wrap_in_getdents(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
 	long pbuf=pc->sysargs[1];
 	unsigned long bufsiz=pc->sysargs[2];
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	//printf("wrap_in_getdents(sc:%d ,pc,sercode:%d,syscall);\n",sc_number,sercode);
+	//printk("wrap_in_getdents(sc:%d ,pc,service:%s,syscall);\n",sc_numberervicename(hte));
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		char *lbuf=(char *)alloca(bufsiz);
+		char *lbuf=(char *)lalloca(bufsiz);
 		if ((pc->retval = um_syscall(sfd,lbuf,bufsiz)) >= 0) {
 			dents64_to_dents(lbuf,pc->retval);
 			ustoren(pc,pbuf,pc->retval,lbuf);
 		}
 		else
 			pc->erno=errno;
+		lfree(lbuf,bufsiz);
 	}
 	return SC_FAKE;
 }
 
 int wrap_in_getdents64(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
 	long pbuf=pc->sysargs[1];
 	unsigned long bufsiz=pc->sysargs[2];
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	//printf("wrap_in_getdents(sc:%d ,pc,sercode:%d,syscall);\n",sc_number,sercode);
+	//printk("wrap_in_getdents(sc:%d ,pc,service:%s,syscall);\n",sc_number,ht_get_servicename(hte));
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 	} else {
-		char *lbuf=(char *)alloca(bufsiz);
+		char *lbuf=(char *)lalloca(bufsiz);
 		if ((pc->retval = um_syscall(sfd,lbuf,bufsiz)) >= 0)
 			ustoren(pc,pbuf,pc->retval,lbuf);
 		else
 			pc->erno=errno;
+		lfree(lbuf,bufsiz);
 	}
 	return SC_FAKE;
 }
 
 int wrap_in_access(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned long mode;
 	long flags;
@@ -593,8 +650,9 @@ int wrap_in_access(int sc_number,struct pcb *pc,
 	return SC_FAKE;
 }
 
+#if (__NR__llseek == __NR_doesnotexist)
 int wrap_in_lseek(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -609,8 +667,40 @@ int wrap_in_lseek(int sc_number,struct pcb *pc,
 	return SC_FAKE;
 }
 
+#else
+int wrap_in_lseek(int sc_number,struct pcb *pc,
+		                    struct ht_elem *hte, sysfun um_syscall)
+{
+	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
+	if (sfd < 0) {
+		pc->retval= -1;
+		pc->erno= EBADF;
+	} else {
+		long offset =pc->sysargs[1];
+		long whence =pc->sysargs[2];
+		if (isnosys(um_syscall)) {
+			loff_t lresult;
+			um_syscall=ht_syscall(hte,uscno(__NR__llseek));
+			pc->retval = um_syscall(sfd,
+					(offset>0)?0:-1,offset,&lresult,whence);
+			if (pc->retval != -1) {
+				pc->retval=lresult;
+				if (pc->retval != lresult) {
+					pc->retval = -1;
+					pc->erno = EOVERFLOW;
+				}
+			}
+		} else {
+			if ((pc->retval = um_syscall(sfd,offset,whence)) == -1)
+				pc->erno=errno;
+		}
+	}
+	return SC_FAKE;
+}
+
+
 int wrap_in_llseek(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -630,7 +720,7 @@ int wrap_in_llseek(int sc_number,struct pcb *pc,
 		} else {/* backup solution translate it to lseek when possible */
 			if ((offhi==0 && !(offlo & 1<<31)) || ((offhi == ~0 && (offlo & 1<<31)))) {
 				long shortresult;
-				um_syscall=service_syscall(sercode,uscno(__NR_lseek));
+				um_syscall=ht_syscall(hte,uscno(__NR_lseek));
 				if ((shortresult=um_syscall(sfd,offlo,whence)) == -1) {
 					pc->retval=-1;
 					pc->erno=errno;
@@ -647,18 +737,19 @@ int wrap_in_llseek(int sc_number,struct pcb *pc,
 	}
 	return SC_FAKE;
 }
+#endif
 
 int wrap_in_notsupp(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
-	//printf("wrap_in_notsupp %d\n",sc_number);
+	//printk("wrap_in_notsupp %d\n",sc_number);
 	pc->retval= -1;
 	pc->erno= EOPNOTSUPP;
 	return SC_FAKE;
 }
 
 int wrap_in_readv(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -668,29 +759,32 @@ int wrap_in_readv(int sc_number,struct pcb *pc,
 		unsigned long vecp=pc->sysargs[1];
 		unsigned long count=pc->sysargs[2];
 		unsigned long i,totalsize,size;
-		struct iovec *iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
-		char *lbuf;
+		struct iovec *iovec;
+		char *lbuf,*p;
+		if (__builtin_expect((count > IOV_MAX),0)) count=IOV_MAX;
+		iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
 		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
 		for (i=0,totalsize=0;i<count;i++)
 			totalsize += iovec[i].iov_len;
-		lbuf=(char *)alloca(totalsize);
+		lbuf=p=(char *)lalloca(totalsize);
 		/* READV is mapped onto READ */
 		if ((size=pc->retval = um_syscall(sfd,lbuf,totalsize)) >= 0) {
 			for (i=0;i<count && size>0;i++) {
 				long qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
-				ustoren(pc,(long)iovec[i].iov_base,qty,lbuf);
-				lbuf += qty;
+				ustoren(pc,(long)iovec[i].iov_base,qty,p);
+				p += qty;
 				size -= qty;
 			}
 		}
 		else
 			pc->erno=errno;
+		lfree(lbuf,totalsize);
 	}
 	return SC_FAKE;
 }
 
 int wrap_in_writev(int sc_number,struct pcb *pc,
-		                service_t sercode, sysfun um_syscall)
+		                struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -700,13 +794,14 @@ int wrap_in_writev(int sc_number,struct pcb *pc,
 		unsigned long vecp=pc->sysargs[1];
 		unsigned long count=pc->sysargs[2];
 		unsigned long i,totalsize;
-		struct iovec *iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
+		struct iovec *iovec;
 		char *lbuf, *p;
+		if (__builtin_expect((count > IOV_MAX),0)) count=IOV_MAX;
+		iovec=(struct iovec *)alloca(count * sizeof(struct iovec));
 		umoven(pc,vecp,count * sizeof(struct iovec),(char *)iovec);
 		for (i=0,totalsize=0;i<count;i++)
 			totalsize += iovec[i].iov_len;
-		lbuf=(char *)alloca(totalsize);
-		p=lbuf;
+		lbuf=p=(char *)lalloca(totalsize);
 		for (i=0;i<count;i++) {
 			long qty=iovec[i].iov_len;
 			umoven(pc,(long)iovec[i].iov_base,qty,p);
@@ -715,6 +810,164 @@ int wrap_in_writev(int sc_number,struct pcb *pc,
 		/* WRITEV is mapped onto WRITE */
 		if ((pc->retval = um_syscall(sfd,lbuf,totalsize)) < 0)
 			pc->erno=errno;
+		lfree(lbuf,totalsize);
 	}
 	return SC_FAKE;
 }
+
+/* ATTR management */
+#ifdef __NR_getxattr
+int wrap_in_getxattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pname = pc->sysargs[1];
+	long pbuf = pc->sysargs[2];
+	size_t size = pc->sysargs[3];
+	char name[XATTR_NAME_MAX];
+	char *buf;
+
+	if (size > XATTR_SIZE_MAX) size=XATTR_SIZE_MAX;
+	buf = alloca(size);
+
+	umovestr(pc,pname,XATTR_NAME_MAX,name);
+	if ((pc->retval = um_syscall(pc->path, name, buf, size)) >= 0)
+		ustoren(pc, pbuf, size, buf);
+	else
+		pc->erno = errno;
+
+	return SC_FAKE;
+}
+
+int wrap_in_fgetxattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pname = pc->sysargs[1];
+	long pbuf = pc->sysargs[2];
+	size_t size = pc->sysargs[3];
+	char name[XATTR_NAME_MAX];
+	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	char *buf;
+
+	if (size > XATTR_SIZE_MAX) size=XATTR_SIZE_MAX;
+	buf = alloca(size);
+
+	umovestr(pc,pname,XATTR_NAME_MAX,name);
+	if ((pc->retval = um_syscall(path, name, buf, size)) >= 0)
+		ustoren(pc, pbuf, size, buf);
+	else
+		pc->erno = errno;
+
+	return SC_FAKE;
+}
+
+
+int wrap_in_setxattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pname = pc->sysargs[1];
+	long pbuf = pc->sysargs[2];
+	size_t size = pc->sysargs[3];
+	int flags = pc->sysargs[4];
+	char name[XATTR_NAME_MAX];
+	char *buf;
+
+	if (size > XATTR_SIZE_MAX) size=XATTR_SIZE_MAX;
+	buf = alloca(size);
+
+	umovestr(pc,pname,XATTR_NAME_MAX,name);
+	umoven(pc,pbuf,size,buf);
+
+	if ((pc->retval = um_syscall(pc->path, name, buf, size, flags)) < 0)
+		pc->erno = errno;
+
+	return SC_FAKE; 
+}
+
+int wrap_in_fsetxattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pname = pc->sysargs[1];
+	long pbuf = pc->sysargs[2];
+	size_t size = pc->sysargs[3];
+	int flags = pc->sysargs[4];
+	char name[XATTR_NAME_MAX];
+	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	char *buf;
+
+	if (size > XATTR_SIZE_MAX) size=XATTR_SIZE_MAX;
+	buf = alloca(size);
+
+	umovestr(pc,pname,XATTR_NAME_MAX,name);
+	umoven(pc,pbuf,size,buf);
+
+	if ((pc->retval = um_syscall(path, name, buf, size, flags)) < 0)
+		pc->erno = errno;
+
+	return SC_FAKE; 
+}
+
+int wrap_in_listxattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pbuf = pc->sysargs[1];
+	size_t size = pc->sysargs[2];
+	char *buf;
+
+	if (size > XATTR_LIST_MAX) size=XATTR_LIST_MAX;
+	buf = alloca(size);
+
+	if ((pc->retval = um_syscall(pc->path, buf, size)) >= 0)
+		ustoren(pc, pbuf, size, buf);
+	else
+		pc->erno = errno;
+
+	return SC_FAKE;
+}
+
+
+int wrap_in_flistxattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pbuf = pc->sysargs[1];
+	size_t size = pc->sysargs[2];
+	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	char *buf;
+
+	if (size > XATTR_LIST_MAX) size=XATTR_LIST_MAX;
+	buf = alloca(size);
+
+	if ((pc->retval = um_syscall(path, buf, size)) >= 0)
+		ustoren(pc, pbuf, size, buf);
+	else
+		pc->erno = errno;
+
+	return SC_FAKE;
+}
+
+int wrap_in_removexattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pname = pc->sysargs[1];
+	char name[XATTR_NAME_MAX];
+
+	umovestr(pc,pname,XATTR_NAME_MAX,name);
+	if ((pc->retval = um_syscall(pc->path, name)) < 0)
+		pc->erno = errno;
+
+	return SC_FAKE;
+}
+
+int wrap_in_fremovexattr(int sc_number, struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	long pname = pc->sysargs[1];
+	char name[XATTR_NAME_MAX];
+	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+
+	umovestr(pc,pname,XATTR_NAME_MAX,name);
+	if ((pc->retval = um_syscall(path, name)) < 0)
+		pc->erno = errno;
+
+	return SC_FAKE;
+}
+#endif

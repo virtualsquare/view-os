@@ -27,12 +27,12 @@
 #include <sys/timex.h>
 #include <config.h>
 #include "defs.h"
-#include "services.h"
+#include "hashtab.h"
 #include "utils.h"
 
 /* mapped onto gettimeofday */
 int wrap_in_time(int sc_number,struct pcb *pc,
-		    service_t sercode, sysfun um_syscall)
+		    struct ht_elem *hte, sysfun um_syscall)
 {
 	long addr=pc->sysargs[0];
 	if (addr != umNULL) {
@@ -52,7 +52,7 @@ int wrap_in_time(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_gettimeofday(int sc_number,struct pcb *pc,
-		    service_t sercode, sysfun um_syscall)
+		    struct ht_elem *hte, sysfun um_syscall)
 {
 	struct timeval tv;
 	struct timezone tz;
@@ -70,7 +70,7 @@ int wrap_in_gettimeofday(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_settimeofday(int sc_number,struct pcb *pc,
-		    service_t sercode, sysfun um_syscall)
+		    struct ht_elem *hte, sysfun um_syscall)
 {
 	struct timeval tv,*tvx;
 	struct timezone tz,*tzx;
@@ -94,7 +94,7 @@ int wrap_in_settimeofday(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_adjtimex(int sc_number,struct pcb *pc,
-		    service_t sercode, sysfun um_syscall)
+		    struct ht_elem *hte, sysfun um_syscall)
 {
 	struct timex tmx;
 	long tmxp=pc->sysargs[0];
@@ -113,7 +113,7 @@ int wrap_in_adjtimex(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_clock_gettime(int sc_number,struct pcb *pc,
-		    service_t sercode, sysfun um_syscall)
+		    struct ht_elem *hte, sysfun um_syscall)
 {
 	clockid_t clk_id=pc->sysargs[0];
 	if (clk_id == CLOCK_REALTIME || clk_id == CLOCK_MONOTONIC) {
@@ -131,7 +131,7 @@ int wrap_in_clock_gettime(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_clock_settime(int sc_number,struct pcb *pc,
-		    service_t sercode, sysfun um_syscall)
+		    struct ht_elem *hte, sysfun um_syscall)
 {
 	clockid_t clk_id=pc->sysargs[0];
 	if (clk_id == CLOCK_REALTIME || clk_id == CLOCK_MONOTONIC) {
@@ -148,7 +148,7 @@ int wrap_in_clock_settime(int sc_number,struct pcb *pc,
 }
 
 int wrap_in_clock_getres(int sc_number,struct pcb *pc,
-		    service_t sercode, sysfun um_syscall)
+		    struct ht_elem *hte, sysfun um_syscall)
 {
 	clockid_t clk_id=pc->sysargs[0];
 	if (clk_id == CLOCK_REALTIME || clk_id == CLOCK_MONOTONIC) {

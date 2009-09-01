@@ -39,27 +39,10 @@
 // int read(), write(), close();
 
 static struct service s;
-static struct timestamp t1;
-
-static epoch_t real_path(int type, void *arg)
-{
-	if (type == CHECKPATH) {
-		/*char *path=arg;*/
-		epoch_t e=0;
-		e=tst_matchingepoch(&t1);
-		/*return (strncmp(path,"/lib",4) != 0);*/
-		/*if (strncmp(path,"/tmp",4)!=0)
-			return 0;
-		else */
-			return e;
-	}
-	else
-		return 0;
-}
+VIEWOS_SERVICE(s)
 
 static long addproc(int id, int max)
 {
-	fprintf(stderr, "new proc %d %d\n", id, max);
 	GDEBUG(3, "new process id %d  pid %d   max %d",id,um_mod_getpid(),max);
 	return 0;
 }
@@ -70,19 +53,20 @@ static long delproc(int id)
 	return 0;
 }
 
-static long addmodule(int code)
+static long addmodule(char *sender)
 {
-	GDEBUG(3, "new module loaded. code", code);
+	GDEBUG(3, "new module loaded. %s", sender);
 	return 0;
 }
 
-static long delmodule(int code)
+static long delmodule(char *sender)
 {
-	GDEBUG(3, "module %d removed", code);
+	GDEBUG(3, "module %s removed", sender);
+	return 0;
 }
 
 
-static long ctl(int type, va_list ap)
+static long ctl(int type, char *sender, va_list ap)
 {
 	int id, ppid, max, code;
 
@@ -99,16 +83,25 @@ static long ctl(int type, va_list ap)
 			return delproc(id);
 
 		case MC_MODULE | MC_ADD:
-			code = va_arg(ap, int);
-			return addmodule(code);
+			return addmodule(sender);
 
 		case MC_MODULE | MC_REM:
-			code = va_arg(ap, int);
-			return delmodule(code);
+			return delmodule(sender);
 		
 		default:
 			return -1;
 	}
+}
+
+void *viewos_init(char *args)
+{
+	return ht_tab_pathadd(CHECKPATH,"/","/","real",0,"",&s,0,NULL,NULL);
+}
+
+void viewos_fini(void *data)
+{
+	struct ht_elem *proc_ht=data;
+	ht_tab_del(proc_ht);
 }
 
 static void
@@ -116,9 +109,8 @@ __attribute__ ((constructor))
 init (void)
 {
 	GMESSAGE("real init");
-	s.name="Identity (server side)";
-	s.code=0xf8;
-	s.checkfun=real_path;
+	s.name="real";
+	s.description="Identity (server side)";
 	s.ctl = ctl;
 	
 
@@ -133,20 +125,22 @@ init (void)
 	SERVICESYSCALL(s, write, write);
 	SERVICESYSCALL(s, close, close);
 #if !defined(__x86_64__)
-	SERVICESYSCALL(s, stat64, stat64);
+	//SERVICESYSCALL(s, stat64, stat64);
 	SERVICESYSCALL(s, lstat64, lstat64);
-	SERVICESYSCALL(s, fstat64, fstat64);
+#else
+	SERVICESYSCALL(s, lstat, lstat);
 #endif
 	SERVICESYSCALL(s, readlink, readlink);
 	SERVICESYSCALL(s, getdents64, getdents64);
 	SERVICESYSCALL(s, access, access);
-	SERVICESYSCALL(s, fcntl, fcntl32);
+#ifdef __NR_fcntl64
+	SERVICESYSCALL(s, fcntl, fcntl64);
+#else
+	SERVICESYSCALL(s, fcntl, fcntl);
+#endif
 #if !defined(__x86_64__)
-	SERVICESYSCALL(s, fcntl64, fcntl64);
 	SERVICESYSCALL(s, _llseek, _llseek);
 #endif
-	add_service(&s);
-	t1=tst_timestamp();
 }
 
 static void

@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 #include <sys/select.h>
 #include <sys/utsname.h>
+#include <sys/param.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
 #include <linux/net.h>
@@ -40,169 +41,91 @@
 #include <config.h>
 #include "defs.h"
 #include "sctab.h"
-#include "services.h"
+#include "hashtab.h"
 #include "capture.h"
 #include "utils.h"
-#include "modutils.h"
 #include "gdebug.h"
 
-void *open_dllib(char *name)
+static inline void add_alias(int type,char *alias,char *fsname)
 {
-	char *args;
-	void *handle;
-	for (args=name;*args != 0 && *args != ',';args++)
-		;
-	if (*args == ',') {
-		*args = 0;
-		args++;
-	}
-	handle=openmodule(name,RTLD_LAZY|RTLD_GLOBAL);
-	if (handle != NULL) {
-		void (*pinit)() = dlsym(handle,"_um_mod_init");
-		if (pinit != NULL) {
-			pinit(args);
-		}
-	}
-	return handle;
-}
-
-#if 0
-// umview internal use only, not in syscall management.
-// because it doesn't update pc->errno
-// FIXME: should be moved from this file.
-int um_add_service(char* path,int position){
-	void *handle=open_dllib(path);
-	if (handle==NULL) {
-			return  -1;
+	struct ht_elem *hte=ht_check(type,alias,NULL,0);
+	if (hte) {
+		free(ht_get_private_data(hte));
+		if (*fsname==0)
+			ht_tab_del(hte);
+		else 
+			ht_set_private_data(hte,strdup(fsname));
 	} else {
-			if ( set_handle_new_service(handle,position) != 0) {
-					dlclose(handle);
-			}
-	}
-	return 0;
-}
-#endif
-
-struct fsalias {
-	char *fsalias;
-	char *fsname;
-	struct fsalias *next;
-};
-static struct fsalias *fs_alias_head=NULL;
-
-static struct fsalias * 
-rec_fs_add_alias(struct fsalias *fsh,char *fsalias,char *fsname)
-{
-	if (fsh == NULL) {
-		struct fsalias *new;
-		if (*fsname != 0 && (new=malloc(sizeof(struct fsalias))) != NULL) {
-			new->fsalias=strdup(fsalias);
-			new->fsname=strdup(fsname);
-			new->next=NULL;
-			return new;
-		} else
-			return NULL;
-	} else if (strcmp(fsalias,fsh->fsalias)==0) {
-		if (*fsname==0) {
-			struct fsalias *next=fsh->next;
-			free(fsh->fsalias);
-			free(fsh->fsname);
-			free(fsh);
-			return next;
-		} else {
-			free(fsh->fsname);
-			fsh->fsname=strdup(fsname);
-			return fsh;
-		}
-	} else {
-		fsh->next=rec_fs_add_alias(fsh->next,fsalias,fsname);
-		return fsh;
+		if (*fsname!=0)
+			ht_tab_add(type,alias,strlen(alias),NULL,NULL,strdup(fsname));
 	}
 }
 
-static inline void fs_add_alias(char *fsalias,char *fsname)
-{
-	if (fsalias != NULL && fsname != NULL)
-		fs_alias_head=rec_fs_add_alias(fs_alias_head,fsalias,fsname);
+static char *rec_alias(int type,char *alias,int depth) {
+	struct ht_elem *hte=ht_check(type,alias,NULL,0);
+	if (hte) {
+		if (depth > MAXSYMLINKS) 
+			return alias;
+		else
+			return rec_alias(type,ht_get_private_data(hte),depth+1);
+	} else
+		return alias;
 }
 
-static char *rec_fs_search_alias(struct fsalias *fsh,char *fsalias) {
-	if (fsh == NULL)
-		return fsalias;
-	else if (strcmp(fsalias,fsh->fsalias)==0) 
-		return fsh->fsname;
-	else
-		return rec_fs_search_alias(fsh->next,fsalias);
-}
-
-char *fs_alias(char *fsalias) {
-	return rec_fs_search_alias(fs_alias_head,fsalias);
+char *get_alias(int type,char *alias) {
+	return rec_alias(type,alias,0);
 }
 
 int wrap_in_umservice(int sc_number,struct pcb *pc,
-		    service_t sercode, sysfun um_syscall)
+		    struct ht_elem *hte, sysfun um_syscall)
 {
 	char buf[PATH_MAX];
 	switch (pc->sysargs[0]) {
 		case ADD_SERVICE:
-			if (umovestr(pc,pc->sysargs[2],PATH_MAX,buf) == 0) {
-				//if (access(buf,R_OK) != 0) {
-				//	pc->retval=-1;
-				//	pc->erno=errno;
-				//} else {
-				void *handle=open_dllib(buf);
-				if (handle==NULL) {
-					pc->retval= -1;
-					pc->erno=EINVAL;
-				} else {
-					if ((pc->retval=set_handle_new_service(handle,pc->sysargs[1])) != 0) {
-						dlclose(handle);
-						pc->erno=errno;
-					}
+			if (umovestr(pc,pc->sysargs[1],PATH_MAX,buf) == 0) {
+				int permanent=pc->sysargs[2];
+				if (add_service(buf,permanent) < 0)
+				{
+					pc->retval=-1;
+					pc->erno=errno;
 				}
-				//}
 			} else {
 				pc->retval= -1;
-				pc->erno=ENOSYS;
+				pc->erno=EINVAL;
 			}
 			break;
 		case DEL_SERVICE:
-			pc->retval=del_service(pc->sysargs[1] & 0xff);
-			{void * handle=get_handle_service(pc->sysargs[1] & 0xff);
-				if (handle!= NULL) {
-					dlclose(handle);
+			if (umovestr(pc,pc->sysargs[1],PATH_MAX,buf) == 0) {
+				if ((pc->retval=del_service(buf)) != 0) {
+					pc->erno=errno;
 				}
+			}	else {
+				pc->retval= -1;
+				pc->erno=EINVAL;
 			}
-			pc->erno=errno;
-			break;
-		case MOV_SERVICE:
-			pc->retval=mov_service(pc->sysargs[1] & 0xff,pc->sysargs[2]);
-			pc->erno=errno;
 			break;
 		case LIST_SERVICE:
 			if (pc->sysargs[2]>PATH_MAX) pc->sysargs[2]=PATH_MAX;
-			pc->retval=list_services((unsigned char *)buf,pc->sysargs[2]);
+			pc->retval=list_services(buf,pc->sysargs[2]);
 			pc->erno=errno;
 			if (pc->retval > 0)
-				ustoren(pc,pc->sysargs[1],pc->retval,buf);
+				ustorestr(pc,pc->sysargs[1],pc->retval,buf);
 			break;
 		case NAME_SERVICE:
-			if (pc->sysargs[3]>PATH_MAX) pc->sysargs[3]=PATH_MAX;
-			pc->retval=name_service(pc->sysargs[1] & 0xff,buf,pc->sysargs[3]);
-			pc->erno=errno;
-			if (pc->retval == 0)
-				ustorestr(pc,pc->sysargs[2],pc->sysargs[3],buf);
-			break;
-		case LOCK_SERVICE:
-			if (pc->sysargs[1])
-				invisible_services();
-			else
-				lock_services();
-			pc->retval=0;
-			pc->erno=0;
-			break;
-		case RECURSIVE_UMVIEW:
-			if (pcb_newfork(pc) >= 0) {
+			if (umovestr(pc,pc->sysargs[1],PATH_MAX,buf) == 0) {
+				if (pc->sysargs[3]>PATH_MAX) pc->sysargs[3]=PATH_MAX;
+				/* buf can be reused both for name and description */
+				pc->retval=name_service(buf,buf,pc->sysargs[3]);
+				pc->erno=errno;
+				if (pc->retval == 0)
+					ustorestr(pc,pc->sysargs[2],pc->sysargs[3],buf);
+				} else {
+					pc->retval= -1;
+					pc->erno=EINVAL;
+				}
+				break;
+				case RECURSIVE_VIEWOS:
+				if (pcb_newfork(pc) >= 0) {
 				pc->retval=0;
 				pc->erno = 0;
 			} else {
@@ -210,7 +133,7 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 				pc->erno = ENOMEM;
 			}
 			break;
-		case UMVIEW_GETINFO:
+		case VIEWOS_GETINFO:
 			{
 				struct viewinfo vi;
 				memset (&vi,0,sizeof(struct viewinfo));
@@ -220,7 +143,7 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 				pc->erno = 0;
 			}
 			break;
-		case UMVIEW_SETVIEWNAME: 
+		case VIEWOS_SETVIEWNAME: 
 			{
 				char name[_UTSNAME_LENGTH];
 				umovestr(pc,pc->sysargs[1],_UTSNAME_LENGTH,name);
@@ -230,25 +153,25 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 				pc->erno = 0;
 			}
 			break; 
-		case UMVIEW_KILLALL: 
+		case VIEWOS_KILLALL: 
 			killall(pc,pc->sysargs[1]);
 			pc->retval=0;
 			pc->erno = 0;
 			break;
-		case UMVIEW_ATTACH:
+		case VIEWOS_ATTACH:
 			pc->retval=capture_attach(pc,pc->sysargs[1]);
 			if (pc->retval < 0) {
 				pc->erno = - pc->retval;
 				pc->retval = -1;
 			}
 			break;
-		case UMVIEW_FSALIAS:
+		case VIEWOS_FSALIAS:
 			{
 				char fsalias[256];
 				char fsname[256];
 				umovestr(pc,pc->sysargs[1],256,fsalias);
 				umovestr(pc,pc->sysargs[2],256,fsname);
-				fs_add_alias(fsalias,fsname);
+				add_alias(CHECKFSALIAS,fsalias,fsname);
 				pc->retval=0;
 				pc->erno = 0;
 			}

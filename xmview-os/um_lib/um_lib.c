@@ -41,19 +41,21 @@ static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,lon
 
 long (*virnsyscall)() = int_virnsyscall;
 
-int um_add_service(int position,char *path)
+int um_check_viewos(void)
 {
-	return virsyscall3(VIRUMSERVICE,ADD_SERVICE,position,path);
+	struct viewinfo info;
+	int rv=um_view_getinfo(&info);
+	return (rv==0);
 }
 
-int um_del_service(int code)
+int um_add_service(char *path,int permanent)
 {
-	return virsyscall2(VIRUMSERVICE,DEL_SERVICE,code);
+	return virsyscall3(VIRUMSERVICE,ADD_SERVICE,path,permanent);
 }
 
-int um_mov_service(int code, int position)
+int um_del_service(char *name)
 {
-	return virsyscall3(VIRUMSERVICE,MOV_SERVICE,code,position);
+	return virsyscall2(VIRUMSERVICE,DEL_SERVICE,name);
 }
 
 int um_list_service(char *buf, int len)
@@ -61,37 +63,32 @@ int um_list_service(char *buf, int len)
 	return virsyscall3(VIRUMSERVICE,LIST_SERVICE,buf,len);
 }
 
-int um_name_service(int code, char *buf, int len)
+int um_name_service(char *name, char *buf, int len)
 {
-	return virsyscall4(VIRUMSERVICE,NAME_SERVICE,code,buf,len);
-}
-
-int um_lock_service(int invisible)
-{
-	return virsyscall2(VIRUMSERVICE,LOCK_SERVICE,invisible);
+	return virsyscall4(VIRUMSERVICE,NAME_SERVICE,name,buf,len);
 }
 
 int um_view_getinfo(struct viewinfo *info)
 {
-	return virsyscall2(VIRUMSERVICE,UMVIEW_GETINFO,info);
+	return virsyscall2(VIRUMSERVICE,VIEWOS_GETINFO,info);
 }
 
 int um_setviewname(char *name)
 {
-	return virsyscall2(VIRUMSERVICE,UMVIEW_SETVIEWNAME,name);
+	return virsyscall2(VIRUMSERVICE,VIEWOS_SETVIEWNAME,name);
 }
 
 int um_killall(int signo)
 {
-	return virsyscall2(VIRUMSERVICE,UMVIEW_KILLALL,signo);
+	return virsyscall2(VIRUMSERVICE,VIEWOS_KILLALL,signo);
 }
 
 int um_attach(int pid)
 {
-	return virsyscall2(VIRUMSERVICE,UMVIEW_ATTACH,pid);
+	return virsyscall2(VIRUMSERVICE,VIEWOS_ATTACH,pid);
 }
 
 int um_fsalias(char *alias,char *filesystemname)
 {
-	return virsyscall3(VIRUMSERVICE,UMVIEW_FSALIAS,alias,filesystemname);
+	  return virsyscall3(VIRUMSERVICE,VIEWOS_FSALIAS,alias,filesystemname);
 }

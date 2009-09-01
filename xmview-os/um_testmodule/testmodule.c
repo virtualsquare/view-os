@@ -23,16 +23,13 @@
  */
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <config.h>
 #include "module.h"
 #include "gdebug.h"
 
-struct service s;
-
-static epoch_t alwaysfalse()
-{
-	return 0;
-}
+static struct service s;
+VIEWOS_SERVICE(s)
 
 static long addproc(int id, int max)
 {
@@ -48,22 +45,22 @@ static long delproc(int id)
 	return 0;
 }
 
-static long addmodule(int code)
+static long addmodule(char *sender)
 {
-	fprintf(stderr, "testmodule add module 0x%02x\n", code);
-	GDEBUG(3, "new module loaded. code 0x%02x", code);
+	fprintf(stderr, "testmodule add module %s\n", sender);
+	GDEBUG(3, "new module loaded. %s", sender);
 	return 0;
 }
 
-static long delmodule(int code)
+static long delmodule(char *sender)
 {
-	fprintf(stderr, "testmodule del module 0x%02x\n", code);
-	GDEBUG(3, "module 0x%02x removed", code);
+	fprintf(stderr, "testmodule del module %s\n", sender);
+	GDEBUG(3, "module %s removed", sender);
 	return 0;
 }
 
 
-static long ctl(int type, va_list ap)
+static long ctl(int type, char *sender, va_list ap)
 {
 	int id, ppid, max, code;
 	char* arg;
@@ -77,8 +74,8 @@ static long ctl(int type, va_list ap)
 		{
 			case 42:
 				arg = va_arg(ap, char*);
-				GMESSAGE("service 0x%02x is managing open(\"%s\", ...)",
-						MC_USERCTL_SERCODE(type), arg);
+				GMESSAGE("service %s is managing open(\"%s\", ...)",
+						sender, arg);
 				return 0;
 		}
 	}
@@ -96,12 +93,10 @@ static long ctl(int type, va_list ap)
 				return delproc(id);
 
 			case MC_MODULE | MC_ADD:
-				code = va_arg(ap, int);
-				return addmodule(code);
+				return addmodule(sender);
 
 			case MC_MODULE | MC_REM:
-				code = va_arg(ap, int);
-				return delmodule(code);
+				return delmodule(sender);
 
 			default:
 				return -1;
@@ -115,9 +110,8 @@ init (void)
 {
 	GMESSAGE("testmodule init");
 	fprintf(stderr, "testmodule init\n");
-	s.name="Test Module";
-	s.code=0xfc;
-	s.checkfun=alwaysfalse;
+	s.name="test";
+	s.description="Test Module";
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	s.ctl = ctl;
@@ -125,13 +119,13 @@ init (void)
 	MCH_ZERO(&s.ctlhs);
 	MCH_SET(MC_PROC, &s.ctlhs);
 	MCH_SET(MC_MODULE, &s.ctlhs);
-
-	add_service(&s);
 }
 
 static void
 __attribute__ ((destructor))
 fini (void)
 {
+	free(s.syscall);
+	free(s.socket);
 	GMESSAGE("testmodule fini");
 }

@@ -33,7 +33,7 @@
 #include "defs.h"
 #include "gdebug.h"
 #include "umproc.h"
-#include "services.h"
+#include "hashtab.h"
 #include "um_services.h"
 #include "sctab.h"
 #include "scmap.h"
@@ -47,7 +47,7 @@ struct mmap_sf_entry {
 	char *path;
 	epoch_t epoch;
 	time_t mtime;
-	service_t sercode;
+	struct ht_elem *hte;
 	unsigned long prot;
 	unsigned long length;
 	unsigned long pgoffset;
@@ -79,7 +79,7 @@ static struct pcb_mmap_entry *pcb_mmap_add(
 		struct mmap_sf_entry *sf_entry)
 {
 	struct pcb_mmap_entry *new=malloc(sizeof (struct pcb_mmap_entry));
-	//fprint2("pcb_mmap_add %ld %ld\n",start,len);
+	//printk("pcb_mmap_add %ld %ld\n",start,len);
 	new->start=start;
 	new->len=len;
 	new->sf_entry=sf_entry;
@@ -100,13 +100,13 @@ static struct mmap_sf_entry *pcb_mmap_sfsearch(
 }
 #endif
 
-static void store_mmap_secret(service_t sercode,const char *to, unsigned long pgoffset, unsigned long length);
+static void store_mmap_secret(struct ht_elem *hte,const char *to, unsigned long pgoffset, unsigned long length);
 static inline void mmap_sf_del(struct mmap_sf_entry *sf_entry, int error)
 {
 	sf_entry->counter--;
 	if (!error && sf_entry->counter == 0 &&
 			sf_entry->prot & PROT_WRITE) {
-		store_mmap_secret(sf_entry->sercode,sf_entry->path, sf_entry->pgoffset, sf_entry->length);
+		store_mmap_secret(sf_entry->hte,sf_entry->path, sf_entry->pgoffset, sf_entry->length);
 	}
 }
 
@@ -129,7 +129,7 @@ static int pcb_mmap_sfsearch_n_movetohead(
 	struct pcb_mmap_entry **scan=head;
 	struct pcb_mmap_entry *this;
 	while ((this = *scan) != NULL) {
-		//fprint2("CMP! %p %p %ld %ld\n",this->start,start,this->len,len);
+		//printk("CMP! %p %p %ld %ld\n",this->start,start,this->len,len);
 		if (this->start == start && this->len == len) {
 			if (*scan != *head) {
 				/* it is not already the first one*/
@@ -195,7 +195,7 @@ static struct mmap_sf_entry *mmap_sf_find (
 	struct mmap_sf_entry *scan=mmap_sf_head;
 	while (scan) {
 		/* integers are faster to compare, it is better to test them first */
-		//fprint2("scan find %s %lld %d %d %x\n",scan->path,scan->epoch,scan->mtime,scan->pgsize,  scan->lastuse);
+		//printk("scan find %s %lld %d %d %x\n",scan->path,scan->epoch,scan->mtime,scan->pgsize,  scan->lastuse);
 		if (epoch == scan->epoch &&
 				mtime == scan->mtime &&
 				pgsize <= scan->pgsize &&
@@ -242,7 +242,7 @@ static void mmap_compact()
 /* allocate a free space on the secret file*/
 static struct mmap_sf_entry *mmap_sf_allocate (
 		char *path, epoch_t epoch, time_t mtime, unsigned long pgsize,
-		unsigned long prot,service_t sercode,unsigned long length)
+		unsigned long prot,struct ht_elem *hte,unsigned long length)
 {
 	struct mmap_sf_entry *scan=mmap_sf_head;
 	mmap_compact();
@@ -273,7 +273,7 @@ static struct mmap_sf_entry *mmap_sf_allocate (
 			}
 			scan->path=strdup(path);
 			scan->prot=prot;
-			scan->sercode=sercode;
+			scan->hte=hte;
 			scan->length=length;
 			scan->epoch=epoch;
 			scan->mtime=mtime;
@@ -306,23 +306,23 @@ static struct mmap_sf_entry *mmap_sf_allocate (
 }
 
 /* get the stat info of the mmapped file */
-static int um_mmap_getstat(char *filename, service_t sercode, struct stat64 *buf, struct pcb *pc)
+static int um_mmap_getstat(char *filename, struct ht_elem *hte, struct stat64 *buf, struct pcb *pc)
 {
- if (sercode == UM_NONE)
+ if (hte == NULL)
 	 return r_lstat64(filename,buf);
  else
-	 return service_syscall(sercode,uscno(NR64_stat))(filename,buf,pc);
+	 return ht_syscall(hte,uscno(NR64_stat))(filename,buf,pc);
 }
 
 /* add_mmap_secret copies the virtual mmap-ed file in a section of the
  * secret file */
-static long add_mmap_secret(service_t sercode,const char *from, unsigned long pgoffset)
+static long add_mmap_secret(struct ht_elem *hte,const char *from, unsigned long pgoffset)
 {
 	char buf[BUFSIZ];
 	int fdf;
 	int n;
 	unsigned long long size=0;
-	//fprint2("add_mmap_secret %s %ld\n",from, pgoffset);
+	//printk("add_mmap_secret %s %ld\n",from, pgoffset);
 #if __NR__llseek != __NR_doesnotexist
 	loff_t result;
 	r_llseek(um_mmap_secret, pgoffset >> ((sizeof (long)*8) - um_mmap_pageshift),
@@ -330,25 +330,27 @@ static long add_mmap_secret(service_t sercode,const char *from, unsigned long pg
 #else
 	r_lseek(um_mmap_secret,pgoffset << um_mmap_pageshift,SEEK_SET);
 #endif
-	if ((fdf=service_syscall(sercode,uscno(__NR_open))(from,O_RDONLY,0)) < 0)
+	/* No need for hte search. from is the mmap path so hte and
+		 private data is already set for submodules */
+	if ((fdf=ht_syscall(hte,uscno(__NR_open))(from,O_RDONLY,0)) < 0)
 		return -errno;
-	while ((n=service_syscall(sercode,uscno(__NR_read))(fdf,buf,BUFSIZ)) > 0) {
+	while ((n=ht_syscall(hte,uscno(__NR_read))(fdf,buf,BUFSIZ)) > 0) {
 		r_write (um_mmap_secret,buf,n);
 		size += n;
 	}
-	service_syscall(sercode,uscno(__NR_close))(fdf);
+	ht_syscall(hte,uscno(__NR_close))(fdf);
 	return (size >> um_mmap_pageshift)+1;
 }
 
 /* store_mmap_secret copies a section of the secret file back in the
  * virtual file*/
-static void store_mmap_secret(service_t sercode,const char *to, unsigned long pgoffset, unsigned long length)
+static void store_mmap_secret(struct ht_elem *hte,const char *to, unsigned long pgoffset, unsigned long length)
 {
 	char buf[BUFSIZ];
 	int fdf;
 	int n;
-	// unsigned long long size=0;
-	//fprint2("store_mmap_secret %s %ld\n",to, pgoffset);
+	struct ht_elem *shte;
+	//printk("store_mmap_secret %s %ld %p\n",to, pgoffset,hte);
 #if __NR__llseek != __NR_doesnotexist
 	loff_t result;
 	r_llseek(um_mmap_secret, pgoffset >> ((sizeof (long)*8) - um_mmap_pageshift),
@@ -356,22 +358,26 @@ static void store_mmap_secret(service_t sercode,const char *to, unsigned long pg
 #else
 	r_lseek(um_mmap_secret,pgoffset << um_mmap_pageshift,SEEK_SET);
 #endif
-	if ((fdf=service_syscall(sercode,uscno(__NR_open))(to,O_WRONLY | O_TRUNC | O_CREAT,0)) < 0)
+	/* hte is *not* set. search for "to".*/
+	shte=ht_check(CHECKPATH,(void *)to,NULL,0);
+	assert(hte==shte);
+	if ((fdf=ht_syscall(hte,uscno(__NR_open))(to,O_WRONLY | O_TRUNC | O_CREAT,0)) < 0)
 		return;
 	while (length > 0) {
 		n=(length < BUFSIZ)?length:BUFSIZ;
 	  n=r_read(um_mmap_secret,buf,n);
 	  if (n<=0)
 			break;
-	  service_syscall(sercode,uscno(__NR_write))(fdf,buf,n);
+	  ht_syscall(hte,uscno(__NR_write))(fdf,buf,n);
+		length -= n;
 	}
-	service_syscall(sercode,uscno(__NR_close))(fdf);
+	ht_syscall(hte,uscno(__NR_close))(fdf);
 	return; 
 }
 
 /* both mmap and mmap2 management */
 int wrap_in_mmap(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned long length=pc->sysargs[1];
 	unsigned long prot=pc->sysargs[2];
@@ -382,45 +388,45 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 	struct stat64 sbuf;
 	char *path=fd_getpath(pc->fds,fd);
 	/*if ((!(flags & MAP_PRIVATE)) && (prot & PROT_WRITE))
-		fprint2("MMAP: %s only MAP_PRIVATE has been implemented\n",path);*/
+		printk("MMAP: %s only MAP_PRIVATE has been implemented\n",path);*/
 	/* convert mmap into mmap2 */
 	if (sc_number == __NR_mmap)
 		offset >>= um_mmap_pageshift;
 	/* compute the size in pages */
 	pgsize=offset+(length >> um_mmap_pageshift)+1;
-	epoch_t nestepoch=um_setepoch(0);
-	um_setepoch(nestepoch +1);
+	epoch_t nestepoch=um_setnestepoch(0);
+	um_setnestepoch(nestepoch +1);
 	/* get the stat info about the file */
-	if (um_mmap_getstat(path, sercode, &sbuf, pc) < 0) {
+	if (um_mmap_getstat(path, hte, &sbuf, pc) < 0) {
 		pc->retval = -1;
-		um_setepoch(nestepoch);
+		um_setnestepoch(nestepoch);
 		return SC_FAKE;
 	} else {
 		struct mmap_sf_entry *sf_entry;
 		if ((sbuf.st_size >> um_mmap_pageshift) + 1 > pgsize)
 			pgsize = (sbuf.st_size >> um_mmap_pageshift) + 1;
-		//fprint2("%s(%d/%o): MMAP SIZE %lld pgsize %ld %ld \n", path, sercode, fd,sbuf.st_size,(unsigned long)((sbuf.st_size >> um_mmap_pageshift) + 1),pgsize);
+		//printk("%s(%s/%o): MMAP SIZE %lld pgsize %ld %ld \n", path, ht_get_servicename(hte), fd,sbuf.st_size,(unsigned long)((sbuf.st_size >> um_mmap_pageshift) + 1),pgsize);
 		/* there is already in the secret file? */
 		if ((sf_entry=mmap_sf_find(path,nestepoch,sbuf.st_mtime,pgsize)) == NULL) {
 			/* NO. must be loaded */
 			if ((sf_entry=mmap_sf_allocate(path,nestepoch,sbuf.st_mtime,pgsize,
-							prot,sercode,length)) == NULL) {
+							prot,hte,length)) == NULL) {
 				/* there is something wrong, we cannot allocate space on the secret file*/
 				pc->retval = -1;
-				um_setepoch(nestepoch);
+				um_setnestepoch(nestepoch);
 				return SC_FAKE;
 			}
-			if (add_mmap_secret(sercode, path, sf_entry->pgoffset) <= 0) {
+			if (add_mmap_secret(hte, path, sf_entry->pgoffset) <= 0) {
 				/* there is something wrong, cannot load the file! */
 				pc->retval = -1;
-				um_setepoch(nestepoch);
+				um_setnestepoch(nestepoch);
 				return SC_FAKE;
 			}
 		}
 		/* add the new item in the *process* mmap table */
 		pc->um_mmap = pcb_mmap_add(pc->um_mmap, 0, length, sf_entry);
 		sf_entry->counter++;
-		um_setepoch(nestepoch);
+		um_setnestepoch(nestepoch);
 		pc->retval = 0;
 		
 		/* rewrite the syscall parms: mmap->mmap2 if needed, using the secret
@@ -440,7 +446,7 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 		pc->sysargs[5] = (sf_entry->pgoffset + offset) * pgsize;
 #		endif
 		
-		//fprint2("MMAP2 path %s epoch %lld %ld %ld %ld\n", path, nestepoch, sf_entry->pgoffset, offset,pgsize);
+		//printk("MMAP2 path %s epoch %lld %ld %ld %ld\n", path, nestepoch, sf_entry->pgoffset, offset,pgsize);
 		return SC_CALLONXIT;
 	}
 }
@@ -448,25 +454,26 @@ int wrap_in_mmap(int sc_number,struct pcb *pc,
 /* unmap: search the chunk to be unmapped, if found it is moved to the
  * head of the process mmap table */
 int wrap_in_munmap(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned long start=pc->sysargs[0];
 	unsigned long length=pc->sysargs[1];
 	
-	//fprint2("======== wrap_in_munmap %ld %ld!!!\n",start,length);
+	//printk("======== wrap_in_munmap %lx %ld!!!\n",start,length);
 	if (pcb_mmap_sfsearch_n_movetohead(&(pc->um_mmap),start,length))
 		return SC_CALLONXIT;
 	else
 		return STD_BEHAVIOR;
 }
 
-/* remap: search the chunk and move it ti the head of the process mmap table */
+/* remap: search the chunk and move it to the head of the process mmap table */
 int wrap_in_mremap(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	unsigned long start=pc->sysargs[0];
 	unsigned long length=pc->sysargs[1];
 	//unsigned long new_length=pc->sysargs[2];
+	//printk("======== wrap_in_mremap %lx %ld!!!\n",start,length,new_length);
 	if (pcb_mmap_sfsearch_n_movetohead(&(pc->um_mmap),start,length)) {
 		/* TODO check that remap does not overlap next mmap chunk on the secret
 		 * file */
@@ -502,7 +509,7 @@ int wrap_out_mmap(int sc_number,struct pcb *pc)
  * user mode syscall succeeded */
 int wrap_out_munmap(int sc_number,struct pcb *pc)
 {
-	//fprint2("======== wrap_out_munmap !!!\n");
+	//printk("======== wrap_out_munmap !!!\n");
 	long rv=getrv(pc);
 	if (rv != -1) 
 		pcb_mmap_deletehead(&(pc->um_mmap),0);	

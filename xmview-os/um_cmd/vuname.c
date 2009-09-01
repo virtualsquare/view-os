@@ -119,12 +119,12 @@ main(int argc, char *argv[])
 				break;
 			default:
 				usage();
-				exit(-1);
+				exit(1);
 		}
 	}
 	if (argc - optind != 0) {
 		usage();
-		exit(-1);
+		exit(1);
 	}
 	c=um_view_getinfo(&vi);
 	if (c<0) {
@@ -132,7 +132,7 @@ main(int argc, char *argv[])
 			c=uname(&vi.uname);
 		if (c<0) {
 			if (!quiet) perror("umviewname:");
-			exit (-1);
+			exit (1);
 		}
 	} else
 		unameok=0;

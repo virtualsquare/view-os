@@ -29,7 +29,6 @@
 
 #include <signal.h>
 #include <sys/syscall.h>
-//#include <sys/user.h>
 #include <sys/param.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -124,7 +123,6 @@ umovestr(struct pcb *pc, long addr, int len, void *_laddr)
 	if (has_ptrace_multi) {
 		struct ptrace_multi req[] = {{PTRACE_PEEKSTRINGDATA, addr, _laddr, len}};
 		long rv=ptrace(PTRACE_MULTI, pc->pid, req, 1); 
-		//fprint2("umovestr %d\n",rv);
 		if (rv >= 0)
 			return 0;
 		else

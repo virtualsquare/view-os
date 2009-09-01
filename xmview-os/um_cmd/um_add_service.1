@@ -25,7 +25,6 @@ um_add_service \- add a service module to umview
 .SH SYNOPSIS
 .B um_add_service 
 [-p
-.I #
 ]
 .I service_module
 [
@@ -45,19 +44,14 @@ configure the LD_LIBRARY_PATH environment variable appropriately.
 are module specific configuration options, thus the reader 
 should refer to each service module manual for a complete description.
 .SH OPTIONS
-.IP "\fB\-p\fP \fI#\fP" 4 
-specify the position of the new loaded module in the chain of modules.
-.B umview
-tries all the modules in following the chain (total order), thus if 
-in a specific situation several loaded modules are able to virtualize 
-a system call, the first of them in the list actually manages the call.
+.IP "\fB\-p\fP 
+the module becomes permanent when set.
 .SH SEE ALSO
 .BR umview(1),
 .BR um_del_service(1),
 .BR um_ls_service(1),
-.BR um_mov_service(1),
 .BR umfuse(1viewos),
-.BR lwipv6(1viewos),
+.BR umnet(1viewos),
 .BR umdev(1viewos),
 .BR umbinfmt(1viewos),
 .BR viewfs(1viewos),

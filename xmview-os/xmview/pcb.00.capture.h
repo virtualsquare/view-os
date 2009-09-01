@@ -42,7 +42,7 @@
 #endif 
 
 #ifdef _PCB_COMMON_FIELDS
-	short flags;
+	uint16_t flags;
 #	ifdef _VIEWOS_KM
 #		ifdef __NR_socketcall
 			struct kmview_event_socketcall event; 
@@ -60,29 +60,20 @@
 #	endif
 		unsigned long erno;
 #	endif
-/*
- * UMPID4NESTED
- * long umpid;
- */
 #endif
 
 #ifdef _PCB_ONLY_FIELDS
 	long umpid;
 #	ifdef _VIEWOS_KM
 	long kmpid;
-	//long umpid;
 #	endif
-#	ifdef _VIEWOS_UM
-	//unsigned short umpid;
-	//long umpid;
-#	endif
-	int pid;                /* Process Id of this entry */
+	pid_t pid;                /* Process Id of this entry */
 	int signum;
 #	ifdef _PROC_MEM_TEST
 		int memfd; /* if !has_ptrace_multi, open /proc/PID/mem */
 #	endif
 	struct pcb *pp;         /* Parent Process */
-	short behavior;
+	uint16_t behavior;
 	long retval;
 #	ifdef _VIEWOS_UM
 		long *saved_regs;

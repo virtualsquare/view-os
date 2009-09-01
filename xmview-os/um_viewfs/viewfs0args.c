@@ -39,9 +39,10 @@
 #define VIEWFSARGMERGE 11 //"merge"
 #define VIEWFSARGCOW 12 //"cow"
 #define VIEWFSARGRENEW 13 //"renew"
-#define VIEWFSARGMINCOW 14 //"renew"
+#define VIEWFSARGMINCOW 14 //"mincow"
 #define VIEWFSARGWOK 15 //"wok"
-#define VIEWFSARGNOWOK 16 //"nowok"
+#define VIEWFSPERMANENT 17 //"permanent"
+#define VIEWFSARGVSTAT 18 //"permanent"
 #define VIEWFSFLAGHASSTRING 1
 
 static struct viewfsargitem {
@@ -57,23 +58,27 @@ static struct viewfsargitem {
 	{"renew", VIEWFSARGRENEW, 0},
 	{"mincow", VIEWFSARGMINCOW, 0},
 	{"wok", VIEWFSARGWOK, 0},
-	{"nowok", VIEWFSARGNOWOK, 0}
+	{"perm", VIEWFSPERMANENT, 0},
+	{"permanent", VIEWFSPERMANENT, 0},
+	{"vstat", VIEWFSARGVSTAT, 0}
 };
 #define VIEWFSARGTABSIZE sizeof(viewfsargtab)/sizeof(struct viewfsargitem)
 
-int viewfsargs(char *opts,int *pflags,char ***pexceptions)
+int viewfsargs(char *data,int *pflags,char ***pexceptions)
 {
 	char *sepopts[MAXARGS];
 	char *exceptions[MAXARGS];
 	int nsepopts=0;
 	int nexceptions=0;
-	char *s=opts;
+	char *s;
 	char quote=0,olds;
 	char typeoption=0;
 	int i;
+	char *opts;
 
-	if (opts == NULL)
+	if (data == NULL)
 		return 0;
+	s=opts=strdup(data);
 #ifdef DEBUGVIEWFSARGS
 	printf("viewfsargs opts %s\n",s);
 #endif
@@ -124,11 +129,11 @@ int viewfsargs(char *opts,int *pflags,char ***pexceptions)
 				break;
 			case VIEWFSARGCOW:
 				typeoption++;
-				*pflags |= VIEWFS_MERGE | VIEWFS_COW | VIEWFS_WOK;
+				*pflags |= VIEWFS_MERGE | VIEWFS_COW;
 				break;
 			case VIEWFSARGMINCOW:
 				typeoption++;
-				*pflags |= VIEWFS_MERGE | VIEWFS_COW | VIEWFS_MINCOW | VIEWFS_WOK;
+				*pflags |= VIEWFS_MERGE | VIEWFS_COW | VIEWFS_MINCOW;
 				break;
 			case VIEWFSARGRENEW:
 				*pflags |= VIEWFS_RENEW;
@@ -136,16 +141,22 @@ int viewfsargs(char *opts,int *pflags,char ***pexceptions)
 			case VIEWFSARGWOK:
 				*pflags |= VIEWFS_WOK;
 				break;
-			case VIEWFSARGNOWOK:
-				*pflags &= ~VIEWFS_WOK;
+			case VIEWFSARGVSTAT:
+				*pflags |= VIEWFS_VSTAT;
 				break;
 			case 0:
-				fprint2("viewfs unknown option %s\n",sepopts[i]);
+				printk("viewfs unknown option %s\n",sepopts[i]);
 				break;
 		}
 	}
-	if (typeoption>1)
+	if ((*pflags & VIEWFS_VSTAT) && !(*pflags & VIEWFS_MERGE)) {
+		printk ("vstat is for merge or cow file systems: vstat disabled\n");
+		*pflags &= ~VIEWFS_VSTAT;
+	}
+	if (typeoption>1) {
+		free(opts);
 		return -EINVAL;
+	}
 	  /* PHASE 2B set up exceptions (if there are) */
 	if (nexceptions > 0) {
 		char **newexceptions=*pexceptions=malloc((nexceptions+1)*sizeof(char *));
@@ -156,6 +167,7 @@ int viewfsargs(char *opts,int *pflags,char ***pexceptions)
 			newexceptions[i]=0;
 		}
 	}
+	free(opts);
 	return 0;
 }
 

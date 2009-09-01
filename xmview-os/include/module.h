@@ -26,12 +26,14 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <stdarg.h>
+#include <stdio.h>
 //#include <sys/socket.h>
 /* VIRTUAL SYSCALLS */
 #define VIRSYS_UMSERVICE 1
 #define VIRSYS_MSOCKET 2
 #define __NR_msocket VIRSYS_MSOCKET
 
+struct ht_elem;
 extern int _umview_version;
 
 typedef long (*sysfun)();
@@ -49,21 +51,19 @@ extern epoch_t get_epoch();
 extern epoch_t um_setepoch(epoch_t epoch);
 
 typedef epoch_t (*epochfun)();
-typedef unsigned char service_t;
 
 typedef unsigned long c_set;
 
 extern int msocket (char *path, int domain, int type, int protocol);
 
 #define MC_USER 1
-
 #define MC_CORECTLCLASS(x) ((x) << 1)
 #define MC_CORECTLOPT(x) ((x) << 6)
-#define MC_USERCTL(sercode, ctl) (MC_USER | (sercode << 1) | (ctl << 9))
+#define MC_USERCTL(ctl) (MC_USER | (ctl << 1))
 
 /* To be tested. Bits are fun!  */
-#define MC_USERCTL_SERCODE(x) (((x) >> 1) & ((1L << (sizeof(service_t) * 8)) - 1))
-#define MC_USERCTL_CTL(x) (((x) >> 9) & ((1L << (sizeof(long) * 8 - 9)) - 1))
+#define MC_ISUSER(x) ((x) & MC_USER)
+#define MC_USERCTL_CTL(x) (((x) >> 1))
 
 #define MC_PROC			MC_CORECTLCLASS(0)
 #define MC_MODULE		MC_CORECTLCLASS(1)
@@ -72,19 +72,19 @@ extern int msocket (char *path, int domain, int type, int protocol);
 #define MC_ADD			MC_CORECTLOPT(0)
 #define MC_REM			MC_CORECTLOPT(1)
 
-#define MC_ALLSERVICES	((1 << (sizeof(service_t) * 8)) - 1)
-
 #define MCH_SET(c, set)		*(set) |= (1 << c)
 #define MCH_CLR(c, set)		*(set) &= ~(1 << c)
 #define MCH_ISSET(c, set)	(*(set) & (1 << c))
 #define MCH_ZERO(set)		*(set) = 0;
 
-#define CHECKNOCHECK  0
+#define CHECKMODULE   0
 #define CHECKPATH     1
 #define CHECKSOCKET   2
-#define CHECKFSTYPE   3
+#define CHECKCHRDEVICE   3
+#define CHECKBLKDEVICE   4
 #define CHECKSC 5
 #define CHECKBINFMT 6
+#define CHECKFSALIAS 7
 
 // for IOCTL mgmt
 #define CHECKIOCTLPARMS   0x40000000
@@ -102,17 +102,22 @@ struct binfmt_req {
 	char *path;
 	char *interp;
 	char *extraarg;
+	char *buf;
 	int flags;
 };
 
 
 struct service {
+	/* short name of the module */
 	char *name;
-	service_t code;
+	/* description */
+	char *description;
 
 	/* handle to service data. It is used by um_service.c to store
 	 * dynamic lib handle (see dlopen (3))*/
 	void *dlhandle;
+	/* destructor for ht_elem's defined by this module */
+	void (*destructor)(int type, struct ht_elem *hte);
 
 	/* Generic notification/callback function. The first parameter identifies
 	 * the type of command. The lower 5 bits identify the class, the remaining
@@ -152,7 +157,7 @@ struct service {
 	 * MC_MOUNT | MC_REM:
 	 *
 	 */
-	long (*ctl)(int, va_list);
+	long (*ctl)(int, char *, va_list);
 
 	/* Mask of ctl classes for which the module want synthetized
 	 * notifications. For example, at module loading time, it may want one
@@ -161,15 +166,11 @@ struct service {
 	 */
 	c_set ctlhs;
 
-	/* choice function: returns TRUE if this path must be managed by this module
-	 * FALSE otherwise.
-	 * Nesting modules: returns the epoch of best match (0 if non found).
-	 *
-	 * checkfun functions has the following args:
-	 *  (int type, void *arg) or
-	 *  type is defined by CHECK... constants above
+	/* 
+	 *  (int fd, void *req) 
+	 *  returns: the length of the field bit_or IOCTL_R/IOCTL_W if the parameter is input/output
 	 */
-	epochfun checkfun;
+	sysfun ioctlparms;
 
 	/* proactive management of select/poll system call. The module provides this function
 	 * to activate a callback when an event occurs.
@@ -194,12 +195,12 @@ struct service {
 };
 
 /* 
- * #define ESCNO_SOCKET is defined 0x40000000 or 0x0
+ * #define ESCNO_SOCKET is defined 0x4000 or 0x0
  * depending on the presence of the single socketcall system call
  * or one syscall for each socket call*/
-#define ESCNO_VIRSC 0x80000000
-#define ESCNO_MASK  0x3fffffff
-#define ESCNO_MAP   0xC0000000
+#define ESCNO_VIRSC 0x8000
+#define ESCNO_MASK  0x3fff
+#define ESCNO_MAP   0xC000
 
 extern int _lwip_version;
 extern int scmap_scmapsize;
@@ -207,6 +208,10 @@ extern int scmap_sockmapsize;
 extern int scmap_virscmapsize;
 
 extern int um_mod_getpid(void);
+//extern void *um_mod_get_private_data(void);
+extern void um_mod_set_private_data(void *private_data);
+extern void um_mod_set_hte(struct ht_elem *hte);
+extern struct ht_elem *um_mod_get_hte(void);
 extern int um_mod_umoven(long addr, int len, void *_laddr);
 extern int um_mod_umovestr(long addr, int len, void *_laddr);
 extern int um_mod_ustoren(long addr, int len, void *_laddr);
@@ -215,21 +220,25 @@ extern int um_mod_getsyscallno(void);
 extern int um_mod_getumpid(void);
 extern long* um_mod_getargs(void);
 extern struct stat64 *um_mod_getpathstat(void);
-char *um_mod_getpath(void);
+extern char *um_mod_getpath(void);
+extern int um_mod_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid);
+extern int um_mod_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid);
+extern int um_mod_setresuid(uid_t ruid, uid_t euid, uid_t suid);
+extern int um_mod_setresgid(gid_t rgid, gid_t egid, gid_t sgid);
+extern int um_mod_getfs_uid_gid(uid_t *fsuid, gid_t *fsgid);
+extern int um_mod_setfs_uid_gid(uid_t fsuid, gid_t fsgid);
 extern int um_mod_getsyscalltype(int escno);
-int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
-int um_mod_nrsyscalls(void);
+extern int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
+extern int um_mod_nrsyscalls(void);
 
 extern int uscno(int scno);
-extern int add_service(struct service *);
-// XXX: should modules have visibility of this function?
-// extern void service_ctl(unsigned long type, service_t code, int skip, ...);
-extern void service_userctl(unsigned long type, service_t sender, service_t recipient, ...);
+extern void service_userctl(unsigned long type, struct service *sender, 
+		char *recipient, ...);
 
 extern void *openmodule(const char *modname, int flag);
 
-extern int fprint2(const char *fmt, ...);
-extern int vfprint2(const char *fmt, va_list ap);
+extern int printk(const char *fmt, ...);
+extern int vprintk(const char *fmt, va_list ap);
 
 #define __NR_doesnotexist -1
 
@@ -279,7 +288,6 @@ extern int vfprint2(const char *fmt, va_list ap);
 #define INTERNAL_MAKE_NAME(a, b) a ## b
 #define MAKE_NAME(a, b) INTERNAL_MAKE_NAME(a, b)
 
-
 /* GEN stands for "generic" */
 #define GENSERVICESYSCALL(s, scno, sfun, type) ((s).syscall[uscno(MAKE_NAME(__NR_, scno))] = (type) (sfun))
 #define GETSERVICESYSCALL(s, scno) ((s).syscall[uscno(MAKE_NAME(__NR_, scno))])
@@ -297,4 +305,54 @@ extern int vfprint2(const char *fmt, va_list ap);
 
 #define SERVICEVIRSYSCALL(s, scno, sfun) ((s).virsc[MAKE_NAME(__NR_, scno)] = (sysfun) (sfun))
 
+#define VIEWOS_SERVICE(s) \
+	extern __typeof__ (s) viewos_service __attribute__ ((alias (#s)));
+
+/* modules can define check functions to test for exceptions */
+typedef int (* confirmfun_t)(int type, void *arg, int arglen,
+		struct ht_elem *ht);
+#define NEGATIVE_MOUNT ((confirmfun_t) 1)
+
+/* add a path to the hashtable (this creates an entry for the mounttab) */
+struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
+		const char *path, const char *fstype, 
+		unsigned long mountflags, const char *flags,
+		struct service *service, unsigned char trailingnumbers,
+		confirmfun_t confirmfun, void *private_data);
+
+/* add a generic element to the hashtable */
+struct ht_elem *ht_tab_add(unsigned char type,void *obj,int objlen,
+		struct service *service, confirmfun_t confirmfun, void *private_data);
+
+void ht_tab_invalidate(struct ht_elem *hte);
+
+int ht_tab_del(struct ht_elem *mp); 
+
+void ht_tab_getmtab(FILE *f);
+
+/*void forall_ht_tab_service_do(unsigned char type,
+		struct service *service,
+		void (*fun)(struct ht_elem *ht, void *arg),
+		void *arg);
+
+void forall_ht_tab_tst_do(unsigned char type,
+		void (*fun)(struct ht_elem *ht, void *arg),
+		void *arg);
+
+void forall_ht_tab_del_invalid(unsigned char type);*/
+
+void *ht_get_private_data(struct ht_elem *hte);
+
+struct ht_elem *ht_search(int type, void *arg, int objlen, struct service *service);
+
+void ht_renew(struct ht_elem *hte);
+
+static inline void *um_mod_get_private_data(void){
+	return ht_get_private_data(um_mod_get_hte());
+}
+
+/* filetab management */
+int addfiletab(int size);
+void delfiletab(int i);
+void *getfiletab(int i);
 #endif

@@ -120,7 +120,7 @@ static inline int diffbitstr(unsigned long *a,unsigned long *b,short len)
 		rv = (a[i] != b[i]);
 	if (mask && !rv)
 		rv = ((a[i] & mask) != (b[i] & mask));
-	/*fprint2("DIFF %x %x %d -> %d\n",a[0],b[0],len,rv);*/
+	/*printk("DIFF %x %x %d -> %d\n",a[0],b[0],len,rv);*/
 	return rv;
 }
 
@@ -131,7 +131,7 @@ static epoch_t new_epoch(){
 	tmp=epoch_now;
 	epoch_now++;
 	pthread_mutex_unlock(&epoch_mutex);
-	/*fprint2("NEW EPOCH %lld\n",epoch_now);*/
+	/*printk("NEW EPOCH %lld\n",epoch_now);*/
 	return tmp;
 }
 
@@ -145,17 +145,17 @@ epoch_t tst_matchingepoch(struct timestamp *service_tst)
 {
 	/* if service_tst refers to a dead branch service_tst->epoch is updated*/
 	struct timestamp *process_tst=um_x_gettst();
-	/*fprint2("SE = %lld - PE = %lld\n",service_tst->epoch,process_tst->epoch);*/
+	/*printk("SE = %lld - PE = %lld\n",service_tst->epoch,process_tst->epoch);*/
 	while (service_tst->treepoch->parent && service_tst->treepoch->nproc==0) 
 		service_tst->treepoch = service_tst->treepoch->parent;
-	/*fprint2("MATCH up %lld %lld\n",service_tst->epoch,service_tst->treepoch->rise);*/
+	/*printk("MATCH up %lld %lld\n",service_tst->epoch,service_tst->treepoch->rise);*/
 	while (service_tst->epoch < service_tst->treepoch->rise) 
 		service_tst->treepoch = service_tst->treepoch->parent;
 	/* process_tst->treepoch is NULL only for garbage collection final calls. Always match! */
 	if (process_tst)
 	{
 		if (!process_tst->treepoch) {
-			fprint2("tst_matchingepoch process err %d\n",um_mod_getpid());
+			printk("tst_matchingepoch process err %d\n",um_mod_getpid());
 			return 0;
 		}
 		/* if service_tst->treepoch is a  subset of  process_tst->treepoch
@@ -216,7 +216,7 @@ static void de_update_height(struct treepoch *node)
 static void te_printtree(struct treepoch *node,int l)
 {
 	if (node != NULL) {
-		fprint2("%d-printtree par %p np%d h%d l%d >%x\n",l,node,node->nproc,node->subheight,node->len,node->bitstr[0]);
+		printk("%d-printtree par %p np%d h%d l%d >%x\n",l,node,node->nproc,node->subheight,node->len,node->bitstr[0]);
 		te_printtree(node->sub[0],l+1);
 		te_printtree(node->sub[1],l+1);
 	}
@@ -360,13 +360,13 @@ struct timestamp tst_newproc(struct timestamp *parent_tst)
 	struct timestamp rv;
 	rv=*parent_tst;
 	te_newproc(rv.treepoch);
-	/* fprint2("NEW PROC %d %p %d %d %x\n",um_mod_getpid(),rv.treepoch,rv.treepoch->nproc,rv.treepoch->len,rv.treepoch->bitstr[0]);*/
+	/* printk("NEW PROC %d %p %d %d %x\n",um_mod_getpid(),rv.treepoch,rv.treepoch->nproc,rv.treepoch->len,rv.treepoch->bitstr[0]);*/
 	return rv;
 }
 
 void tst_delproc(struct timestamp *tst)
 {
-	/*fprint2("DEL PROC %p %d %d %x\n",parent_tst->treepoch,parent_tst->treepoch->nproc,parent_tst->treepoch->len,parent_tst->treepoch->bitstr[0]);*/
+	/*printk("DEL PROC %p %d %d %x\n",parent_tst->treepoch,parent_tst->treepoch->nproc,parent_tst->treepoch->len,parent_tst->treepoch->bitstr[0]);*/
 	te_delproc(tst->treepoch);
 }
 

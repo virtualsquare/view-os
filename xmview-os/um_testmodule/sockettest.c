@@ -45,10 +45,11 @@
 // int read(), write(), close();
 
 static struct service s;
+VIEWOS_SERVICE(s)
 
-static int ioctlparms(struct ioctl_len_req *arg)
+static long ioctlparms(int fd,int req)
 {
-	switch (arg->req) {
+	switch (req) {
 		case FIONREAD:
 			return sizeof(int) | IOCTL_W;
 		case FIONBIO:
@@ -85,17 +86,6 @@ static int ioctlparms(struct ioctl_len_req *arg)
 	}
 }
 
-
-static epoch_t choiceissocket(int type,void *arg)
-{
-	if (type==CHECKSOCKET)
-		return 1;
-	else if (type == CHECKIOCTLPARMS) 
-		return ioctlparms(arg);
-	else
-		return 0;
-}
-
 static int sockioctl(int d, int request, void *arg)
 {
 	if (request == SIOCGIFCONF) {
@@ -116,6 +106,16 @@ static int sockioctl(int d, int request, void *arg)
 	return ioctl(d,request,arg);
 }
 
+void *viewos_init(char *args)
+{
+	return ht_tab_add(CHECKSOCKET,NULL,0,&s,NULL,NULL);
+}
+
+void viewos_fini(void *data)
+{
+	struct ht_elem *proc_ht=data;
+	ht_tab_del(proc_ht);
+}
 
 
 	static void
@@ -123,9 +123,9 @@ static int sockioctl(int d, int request, void *arg)
 init (void)
 {
 	GMESSAGE("sockettest init");
-	s.name="sockettest (syscall are executed server side)";
-	s.code=0xfa;
-	s.checkfun=choiceissocket;
+	s.name="sockettest"; 
+	s.description="socket syscalls are executed server side";
+	s.ioctlparms=ioctlparms;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	SERVICESOCKET(s, socket, socket);
@@ -147,15 +147,14 @@ init (void)
 	SERVICESYSCALL(s, read, read);
 	SERVICESYSCALL(s, write, write);
 	SERVICESYSCALL(s, close, close);
-	SERVICESYSCALL(s, fcntl, fcntl32);
-#if !defined(__x86_64__)
-	SERVICESYSCALL(s, fcntl64, fcntl64);
+#ifdef __NR_fcntl64
+	SERVICESYSCALL(s, fcntl, fcntl64);
+#else
+	SERVICESYSCALL(s, fcntl, fcntl);
 #endif
 	SERVICESYSCALL(s, ioctl, sockioctl);
 	SERVICESYSCALL(s, _newselect, select);
 	SERVICESYSCALL(s, poll, poll);
-
-	add_service(&s);
 }
 
 	static void

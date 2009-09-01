@@ -34,7 +34,7 @@ int main(int argc,char *argv[]);
 
 static void loginshell_error(char *s)
 {
-	fprint2("View-OS login configuration error: %s\n",s);
+	printk("View-OS login configuration error: %s\n",s);
 	sleep(3);
 	exit(1); 
 }

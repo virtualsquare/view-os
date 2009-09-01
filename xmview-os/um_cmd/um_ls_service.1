@@ -21,23 +21,23 @@
 
 .TH VIEW-OS 1 "June 10, 2006" "VIEW-OS: a process with a view"
 .SH NAME
-um_ls_service \- list the service modules currently loaded by umview
+um_ls_service \- list the service modules currently loaded by umview/kmview
 .SH SYNOPSIS
 .B um_ls_service 
 .br
 .SH DESCRIPTION
-This command lists the service modules currently loaded by umview
+This command lists the service modules currently loaded by the current session of
+umview/kmview
 .br
-The list includes the position number, the signature (code) and a short
+The list includes the service name and a short
 description of each module.
 .SH SEE ALSO
 .BR umview(1),
+.BR kmview(1),
 .BR um_add_service(1),
 .BR um_del_service(1),
-.BR um_lock_service(1),
-.BR um_mov_service(1),
 .BR umfuse(1viewos),
-.BR lwipv6(1viewos),
+.BR umnet(1viewos),
 .BR umdev(1viewos),
 .BR umbinfmt(1viewos),
 .BR viewfs(1viewos),

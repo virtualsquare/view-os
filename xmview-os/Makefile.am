@@ -16,12 +16,13 @@ SUBDIRS += umfuse
 endif
 
 if ENABLE_UM_LWIP
-SUBDIRS += um_lwip umnetlwipv6
+SUBDIRS += umnetlwipv6
 endif
 
-if ENABLE_UMPYEW
-SUBDIRS += umpyew
-endif
+#umpyew disabled
+#if ENABLE_UMPYEW
+#SUBDIRS += umpyew
+#endif
 
 tags:
 	ctags -R .

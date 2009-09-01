@@ -28,6 +28,7 @@
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <errno.h>
 #include <sys/select.h>
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -108,16 +109,12 @@ static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,lon
 static int do_preload(struct prelist *head)
 {
 	if (head != NULL) {
-		void *handle;
 		int rv=do_preload(head->next);
-		handle=open_dllib(head->module);
-		if (handle==NULL) {
-			fprintf(stderr, "%s\n",dlerror());
-			return -1;
-		} else {
-			set_handle_new_service(handle,0);
+		if (add_service(head->module,0) < 0) {
+			printk("module preload %s",strerror(errno));
+			return -1 ;
+		} else
 			return rv;
-		}
 		free(head);
 	} else
 		return 0;
@@ -136,7 +133,7 @@ static int do_preload_recursive(struct prelist *head)
 {
 	if (head != NULL) {
 		do_preload_recursive(head->next);
-		int_virnsyscall(__NR_UM_SERVICE,3,ADD_SERVICE,0,(long)head->module,0,0,0);
+		int_virnsyscall(__NR_UM_SERVICE,3,ADD_SERVICE,(long)head->module,0,0,0,0);
 		free(head);
 		return 0;
 	} else
@@ -146,7 +143,7 @@ static int do_preload_recursive(struct prelist *head)
 static void do_set_viewname_recursive(char *viewname)
 {
 	if (viewname) {
-		int_virnsyscall(__NR_UM_SERVICE,2,UMVIEW_SETVIEWNAME,(long)viewname,0,0,0,0);
+		int_virnsyscall(__NR_UM_SERVICE,2,VIEWOS_SETVIEWNAME,(long)viewname,0,0,0,0);
 	}
 }
 
@@ -339,7 +336,7 @@ int main(int argc,char *argv[])
 	 * try the nested invocation notifying virtual syscall, 
 	 * if it succeeded it is actually a nested invocation,
 	 * otherwise nobody is notified and the call fails*/
-		if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_UMVIEW,0,0,0,0,0) >= 0)
+		if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_VIEWOS,0,0,0,0,0) >= 0)
 			umview_recursive(argc,argv);	/* do not return!*/
 		/* umview loads itself twice if there is pure_libc, to trace module 
 		 * generated syscalls, this condition manages the first call */
@@ -480,7 +477,7 @@ int main(int argc,char *argv[])
 		mp_add(wt,POLLIN,do_wake_tracer,NULL,1);
 		pcb_inits(0);
 		capture_main(argv+optind,0,NULL);
-		setenv("_INSIDE_UMVIEW_MODULE","",1);
+		setenv("_INSIDE_VIEWOS_MODULE","",1);
 		do_preload(prehead);
 		do_set_viewname(viewname);
 		while (nprocs)  {

@@ -28,7 +28,7 @@
 #define FUSE_DEBUG       (1 << 29)
 /** Enable human mode */
 #define FUSE_HUMAN       (1 << 28)
-/** Enable human mode */
+/** Enable merge mode */
 #define FUSE_MERGE       (1 << 27)
 
 extern struct fuse_operations defaultservice;

@@ -132,8 +132,21 @@ static int umtap_event_subscribe(char type, dev_t device,
 		voidfun cb, void *arg, int how, struct dev_info *di)
 {
 	struct umtap *umtap=(struct umtap *)((long) di->fh);
-	if (umtap->conn) 
-		return um_mod_event_subscribe(cb,arg,vde_datafd(umtap->conn),how);
+	if (umtap->conn) {
+		int rv=um_mod_event_subscribe(cb,arg,vde_datafd(umtap->conn),how);
+		/*
+		if (cb) {
+			if (rv == 0)
+				rv=um_event_subscribe(cb,arg,vde_datafd(umtap->conn),POLLIN|POLLERR);
+			return rv;
+		} else {
+			if (rv == 0)
+				rv=um_event_subscribe(cb,arg,vde_datafd(umtap->conn),POLLIN|POLLERR);
+			else
+				um_event_subscribe(cb,arg,vde_datafd(umtap->conn),POLLIN|POLLERR);
+		}*/
+		return rv;
+	}
 	else
 		return 1;
 }

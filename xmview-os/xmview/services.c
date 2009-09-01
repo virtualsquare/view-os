@@ -37,30 +37,9 @@
 #include "syscallnames.h"
 #include "gdebug.h"
 #include "scmap.h"
+#include "hashtab.h"
+#include "modutils.h"
 #include "bits/wordsize.h"
-
-/* Each service module has its unique code 1..254 (0x01..0xfe) 0x00 is UM_ERR
- * and 0xff is UM_NONE.
- *
- * When a module is loaded the index of the services array is loaded into the
- * corresponding element in servmap (if a module has its code 0x9b,
- * servmap[0x9b] -1 is the index where the service has been loaded.  (This
- * method gives complexity O(1) to the service code 2 service implementation
- * mapping)
- *
- * servmap[service code] - 1 is the index of the service description into
- * 'services'. with -1 there is no need for initialization.
- */
-static char servmap[256];
-
-static int locked=0;
-static int invisible=0;
-static int noserv=0;
-static int maxserv=0;
-
-/* the array "services" maintains list of all modules loaded.*/
-/* the sorting of the array services is the search order */
-static struct service **services=NULL;
 
 static sysfun reg_service[sizeof(c_set)], dereg_service[sizeof(c_set)];
 
@@ -74,8 +53,21 @@ static struct syscall_unifier scunify[] = {
 	{__NR_creat,	__NR_open},
 	{__NR_readv,	__NR_read},
 	{__NR_writev,	__NR_write},
+#ifdef __NR_preadv
+#ifdef __NR_pread64
+	{__NR_preadv,	__NR_pread64},
+#else
+	{__NR_preadv,	__NR_pread},
+#endif
+#endif
+#ifdef __NR_pwritev
+#ifdef __NR_pwrite64
+	{__NR_pwritev,__NR_pwrite64},
+#else
+	{__NR_pwritev,__NR_pwrite},
+#endif
+#endif
 	{__NR_time,	  __NR_gettimeofday},
-	{__NR_fchown,	__NR_chown},
 	{__NR_fchmod,	__NR_chmod},
 #if (__NR_olduname != __NR_doesnotexist)
 	{__NR_olduname, __NR_uname},
@@ -89,10 +81,11 @@ static struct syscall_unifier scunify[] = {
 	{__NR_getpgrp,__NR_getpgid},
 #if ! defined(__x86_64__)
 	{__NR_umount,	__NR_umount2},
-	{__NR_stat,		__NR_stat64},
+	{__NR_stat,		__NR_lstat64},
 	{__NR_lstat,	__NR_lstat64},
-	{__NR_fstat,	__NR_stat64},
-	{__NR_fstat64,__NR_stat64},
+	{__NR_fstat,	__NR_lstat64},
+	{__NR_stat64, __NR_lstat64},
+	{__NR_fstat64,__NR_lstat64},
 	{__NR_getdents,	__NR_getdents64},
 	{__NR_truncate,	__NR_truncate64},
 	{__NR_ftruncate,__NR_ftruncate64},
@@ -101,22 +94,25 @@ static struct syscall_unifier scunify[] = {
 	{__NR_fstatfs64,	__NR_statfs64},
 #else
 	{__NR_fstatfs,	__NR_statfs},
+	{__NR_stat,	__NR_lstat},
 	{__NR_fstat,	__NR_stat},
 #endif 
+#if (__NR_fcntl64 != __NR_doesnotexist)
+	{__NR_fcntl64,	__NR_fcntl},
+#endif
 	{__NR_openat,	__NR_open},
 	{__NR_mkdirat,	__NR_mkdir},
 	{__NR_mknodat,	__NR_mknod},
-	{__NR_fchownat,	__NR_chown},
 	{__NR_futimesat,	__NR_utimes},
 #ifdef __NR_utimensat
 	{__NR_utimensat,	__NR_utimes},
 #endif
 	{__NR_utime,	__NR_utimes},
 #ifdef __NR_newfstatat
-	{__NR_newfstatat,	__NR_stat64},
+	{__NR_newfstatat,	__NR_lstat64},
 #endif
 #ifdef __NR_fstatat64
-	{__NR_fstatat64,	__NR_stat64},
+	{__NR_fstatat64,	__NR_lstat64},
 #endif
 	{__NR_unlinkat,	__NR_unlink},
 	{__NR_renameat,	__NR_rename},
@@ -126,28 +122,53 @@ static struct syscall_unifier scunify[] = {
 	{__NR_fchmodat,	__NR_chmod},
 	{__NR_faccessat,	__NR_access},
 #if defined(__NR_getuid32) && __NR_getuid32 != __NR_getuid
-	{__NR_getuid, __NR_getuid32},
-	{__NR_getgid, __NR_getgid32},   
-	{__NR_geteuid, __NR_geteuid32},
-	{__NR_getegid, __NR_getegid32},
-	{__NR_setreuid, __NR_setreuid32},
-	{__NR_setregid, __NR_setregid32},
+	{__NR_getuid,    __NR_getresuid32},
+	{__NR_getgid,    __NR_getresgid32},   
+	{__NR_geteuid,   __NR_getresuid32},
+	{__NR_getegid,   __NR_getresgid32},
+	{__NR_setreuid,  __NR_setresuid32},
+	{__NR_setregid,  __NR_setresgid32},
 	{__NR_getgroups, __NR_getgroups32},
 	{__NR_setgroups, __NR_setgroups32},
 	{__NR_setresuid, __NR_setresuid32},
 	{__NR_getresuid, __NR_getresuid32},
 	{__NR_setresgid, __NR_setresgid32},
 	{__NR_getresgid, __NR_getresgid32},
-	{__NR_setuid, __NR_setuid32},
-	{__NR_setgid, __NR_setgid32},
-	{__NR_setfsuid, __NR_setfsuid32},
-	{__NR_setfsgid, __NR_setfsgid32},
+	{__NR_setuid,    __NR_setresuid32},
+	{__NR_setgid,    __NR_setresgid32},
+	{__NR_setfsuid,  __NR_setfsuid32},
+	{__NR_setfsgid,  __NR_setfsgid32},
+#else
+	{__NR_getuid,    __NR_getresuid},
+	{__NR_getgid,    __NR_getresgid},
+	{__NR_geteuid,   __NR_getresuid},
+	{__NR_getegid,   __NR_getresgid},
+	{__NR_setreuid,  __NR_setresuid},
+	{__NR_setregid,  __NR_setresgid},
+	{__NR_setuid,    __NR_setresuid},
+	{__NR_setgid,    __NR_setresgid},
 #endif
 #if defined(__NR_chown32) && __NR_chown32 != __NR_chown
-	//{__NR_chown, __NR_chown32},
-	//{__NR_lchown, __NR_lchown32},
-	//{__NR_fchown, __NR_chown32},
-	{__NR_fchown32, __NR_chown32},
+	{__NR_chown, __NR_lchown32},
+	{__NR_fchown, __NR_lchown32},
+	{__NR_lchown, __NR_lchown32},
+	{__NR_chown32, __NR_lchown32},
+	{__NR_fchown32, __NR_lchown32},
+	{__NR_fchownat, __NR_lchown32},
+#else
+	{__NR_chown, __NR_lchown},
+	{__NR_fchown, __NR_lchown},
+	{__NR_fchownat, __NR_lchown},
+#endif
+#ifdef __NR_getxattr
+	{__NR_getxattr, __NR_lgetxattr},
+	{__NR_fgetxattr, __NR_lgetxattr},
+	{__NR_setxattr, __NR_lsetxattr},
+	{__NR_fsetxattr, __NR_lsetxattr},
+	{__NR_listxattr, __NR_llistxattr},
+	{__NR_flistxattr, __NR_llistxattr},
+	{__NR_removexattr, __NR_lremovexattr},
+	{__NR_fremovexattr, __NR_lremovexattr},
 #endif
 #ifdef SNDRCVMSGUNIFY
 #if (__NR_socketcall == __NR_doesnotexist)
@@ -175,10 +196,24 @@ static struct syscall_unifier sockunify[] = {
 #define SIZESOCKUNIFY (sizeof(sockunify)/sizeof(struct syscall_unifier))
 #endif
 
-#define OSER_STEP 8 /*only power of 2 values */
-#define OSER_STEP_1 (OSER_STEP - 1)
+struct syscall_default_maganer {
+	long proc_sc;
+	sysfun defmgr;
+};
 
-static int s_error(int err)
+static long erropnotsupp()
+{
+	errno=EOPNOTSUPP;
+	return -1;
+}
+
+static struct syscall_default_maganer scdefmgr[]={
+	{__NR_lgetxattr, erropnotsupp},
+};
+#define SIZESCDEFMGR (sizeof(scdefmgr)/sizeof(struct syscall_default_maganer))
+
+
+static inline int s_error(int err)
 {
 	errno=err;
 	return -1;
@@ -243,196 +278,141 @@ void modify_um_syscall(struct service *s)
 		s->um_syscall[uscno(__NR_socket)]=s->um_virsc[VIRSYS_MSOCKET];
 #endif
 	}
+
+	for (i = 0; i < SIZESCDEFMGR; i++)
+		s->um_syscall[uscno(scdefmgr[i].proc_sc)] = scdefmgr[i].defmgr;
 }
 
-/* add a new service module */
-int add_service(struct service *s)
-{
-	int i;
+static inline int s_error_dlclose(int err,void *handle) {
+	dlclose(handle);
+	errno=err;
+	return -1;
+}
 
-	/* locking/error management */
-	if (invisible)
-		return s_error(ENOSYS);
-	else if (locked)
-		return s_error(EACCES);
-	else if (s->code == UM_NONE || s->code == UM_ERR)
-		return s_error(EFAULT);
-	else if (servmap[s->code] != 0)
-		return s_error(EEXIST);
-	else {
-		GDEBUG(9, "noserv == %d, adding 1", noserv);
-		noserv++;
-		/* the "services" array is realloc-ed when there are no more
-		 * free elements */
-		if (noserv > maxserv) {
-			GDEBUG(9, "noserv > maxserv (%d > %d)", noserv, maxserv);
-			maxserv= (noserv + OSER_STEP) & ~OSER_STEP_1;
-			GDEBUG(9, "maxserv = %d", maxserv);
-			services= (struct service **) realloc (services, maxserv*sizeof(struct service *));
-			GDEBUG(9, "reallocating services to %d * %d", maxserv, sizeof(struct service*));
-			assert(services);
+static void *nullinit(char *args) {
+	return NULL;
+}
+
+/* add a new service */
+int add_service(char *file,int permanent)
+{
+	char *args;
+	void *handle;
+	for (args=file;*args != 0 && *args != ',';args++)
+		;
+	if (*args == ',') {
+		*args = 0;
+		args++;
+	}
+	handle=openmodule(file,RTLD_LAZY|RTLD_GLOBAL);
+	if (handle != NULL) {
+		struct service *s=dlsym(handle,"viewos_service");
+		if (!s) 
+			return s_error_dlclose(EINVAL,handle);
+		else if (ht_check(CHECKMODULE,s->name,NULL,0))
+			return s_error_dlclose(EEXIST,handle);
+		else {
+			int i;
+			struct timestamp *tst=um_x_gettst();
+			struct ht_elem *hte;
+			void *(*pinit)() = dlsym(handle,"viewos_init");
+			if (s->dlhandle==NULL)
+				modify_um_syscall(s);
+			/* dl handle is the dynamic library handle*/
+			s->dlhandle=handle;
+			if (pinit == NULL) 
+				pinit=nullinit;
+			hte=ht_tab_add(CHECKMODULE,s->name,strlen(s->name),s,NULL,pinit(args));
+			if (permanent) {
+				ht_count_plus1(hte);
+			}
+			/* update the process time */
+			tst->epoch=get_epoch();
+			for (i = 0; i < sizeof(c_set); i++)
+				if (MCH_ISSET(i, &(s->ctlhs)))
+					if (reg_service[i])
+					{
+						GDEBUG(3, "calling reg_service[%d](%s)", i, s->name);
+						reg_service[i](s->name);
+					}
+			/* NEW: hash table registration */
+			service_ctl(MC_MODULE | MC_ADD, s->name, NULL);
+			return 0;
 		}
-		/* set the new element */
-		services[noserv-1]=s;
-		/* set the servmap. noserv is the index where the service is, + 1 */
-		servmap[services[noserv-1]->code] = noserv;
-		/* dl handle is the dynamic library handle, it is set in a second time */
-		s->dlhandle=NULL;
-
-		for (i = 0; i < sizeof(c_set); i++)
-			if (MCH_ISSET(i, &(s->ctlhs)))
-				if (reg_service[i])
-				{
-					GDEBUG(3, "calling reg_service[%d](0x%02x)", i, s->code);
-					reg_service[i](s->code);
-				}
-
-
-		modify_um_syscall(s);
-
-		service_ctl(MC_MODULE | MC_ADD, UM_NONE, s->code, s->code);
-		return 0;
-	}
-}
-
-/* set the new service dl handle and move it to the right position */
-int set_handle_new_service(void *dlhandle,int position)
-{
-	if (noserv == 0 || services[noserv-1]->dlhandle != NULL)
+	} else {
+		printk("module error: %s\n",dlerror());
 		return s_error(EFAULT);
-	else {
-		services[noserv-1]->dlhandle = dlhandle;
-		mov_service(services[noserv-1]->code,position);
-		return 0;
 	}
 }
 
-/* get the dynamic library handle */
-void *get_handle_service(service_t code) {
-	int i=servmap[code]-1;
-	if (invisible || locked || i<0)
-		return NULL;
-	else {
-		return services[i]->dlhandle;
-	}
-}
+
 
 /* delete a service */
-int del_service(service_t code)
+static void del_service_internal(struct ht_elem *hte,void *arg)
 {
-	/* locking and error management */
-	if (invisible)
-		return s_error(ENOSYS);
-	else if (locked)
-		return s_error(EACCES);
-	else if (servmap[code] == 0)
+	int i;
+	struct service *s=ht_get_service(hte);
+	/* notify other modules of service removal */
+	service_ctl(MC_MODULE | MC_REM, s->name, NULL);
+	/* call deregistration upcall (if any) */
+	for (i = 0; i < sizeof(c_set); i++)
+		if (MCH_ISSET(i, &(s->ctlhs)))
+			if (dereg_service[i])
+			{
+				GDEBUG(3, "calling dereg_service[%d](%s)", i, s->name);
+				dereg_service[i](s->name);
+			}
+	ht_tab_invalidate(hte);
+}
+
+int del_service(char *name)
+{
+	struct ht_elem *hte=ht_check(CHECKMODULE,name,NULL,0);
+	if (!hte)
 		return s_error(ENOENT);
+	struct service *s=ht_get_service(hte);
+	if (ht_get_count(hte) != 0)
+		return s_error(EBUSY);
 	else {
-		int i;
-		/* call deregistrationn upcall (if any) */
-		for (i = 0; i < sizeof(c_set); i++)
-			if (MCH_ISSET(i, &(services[servmap[code]-1]->ctlhs)))
-				if (dereg_service[i])
-				{
-					GDEBUG(3, "calling dereg_service[%d](0x%02x)", i, code);
-					dereg_service[i](code);
-				}
-		/* compact the table */
-		for (i= servmap[code]-1; i<noserv-1; i++)
-			services[i]=services[i+1];
-		noserv--;
-		/* update the indexes in servmap */
-		servmap[code] = 0;
-		for (i=0;i<noserv;i++)
-			servmap[services[i]->code] = i+1;
-		/* notify other modules of service removal */
-		service_ctl(MC_MODULE | MC_REM, UM_NONE, -1, code);
+		void *handle=s->dlhandle;
+		void (*pfini)() = dlsym(handle,"viewos_fini");
+		if (pfini != NULL)
+			pfini(ht_get_private_data(hte));
+		del_service_internal(hte,NULL);
+		ht_tab_del(hte);
+		dlclose(handle);
 	}
 	return 0;
 }
 
-/* mov a service */
-int mov_service(service_t code, int position)
+/* list services: returns a list of codes */
+void list_item(struct ht_elem *hte, void *arg)
 {
-	/* locking and error management */
-	if (invisible)
-		return s_error(ENOSYS);
-	else if (locked)
-		return s_error(EACCES);
-	else if (servmap[code] == 0)
-		return s_error(ENOENT);
-	else {
-		int i;
-		int oldposition=servmap[code]-1;
-		struct service *s=services[oldposition];
-		/* shift the elements */
-		position--;
-		if (position < 0 || position >= noserv)
-			position=noserv-1;
-		if (position < oldposition) /* left shift */
-		{
-			for (i=oldposition; i>position; i--)
-				services[i]=services[i-1];
-			assert(i==position);
-			services[i]=s;
-		}
-		else if (position > oldposition) /*right shift */
-		{
-			for (i=oldposition; i<position; i++)
-				services[i]=services[i+1];
-			assert(i==position);
-			services[i]=s;
-		}
-		/* update the indexes in servmap */
-		for (i=0;i<noserv;i++)
-			servmap[services[i]->code] = i+1;
-		return 0;
-	}
+	FILE *f=arg;
+	struct service *s=ht_get_service(hte);
+	fprintf(f,"%s:",s->name);
 }
 
-/* list services: returns a list of codes */
-int list_services(service_t *buf,int len)
+int list_services(char *buf,int len)
 {
-	/* error management */
-	if (invisible)
-		return s_error(ENOSYS);
-	else if (len < noserv)
-		return s_error(ENOBUFS);
-	{
-		int i;
-		for (i=0;i<noserv;i++)
-			buf[i]=services[i]->code;
-		return noserv;
-	}
+	FILE *f=fmemopen(buf,len,"w");
+	forall_ht_tab_do(CHECKMODULE,list_item,f);
+	fclose(f);
+	return(strlen(buf));
 }
 
 /* name services:  maps a service code to its description */
-int name_service(service_t code,char *buf,int len)
+int name_service(char *name,char *buf,int len)
 {
-	/* error management */
-	if (invisible)
-		return s_error(ENOSYS);
-	else if (servmap[code] == 0)
+	struct ht_elem *hte=ht_check(CHECKMODULE,name,NULL,0);
+	if (!hte)
 		return s_error(ENOENT);
 	else {
-		int pos=servmap[code]-1;
-		struct service *s=services[pos];
-		strncpy(buf,s->name,len-1);
-		buf[len]=0;
+		struct service *s=ht_get_service(hte);
+		snprintf(buf,len,"%s",s->description);
 		return 0;
 	}
 }
-
-void lock_services()
-{
-	locked=1;
-}
-
-void invisible_services()
-{
-	invisible=1;
-}
-
 
 /*
  * Call the ctl function of a specific service or of every service except
@@ -445,60 +425,50 @@ void invisible_services()
  *   services have to be skipped, use -1.
  * - the remaining arguments are containe in the va_list ap and depend on the type.
  */
-static void vservice_ctl(unsigned long type, service_t code, int skip, va_list ap)
+
+struct vservice {
+	unsigned long type;
+	char *sender;
+	va_list ap;
+};
+
+static void vservice_ctl_item(struct ht_elem *hte, void *arg)
 {
-	va_list aq;
-	int pos;
-	GDEBUG(2, "type %d code %d skip %d...", type, code, skip);
-
-	if (!services)
-		return;
-
-	if (code == UM_NONE)
-	{
-		for (pos = 0; pos < noserv; pos++)
-		{
-			if (!services[pos])
-				continue;
-
-			if (services[pos]->code == skip)
-			{
-				GDEBUG(2, "skipping services[%d] because its code is 0x%02x", pos, skip);
-				continue;
-			}
-
-			GDEBUG(2, "services[%d] == %p", pos, services[pos]);
-			if (services[pos]->ctl)
-			{
-				va_copy(aq, ap);
-				GDEBUG(2, "calling service 0x%02x!", services[pos]->code);
-				services[pos]->ctl(type, aq);
-				va_end(aq);
-			}
-		}
+	struct service *s=ht_get_service(hte);
+	struct vservice *varg=arg;
+	if (s->ctl && varg->sender != s->name) {
+		va_list aq;
+		va_copy(aq, varg->ap);
+		GDEBUG(2, "calling service %s!", s->name);
+		s->ctl(varg->type, varg->sender, aq);
+		va_end(aq);
 	}
-	else
-	{
-		int pos = servmap[code] - 1;
-		if (services[pos]->ctl)
-		{
-			GDEBUG(2, "calling service 0x%02x!", services[pos]->code);
-			services[pos]->ctl(type, ap);
-			va_end(ap);
-		}
+}
+
+static void vservice_ctl(unsigned long type, char *sender, char *destination,
+	 va_list ap)
+{
+	struct vservice varg={.type=type,.sender=sender};
+	va_copy(varg.ap,ap);
+	GDEBUG(2, "type %d sender %s destination %s...", type, sender, destination);
+
+	if (destination == NULL) {
+		forall_ht_tab_do(CHECKMODULE,vservice_ctl_item,&varg);
+	} else {
+		struct ht_elem *hte=ht_check(CHECKMODULE,destination,NULL,0);
+		if (hte) 
+			vservice_ctl_item(hte,&varg);
 	}
-	GDEBUG(2, "done");
 }
 
 /* vararg wrapper for vservice_ctl */
-void service_ctl(unsigned long type, service_t code, int skip, ...)
+void service_ctl(unsigned long type, char *sender, char *destination, ...)
 {
 	va_list ap;
-	va_start(ap, skip);
-	vservice_ctl(type, code, skip, ap);
+	va_start(ap, destination);
+	vservice_ctl(type, sender, destination, ap);
 	va_end(ap);
 }
-
 
 /* Call the ctl function of a specific service (or every one except the
  * caller). This is similar to service_ctl but to be used by umview modules
@@ -507,142 +477,46 @@ void service_ctl(unsigned long type, service_t code, int skip, ...)
  * - type is the ctl function to be called. It is contained in k bits, where k
  *   is the number of bits in a long, minus the number of bits of service_t,
  *   minus one. Currently, on 32 bits architecture, it is 32 - 8 - 1 = 23.
- * - sender is the service code of the caller module. It is used to build the
- *   full ctl code and to avoid self-calling. That is, this function never
- *   calls back the module who made the call UNLESS it is explicitly the
- *   recipient (see next).
- * - recipient is the service code of the module whose ctl function is to be
- *   called. It can be MC_ALLSERVICES (i.e. every registerend service except
- *   the caller) or an integer (i.e. the service with that specific code,
- *   possibly including the caller itself)
- * - the remaining arguments depend on the type
+ * - sender is the service struct of the caller module. 
+ * - destination is the service name of the module whose ctl function is to be
+ *   called. It can be NULL (i.e. every registerend service except
+ *   the caller) 
+ * - the remaining arguments depend on the type. sender and receipients must
+ *   agree on the args.
  */
-void service_userctl(unsigned long type, service_t sender, service_t recipient, ...)
+void service_userctl(unsigned long type, struct service *sender, 
+			    char *destination, ...)
 {
-	va_list ap;
-	va_start(ap, recipient);
+	if (sender && sender->name) {
+		va_list ap;
+		va_start(ap, destination);
 
-	if (recipient == MC_ALLSERVICES)
-		vservice_ctl(MC_USERCTL(sender, type), UM_NONE, sender, ap);
-	else
-		vservice_ctl(MC_USERCTL(sender, type), recipient, -1, ap);
+		vservice_ctl(MC_USERCTL(type), sender->name, destination, ap);
 
-	va_end(ap);
-}
-
-void reg_modules(service_t code)
-{
-	int i;
-	for (i = 0; i < noserv; i++)
-		if(services[i] && (services[i]->code != code))
-			service_ctl(MC_MODULE | MC_ADD, code, -1, services[i]->code);
-}
-
-void dereg_modules(service_t code)
-{
-	int i;
-	for (i = 0; i < noserv; i++)
-		if(services[i] && (services[i]->code != code))
-			service_ctl(MC_MODULE | MC_REM, code, -1, services[i]->code);
-}
-
-service_t service_check(int type,void* arg,int setepoch)
-{
-	int i,max_index=-1;
-	struct service* s;
-	epoch_t	matchepoch=0;
-	if (arg == NULL || noserv == 0) 
-		return(UM_NONE);
-	else {
-		for (i = noserv-1 ; i>=0 ; i--) {
-			epoch_t returned_epoch;
-			s=services[i];
-			if (s->checkfun != NULL && (returned_epoch=s->checkfun(type,arg)) &&
-					(returned_epoch>matchepoch)) {
-				matchepoch=returned_epoch;
-				max_index=i;
-			}
-		}
-		if (setepoch)
-			um_setepoch(matchepoch);
-		if(max_index<0)
-			return(UM_NONE);
-		else 
-			return services[max_index]->code;
+		va_end(ap);
 	}
 }
 
-static long errnosys()
+static void reg_mod_item(struct ht_elem *ht, void *arg)
 {
-	errno=ENOSYS;
-	return -1;
+	struct service *s=ht_get_service(ht);
+	service_ctl(MC_MODULE | MC_ADD, s->name, arg, NULL);
 }
 
-int isnosys(sysfun f)
+static void reg_modules(char *destination)
 {
-	return (f==errnosys);
+	forall_ht_tab_do(CHECKMODULE,reg_mod_item,destination);
 }
 
-sysfun service_syscall(service_t code, int scno)
+static void dereg_mod_item(struct ht_elem *ht, void *arg)
 {
-	if (code == UM_NONE || code == UM_ERR)
-		return NULL;
-	else {
-		int pos=servmap[code]-1;
-		struct service *s=services[pos];
-		assert( s != NULL);
-		return (s->um_syscall[scno] == NULL) ? errnosys : s->um_syscall[scno];
-	}
+	struct service *s=ht_get_service(ht);
+	service_ctl(MC_MODULE | MC_REM, s->name, arg, NULL);
 }
 
-sysfun service_socketcall(service_t code, int scno)
+static void dereg_modules(char *destination)
 {
-	if(code == UM_NONE)
-		return NULL;
-	else {
-		int pos=servmap[code]-1;
-		struct service *s=services[pos];
-		assert(s != NULL);
-		return (s->um_socket[scno] == NULL) ? errnosys : s->um_socket[scno];
-	}
-}
-
-sysfun service_virsyscall(service_t code, int scno)
-{
-	if(code == UM_NONE)
-		return NULL;
-	else {
-		int pos=servmap[code]-1;
-		struct service *s=services[pos];
-		assert( s != NULL );
-		return (s->um_virsc == NULL || s->um_virsc[scno] == NULL) 
-			? errnosys : s->um_virsc[scno];
-	}
-}
-
-epochfun service_checkfun(service_t code)
-{
-	int pos=servmap[code]-1;
-	struct service *s=services[pos];
-	return (s->checkfun);
-}
-
-sysfun service_event_subscribe(service_t code)
-{
-	int pos=servmap[code]-1;
-	struct service *s=services[pos];
-	return (s->event_subscribe);
-}
-
-static void _service_fini()
-{
-	/*
-	int i;
-	void *hdl;
-	for (i=0;i<0xff;i++)
-		if ((hdl=get_handle_service(i)) != NULL)
-			dlclose(hdl);
-			*/
+	forall_ht_tab_do(CHECKMODULE,dereg_mod_item,destination);
 }
 
 /* service initialization: upcalls for new services/deleted services
@@ -654,13 +528,14 @@ void service_addregfun(int class, sysfun regfun, sysfun deregfun)
 	dereg_service[class] = deregfun;
 }
 
+static void _service_fini()
+{
+	forall_ht_tab_do(CHECKMODULE,del_service_internal,NULL);
+}
+
 /* set exit function */
 void _service_init()
 {
 	atexit(_service_fini);
 	service_addregfun(MC_MODULE, (sysfun)reg_modules, (sysfun)dereg_modules);
 }
-
-
-	
-

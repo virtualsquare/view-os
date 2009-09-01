@@ -36,6 +36,7 @@ void usage()
 			"Usage: umshutdown [time]\n"
 		  "Shutdown of xmview.\n"
 			"\n");
+	exit(2);
 }
 
 void termhandler(int signo)
@@ -45,6 +46,10 @@ void termhandler(int signo)
 main(int argc, char *argv[])
 {
 	int wtime;
+	if (um_check_viewos()==0) {
+		fprintf(stderr,"This is a View-OS command. It works only inside a umview/kmview virtual machine\n");
+		usage();
+	}            
 	if (argc == 1)
 		wtime=30;
 	else if (argc==2)

@@ -42,6 +42,7 @@
 #include "defs.h"
 #include "umproc.h"
 #include "services.h"
+#include "hashtab.h"
 #include "um_services.h"
 #include "sctab.h"
 #include "scmap.h"
@@ -71,7 +72,7 @@ static void ioctl_putarg(struct pcb* pc, int ioctlparms, unsigned long arg, void
 }
 
 int wrap_in_ioctl(int sc_number,struct pcb *pc,
-		service_t sercode, sysfun um_syscall)
+		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	if (sfd < 0) {
@@ -81,12 +82,10 @@ int wrap_in_ioctl(int sc_number,struct pcb *pc,
 		unsigned long req=pc->sysargs[1];
 		unsigned long arg=pc->sysargs[2];
 		void *larg;
-		epochfun checkarg;
+		sysfun checkarg;
 		int ioctlparms=0;
-		if ((checkarg=service_checkfun(sercode)) != NULL) {
-			struct ioctl_len_req ioreq={sfd,req};
-			ioctlparms=checkarg(CHECKIOCTLPARMS, &ioreq);
-		}
+		if ((checkarg=ht_ioctlparms(hte)) != NULL) 
+			ioctlparms=checkarg(sfd,req);
 		ioctl_getarg(pc,ioctlparms,arg,&larg);
 		if ((pc->retval = um_syscall(sfd,req,larg)) >= 0)
 			ioctl_putarg(pc,ioctlparms,arg,larg);
@@ -94,9 +93,9 @@ int wrap_in_ioctl(int sc_number,struct pcb *pc,
 			pc->erno=errno;
 			ioctl_putarg(pc,ioctlparms & ~IOCTL_W,arg,larg);
 		}
-		/* printf("wrap_in_ioctl %d req %x arg %x parms %x -> %d\n",sfd,req,larg,ioctlparms,pc->retval);*/
+		/*printk("wrap_in_ioctl %d req %x arg %x parms %x -> %d\n",sfd,req,larg,ioctlparms,pc->retval);*/
 
-		/*printf("wrap_in_ioctl %d %d\n",pc->retval,pc->erno);*/
+		/*printk("wrap_in_ioctl %d %d\n",pc->retval,pc->erno);*/
 	}
 	return SC_FAKE;
 }

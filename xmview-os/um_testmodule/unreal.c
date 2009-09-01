@@ -43,30 +43,7 @@
 // int read(), write(), close();
 
 static struct service s;
-static struct timestamp t1;
-static struct timestamp t2;
-
-static epoch_t unrealpath(int type,void *arg)
-{
-	/* This is an example that shows how to pick up extra info in the
-	 * calling process. */
-/*	printf("test umph info pid=%d, scno=%d, arg[0]=%d, argv[1]=%d\n",
-			um_mod_getpid(),um_mod_getsyscallno(),
-			um_mod_getargs()[0],um_mod_getargs()[1]); */
-/* NB: DEVELOPMENT PHASE !! */
-	if (type== CHECKPATH) {
-		char *path=arg;
-		epoch_t e=0;
-		if(strncmp(path,"/unreal",7) == 0) {
-			if ((e=tst_matchingepoch(&t2)) == 0)
-				e=tst_matchingepoch(&t1);
-			//fprint2("MATCH e=%lld\n",e);
-		}
-		return e;
-	}
-	else
-		return 0;
-}
+VIEWOS_SERVICE(s)
 
 static long addproc(int id, int max)
 {
@@ -82,24 +59,24 @@ static long delproc(int id)
 	return 0;
 }
 
-static long addmodule(int code)
+static long addmodule(char *sender)
 {
-	fprintf(stderr, "add module 0x%02x\n", code);
-	GDEBUG(3, "new module loaded. code 0x%02x", code);
+	fprintf(stderr, "add module %s\n", sender);
+	GDEBUG(3, "new module loaded. %s", sender);
 	return 0;
 }
 
-static long delmodule(int code)
+static long delmodule(char *sender)
 {
-	fprintf(stderr, "del module 0x%02x\n", code);
-	GDEBUG(3, "module 0x%02x removed", code);
+	fprintf(stderr, "del module %s\n", sender);
+	GDEBUG(3, "module %s removed", sender);
 	return 0;
 }
 
 
-static long ctl(int type, va_list ap)
+static long ctl(int type, char *sender, va_list ap)
 {
-	int id, ppid, max, code;
+	int id, ppid, max;
 
 	switch(type)
 	{
@@ -114,12 +91,10 @@ static long ctl(int type, va_list ap)
 			return delproc(id);
 
 		case MC_MODULE | MC_ADD:
-			code = va_arg(ap, int);
-			return addmodule(code);
+			return addmodule(sender);
 
 		case MC_MODULE | MC_REM:
-			code = va_arg(ap, int);
-			return delmodule(code);
+			return delmodule(sender);
 		
 		default:
 			return -1;
@@ -137,10 +112,9 @@ static char *unwrap(char *path)
 static long unreal_open(char *pathname, int flags, mode_t mode)
 {
 	/* send the file name to every module except myself (just for testing) */
-	service_userctl(42, s.code, MC_ALLSERVICES, pathname);
-	/* send the file name to module 0xfc (i.e. testmodule) */
-//	service_userctl(42, s.code, 0xfc, pathname);
-
+	service_userctl(42, &s, NULL, pathname);
+	/* send the file name to module TEST (i.e. testmodule) */
+	//	service_userctl(42, &s, "TEST", pathname);
 	return open(unwrap(pathname),flags,mode);
 }
 
@@ -149,10 +123,10 @@ static long unreal_statfs64(char *pathname, struct statfs64 *buf)
 	return statfs64(unwrap(pathname),buf);
 }
 
-static long unreal_stat64(char *pathname, struct stat64 *buf)
+/*static long unreal_stat64(char *pathname, struct stat64 *buf)
 {
 	return stat64(unwrap(pathname),buf);
-}
+}*/
 
 static long unreal_lstat64(char *pathname, struct stat64 *buf)
 {
@@ -184,10 +158,10 @@ static long unreal_chmod(char *path, int mode)
 	return chmod(unwrap(path),mode);
 }
 
-static long unreal_chown(char *path, uid_t owner, gid_t group)
+/*static long unreal_chown(char *path, uid_t owner, gid_t group)
 {
 	return chown(unwrap(path),owner,group);
-}
+}*/
 
 static long unreal_lchown(char *path, uid_t owner, gid_t group)
 {
@@ -238,14 +212,34 @@ static long unreal_lseek(int fildes, int offset, int whence)
 	return (int) lseek64(fildes, (off_t) offset, whence);
 }
 
+struct twohte {
+	struct ht_elem *ht1,*ht2;
+};
+
+void *viewos_init(char *args)
+{
+	struct twohte *two=malloc(sizeof(struct twohte));
+	two->ht1=ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal",0,"",&s,0,NULL,NULL);
+	two->ht2=ht_tab_pathadd(CHECKPATH,"/","/unreal","unreal",0,"",&s,0,NULL,NULL);
+	return two;
+}
+
+void viewos_fini(void *data)
+{
+	struct twohte *two=data;
+	ht_tab_del(two->ht2);
+	ht_tab_del(two->ht1);
+	free(two);
+}
+
+
 static void
 __attribute__ ((constructor))
 init (void)
 {
 	GMESSAGE("unreal init");
-	s.name="/unreal Mapping to FS (server side)";
-	s.code=0xfe;
-	s.checkfun=unrealpath;
+	s.name="unreal";
+	s.description="/unreal Mapping to FS (server side)";
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	s.ctl = ctl;
@@ -258,41 +252,30 @@ init (void)
 	SERVICESYSCALL(s, read, read);
 	SERVICESYSCALL(s, write, write);
 	SERVICESYSCALL(s, close, close);
-#if 0
-	SERVICESYSCALL(s, stat, unreal_stat64);
-	SERVICESYSCALL(s, lstat, unreal_lstat64);
-	SERVICESYSCALL(s, fstat, fstat64);
-#endif
 #if !defined(__x86_64__)
-	SERVICESYSCALL(s, stat64, unreal_stat64);
+	//SERVICESYSCALL(s, stat64, unreal_stat64);
 	SERVICESYSCALL(s, lstat64, unreal_lstat64);
-	//SERVICESYSCALL(s, fstat64, fstat64);
 #else
-	SERVICESYSCALL(s, stat, unreal_stat64);
+	//SERVICESYSCALL(s, stat, unreal_stat64);
 	SERVICESYSCALL(s, lstat, unreal_lstat64);
-	//SERVICESYSCALL(s, fstat, fstat64);
 #endif
 	SERVICESYSCALL(s, readlink, unreal_readlink);
-#if 0 
-	SERVICESYSCALL(s, getdents, getdents64);
-#endif
 	SERVICESYSCALL(s, getdents64, getdents64);
 	SERVICESYSCALL(s, access, unreal_access);
-#if !defined(__x86_64__)
-	SERVICESYSCALL(s, fcntl, fcntl32);
-	SERVICESYSCALL(s, fcntl64, fcntl64);
-	SERVICESYSCALL(s, _llseek, _llseek);
+#ifdef __NR_fcntl64
+	SERVICESYSCALL(s, fcntl, fcntl64);
 #else
 	SERVICESYSCALL(s, fcntl, fcntl);
+#endif
+#if !defined(__x86_64__)
+	SERVICESYSCALL(s, _llseek, _llseek);
 #endif
 	SERVICESYSCALL(s, lseek,  unreal_lseek);
 	SERVICESYSCALL(s, mkdir, unreal_mkdir);
 	SERVICESYSCALL(s, rmdir, unreal_rmdir);
-	SERVICESYSCALL(s, chown, unreal_chown);
+	//SERVICESYSCALL(s, chown, unreal_chown);
 	SERVICESYSCALL(s, lchown, unreal_lchown);
-	//SERVICESYSCALL(s, fchown, fchown);
 	SERVICESYSCALL(s, chmod, unreal_chmod);
-	//SERVICESYSCALL(s, fchmod, fchmod);
 	SERVICESYSCALL(s, unlink, unreal_unlink);
 	SERVICESYSCALL(s, fsync, fsync);
 	SERVICESYSCALL(s, fdatasync, fdatasync);
@@ -305,14 +288,9 @@ init (void)
 	SERVICESYSCALL(s, utimes, unreal_utimes);
 #if !defined(__x86_64__)
 	SERVICESYSCALL(s, statfs64, unreal_statfs64);
-	//SERVICESYSCALL(s, fstatfs64, fstatfs64);
 #else
 	SERVICESYSCALL(s, statfs, unreal_statfs64);
-	//SERVICESYSCALL(s, fstatfs, fstatfs64);
 #endif
-	add_service(&s);
-	t1=tst_timestamp();
-	t2=tst_timestamp();
 }
 
 static void

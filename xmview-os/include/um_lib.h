@@ -32,19 +32,17 @@ typedef unsigned long viewid_t;
 
 #define ADD_SERVICE 0
 #define DEL_SERVICE 1
-#define MOV_SERVICE 2
 #define LIST_SERVICE 3
 #define NAME_SERVICE 4
-#define LOCK_SERVICE 5
 
-#define RECURSIVE_UMVIEW   0x100
-#define UMVIEW_GETINFO     0x101
-#define UMVIEW_SETVIEWNAME 0x102
+#define RECURSIVE_VIEWOS   0x100
+#define VIEWOS_GETINFO     0x101
+#define VIEWOS_SETVIEWNAME 0x102
 
-#define UMVIEW_KILLALL     0x103
+#define VIEWOS_KILLALL     0x103
 
-#define UMVIEW_ATTACH      0x104
-#define UMVIEW_FSALIAS     0x105
+#define VIEWOS_ATTACH      0x104
+#define VIEWOS_FSALIAS     0x105
 
 extern long (*virnsyscall)();
 
@@ -63,12 +61,11 @@ struct viewinfo {
 	char viewname[_UTSNAME_LENGTH];
 };
 
-int um_add_service(int position,char *path);
-int um_del_service(int code);
+int um_check_viewos(void);
+int um_add_service(char *path,int permament);
+int um_del_service(char *name);
 int um_mov_service(int code, int position);
-int um_list_service(char *buf, int len);
-int um_name_service(int code, char *buf, int len);
-int um_lock_service(int invisible);
+int um_name_service(char *name, char *buf, int len);
 int um_view_getinfo(struct viewinfo *info);
 int um_setviewname(char *name);
 int um_killall(int signo);

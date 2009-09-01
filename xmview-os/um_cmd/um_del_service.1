@@ -24,35 +24,23 @@
 um_del_service \- remove a service module of umview
 .SH SYNOPSIS
 .B um_del_service 
-[-p
-.I #
-]
-[-c
-.I hex
-]
+.I service_name
 .br
 .SH DESCRIPTION
-This command removes a service module of umview.
-It is possible to specify the service either by its position or
-by its signature (an hex number): exactly only one option between -c and -p
-must be specified.
-The position and signature of a service module can be obtained by the
+This command removes a service module of umview/kmview.
+The name of a service module can be obtained by the
 command
 .B um_ls_module
-.SH OPTIONS
-.IP "\fB\-p\fP \fI#\fP" 4 
-specify the position of the module to be removed in the chain of modules.
-.IP "\fB\-c\fP \fIhex\fP" 4 
-specify the signature (hex number) of the module to be deleted.
 .SH SEE ALSO
 .BR umview(1),
+.BR kmview(1),
 .BR um_add_service(1),
 .BR um_ls_service(1),
-.BR um_mov_service(1),
 .BR umfuse(1viewos),
-.BR lwipv6(1viewos),
+.BR umnet(1viewos),
 .BR umdev(1viewos),
 .BR umbinfmt(1viewos),
+.BR ummisc(1viewos),
 .BR viewfs(1viewos),
 .SH AUTHORS
 View-OS is a project of the Computer Science Department, University of

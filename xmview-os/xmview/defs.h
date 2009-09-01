@@ -27,6 +27,7 @@
 #define _DEFS_H
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <endian.h>
 #include <stdarg.h>
 #include <gdebug.h>
@@ -103,6 +104,9 @@ extern sfun native_syscall;
 #define r_lstat64(p,b) (native_syscall(NR64_lstat,(p),(b)))
 #define r_readlink(p,b,sz) (native_syscall(__NR_readlink,(p),(b),(sz)))
 #define r_fcntl(f,c,a) (native_syscall(__NR_fcntl,(f),(c),(a)))
+#ifdef __NR_fcntl64
+#define r_fcntl64(f,c,a) (native_syscall(__NR_fcntl64,(f),(c),(a)))
+#endif
 #define r_umask(m) (native_syscall(__NR_umask,(m)))
 #define r_pipe(v) (native_syscall(__NR_pipe,(v)))
 #define r_access(p,m) (native_syscall(__NR_access,(p),(m)))
@@ -147,8 +151,8 @@ extern sfun native_syscall;
 #endif
 
 /* debugging functions */
-extern int fprint2(const char *fmt, ...);
-extern int vfprint2(const char *fmt, va_list ap);
+extern int printk(const char *fmt, ...);
+extern int vprintk(const char *fmt, va_list ap);
 
 /* verbosity/quietness */
 extern unsigned int quiet;
@@ -165,6 +169,37 @@ extern unsigned int quiet;
 
 #define WORDLEN sizeof(int *)
 #define WORDALIGN(X) (((X) + WORDLEN) & ~(WORDLEN-1))
+
+#define MAX_SOCKET_NAME 1024
+#define MAX_SOCKOPT_LEN 4096
+#define MAX_SOCK_CONTROLLEN (1<<16) /*64K*/
+#define _LARGE_ALLOCA_PROTECTION
+#ifdef _LARGE_ALLOCA_PROTECTION
+#define lalloca(L) ({ void *m; if (__builtin_expect(((L)>>16),0)) \
+		{ if ((m=malloc(L))==NULL) \
+		{ pc->retval= -1; pc->erno=ENOMEM; return SC_FAKE; } \
+	 	} \
+		else m=alloca(L); m; })
+#define lnalloca(L) ({ void *m; if (__builtin_expect(((L)>>16),0)) \
+		{ if ((m=malloc(L))==NULL) \
+		{ errno=ENOMEM; return -1; } \
+		} \
+		else m=alloca(L); m; })
+#define lfree(B,L) ({if (__builtin_expect(((L)>>16),0)) free(B); })
+#define lfree(B,L) ({if (__builtin_expect(((L)>>16),0)) free(B); })
+#else
+#define lalloca(L) alloca(L)
+#define lnalloca(L) alloca(L)
+#define lfree(B,L)
+#endif
+
+/* there is a memory alignment problem in these architectures */
+/* long long syscall args are 2 regs aligned */
+#if (defined(__powerpc__) && !defined(__powerpc64__)) || (defined (MIPS) && !defined(__mips64))
+#define PALIGN 1
+#else
+#define PALIGN 0
+#endif
 
 #if 0
 #ifdef _MALLOC_DEBUG
@@ -195,6 +230,9 @@ typedef	int (*divfun)(int sc_number,int inout,struct pcb *ppcb);
 
 //#####################################
 // SYSCALL STRANGE STUFF
+// define __NR_doesnotexist all non-existent syscall
+// in this way the sequence in scmap is preserved through
+// different architectures
 #define __NR_doesnotexist -1
 #if defined(__x86_64__)
 #define NR64_stat	__NR_stat
@@ -227,6 +265,43 @@ typedef	int (*divfun)(int sc_number,int inout,struct pcb *ppcb);
 #define __NR_olduname __NR_uname
 #endif
 
+#ifndef __NR_dup3
+#define __NR_dup3 __NR_doesnotexist
+#endif
+
+#ifndef __NR_openat
+#define __NR_openat __NR_doesnotexist
+#define __NR_mkdirat __NR_doesnotexist
+#define __NR_mknodat __NR_doesnotexist
+#define __NR_fchownat __NR_doesnotexist
+#define __NR_futimesat  __NR_doesnotexist
+#endif
+
+#ifndef __NR_utimensat
+#define __NR_utimensat __NR_doesnotexist
+#endif
+
+#ifndef __NR_getxattr
+#define __NR_getxattr __NR_doesnotexist
+#define __NR_lgetxattr __NR_doesnotexist
+#define __NR_fgetxattr __NR_doesnotexist
+#define __NR_setxattr __NR_doesnotexist
+#define __NR_lsetxattr __NR_doesnotexist
+#define __NR_fsetxattr __NR_doesnotexist
+#define __NR_listxattr __NR_doesnotexist
+#define __NR_llistxattr __NR_doesnotexist
+#define __NR_flistxattr __NR_doesnotexist
+#define __NR_removexattr __NR_doesnotexist
+#define __NR_lremovexattr __NR_doesnotexist
+#define __NR_fremovexattr __NR_doesnotexist
+#endif
+
+#ifndef __NR_preadv
+#define __NR_preadv __NR_doesnotexist
+#endif
+#ifndef __NR_pwritev
+#define __NR_pwritev __NR_doesnotexist
+#endif
 
 //#####################################
 
@@ -271,11 +346,11 @@ struct viewinfo {
 #define LIST_SERVICE 3
 #define NAME_SERVICE 4
 #define LOCK_SERVICE 5
-#define RECURSIVE_UMVIEW   0x100
-#define UMVIEW_GETINFO     0x101
-#define UMVIEW_SETVIEWNAME 0x102
-#define UMVIEW_KILLALL     0x103
-#define UMVIEW_ATTACH      0x104
-#define UMVIEW_FSALIAS     0x105
+#define RECURSIVE_VIEWOS   0x100
+#define VIEWOS_GETINFO     0x101
+#define VIEWOS_SETVIEWNAME 0x102
+#define VIEWOS_KILLALL     0x103
+#define VIEWOS_ATTACH      0x104
+#define VIEWOS_FSALIAS     0x105
 
 #endif // _DEFS_H

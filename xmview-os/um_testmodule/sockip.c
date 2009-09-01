@@ -40,14 +40,12 @@
 #include <linux/sockios.h>
 #include <linux/if.h>
 
-
-
 static struct service s;
-static struct timestamp stst;
+VIEWOS_SERVICE(s)
 
-static int ioctlparms(struct ioctl_len_req *arg)
+static long ioctlparms(int fd, int req)
 {
-	switch (arg->req) { 
+	switch (req) { 
 		case FIONREAD:
 			return sizeof(int) | IOCTL_W;
 		case FIONBIO:
@@ -85,26 +83,10 @@ static int ioctlparms(struct ioctl_len_req *arg)
 }
 
 // int read(), write(), close();
-
-static epoch_t checkip(int type, void *arg)
-{
-	if (type ==  CHECKSOCKET) {
-		int *pdomain=arg;
-		if(*pdomain == AF_INET)
-			return tst_matchingepoch(&stst);
-		else
-			return 0;
-	}
-	else if (type == CHECKIOCTLPARMS) 
-		return ioctlparms(arg);
-	else 
-		return 0;
-}
-
 /*
 static int myread(int fd, char *buf, int size)
 {
-	fprint2("READ %d %d\n ",fd,size);
+	printk("READ %d %d\n ",fd,size);
 	int rv=read(fd,buf,size);
 	int i;
 	for (i=0;i<rv;i++)
@@ -127,7 +109,7 @@ static int mywrite(int fd, char *buf, int size)
 static int mysocket(int domain, int type, int protocol)
 {
 	int rv=socket(domain,type,protocol);
-	fprint2("socket %d %d %d -> %d\n",domain,type,protocol,rv);
+	printk("socket %d %d %d -> %d\n",domain,type,protocol,rv);
 	return rv;
 }
 */
@@ -157,17 +139,30 @@ static long sock_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 	return um_mod_event_subscribe(cb,arg,fd,how);
 }
 
+void *viewos_init(char *args)
+{
+	int socktype=AF_INET;
+	return ht_tab_add(CHECKSOCKET,&socktype,sizeof(int),&s,NULL,NULL);
+}
+
+void viewos_fini(void *data)
+{
+	struct ht_elem *proc_ht=data;
+	ht_tab_del(proc_ht);
+}
+
 	static void
 	__attribute__ ((constructor))
 init (void)
 {
 	GMESSAGE("sockettest init");
-	s.name="sockettest (syscall are executed server side)";
-	s.code=0xfb;
-	s.checkfun=checkip;
+	s.name="sockip";
+	s.description="socket syscall (AF_INET) are executed server side";
+	s.ioctlparms=ioctlparms;
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
 	s.socket=(sysfun *)calloc(scmap_sockmapsize,sizeof(sysfun));
 	SERVICESOCKET(s, socket, socket);
+	//SERVICESOCKET(s, socket, mysocket);
 	SERVICESOCKET(s, bind, bind);
 	SERVICESOCKET(s, connect, connect);
 	SERVICESOCKET(s, listen, listen);
@@ -188,17 +183,13 @@ init (void)
 	SERVICESYSCALL(s, read, read);
 	SERVICESYSCALL(s, write, write);
 	SERVICESYSCALL(s, close, close);
-	SERVICESYSCALL(s, fcntl, fcntl32);
-#if !defined(__x86_64__)
-	SERVICESYSCALL(s, fcntl64, fcntl64);
+#ifdef __NR_fcntl64
+	SERVICESYSCALL(s, fcntl, fcntl64);
+#else
+	SERVICESYSCALL(s, fcntl, fcntl);
 #endif
 	SERVICESYSCALL(s, ioctl, sockioctl);
-	//SERVICESYSCALL(s, _newselect, select);
-	//SERVICESYSCALL(s, poll, poll);
 	s.event_subscribe=sock_event_subscribe;
-
-	add_service(&s);
-	stst=tst_timestamp();
 }
 
 	static void

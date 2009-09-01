@@ -57,9 +57,9 @@ static long double umtime(struct umtimeinfo *umt)
 	long double now;
 	clock_gettime(CLOCK_REALTIME,&ts);
 	now=ts.tv_sec + ((long double) ts.tv_nsec) / 1000000000;
-	//fprint2("umtime now %llf\n",now);
+	//printk("umtime now %llf\n",now);
 	now=now*umt->freq+umt->offset;
-	//fprint2("umtime umnow %llf\n",now);
+	//printk("umtime umnow %llf\n",now);
 	return now;
 }
 
@@ -83,7 +83,7 @@ static void setnewfreq(struct umtimeinfo *umt,long double newfreq)
 	now=ts.tv_sec + ((long double) ts.tv_nsec) / 1000000000;
 	oldtime=now*umt->freq+umt->offset;
 	newuncorrected=now*newfreq+umt->offset;
-	//fprint2("setnewfreq %llf %llf %llf %llf\n",
+	//printk("setnewfreq %llf %llf %llf %llf\n",
 			//newfreq,now,oldtime,newuncorrected);
 	umt->offset += (oldtime-newuncorrected);
 	umt->freq=newfreq;
@@ -180,12 +180,12 @@ static void ummisc_time_init(char *path, unsigned long flags, char *args, struct
 	assert(buf);
 	buf->freq=1;
 	ummisc_setprivatedata(mh,buf);
-	//fprint2("ummisc_time_init \n");
+	//printk("ummisc_time_init \n");
 }
 
 static void ummisc_time_fini(struct ummisc *mh) {
 	struct umtimeinfo *buf=ummisc_getprivatedata(mh);
 	free(buf);
-	//fprint2("ummisc_time_fini \n");
+	//printk("ummisc_time_fini \n");
 }
 

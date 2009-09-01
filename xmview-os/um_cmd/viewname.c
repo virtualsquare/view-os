@@ -41,6 +41,7 @@ void usage()
 			"\n"
 			"This command can get or set the view name (View-OS)\n"
 			"\n");
+	exit(2);
 }
 
 main(int argc, char *argv[])
@@ -66,19 +67,18 @@ main(int argc, char *argv[])
 				break;
 			case 'h':
 				usage();
-				exit(0);
 				break;
 		}
 	}
 	if (argc - optind > 1 || (prompt && (argc - optind > 0))) {
 		usage();
-		exit(-1);
+		exit(1);
 	}
 	if (argc - optind == 0) {
 		c=um_view_getinfo(&vi);
 		if (c<0) {
 			if (!quiet) perror("umviewname:");
-			exit (-1);
+			exit (1);
 		}
 		if (prompt) {
 			if (strlen (vi.viewname) > 0) 
@@ -91,7 +91,7 @@ main(int argc, char *argv[])
 		c=um_setviewname(argv[1]);
 		if (c<0) {
 			if (!quiet) perror("umviewname:");
-			exit (-1);
+			exit (1);
 		}
 	}
 	exit (0);

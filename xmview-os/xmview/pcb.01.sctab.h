@@ -10,14 +10,17 @@ void pcb_plus(),pcb_minus();
 #ifdef _PCB_COMMON_FIELDS
 void *path;
 struct stat64 pathstat;
+struct ht_elem *hte;
+void *mod_private_data;
 struct timestamp tst;
 epoch_t nestepoch;
 /* path for tmp files that must be deleted over the next syscall */
 /* see execve mgmt */
 void *tmpfile2unlink_n_free;
-uid_t ruid,euid,suid;
-gid_t rgid,egid,sgid;
-int private_scno;
+uid_t ruid,euid,suid,fsuid;
+gid_t rgid,egid,sgid,fsgid;
+uint16_t private_scno;
+uint8_t needs_dotdot_path_rewrite;
 #endif
 
 #ifdef _PCB_ONLY_FIELDS
