@@ -10,7 +10,8 @@ dist_man1_MANS = \
 	mstack.1 \
 	viewsu.1 \
 	viewsudo.1 \
-	um_fsalias.1 
+	um_fsalias.1 \
+	um_attach.c
 
 CPPFLAGS = -I../include
 
@@ -26,7 +27,8 @@ bin_PROGRAMS = \
 	mstack \
 	viewsu \
 	viewsudo \
-	um_fsalias 
+	um_fsalias \
+	um_attach
 
 um_fsalias_SOURCES=um_alias.c
 
