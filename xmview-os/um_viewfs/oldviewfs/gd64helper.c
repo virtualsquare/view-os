@@ -18,7 +18,7 @@
  *   with this program; if not, write to the Free Software Foundation, Inc.,
  *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
  *
- *   $Id$
+ *   $Id: gd64helper.c 648 2009-04-22 22:50:01Z rd235 $
  *
  */
 

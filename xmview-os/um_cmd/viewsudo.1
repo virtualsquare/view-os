@@ -1,0 +1,74 @@
+.\" Copyright (c) 2009 Renzo Davoli
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License,
+.\" version 2, as published by the Free Software Foundation.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+.\" MA 02110-1301 USA.
+
+.TH VIEW-OS 1 "August 8, 2009" "VIEW-OS: a process with a view"
+.SH NAME
+viewsudo \- execute a command as another (virtual) user
+.SH "SYNOPSIS"
+.HP \w'\fBsu\fR\ 'u
+\fBviewsudo\fR [\fB-g \fIgroupname\fR|\fI#gid\fR] [\fB-u \fIusername\fR|\fI#uid\fR] \fIcommand\fR
+.SH "DESCRIPTION"
+.PP
+\fBviewsudo\fR
+allows a user to execute a command as the superuser or
+       another user in View-OS.
+.SH OPTIONS
+.PP
+\fBviewsudo\fR accepts the following command line options:
+.PP
+\fB\-g\fR \fIgroup\fR
+.RS 4
+Normally, \fBviewsudo\fR sets the primary group to root.
+The \fB\-g\fR option causes
+sudo to run the specified command with the primary group
+set to \fIgroup\fR.  To specify a gid instead of a \fIgroup name\fR,
+use \fI#gid\fR.  When running commands as a gid, many shells
+require that the ’#’ be escaped with a backslash (’\’).  If
+no \fB-u\fR option is specified, the command will be run as the
+invoking user (not root).  In either case, the primary
+group will be set to \fIgroup\fR.
+.RE
+.PP
+\fB\-u\fR \fIuser\fR
+.RS 4
+The \fB-u\fR option causes \fBviewsudo\fR to run the specified
+command as a user other than \fRroot\fR.  To specify a \fIuid\fR
+instead of a \fIuser name\fR, use \fI#uid\fR.  When running commands as
+a uid, many shells require that the ’#’ be escaped with a
+backslash (’\’).
+.SH RETURN VALUES
+Upon successful execution of a program, the exit status from \fBviewsudo\fR will
+simply be the exit status of the program that was executed.
+.RE
+.SH SEE ALSO
+.BR viewsu(1),
+.BR sudo(1),
+.BR linux.defs(5)
+.SH AUTHORS
+View-OS is a project of the Computer Science Department, University of
+Bologna. Project Leader: Renzo Davoli.
+.br
+<http://www.sourceforge.net/projects/view-os>
+
+Howto's and further information can be found on the project wiki
+<wiki.virtualsquare.org>.
+.SH NOTE
+Most part of the text is taken from sudo(1).

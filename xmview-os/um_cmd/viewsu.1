@@ -1,0 +1,150 @@
+.\" Copyright (c) 2009 Renzo Davoli
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License,
+.\" version 2, as published by the Free Software Foundation.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+.\" MA 02110-1301 USA.
+
+.TH VIEW-OS 1 "August 5, 2009" "VIEW-OS: a process with a view"
+.SH NAME
+viewsu \- change (virtual) user ID or become (virtual) superuser
+.SH "SYNOPSIS"
+.HP \w'\fBviewsu\fR\ 'u
+\fBviewsu\fR [\fIoptions\fR] [\fIusername\fR]
+.SH "DESCRIPTION"
+.PP
+The
+\fBviewsu\fR
+command is used to become another user during a login session\&. Invoked without a
+\fBusername\fR,
+\fBviewsu\fR
+defaults to becoming the superuser\&. The optional argument
+\fB\-\fR
+may be used to provide an environment similar to what the user would expect had the user logged in directly\&.
+This command is the View-OS counterpart of the su(1) command.
+The value of
+\fB$PATH\fR
+is reset to
+/bin:/usr/bin
+for normal users, or
+/sbin:/bin:/usr/sbin:/usr/bin
+for the superuser\&. This may be changed with the
+\fIENV_PATH\fR
+and
+\fIENV_SUPATH\fR
+definitions in
+/etc/login\&.defs\&.
+.SH OPTIONS
+.PP
+The options which apply to the
+\fBviewsu\fR
+command are:
+.PP
+\fB\-c\fR, \fB\-\-command\fR \fICOMMAND\fR
+.RS 4
+Specify a command that will be invoked by the shell using its
+\fB\-c\fR\&.
+.RE
+.PP
+\fB\-\fR, \fB\-l\fR, \fB\-\-login\fR
+.RS 4
+Provide an environment similar to what the user would expect had the user logged in directly\&.
+.sp
+When
+\fB\-\fR
+is used, it must be specified as the last
+\fBviewsu\fR
+option\&. The other forms (\fB\-l\fR
+and
+\fB\-\-login\fR) do not have this restriction\&.
+.RE
+.PP
+\fB\-s\fR, \fB\-\-shell\fR \fISHELL\fR
+.RS 4
+The shell that will be invoked\&.
+.sp
+The invoked shell is chosen from (highest priority first):
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+The shell specified with \-\-shell\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.\" .el \{\
+.\" .sp -1
+.\" .IP \(bu 2.3
+.\" .\}
+.\" If
+.\" \fB\-\-preserve\-environment\fR
+.\" is used, the shell specified by the
+.\" \fB$SHELL\fR
+.\" environment variable\&.
+.\" .RE
+.\" .sp
+.\" .RS 4
+.\" .ie n \{\
+.\" \h'-04'\(bu\h'+03'\c
+.\" .\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+The shell indicated in the
+/etc/passwd
+entry for the target user\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+
+/bin/sh
+if a shell could not be found by any above method\&.
+.RE
+.RS 4
+
+.SH SEE ALSO
+.BR su(1),
+.BR linux.defs(5)
+.SH AUTHORS
+View-OS is a project of the Computer Science Department, University of
+Bologna. Project Leader: Renzo Davoli.
+.br
+<http://www.sourceforge.net/projects/view-os>
+
+Howto's and further information can be found on the project wiki
+<wiki.virtualsquare.org>.
+.SH NOTE
+Most part of the text is taken from su(1).
+
+
+
