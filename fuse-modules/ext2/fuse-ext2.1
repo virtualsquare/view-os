@@ -1,14 +1,19 @@
-.TH FUSEEXT2 "1" "May 2007" "FUSE/UMFUSE modules" "User Commands"
+.TH FUSE-EXT2 "1" "May 2007" "FUSE/UMFUSE modules" "User Commands"
 .SH NAME
-FUSEEXT2 \- FUSE module for Second Extended File System
+FUSE-EXT2 \- FUSE module for Second Extended File System
 .SH SYNOPSIS
-.B fuseext2
+.B fuse-ext2
 .RI [ OPTION ]...\&
 .I imagefile mountpoint
 .LP
-.B fuseext2
+.B fuse-ext2
 .I imagefile mountpoint
 .RI [ OPTION ]...
+.SH DESCRIPTION
+Fuse-ext2 mounts an ext2 partition or image file. It uses Fuse support 
+(Filesystem in Userspace) included in modern Linux kernels.
+The same module is available for view-os (umview(1), kmview(1)) under
+the name \fBumfuseext2\fR.
 .SH OPTIONS
 .SS "General options"
 .TP
@@ -20,10 +25,14 @@ print help
 .TP
 \fB\-V\fR   \fB\-\-version\fR
 print version
-.SS "FUSEEXT2 options:"
+.SS "FUSE-EXT2 options:"
+.TP
+\fB\-o\fR force
+force read-write mount (\fBEXPERIMENTAL\fR, the option \fBrw\fR without \fBforce\fR
+mounts the file system in read-only mode, with a warning).
 .TP
 \fB\-o\fR rw+
-enable read-write mount (\fBEXPERIMENTAL\fR)
+enable read-write mount (\fBEXPERIMENTAL\fR, is a shortcut for -o rw,force)
 .SS "FUSE options:"
 
 .TP
@@ -113,11 +122,7 @@ perform reads asynchronously (default)
 .TP
 \fB\-o sync_read\fR
 perform reads synchronously
-.SH BUGS
-The implementation for some calls (i.e. symlink() and rename()) is not present
-yet.
 .SH AUTHORS
-See \fIhttp://www.virtualsquare.org\fR.
-.SH SEE ALSO
-.BR fuseiso9660 (1)
-
+Alper Akcan <alper.akcan@gmail.com>
+Renzo Davoli <renzo@cs.unibo.it>
+See \fIhttp://sourceforge.net/projects/fuse-ext2/, http://alperakcan.org/, http://www.virtualsquare.org\fR.
