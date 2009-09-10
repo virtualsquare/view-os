@@ -1324,13 +1324,27 @@ static long umfuse_mknod(const char *path, mode_t mode, dev_t dev)
 {
 	struct fuse_context *fc = um_mod_get_private_data();
 	int rv;
+	char *unpath=unwrap(fc, path);
 	assert(fc != NULL);
 
-	if (fc->fuse->flags & FUSE_DEBUG)
-		GMESSAGE(stderr, "MKNOD [%s] => path:%s %d %d",fc->fuse->path,path,
-				major(dev),minor(dev));
-	rv = fc->fuse->fops.mknod(
-			unwrap(fc, path), mode, dev);
+	if (S_ISREG(mode)) {
+		struct fuse_file_info fi;
+		memset(&fi, 0, sizeof(fi));
+		fi.flags = O_CREAT | O_EXCL | O_WRONLY;
+		if (fc->fuse->flags & FUSE_DEBUG)
+			GMESSAGE("CREATE-mknod [%s] => path:%s",fc->fuse->path,path);
+		rv = fc->fuse->fops.create(unpath, mode, &fi);
+		if (rv >= 0) {
+			if (fc->fuse->flags & FUSE_DEBUG)
+				GMESSAGE("RELEASE-mknod [%s] => path:%s",fc->fuse->path,path);
+			fc->fuse->fops.release(unpath, &fi);
+		}
+	} else {
+		if (fc->fuse->flags & FUSE_DEBUG)
+			GMESSAGE("MKNOD [%s] => path:%s %d %d",fc->fuse->path,path,
+					major(dev),minor(dev));
+		rv = fc->fuse->fops.mknod(unpath, mode, dev);
+	}
 	if (rv < 0) {
 		errno = -rv;
 		return -1;
