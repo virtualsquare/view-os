@@ -1008,6 +1008,11 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 		}
 	}
 
+	if ((flags & O_CREAT) && (flags & O_EXCL) && exists_err == 0) {
+		errno= EEXIST;
+		goto error;
+	}
+
 	if(exists_err == 0 && (flags & O_TRUNC) && (flags & O_ACCMODE)!= O_RDONLY) {
 		rv=fc->fuse->fops.truncate(ft->path, 0);
 		if (rv < 0) {
@@ -1015,26 +1020,25 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 			goto error;
 		}
 	}
-	if (flags == (O_CREAT|O_WRONLY|O_TRUNC) && fc->fuse->fops.create != NULL) {
-		rv = fc->fuse->fops.create(ft->path, mode, &ft->ffi);
-	} else
-	{
-		if (flags & O_CREAT) { 
-			if (exists_err == 0) {
-				if (flags & O_EXCL) {
-					errno= EEXIST;
-					goto error;
-				} 
-			} else {
-				GDEBUG(10, "umfuse open MKNOD call");
-				rv = fc->fuse->fops.mknod(ft->path, S_IFREG | mode, (dev_t) 0);
-				if (rv < 0) {
-					errno = -rv;
-					goto error;
-				}
+
+	/* create the file: create or (obsolete mode) mknod+open */
+	if ((flags & O_CREAT) && (exists_err != 0)){ 
+		GDEBUG(10, "umfuse create/mknod call");
+		if (fc->fuse->fops.create != NULL) {
+			if (fc->fuse->flags & FUSE_DEBUG) 
+				GMESSAGE("CREATE[%s] => path:%s mode:0x%x", fc->fuse->path, path, mode);
+			rv = fc->fuse->fops.create(ft->path, S_IFREG | mode, &ft->ffi);
+		} else {
+			if (fc->fuse->flags & FUSE_DEBUG) 
+				GMESSAGE("MKNOD[%s] => path:%s mode:0x%x", fc->fuse->path, path, mode);
+			rv = fc->fuse->fops.mknod(ft->path, S_IFREG | mode, (dev_t) 0);
+			if (rv < 0) {
+				errno = -rv;
+				goto error;
 			}
+			rv = fc->fuse->fops.open(ft->path, &ft->ffi);
 		}
-		GDEBUG(10,"open_fuse_filesystem CALL!");
+	} else { /* the file exists! */
 		if ((flags & O_DIRECTORY) && fc->fuse->fops.readdir)
 			rv = fc->fuse->fops.opendir(ft->path, &ft->ffi);
 		else 
