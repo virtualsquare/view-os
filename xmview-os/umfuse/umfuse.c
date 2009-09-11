@@ -55,6 +55,7 @@
 #include <sys/statfs.h>
 #include <sys/statvfs.h>
 #include <config.h>
+#include <umfuse_node.h>
 
 #define UMFUSE_FUSE_VERSION 26
 
@@ -129,14 +130,16 @@ struct umdirent {
 
 struct fileinfo {
 	struct fuse_context *context;
-	char *path;						
+	//char *path;						
 	long long pos;				/* file offset */
 	long long size;				/* file offset */
 	struct fuse_file_info ffi;		/* includes open flags, file handle and page_write mode  */
+	struct fuse_node *node;
 	struct umdirent *dirinfo;		/* conversion fuse-getdir into kernel compliant
 																 dirent. Dir head pointer */
 	struct umdirent *dirpos;		/* same conversion above: current pos entry */
 };
+#define FILEPATH(f) ((f)->node->path)
 
 int fuse_version(void) {
 	return UMFUSE_FUSE_VERSION;
@@ -836,11 +839,11 @@ static struct umdirent *umfilldirinfo(struct fileinfo *fi)
 	dh.tail=NULL;
 	dh.offset=0;
 	if (fc->fuse->fops.readdir)
-		rv=fc->fuse->fops.readdir(fi->path,&dh, umfusefillreaddir, 0, &fi->ffi);
+		rv=fc->fuse->fops.readdir(FILEPATH(fi),&dh, umfusefillreaddir, 0, &fi->ffi);
 	else
-		rv=fc->fuse->fops.getdir(fi->path, &dh, umfusefilldir);
+		rv=fc->fuse->fops.getdir(FILEPATH(fi), &dh, umfusefilldir);
 	if (fc->fuse->flags & FUSE_MERGE && rv>=0) 
-		um_mergedir(fi->path,fc,&dh);
+		um_mergedir(FILEPATH(fi),fc,&dh);
 	if (rv < 0)
 		return NULL;
 	else 
@@ -928,6 +931,7 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 	int rv;
 	int exists_err;
 	struct stat buf;
+	char *unpath = unwrap(fc, path);
 	assert(fc!=NULL);
 	fc->pid=um_mod_getpid();
 
@@ -974,10 +978,10 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 	ft->pos = 0;
 	ft->ffi.flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
 	ft->ffi.writepage = 0; //XXX do we need writepage != 0?
+	ft->node = NULL;
 	ft->dirinfo = NULL;
 	ft->dirpos = NULL;
-	ft->path = strdup(unwrap(fc, path));
-	exists_err = fc->fuse->fops.getattr(ft->path, &buf);
+	exists_err = fc->fuse->fops.getattr(unpath, &buf);
 	ft->size = buf.st_size;
 
 	if ((flags & O_ACCMODE) != O_RDONLY && fc->fuse->flags & MS_RDONLY) {
@@ -1014,7 +1018,7 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 	}
 
 	if(exists_err == 0 && (flags & O_TRUNC) && (flags & O_ACCMODE)!= O_RDONLY) {
-		rv=fc->fuse->fops.truncate(ft->path, 0);
+		rv=fc->fuse->fops.truncate(unpath, 0);
 		if (rv < 0) {
 			errno = -rv;
 			goto error;
@@ -1027,22 +1031,28 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 		if (fc->fuse->fops.create != NULL) {
 			if (fc->fuse->flags & FUSE_DEBUG) 
 				GMESSAGE("CREATE[%s] => path:%s mode:0x%x", fc->fuse->path, path, mode);
-			rv = fc->fuse->fops.create(ft->path, S_IFREG | mode, &ft->ffi);
+			rv = fc->fuse->fops.create(unpath, S_IFREG | mode, &ft->ffi);
 		} else {
 			if (fc->fuse->flags & FUSE_DEBUG) 
 				GMESSAGE("MKNOD[%s] => path:%s mode:0x%x", fc->fuse->path, path, mode);
-			rv = fc->fuse->fops.mknod(ft->path, S_IFREG | mode, (dev_t) 0);
+			rv = fc->fuse->fops.mknod(unpath, S_IFREG | mode, (dev_t) 0);
 			if (rv < 0) {
 				errno = -rv;
 				goto error;
 			}
-			rv = fc->fuse->fops.open(ft->path, &ft->ffi);
+			rv = fc->fuse->fops.open(unpath, &ft->ffi);
+		}
+		if (rv >= 0) {
+			if (fc->fuse->fops.fgetattr != NULL)
+				rv = fc->fuse->fops.fgetattr(unpath, &buf, &ft->ffi);
+			else
+				rv = fc->fuse->fops.getattr(unpath, &buf);
 		}
 	} else { /* the file exists! */
 		if ((flags & O_DIRECTORY) && fc->fuse->fops.readdir)
-			rv = fc->fuse->fops.opendir(ft->path, &ft->ffi);
+			rv = fc->fuse->fops.opendir(unpath, &ft->ffi);
 		else 
-			rv = fc->fuse->fops.open(ft->path, &ft->ffi);
+			rv = fc->fuse->fops.open(unpath, &ft->ffi);
 	}
 
 	if (rv < 0)
@@ -1059,12 +1069,11 @@ static long umfuse_open(char *path, int flags, mode_t mode)
 					fc->fuse->path, fd, path, flags);
 		}
 
-		/* TODO update fuse->inuse++ */
+		ft->node = node_add(fc->fuse, unpath);
 		fc->fuse->inuse++;
 		return fd;
 	}
 error:
-	free(ft->path);
 	delfiletab(fd);
 	return -1;
 }
@@ -1078,30 +1087,38 @@ static long umfuse_close(int fd)
 	fc->pid=um_mod_getpid();
 
 	if (fc->fuse->flags & FUSE_DEBUG) {
-		GMESSAGE("CLOSE[%s:%d] %s %p",fc->fuse->path,fd,ft->path,fc);
+		GMESSAGE("CLOSE[%s:%d] %s %p",fc->fuse->path,fd,FILEPATH(ft),fc);
 	}
 
 	if (!(ft->ffi.flags & O_DIRECTORY)) {
-		rv=fc->fuse->fops.flush(ft->path, &ft->ffi);
+		rv=fc->fuse->fops.flush(FILEPATH(ft), &ft->ffi);
 
 		if (fc->fuse->flags & FUSE_DEBUG) {
 			GMESSAGE("FLUSH[%s:%d] => path:%s",
-					fc->fuse->path, fd, ft->path);
+					fc->fuse->path, fd, FILEPATH(ft));
 		}
 	}
 
-	GDEBUG(10,"->CLOSE %s %d",ft->path, ft->count);
+	GDEBUG(10,"->CLOSE %s %d",FILEPATH(ft), ft->count);
 	fc->fuse->inuse--;
 	if ((ft->ffi.flags & O_DIRECTORY) && fc->fuse->fops.readdir)
-		rv = fc->fuse->fops.releasedir(ft->path, &ft->ffi);
+		rv = fc->fuse->fops.releasedir(FILEPATH(ft), &ft->ffi);
 	else
-		rv=fc->fuse->fops.release(ft->path, &ft->ffi);
+		rv=fc->fuse->fops.release(FILEPATH(ft), &ft->ffi);
 	if (fc->fuse->flags & FUSE_DEBUG) {
 		GMESSAGE("RELEASE[%s:%d] => path:%s flags:0x%x",
-				fc->fuse->path, fd, ft->path, fc->fuse->flags);
+				fc->fuse->path, fd, FILEPATH(ft), fc->fuse->flags);
 	}
+	if (node_hiddenpathcheck(ft->node)) {
+		rv = fc->fuse->fops.unlink(FILEPATH(ft));
+		if (fc->fuse->flags & FUSE_DEBUG) {
+			GMESSAGE("UNLINK[%s:%d] => path:%s flags:0x%x",
+					fc->fuse->path, fd, FILEPATH(ft), fc->fuse->flags);
+		}
+	}
+
+	node_del(ft->node);
 	umcleandirinfo(ft->dirinfo);
-	free(ft->path);
 	delfiletab(fd);
 	if (rv<0) {
 		errno= -rv;
@@ -1124,14 +1141,14 @@ static long umfuse_read(int fd, void *buf, size_t count)
 		struct fuse_context *fc=ft->context;
 		fc->pid=um_mod_getpid();
 		rv = fc->fuse->fops.read(
-				ft->path,
+				FILEPATH(ft),
 				buf,
 				count,
 				ft->pos,
 				&ft->ffi);
 		if (fc->fuse->flags & FUSE_DEBUG) {
 			GMESSAGE("READ[%s:%d] => path:%s count:%u rv:%d",
-					fc->fuse->path,fd, ft->path, count, rv);
+					fc->fuse->path,fd, FILEPATH(ft), count, rv);
 		}
 		if (rv<0) {
 			errno= -rv;
@@ -1164,19 +1181,19 @@ static long umfuse_write(int fd, void *buf, size_t count)
 		if (ft->ffi.flags & O_APPEND)
 			rv=umfuse_lseek64(fd,0,SEEK_END);
 		if (rv!=-1) {
-			rv = fc->fuse->fops.write(ft->path,
+			rv = fc->fuse->fops.write(FILEPATH(ft),
 					buf, count, ft->pos, &ft->ffi);
 		}
 		if (fc->fuse->flags & FUSE_DEBUG) {
 			GMESSAGE("WRITE[%s:%d] => path:%s count:0x%x rv:%d",
-					fc->fuse->path, fd, ft->path, count, rv);
+					fc->fuse->path, fd, FILEPATH(ft), count, rv);
 		}
 
 		GDEBUG(10,"WRITE rv:%d",rv); 
 
 		//		if (fc->fuse->flags & FUSE_DEBUG)
 		//      		fprintf(stderr, "WRITE[%lu] => path:%s count:0x%x\n",
-		//				ft->ffi.fh, ft->path, count);
+		//				ft->ffi.fh, FILEPATH(ft), count);
 		//printf("WRITE%s[%lu] %u bytes to %llu\n",
 		// (arg->write_flags & 1) ? "PAGE" : "",
 		// (unsigned long) arg->fh, arg->size, arg->offset);
@@ -1198,6 +1215,7 @@ static int stat2stat64(struct stat64 *s64, struct stat *s)
 	s64->st_nlink= s->st_nlink;
 	s64->st_uid= s->st_uid;
 	s64->st_gid= s->st_gid;
+	
 	s64->st_rdev= s->st_rdev;
 	s64->st_size= s->st_size;
 	s64->st_blksize= s->st_blksize;
@@ -1218,38 +1236,37 @@ static inline unsigned long hashnodeid (const char *s) {
 	return sum;
 }
 
-static inline int common_stat(char *path,  struct stat *buf)
+static long umfuse_lstat64(char *path, struct stat64 *buf64, int fd)
 {
-	int rv;
 	struct fuse_context *fc=um_mod_get_private_data();
-	//printk("FUSESTAT%s\n",path);
-	assert(fc != NULL);
+	int rv;
+	struct stat buf;
+	char *unpath;
+	if (fd >= 0) {
+		struct fileinfo *ft=getfiletab(fd);
+		unpath=FILEPATH(ft);
+	} else
+		unpath=unwrap(fc,path);
+
 	fc->pid=um_mod_getpid();
-	memset(buf, 0, sizeof(struct stat));
-	rv = fc->fuse->fops.getattr(unwrap(fc,path),buf);
+	memset(&buf, 0, sizeof(struct stat));
+	rv = fc->fuse->fops.getattr(unpath, &buf);
 	if (fc->fuse->flags & FUSE_DEBUG) {
 		GMESSAGE("%s: stat->GETATTR => path:%s status: %s Err:%d",
 				fc->fuse->path, path, rv ? "Error" : "Success", (rv < 0) ? -rv : 0);
 	}
-	/*heuristics for file system which does not set st_ino */
-	if (buf->st_ino == 0)
-		buf->st_ino=(ino_t) hashnodeid(path);
-	/*heuristics for file system which does not set st_dev */
-	if (buf->st_dev == 0)
-		buf->st_dev=(dev_t) fc;
 	if (rv<0) {
 		errno= -rv;
 		return -1;
-	} else
-		return rv;
-}
-
-static long umfuse_lstat64(char *path, struct stat64 *buf64)
-{
-	int rv;
-	struct stat buf;
-	if ((rv=common_stat(path,&buf))>=0)
+	} else {
+		/*heuristics for file system which does not set st_ino */
+		if (buf.st_ino == 0)
+			buf.st_ino=(ino_t) hashnodeid(path);
+		/*heuristics for file system which does not set st_dev */
+		if (buf.st_dev == 0)
+			buf.st_dev=(dev_t) fc;
 		stat2stat64(buf64,&buf);
+	}
 	return rv;
 }
 
@@ -1326,6 +1343,11 @@ static long umfuse_mknod(const char *path, mode_t mode, dev_t dev)
 	int rv;
 	char *unpath=unwrap(fc, path);
 	assert(fc != NULL);
+
+	if (fc->fuse->flags & MS_RDONLY) {
+		errno = EROFS;
+		return -1;
+	}
 
 	if (S_ISREG(mode)) {
 		struct fuse_file_info fi;
@@ -1421,11 +1443,17 @@ static long umfuse_rmdir(char *path)
 		return rv;
 }
 
-static long umfuse_chmod(char *path, int mode)
+static long umfuse_chmod(char *path, int mode, int fd)
 {
 	struct fuse_context *fc = um_mod_get_private_data();
 	int rv;
+	char *unpath;
 	assert(fc != NULL);
+	if (fd >= 0) {
+		struct fileinfo *ft=getfiletab(fd);
+		unpath=FILEPATH(ft);
+	} else
+		unpath=unwrap(fc,path);
 	if (fc->fuse->flags & MS_RDONLY) {
 		errno = EROFS;
 		return -1;
@@ -1433,7 +1461,7 @@ static long umfuse_chmod(char *path, int mode)
 
 	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) {
-		rv=check_owner(unwrap(fc,path));
+		rv=check_owner(unpath);
 		if (rv<0) {
 			errno=-rv;
 			return -1;
@@ -1444,8 +1472,7 @@ static long umfuse_chmod(char *path, int mode)
 	if (fc->fuse->flags & FUSE_DEBUG) {
 		GMESSAGE("CHMOD [%s] => path:%s",fc->fuse->path,path);
 	}
-	rv= fc->fuse->fops.chmod(
-			unwrap(fc ,path), mode);
+	rv= fc->fuse->fops.chmod(unpath, mode);
 	if (rv < 0) {
 		errno = -rv;
 		return -1;
@@ -1453,11 +1480,18 @@ static long umfuse_chmod(char *path, int mode)
 	return rv;
 }
 
-static long umfuse_lchown(char *path, uid_t owner, gid_t group)
+static long umfuse_lchown(char *path, uid_t owner, gid_t group, int fd)
 {
 	struct fuse_context *fc = um_mod_get_private_data();
 	int rv=0;
+	char *unpath;
 	assert(fc != NULL);
+	if (fd >= 0) {
+		struct fileinfo *ft=getfiletab(fd);
+		unpath=FILEPATH(ft);
+	} else
+		unpath=unwrap(fc,path);
+
 	if (fc->fuse->flags & MS_RDONLY) {
 		errno = EROFS;
 		return -1;
@@ -1466,7 +1500,7 @@ static long umfuse_lchown(char *path, uid_t owner, gid_t group)
 	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) {
 		if ( (fc->uid != 0) && (fc->uid != owner)) rv=-EPERM;
-		if (rv>=0) rv=check_owner(unwrap(fc,path));
+		if (rv>=0) rv=check_owner(unpath);
 		if (rv>=0) rv=check_group(group);
 		if (rv<0) {
 			errno=-rv;
@@ -1475,8 +1509,7 @@ static long umfuse_lchown(char *path, uid_t owner, gid_t group)
 	}
 
 	fc->pid=um_mod_getpid();
-	rv = fc->fuse->fops.chown(
-			unwrap(fc, path), owner, group);
+	rv = fc->fuse->fops.chown(unpath, owner, group);
 	if (rv < 0) {
 		errno = -rv;
 		return -1;
@@ -1488,6 +1521,11 @@ static long umfuse_unlink(char *path)
 {
 	struct fuse_context *fc=um_mod_get_private_data();
 	int rv=0;
+	char *unpath=unwrap(fc, path);
+	int exists_err;
+	struct fuse_node *node;
+	struct stat buf;
+
 	assert(fc != NULL);
 	if (fc->fuse->flags & MS_RDONLY) {
 		errno = EROFS;
@@ -1496,7 +1534,7 @@ static long umfuse_unlink(char *path)
 
 	/* HUMAN */
 	if (fc->fuse->flags & FUSE_HUMAN) {
-		rv=check_owner(unwrap(fc,path));
+		rv=check_owner(unpath);
 		if (rv<0) {
 			errno=-rv;
 			return -1;
@@ -1510,11 +1548,32 @@ static long umfuse_unlink(char *path)
 		}
 	}
 
-	fc->pid=um_mod_getpid();
-	if (fc->fuse->flags & FUSE_DEBUG)
-		GMESSAGE("UNLINK [%s] => path:%s",fc->fuse->path,path);
-	rv = fc->fuse->fops.unlink(
-			unwrap(fc, path));
+	if ((exists_err = fc->fuse->fops.getattr(unpath, &buf)) < 0) {
+		errno = ENOENT;
+		return -1;
+	}
+	
+	/* hardremove or the file is not open -> unlink */
+	/* printk("UNLINK %d %d %d\n",
+			fc->fuse->flags & FUSE_HARDREMOVE,
+			fc->fuse->fops.rename == NULL,
+			(node = node_search(fc->fuse, unpath)) == NULL);*/
+	if (fc->fuse->flags & FUSE_HARDREMOVE || fc->fuse->fops.rename == NULL ||
+			(node = node_search(fc->fuse, unpath)) == NULL) {
+		fc->pid=um_mod_getpid();
+		if (fc->fuse->flags & FUSE_DEBUG)
+			GMESSAGE("UNLINK [%s] => path:%s",fc->fuse->path,path);
+		rv = fc->fuse->fops.unlink(unpath);
+	} else {
+		/* rename the file ! */
+		char *hiddenpath=node_hiddenpath(node);
+		if (fc->fuse->flags & FUSE_DEBUG)
+			GMESSAGE("UNLINK-rename [%s] => path:%s %s",fc->fuse->path,path,hiddenpath);
+		rv = fc->fuse->fops.rename(unpath,hiddenpath);
+		if (rv == 0) 
+			node_newpath(node,hiddenpath);
+		free(hiddenpath);
+	}
 	if (rv < 0) {
 		errno = -rv;
 		return -1;
@@ -1571,7 +1630,7 @@ static long umfuse_fsync(int fd)
 	int rv;
 	assert(fc != NULL);
 	if (fc->fuse->flags & FUSE_DEBUG)
-	fprintf(stderr, "FSYNC => path:%s:\n",ft->path);
+	fprintf(stderr, "FSYNC => path:%s:\n",FILEPATH(ft));
 	rv = fc->fuse->fops.fsync(fd);
 	if (rv < 0) {
 	errno = -rv;
@@ -1586,6 +1645,8 @@ static long umfuse_rename(char *oldpath, char *newpath)
 {
 	struct fuse_context *fc=um_mod_get_private_data();
 	int rv=0;
+	char *unoldpath=unwrap(fc, oldpath);
+	char *unnewpath=unwrap(fc, newpath);
 	assert(fc != NULL);
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->flags & FUSE_DEBUG) {
@@ -1602,15 +1663,27 @@ static long umfuse_rename(char *oldpath, char *newpath)
 		}
 	}
 
-	rv = fc->fuse->fops.rename(
-			unwrap(fc, oldpath),
-			unwrap(fc, newpath));
+	rv = fc->fuse->fops.rename(unoldpath,unnewpath);
 
 	if (rv < 0) {
 		errno = -rv;
 		return -1;
-	} else
+	} else {
+		struct fuse_node *oldnode=node_search(fc->fuse,unoldpath);
+		struct fuse_node *newnode=node_search(fc->fuse,unnewpath);
+		if (newnode != NULL) {
+			char *hiddenpath=node_hiddenpath(newnode);
+			if (fc->fuse->flags & FUSE_DEBUG)
+				GMESSAGE("UNLINK-hide [%s] => path:%s %s",fc->fuse->path,newpath,hiddenpath);
+			rv = fc->fuse->fops.rename(newpath,hiddenpath);
+			if (rv == 0)
+				node_newpath(newnode,hiddenpath);
+			free(hiddenpath);
+		}
+		if (oldnode != NULL)
+			node_newpath(oldnode,newpath);
 		return rv;	
+	}
 }
 
 static long umfuse_symlink(char *oldpath, char *newpath)
@@ -1716,14 +1789,14 @@ static long umfuse_ftruncate64(int fd, off_t length)
 		return -1;
 	}
 	if (fc->fuse->fops.ftruncate == NULL)
-		return umfuse_truncate64(ft->path,length);
+		return umfuse_truncate64(FILEPATH(ft),length);
 	else {
 		int rv;
 		fc->pid=um_mod_getpid();
 		rv = fc->fuse->fops.ftruncate(
-				ft->path,(off_t)length,&ft->ffi);
+				FILEPATH(ft),(off_t)length,&ft->ffi);
 		if (fc->fuse->flags & FUSE_DEBUG) {
-			GMESSAGE("FTRUNCATE [%s] debug => path %s",fc->fuse->path,ft->path);		
+			GMESSAGE("FTRUNCATE [%s] debug => path %s",fc->fuse->path,FILEPATH(ft));		
 		}
 		if (rv < 0) {
 			errno = -rv;
@@ -1796,14 +1869,14 @@ static ssize_t umfuse_pread64(int fd, void *buf, size_t count, long long offset)
 		struct fuse_context *fc=ft->context;
 		fc->pid=um_mod_getpid();
 		rv = fc->fuse->fops.read(
-				ft->path,
+				FILEPATH(ft),
 				buf,
 				count,
 				offset,
 				&ft->ffi);
 		if (fc->fuse->flags & FUSE_DEBUG) {
 			GMESSAGE("PREAD[%s:%d] => path:%s count:%u pos:%lld rv:%d",
-					fc->fuse->path,fd, ft->path, count, offset, rv);
+					fc->fuse->path,fd, FILEPATH(ft), count, offset, rv);
 		}
 		if (rv<0) {
 			errno= -rv;
@@ -1825,11 +1898,11 @@ static ssize_t umfuse_pwrite64(int fd, const void *buf, size_t count, long long 
 	} else {
 		struct fuse_context *fc=ft->context;
 		fc->pid=um_mod_getpid();
-		rv = fc->fuse->fops.write(ft->path,
+		rv = fc->fuse->fops.write(FILEPATH(ft),
 				buf, count, offset, &ft->ffi);
 		if (fc->fuse->flags & FUSE_DEBUG) {
 			GMESSAGE("PWRITE[%s:%d] => path:%s count:%u pos:%lld rv:%d",
-					fc->fuse->path, fd, ft->path, count, offset, rv);
+					fc->fuse->path, fd, FILEPATH(ft), count, offset, rv);
 		}
 		if (rv<0) {
 			errno= -rv;
@@ -1877,7 +1950,7 @@ static loff_t umfuse_lseek64(int fd, loff_t offset, int whence)
 				assert(fc != NULL);
 
 				fc->pid=um_mod_getpid();
-				rv = fc->fuse->fops.getattr(ft->path,&buf);
+				rv = fc->fuse->fops.getattr(FILEPATH(ft),&buf);
 				if (rv>=0) {
 					ft->pos = buf.st_size + offset;
 				} else {
