@@ -124,7 +124,7 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdo
 		retval = r_lstat64(filename,buf);
 	} else {
 		pc->hte=hte;
-		retval = ht_syscall(hte,uscno(NR64_lstat))(filename,buf,pc);
+		retval = ht_syscall(hte,uscno(NR64_lstat))(filename,buf,-1);
 	}
 	/* internal nested call restore data */
 	//printk("%s %lld->%lld\n",filename,epoch,pc->nestepoch);
@@ -150,7 +150,7 @@ int um_xx_access(char *filename, int mode, struct pcb *pc)
 		retval = r_access(filename,mode);
 	else{
 		pc->hte=hte;
-		retval = ht_syscall(hte,uscno(__NR_access))(filename,mode,pc);
+		retval = ht_syscall(hte,uscno(__NR_access))(filename,mode);
 	}
 	/* internal nested call restore data */
 	pc->sysscno=oldscno;
@@ -173,7 +173,7 @@ int um_x_access(char *filename, int mode, struct pcb *pc)
 	else {
 		epoch_t epoch=pc->nestepoch;
 		pc->nestepoch=ht_get_epoch(pc->hte);
-		retval = ht_syscall(pc->hte,uscno(__NR_access))(filename,mode,pc);
+		retval = ht_syscall(pc->hte,uscno(__NR_access))(filename,mode);
 		pc->nestepoch=epoch;
 	}
 	/* internal nested call restore data */
@@ -195,7 +195,7 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
 	else {
 		epoch_t epoch=pc->nestepoch;
 		pc->nestepoch=ht_get_epoch(pc->hte);
-		retval = ht_syscall(pc->hte,uscno(__NR_readlink))(path,buf,bufsiz,pc);
+		retval = ht_syscall(pc->hte,uscno(__NR_readlink))(path,buf,bufsiz);
 		pc->nestepoch=epoch;
 	}
 	/* internal nested call restore data */

@@ -139,7 +139,7 @@ int wrap_in_chown(int sc_number,struct pcb *pc,
 		group=id16to32(group);
 	}
 #endif
-	if ((pc->retval = um_syscall(pc->path,owner,group)) < 0)
+	if ((pc->retval = um_syscall(pc->path,owner,group,-1)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }
@@ -154,6 +154,7 @@ int wrap_in_fchown(int sc_number,struct pcb *pc,
 		return SC_FAKE;
 	} else {
 		unsigned int owner,group;
+		int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 		owner=pc->sysargs[1];
 		group=pc->sysargs[2];
 #if __NR_fchown != __NR_fchown32
@@ -162,7 +163,7 @@ int wrap_in_fchown(int sc_number,struct pcb *pc,
 			group=id16to32(group);
 		}
 #endif
-		if ((pc->retval = um_syscall(path,owner,group)) < 0)
+		if ((pc->retval = um_syscall(path,owner,group,sfd)) < 0)
 			pc->erno=errno;
 		return SC_FAKE;
 	}
@@ -178,7 +179,7 @@ int wrap_in_chmod(int sc_number,struct pcb *pc,
 	else
 #endif
 		mode=pc->sysargs[1];
-	if ((pc->retval = um_syscall(pc->path,mode)) < 0)
+	if ((pc->retval = um_syscall(pc->path,mode,-1)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }
@@ -193,8 +194,9 @@ int wrap_in_fchmod(int sc_number,struct pcb *pc,
 		return SC_FAKE;
 	} else {
 		int mode;
+		int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 		mode=pc->sysargs[1];
-		if ((pc->retval = um_syscall(path,mode)) < 0)
+		if ((pc->retval = um_syscall(path,mode,sfd)) < 0)
 			pc->erno=errno;
 		return SC_FAKE;
 	}

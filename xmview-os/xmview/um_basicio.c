@@ -459,7 +459,7 @@ int wrap_in_stat(int sc_number,struct pcb *pc,
 	long pbuf=pc->sysargs[1];
 	struct stat64 buf64;
 
-	pc->retval = um_syscall(pc->path,&buf64);
+	pc->retval = um_syscall(pc->path,&buf64,-1);
 	if (pc->retval >= 0) {
 		struct kstat kbuf;
 		stat64_2kstat(&buf64,&kbuf);
@@ -479,7 +479,8 @@ int wrap_in_fstat(int sc_number,struct pcb *pc,
 		pc->erno= EBADF;
 	} else {
 		struct stat64 buf64;
-		if ((pc->retval = um_syscall(path,&buf64)) >= 0) {
+		int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
+		if ((pc->retval = um_syscall(path,&buf64,sfd)) >= 0) {
 			struct kstat kbuf;
 			stat64_2kstat(&buf64,&kbuf);
 			ustoren(pc,pbuf,sizeof(struct kstat),(char *)&kbuf);
@@ -505,12 +506,13 @@ int wrap_in_stat64(int sc_number,struct pcb *pc,
 #endif
 		 ) {
 		pbuf=pc->sysargs[2];
-		if (pc->sysargs[3] & AT_SYMLINK_NOFOLLOW) 
-			um_syscall=ht_syscall(hte,uscno(NR64_lstat));
+		/* it is lstat anyway.
+			 if (pc->sysargs[3] & AT_SYMLINK_NOFOLLOW) 
+			um_syscall=ht_syscall(hte,uscno(NR64_lstat)); */
 	} else
 #endif
 	pbuf=pc->sysargs[1];
-	if ((pc->retval = um_syscall(pc->path,&buf)) >= 0)
+	if ((pc->retval = um_syscall(pc->path,&buf,-1)) >= 0)
 		ustoren(pc,pbuf,sizeof(struct stat64),&buf);
 	else
 		pc->erno=errno;
@@ -527,7 +529,8 @@ int wrap_in_fstat64(int sc_number,struct pcb *pc,
 		pc->erno= EBADF;
 	} else {
 		struct stat64 buf;
-		if ((pc->retval = um_syscall(path,&buf)) >= 0)
+		int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
+		if ((pc->retval = um_syscall(path,&buf,sfd)) >= 0)
 			ustoren(pc,pbuf,sizeof(struct stat64),&buf);
 		else
 			pc->erno=errno;
@@ -830,7 +833,7 @@ int wrap_in_getxattr(int sc_number, struct pcb *pc,
 	buf = alloca(size);
 
 	umovestr(pc,pname,XATTR_NAME_MAX,name);
-	if ((pc->retval = um_syscall(pc->path, name, buf, size)) >= 0)
+	if ((pc->retval = um_syscall(pc->path, name, buf, size, -1)) >= 0)
 		ustoren(pc, pbuf, size, buf);
 	else
 		pc->erno = errno;
@@ -846,13 +849,14 @@ int wrap_in_fgetxattr(int sc_number, struct pcb *pc,
 	size_t size = pc->sysargs[3];
 	char name[XATTR_NAME_MAX];
 	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	char *buf;
 
 	if (size > XATTR_SIZE_MAX) size=XATTR_SIZE_MAX;
 	buf = alloca(size);
 
 	umovestr(pc,pname,XATTR_NAME_MAX,name);
-	if ((pc->retval = um_syscall(path, name, buf, size)) >= 0)
+	if ((pc->retval = um_syscall(path, name, buf, size, sfd)) >= 0)
 		ustoren(pc, pbuf, size, buf);
 	else
 		pc->erno = errno;
@@ -877,7 +881,7 @@ int wrap_in_setxattr(int sc_number, struct pcb *pc,
 	umovestr(pc,pname,XATTR_NAME_MAX,name);
 	umoven(pc,pbuf,size,buf);
 
-	if ((pc->retval = um_syscall(pc->path, name, buf, size, flags)) < 0)
+	if ((pc->retval = um_syscall(pc->path, name, buf, size, flags, -1)) < 0)
 		pc->erno = errno;
 
 	return SC_FAKE; 
@@ -892,6 +896,7 @@ int wrap_in_fsetxattr(int sc_number, struct pcb *pc,
 	int flags = pc->sysargs[4];
 	char name[XATTR_NAME_MAX];
 	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	char *buf;
 
 	if (size > XATTR_SIZE_MAX) size=XATTR_SIZE_MAX;
@@ -900,7 +905,7 @@ int wrap_in_fsetxattr(int sc_number, struct pcb *pc,
 	umovestr(pc,pname,XATTR_NAME_MAX,name);
 	umoven(pc,pbuf,size,buf);
 
-	if ((pc->retval = um_syscall(path, name, buf, size, flags)) < 0)
+	if ((pc->retval = um_syscall(path, name, buf, size, flags, sfd)) < 0)
 		pc->erno = errno;
 
 	return SC_FAKE; 
@@ -916,7 +921,7 @@ int wrap_in_listxattr(int sc_number, struct pcb *pc,
 	if (size > XATTR_LIST_MAX) size=XATTR_LIST_MAX;
 	buf = alloca(size);
 
-	if ((pc->retval = um_syscall(pc->path, buf, size)) >= 0)
+	if ((pc->retval = um_syscall(pc->path, buf, size, -1)) >= 0)
 		ustoren(pc, pbuf, size, buf);
 	else
 		pc->erno = errno;
@@ -931,12 +936,13 @@ int wrap_in_flistxattr(int sc_number, struct pcb *pc,
 	long pbuf = pc->sysargs[1];
 	size_t size = pc->sysargs[2];
 	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	char *buf;
 
 	if (size > XATTR_LIST_MAX) size=XATTR_LIST_MAX;
 	buf = alloca(size);
 
-	if ((pc->retval = um_syscall(path, buf, size)) >= 0)
+	if ((pc->retval = um_syscall(path, buf, size, sfd)) >= 0)
 		ustoren(pc, pbuf, size, buf);
 	else
 		pc->erno = errno;
@@ -951,7 +957,7 @@ int wrap_in_removexattr(int sc_number, struct pcb *pc,
 	char name[XATTR_NAME_MAX];
 
 	umovestr(pc,pname,XATTR_NAME_MAX,name);
-	if ((pc->retval = um_syscall(pc->path, name)) < 0)
+	if ((pc->retval = um_syscall(pc->path, name, -1)) < 0)
 		pc->erno = errno;
 
 	return SC_FAKE;
@@ -963,9 +969,10 @@ int wrap_in_fremovexattr(int sc_number, struct pcb *pc,
 	long pname = pc->sysargs[1];
 	char name[XATTR_NAME_MAX];
 	char *path =fd_getpath(pc->fds,pc->sysargs[0]);
+	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 
 	umovestr(pc,pname,XATTR_NAME_MAX,name);
-	if ((pc->retval = um_syscall(path, name)) < 0)
+	if ((pc->retval = um_syscall(path, name, sfd)) < 0)
 		pc->erno = errno;
 
 	return SC_FAKE;
