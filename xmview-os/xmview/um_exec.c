@@ -323,7 +323,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		} else 
 			return SC_FAKE;
 	} else 
-		if (__builtin_expect(pc->needs_dotdot_path_rewrite,0)) {
+		if (__builtin_expect(pc->needs_path_rewrite,0)) {
 			um_x_rewritepath(pc,pc->path,0,0);
 			return SC_CALLONXIT;
 		} else

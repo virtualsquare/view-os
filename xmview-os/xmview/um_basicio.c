@@ -86,8 +86,8 @@ int wrap_in_open(int sc_number,struct pcb *pc,
 		} else
 			return SC_FAKE;
 	} else {
-		if (__builtin_expect(pc->needs_dotdot_path_rewrite,0)) {
-			// printk("needs_dotdot_path_rewrite OPEN %s %d\n",pc->path,pc->sysscno);
+		if (__builtin_expect(pc->needs_path_rewrite,0)) {
+			// printk("needs_path_rewrite OPEN %s %d\n",pc->path,pc->sysscno);
 #ifdef __NR_openat
 			um_x_rewritepath(pc,pc->path,(sc_number == __NR_openat)?1:0,0);
 #else

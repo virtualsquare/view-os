@@ -20,7 +20,7 @@ void *tmpfile2unlink_n_free;
 uid_t ruid,euid,suid,fsuid;
 gid_t rgid,egid,sgid,fsgid;
 uint16_t private_scno;
-uint8_t needs_dotdot_path_rewrite;
+uint8_t needs_path_rewrite;
 #endif
 
 #ifdef _PCB_ONLY_FIELDS
