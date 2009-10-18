@@ -311,7 +311,7 @@ static int um_mmap_getstat(char *filename, struct ht_elem *hte, struct stat64 *b
  if (hte == NULL)
 	 return r_lstat64(filename,buf);
  else
-	 return ht_syscall(hte,uscno(NR64_lstat))(filename,buf,pc);
+	 return ht_syscall(hte,uscno(NR64_lstat))(filename,buf,-1);
 }
 
 /* add_mmap_secret copies the virtual mmap-ed file in a section of the
