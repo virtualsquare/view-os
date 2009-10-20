@@ -93,7 +93,7 @@ struct sc_map {
 	unsigned char setofcall;
 };
 
-#define NARGS(X) (X & 0x7)
+#define NARGS(X) ((int)(X & 0x7))
 #define ISPATHARG(X) ((X >> 3) & 0x7)
 #define PATHARG(X) (((X >> 3) & 0x7) - 1)
 #define PATH0 (1<<3)

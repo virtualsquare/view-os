@@ -101,7 +101,7 @@ int main(int argc,char* argv[])
 	char *s=argv[0];
 	char sep=*s;
 	char *cmd;
-	char **newargv=alloca(argc+3);
+	char **newargv=alloca((argc+3)*sizeof(char *));
 	int i;
 	int sargc=0;
 	*s=0;
@@ -126,7 +126,7 @@ int main(int argc,char* argv[])
 	newargv[i+sargc]=0;
 #if 0
 	for (i=0;i<argc+sargc;i++)
-		printk("%d %s\n",i,newargv[i]);
+		fprintf(stderr,"%d %s\n",i,newargv[i]);
 #endif
 	if (mmap_not_ok(newargv[1])) 
 		execv_nommap(cmd,newargv);

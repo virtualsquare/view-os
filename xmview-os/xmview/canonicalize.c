@@ -222,6 +222,11 @@ static int rec_realpath(struct canonstruct *cdata, char *dest)
 	}
 }
 
+static inline void cancel_trailing_slash(char *path,int len)
+{
+	if (len > 1 && path[len-1] == '/')
+		path[len-1]=0;
+}
 
 /* realpath: 
 name: path to be canonicalized,
@@ -267,6 +272,7 @@ char *um_realpath(const char *name, const char *cwd, char *resolved,
 			return NULL;
 		}
 		memcpy(cdata.ebuf+cdata.rootlen,name+1,namelen);
+		cancel_trailing_slash(cdata.ebuf,cdata.rootlen + namelen - 1);
 	} else {
 		/* relative path 
 		   append 'name' to the cwd */
@@ -296,6 +302,7 @@ char *um_realpath(const char *name, const char *cwd, char *resolved,
 				return NULL;
 			}
 			memcpy(cdata.ebuf+cwdlen,name,namelen+1);
+			cancel_trailing_slash(cdata.ebuf,cwdlen + namelen);
 		}
 	}
 	/* printk("PATH! %s (inside %s)\n",cdata.ebuf,cdata.ebuf+cdata.rootlen);*/

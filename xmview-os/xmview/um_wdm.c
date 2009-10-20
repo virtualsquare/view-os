@@ -198,23 +198,15 @@ int wrap_in_chroot(int sc_number,struct pcb *pc,
 {
 	//printk("CHROOT %s\n",pc->path);
 	if (pc->erno != 0) {
-		/* TODO management of chroot */
-		/*free(pc->fdfs->root);
-		pc->fdfs->root=strdup(pc->path) */
-		/*pc->erno = pc->retval = 0;*/
 		pc->retval = -1;
 		pc->erno = ENOENT;
 		return SC_FAKE;
 	} else {
-		if (hte == NULL) {
-			return SC_CALLONXIT;
-		} else {
-			free(pc->fdfs->root);
-			pc->fdfs->root=strdup(pc->path); 
-			pc->retval = 0;
-			pc->erno = 0;
-			return SC_FAKE;
-		}
+		free(pc->fdfs->root);
+		pc->fdfs->root=strdup(pc->path); 
+		pc->retval = 0;
+		pc->erno = 0;
+		return SC_FAKE;
 	}
 }
 

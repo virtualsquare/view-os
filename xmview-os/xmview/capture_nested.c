@@ -294,6 +294,14 @@ long nw_syspath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sysc
 	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
 }
 
+/* nested wrapper for syscall with a path, add -1 for non 'f' syscall*/
+long nw_syspath_std_1(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	npc->sysargs[0]=(long) npc->path;
+	npc->sysargs[NARGS(scmap[uscno(scno)].nargx)] = -1;
+	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx+1);
+}
+
 /* nested wrapper for syscall with a path, EEXIST if the file already exists*/
 long nw_syspath_stdnew(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
 {
@@ -315,6 +323,12 @@ long nw_sysatpath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sy
 	npc->sysargs[3]=npc->sysargs[4];
 	npc->sysargs[4]=npc->sysargs[5];
 	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
+}
+
+/* nested wrapper for fstatat*/
+long nw_sysstatat(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall)
+{
+	return um_syscall((long) npc->path,npc->sysargs[2],-1);
 }
 
 /* nested wrapper for syscall WITH DIRFD (*at) with a path + EEXIST error*/
@@ -627,7 +641,8 @@ long nw_sysfdpath_std(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_sy
 {
 	int fd=npc->sysargs[0];
 	npc->sysargs[0]=(long)fd_getpath(&umview_file,fd);
-	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx);
+	npc->sysargs[NARGS(scmap[uscno(scno)].nargx)] = fd2sfd(&umview_file,fd);
+	return do_nested_call(um_syscall,&(npc->sysargs[0]),scmap[uscno(scno)].nargx+1);
 }
 
 #if (__NR__llseek != __NR_doesnotexist)

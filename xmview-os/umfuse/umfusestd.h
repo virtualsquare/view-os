@@ -30,6 +30,8 @@
 #define FUSE_HUMAN       (1 << 28)
 /** Enable merge mode */
 #define FUSE_MERGE       (1 << 27)
+/** Enable hard remove */
+#define FUSE_HARDREMOVE  (1 << 26)
 
 extern struct fuse_operations defaultservice;
 

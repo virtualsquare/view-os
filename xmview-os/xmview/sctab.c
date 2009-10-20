@@ -117,14 +117,14 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdo
 	epoch=pc->nestepoch;
 	if ((hte=ht_check(CHECKPATH,filename,NULL,1)) == NULL) {
 		if (pc->hte!=NULL && isdotdot) {
-			pc->needs_dotdot_path_rewrite=1;
+			pc->needs_path_rewrite=1;
 			// printk("dotdot cage error %s %d\n",filename,pc->sysscno);
 		}
 		pc->hte=hte;
 		retval = r_lstat64(filename,buf);
 	} else {
 		pc->hte=hte;
-		retval = ht_syscall(hte,uscno(NR64_lstat))(filename,buf,pc);
+		retval = ht_syscall(hte,uscno(NR64_lstat))(filename,buf,-1);
 	}
 	/* internal nested call restore data */
 	//printk("%s %lld->%lld\n",filename,epoch,pc->nestepoch);
@@ -150,7 +150,7 @@ int um_xx_access(char *filename, int mode, struct pcb *pc)
 		retval = r_access(filename,mode);
 	else{
 		pc->hte=hte;
-		retval = ht_syscall(hte,uscno(__NR_access))(filename,mode,pc);
+		retval = ht_syscall(hte,uscno(__NR_access))(filename,mode);
 	}
 	/* internal nested call restore data */
 	pc->sysscno=oldscno;
@@ -173,7 +173,7 @@ int um_x_access(char *filename, int mode, struct pcb *pc)
 	else {
 		epoch_t epoch=pc->nestepoch;
 		pc->nestepoch=ht_get_epoch(pc->hte);
-		retval = ht_syscall(pc->hte,uscno(__NR_access))(filename,mode,pc);
+		retval = ht_syscall(pc->hte,uscno(__NR_access))(filename,mode);
 		pc->nestepoch=epoch;
 	}
 	/* internal nested call restore data */
@@ -195,7 +195,7 @@ int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc)
 	else {
 		epoch_t epoch=pc->nestepoch;
 		pc->nestepoch=ht_get_epoch(pc->hte);
-		retval = ht_syscall(pc->hte,uscno(__NR_readlink))(path,buf,bufsiz,pc);
+		retval = ht_syscall(pc->hte,uscno(__NR_readlink))(path,buf,bufsiz);
 		pc->nestepoch=epoch;
 	}
 	/* internal nested call restore data */
@@ -254,6 +254,7 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 	if (umovestr(pc,laddr,PATH_MAX,path) == 0) {
 		char newpath[PATH_MAX];
 		char *cwd;
+		char *root=um_getroot(pc);
 		if (dirfd==AT_FDCWD)
 			cwd=pc->fdfs->cwd;
 		else {
@@ -265,7 +266,9 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 		}
 		pc->hte=NULL;
 		um_realpath(path,cwd,newpath,pst,dontfollowlink,pc);
-		/*printk("PATH %s (%s,%s) NEWPATH %s (%p,%d) %lld\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->hte,pc->erno,pc->nestepoch);  */
+		if (root[1] != 0 && pc->hte == NULL)
+			pc->needs_path_rewrite=1;
+		/* printk("PATH %s (%s,%s) NEWPATH %s (%p,%d) %lld\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->hte,pc->erno,pc->nestepoch); */
 		if (pc->erno)
 			return um_patherror;	//error
 		else
@@ -325,7 +328,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		index = dcif(pc, sc_number);
 		/* dotdot cage: syscalls need path rewriting when leaving
 			 a virtual area by a relative .. path */
-		pc->needs_dotdot_path_rewrite=0;
+		pc->needs_path_rewrite=0;
 		//printk("nested_commonwrap %d -> %lld\n",sc_number,pc->tst.epoch);
 		/* looks in the system call table what is the 'choice function'
 		 * and ask it the service to manage */
@@ -385,8 +388,8 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 		}
 		else {
 			int retval;
-			if (__builtin_expect(pc->needs_dotdot_path_rewrite,0)) {
-				// printk("needs_dotdot_path_rewrite %s %d\n",pc->path,pc->sysscno);
+			if (__builtin_expect(pc->needs_path_rewrite,0)) {
+				// printk("needs_path_rewrite %s %d\n",pc->path,pc->sysscno);
 				if (ISPATHARG(sm[index].nargx))
 					um_x_rewritepath(pc,pc->path,PATHARG(sm[index].nargx),0);
 				retval=SC_MODICALL;
