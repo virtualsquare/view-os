@@ -45,7 +45,7 @@ struct pcb_fs {
 	/* filesystem informations (current working directory, root filesystem
 	 * [chroot...], and umask) */
 	char *cwd;
-	void *root;
+	char *root;
 	mode_t mask;
 };
 

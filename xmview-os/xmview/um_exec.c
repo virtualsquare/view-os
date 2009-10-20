@@ -228,14 +228,21 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		int filenamelen;
 		int arg0len;
 		long sp=getsp(pc);
+		char *chrootpath=pc->path;
 		if (*(req.interp) != '/') { /* full pathname required */
 			pc->erno=ENOENT;
 			pc->retval=-1;
 			return SC_FAKE;
 		}
+		/* strip the root path when running in a chroot environment */
+		if (pc->fdfs->root[1] != 0) {
+			int len=strlen(pc->fdfs->root);
+			if (strncmp(chrootpath,pc->fdfs->root,len)==0)
+				chrootpath+=len;
+		}
 		/* create the argv for the wrapper! */
 		rv=umoven(pc,largv,sizeof(char *),&(larg0));
-		//printk("%s %d %ld %ld rv=%d\n",pc->path,getpc(pc),largv,larg0,rv); 
+		//printk("%s %d %ld %ld rv=%d\n",chrootpath,getpc(pc),largv,larg0,rv); 
 		/* XXX this is a workaround. strace has the same error!
 		 * exec seems to cause an extra prace in a strange address space
 		 * to be solved (maybe using PTRACE OPTIONS!) */
@@ -248,7 +255,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 			oldarg0[0]=0;
 		/* search for an unused char to act as arg separator */
 		for (sep=1;sep<255 && 
-				(strchr((char *)pc->path,sep)!=NULL ||
+				(strchr((char *)chrootpath,sep)!=NULL ||
 				 strchr(req.interp,sep)!=NULL ||
 				 strchr(oldarg0,sep)!=NULL);
 				sep++)
@@ -261,13 +268,13 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 			asprintf(&umbinfmtarg0,"%c%s%c%s%c%s%c%s",
 					sep,req.interp,
 					sep,req.extraarg,
-					sep,(char *)pc->path,
+					sep,(char *)chrootpath,
 					sep,oldarg0);
 		else 
 			asprintf(&umbinfmtarg0,"%c%s%c%s%c%s",
 					sep,req.interp,
 					sep,req.extraarg,
-					sep,(char *)pc->path);
+					sep,(char *)chrootpath);
 		filenamelen=WORDALIGN(strlen(UMBINWRAP));
 		arg0len=WORDALIGN(strlen(umbinfmtarg0));
 		pc->retval=0;
