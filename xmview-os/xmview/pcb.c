@@ -63,14 +63,14 @@ static voidfun finis[] = {
 void pcb_constructor(struct pcb *pcb,int flags,int npcbflag)
 {
 	register int i;
-	for (i=0;i<NCONSTRUCTORS;i++)
+	for (i=0;i<NCONSTRUCTORS;i++) 
 		constructors[i](pcb,flags,npcbflag);
 }
 
 void pcb_destructor(struct pcb *pcb,int flags,int npcbflag)
 {
 	register int i;
-	for (i=NDESTRUCTORS-1;i>=0;i--)
+	for (i=NDESTRUCTORS-1;i>=0;i--) 
 		destructors[i](pcb,flags,npcbflag);
 }
 

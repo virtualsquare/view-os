@@ -35,6 +35,8 @@
 #include "treepoch.h"
 
 extern int _umview_version;
+extern uid_t host_uid;
+extern gid_t host_gid;
 
 //extern pthread_key_t pcb_key; /* key to grab the current thread pcb */
 
@@ -74,7 +76,7 @@ void um_set_errno(struct pcb *pc,int i);
 char *um_getroot(struct pcb *pc);
 int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdot);
 /* um_x_access and um_x_readlink must follow a um_x_lstat64 */
-int um_x_access(char *filename,int mode, struct pcb *pc);
+int um_x_access(char *filename,int mode, struct pcb *pc, struct stat64 *stbuf);
 int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc);
 int um_xx_access(char *filename,int mode, struct pcb *pc);
 /* rewrite the path argument of a call */

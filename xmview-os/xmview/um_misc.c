@@ -22,6 +22,7 @@
  *
  */   
 #include <sys/types.h>
+#include <linux/limits.h>
 #include <unistd.h>
 #include <config.h>
 #include <errno.h>
@@ -439,5 +440,64 @@ int wrap_in_setpgid(int sc_number,struct pcb *pc,
 	pid_t pid2=pc->sysargs[1];
 	if ((pc->retval = um_syscall(pid1,pid2)) < 0)
 		pc->erno=errno;
+	return SC_FAKE;
+}
+
+int wrap_in_getgroups(int sc_number,struct pcb *pc,
+		        struct ht_elem *hte, sysfun um_syscall)
+{
+	int size=pc->sysargs[0];
+	long plist=pc->sysargs[1];
+	if (size == 0) {
+		pc->retval = pc->grouplist->size;
+		pc->erno = 0;
+	} else {
+		if (size < pc->grouplist->size) {
+			pc->retval = -1;
+			pc->erno = EINVAL;
+		} else {
+			pc->retval = pc->grouplist->size;
+#if __NR_getgroups32 != __NR_getgroups
+			if (sc_number == __NR_getgroups) {
+				int i;
+				unsigned short *gid16=alloca(size * sizeof(unsigned short));
+				for (i=0;i<size;i++)
+					gid16[i]=id32to16(pc->grouplist->list[i]);
+				ustoren(pc, plist, pc->retval * sizeof(unsigned short), gid16);
+			} else
+#endif
+				ustoren(pc, plist, pc->retval * sizeof(gid_t), pc->grouplist->list);
+			pc->erno=0;
+		}
+	}
+	return SC_FAKE;
+}
+
+int wrap_in_setgroups(int sc_number,struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	size_t size=pc->sysargs[0];
+	long plist=pc->sysargs[1];
+	if (size > NGROUPS_MAX) {
+		pc->retval = -1;
+		pc->erno = EINVAL;
+	} else {
+		supgrp_put(pc->grouplist);
+		pc->grouplist=supgrp_create(size);
+		if (size > 0) {
+#if __NR_setgroups32 != __NR_setgroups
+			if (sc_number == __NR_setgroups) {
+				int i;
+				unsigned short *gid16=alloca(size * sizeof(unsigned short));
+				umoven(pc, plist, size * sizeof(unsigned short), gid16);
+				for (i=0;i<size;i++)
+					pc->grouplist->list[i]= id16to32(gid16[i]);
+			} else 
+#endif
+				umoven(pc, plist,  size * sizeof(gid_t), pc->grouplist->list);
+		}
+		pc->erno=0;
+		pc->retval=1;
+	}
 	return SC_FAKE;
 }

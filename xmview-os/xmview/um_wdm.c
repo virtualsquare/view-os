@@ -95,7 +95,7 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,
 		else
 			pc->erno=ENOTDIR;
 	}
-	if ( (pc->erno==0) && (um_x_access(pc->path,X_OK,pc)!=0) ) {
+	if ( (pc->erno==0) && (um_x_access(pc->path,X_OK,pc,&pc->pathstat)!=0) ) {
 			pc->erno=EACCES;
 	}
 	if (pc->erno == 0 && S_ISDIR(pc->pathstat.st_mode)) {
@@ -157,7 +157,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 		else
 		{
 			if (S_ISDIR(pc->pathstat.st_mode)) {
-				if (um_x_access(pc->path,X_OK,pc)!=0) {
+				if (um_x_access(pc->path,X_OK,pc,&pc->pathstat)!=0) {
 					GDEBUG(4, "FCHDIR EACCES for %s", pc->path);
 					pc->erno=EACCES;
 					pc->retval = -1;

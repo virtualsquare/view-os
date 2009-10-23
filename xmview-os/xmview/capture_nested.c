@@ -994,11 +994,13 @@ static void nsaveargs(struct pcb *caller,struct npcb *callee,long int sysno){
 	callee->egid=caller->egid;
 	callee->sgid=caller->sgid;
 	callee->fsgid=caller->fsgid;
+	callee->grouplist=supgrp_get(caller->grouplist);
 	pcb_constructor((struct pcb *)callee,0,1);
 }
 
 /* restore args (there is nothing to do!) */
 static void nrestoreargs(struct pcb *caller,struct npcb *callee){
+	supgrp_put(callee->grouplist);
 }
 
 static long int capture_nested_virsc(long int sysno, ...);
@@ -1018,7 +1020,7 @@ static long int capture_nested_virsc(long int sysno, ...){
 	struct pcb *caller_pcb=get_pcb();
 	/* this is a new pcb, the actual pcb for syscall evaluation */
 	struct npcb callee_pcb;
-	nsaveargs(caller_pcb, &callee_pcb,__NR_socketcall);
+	nsaveargs(caller_pcb, &callee_pcb,__NR_socketcall); /* socketcall ??? */
 	set_pcb(&callee_pcb);
 	va_start(ap, sysno);
 	for (i=0; i<narg;i++)
@@ -1175,6 +1177,16 @@ static struct npcb *new_npcb(struct pcb *old)
 	/* XXX rd235 20090805 inherit the time of the creating thread */
 	npcb->nestepoch=npcb->tst.epoch;
 	//printk("new_npcb %lld\n",npcb->tst.epoch);
+	npcb->ruid=old->ruid;
+	npcb->euid=old->euid;
+	npcb->suid=old->suid;
+	npcb->fsuid=old->fsuid;
+	npcb->rgid=old->rgid;
+	npcb->egid=old->egid;
+	npcb->sgid=old->sgid;
+	npcb->fsgid=old->fsgid;
+	npcb->grouplist=supgrp_get(old->grouplist);
+
 	pcb_constructor((struct pcb *)npcb,0,1);
 	return npcb;
 }

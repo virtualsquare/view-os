@@ -63,6 +63,7 @@ wrapinfun wrap_in_utime, wrap_in_mount, wrap_in_umount,wrap_in_umount2;
 wrapinfun wrap_in_umask, wrap_in_chroot, wrap_in_mknod;
 wrapinfun wrap_in_truncate, wrap_in_ftruncate, wrap_in_execve;
 wrapinfun wrap_in_statfs, wrap_in_fstatfs;
+wrapinfun wrap_in_getgroups, wrap_in_setgroups;
 
 /* XXX: find a better way (see defs_x86_64*.h) */
 #if __NR_statfs64 != __NR_doesnotexist
@@ -338,6 +339,8 @@ struct sc_map scmap[]={
 	{__NR_setregid,	choice_sc,	wrap_in_setregid, wrap_out_std, 	always_null,	NULL, ALWAYS,	2, SOC_UID},
 	{__NR_getresgid, choice_sc,	wrap_in_getresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	{__NR_setresgid, choice_sc,	wrap_in_setresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
+	{__NR_getgroups, choice_sc,	wrap_in_getgroups, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
+	{__NR_setgroups, choice_sc,	wrap_in_setgroups, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	{__NR_getuid32,	choice_sc,	wrap_in_getxid, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
 	{__NR_setuid32,	choice_sc,	wrap_in_setuid, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
 	{__NR_geteuid32,	choice_sc,	wrap_in_getxid, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
@@ -352,6 +355,8 @@ struct sc_map scmap[]={
 	{__NR_setregid32,	choice_sc,	wrap_in_setregid, wrap_out_std, 	always_null,	NULL, ALWAYS,	2, SOC_UID},
 	{__NR_getresgid32, choice_sc,	wrap_in_getresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	{__NR_setresgid32, choice_sc,	wrap_in_setresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
+	{__NR_getgroups32, choice_sc,	wrap_in_getgroups, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
+	{__NR_setgroups32, choice_sc,	wrap_in_setgroups, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	  
 	/* priority related calls */
 	{__NR_nice,	choice_sc,	wrap_in_nice,  wrap_out_std,	always_null,	NULL, 0,	1, SOC_PRIO},

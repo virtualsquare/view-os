@@ -29,6 +29,7 @@
 #include <sys/ptrace.h>
 #include <sys/select.h>
 #include <sys/mman.h>
+#include <sys/types.h>
 #include <sched.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
@@ -38,6 +39,7 @@
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <linux/sysctl.h>
 #include <config.h>
 
@@ -54,6 +56,9 @@
 #include "capture_nested.h"
 #include "hashtab.h"
 #include "gdebug.h"
+
+uid_t host_uid;
+gid_t host_gid;
 
 static const char *const _sys_sigabbrev[NSIG] =
 {
@@ -133,6 +138,58 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdo
 	return retval;
 }
 
+static inline int in_supgrplist(gid_t gid, struct pcb *pc)
+{
+	int i;
+	struct supgroups *grouplist=pc->grouplist;
+	assert(grouplist != NULL);
+	for (i=0;i<grouplist->size;i++)
+		if (grouplist->list[i] == gid)
+			return 1;
+	return 0;
+}
+
+int um_stat2access(char *filename, int mode, struct pcb *pc, 
+		struct stat64 *stbuf, int real_uid)
+{
+	if (stbuf->st_mode == 0) {
+		errno=ENOENT;
+		return -1;
+	} else {
+		uid_t uid;
+		gid_t gid;
+		if (pc->hte == NULL) {
+			uid=host_uid;
+			gid=host_gid;
+		} else {
+			uid=(real_uid)?pc->ruid:pc->fsuid;
+			gid=(real_uid)?pc->rgid:pc->fsgid;
+		}
+		if (uid == 0) {
+			if ((mode & X_OK) && 
+					!(stbuf->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH))) {
+				errno=EACCES;
+				return -1;
+			} else
+				return 0;
+		} else {
+			if (uid == stbuf->st_uid &&
+					(((stbuf->st_mode & S_IRWXU) >> 6) & mode) == mode)
+				return 0;
+			else if ((gid == stbuf->st_gid ||
+						in_supgrplist(stbuf->st_gid, pc)) &&
+					(((stbuf->st_mode & S_IRWXG) >> 3) & mode) == mode)
+				return 0;
+			else if ((stbuf->st_mode & S_IRWXO & mode) == mode)
+				return 0;
+			else {
+				errno=EACCES;
+				return -1;
+			}
+		}
+	}
+}
+
 /* internal call: check the permissions for a file,
    search for module */
 int um_xx_access(char *filename, int mode, struct pcb *pc)
@@ -158,9 +215,16 @@ int um_xx_access(char *filename, int mode, struct pcb *pc)
 	return retval;
 }
 										 
+#define FASTACCESS
 /* internal call: check the permissions for a file,
    this must follow a um_x_lstat64 */
-int um_x_access(char *filename, int mode, struct pcb *pc)
+#ifdef FASTACCESS
+int um_x_access(char *filename, int mode, struct pcb *pc, struct stat64 *stbuf)
+{
+	return um_stat2access(filename, mode, pc, stbuf, 0);
+}
+#else
+int um_x_access(char *filename, int mode, struct pcb *pc, struct stat64 *stbuf)
 {
 	int retval;
 	long oldscno;
@@ -174,12 +238,21 @@ int um_x_access(char *filename, int mode, struct pcb *pc)
 		epoch_t epoch=pc->nestepoch;
 		pc->nestepoch=ht_get_epoch(pc->hte);
 		retval = ht_syscall(pc->hte,uscno(__NR_access))(filename,mode);
+#if 1
+		{
+			int test;
+			test=um_stat2access(filename, mode, pc, stbuf, 0);
+			if (test != retval) 
+				printk("diff %s %d -> %d %d %o %s\n",filename, mode, retval, test, pc->pathstat.st_mode, strerror(errno));
+		}
+#endif
 		pc->nestepoch=epoch;
 	}
 	/* internal nested call restore data */
 	pc->sysscno=oldscno;
 	return retval;
 }
+#endif
 										 
 /* internal call: read a symbolic link target 
    this must follow a um_x_lstat64 */
@@ -571,27 +644,34 @@ void pcb_plus(struct pcb *pc,int flags,int npcflag)
 				pc->fdfs->root=strdup("/");
 				/*pc->fdfs->mask=local_getumask();*/
 				pc->fdfs->mask=r_umask(0);
-				r_umask(pc->fdfs->mask);
-				/* create the root of the treepoch */
-				pc->tst=tst_newfork(NULL);
-				/* set the initial uid */
-				r_getresuid(&pc->ruid,&pc->euid,&pc->suid);
-				r_getresgid(&pc->rgid,&pc->egid,&pc->sgid);
-				pc->fsuid=pc->euid;
-				pc->fsgid=pc->egid;
-				pc->hte=NULL;
 			} else {
 				pc->fdfs->cwd=strdup(pc->pp->fdfs->cwd);
 				pc->fdfs->root=strdup(pc->pp->fdfs->root);
 				pc->fdfs->mask=pc->pp->fdfs->mask;
-				pc->ruid=pc->pp->ruid;
-				pc->euid=pc->fsuid=pc->pp->euid;
-				pc->suid=pc->pp->suid;
-				pc->rgid=pc->pp->rgid;
-				pc->egid=pc->fsgid=pc->pp->egid;
-				pc->sgid=pc->pp->sgid;
-				pc->hte=pc->pp->hte;
 			}
+		}
+		if (rootprocess) {
+			int ngroups=r_getgroups(0,NULL);
+			r_umask(pc->fdfs->mask);
+			/* create the root of the treepoch */
+			pc->tst=tst_newfork(NULL);
+			/* set the initial uid */
+			r_getresuid(&pc->ruid,&pc->euid,&pc->suid);
+			r_getresgid(&pc->rgid,&pc->egid,&pc->sgid);
+			host_uid=pc->fsuid=pc->euid;
+			host_gid=pc->fsgid=pc->egid;
+			pc->hte=NULL;
+			pc->grouplist=supgrp_create(ngroups);
+			r_getgroups(ngroups,pc->grouplist->list);
+		} else {
+			pc->ruid=pc->pp->ruid;
+			pc->euid=pc->fsuid=pc->pp->euid;
+			pc->suid=pc->pp->suid;
+			pc->rgid=pc->pp->rgid;
+			pc->egid=pc->fsgid=pc->pp->egid;
+			pc->sgid=pc->pp->sgid;
+			pc->hte=pc->pp->hte;
+			pc->grouplist=supgrp_get(pc->pp->grouplist);
 		}
 		pc->tst=tst_newproc(&(pc->pp->tst));
 #if 0
@@ -630,6 +710,7 @@ void pcb_minus(struct pcb *pc,int flags,int npcbflag)
 			free(pc->data->fdfs->cwd);
 			free(pc->data);
 			}*/
+		supgrp_put(pc->grouplist);
 	}
 }
 
@@ -1192,6 +1273,30 @@ int um_mod_getsyscalltype(int escno)
 int um_mod_nrsyscalls(void)
 {
 	return _UM_NR_syscalls;
+}
+
+/* management of supplementary groups */
+
+struct supgroups *supgrp_create(size_t size)
+{
+	struct supgroups *rv=malloc(sizeof(struct supgroups) + size*sizeof(gid_t));
+	assert(rv != NULL);
+	rv->size=size;
+	rv->count=1;
+	return rv;
+}
+
+struct supgroups *supgrp_get(struct supgroups *supgrp)
+{
+	supgrp->count++;
+	return supgrp;
+}
+
+void supgrp_put(struct supgroups *supgrp)
+{
+	supgrp->count--;
+	if (supgrp->count == 0)
+		free(supgrp);
 }
 
 /* for modules: management of module filetab. */

@@ -149,6 +149,13 @@ extern sfun native_syscall;
 #define r_pread64(f,b,c,o1,o2) (native_syscall(__NR_pread64,(f),(b),(c),__LONG_LONG_PAIR((o1),(o2))))
 #define r_pwrite64(f,b,c,o1,o2) (native_syscall(__NR_pwrite64,(f),(b),(c),__LONG_LONG_PAIR((o1),(o2))))
 #endif
+#ifdef __NR_getgroups32
+#define r_getgroups(s,g) (native_syscall(__NR_getgroups32,(s),(g)))
+#define r_setgroups(s,g) (native_syscall(__NR_setgroups32,(s),(g)))
+#else
+#define r_getgroups(s,g) (native_syscall(__NR_getgroups,(s),(g)))
+#define r_setgroups(s,g) (native_syscall(__NR_setgroups,(s),(g)))
+#endif
 
 /* debugging functions */
 extern int printk(const char *fmt, ...);
