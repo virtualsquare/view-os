@@ -82,26 +82,36 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 	char buf[PATH_MAX];
 	switch (pc->sysargs[0]) {
 		case ADD_SERVICE:
-			if (umovestr(pc,pc->sysargs[1],PATH_MAX,buf) == 0) {
-				int permanent=pc->sysargs[2];
-				if (add_service(buf,permanent) < 0)
-				{
-					pc->retval=-1;
-					pc->erno=errno;
-				}
-			} else {
+			if (secure && capcheck(CAP_SYS_MODULE,pc)) {
 				pc->retval= -1;
-				pc->erno=EINVAL;
+				pc->erno=EPERM;
+			} else {
+				if (umovestr(pc,pc->sysargs[1],PATH_MAX,buf) == 0) {
+					int permanent=pc->sysargs[2];
+					if (add_service(buf,permanent) < 0)
+					{
+						pc->retval=-1;
+						pc->erno=errno;
+					}
+				} else {
+					pc->retval= -1;
+					pc->erno=EINVAL;
+				}
 			}
 			break;
 		case DEL_SERVICE:
-			if (umovestr(pc,pc->sysargs[1],PATH_MAX,buf) == 0) {
-				if ((pc->retval=del_service(buf)) != 0) {
-					pc->erno=errno;
-				}
-			}	else {
+			if (secure && capcheck(CAP_SYS_MODULE,pc)) {
 				pc->retval= -1;
-				pc->erno=EINVAL;
+				pc->erno=EPERM;
+			} else {
+				if (umovestr(pc,pc->sysargs[1],PATH_MAX,buf) == 0) {
+					if ((pc->retval=del_service(buf)) != 0) {
+						pc->erno=errno;
+					}
+				}	else {
+					pc->retval= -1;
+					pc->erno=EINVAL;
+				}
 			}
 			break;
 		case LIST_SERVICE:
@@ -145,12 +155,17 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 			break;
 		case VIEWOS_SETVIEWNAME: 
 			{
-				char name[_UTSNAME_LENGTH];
-				umovestr(pc,pc->sysargs[1],_UTSNAME_LENGTH,name);
-				name[_UTSNAME_LENGTH-1]=0;
-				pcb_setviewname(pc,name);
-				pc->retval=0;
-				pc->erno = 0;
+				if (secure && capcheck(CAP_SYS_ADMIN,pc)) {
+					pc->retval= -1;
+					pc->erno=EPERM;
+				} else {
+					char name[_UTSNAME_LENGTH];
+					umovestr(pc,pc->sysargs[1],_UTSNAME_LENGTH,name);
+					name[_UTSNAME_LENGTH-1]=0;
+					pcb_setviewname(pc,name);
+					pc->retval=0;
+					pc->erno = 0;
+				}
 			}
 			break; 
 		case VIEWOS_KILLALL: 
@@ -159,21 +174,31 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 			pc->erno = 0;
 			break;
 		case VIEWOS_ATTACH:
-			pc->retval=capture_attach(pc,pc->sysargs[1]);
-			if (pc->retval < 0) {
-				pc->erno = - pc->retval;
-				pc->retval = -1;
+			if (secure && capcheck(CAP_SYS_ADMIN,pc)) {
+				pc->retval= -1;
+				pc->erno=EPERM;
+			} else {
+				pc->retval=capture_attach(pc,pc->sysargs[1]);
+				if (pc->retval < 0) {
+					pc->erno = - pc->retval;
+					pc->retval = -1;
+				}
 			}
 			break;
 		case VIEWOS_FSALIAS:
 			{
-				char fsalias[256];
-				char fsname[256];
-				umovestr(pc,pc->sysargs[1],256,fsalias);
-				umovestr(pc,pc->sysargs[2],256,fsname);
-				add_alias(CHECKFSALIAS,fsalias,fsname);
-				pc->retval=0;
-				pc->erno = 0;
+				if (secure && capcheck(CAP_SYS_ADMIN,pc)) {
+					pc->retval= -1;
+					pc->erno=EPERM;
+				} else {
+					char fsalias[256];
+					char fsname[256];
+					umovestr(pc,pc->sysargs[1],256,fsalias);
+					umovestr(pc,pc->sysargs[2],256,fsname);
+					add_alias(CHECKFSALIAS,fsalias,fsname);
+					pc->retval=0;
+					pc->erno = 0;
+				}
 			}
 			break;
 		default:

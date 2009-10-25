@@ -55,9 +55,9 @@
 #include "gdebug.h"
 
 #ifdef GDEBUG_ENABLED
-#	define OPTSTRING "+p:f:o:hvnxqV:"
+#	define OPTSTRING "+p:f:o:hvnxqV:s"
 #else
-#	define OPTSTRING "+p:f:hvnxqV:"
+#	define OPTSTRING "+p:f:hvnxqV:s"
 #endif
 
 int _umview_version = 2; /* modules interface version id.
@@ -68,9 +68,8 @@ unsigned int ptrace_vm_mask;
 unsigned int ptrace_sysvm_tag;
 unsigned int hasppoll;
 unsigned int quiet = 0;
+unsigned int secure = 0;
 static char *viewname;
-
-unsigned int want_ptrace_multi, want_ptrace_vm, want_ptrace_viewos, want_ppoll;
 
 extern int nprocs;
 
@@ -182,7 +181,8 @@ static void usage(char *s)
 			"  --nokmulti                avoid using PTRACE_MULTI\n"
 			"  --noksysvm                avoid using PTRACE_SYSVM\n"
 			"  --nokviewos               avoid using PTRACE_VIEWOS\n\n"
-			"  --noppoll                 avoid using ppoll\n\n",
+			"  --noppoll                 avoid using ppoll\n\n"
+			"  -s, --secure              force permissions and capabilities\n",
 			s);
 	exit(0);
 }
@@ -203,6 +203,7 @@ static struct option long_options[] = {
 	{"noksysvm",0,0,0x101},
 	{"nokviewos",0,0,0x102},
 	{"noppoll",0,0,0x103},
+	{"secure",0,0,'s'},
 	{0,0,0,0}
 };
 
@@ -321,6 +322,7 @@ static int has_pselect_test()
 int main(int argc,char *argv[])
 {
 	char *rcfile=NULL;
+	unsigned int want_ptrace_multi, want_ptrace_vm, want_ptrace_viewos, want_ppoll;
 	if (argc == 1 && argv[0][0] == '-' && argv[0][1] != '-') /* login shell */
 		loginshell_view();
 	/* try to set the priority to -11 provided umview has been installed
@@ -402,6 +404,9 @@ int main(int argc,char *argv[])
 					 want_ptrace_multi = 0;
 					 want_ptrace_vm = 0;
 					 want_ptrace_viewos = 0;
+					 break;
+			case 's':
+					 secure=1;
 					 break;
 			case 0x100: /* do not use ptrace_multi */
 					 want_ptrace_multi = 0;

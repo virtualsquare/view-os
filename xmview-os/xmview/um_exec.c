@@ -198,8 +198,8 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		pc->egid=pc->fsgid=pc->pathstat.st_gid;
 	} else if (pc->rgid == pc->egid)
 		pc->sgid=pc->rgid;
-	if (strcmp(pc->path,"/bin/mount") == 0 || 
-		strcmp(pc->path,"/bin/umount") == 0) {
+	if (!secure && (strcmp(pc->path,"/bin/mount") == 0 || 
+		strcmp(pc->path,"/bin/umount") == 0)) {
 		pc->suid=pc->euid;
 		pc->ruid=pc->suid=0;
 	}

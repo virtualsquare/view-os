@@ -49,6 +49,9 @@ int pcbtablesize(void);
 /* This is the handler of sigchld from user processes */
 void tracehand(void *useless);
 
+/* pcb search (linear scan) */
+struct pcb *pid2pcb(int pid);
+
 int capture_attach(struct pcb *pc,pid_t pid);
 
 #endif

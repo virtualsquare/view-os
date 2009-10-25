@@ -224,7 +224,7 @@ void forallpcbdo(voidfun f,void *arg)
 }
 
 /* pid 2 pcb conversion (by linear search) */
-static struct pcb *pid2pcb(int pid)
+struct pcb *pid2pcb(int pid)
 {
 	register int i;
 	for (i = 0; i < pcbtabsize; i++) {

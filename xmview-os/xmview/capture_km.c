@@ -186,9 +186,8 @@ void forallpcbdo(voidfun f,void *arg)
 }
 
 
-#if 0
 /* pid 2 pcb conversion (by linear search) */
-static struct pcb *pid2pcb(int pid)
+struct pcb *pid2pcb(int pid)
 {
 	register int i;
 	for (i = 0; i < pcbtabsize; i++) {
@@ -198,7 +197,6 @@ static struct pcb *pid2pcb(int pid)
 	}
 	return NULL;
 }
-#endif
 
 /* orphan processes must NULL-ify their parent process pointer */
 static void _cut_pp(struct pcb *pc, struct pcb *delpc)

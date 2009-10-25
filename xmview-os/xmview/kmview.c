@@ -66,6 +66,7 @@ int _umview_version = 2; /* modules interface version id.
 										modules can test to be compatible with
 										um-viewos kernel*/
 unsigned int quiet = 0;
+unsigned int secure = 0;
 static char *viewname;
 
 extern int nprocs;
@@ -179,7 +180,8 @@ static void usage(char *s)
 			"  -o file, --output file    send debug messages to file instead of stderr\n"
 #endif
 			"  -x, --nonesting           do not permit module nesting\n"
-			"  -u, --userrecursion       recursive invocation on the existing hypervisor\n",
+			"  -u, --userrecursion       recursive invocation on the existing hypervisor\n"
+			"  -s, --secure		           force permissions and capabilities\n",
 			s);
 	exit(0);
 }
@@ -195,6 +197,7 @@ static struct option long_options[] = {
 	{"help",0,0,'h'},
 	{"nonesting",0,0,'x'},
 	{"userrecursion",0,0,'u'},
+	{"secure",0,0,'s'},
 	{0,0,0,0}
 };
 
@@ -403,6 +406,9 @@ int main(int argc,char *argv[])
 				break;
 			case 'q':
 				quiet = 1;
+				break;
+			case 's':
+				secure = 1;
 				break;
 #ifdef GDEBUG_ENABLED
 			case 'o': /* debugging output file redirection */ { 

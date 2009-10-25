@@ -23,15 +23,24 @@
  */   
 #include <sys/types.h>
 #include <linux/limits.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <unistd.h>
 #include <config.h>
 #include <errno.h>
 #include "defs.h"
 #include "services.h"
 #include "hashtab.h"
+#include "sctab.h"
 #include "utils.h"
+#include "capture.h"
 #include "uid16to32.h"
 #define umNULL ((long) NULL)
+
+
+static int checksecureuid(struct pcb *pc, uid_t ruid, uid_t euid, uid_t suid, uid_t fsuid)
+{
+}
 
 /* getuid, geteuid, getgid, getegid */
 int wrap_in_getxid(int sc_number,struct pcb *pc,
@@ -385,6 +394,22 @@ int wrap_in_setpriority(int sc_number,struct pcb *pc,
 	int which=pc->sysargs[0];
 	int who=pc->sysargs[1];
 	int prio=pc->sysargs[2];
+	if (secure) {
+		if (capcheck(CAP_SYS_NICE,pc)) {
+			/* A  process  was located, but its effective user ID did not match
+				 either the effective or the real user ID of the caller, and  was
+				 not privileged (on Linux: did not have the CAP_SYS_NICE capabil‐
+				 ity).*/
+			if ((which == PRIO_PROCESS || which == PRIO_PGRP) && who != 0) {
+				struct pcb *target=pid2pcb(who);
+				if (target != NULL && 
+						pc->ruid != target->euid && pc->euid != target->euid) {
+					pc->retval=-1;
+					pc->erno=EPERM;
+				}
+			}
+		}
+	}
 	if ((pc->retval = um_syscall(which, who, prio)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;

@@ -29,6 +29,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <assert.h>
 
 #include "umproc.h"
 #include "defs.h"
@@ -61,8 +62,6 @@ extern char um_patherror[];
 
 void scdtab_init();
 
-char *um_cutdots(char *path);
-
 char *um_getpath(long laddr,struct pcb *pc);
 char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink);
 
@@ -82,6 +81,17 @@ int um_xx_access(char *filename,int mode, struct pcb *pc);
 /* rewrite the path argument of a call */
 int um_x_rewritepath(struct pcb *pc, char *path, int arg, long offset);
 epoch_t um_setnestepoch(epoch_t epoch);
+int capcheck(int capability, struct pcb *pc);
+static inline int in_supgrplist(gid_t gid, struct pcb *pc)
+{
+	int i;
+	struct supgroups *grouplist=pc->grouplist;
+	assert(grouplist != NULL);
+	for (i=0;i<grouplist->size;i++)
+		if (grouplist->list[i] == gid)
+			return 1;
+	return 0;
+}
 
 struct timestamp *um_x_gettst();
 

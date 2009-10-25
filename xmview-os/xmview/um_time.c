@@ -29,6 +29,7 @@
 #include "defs.h"
 #include "hashtab.h"
 #include "utils.h"
+#include "sctab.h"
 
 /* mapped onto gettimeofday */
 int wrap_in_time(int sc_number,struct pcb *pc,
@@ -76,6 +77,13 @@ int wrap_in_settimeofday(int sc_number,struct pcb *pc,
 	struct timezone tz,*tzx;
 	long tvp=pc->sysargs[0];
 	long tzp=pc->sysargs[1];
+	/* The  calling process has insufficient privilege to call settimeofday(); 
+		 under Linux the CAP_SYS_TIME capability is required. */
+	if (secure && capcheck(CAP_SYS_TIME,pc)) {
+		pc->retval = -1;
+		pc->erno = EPERM;
+		return SC_FAKE;
+	}
 	if (tvp != umNULL) {
 		umoven(pc,tvp,sizeof(struct timeval),&tv);
 		tvx=&tv;
@@ -100,6 +108,13 @@ int wrap_in_adjtimex(int sc_number,struct pcb *pc,
 	long tmxp=pc->sysargs[0];
 	if (tmxp != umNULL) {
 		umoven(pc,tmxp,sizeof(struct timeval),&tmx);
+		/* tmx.mode  is  non-zero  and  the caller does not have sufficient
+			 privilege.  Under Linux the CAP_SYS_TIME capability is required. */
+		if (secure && tmx.modes != 0 && capcheck(CAP_SYS_TIME,pc)) {
+			pc->retval = -1; 
+			pc->erno = EPERM;
+			return SC_FAKE;
+		}               
 		pc->retval=um_syscall(&tmx);
 		if (pc->retval>= 0) 
 			ustoren(pc,tmxp,sizeof(struct timeval),&tmx);
@@ -139,6 +154,11 @@ int wrap_in_clock_settime(int sc_number,struct pcb *pc,
 		struct timespec ts;
 		if (tss != umNULL)
 			umoven(pc,tss,sizeof(struct timespec),&ts);
+		if (secure && clk_id == CLOCK_REALTIME && capcheck(CAP_SYS_TIME,pc)) {
+			pc->retval = -1; 
+			pc->erno = EPERM;
+			return SC_FAKE;
+		}               
 		if ((pc->retval=um_syscall(clk_id,&ts)) < 0)
 			pc->erno=errno;
 		return SC_FAKE;

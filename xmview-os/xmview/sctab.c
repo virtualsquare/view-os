@@ -138,17 +138,6 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdo
 	return retval;
 }
 
-static inline int in_supgrplist(gid_t gid, struct pcb *pc)
-{
-	int i;
-	struct supgroups *grouplist=pc->grouplist;
-	assert(grouplist != NULL);
-	for (i=0;i<grouplist->size;i++)
-		if (grouplist->list[i] == gid)
-			return 1;
-	return 0;
-}
-
 int um_stat2access(char *filename, int mode, struct pcb *pc, 
 		struct stat64 *stbuf, int real_uid)
 {
@@ -656,10 +645,19 @@ void pcb_plus(struct pcb *pc,int flags,int npcflag)
 			/* create the root of the treepoch */
 			pc->tst=tst_newfork(NULL);
 			/* set the initial uid */
-			r_getresuid(&pc->ruid,&pc->euid,&pc->suid);
-			r_getresgid(&pc->rgid,&pc->egid,&pc->sgid);
-			host_uid=pc->fsuid=pc->euid;
-			host_gid=pc->fsgid=pc->egid;
+			if (secure) {
+				pc->ruid=pc->euid=pc->suid=0;
+				pc->rgid=pc->egid=pc->sgid=0;
+				r_getresuid(NULL,&host_uid,NULL);
+				r_getresgid(NULL,&host_gid,NULL);
+			} else {
+				r_getresuid(&pc->ruid,&pc->euid,&pc->suid);
+				r_getresgid(&pc->rgid,&pc->egid,&pc->sgid);
+				host_uid=pc->euid;
+				host_gid=pc->egid;
+			}
+			pc->fsuid=pc->euid;
+			pc->fsgid=pc->egid;
 			pc->hte=NULL;
 			pc->grouplist=supgrp_create(ngroups);
 			r_getgroups(ngroups,pc->grouplist->list);
@@ -1297,6 +1295,15 @@ void supgrp_put(struct supgroups *supgrp)
 	supgrp->count--;
 	if (supgrp->count == 0)
 		free(supgrp);
+}
+
+int capcheck(int capability, struct pcb *pc)
+{
+	if (pc->euid == 0)
+		return 0;
+	else {
+		return -1;
+	}
 }
 
 /* for modules: management of module filetab. */
