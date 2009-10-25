@@ -53,6 +53,9 @@
 
 #include "gdebug.h"
 
+static char mode2accessmode_tab[]={R_OK,W_OK,R_OK|W_OK,0};
+#define MODE2ACCESSMODE(mode) mode2accessmode_tab[(mode)&O_ACCMODE]
+
 /* OPEN & CREAT wrapper "in" phase 
  * always called (also when service == NULL)*/
 int wrap_in_open(int sc_number,struct pcb *pc,
@@ -70,6 +73,21 @@ int wrap_in_open(int sc_number,struct pcb *pc,
 	} else {
 		flags=O_CREAT|O_WRONLY|O_TRUNC;
 		mode=pc->sysargs[1];
+	}
+	if (secure) {
+		int rv=-1;
+		if (pc->pathstat.st_mode == 0) {
+			if (flags & O_CREAT)  
+				rv=um_parentwaccess(pc->path,pc);
+			else 
+				errno=ENOENT;
+		} else 
+			rv=um_x_access(pc->path,MODE2ACCESSMODE(mode),pc,&pc->pathstat);
+		if (rv) {
+			pc->retval=-1;
+			pc->erno=errno;
+			return SC_FAKE;
+		}
 	}
 	if (hte != NULL) {
 		/* call the module's open */
@@ -648,7 +666,11 @@ int wrap_in_access(int sc_number,struct pcb *pc,
 		mode=pc->sysargs[1];
 		flags=0;
 	}
-	if ((pc->retval = um_syscall(pc->path,mode,flags)) < 0)
+	if (isnosys(um_syscall)) {
+		if ((pc->retval = um_x_access(pc->path,mode,pc,&pc->pathstat) < 0))
+			pc->erno=errno;
+	}
+	else if ((pc->retval = um_syscall(pc->path,mode,flags)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }

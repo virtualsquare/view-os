@@ -139,14 +139,14 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdo
 	return retval;
 }
 
-static int um_stat2access(char *filename, int mode, struct pcb *pc, 
+static int um_stat2access(int mode, struct pcb *pc, 
 		struct stat64 *stbuf, int real_uid)
 {
 	if (stbuf->st_mode == 0) {
 		errno=ENOENT;
 		return -1;
 	} else if ((mode & W_OK) && (ht_get_mountflags(pc->hte) & MS_RDONLY)) {
-		errno=EACCES;
+		errno=EROFS;
 		return -1;
 	} else {
 		uid_t uid;
@@ -208,13 +208,61 @@ int um_xx_access(char *filename, int mode, struct pcb *pc)
 	return retval;
 }
 										 
+int um_parentwaccess(char *filename, struct pcb *pc)
+{
+	int lastslash=strlen(filename)-1;
+	char *parent=filename;
+	struct ht_elem *hte;
+	struct stat64 stbuf;
+	long oldscno;
+	int retval;
+	epoch_t epoch,nestepoch;
+	//printk("%s \n",filename);
+	while ((parent[lastslash]!='/') && (lastslash>0)) 
+		lastslash--;
+	if (lastslash==0)
+		parent="/";
+	parent[lastslash]='\0';
+	//printk("-> um_parentwaccess: %s\n",parent);
+	/* internal nested call save data */
+	oldscno = pc->sysscno;
+	epoch=pc->tst.epoch;
+	nestepoch=pc->nestepoch;
+	pc->sysscno = NR64_lstat;
+	pc->tst.epoch=pc->nestepoch=get_epoch();
+	if ((hte=ht_check(CHECKPATH,parent,NULL,0)) == NULL) {
+		retval = r_lstat64(filename,&stbuf);
+	} else {
+		struct ht_elem *oldhte=pc->hte;
+		pc->hte=hte;
+		retval = ht_syscall(hte,uscno(NR64_lstat))(filename,&stbuf,-1);
+		pc->hte=oldhte;
+	}
+	pc->sysscno = oldscno;
+	pc->tst.epoch=epoch;
+	pc->nestepoch=nestepoch;
+	filename[lastslash]='/';
+	if (pc->suid == stbuf.st_uid && (stbuf.st_mode & S_IWUSR))
+		return 0;
+	else if ((stbuf.st_mode & S_IWGRP) && 
+			(pc->sgid == stbuf.st_gid || in_supgrplist(stbuf.st_gid, pc)))
+		return 0;
+	else if (stbuf.st_mode & S_IWOTH)
+		return 0;
+	else {
+		errno=EACCES;
+		return -1;
+	}
+	return 0;
+}
+
 #define FASTACCESS
 /* internal call: check the permissions for a file,
    this must follow a um_x_lstat64 */
 #ifdef FASTACCESS
 int um_x_access(char *filename, int mode, struct pcb *pc, struct stat64 *stbuf)
 {
-	return um_stat2access(filename, mode, pc, stbuf, 0);
+	return um_stat2access(mode, pc, stbuf, 0);
 }
 #else
 int um_x_access(char *filename, int mode, struct pcb *pc, struct stat64 *stbuf)
@@ -234,7 +282,7 @@ int um_x_access(char *filename, int mode, struct pcb *pc, struct stat64 *stbuf)
 #if 0
 		{
 			int test;
-			test=um_stat2access(filename, mode, pc, stbuf, 0);
+			test=um_stat2access(mode, pc, stbuf, 0);
 			if (test != retval) 
 				printk("diff %s %d -> %d %d %o %s\n",filename, mode, retval, test, pc->pathstat.st_mode, strerror(errno));
 		}
@@ -332,6 +380,7 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 		}
 		pc->hte=NULL;
 		um_realpath(path,cwd,newpath,pst,dontfollowlink,pc);
+		/* View-OS core chroot management: if root is not '/' always rewrite pathnames */
 		if (root[1] != 0 && pc->hte == NULL)
 			pc->needs_path_rewrite=1;
 		/* printk("PATH %s (%s,%s) NEWPATH %s (%p,%d) %lld\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->hte,pc->erno,pc->nestepoch); */

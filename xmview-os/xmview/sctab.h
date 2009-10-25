@@ -77,6 +77,7 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdo
 /* um_x_access and um_x_readlink must follow a um_x_lstat64 */
 int um_x_access(char *filename,int mode, struct pcb *pc, struct stat64 *stbuf);
 int um_x_readlink(char *path, char *buf, size_t bufsiz, struct pcb *pc);
+int um_parentwaccess(char *filename, struct pcb *pc);
 int um_xx_access(char *filename,int mode, struct pcb *pc);
 /* rewrite the path argument of a call */
 int um_x_rewritepath(struct pcb *pc, char *path, int arg, long offset);

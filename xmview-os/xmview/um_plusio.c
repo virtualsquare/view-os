@@ -69,8 +69,12 @@ int wrap_in_mkdir(int sc_number,struct pcb *pc,
 	if (pc->pathstat.st_mode != 0) {
 		pc->retval= -1; 
 		pc->erno= EEXIST; 
-	} else if ((pc->retval = um_syscall(pc->path,mode & ~ (pc->fdfs->mask))) < 0)
-		pc->erno=errno;
+	} else {
+		if (secure && (pc->retval=(um_parentwaccess(pc->path,pc))) < 0)
+			pc->erno=errno;
+		else if ((pc->retval = um_syscall(pc->path,mode & ~ (pc->fdfs->mask))) < 0)
+			pc->erno=errno;
+	}
 	return SC_FAKE;
 }
 
@@ -108,6 +112,11 @@ int wrap_in_mknod(int sc_number,struct pcb *pc,
 			pc->erno = EPERM;
 			return SC_FAKE;
 		}
+		if (um_parentwaccess(pc->path,pc)) {
+			pc->retval = -1;
+			pc->erno = errno;
+			return SC_FAKE;
+		}
 	}
 	if (pc->pathstat.st_mode != 0) {
 		pc->retval= -1;
@@ -125,7 +134,9 @@ int wrap_in_unlink(int sc_number,struct pcb *pc,
 		 um_syscall=ht_syscall(hte,uscno(__NR_rmdir));
 	} 
 #endif
-	if ((pc->retval = um_syscall(pc->path)) < 0)
+	if (secure && (pc->retval=(um_parentwaccess(pc->path,pc))) < 0)
+		pc->erno=errno;
+	else if ((pc->retval = um_syscall(pc->path)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }
@@ -588,6 +599,13 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 			pc->retval= -1;
 			pc->erno= EXDEV;
 		} else {
+			pc->hte=hte;
+			if (secure && (pc->retval=(um_parentwaccess(pc->path,pc))) < 0)
+				pc->erno=errno;
+			if (secure && 
+					(sc_number == __NR_rename || sc_number == __NR_renameat) &&
+					(pc->retval=(um_parentwaccess(source,pc))) < 0)
+				pc->erno=errno;
 			if ((pc->retval=um_syscall(source,pc->path)) < 0)
 				pc->erno= errno;
 		}
@@ -609,6 +627,8 @@ int wrap_in_symlink(int sc_number,struct pcb *pc,
 		pc->retval= -1;
 		pc->erno= ENOENT;
 	} else {
+		if (secure && (pc->retval=(um_parentwaccess(pc->path,pc))) < 0)
+			pc->erno=errno;
 		if ((pc->retval=um_syscall(source,pc->path)) < 0)
 			pc->erno= errno;
 		free(source);
@@ -658,6 +678,8 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 			umoven(pc,argaddr,2*sizeof(struct timeval),tv);
 		larg=tv;
 	}
+	if (secure && (pc->retval=(um_x_access(pc->path,W_OK,pc,&pc->pathstat))) < 0)
+		pc->erno=errno;
 	if ((pc->retval = um_syscall(pc->path,larg)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
@@ -749,6 +771,8 @@ int wrap_in_truncate(int sc_number,struct pcb *pc,
 	else
 #endif
 		off=pc->sysargs[1];
+	if (secure && (pc->retval=(um_x_access(pc->path,W_OK,pc,&pc->pathstat))) < 0)
+		pc->erno=errno;
 	if ((pc->retval=um_syscall(pc->path,off)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
