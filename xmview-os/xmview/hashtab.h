@@ -66,6 +66,7 @@ void *ht_get_private_data(struct ht_elem *hte);
 void ht_set_private_data(struct ht_elem *hte,void *private_data);
 char *ht_get_servicename(struct ht_elem *hte);
 struct service *ht_get_service(struct ht_elem *hte);
+unsigned long ht_get_mountflags(struct ht_elem *hte);
 epoch_t ht_get_epoch(struct ht_elem *hte);
 void ht_count_plus1(struct ht_elem *hte);
 void ht_count_minus1(struct ht_elem *hte);

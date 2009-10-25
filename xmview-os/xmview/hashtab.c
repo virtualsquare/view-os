@@ -53,6 +53,7 @@
 struct ht_elem {
 	void *obj;
 	char *mtabline;
+	unsigned long mountflags;
 	struct timestamp tst;
 	unsigned char type;
 	unsigned char trailingnumbers;
@@ -356,6 +357,7 @@ static inline int ht_is_obj_string(unsigned char type) {
 static struct ht_elem *internal_ht_tab_add(unsigned char type, 
 		const void *obj, 
 		int objlen,
+		unsigned long mountflags,
 		char *mtabline,
 		struct service *service, 
 		unsigned char trailingnumbers,
@@ -369,6 +371,7 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 			memcpy(new->obj,obj,objlen+ht_is_obj_string(type));
 			new->objlen=objlen;
 			new->type=type;
+			new->mountflags=mountflags;
 			new->mtabline=mtabline;
 			new->tst=tst_timestamp();
 			new->trailingnumbers=trailingnumbers;
@@ -411,7 +414,7 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 	 (tralingnumbers=1 causes scan to skip the check) */
 struct ht_elem *ht_tab_add(unsigned char type,void *obj,int objlen,
 		struct service *service, confirmfun_t confirmfun, void *private_data) {
-	return internal_ht_tab_add(type, obj, objlen, NULL,
+	return internal_ht_tab_add(type, obj, objlen, 0, NULL,
 			service, 1, confirmfun, private_data);
 }
 
@@ -474,7 +477,8 @@ struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 		addpath="";
 	else
 		addpath=path;
-	rv=internal_ht_tab_add(type, addpath, strlen(addpath), mtabline,
+	rv=internal_ht_tab_add(type, addpath, strlen(addpath), 
+			mountflags, mtabline,
 			service, trailingnumbers, confirmfun, private_data);
 	if (permanent_mount(mountopts))
 		rv->count++;
@@ -723,6 +727,14 @@ struct service *ht_get_service(struct ht_elem *hte)
 {
 	if (hte)
 		return hte->service;
+	else
+		return NULL;
+}
+
+unsigned long ht_get_mountflags(struct ht_elem *hte)
+{
+	if (hte)
+		return hte->mountflags;
 	else
 		return NULL;
 }

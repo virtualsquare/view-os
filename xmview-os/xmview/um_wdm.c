@@ -202,11 +202,22 @@ int wrap_in_chroot(int sc_number,struct pcb *pc,
 		pc->erno = ENOENT;
 		return SC_FAKE;
 	} else {
-		free(pc->fdfs->root);
-		pc->fdfs->root=strdup(pc->path); 
-		pc->retval = 0;
-		pc->erno = 0;
-		return SC_FAKE;
+		/* view-OS chroot can only restrict the visible subtree,
+			 no risk for users */
+#if 0
+		if (secure && capcheck(CAP_SYS_CHROOT,pc)) {
+			pc->retval = -1;
+			pc->erno = EPERM;
+			return SC_FAKE;
+		} else 
+#endif
+		{
+			free(pc->fdfs->root);
+			pc->fdfs->root=strdup(pc->path); 
+			pc->retval = 0;
+			pc->erno = 0;
+			return SC_FAKE;
+		}
 	}
 }
 

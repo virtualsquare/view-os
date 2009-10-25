@@ -32,6 +32,7 @@
 #include <sys/uio.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <sys/mount.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
 #include <linux/net.h>
@@ -188,16 +189,18 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		return SC_FAKE;
 	}
 	/* management of set[ug]id executables */
-	if (pc->pathstat.st_mode & S_ISUID) {
-		pc->suid=pc->euid;
-		pc->euid=pc->fsuid=pc->pathstat.st_uid;
-	} else if (pc->ruid == pc->euid)
-		pc->suid=pc->ruid;
-	if (pc->pathstat.st_mode & S_ISGID) {
-		pc->sgid=pc->egid;
-		pc->egid=pc->fsgid=pc->pathstat.st_gid;
-	} else if (pc->rgid == pc->egid)
-		pc->sgid=pc->rgid;
+	if (!secure || !(ht_get_mountflags(pc->hte) & MS_NOSUID)) {
+		if (pc->pathstat.st_mode & S_ISUID) {
+			pc->suid=pc->euid;
+			pc->euid=pc->fsuid=pc->pathstat.st_uid;
+		} else if (pc->ruid == pc->euid)
+			pc->suid=pc->ruid;
+		if (pc->pathstat.st_mode & S_ISGID) {
+			pc->sgid=pc->egid;
+			pc->egid=pc->fsgid=pc->pathstat.st_gid;
+		} else if (pc->rgid == pc->egid)
+			pc->sgid=pc->rgid;
+	}
 	if (!secure && (strcmp(pc->path,"/bin/mount") == 0 || 
 		strcmp(pc->path,"/bin/umount") == 0)) {
 		pc->suid=pc->euid;
@@ -293,6 +296,10 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 	}
 	else if (hte != NULL) {
 		pc->retval=ERESTARTSYS;
+		if (secure && (ht_get_mountflags(hte) & MS_NOEXEC)) {
+			pc->retval=-1;
+			pc->erno=EACCES;
+		}
 		/* does the module define a semantics for execve? */
 		if (!isnosys(um_syscall)) {
 			long largv=pc->sysargs[1];

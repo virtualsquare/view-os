@@ -29,6 +29,7 @@
 #include <sys/ptrace.h>
 #include <sys/select.h>
 #include <sys/mman.h>
+#include <sys/mount.h>
 #include <sys/types.h>
 #include <sched.h>
 #include <asm/ptrace.h>
@@ -138,11 +139,14 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdo
 	return retval;
 }
 
-int um_stat2access(char *filename, int mode, struct pcb *pc, 
+static int um_stat2access(char *filename, int mode, struct pcb *pc, 
 		struct stat64 *stbuf, int real_uid)
 {
 	if (stbuf->st_mode == 0) {
 		errno=ENOENT;
+		return -1;
+	} else if ((mode & W_OK) && (ht_get_mountflags(pc->hte) & MS_RDONLY)) {
+		errno=EACCES;
 		return -1;
 	} else {
 		uid_t uid;
@@ -227,7 +231,7 @@ int um_x_access(char *filename, int mode, struct pcb *pc, struct stat64 *stbuf)
 		epoch_t epoch=pc->nestepoch;
 		pc->nestepoch=ht_get_epoch(pc->hte);
 		retval = ht_syscall(pc->hte,uscno(__NR_access))(filename,mode);
-#if 1
+#if 0
 		{
 			int test;
 			test=um_stat2access(filename, mode, pc, stbuf, 0);
