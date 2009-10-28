@@ -256,7 +256,9 @@ static inline int call_confirmfun(int (*confirmfun)(),unsigned char type,void *c
 	um_mod_set_hte(ht);
 	int rv=confirmfun(type,checkobj,len,ht);
 	um_setnestepoch(epoch);
-	um_mod_set_hte(ht_old);
+	if (rv==0) {
+		um_mod_set_hte(ht_old);
+	}
 	return rv;
 }
 
