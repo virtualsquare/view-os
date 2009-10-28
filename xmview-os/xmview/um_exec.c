@@ -312,7 +312,6 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 		if (pc->retval==ERESTARTSYS){
 			char *filename=strdup(um_proc_tmpname());
 			//printk("wrap_in_execve! %s %p %d\n",(char *)pc->path,um_syscall,isnosys(um_syscall));
-
 			/* copy the file and change the first arg of execve to 
 			 * address the copy */
 			if ((pc->retval=filecopy(hte,pc->path,filename))>=0) {
