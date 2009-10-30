@@ -4,8 +4,8 @@
  *   hashtab.c: main hash table
  *   
  *   Copyright 2009 Renzo Davoli University of Bologna - Italy
- *   Credit: this ideas were tested on a preliminary version by 
- *   Marcello Stanisci.
+ *   Credit: some ideas were tested on a preliminary version by 
+ *   Marcello Stanisci. 
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License, version 2, as
@@ -257,7 +257,8 @@ static inline int call_confirmfun(int (*confirmfun)(),unsigned char type,void *c
 	um_mod_set_hte(ht);
 	int rv=confirmfun(type,checkobj,len,ht);
 	um_setnestepoch(epoch);
-	um_mod_set_hte(ht_old);
+	if (rv == 0)
+		um_mod_set_hte(ht_old);
 	return rv;
 }
 
@@ -738,7 +739,7 @@ unsigned long ht_get_mountflags(struct ht_elem *hte)
 	if (hte)
 		return hte->mountflags;
 	else
-		return NULL;
+		return 0;
 }
 
 epoch_t ht_get_epoch(struct ht_elem *hte)

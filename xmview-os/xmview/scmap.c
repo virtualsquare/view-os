@@ -64,6 +64,9 @@ wrapinfun wrap_in_umask, wrap_in_chroot, wrap_in_mknod;
 wrapinfun wrap_in_truncate, wrap_in_ftruncate, wrap_in_execve;
 wrapinfun wrap_in_statfs, wrap_in_fstatfs;
 wrapinfun wrap_in_getgroups, wrap_in_setgroups;
+#ifdef VIEW_CAPABILITY
+wrapinfun wrap_in_capget, wrap_in_capset;
+#endif
 
 /* XXX: find a better way (see defs_x86_64*.h) */
 #if __NR_statfs64 != __NR_doesnotexist
@@ -373,6 +376,10 @@ struct sc_map scmap[]={
 	{__NR_getsid,	choice_sc,	wrap_in_getpid_1, wrap_out_std,	always_null,	NULL, 0,	1, SOC_PID},
 	{__NR_setsid,	choice_sc,	wrap_in_setpid,  wrap_out_std,	always_null,	NULL, 0,	0, SOC_PID},
 
+#ifdef VIEW_CAPABILITY
+	{__NR_capget, choice_sc, wrap_in_capget, wrap_out_std, always_null,  NULL, 0,  0, 0},
+	{__NR_capset, choice_sc, wrap_in_capset, wrap_out_std, always_null,  NULL, 0,  0, 0},
+#endif
 #if 0
 	{__NR_sysctl, choice_sysctl, wrap_in_sysctl, wrap_out_sysctl, always_null,	NULL, 0, 2, 0}
 	/* this is a trip */

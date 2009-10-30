@@ -28,6 +28,8 @@
 #include <unistd.h>
 #include <config.h>
 #include <errno.h>
+#include <sys/capability.h>
+#include <errno.h>
 #include "defs.h"
 #include "services.h"
 #include "hashtab.h"
@@ -37,9 +39,33 @@
 #include "uid16to32.h"
 #define umNULL ((long) NULL)
 
-
 static int checksecureuid(struct pcb *pc, uid_t ruid, uid_t euid, uid_t suid, uid_t fsuid)
 {
+	if (capcheck(CAP_SETUID,pc)) {
+		if ((ruid != -1 && ruid != pc->ruid && ruid != pc->suid) ||
+				(euid != -1 && euid != pc->ruid && euid != pc->euid && euid != pc->suid) ||
+				(suid != -1 && suid != pc->suid) ||
+				(fsuid != -1 && fsuid != pc->fsuid))
+			return -1;
+		else
+			return 0;
+	} else 
+		return 0;
+}
+
+static int checksecuregid(struct pcb *pc, gid_t rgid, gid_t egid, gid_t sgid, gid_t fsgid)
+{
+	if (capcheck(CAP_SETGID,pc))
+		return 0;
+	else {
+		if ((rgid != -1 && rgid != pc->rgid && rgid != pc->sgid) ||
+				(egid != -1 && egid != pc->rgid && egid != pc->egid && egid != pc->sgid) ||
+				(sgid != -1 && sgid != pc->sgid) ||
+				(fsgid != -1 && fsgid != pc->fsgid))
+			return -1;
+		else
+			return 0;
+	}
 }
 
 /* getuid, geteuid, getgid, getegid */
@@ -117,6 +143,27 @@ int wrap_in_setuid(int sc_number,struct pcb *pc,
 	if (sc_number != __NR_setuid32 &&
 			sc_number != __NR_setfsuid32)
 		uid=id16to32(uid);
+	if (secure) {
+		int rv=0;
+		switch (sc_number) {
+			case __NR_setuid:
+#if __NR_setuid != __NR_setuid32
+			case __NR_setuid32:
+#endif
+				rv=checksecureuid(pc,uid,-1,-1,-1);
+				break;
+			case __NR_setfsuid:
+#if __NR_setfsuid != __NR_setfsuid32
+			case __NR_setfsuid32:
+#endif
+				rv=checksecureuid(pc,-1,-1,-1,uid);
+		}
+		if (rv) {
+			pc->retval=-1;
+			pc->erno=EPERM;
+			return SC_FAKE;
+		}
+	}
 	if (hte != NULL) {
 		switch (sc_number) {
 			case __NR_setuid:
@@ -129,7 +176,7 @@ int wrap_in_setuid(int sc_number,struct pcb *pc,
 #if __NR_setfsuid != __NR_setfsuid32
 			case __NR_setfsuid32:
 #endif
-				(pc->retval = um_syscall(uid));
+				pc->retval = um_syscall(uid);
 				break;
 		}
 		if (pc->retval < 0)
@@ -165,6 +212,27 @@ int wrap_in_setgid(int sc_number,struct pcb *pc,
 	if (sc_number != __NR_setgid32 &&
 			sc_number != __NR_setfsgid32)
 		gid=id16to32(gid);
+	if (secure) {
+		int rv=0;
+		switch (sc_number) {
+			case __NR_setgid:
+#if __NR_setgid != __NR_setgid32
+			case __NR_setgid32:
+#endif
+				rv=checksecuregid(pc,gid,-1,-1,-1);
+				break;
+			case __NR_setfsgid:
+#if __NR_setfsgid != __NR_setfsgid32
+			case __NR_setfsgid32:
+#endif
+				rv=checksecuregid(pc,-1,-1,-1,gid);
+		}
+		if (rv) {
+			pc->retval=-1;
+			pc->erno=EPERM;
+			return SC_FAKE;
+		}
+	}
 	if (hte != NULL) {
 		switch (sc_number) {
 			case __NR_setgid:
@@ -214,6 +282,11 @@ int wrap_in_setreuid(int sc_number,struct pcb *pc,
 		uid1=id16to32(uid1);
 		uid2=id16to32(uid2);
 	}
+	if (secure && checksecureuid(pc,uid1,uid2,-1,-1)) {
+			pc->retval=-1;
+			pc->erno=EPERM;
+			return SC_FAKE;
+	}
 	if (hte != NULL) {
 		if ((pc->retval = um_syscall(uid1,uid2,-1)) < 0)
 			pc->erno=errno;
@@ -233,6 +306,11 @@ int wrap_in_setregid(int sc_number,struct pcb *pc,
 	if (sc_number != __NR_setregid32) {
 		gid1=id16to32(gid1);
 		gid2=id16to32(gid2);
+	}
+	if (secure && checksecuregid(pc,gid1,gid2,-1,-1)) {
+			pc->retval=-1;
+			pc->erno=EPERM;
+			return SC_FAKE;
 	}
 	if (hte != NULL) {
 		if ((pc->retval = um_syscall(gid1,gid2,-1)) < 0)
@@ -254,7 +332,12 @@ int wrap_in_setresuid(int sc_number,struct pcb *pc,
 	if (sc_number != __NR_setresuid32) {
 		uid1=id16to32(uid1);
 		uid2=id16to32(uid2);
-		uid2=id16to32(uid3);
+		uid3=id16to32(uid3);
+	}
+	if (secure && checksecureuid(pc,uid1,uid2,uid3,-1)) {
+			pc->retval=-1;
+			pc->erno=EPERM;
+			return SC_FAKE;
 	}
 	if (hte != NULL) {
 		if ((pc->retval = um_syscall(uid1,uid2,uid3)) < 0)
@@ -277,7 +360,12 @@ int wrap_in_setresgid(int sc_number,struct pcb *pc,
 	if (sc_number != __NR_setresgid32) {
 		gid1=id16to32(gid1);
 		gid2=id16to32(gid2);
-		gid2=id16to32(gid3);
+		gid3=id16to32(gid3);
+	}
+	if (secure && checksecuregid(pc,gid1,gid2,gid3,-1)) {
+			pc->retval=-1;
+			pc->erno=EPERM;
+			return SC_FAKE;
 	}
 	if (hte != NULL) {
 		if ((pc->retval = um_syscall(gid1,gid2,gid3)) < 0)
@@ -526,3 +614,25 @@ int wrap_in_setgroups(int sc_number,struct pcb *pc,
 	}
 	return SC_FAKE;
 }
+
+#ifdef VIEW_CAPABILITY
+int wrap_in_capget(int sc_number,struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	unsigned long hdrp=pc->sysargs[0];
+	unsigned long datap=pc->sysargs[1];
+	struct __user_cap_header_struct hdr;
+	umoven(pc, hdrp, sizeof(struct __user_cap_header), hdr);
+	/* XXX TBD */
+}
+
+int wrap_in_capset(int sc_number,struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	unsigned long hdrp=pc->sysargs[0];
+	unsigned long datap=pc->sysargs[1];
+	struct __user_cap_header_struct hdr;
+	umoven(pc, hdrp, sizeof(struct __user_cap_header), hdr);
+	/* XXX TBD */
+}
+#endif
