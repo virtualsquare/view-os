@@ -20,6 +20,8 @@ char *user;
 char *group;
 int uid;
 int gid;
+int ngroups;
+gid_t *groups;
 
 void usage(char *argv0)
 {
@@ -76,8 +78,10 @@ int main(int argc, char *argv[])
 			}
 			uid=pwd->pw_uid;
 		}
-	} else if (group)
-		uid=getuid();
+	} else {
+		if (group)
+			uid=getuid();
+	}
 	if (pwd==NULL)
 		pwd=getpwuid(uid);
 	if (pwd) {
@@ -96,12 +100,28 @@ int main(int argc, char *argv[])
 			gid=grp->gr_gid;
 		}
 	}
+
+	if (pwd) {
+		getgrouplist(pwd->pw_name,gid,NULL,&ngroups);
+		groups=malloc(ngroups * sizeof (gid_t));
+		if (groups == NULL)
+			ngroups=0;
+		else
+			getgrouplist(pwd->pw_name,gid,groups,&ngroups);
+	}
+
 	switch (pid=fork()) {
 		case -1: exit(1);
 		case 0: 
-						 setresuid(uid,uid,uid);
-						 setresgid(gid,gid,gid);
-						 execvp(argv[optind],argv+optind);
+						 if (setresuid(uid,uid,uid) < 0)
+							 perror(argv[0]);
+						 else {
+							 setresgid(gid,gid,gid);
+							 setgroups(ngroups,groups);
+							 execvp(argv[optind],argv+optind);
+							 perror(argv[optind]);
+						 }
+						 exit(1);
 						 break;
 		default:
 						 waitpid(pid,&status,0);
