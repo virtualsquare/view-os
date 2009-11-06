@@ -13,7 +13,7 @@ mod_LTLIBRARIES = umfuseiso9660.la
 dist_man1_MANS = fuseiso9660.1
 
 fuseiso9660_SOURCES = fuseiso9660.c zisofs.h v2fuseutils.c v2fuseutils.h
-fuseiso9660_LDFLAGS = -lfuse -lz -liso9660
+fuseiso9660_LDFLAGS = -lfuse -lz -liso9660 -lcdio
 # Leave this also if it seems a no-op
 fuseiso9660_CFLAGS = $(AM_CFLAGS)
 

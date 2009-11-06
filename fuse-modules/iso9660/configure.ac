@@ -16,6 +16,8 @@ AC_CHECK_LIB([fuse], [fuse_main],,
     [AC_MSG_ERROR([Can't find libfuse, please install it])])
 AC_CHECK_LIB([iso9660], [iso9660_open_ext],,
     [AC_MSG_ERROR([Can't find libiso9660, please install it])])
+AC_CHECK_LIB([cdio], [_cdio_list_begin],,
+    [AC_MSG_ERROR([Can't find libcdio, please install it])])
 AC_CHECK_LIB([z], [uncompress],,
     [AC_MSG_ERROR([Can't find zlib, please install it])])
 AC_CHECK_LIB([umlib], [um_add_service],,
