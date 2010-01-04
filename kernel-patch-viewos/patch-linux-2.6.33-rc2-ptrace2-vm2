@@ -1,6 +1,6 @@
-diff -Naur linux-2.6.30.5.vm1/arch/um/include/shared/kern_util.h linux-2.6.30.5.vm2/arch/um/include/shared/kern_util.h
---- linux-2.6.30.5.vm1/arch/um/include/shared/kern_util.h	2009-09-04 10:41:34.000000000 +0200
-+++ linux-2.6.30.5.vm2/arch/um/include/shared/kern_util.h	2009-09-04 10:46:33.000000000 +0200
+diff -Naur linux-2.6.33-rc2.vm1/arch/um/include/shared/kern_util.h linux-2.6.33-rc2.vm2/arch/um/include/shared/kern_util.h
+--- linux-2.6.33-rc2.vm1/arch/um/include/shared/kern_util.h	2010-01-03 18:53:30.000000000 +0100
++++ linux-2.6.33-rc2.vm2/arch/um/include/shared/kern_util.h	2010-01-03 19:01:35.000000000 +0100
 @@ -57,7 +57,7 @@
  extern unsigned long to_irq_stack(unsigned long *mask_out);
  extern unsigned long from_irq_stack(int nested);
@@ -10,9 +10,9 @@ diff -Naur linux-2.6.30.5.vm1/arch/um/include/shared/kern_util.h linux-2.6.30.5.
  extern int singlestepping(void *t);
  
  extern void segv_handler(int sig, struct uml_pt_regs *regs);
-diff -Naur linux-2.6.30.5.vm1/arch/um/include/shared/ptrace_user.h linux-2.6.30.5.vm2/arch/um/include/shared/ptrace_user.h
---- linux-2.6.30.5.vm1/arch/um/include/shared/ptrace_user.h	2009-09-04 10:41:34.000000000 +0200
-+++ linux-2.6.30.5.vm2/arch/um/include/shared/ptrace_user.h	2009-09-04 10:46:33.000000000 +0200
+diff -Naur linux-2.6.33-rc2.vm1/arch/um/include/shared/ptrace_user.h linux-2.6.33-rc2.vm2/arch/um/include/shared/ptrace_user.h
+--- linux-2.6.33-rc2.vm1/arch/um/include/shared/ptrace_user.h	2010-01-03 18:53:30.000000000 +0100
++++ linux-2.6.33-rc2.vm2/arch/um/include/shared/ptrace_user.h	2010-01-03 19:01:35.000000000 +0100
 @@ -40,9 +40,20 @@
  #define PTRACE_OLDSETOPTIONS PTRACE_SETOPTIONS
  #endif
@@ -34,10 +34,10 @@ diff -Naur linux-2.6.30.5.vm1/arch/um/include/shared/ptrace_user.h linux-2.6.30.
  
  #define SELECT_PTRACE_OPERATION(sysemu_mode, singlestep_mode) \
  	(((int[3][3] ) { \
-diff -Naur linux-2.6.30.5.vm1/arch/um/kernel/process.c linux-2.6.30.5.vm2/arch/um/kernel/process.c
---- linux-2.6.30.5.vm1/arch/um/kernel/process.c	2009-09-04 10:41:34.000000000 +0200
-+++ linux-2.6.30.5.vm2/arch/um/kernel/process.c	2009-09-04 10:46:33.000000000 +0200
-@@ -322,7 +322,9 @@
+diff -Naur linux-2.6.33-rc2.vm1/arch/um/kernel/process.c linux-2.6.33-rc2.vm2/arch/um/kernel/process.c
+--- linux-2.6.33-rc2.vm1/arch/um/kernel/process.c	2010-01-03 18:53:30.000000000 +0100
++++ linux-2.6.33-rc2.vm2/arch/um/kernel/process.c	2010-01-04 09:43:50.000000000 +0100
+@@ -324,12 +324,16 @@
  }
  
  static atomic_t using_sysemu = ATOMIC_INIT(0);
@@ -47,13 +47,23 @@ diff -Naur linux-2.6.30.5.vm1/arch/um/kernel/process.c linux-2.6.30.5.vm2/arch/u
  
  void set_using_sysemu(int value)
  {
-@@ -336,7 +338,18 @@
+ 	if (value > sysemu_supported)
+ 		return;
++	if (value > 0)
++		atomic_set(&using_sysptvm, 0);
+ 	atomic_set(&using_sysemu, value);
+ }
+ 
+@@ -338,6 +342,20 @@
  	return atomic_read(&using_sysemu);
  }
  
--static int proc_read_sysemu(char *buf, char **start, off_t offset, int size,int *eof, void *data)
 +void set_using_sysptvm(int value)
 +{
++	if (sysptvm_supported == 0)
++		return;
++	if (value > 0)
++		atomic_set(&using_sysemu, 0);
 +	atomic_set(&using_sysptvm, value);
 +}
 +
@@ -62,49 +72,35 @@ diff -Naur linux-2.6.30.5.vm1/arch/um/kernel/process.c linux-2.6.30.5.vm2/arch/u
 +	return atomic_read(&using_sysptvm);
 +}
 +
-+static int proc_read_sysemu(char *buf, char **start, off_t offset,
-+		int size, int *eof, void *data)
+ static int sysemu_proc_show(struct seq_file *m, void *v)
  {
- 	if (snprintf(buf, size, "%d\n", get_using_sysemu()) < size)
- 		/* No overflow */
-@@ -345,7 +358,8 @@
- 	return strlen(buf);
- }
- 
--static int proc_write_sysemu(struct file *file,const char __user *buf, unsigned long count,void *data)
-+static int proc_write_sysemu(struct file *file, const char __user *buf,
-+		unsigned long count, void *data)
- {
- 	char tmp[2];
- 
-@@ -358,27 +372,63 @@
- 	return count;
- }
+ 	seq_printf(m, "%d\n", get_using_sysemu());
+@@ -372,24 +390,67 @@
+ 	.write		= sysemu_proc_write,
+ };
  
 -int __init make_proc_sysemu(void)
-+
-+static int proc_read_sysptvm(char *buf, char **start, off_t offset,
-+		int size, int *eof, void *data)
++static int sysptvm_proc_show(struct seq_file *m, void *v)
  {
 -	struct proc_dir_entry *ent;
 -	if (!sysemu_supported)
 -		return 0;
-+	int sysptvm = (get_using_sysptvm() != 0);
-+	if (snprintf(buf, size, "%d\n", sysptvm) < size)
-+		/* No overflow */
-+		*eof = 1;
++	seq_printf(m, "%d\n", (get_using_sysptvm() != 0));
++	return 0;
++}
  
--	ent = create_proc_entry("sysemu", 0600, NULL);
-+	return strlen(buf);
+-	ent = proc_create("sysemu", 0600, NULL, &sysemu_proc_fops);
++static int sysptvm_proc_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, sysptvm_proc_show, NULL);
 +}
  
 -	if (ent == NULL)
 -	{
 -		printk(KERN_WARNING "Failed to register /proc/sysemu\n");
 -		return 0;
--	}
-+static int proc_write_sysptvm(struct file *file, const char __user *buf,
-+		unsigned long count, void *data)
++static ssize_t sysptvm_proc_write(struct file *file, const char __user *buf,
++		size_t count, loff_t *pos)
 +{
 +	char tmp[2];
 +
@@ -118,45 +114,48 @@ diff -Naur linux-2.6.30.5.vm1/arch/um/kernel/process.c linux-2.6.30.5.vm2/arch/u
 +	/* We use the first char, but pretend to write everything */
 +	return count;
 +}
- 
--	ent->read_proc  = proc_read_sysemu;
--	ent->write_proc = proc_write_sysemu;
-+int __init make_proc_sysemu_or_sysptvm(void)
++
++static const struct file_operations sysptvm_proc_fops = {
++	.owner    = THIS_MODULE,
++	.open   = sysptvm_proc_open,
++	.read   = seq_read,
++	.llseek   = seq_lseek,
++	.release  = single_release,
++	.write    = sysptvm_proc_write,
++};
++
++int __init make_proc_sysemu_sysptvm(void)
 +{
 +	struct proc_dir_entry *ent;
- 
-+	if (sysptvm_supported) {
-+		ent = create_proc_entry("sysptvm", 0600, NULL);
++	if (sysemu_supported) {
++		ent = proc_create("sysemu", 0600, NULL, &sysemu_proc_fops);
 +
-+		if (ent == NULL) {
-+			printk(KERN_WARNING "Failed to register /proc/sysptvm\n");
-+			return 0;
-+		}
-+
-+		ent->read_proc  = proc_read_sysptvm;
-+		ent->write_proc = proc_write_sysptvm;
-+	} else if (sysemu_supported) {
-+		ent = create_proc_entry("sysemu", 0600, NULL);
-+
-+		if (ent == NULL) {
++		if (ent == NULL)
++		{
 +			printk(KERN_WARNING "Failed to register /proc/sysemu\n");
 +			return 0;
 +		}
-+
-+		ent->read_proc  = proc_read_sysemu;
-+		ent->write_proc = proc_write_sysemu;
-+	}
+ 	}
++	if (sysptvm_supported) {
++		ent = proc_create("sysptvm", 0600, NULL, &sysptvm_proc_fops);
+ 
++		if (ent == NULL)
++		{
++			printk(KERN_WARNING "Failed to register /proc/sysptvm\n");
++			return 0;
++		}
++	} 
  	return 0;
  }
  
 -late_initcall(make_proc_sysemu);
-+late_initcall(make_proc_sysemu_or_sysptvm);
++late_initcall(make_proc_sysemu_sysptvm);
  
  int singlestepping(void * t)
  {
-diff -Naur linux-2.6.30.5.vm1/arch/um/kernel/ptrace.c linux-2.6.30.5.vm2/arch/um/kernel/ptrace.c
---- linux-2.6.30.5.vm1/arch/um/kernel/ptrace.c	2009-09-04 10:41:34.000000000 +0200
-+++ linux-2.6.30.5.vm2/arch/um/kernel/ptrace.c	2009-09-04 10:46:33.000000000 +0200
+diff -Naur linux-2.6.33-rc2.vm1/arch/um/kernel/ptrace.c linux-2.6.33-rc2.vm2/arch/um/kernel/ptrace.c
+--- linux-2.6.33-rc2.vm1/arch/um/kernel/ptrace.c	2010-01-03 18:53:30.000000000 +0100
++++ linux-2.6.33-rc2.vm2/arch/um/kernel/ptrace.c	2010-01-03 19:01:35.000000000 +0100
 @@ -81,6 +81,8 @@
  		if (request == PTRACE_SYSCALL)
  			set_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
@@ -210,9 +209,9 @@ diff -Naur linux-2.6.30.5.vm1/arch/um/kernel/ptrace.c linux-2.6.30.5.vm2/arch/um
 +	else
 +		return 0;
  }
-diff -Naur linux-2.6.30.5.vm1/arch/um/kernel/skas/syscall.c linux-2.6.30.5.vm2/arch/um/kernel/skas/syscall.c
---- linux-2.6.30.5.vm1/arch/um/kernel/skas/syscall.c	2009-09-04 10:41:34.000000000 +0200
-+++ linux-2.6.30.5.vm2/arch/um/kernel/skas/syscall.c	2009-09-04 10:46:33.000000000 +0200
+diff -Naur linux-2.6.33-rc2.vm1/arch/um/kernel/skas/syscall.c linux-2.6.33-rc2.vm2/arch/um/kernel/skas/syscall.c
+--- linux-2.6.33-rc2.vm1/arch/um/kernel/skas/syscall.c	2010-01-03 18:53:30.000000000 +0100
++++ linux-2.6.33-rc2.vm2/arch/um/kernel/skas/syscall.c	2010-01-03 19:01:35.000000000 +0100
 @@ -17,8 +17,9 @@
  	struct pt_regs *regs = container_of(r, struct pt_regs, regs);
  	long result;
@@ -245,9 +244,9 @@ diff -Naur linux-2.6.30.5.vm1/arch/um/kernel/skas/syscall.c linux-2.6.30.5.vm2/a
  
  	syscall_trace(r, 1);
  }
-diff -Naur linux-2.6.30.5.vm1/arch/um/os-Linux/skas/process.c linux-2.6.30.5.vm2/arch/um/os-Linux/skas/process.c
---- linux-2.6.30.5.vm1/arch/um/os-Linux/skas/process.c	2009-09-04 10:41:34.000000000 +0200
-+++ linux-2.6.30.5.vm2/arch/um/os-Linux/skas/process.c	2009-09-04 10:46:33.000000000 +0200
+diff -Naur linux-2.6.33-rc2.vm1/arch/um/os-Linux/skas/process.c linux-2.6.33-rc2.vm2/arch/um/os-Linux/skas/process.c
+--- linux-2.6.33-rc2.vm1/arch/um/os-Linux/skas/process.c	2010-01-03 18:53:30.000000000 +0100
++++ linux-2.6.33-rc2.vm2/arch/um/os-Linux/skas/process.c	2010-01-03 19:01:35.000000000 +0100
 @@ -153,11 +153,11 @@
  }
  
@@ -294,10 +293,10 @@ diff -Naur linux-2.6.30.5.vm1/arch/um/os-Linux/skas/process.c linux-2.6.30.5.vm2
  			printk(UM_KERN_ERR "userspace - ptrace continue "
  			       "failed, op = %d, errno = %d\n", op, errno);
  			fatal_sigsegv();
-diff -Naur linux-2.6.30.5.vm1/arch/um/os-Linux/start_up.c linux-2.6.30.5.vm2/arch/um/os-Linux/start_up.c
---- linux-2.6.30.5.vm1/arch/um/os-Linux/start_up.c	2009-09-04 10:41:34.000000000 +0200
-+++ linux-2.6.30.5.vm2/arch/um/os-Linux/start_up.c	2009-09-04 10:46:33.000000000 +0200
-@@ -198,6 +198,34 @@
+diff -Naur linux-2.6.33-rc2.vm1/arch/um/os-Linux/start_up.c linux-2.6.33-rc2.vm2/arch/um/os-Linux/start_up.c
+--- linux-2.6.33-rc2.vm1/arch/um/os-Linux/start_up.c	2010-01-03 18:53:30.000000000 +0100
++++ linux-2.6.33-rc2.vm2/arch/um/os-Linux/start_up.c	2010-01-04 09:42:48.000000000 +0100
+@@ -198,6 +198,21 @@
  "    See http://perso.wanadoo.fr/laurent.vivier/UML/ for further \n"
  "    information.\n\n");
  
@@ -316,23 +315,10 @@ diff -Naur linux-2.6.30.5.vm1/arch/um/os-Linux/start_up.c linux-2.6.30.5.vm2/arc
 +"    Ptrace_vm is a feature introduced by Renzo Davoli. It changes\n"
 +"    behaviour of ptrace() and helps reducing host context switch rate.\n\n");
 +
-+static int use_sysemu;
-+
-+static int __init usesysemu_cmd_param(char *str, int* add)
-+{
-+	use_sysemu = 1;
-+	return 0;
-+}
-+
-+__uml_setup("usesysemu", usesysemu_cmd_param,
-+"usesysemu\n"
-+"    Use sysemu instead of sysptvm even when the kernel supports it.\n\n"
-+);
-+
  static void __init check_sysemu(void)
  {
  	unsigned long regs[MAX_REG_NR];
-@@ -293,6 +321,114 @@
+@@ -293,6 +308,114 @@
  	non_fatal("missing\n");
  }
  
@@ -447,13 +433,11 @@ diff -Naur linux-2.6.30.5.vm1/arch/um/os-Linux/start_up.c linux-2.6.30.5.vm2/arc
  static void __init check_ptrace(void)
  {
  	int pid, syscall, n, status;
-@@ -330,7 +466,8 @@
- 	}
+@@ -331,6 +454,7 @@
  	stop_ptraced_child(pid, 0, 1);
  	non_fatal("OK\n");
--	check_sysemu();
-+	if (use_sysemu || !check_sysptvm())
-+		check_sysemu();
+ 	check_sysemu();
++	check_sysptvm();
  }
  
  extern void check_tmpexec(void);

@@ -99,7 +99,7 @@ diff -Naur linux-2.6.28.2/arch/um/kernel/process.c linux-2.6.28.2-vm/arch/um/ker
 +	if (tmp[0] == '0')
 +		set_using_sysptvm(0);
 +	if (tmp[0] == '1')
-+		set_using_sysemu(/* XXX */ 6);
++		set_using_sysptvm(/* XXX */ 6);
 +	/* We use the first char, but pretend to write everything */
 +	return count;
 +}
