@@ -426,12 +426,17 @@ struct sc_map sockmap[]={
 };
 #endif
 
+#ifdef OLDVIRSC
 /* virtual system calls, emulated on sysctl with name==NULL,
  * nlen is the number of call
  * oldval, oldlenp unused
  * newval is the args array
  * newlen is the number of arguments (NOT bytes, number of "long" args)
  * when name != NULL the entry 0 is used thus sysctl could be virtualized */
+#else
+/* virtual system calls, emulated on pivot_root with newroot==NULL,
+	 4 args: NULL, the number of virtual syscall, the number orf args, the address of the arg array (max 6 long ints) */
+#endif
 struct sc_map virscmap[]={
 	{__NR_doesnotexist,     always_null,          NULL,                   NULL,   always_null,  NULL, 0,        0, 0},
 	{VIRSYS_UMSERVICE,	always_null, wrap_in_umservice, wrap_out_umservice,   always_null,  NULL, ALWAYS, 1, SOC_NONE},

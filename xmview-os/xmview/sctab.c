@@ -41,7 +41,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#ifdef OLDVIRSC
 #include <linux/sysctl.h>
+#endif
 #include <config.h>
 
 #include "defs.h"
@@ -395,7 +397,7 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 	}
 }
 
-/* Common framework for the dsys_{megawrap,socketwrap,sysctlwrap,...} - they all
+/* Common framework for the dsys_{megawrap,socketwrap,virscwrap,...} - they all
  * do the usual work, but with different parameter handling.
  * What a dsys_* function do is, in general, receiving the notification of an
  * IN/OUT phase of syscall about a certain process, and decide what to do. What
@@ -571,8 +573,9 @@ int dsys_socketwrap(int sc_number,int inout,struct pcb *pc)
 }
 #endif
 
-/* sysctl argument parsing function */
-void dsys_um_sysctl_parse_arguments(struct pcb *pc, int scno)
+/* virsc argument parsing function */
+#ifdef OLDVIRSC
+void dsys_um_virsc_parse_arguments(struct pcb *pc, int scno)
 {
 	struct __sysctl_args sysctlargs;
 	sysctlargs.name=NULL;
@@ -593,20 +596,30 @@ void dsys_um_sysctl_parse_arguments(struct pcb *pc, int scno)
 		pc->sysargs[1] = 0;
 	}
 }
+#else
+void dsys_um_virsc_parse_arguments(struct pcb *pc, int scno)
+{
+	if (pc->sysargs[0] == umNULL && pc->sysargs[1] <= 6) { /* virtual syscall */
+		pc->private_scno = pc->sysargs[2] | ESCNO_VIRSC;
+		umoven(pc,pc->sysargs[3], pc->sysargs[1] * sizeof(long), pc->sysargs);
+	} else
+		pc->private_scno = ESCNO_VIRSC;
+}
+#endif
 
 /* index function for sysctl: parse args above puts the 
  * number of syscall in sysargs[1]*/
-int dsys_um_sysctl_index_function(struct pcb *pc, int scno)
+int dsys_um_virsc_index_function(struct pcb *pc, int scno)
 {
 	return (pc->private_scno & ESCNO_MASK);
 }
 
-/* megawrap for sysctl */
-int dsys_um_sysctl(int sc_number,int inout,struct pcb *pc)
+/* megawrap for virsc */
+int dsys_um_virsc(int sc_number,int inout,struct pcb *pc)
 {
 	return dsys_commonwrap(sc_number, inout, pc,
-			dsys_um_sysctl_parse_arguments,
-			dsys_um_sysctl_index_function, ht_virsyscall,
+			dsys_um_virsc_parse_arguments,
+			dsys_um_virsc_index_function, ht_virsyscall,
 			virscmap);
 }
 
@@ -1419,9 +1432,15 @@ void scdtab_init()
 	/* init service management */
 	service_addregfun(MC_PROC, (sysfun)reg_processes, (sysfun)dereg_processes);
 
+#ifdef OLDVIRSC
 	/* sysctl is used to define private system calls */
-	scdtab[__NR__sysctl]=dsys_um_sysctl;
+	scdtab[__NR__sysctl]=dsys_um_virsc;
 	scdnarg[__NR__sysctl]=1;
+#else
+	/* pivot_root is used to define private system calls */
+	scdtab[__NR_pivot_root]=dsys_um_virsc;
+	scdnarg[__NR_pivot_root]=4;
+#endif
 
 	/* initialize scmap */
 	init_scmap();
