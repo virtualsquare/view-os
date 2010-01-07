@@ -592,12 +592,11 @@ char *fd_getpath(struct pcb_file *p, int fd)
 {
 	if (fd>=0 && fd < p->nolfd) {
 		int lfd=FD2LFD(p,fd);
-		assert (lfd >= 0 && lfd < lfd_tabmax && lfd_tab[lfd] != NULL); 
+		//assert (lfd >= 0 && lfd < lfd_tabmax && lfd_tab[lfd] != NULL); 
 		if (lfd >= 0 && lfd < lfd_tabmax && lfd_tab[lfd] != NULL) {
 			return lfd_tab[lfd]->path;
-		} else {
+		} else 
 			return NULL;
-		}
 	} else
 		return NULL;
 }

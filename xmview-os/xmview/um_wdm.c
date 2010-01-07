@@ -136,8 +136,17 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
 	char *path;
-
-	if ((path=fd_getpath(pc->fds,pc->sysargs[0])) != NULL) {
+	path=fd_getpath(pc->fds,pc->sysargs[0]);
+	if (path == NULL) {
+		int rv;
+		path=alloca(PATH_MAX);
+		snprintf(path,PATH_MAX,"/proc/%d/fd/%ld",pc->pid,pc->sysargs[0]);
+		if ((rv=readlink(path,path,PATH_MAX)) < 0) 
+			path=NULL;
+		else 
+			path[rv]=0;
+	}
+	if (path != NULL) {
 		//printk("fchdir to %s\n",path);
 		pc->path=strdup(path);
 		um_x_lstat64(pc->path, &(pc->pathstat), pc, 0);

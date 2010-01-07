@@ -376,8 +376,14 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 		else {
 			cwd=fd_getpath(pc->fds,dirfd);
 			if (cwd==NULL) {
-				pc->erno = EBADF;
-				return um_patherror;
+				int rv;
+				cwd=alloca(PATH_MAX);
+				snprintf(cwd,PATH_MAX,"/proc/%d/fd/%d",pc->pid,dirfd);
+				if ((rv=readlink(cwd,cwd,PATH_MAX)) < 0) {
+					pc->erno = EBADF;
+					return um_patherror;
+				} else 
+					cwd[rv]=0;
 			}
 		}
 		pc->hte=NULL;
