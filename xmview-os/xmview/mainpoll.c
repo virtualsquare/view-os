@@ -32,7 +32,10 @@
 #include "defs.h"
 #include "services.h"
 
+#ifndef _VIEWOS_KM
 static int useppoll;
+#endif
+
 #define STEP_SIZE_POLLFD_TABLE 8
 
 static struct pollfd *gpollfd;
@@ -55,6 +58,7 @@ struct blockq {
 	void (*fun)(struct pcb *);
 };
 
+#ifndef _VIEWOS_KM
 int hasppolltest()
 {
 	struct timespec timeout={0,0};
@@ -63,16 +67,19 @@ int hasppolltest()
 	else
 		return 1;
 }
+#endif
 
 static int umviewmainpid;
 static void restart_main_loop(void)
 {
-	if (useppoll) {
-		r_kill(umviewmainpid,SIGUSR1);
-	} else {
+#ifndef _VIEWOS_KM
+	if (useppoll==0) 
+	{
 		char x = 0;
 		r_write(bqpipe[1], &x, 1);
-	}
+	} else
+#endif
+		r_kill(umviewmainpid,SIGUSR1);
 }
 
 void bq_add(void (*fun)(struct pcb *), struct pcb *pc)
@@ -141,6 +148,7 @@ void bq_wake(int signal)
 	bqsignaled=1;
 }
 
+#ifndef _VIEWOS_KM
 void bq_polltry()
 {
 	/* this block '{}' is needed to reuse immediately the stack size of 
@@ -151,6 +159,7 @@ void bq_polltry()
 	}
 	bq_try();
 }
+#endif
 
 void bq_ppolltry()
 {
@@ -218,6 +227,7 @@ static void mp_pack()
 	gnfds=j;
 }
 
+#ifndef _VIEWOS_KM
 /* For linux < 2.6.18 */
 int mp_poll()
 {
@@ -265,6 +275,7 @@ int mp_poll()
 
 	return rv;
 }
+#endif
 
 /* newer linux-es use ppoll */
 int mp_ppoll( const sigset_t *sigmask)
@@ -323,9 +334,17 @@ void mainpoll_delproc(struct pcb *pc,int flags,int npcbflag)
 
 void mainpoll_init(int want_ppoll)
 {
-	useppoll=want_ppoll;
 	umviewmainpid=r_getpid();
-	if (useppoll) {
+#ifndef _VIEWOS_KM
+	useppoll=want_ppoll;
+	if (useppoll == 0) 
+	{
+		r_pipe(bqpipe);
+		r_fcntl(bqpipe[0],F_SETFL,O_NONBLOCK);
+		mp_add(bqpipe[0],POLLIN,bq_polltry,NULL,1);
+	} else 
+#endif
+	{
 		struct sigaction sa;
 		sigset_t blockusr1;
 		sigemptyset(&blockusr1);
@@ -335,9 +354,5 @@ void mainpoll_init(int want_ppoll)
 		sa.sa_handler = bq_wake;
 		sa.sa_flags = 0;
 		r_sigaction(SIGUSR1, &sa, NULL);
-	} else {
-		r_pipe(bqpipe);
-		r_fcntl(bqpipe[0],F_SETFL,O_NONBLOCK);
-		mp_add(bqpipe[0],POLLIN,bq_polltry,NULL,1);
-	}
+	} 
 }

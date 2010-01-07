@@ -9,7 +9,9 @@
 #include <stdlib.h>
 #include "defs.h"
 
+#ifndef _VIEWOS_KM
 int hasppolltest();
+#endif
 
 void bq_add(void (*fun)(struct pcb *), struct pcb *pc);
 void bq_signal(struct pcb *pc);
