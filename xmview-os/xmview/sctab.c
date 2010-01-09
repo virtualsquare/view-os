@@ -355,10 +355,16 @@ static char *utimensat_nullpath(int dirfd,struct pcb *pc,struct stat64 *pst,int 
 	} else {
 		char *path=fd_getpath(pc->fds,dirfd);
 		if (path==NULL) {
-			pc->erno = EBADF;
-			return um_patherror;
-		} else
-			return strdup(path);
+			int rv;
+			path=alloca(PATH_MAX);
+			snprintf(path,PATH_MAX,"/proc/%d/fd/%d",pc->pid,dirfd);
+			if ((rv=readlink(path,path,PATH_MAX)) < 0) {
+				pc->erno = EBADF;
+				return um_patherror;
+			} else
+				path[rv]=0;
+		}
+		return strdup(path);
 	}
 }
 

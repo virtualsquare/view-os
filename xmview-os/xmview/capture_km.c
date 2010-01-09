@@ -91,6 +91,8 @@ static int pcbtabsize;                /* actual size of the pcb table */
 
 divfun scdtab[_UM_NR_syscalls];                 /* upcalls */
 char scdnarg[_UM_NR_syscalls];  /*nargs*/
+unsigned int scdtab_bitmap[INT_PER_MAXSYSCALL]; /* bitmap */
+
 
 #if __NR_socketcall != __NR_doesnotexist
 divfun sockcdtab[19];                 /* upcalls */
@@ -507,6 +509,37 @@ void capture_execrc(const char *path,const char *argv1)
 	}
 }
 
+static void scdtab_bitmap_init()
+{
+	register int i;
+	scbitmap_fill(scdtab_bitmap);
+	for (i=0; i<_UM_NR_syscalls; i++)
+		if (scdtab[i] != NULL)
+			scbitmap_clr(scdtab_bitmap,i);
+	/*scbitmap_clr(scdtab_bitmap,__NR_pivot_root);
+	scbitmap_clr(scdtab_bitmap,__NR_mount);*/
+	/*scbitmap_clr(scdtab_bitmap,__NR_getcwd);
+	scbitmap_clr(scdtab_bitmap,__NR_chdir);
+	scbitmap_clr(scdtab_bitmap,__NR_fchdir);*/
+	/*scbitmap_clr(scdtab_bitmap,__NR_open);
+	scbitmap_clr(scdtab_bitmap,__NR_creat);
+	scbitmap_clr(scdtab_bitmap,__NR_close);
+	scbitmap_clr(scdtab_bitmap,__NR_openat);
+	scbitmap_clr(scdtab_bitmap,__NR_stat64);
+	scbitmap_clr(scdtab_bitmap,__NR_lstat64);
+	scbitmap_clr(scdtab_bitmap,__NR_access);*/
+	/*scbitmap_set(scdtab_bitmap,__NR_open);
+	scbitmap_set(scdtab_bitmap,__NR_creat);
+	scbitmap_set(scdtab_bitmap,__NR_close);
+	scbitmap_set(scdtab_bitmap,__NR_openat);
+	scbitmap_set(scdtab_bitmap,__NR_stat64);
+	scbitmap_set(scdtab_bitmap,__NR_lstat64);
+	scbitmap_set(scdtab_bitmap,__NR_access);*/
+	/*scbitmap_set(scdtab_bitmap,__NR_getcwd);
+	scbitmap_set(scdtab_bitmap,__NR_chdir);
+	scbitmap_set(scdtab_bitmap,__NR_fchdir);*/
+}
+
 /* main capture startup */
 int capture_main(char **argv,void (*root_process_init)(void),char *rc)
 {
@@ -520,7 +553,10 @@ int capture_main(char **argv,void (*root_process_init)(void),char *rc)
 #if __NR_socketcall != __NR_doesnotexist
 	flags |= KMVIEW_FLAG_SOCKETCALL;
 #endif
+	/*flags |= KMVIEW_FLAG_PATH_SYSCALL_SKIP;*/
 	r_ioctl(kmviewfd, KMVIEW_SET_FLAGS, flags);
+	scdtab_bitmap_init();
+	r_ioctl(kmviewfd, KMVIEW_SYSCALLBITMAP, scdtab_bitmap);
 	allocatepcbtab();
 	switch (r_fork()) {
 		case -1:
