@@ -1433,6 +1433,24 @@ void *getfiletab(int i)
 	return rv;
 }
 
+#ifdef _VIEWOS_KM
+static void ht_zerovirt_upcall(int tag, unsigned char type,const void *obj,int objlen)
+{
+	static unsigned long ht_count[NCHECKS];
+	int oldsum=ht_count[CHECKPATH] + ht_count[CHECKCHRDEVICE] + ht_count[CHECKBLKDEVICE];
+	int newsum;
+	switch (tag) {
+		case HT_ADD: ht_count[type]++; break;
+		case HT_DEL: ht_count[type]--; break;
+	}
+	newsum=ht_count[CHECKPATH] + ht_count[CHECKCHRDEVICE] + ht_count[CHECKBLKDEVICE];
+	if (oldsum == 0 && newsum == 1)
+		capture_km_global_get_path_syscalls();
+	if (oldsum == 1 && newsum == 0)
+		capture_km_global_skip_path_syscalls();
+}
+#endif
+
 /* scdtab: interface between capture_* and the wrapper (wrap-in/out)
  * implemented for each system call (see um_*.c files) */
 /* capture_* call a "megawrap" that implements all the common code
@@ -1477,6 +1495,9 @@ void scdtab_init()
 	/* start umproc (file management) and define an atexit function for
 	 * the final cleaning up */
 	um_proc_open();
+#ifdef _VIEWOS_KM
+	ht_init(ht_zerovirt_upcall);
+#endif
 	atexit(um_proc_close);
 	atexit(ht_terminate);
 }

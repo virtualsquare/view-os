@@ -36,6 +36,9 @@
 #include <unistd.h>
 #include "hashtab.h"
 
+static void ht_nullcall(int tag, unsigned char type,const void *obj,int objlen);
+static void (*ht_upcall)(int, unsigned char,const void *,int)=ht_nullcall;
+
 /* struct ht_elem:
 	 @obj: hash key
 	 @mtabline: mount tab line
@@ -404,6 +407,7 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 			new->pprevhash=hashhead;
 			*hashhead=new;
 			pthread_rwlock_unlock(&ht_tab_rwlock);
+			ht_upcall(HT_ADD,type,obj,objlen);
 			return new;
 		} else {
 			free(new);
@@ -517,6 +521,7 @@ void ht_tab_invalidate(struct ht_elem *ht) {
 /* delete an element (using a write lock) */
 int ht_tab_del(struct ht_elem *ht) {
 	if (ht) {
+		ht_upcall(HT_DEL,ht->type,ht->obj,ht->objlen);
 		if (ht->invalid==0 && ht->service && ht->service->destructor)
 			ht->service->destructor(ht->type,ht);
 		pthread_rwlock_wrlock(&ht_tab_rwlock);
@@ -775,8 +780,17 @@ int ht_get_count(struct ht_elem *hte)
 	return hte->count;
 }
 
+static void ht_nullcall(int tag, unsigned char type,const void *obj,int objlen)
+{
+}
+
+void ht_init(void (*ht_upcall_def)(int, unsigned char,const void *,int))
+{
+	if (ht_upcall_def != NULL)
+		ht_upcall=ht_upcall_def;
+}
+
 void ht_terminate(void)
 {
 	forall_ht_terminate(CHECKPATH);
 }
-

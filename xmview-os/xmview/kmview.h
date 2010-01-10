@@ -124,10 +124,12 @@ struct kmview_fd {
 #define KMVIEW_DELFD           _IOR('v', 31, struct kmview_fd)
 
 #define KMVIEW_SYSCALLBITMAP   _IOR('v', 40, unsigned int *)
+#define KMVIEW_SET_CHROOT      _IO('v', 41)
+#define KMVIEW_CLR_CHROOT      _IO('v', 42)
 
 #define MAXSYSCALL 384
 #define INT_PER_MAXSYSCALL (MAXSYSCALL / (sizeof(unsigned int) * 8))
-#define SYSCALLBITMAPEL(x)  ((x) >> 6)
+#define SYSCALLBITMAPEL(x)  ((x) >> 5)
 #define SYSCALLBITMAPOFF(x) ((x)&0x1f)
 
 static inline unsigned int scbitmap_isset(unsigned int *bitmap,int scno) {
@@ -158,6 +160,5 @@ static inline void scbitmap_zero(unsigned int *bitmap) {
 	for (i=0; i<INT_PER_MAXSYSCALL; i++)
 		bitmap[i]= 0;
 }
-
 
 #endif

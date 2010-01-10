@@ -46,6 +46,9 @@
 #include "scmap.h"
 #include "utils.h"
 #include "gdebug.h"
+#ifdef _VIEWOS_KM
+#include "capture_km.h"
+#endif
 
 int wrap_in_getcwd(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
@@ -221,8 +224,14 @@ int wrap_in_chroot(int sc_number,struct pcb *pc,
 		} else 
 #endif
 		{
-			free(pc->fdfs->root);
-			pc->fdfs->root=strdup(pc->path); 
+			if (strcmp(pc->fdfs->root,pc->path) != 0) {
+#ifdef _VIEWOS_KM
+				if (strcmp(pc->fdfs->root,"/")==0)
+					capture_km_kmpid_chroot(pc->kmpid,1);
+#endif
+				free(pc->fdfs->root);
+				pc->fdfs->root=strdup(pc->path); 
+			}
 			pc->retval = 0;
 			pc->erno = 0;
 			return SC_FAKE;

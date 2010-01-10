@@ -48,7 +48,9 @@
 #include "kmview.h"
 
 #define NEVENTS 1
+int kmversion;
 int kmviewfd;
+long kmflags;
 struct kmview_event event[NEVENTS];
 #define umpid2pcb(X) (pcbtab[(X)-1])
 #define PCBSIZE 10
@@ -514,49 +516,59 @@ static void scdtab_bitmap_init()
 	register int i;
 	scbitmap_fill(scdtab_bitmap);
 	for (i=0; i<_UM_NR_syscalls; i++)
-		if (scdtab[i] != NULL)
+		if (scdtab[i] != NULL) 
 			scbitmap_clr(scdtab_bitmap,i);
-	/*scbitmap_clr(scdtab_bitmap,__NR_pivot_root);
-	scbitmap_clr(scdtab_bitmap,__NR_mount);*/
-	/*scbitmap_clr(scdtab_bitmap,__NR_getcwd);
-	scbitmap_clr(scdtab_bitmap,__NR_chdir);
-	scbitmap_clr(scdtab_bitmap,__NR_fchdir);*/
-	/*scbitmap_clr(scdtab_bitmap,__NR_open);
-	scbitmap_clr(scdtab_bitmap,__NR_creat);
-	scbitmap_clr(scdtab_bitmap,__NR_close);
-	scbitmap_clr(scdtab_bitmap,__NR_openat);
-	scbitmap_clr(scdtab_bitmap,__NR_stat64);
-	scbitmap_clr(scdtab_bitmap,__NR_lstat64);
-	scbitmap_clr(scdtab_bitmap,__NR_access);*/
-	/*scbitmap_set(scdtab_bitmap,__NR_open);
-	scbitmap_set(scdtab_bitmap,__NR_creat);
-	scbitmap_set(scdtab_bitmap,__NR_close);
-	scbitmap_set(scdtab_bitmap,__NR_openat);
-	scbitmap_set(scdtab_bitmap,__NR_stat64);
-	scbitmap_set(scdtab_bitmap,__NR_lstat64);
-	scbitmap_set(scdtab_bitmap,__NR_access);*/
-	/*scbitmap_set(scdtab_bitmap,__NR_getcwd);
-	scbitmap_set(scdtab_bitmap,__NR_chdir);
-	scbitmap_set(scdtab_bitmap,__NR_fchdir);*/
+	/*for (i=0; i<MAXSYSCALL; i++)
+		if (scbitmap_isset(scdtab_bitmap,i) == 0)
+			printk("%d ",i);*/
+}
+
+void capture_km_kmpid_chroot(pid_t kmpid,int onoff)
+{
+	if (kmversion >= 2) {
+		if (onoff)
+			r_ioctl(kmviewfd, KMVIEW_SET_CHROOT, kmpid);
+		else
+			r_ioctl(kmviewfd, KMVIEW_CLR_CHROOT, kmpid);
+	}
+}
+
+void capture_km_global_get_path_syscalls(void)
+{
+	if (kmversion >= 2) {
+		kmflags &= ~KMVIEW_FLAG_PATH_SYSCALL_SKIP;
+		r_ioctl(kmviewfd, KMVIEW_SET_FLAGS, kmflags);
+	}
+}
+
+void capture_km_global_skip_path_syscalls(void)
+{
+	if (kmversion >= 2) {
+		kmflags |= KMVIEW_FLAG_PATH_SYSCALL_SKIP;
+		r_ioctl(kmviewfd, KMVIEW_SET_FLAGS, kmflags);
+	}
 }
 
 /* main capture startup */
 int capture_main(char **argv,void (*root_process_init)(void),char *rc)
 {
 	struct kmview_magicpoll mp={(long)&event,1};
-	long flags;
 	kmviewfd=r_open("/dev/kmview",O_RDONLY,0);
 	if (kmviewfd < 0)
 		return -1;
+	kmversion=r_ioctl(kmviewfd,KMVIEW_GET_VERSION);
 	r_ioctl(kmviewfd, KMVIEW_MAGICPOLL, &mp);
-	flags =  KMVIEW_FLAG_FDSET|KMVIEW_FLAG_EXCEPT_CLOSE|KMVIEW_FLAG_EXCEPT_FCHDIR;
+	kmflags =  KMVIEW_FLAG_FDSET|KMVIEW_FLAG_EXCEPT_CLOSE|KMVIEW_FLAG_EXCEPT_FCHDIR;
 #if __NR_socketcall != __NR_doesnotexist
-	flags |= KMVIEW_FLAG_SOCKETCALL;
+	kmflags |= KMVIEW_FLAG_SOCKETCALL;
 #endif
-	/*flags |= KMVIEW_FLAG_PATH_SYSCALL_SKIP;*/
-	r_ioctl(kmviewfd, KMVIEW_SET_FLAGS, flags);
-	scdtab_bitmap_init();
-	r_ioctl(kmviewfd, KMVIEW_SYSCALLBITMAP, scdtab_bitmap);
+	if (kmversion >= 2)
+		kmflags |= KMVIEW_FLAG_PATH_SYSCALL_SKIP;
+	r_ioctl(kmviewfd, KMVIEW_SET_FLAGS, kmflags);
+	if (kmversion >= 2) {
+		scdtab_bitmap_init();
+		r_ioctl(kmviewfd, KMVIEW_SYSCALLBITMAP, scdtab_bitmap);
+	}
 	allocatepcbtab();
 	switch (r_fork()) {
 		case -1:

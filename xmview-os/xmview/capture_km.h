@@ -52,6 +52,14 @@ void tracehand(void *useless);
 /* pcb search (linear scan) */
 struct pcb *pid2pcb(int pid);
 
+/* chroot or virtual cwd for one process */
+void capture_km_kmpid_chroot(pid_t kmpid,int onoff);
+
+/* zerovirt optimiation */
+void capture_km_global_get_path_syscalls(void);
+
+void capture_km_global_skip_path_syscalls(void);
+
 int capture_attach(struct pcb *pc,pid_t pid);
 
 #endif
