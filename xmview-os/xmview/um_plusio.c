@@ -321,9 +321,13 @@ int wrap_in_dup(int sc_number,struct pcb *pc,
 	} else {
 		pc->retval=fd2lfd(pc->fds,pc->sysargs[0]);
 		pc->erno = 0;
-		if (pc->retval >= 0)
+		if (pc->retval >= 0) {
 			lfd_dup(pc->retval);
-		return SC_CALLONXIT;
+			return SC_CALLONXIT;
+		} else if (fd2lfd(pc->fds,pc->sysargs[1]) >= 0)
+			return SC_CALLONXIT;
+		else
+			return STD_BEHAVIOR;
 	}
 }
 

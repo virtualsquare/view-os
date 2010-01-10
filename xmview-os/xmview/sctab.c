@@ -160,7 +160,7 @@ static int um_stat2access(int mode, struct pcb *pc,
 			uid=(real_uid)?pc->ruid:pc->fsuid;
 			gid=(real_uid)?pc->rgid:pc->fsgid;
 		}
-		if (uid == 0) {
+		if (uid == 0 || secure == 0) {
 			if ((mode & X_OK) && 
 					!(stbuf->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH))) {
 				errno=EACCES;

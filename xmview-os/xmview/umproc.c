@@ -444,7 +444,7 @@ void lfd_close (int lfd)
 {
 	int rv;
 	GDEBUG(5, "close %d %x",lfd,lfd_tab[lfd]);
-	//printk("lfd close %d %d %x %d %s\n",lfd_tab[lfd]->count,lfd,lfd_tabmax,lfd_tab[lfd],lfd_tab[lfd]->path);
+	/*printk("lfd close %d %d %x %d %s\n",lfd_tab[lfd]->count,lfd,lfd_tabmax,lfd_tab[lfd],lfd_tab[lfd]->path);*/
 	assert (lfd < 0 || (lfd < lfd_tabmax && lfd_tab[lfd] != NULL));
 	/* if this is the last reference to the lfd 
 	 * close everything*/

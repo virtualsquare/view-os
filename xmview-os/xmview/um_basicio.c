@@ -114,8 +114,10 @@ int wrap_in_open(int sc_number,struct pcb *pc,
 			pc->retval=lfd_open(hte,-1,pc->path,flags,0);
 			return SC_CALLONXIT;
 		} else {
-			pc->retval=lfd_open(hte,-1,pc->path,flags,0);
-			return SC_TRACEONLY;
+			/* do not register non virtualized files */
+			//pc->retval=lfd_open(hte,-1,pc->path,flags,0);
+			//return SC_TRACEONLY;
+			return STD_BEHAVIOR;
 		}
 	}
 }
@@ -167,8 +169,10 @@ int wrap_in_close(int sc_number,struct pcb *pc,
 		} 
 		return SC_CALLONXIT;
 	} 
-	else
+	else if (fd2lfd(pc->fds,pc->sysargs[0]) >= 0)
 		return SC_TRACEONLY;
+	else
+		return STD_BEHAVIOR;
 }
 
 /* CLOSE wrapper: "out" phase */
