@@ -407,7 +407,7 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 			new->pprevhash=hashhead;
 			*hashhead=new;
 			pthread_rwlock_unlock(&ht_tab_rwlock);
-			ht_upcall(HT_ADD,type,obj,objlen);
+			ht_upcall(HT_ADD,new->type,new->obj,new->objlen);
 			return new;
 		} else {
 			free(new);

@@ -13,6 +13,9 @@
                         /* Dynamically allocated pcb, to be freed. */
 #	define PCB_SIGNALED 0x4
                         /* awake suspended process as it has been signaled */
+#	ifdef _VIEWOS_KM
+#	define PCB_KM_PRIVATEDIR 0x8 /* KM_CHROOT has already been sent (KMVIEW only) */
+# endif
 
 #	ifdef _VIEWOS_UM
 #		define PCB_STARTING 0x8

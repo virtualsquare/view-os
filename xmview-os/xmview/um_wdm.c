@@ -50,6 +50,7 @@
 #include "capture_km.h"
 #endif
 
+
 int wrap_in_getcwd(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
@@ -83,6 +84,25 @@ int wrap_in_getcwd(int sc_number,struct pcb *pc,
 		}
 	}
 	return SC_FAKE;
+}
+
+static inline void set_wdm_kmview_chroot(struct pcb *pc)
+{
+#ifdef _VIEWOS_KM
+	if (strcmp(pc->fdfs->root,"/")==0) {
+		if (strncmp(pc->path,"/~",2) == 0) {
+			if ((pc->flags & PCB_KM_PRIVATEDIR) == 0) {
+				capture_km_kmpid_chroot(pc->kmpid,1);
+				pc->flags |= PCB_KM_PRIVATEDIR;
+			}
+		} else {
+			if ((pc->flags & PCB_KM_PRIVATEDIR) != 0) {
+				capture_km_kmpid_chroot(pc->kmpid,0);
+				pc->flags &= ~PCB_KM_PRIVATEDIR;
+			}
+		}
+	}
+#endif
 }
 
 /* TODO: While fchdir tries to make a chdir to the real directory instead of
@@ -126,6 +146,7 @@ int wrap_out_chdir(int sc_number,struct pcb *pc)
 	} else {
 		pc->retval=getrv(pc);
 		if (pc->retval >= 0) {
+			set_wdm_kmview_chroot(pc);
 			free(pc->fdfs->cwd);
 			pc->fdfs->cwd = pc->path;
 			pc->path=NULL;

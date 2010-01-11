@@ -1439,6 +1439,12 @@ static void ht_zerovirt_upcall(int tag, unsigned char type,const void *obj,int o
 	static unsigned long ht_count[NCHECKS];
 	int oldsum=ht_count[CHECKPATH] + ht_count[CHECKCHRDEVICE] + ht_count[CHECKBLKDEVICE];
 	int newsum;
+	if (type == CHECKPATH) {
+		if (strncmp(obj,"/~",2)==0)
+			return;
+		if (objlen >= 8 && strncmp(obj,"/proc/mo",8)==0)
+			return;
+	}
 	switch (tag) {
 		case HT_ADD: ht_count[type]++; break;
 		case HT_DEL: ht_count[type]--; break;
