@@ -518,6 +518,9 @@ static void scdtab_bitmap_init()
 	for (i=0; i<_UM_NR_syscalls; i++)
 		if (scdtab[i] != NULL) 
 			scbitmap_clr(scdtab_bitmap,i);
+#if __NR_socketcall != __NR_doesnotexist
+	scbitmap_clr(scdtab_bitmap,__NR_socketcall);
+#endif
 	/*for (i=0; i<MAXSYSCALL; i++)
 		if (scbitmap_isset(scdtab_bitmap,i) == 0)
 			printk("%d ",i);*/
