@@ -561,12 +561,14 @@ int capture_main(char **argv,void (*root_process_init)(void),char *rc)
 		return -1;
 	kmversion=r_ioctl(kmviewfd,KMVIEW_GET_VERSION);
 	r_ioctl(kmviewfd, KMVIEW_MAGICPOLL, &mp);
-	kmflags =  KMVIEW_FLAG_FDSET|KMVIEW_FLAG_EXCEPT_CLOSE|KMVIEW_FLAG_EXCEPT_FCHDIR;
+	kmflags =  KMVIEW_FLAG_FDSET|KMVIEW_FLAG_EXCEPT_FCHDIR;
 #if __NR_socketcall != __NR_doesnotexist
 	kmflags |= KMVIEW_FLAG_SOCKETCALL;
 #endif
 	if (kmversion >= 2)
 		kmflags |= KMVIEW_FLAG_PATH_SYSCALL_SKIP;
+	else
+		kmflags |= KMVIEW_FLAG_EXCEPT_CLOSE;
 	r_ioctl(kmviewfd, KMVIEW_SET_FLAGS, kmflags);
 	if (kmversion >= 2) {
 		scdtab_bitmap_init();
