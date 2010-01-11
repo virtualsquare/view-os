@@ -3,7 +3,7 @@
  *        ( callback from utrace engines )
  *
  * Copyright (C) 2007 Andrea Gasparini (gaspa@yattaweb.it)
- *                    Renzo Davoli (renzo@cs.unibo.it)
+ *          2007-2010 Renzo Davoli (renzo@cs.unibo.it)
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 #include <linux/cache.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 
 #include "kmview_data.h"
 #include "kmview_alloc.h"
@@ -50,13 +51,33 @@ static struct kmem_cache *kmview_thread_cache;
 static struct kmem_cache *kmview_module_event_cache;
 #endif
 
-static u32 kmview_clone(enum utrace_resume_action action,struct utrace_engine *engine, unsigned long clone_flags, struct task_struct *child);
-static void kmview_reap(struct utrace_engine *engine, struct task_struct *tsk);
-static u32 kmview_syscall_entry(u32 action,struct utrace_engine *engine, struct pt_regs *regs);
-static u32 kmview_syscall_exit(u32 action,struct utrace_engine *engine, struct pt_regs *regs);
-static u32 kmview_report_exec(u32 action, struct utrace_engine *engine,
-		const struct linux_binfmt *fmt, const struct linux_binprm *bprm, struct pt_regs *regs);
+static u32 kmview_clone(enum utrace_resume_action action,
+		struct utrace_engine *engine, 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+		struct task_struct *parent,
+#endif
+		unsigned long clone_flags, struct task_struct *child);
 
+static void kmview_reap(struct utrace_engine *engine, struct task_struct *tsk);
+
+static u32 kmview_syscall_entry(u32 action,struct utrace_engine *engine, 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+		struct task_struct *tsk,
+#endif
+		struct pt_regs *regs);
+
+static u32 kmview_syscall_exit(u32 action,struct utrace_engine *engine, 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+		struct task_struct *tsk,
+#endif
+		struct pt_regs *regs);
+
+static u32 kmview_report_exec(u32 action, struct utrace_engine *engine,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+		struct task_struct *tsk,
+#endif
+		const struct linux_binfmt *fmt, const struct linux_binprm *bprm, 
+		struct pt_regs *regs);
 
 #define KMVIEW_EVENTS (UTRACE_EVENT(REAP) | UTRACE_EVENT(CLONE)\
 		| UTRACE_EVENT(SYSCALL_ENTRY) | UTRACE_EVENT(SYSCALL_EXIT)) | UTRACE_EVENT(EXEC)
@@ -254,7 +275,13 @@ void kmview_kmpid_resume(pid_t kmpid)
 /*
  * On clone, attach to the child.
  */
-static u32 kmview_clone(u32 action, struct utrace_engine *engine, unsigned long clone_flags, struct task_struct *child)
+static u32 kmview_clone(u32 action, 
+		struct utrace_engine *engine, 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+		struct task_struct *parent, 
+#endif
+		unsigned long clone_flags, 
+		struct task_struct *child)
 {
 	pid_t kmpid;
 	struct utrace_engine *childengine=kmview_attach_engine(child);
@@ -295,6 +322,9 @@ static void kmview_reap(struct utrace_engine *engine, struct task_struct *tsk)
 
 static u32 kmview_report_exec(enum utrace_resume_action action,
 		struct utrace_engine *engine,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+		struct task_struct *task,
+#endif
 		const struct linux_binfmt *fmt,
 		const struct linux_binprm *bprm,
 		struct pt_regs *regs)
@@ -306,7 +336,11 @@ static u32 kmview_report_exec(enum utrace_resume_action action,
 		new = prepare_creds();
 		if (!new) {
 			abort_creds(new);
-			//////send_sig(SIGKILL,task,1);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+			send_sig(SIGKILL,task,1);
+#else
+			/* XXX terminate process */
+#endif
 		} else {
 			new->fsuid = new->euid = new->suid = current_uid();
 			new->fsgid = new->egid = new->sgid = current_gid();
@@ -329,7 +363,11 @@ void kmview_thread_free(struct kmview_thread *kmt, int kill)
 	if (kill && kmt->task) {
 		int rv;
 		rv=utrace_control(kmt->task,kmt->engine,UTRACE_DETACH);
-		//send_sig(SIGKILL,kmt->task,1);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+		send_sig(SIGKILL,kmt->task,1);
+#else
+		/* XXX terminate process */
+#endif
 #ifdef KMVIEW_NEWSTOP
 		up(&kmt->kmstop);
 #endif
@@ -424,6 +462,9 @@ kmview_path_exception:
 }
 
 static u32 kmview_syscall_entry(u32 action, struct utrace_engine *engine,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+		struct task_struct *tsk,
+#endif
 		struct pt_regs *regs)
 {
 	struct kmview_thread* kmt = (struct kmview_thread*)engine->data;
@@ -491,7 +532,11 @@ kmview_syscall_resume:
 }
 
 static u32 kmview_syscall_exit(enum utrace_resume_action action,
-		struct utrace_engine *engine, struct pt_regs *regs)
+		struct utrace_engine *engine, 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+		struct task_struct *tsk,
+#endif
+		struct pt_regs *regs)
 {
 	struct kmview_thread* kmt = (struct kmview_thread*)engine->data;
 #ifdef KMVIEW_DEBUG
