@@ -3,9 +3,9 @@ EXT = _32
 KERNELDIR = "/usr/src/experimental/linux-source-2.6.29-utrace"
 ARCHUNISTD = $(KERNELDIR)/arch/$(ARCH)/include/asm/unistd$(EXT).h
 
-arch_fdsyslist: arch_fdsyslist.o
+arch_syslist: arch_syslist.o
 
-arch_fdsyslist.o: arch_fdsyslist.c fdsyslist.h arch_unistd.h
+arch_syslist.o: arch_syslist.c fdsyslist.h pathsyslist.h arch_unistd.h ../kmview.h
 
 arch_unistd.h: 
 	ln -s $(ARCHUNISTD) arch_unistd.h
@@ -14,6 +14,26 @@ fdsyslist.h:	fdsyslist
 	awk 'BEGIN {printf "int fdsyslist[]={\n";} \
 {printf "#ifdef %s\n  %s,\n#endif\n",$$1,$$1;} \
 END {printf "};\n";}' fdsyslist > fdsyslist.h
+
+pathsyslist.h: path0list path1list path2list path3list atlist selectpolllist
+	awk 'BEGIN {printf "int path0syslist[]={\n";} \
+{printf "#ifdef %s\n  %s,\n#endif\n",$$1,$$1;} \
+END {printf "};\n";}' path0list > pathsyslist.h
+	awk 'BEGIN {printf "int path1syslist[]={\n";} \
+{printf "#ifdef %s\n  %s,\n#endif\n",$$1,$$1;} \
+END {printf "};\n";}' path1list >> pathsyslist.h
+	awk 'BEGIN {printf "int path2syslist[]={\n";} \
+{printf "#ifdef %s\n  %s,\n#endif\n",$$1,$$1;} \
+END {printf "};\n";}' path2list >> pathsyslist.h
+	awk 'BEGIN {printf "int path3syslist[]={\n";} \
+{printf "#ifdef %s\n  %s,\n#endif\n",$$1,$$1;} \
+END {printf "};\n";}' path3list >> pathsyslist.h
+	awk 'BEGIN {printf "int atsyslist[]={\n";} \
+{printf "#ifdef %s\n  %s,\n#endif\n",$$1,$$1;} \
+END {printf "};\n";}' atlist >> pathsyslist.h
+	awk 'BEGIN {printf "int selectpollsyslist[]={\n";} \
+{printf "#ifdef %s\n  %s,\n#endif\n",$$1,$$1;} \
+END {printf "};\n";}' selectpolllist >> pathsyslist.h
 
 clean:
 	rm -f *.o arch_fdsyslist fdsyslist.h core arch_unistd.h

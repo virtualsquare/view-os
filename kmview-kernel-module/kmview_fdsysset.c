@@ -52,6 +52,8 @@ struct kmview_fdsysset *fdsysset_copy(struct kmview_fdsysset *fds)
 struct kmview_fdsysset *fdsysset_set(int fd, struct kmview_fdsysset *fds)
 {
 	struct kmview_fdsysset *ret;
+	if (fd >= FD_SETSIZE)
+		return fds;
 	if (fds == NULL) {
 		ret=fdsysset_internal_malloc();
 		ret->ncopy=1;
@@ -77,6 +79,8 @@ struct kmview_fdsysset *fdsysset_set(int fd, struct kmview_fdsysset *fds)
 struct kmview_fdsysset *fdsysset_clr(int fd, struct kmview_fdsysset *fds)
 { 
 	struct kmview_fdsysset *ret;
+	if (fd >= FD_SETSIZE)
+		return fds;
 	if (fds != NULL && FD_ISSET(fd,&fds->fdset)) {
 		if (fds->ncopy > 1) {
 			fds->ncopy--;

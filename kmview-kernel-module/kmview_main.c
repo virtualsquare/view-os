@@ -37,29 +37,15 @@
 #include "kmview_alloc.h"
 #include "kmview_trace.h"
 #include "kmview_fdsysset.h"
-#include "kmview_arch.h"
 #include "kmview_accessvm.h"
 //#define KMDEBUG
-#define KMVIEW_VERSION 1
+#define KMVIEW_VERSION 2
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("VIEW-OS TEAM");
 MODULE_DESCRIPTION("VIEW-OS Kernel Module");
 
 #define VIEWOS_MINOR 233
-
-#if BITS_PER_LONG==32
-unsigned long fdsyslist[]=FDSYSCALL32;
-#ifdef __NR_socketcall
-unsigned long fdsocketlist=FDSOCKETCALL32;
-#endif
-#endif
-#if BITS_PER_LONG==64
-unsigned long fdsyslist[]=FDSYSCALL64;
-#ifdef __NR_socketcall
-unsigned long fdsocketlist=FDSOCKETCALL64;
-#endif
-#endif
 
 int kmview_major =   0;
 int kmview_minor =   VIEWOS_MINOR;
@@ -88,9 +74,11 @@ static int kmview_open(struct inode *inode, struct file *filp)
 	init_waitqueue_head(&kmt->event_waitqueue);
 	kmt->task=current;
 	kmt->ntraced=0;
-	kmt->flags=0;
+	atomic_set(&kmt->flags,0);
 	kmt->magicpoll_addr=0;
 	kmt->magicpoll_cnt=0;
+	kmt->lock = SPIN_LOCK_UNLOCKED;
+	scbitmap_zero(kmt->syscall_bitmap);
 	INIT_LIST_HEAD(&kmt->event_queue);
     // each open at our device has at one and only one tracer.
     // so i fill private_data with the pointer of the tracer in order
@@ -149,7 +137,16 @@ static int kmview_fill_event(struct kmview_tracer *kmt, struct kmview_event *eve
 		case KMVIEW_EVENT_NEWTHREAD:
 			event->x.newthread.kmpid=module_event->thread->kmpid;
 			event->x.newthread.pid=module_event->thread->task->pid;
-			event->x.newthread.umppid=module_event->arg;
+			if (module_event->arg < 0) 
+				event->x.newthread.umppid= -1;
+			else {
+				struct kmpid_struct *kmpids;
+				if ((kmpids=kmpid_search(module_event->arg)) == NULL) 
+					event->x.newthread.umppid= -1;
+				else
+					event->x.newthread.umppid= kmpids->km_thread->umpid;
+			}
+			//event->x.newthread.umppid=module_event->arg;
 			event->x.newthread.flags=module_event->arg2;
 			len=sizeof(unsigned long)+sizeof(struct kmview_event_newthread);
 			break;
@@ -239,10 +236,10 @@ static int kmview_ioctl(struct inode *inode, struct file *filp,
 			ret=KMVIEW_VERSION;
 			break;
 		case KMVIEW_SET_FLAGS:
-			if (kmt->ntraced > 0)
-				ret=-EACCES;
-			else
-				kmt->flags = arg;
+			atomic_set(&kmt->flags,arg);
+			break;
+		case KMVIEW_GET_FLAGS:
+			ret=atomic_read(&kmt->flags);
 			break;
 		case KMVIEW_MAGICPOLL:
 			{
@@ -415,6 +412,33 @@ static int kmview_ioctl(struct inode *inode, struct file *filp,
 						kmpids->km_thread->fdset=fdsysset_clr(kmview_fdarg.fd,kmpids->km_thread->fdset);
 				}
 			break;
+			}
+		case KMVIEW_SYSCALLBITMAP:
+			{
+				unsigned long flags;
+				spin_lock_irqsave(&kmt->lock, flags);
+				if (copy_from_user(&kmt->syscall_bitmap, (void *)arg, 
+							INT_PER_MAXSYSCALL * sizeof(unsigned int)))
+					ret=-EFAULT;
+				spin_unlock_irqrestore(&kmt->lock, flags);
+				break;
+			}
+		case KMVIEW_SET_CHROOT:
+		case KMVIEW_CLR_CHROOT:
+			{
+				pid_t kmpid=arg;
+				struct kmpid_struct *kmpids;
+				if ((kmpids=kmpid_search(kmpid))==NULL ||
+						kmpids->km_thread->tracer != kmt)
+					ret=-EPERM;
+				else {
+					//printk("KMVIEW_PROC_CHROOT\n");
+					if (cmd == KMVIEW_SET_CHROOT)
+						kmpids->km_thread->flags |= KMVIEW_THREAD_CHROOT;
+					else
+						kmpids->km_thread->flags &= ~KMVIEW_THREAD_CHROOT;
+				}
+				break;
 			}
 		default:
 			ret = -ENOIOCTLCMD;

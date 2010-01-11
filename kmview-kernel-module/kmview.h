@@ -102,12 +102,14 @@ struct kmview_fd {
 #define KMVIEW_FLAG_FDSET      0x2
 #define KMVIEW_FLAG_EXCEPT_CLOSE      0x4
 #define KMVIEW_FLAG_EXCEPT_FCHDIR     0x8
+#define KMVIEW_FLAG_PATH_SYSCALL_SKIP    0x10
 
 #define KMVIEW_GET_VERSION     _IO('v', 1)
 #define KMVIEW_SET_FLAGS       _IO('v', 2)
 #define KMVIEW_MAGICPOLL       _IOR('v', 3, struct kmview_magicpoll)
 #define KMVIEW_ATTACH          _IO('v', 4)
 #define KMVIEW_UMPID           _IOR('v', 5, struct kmview_ioctl_umpid)
+#define KMVIEW_GET_FLAGS       _IO('v', 6)
 #define KMVIEW_SYSRESUME       _IO('v', 10)
 #define KMVIEW_SYSVIRTUALIZED  _IOR('v', 11, struct kmview_event_ioctl_sysreturn)
 #define KMVIEW_SYSMODIFIED     _IOR('v', 12, struct kmview_event_ioctl_syscall)
@@ -119,4 +121,41 @@ struct kmview_fd {
 #define KMVIEW_ADDFD           _IOR('v', 30, struct kmview_fd)
 #define KMVIEW_DELFD           _IOR('v', 31, struct kmview_fd)
 
+#define KMVIEW_SYSCALLBITMAP   _IOR('v', 40, unsigned int *)
+#define KMVIEW_SET_CHROOT      _IO('v', 41)
+#define KMVIEW_CLR_CHROOT      _IO('v', 42)
+
+#define MAXSYSCALL 384
+#define INT_PER_MAXSYSCALL	(MAXSYSCALL / (sizeof(unsigned int) * 8))
+#define SYSCALLBITMAPEL(x)	((x) >> 5)
+#define SYSCALLBITMAPOFF(x)	((x)&0x1f)
+
+static inline unsigned int scbitmap_isset(unsigned int *bitmap,int scno) {
+	if (scno < MAXSYSCALL)
+		return bitmap[SYSCALLBITMAPEL(scno)] & 1<<SYSCALLBITMAPOFF(scno);
+	else
+		return 0;
+}
+
+static inline void scbitmap_set(unsigned int *bitmap,int scno) {
+	if (scno < MAXSYSCALL)
+		bitmap[SYSCALLBITMAPEL(scno)] |= 1<<SYSCALLBITMAPOFF(scno);
+}
+
+static inline void scbitmap_clr(unsigned int *bitmap,int scno) {
+	if (scno < MAXSYSCALL)
+		bitmap[SYSCALLBITMAPEL(scno)] &= ~(1<<SYSCALLBITMAPOFF(scno));
+}
+
+static inline void scbitmap_fill(unsigned int *bitmap) {
+	register int i;
+	for (i=0; i<INT_PER_MAXSYSCALL; i++)
+		bitmap[i]= -1;
+}
+
+static inline void scbitmap_zero(unsigned int *bitmap) {
+	register int i;
+	for (i=0; i<INT_PER_MAXSYSCALL; i++)
+		bitmap[i]= 0;
+}
 #endif

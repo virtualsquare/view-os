@@ -23,8 +23,10 @@
 #include <linux/list.h>
 #include <linux/wait.h>
 #include <linux/semaphore.h>
+#include <linux/spinlock.h>
 /* PUBLIC INTERFACE IS IN kmview.h */
 #include "kmview.h"
+#include "kmview_arch.h"
 
 #define USE_KMEM_CACHE
 #define KMVIEW_NEWSTOP
@@ -33,9 +35,11 @@ struct kmview_tracer {
 	struct semaphore sem;
 	struct task_struct *task;
 	pid_t ntraced;
-	u32 flags;
+	atomic_t flags;
 	long magicpoll_addr;
 	long magicpoll_cnt;
+	spinlock_t lock;
+	unsigned int syscall_bitmap[INT_PER_MAXSYSCALL];
 	wait_queue_head_t event_waitqueue;
 	struct list_head event_queue;
 };
@@ -43,6 +47,8 @@ struct kmview_tracer {
 #define KMVIEW_THREAD_FLAG_SKIP_EXIT 1
 #define KMVIEW_THREAD_FLAG_SKIP_CALL 2
 #define KMVIEW_THREAD_FLAG_SKIP_BOTH 3
+#define KMVIEW_THREAD_CHROOT 0x10
+#define KMVIEW_THREAD_INHERITED_FLAGS KMVIEW_THREAD_CHROOT
 
 struct kmview_thread {
 	struct task_struct *task;
@@ -59,7 +65,7 @@ struct kmview_thread {
 #ifdef __NR_socketcall
 	unsigned long socketcallargs[6];
 #endif
-	struct utrace_examiner exam;
+	//struct utrace_examiner exam;
 	struct kmview_fdsysset *fdset;
 };
 
@@ -71,4 +77,14 @@ struct kmview_module_event {
 	pid_t arg; /* umppid or ntraced */
 	unsigned long arg2; /*clone_flags*/
 };
+
+static inline unsigned int scbitmap_isset_locked(struct kmview_tracer *kmt,int scno) {
+	unsigned long flags;
+	unsigned int rv;
+	spin_lock_irqsave(&kmt->lock, flags);
+	rv=scbitmap_isset(kmt->syscall_bitmap,scno);
+	spin_unlock_irqrestore(&kmt->lock, flags);
+	return rv;
+}
+
 #endif

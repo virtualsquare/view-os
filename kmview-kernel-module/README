@@ -1,7 +1,7 @@
 KMVIEW kernel module
 
 (c) 2007 Andrea Gasparini (gaspa@yattaweb.it), 
-    2007,2008,2009 Renzo Davoli (renzo@cs.unibo.it)
+    2007,2008,2009,2010 Renzo Davoli (renzo@cs.unibo.it)
 	  
 This is kmview: the kernel module view-os implementation.
 
@@ -18,26 +18,21 @@ have already updated the kernel patches for that kernel.
 2- download and install the latest utrace patches for the kernel you
 downloaded (from http://www.redhat.com/~roland/utrace)
 
-3- download and install from the directory "kernel_patches" here the 
-.callorder patch compatible with your kernel.
+3- make menuconfig, check the options, compile the kernel.
 
-4 (optional) download and install also the ptmulti patch (it is not needed
-		for runninng kmview, it provides extensions to ptrace: this patch speeds 
-		up umview.)
-
-5- make menuconfig, check the options, compile the kernel.
-
-6- type:
+4- type:
 make
 in this directory (if the new kernel has already been installed), otherwise
 type:
 make KERNELDIR="/path/to/your/kernel_source/"
 
-7- boot the kernel, run
+5- boot the kernel, run
 # insmod kmview
 
-8- create the device:
+6- create the device:
 # mkdev /dev/kmview c 10 233
 # chmod 666 /dev/kmview
 
 Now you can run the kmview application and enjoy the fast virtualization.
+
+(for older kernel download old versions from the svn).
