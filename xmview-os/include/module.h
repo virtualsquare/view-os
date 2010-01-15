@@ -312,6 +312,10 @@ extern int vprintk(const char *fmt, va_list ap);
 typedef int (* confirmfun_t)(int type, void *arg, int arglen,
 		struct ht_elem *ht);
 #define NEGATIVE_MOUNT ((confirmfun_t) 1)
+#ifndef MS_KERNMOUNT
+#define MS_KERNMOUNT    (1<<22) /* this is a kern_mount call */
+#endif
+#define MS_GHOST MS_KERNMOUNT /* ghost mount */
 
 /* add a path to the hashtable (this creates an entry for the mounttab) */
 struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,

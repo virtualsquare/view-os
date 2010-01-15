@@ -719,9 +719,14 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 		assert(source);
 		umovestr(pc,argaddr,PATH_MAX,source);
 	} 
-	if (pdata != umNULL)
+	mountflags &= ~MS_GHOST;
+	if (pdata != umNULL) {
+		char *ghost;
 		umovestr(pc,pdata,PATH_MAX,data);
-	else
+		if ((ghost=strstr(data,"ghost")) != NULL && (ghost==data || ghost[-1]==',') &&
+				(ghost[5]=='\0' || ghost[5]==','))
+			mountflags |= MS_GHOST;
+	} else
 		datax=NULL;
 	if ((pc->retval = um_syscall(source,pc->path,get_alias(CHECKFSALIAS,filesystemtype),
 					mountflags,datax)) < 0)

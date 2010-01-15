@@ -183,7 +183,7 @@ static loff_t umproc_lseek(int fd, off_t offset, int whence)
 
 void *viewos_init(char *args)
 {
-	return ht_tab_pathadd(CHECKPATH,"none","/proc/mounts","proc",0,"ro",&s,0,NULL,&proc_mounts);
+	return ht_tab_pathadd(CHECKPATH,"none","/proc/mounts","proc",MS_GHOST,"ro",&s,0,NULL,&proc_mounts);
 }
 
 void *viewos_fini(void *data)

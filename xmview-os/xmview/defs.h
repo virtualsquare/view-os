@@ -63,6 +63,11 @@
 #endif
 // #define FAKESIGSTOP
 
+#ifndef MS_KERNMOUNT
+#define MS_KERNMOUNT    (1<<22) /* this is a kern_mount call */
+#endif
+#define MS_GHOST MS_KERNMOUNT /* ghost mount */
+
 #ifdef _VIEWOS_KM
 #	define sysargs	event.args
 #	define sockargs event.args

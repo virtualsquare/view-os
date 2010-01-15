@@ -18,8 +18,6 @@
  *
  */
 
-#include <sys/types.h>
-#include <unistd.h>
 #include <linux/ptrace.h>
 
 #define KMVIEW_EVENT_NONE             0x00
@@ -100,6 +98,15 @@ struct kmview_fd {
 	int fd;
 };
 
+#define GH_SIZE 64
+#define GH_TERMINATE 255
+#define GH_DUMMY 254
+
+struct ghosthash64 {
+	unsigned char deltalen[GH_SIZE];
+	unsigned int hash[GH_SIZE];
+};
+
 #define KMVIEW_FLAG_SOCKETCALL 0x1
 #define KMVIEW_FLAG_FDSET      0x2
 #define KMVIEW_FLAG_EXCEPT_CLOSE      0x4
@@ -123,14 +130,15 @@ struct kmview_fd {
 #define KMVIEW_ADDFD           _IOR('v', 30, struct kmview_fd)
 #define KMVIEW_DELFD           _IOR('v', 31, struct kmview_fd)
 
-#define KMVIEW_SYSCALLBITMAP   _IOR('v', 40, unsigned int *)
+#define KMVIEW_SYSCALLBITMAP   _IOR('v', 40, unsigned int)
 #define KMVIEW_SET_CHROOT      _IO('v', 41)
 #define KMVIEW_CLR_CHROOT      _IO('v', 42)
+#define KMVIEW_GHOSTMOUNTS     _IOR('v', 43, struct ghosthash64)
 
 #define MAXSYSCALL 384
-#define INT_PER_MAXSYSCALL (MAXSYSCALL / (sizeof(unsigned int) * 8))
-#define SYSCALLBITMAPEL(x)  ((x) >> 5)
-#define SYSCALLBITMAPOFF(x) ((x)&0x1f)
+#define INT_PER_MAXSYSCALL	(MAXSYSCALL / (sizeof(unsigned int) * 8))
+#define SYSCALLBITMAPEL(x)	((x) >> 5)
+#define SYSCALLBITMAPOFF(x)	((x)&0x1f)
 
 static inline unsigned int scbitmap_isset(unsigned int *bitmap,int scno) {
 	if (scno < MAXSYSCALL)
@@ -159,6 +167,11 @@ static inline void scbitmap_zero(unsigned int *bitmap) {
 	register int i;
 	for (i=0; i<INT_PER_MAXSYSCALL; i++)
 		bitmap[i]= 0;
+}
+
+static inline void ghosthash_new(struct ghosthash64 *gh)
+{
+	  gh->deltalen[0] = GH_TERMINATE;
 }
 
 #endif

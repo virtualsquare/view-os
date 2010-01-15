@@ -75,7 +75,7 @@ int ht_get_count(struct ht_elem *hte);
 #define HT_ADD 0
 #define HT_DEL 1
 /* define upcall parameters: HT_ADD/HT_DEL, type, obj, objlen */
-void ht_init(void (*ht_upcall)(int, unsigned char,const void *,int));
+void ht_init(void (*ht_upcall)(int, unsigned char,const void *,int,long));
 void ht_terminate(void);
 
 #endif

@@ -1434,16 +1434,17 @@ void *getfiletab(int i)
 }
 
 #ifdef _VIEWOS_KM
-static void ht_zerovirt_upcall(int tag, unsigned char type,const void *obj,int objlen)
+static void ht_zerovirt_upcall(int tag, unsigned char type,const void *obj,int objlen,long mountflags)
 {
 	static unsigned long ht_count[NCHECKS];
 	int oldsum=ht_count[CHECKPATH] + ht_count[CHECKCHRDEVICE] + ht_count[CHECKBLKDEVICE];
 	int newsum;
-	if (type == CHECKPATH) {
-		if (strncmp(obj,"/~",2)==0)
-			return;
-		if (objlen >= 8 && strncmp(obj,"/proc/mo",8)==0)
-			return;
+	if (type==CHECKPATH && (mountflags & MS_GHOST)) {
+		switch (tag) {
+			case HT_ADD: ghosthash_add(obj,objlen); break;
+			case HT_DEL: ghosthash_del(obj,objlen); break;
+		}
+		return;
 	}
 	switch (tag) {
 		case HT_ADD: ht_count[type]++; break;

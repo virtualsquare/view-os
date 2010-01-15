@@ -60,6 +60,9 @@ void capture_km_global_get_path_syscalls(void);
 
 void capture_km_global_skip_path_syscalls(void);
 
+int ghosthash_add(const char *path,int len);
+int ghosthash_del(const char *path,int len);
+
 int capture_attach(struct pcb *pc,pid_t pid);
 
 #endif
