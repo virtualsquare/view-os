@@ -421,12 +421,50 @@ static inline int iskmviewsockfd(unsigned long socketcallno, int fd, struct kmvi
 	return FD_ISSET(fd,&fdset->fdset);
 }
 
+static inline unsigned int hashadd (long prevhash, char c) {
+	  return prevhash ^ ((prevhash << 5) + (prevhash >> 2) + c);
+}
+
+static inline unsigned int hashsum (int sum,const char *path,int len) {
+	int i;
+	for (i=0;i<len;i++,path++)
+		sum=hashadd(sum,*path);
+	return sum;
+}
+
+static inline int ghosthash_match(struct ghosthash64 *gh,char *path)
+{
+	unsigned short len=strlen(path);
+	unsigned short scanlen,pos;
+	unsigned int scanhash;
+	int i;
+	for (i=0,scanhash=0,scanlen=pos=0;
+			i<GH_SIZE && gh->deltalen[i] < GH_TERMINATE && len>=0;
+			i++) {
+		if (gh->deltalen[i] > 0) {
+			scanhash=hashsum(scanhash,path,gh->deltalen[i]);
+			path+=gh->deltalen[i];
+			len -=gh->deltalen[i];
+		}
+		if (len >= 0 && scanhash == gh->hash[i])
+			return len;
+	}
+	return -ENOENT;
+}
+
+static inline int ghosthash_match_lock(struct kmview_tracer *kmt,char *path) {
+	unsigned long flags;
+	int rv;
+	spin_lock_irqsave(&kmt->lock, flags);
+	rv=ghosthash_match(&kmt->ghostmounts,path);
+	spin_unlock_irqrestore(&kmt->lock, flags);
+	return rv;
+}
+
 static inline int kmview_path_exceptions(struct kmview_thread* kmt,
 		struct pt_regs *regs)
 {
-#define PATHTESTLEN 8
 	int path_argno;
-	//char path[PATHTESTLEN];
 	char *path;
 	if (scbitmap_isset(path0syscall,kmt->scno))
 		path_argno=0;
@@ -444,21 +482,13 @@ static inline int kmview_path_exceptions(struct kmview_thread* kmt,
 	path = getname((char __user *) arch_n(regs,path_argno));
 	if (IS_ERR(path))
 		return 0;
-	if (path[0] != '/')
-		goto kmview_path_no_exception;
-	if (path[1] == 'p' && path[2] == 'r' 
-			&& path[3] == 'o' && path[4] == 'c' && path[5] == '/' &&
-			((path[6] == 'm' && path[7] == 'o') ||
-			(path[6] >= '0' && path[6] <= '9')))
-		goto kmview_path_exception;
-	if (path[1] == '~')
-		goto kmview_path_exception;
-kmview_path_no_exception:
-	putname(path);
-	return 0;
-kmview_path_exception:
-	putname(path);
-	return 1;
+	if (path[0] == '/' && ghosthash_match_lock(kmt->tracer,path) >= 0) {
+		putname(path);
+		return 1;
+	} else {
+		putname(path);
+		return 0;
+	}
 }
 
 static u32 kmview_syscall_entry(u32 action, struct utrace_engine *engine,
@@ -475,6 +505,7 @@ static u32 kmview_syscall_entry(u32 action, struct utrace_engine *engine,
 	if (kmt->tracer) {
 		int tracer_flags=atomic_read(&kmt->tracer->flags);
 		kmt->scno=arch_scno(regs);
+
 		if (scbitmap_isset_locked(kmt->tracer,kmt->scno)) 
 			goto kmview_syscall_resume;
 		if (tracer_flags & KMVIEW_FLAG_PATH_SYSCALL_SKIP &&

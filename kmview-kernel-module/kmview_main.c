@@ -79,6 +79,7 @@ static int kmview_open(struct inode *inode, struct file *filp)
 	kmt->magicpoll_cnt=0;
 	kmt->lock = SPIN_LOCK_UNLOCKED;
 	scbitmap_zero(kmt->syscall_bitmap);
+	ghosthash_new(&kmt->ghostmounts);
 	INIT_LIST_HEAD(&kmt->event_queue);
     // each open at our device has at one and only one tracer.
     // so i fill private_data with the pointer of the tracer in order
@@ -438,6 +439,16 @@ static int kmview_ioctl(struct inode *inode, struct file *filp,
 					else
 						kmpids->km_thread->flags &= ~KMVIEW_THREAD_CHROOT;
 				}
+				break;
+			}
+		case KMVIEW_GHOSTMOUNTS:
+			{
+				unsigned long flags;
+				spin_lock_irqsave(&kmt->lock, flags);
+				if (copy_from_user(&kmt->ghostmounts, (void *)arg,
+							sizeof(struct ghosthash64)))
+					ret=-EFAULT;
+				spin_unlock_irqrestore(&kmt->lock, flags);
 				break;
 			}
 		default:

@@ -40,6 +40,7 @@ struct kmview_tracer {
 	long magicpoll_cnt;
 	spinlock_t lock;
 	unsigned int syscall_bitmap[INT_PER_MAXSYSCALL];
+	struct ghosthash64 ghostmounts;
 	wait_queue_head_t event_waitqueue;
 	struct list_head event_queue;
 };
