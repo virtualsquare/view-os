@@ -1,6 +1,7 @@
 kmview_module interface
 ----------------------- 
 Renzo Davoli and Andrea Gasparini
+Version: 2 (2010)
 
 kmview_module has been designed as a kernel support for view-os on linux but
 it is effectively an efficient support for any virtualization based on
@@ -386,7 +387,105 @@ always cause an event to the tracer. KMVIEW_FLAG_EXCEPT_FCHDIR has the
 same effect for fchdir.
 These two calls cause a change of the system state: some virtual machine
 monitors (like our kmview) need to trace these changes.
+------------------------------------------------------------------------------
+KMVIEW_FLAG_PATH_SYSCALL_SKIP
+
+When this flag is set (without any further configuration), all the system
+calls involving pathnames (like open, lstat or link) are not forwarded
+to the virtual machine monitor (tracer).
+This call minimizes the amount of messages to the virtual machine monitor
+when there are no active virtualizations of the file system.
+
+It is possible to define exceptions for processes or for subtrees
+(prefixes for absolute pathnames)
+
+When the tracer needs to receive the notification of the path system calls
+requested by a process, it runs the followin ioctl request:
+    ioctl(fd,KMVIEW_SET_CHROOT,kmpid)
+
+This exception is inherited during a clone/fork of a traced process and can be
+undefined by:
+	  ioctl(fd,KMVIEW_CLR_CHROOT,kmpid)
+
+Kmview manages up to 64 prefixes for ghost mountpoints. A ghost mount is a
+very fast virtualization for file systems. Ghost mounted filesystems can be
+reached only by absolute pathnames. In fact, relative pathnames and symbolic
+links cannot be resolved by the kmview kernel module.
+
+The profixes must be stored in struct ghosthash64:
+
+		#define GH_SIZE 64
+		#define GH_TERMINATE 255
+		#define GH_DUMMY 254
+
+		struct ghosthash64 {
+			unsigned char deltalen[GH_SIZE];
+			unsigned int hash[GH_SIZE];
+		};
+
+all ghost mount pathnames get converted into hash signatures and stored in
+the hash array sorted by increasing pathname length. Each element of deltalen
+contains the difference betweeen the current element and the previous one.
+When a ghosthash64 contains less than 64 ghost mount hash values, GH_TERMINATE
+is stored in the deltalen element after the last (longest) element as
+a termination tag. The value of deltalen elements cannot exceed GH_DUMMY,
+fake dummy elements must be added when needed.
+
+Kmview uses the following hash signature:
+
+	signature = 0
+	for each char in the path:
+		signature =  signature ^ ((signature << 5) + (signature >> 2) + char)
+
+The following ioctl loads a new array of hash values in the kenrnel module:
+
+	ioctl(fd.KMVIEW_GHOSTMOUNTS,&gh);
+
+where gh is a struct ghosthash64 variable.
+
+e.g.:
+		struct ghosthash64 mygh={{2,2,6,GH_TERMINATE},{0x633,0x193694,0x5f710af7}};
+		ioctl(fd.KMVIEW_GHOSTMOUNTS,&mygh);
+
+force the kmview module to forward to the tracer all the syscall using
+absolute path beginning by '/1','/1/2' or '/3/4567890'.
+In fact, the first path is 2 characters long, the second 4 (two more than the
+previous one), the third is 10 (+6).
+0x633,0x193694,0x5f710af7 are the three hash values computed by the function
+above.
+
+The file ghosthash.example.c in the source tree is an example of library
+for the management of ghosthash64 data structures.
+
+Please note that this technique may generate false positives (although
+it happens very rarely: 1/2^32), but it is very fast to select which 
+system calls must be forwarded to the tracer.
+------------------------------------------------------------------------------
+KMVIEW_SYSCALLBITMAP (ioctl)
+
+This ioctl selects the system calls for the tracer. 
+  int bitmap[INT_PER_MAXSYSCALL];
+	ioctl(fd.KMVIEW_SYSCALLBITMAP,bitmap);
+
+Each bit of bitmap corresponds to a specific system call, when a bit is
+set in the bitmap, the system call is *not* forwarded to the tracer.
+In other word this bitmap encodes the system calls which are *not* useful
+for the tracer.
+
+Kmview.h file includes some inline functions to handle system call bitmaps:
+
+Initialize bitmaps (all ones or all zeros)
+	static inline void scbitmap_fill(unsigned int *bitmap);
+	static inline void scbitmap_zero(unsigned int *bitmap);
+
+Add/delete a bit in a bitmap
+	static inline void scbitmap_set(unsigned int *bitmap,int scno);
+	static inline void scbitmap_clr(unsigned int *bitmap,int scno);
+
+Test if a bit in a bitmap is set:
+	static inline unsigned int scbitmap_isset(unsigned int *bitmap,int scno);
 
 (C) 2007 Renzo Davoli and Andrea Gasparini.
 updated 2009 Renzo Davoli
+updated 2010 Renzo Davoli
 Document released under the CC Attribution ShareAlike license.
