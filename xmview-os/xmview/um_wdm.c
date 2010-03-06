@@ -86,11 +86,14 @@ int wrap_in_getcwd(int sc_number,struct pcb *pc,
 	return SC_FAKE;
 }
 
+/* kmview: set/unset privatedir for ghost mount */
 static inline void set_wdm_kmview_chroot(struct pcb *pc)
 {
 #ifdef _VIEWOS_KM
+	/* when chroot-ed, PCB_KM_PRIVATEDIR is always set */
 	if (strcmp(pc->fdfs->root,"/")==0) {
-		if (strncmp(pc->path,"/~",2) == 0) {
+		/* if this is a ghost mount (returns 0 when pc->hte is NULL) */
+		if (ht_get_mountflags(pc->hte) & MS_GHOST) {
 			if ((pc->flags & PCB_KM_PRIVATEDIR) == 0) {
 				capture_km_kmpid_chroot(pc->kmpid,1);
 				pc->flags |= PCB_KM_PRIVATEDIR;

@@ -1434,27 +1434,34 @@ void *getfiletab(int i)
 }
 
 #ifdef _VIEWOS_KM
+/* upcall: hashtable calls this function when an element gets added/deleted */
 static void ht_zerovirt_upcall(int tag, unsigned char type,const void *obj,int objlen,long mountflags)
 {
-	static unsigned long ht_count[NCHECKS];
-	int oldsum=ht_count[CHECKPATH] + ht_count[CHECKCHRDEVICE] + ht_count[CHECKBLKDEVICE];
-	int newsum;
+	/* ghost mount: this mount does not switch off/on zerovirt.
+		 update the ghosthash table instead */
 	if (type==CHECKPATH && (mountflags & MS_GHOST)) {
 		switch (tag) {
 			case HT_ADD: ghosthash_add(obj,objlen); break;
 			case HT_DEL: ghosthash_del(obj,objlen); break;
 		}
-		return;
+	} else {
+		/* ht_count keeps track of the number of elements in the hashtable
+			 for each tag*/
+		static unsigned long ht_count[NCHECKS];
+		int oldsum=ht_count[CHECKPATH] + ht_count[CHECKCHRDEVICE] + ht_count[CHECKBLKDEVICE];
+		int newsum;
+		switch (tag) {
+			case HT_ADD: ht_count[type]++; break;
+			case HT_DEL: ht_count[type]--; break;
+		}
+		newsum=ht_count[CHECKPATH] + ht_count[CHECKCHRDEVICE] + ht_count[CHECKBLKDEVICE];
+		/* if this is the first (non ghost) element turn zerovirt off */
+		if (oldsum == 0 && newsum == 1)
+			capture_km_global_get_path_syscalls();
+		/* if this is the last (non ghost) element turn zerovirt on */
+		if (oldsum == 1 && newsum == 0)
+			capture_km_global_skip_path_syscalls();
 	}
-	switch (tag) {
-		case HT_ADD: ht_count[type]++; break;
-		case HT_DEL: ht_count[type]--; break;
-	}
-	newsum=ht_count[CHECKPATH] + ht_count[CHECKCHRDEVICE] + ht_count[CHECKBLKDEVICE];
-	if (oldsum == 0 && newsum == 1)
-		capture_km_global_get_path_syscalls();
-	if (oldsum == 1 && newsum == 0)
-		capture_km_global_skip_path_syscalls();
 }
 #endif
 
