@@ -161,6 +161,12 @@ int dup2(int oldfd, int newfd){
 	return _pure_syscall(__NR_dup2, oldfd, newfd);
 }
 
+#ifdef __NR_dup3
+int dup3(int oldfd, int newfd, int flags){
+	  return _pure_syscall(__NR_dup3, oldfd, newfd,flags);
+}
+#endif
+
 /* When <sys/stat.h> is included, inline #defines for {,l,f}stat{,64} are
  * inserted and they make calls to __{,l,f}xstat{,64}. So we don't need
  * to define them.
@@ -410,6 +416,81 @@ ssize_t pwrite(int fs,const void* buf, size_t count, __off_t offset){
 }
 #endif
 
+#ifdef __NR_preadv
+ssize_t preadv64(int fs,const struct iovec *iov, int iovcnt, __off64_t offset){
+	ssize_t rv=_pure_syscall(__NR_preadv,fs,iov,iovcnt,
+#ifdef __NR_pread64
+#if defined(__powerpc__)
+			0,
+#endif
+			__LONG_LONG_PAIR( (__off_t)(offset>>32),(__off_t)(offset&0xffffffff))
+#else
+			offset
+#endif
+			);
+	if (rv==-1 && errno==ENOSYS) {
+		ssize_t totalsize;
+		unsigned char *buf,*scan;
+		int i;
+		for (i=totalsize=0; i<iovcnt; i++)
+			totalsize+=iov[i].iov_len;
+		buf=malloc(totalsize);
+		if (buf==NULL) {
+			errno=ENOMEM;
+			return -1;
+		}
+		totalsize=pread64(fs, buf, totalsize, offset);
+		rv=totalsize;
+		for (i=0,scan=buf; i<iovcnt && totalsize>0; i++,
+				scan+=iov[i].iov_len,
+				totalsize-=iov[i].iov_len) 
+			memcpy(iov[i].iov_base, scan, iov[i].iov_len);
+		free(buf);
+	}
+	return rv;
+}
+
+ssize_t preadv(int fs,const struct iovec *iov, int iovcnt, __off_t offset){
+	return preadv64(fs,iov,iovcnt,(__off64_t)offset);
+}
+#endif
+
+#ifdef __NR_pwritev
+ssize_t pwritev64(int fs,const struct iovec *iov, int iovcnt, __off64_t offset){
+	ssize_t rv=_pure_syscall(__NR_pwritev,fs,iov,iovcnt,
+#ifdef __NR_pwrite64
+#if defined(__powerpc__)
+			0,    
+#endif
+			__LONG_LONG_PAIR( (__off_t)(offset>>32),(__off_t)(offset&0xffffffff))
+#else
+			offset
+#endif
+			);
+	if (rv==-1 && errno==ENOSYS) {
+		ssize_t totalsize;
+		unsigned char *buf,*scan;
+		int i;
+		for (i=totalsize=0; i<iovcnt; i++)
+			totalsize+=iov[i].iov_len;
+		buf=malloc(totalsize);
+		if (buf==NULL) {
+			errno=ENOMEM;
+			return -1;
+		}
+		for (i=0,scan=buf; i<iovcnt; i++, scan+=iov[i].iov_len)
+			memcpy(scan, iov[i].iov_base, iov[i].iov_len);
+		rv=pwrite64(fs, buf, totalsize, offset);
+		free(buf);
+	}
+	return rv;
+}
+
+ssize_t pwritev(int fs,const struct iovec *iov, int iovcnt, __off_t offset){
+	return pwritev64(fs,iov,iovcnt,(__off64_t)offset);
+}
+#endif
+
 int getdents(int fd, long dirp,unsigned int count){
 	return _pure_syscall(__NR_getdents,fd,dirp,count);
 }
@@ -649,6 +730,12 @@ int setresgid(gid_t rgid, gid_t egid, gid_t sgid){
 int pipe(int filedes[2]) {
 	return _pure_syscall(__NR_pipe,filedes);
 }
+
+#ifdef __NR_pipe2
+int pipe2(int filedes[2],int flags) {
+	  return _pure_syscall(__NR_pipe2,filedes,flags);
+}
+#endif
 
 mode_t umask(mode_t mask){
 	return _pure_syscall(__NR_umask,mask);
@@ -1218,7 +1305,6 @@ int renameat(int olddirfd, const char *oldpath,int newdirfd, const char *newpath
 int linkat(int olddirfd, const char *oldpath,int newdirfd, const char *newpath, int flags){
 	return _pure_syscall(__NR_linkat,oldpath,newdirfd,newpath,flags);
 }
-
 #endif
 
 #ifdef __NR_symlinkat

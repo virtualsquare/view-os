@@ -56,7 +56,10 @@ static struct socket64_mapping{
 /*14*/  {SYS_SETSOCKOPT,	__NR_setsockopt},
 /*15*/  {SYS_GETSOCKOPT,	__NR_getsockopt},
 /*16*/  {SYS_SENDMSG,		__NR_sendmsg},
-/*17*/  {SYS_RECVMSG,		__NR_recvmsg}
+/*17*/  {SYS_RECVMSG,		__NR_recvmsg},
+#ifdef __NR_accept4
+/*18*/  {SYS_ACCEPT4,		__NR_accept4},
+#endif
 };
 
 static long int pure_int_socketcall(long int sockcallno, ...){
@@ -101,6 +104,11 @@ int listen(int sockfd, int backlog){
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen){
 	return _pure_socketcall(SYS_ACCEPT,sockfd,addr,addrlen);
 }
+#if defined(SYS_ACCEPT4) || defined(__NR_accept4)
+int accept4(int sockfd, struct sockaddr *addr, socklen_t *addrlen,int flags){
+	return _pure_socketcall(SYS_ACCEPT4,sockfd,addr,addrlen,flags);
+}
+#endif
 int getsockname(int s, struct sockaddr *name, socklen_t *namelen){
 	return _pure_socketcall(SYS_GETSOCKNAME,s,name,namelen);
 }
