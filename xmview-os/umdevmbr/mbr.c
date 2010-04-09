@@ -34,6 +34,7 @@
 static char mbrsignature[2]={0x55,0xAA};
 
 struct mbr_header {
+	char code[IDE_HEADER_OFFSET];
 	struct mbrpart {
 		unsigned char flags;
 		unsigned char chs_begin[3];
@@ -66,7 +67,7 @@ static void mbr_read(struct mbr *mbr)
 {
 	struct mbr_header mbr_header;
 	unsigned int ext_part_base=0;
-	pread64(mbr->fd, &mbr_header, sizeof(mbr_header), (off_t)IDE_HEADER_OFFSET);
+	pread64(mbr->fd, &mbr_header, sizeof(mbr_header), (off_t) 0);
 	if (memcmp(mbr_header.signature,mbrsignature,2) != 0) {
 		fprintf(stderr,"bad signature in MBR %x %x\n",
 				mbr_header.signature[0],mbr_header.signature[1]);
@@ -101,7 +102,7 @@ static void mbr_read(struct mbr *mbr)
 		/* Read the chain of logical partitions inside the extended partition */
 		while (ext_part_base > 0) {
 			off_t base=((off_t)(ext_part_base+offset)) << IDE_BLOCKSIZE_LOG;
-			pread64(mbr->fd, &mbr_header, sizeof(mbr_header), (base+IDE_HEADER_OFFSET));
+			pread64(mbr->fd, &mbr_header, sizeof(mbr_header), base);
 			if (memcmp(mbr_header.signature,mbrsignature,2) != 0) {
 				fprintf(stderr,"bad signature in block %d=%x %x\n",base,
 						mbr_header.signature[0],mbr_header.signature[1]);
