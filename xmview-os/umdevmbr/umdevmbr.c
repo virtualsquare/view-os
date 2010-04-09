@@ -60,7 +60,7 @@ static int hdmbr_read(char type, dev_t device, char *buf, size_t len, loff_t pos
 				rv=pread64(mbr->fd,buf,len,pos);
 				return (rv<0)?-errno:rv;
 			} else
-				return -EINVAL;
+				return 0;
 		} else
 			return -ENODEV;
 	}

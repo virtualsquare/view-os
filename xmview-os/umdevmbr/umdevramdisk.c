@@ -22,6 +22,7 @@ struct ramdisk {
 
 static int rd_open(char type, dev_t device, struct dev_info *di)
 {
+		return 0;
 }
 
 static int rd_read(char type, dev_t device, char *buf, size_t len, loff_t pos, struct dev_info *di)
@@ -47,7 +48,7 @@ static int rd_write(char type, dev_t device, const char *buf, size_t len, loff_t
 	struct ramdisk *ramdisk = umdev_getprivatedata(di->devhandle);
 	if (ramdisk) {
 		if (ramdisk->flags & READONLY)
-			return EACCES;
+			return -EACCES;
 		else {
 			loff_t size=ramdisk->rd_size*STD_SECTORSIZE;
 			size_t rlen;
@@ -66,6 +67,7 @@ static int rd_write(char type, dev_t device, const char *buf, size_t len, loff_t
 
 static int rd_release(char type, dev_t device, struct dev_info *di)
 {
+	return 0;
 }
 
 static loff_t rd_lseek(char type, dev_t device, loff_t offset, int whence, loff_t pos, struct dev_info *di)
@@ -182,6 +184,7 @@ static int rd_ioctl(char type, dev_t device, int req, void * arg, struct dev_inf
 											    ((ramdisk->flags & MBR)?1:STD_SECTORSIZE);
 											 break;
 			case BLKGETSIZE64: *(long long *)arg = ramdisk->rd_size * STD_SECTORSIZE;
+												 //printk("BLKGETSIZE64 %lld\n",*(long long *)arg);
 												 break;
 			case HDIO_GETGEO: {
 													struct hd_geometry *hdg = arg;
@@ -218,6 +221,7 @@ struct umdev_operations umdev_ops={
 	.init=rd_init,
 	.ioctl=rd_ioctl,
 	.ioctlparms=rd_ioctl_params,
+	.fini=rd_fini,
 };
 
 
