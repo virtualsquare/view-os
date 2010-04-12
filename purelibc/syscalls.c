@@ -611,7 +611,19 @@ int fcntl(int fd, int cmd, ...){
 	arg1=va_arg(ap,  long int);
 	arg2=va_arg(ap,  long int);
 	va_end(ap);
+	/* XXX Check the fcntl->fcntl64 conversion */
+#ifdef __NR_fcntl64
+	switch (cmd) {
+		case F_GETLK:
+		case F_SETLK:
+		case F_SETLKW:
+			return _pure_syscall(__NR_fcntl,fd,cmd,arg1,arg2);
+		default:
+			return _pure_syscall(__NR_fcntl64,fd,cmd,arg1,arg2);
+	}
+#else
 	return _pure_syscall(__NR_fcntl,fd,cmd,arg1,arg2);
+#endif
 }
 
 #ifdef __NR_fcntl64
