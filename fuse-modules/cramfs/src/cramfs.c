@@ -388,7 +388,7 @@ int cramfs_real_readlink(CRAMFS context, const char *path, char *target, size_t 
     };
     struct cramfs_inode *inode = ncontext->inode;
     if(!S_ISLNK(SW16(inode->mode))) {
-        fprintf(stderr, "readlink: %s not a link\n", path);
+        /* fprintf(stderr, "readlink: %s not a link\n", path); */
         return -EINVAL;
     };
     size_t fsize = SWSIZE(inode->size);
@@ -471,6 +471,8 @@ int cramfs_real_read(CRAMFS context, const char *path, char *buf, size_t size, o
         return -EINVAL;
     };
     size_t fsize = SWSIZE(inode->size);
+		if (size > (fsize - offset)) size = fsize - offset;
+	  size = (size + PAGE_CACHE_SIZE_BMAP) & (~PAGE_CACHE_SIZE_BMAP);
     int start = offset / PAGE_CACHE_SIZE;
     int end = (offset + size) / PAGE_CACHE_SIZE;
     char *obuf = (char *) malloc((end - start + 1) * PAGE_CACHE_SIZE);
@@ -498,8 +500,8 @@ int cramfs_real_read(CRAMFS context, const char *path, char *buf, size_t size, o
     off_t ooff = 0;
     size_t osize;
     size_t real_size = 0;
-//     printf("read: reading blocks from %d to %d, shift %d, fsize %d, nblocks %d\n", 
-//         start, end, (int) (offset % PAGE_CACHE_SIZE), fsize, nblocks);
+    /* printf("read: reading blocks from %d to %d, shift %d, fsize %d, nblocks %d\n", 
+         start, end, (int) (offset % PAGE_CACHE_SIZE), fsize, nblocks);*/
     for(i = start; i < end; i++) {
         int block = SW32(bbuf[i]);
         int boffset = (i ? SW32(bbuf[i - 1]) : (int) foffset);

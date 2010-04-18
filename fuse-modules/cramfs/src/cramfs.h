@@ -49,6 +49,7 @@ typedef struct _cramfs_context {
 struct _cramfs_context;
 typedef struct _cramfs_context *CRAMFS;
 #define PAGE_CACHE_SIZE (4096)
+#define PAGE_CACHE_SIZE_BMAP (0xfff)
 
 CRAMFS cramfs_real_init(char *imagefile);
 void cramfs_real_fini(CRAMFS context);
