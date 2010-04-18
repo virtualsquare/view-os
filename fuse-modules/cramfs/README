@@ -1,0 +1,9 @@
+Usage:
+    
+    fusecram <cramfs_image_file> <mountpoint>
+    
+mounts image, while fusermount shipped with FUSE library can be used to unmount:
+
+    fusermount -u <mountpoint>
+
+Status: beta

@@ -1,0 +1,17 @@
+2010-04-18  Renzo Davoli <renzo@cs.unibo.it>
+    * Updated to new fuse.
+
+2005-11-04  Dmitry Morozhnikov <dmiceman@mail.ru>
+    * Fixed offset byteswap for BE2LE conversion.
+
+2005-11-02  Dmitry Morozhnikov <dmiceman@mail.ru>
+    * Renzo Davoli <renzo@cs.unibo.it> created a very useful patch for 
+    fusecram to read cramfs images in foreign bytesex. It allow read
+    images with little-endian byteorder on big-endian machines and vice versa.
+
+2005-10-29  Dmitry Morozhnikov <dmiceman@mail.ru>
+
+    * Critical bug found -- there is some situations when compressed 
+    block size is bigger than PAGE_CACHE_SIZE because compression not always
+    sufficient. For now internal buffers set to PAGE_CACHE_SIZE * 2 for 
+    compressed blocks.
