@@ -31,6 +31,15 @@
 
 #include "cramfs.h"
 
+#ifdef _UMFUSE
+#define xperror(X)
+#define xfprintf(file, format, args...) 
+#else
+#define xperror(X) perror(X)
+#define xfprintf(file, format, args...)  \
+	 fprintf (file, format , ## args)
+#endif
+
 typedef struct _cramfs_inode_context {
 	int ino;
 	struct cramfs_inode *inode;
@@ -44,18 +53,12 @@ typedef struct _cramfs_context {
 	GHashTable *lookup_table;
 	GHashTable *negative_lookup_table;
 	int last_node;
-	pthread_mutex_t main_mutex;
+	pthread_mutex_t main_mutex;  /* not used ? */
 	pthread_mutex_t fd_mutex;
 	int error;
 } cramfs_context;
 
 static char *negative_value = "not exists";
-//static cramfs_inode_context *root_context;
-//static GHashTable *lookup_table;
-//static GHashTable *negative_lookup_table;
-//static int last_node;
-//static pthread_mutex_t main_mutex = PTHREAD_MUTEX_INITIALIZER;
-//static pthread_mutex_t fd_mutex = PTHREAD_MUTEX_INITIALIZER;
 #define NOSWAP 0
 #define BE2LE 1
 #define LE2BE 2
@@ -76,12 +79,12 @@ CRAMFS cramfs_real_init(char *imagefile) {
 	  CRAMFS context;
     int fd = open(imagefile, O_RDONLY);
     if(fd == -1) {
-        perror("open image file");
+        xperror("open image file");
 				return NULL;
     };
 		context = malloc(sizeof(cramfs_context));
 		if (context == NULL) {
-			perror("out of memory");
+			xperror("out of memory");
 			return NULL;
 		}
     context->fd = fd;
@@ -194,7 +197,7 @@ cramfs_inode_context *cramfs_lookup(CRAMFS context, const char *path) {
 //             printf("trying to load %s...\n", rpath);
             int rc = cramfs_real_readdir(context, rpath, NULL, NULL);
             if(rc) {
-                fprintf(stderr, "lookup: error %d from readdir: %s\n", rc, strerror(-rc));
+                xfprintf(stderr, "lookup: error %d from readdir: %s\n", rc, strerror(-rc));
                 g_strfreev(parts);
                 g_free(rpath);
                 return NULL;
@@ -217,11 +220,11 @@ cramfs_inode_context *cramfs_lookup(CRAMFS context, const char *path) {
 int cramfs_real_opendir(CRAMFS context, const char *path) {
     cramfs_inode_context *current = cramfs_lookup(context, path);
     if(!current) {
-        fprintf(stderr, "opendir: know nothing about %s\n", path);
+        xfprintf(stderr, "opendir: know nothing about %s\n", path);
         return -ENOENT;
     };
     if(!S_ISDIR(SW16(current->inode->mode))) {
-        fprintf(stderr, "opendir: %s not a dir\n", path);
+        xfprintf(stderr, "opendir: %s not a dir\n", path);
         return -ENOTDIR;
     };
     return 0;
@@ -230,16 +233,16 @@ int cramfs_real_opendir(CRAMFS context, const char *path) {
 int cramfs_real_readdir(CRAMFS context, const char *path, void *buf, cramfs_dir_fill_t filler) {
 //     printf("readdir: entering with %s\n", path);
     if(path[0] == '\0') {
-        fprintf(stderr, "readdir: attempt to read empty path name\n");
+        xfprintf(stderr, "readdir: attempt to read empty path name\n");
         return -EINVAL;
     };
     cramfs_inode_context *current = cramfs_lookup(context, path);
     if(!current) {
-        fprintf(stderr, "readdir: know nothing about %s\n", path);
+        xfprintf(stderr, "readdir: know nothing about %s\n", path);
         return -ENOENT;
     };
     if(!S_ISDIR(SW16(current->inode->mode))) {
-        fprintf(stderr, "readdir: %s not a dir\n", path);
+        xfprintf(stderr, "readdir: %s not a dir\n", path);
         return -ENOTDIR;
     };
     if(filler) {
@@ -255,11 +258,11 @@ int cramfs_real_readdir(CRAMFS context, const char *path, void *buf, cramfs_dir_
         if(pthread_mutex_lock(& context->fd_mutex)) {
             int err = errno;
             pthread_mutex_unlock(& context->fd_mutex);
-            perror("readdir: can`l lock fd_mutex");
+            xperror("readdir: can`l lock fd_mutex");
             return -err;
         };
         if(lseek(context->fd, ioff, SEEK_SET) == -1) {
-            perror("readdir: can`t lseek()");
+            xperror("readdir: can`t lseek()");
             pthread_mutex_unlock(& context->fd_mutex);
             return -EIO;
         };
@@ -344,7 +347,8 @@ int cramfs_real_getattr(CRAMFS context, const char *path, struct stat *stbuf) {
     stbuf->st_mode = SW16(ncontext->inode->mode);
     /// @todo may be set it to current user uid/gid?
     stbuf->st_uid = SW16(ncontext->inode->uid);
-    stbuf->st_gid = ncontext->inode->gid;
+		/// @todo maybe gid must be SW16 converted like uid?
+    stbuf->st_gid = ncontext->inode->gid; 
     stbuf->st_size = SWSIZE(ncontext->inode->size);
     stbuf->st_blksize = PAGE_CACHE_SIZE;
     stbuf->st_blocks = (stbuf->st_size  - 1) / PAGE_CACHE_SIZE + 1;
@@ -360,11 +364,11 @@ int cramfs_read_block(CRAMFS context, off_t offset, size_t bsize, char *data, si
     unsigned char ibuf[PAGE_CACHE_SIZE * 2];
     if(pthread_mutex_lock(& context->fd_mutex)) {
         int err = errno;
-        perror("read_block: can`l lock fd_mutex");
+        xperror("read_block: can`l lock fd_mutex");
         return -err;
     };
     if(lseek(context->fd, offset, SEEK_SET) == -1) {
-        perror("read_block: can`t lseek()");
+        xperror("read_block: can`t lseek()");
         pthread_mutex_unlock(& context->fd_mutex);
         return -EIO;
     };
@@ -383,7 +387,7 @@ int cramfs_read_block(CRAMFS context, off_t offset, size_t bsize, char *data, si
 int cramfs_real_readlink(CRAMFS context, const char *path, char *target, size_t size) {
     cramfs_inode_context *ncontext = cramfs_lookup(context, path);
     if(!ncontext) {
-        fprintf(stderr, "readlink: know nothing about %s\n", path);
+        xfprintf(stderr, "readlink: know nothing about %s\n", path);
         return -ENOENT;
     };
     struct cramfs_inode *inode = ncontext->inode;
@@ -397,11 +401,11 @@ int cramfs_real_readlink(CRAMFS context, const char *path, char *target, size_t 
     int *bbuf = (int *) malloc(nblocks * 4);
     if(pthread_mutex_lock(& context->fd_mutex)) {
         int err = errno;
-        perror("readlink: can`l lock fd_mutex");
+        xperror("readlink: can`l lock fd_mutex");
         return -err;
     };
     if(lseek(context->fd, SWOFFSET(inode) * 4, SEEK_SET) == -1) {
-        perror("read_block: can`t lseek()");
+        xperror("read_block: can`t lseek()");
         pthread_mutex_unlock(& context->fd_mutex);
         return -EIO;
     };
@@ -448,12 +452,12 @@ int cramfs_real_readlink(CRAMFS context, const char *path, char *target, size_t 
 int cramfs_real_open(CRAMFS context, const char *path) {
     cramfs_inode_context *ncontext = cramfs_lookup(context, path);
     if(!ncontext) {
-        fprintf(stderr, "read: know nothing about %s\n", path);
+        xfprintf(stderr, "read: know nothing about %s\n", path);
         return -ENOENT;
     };
     struct cramfs_inode *inode = ncontext->inode;
     if(!S_ISREG(SW16(inode->mode))) {
-        fprintf(stderr, "read: %s not a file\n", path);
+        xfprintf(stderr, "read: %s not a file\n", path);
         return -EINVAL;
     };
     return 0;
@@ -462,12 +466,12 @@ int cramfs_real_open(CRAMFS context, const char *path) {
 int cramfs_real_read(CRAMFS context, const char *path, char *buf, size_t size, off_t offset) {
     cramfs_inode_context *ncontext = cramfs_lookup(context, path);
     if(!ncontext) {
-        fprintf(stderr, "read: know nothing about %s\n", path);
+        xfprintf(stderr, "read: know nothing about %s\n", path);
         return -ENOENT;
     };
     struct cramfs_inode *inode = ncontext->inode;
     if(!S_ISREG(SW16(inode->mode))) {
-        fprintf(stderr, "read: %s not a file\n", path);
+        xfprintf(stderr, "read: %s not a file\n", path);
         return -EINVAL;
     };
     size_t fsize = SWSIZE(inode->size);
@@ -480,11 +484,11 @@ int cramfs_real_read(CRAMFS context, const char *path, char *buf, size_t size, o
     int *bbuf = (int *) malloc(nblocks * 4);
     if(pthread_mutex_lock(& context->fd_mutex)) {
         int err = errno;
-        perror("read: can`l lock fd_mutex");
+        xperror("read: can`l lock fd_mutex");
         return -err;
     };
     if(lseek(context->fd, SWOFFSET(inode) * 4, SEEK_SET) == -1) {
-        perror("read_block: can`t lseek()");
+        xperror("read_block: can`t lseek()");
         pthread_mutex_unlock(& context->fd_mutex);
         return -EIO;
     };
@@ -532,7 +536,7 @@ int cramfs_real_read(CRAMFS context, const char *path, char *buf, size_t size, o
         size = real_size;
     };
     memcpy(buf, obuf + (offset % PAGE_CACHE_SIZE), size);
-//     fwrite(buf, size, 1, stdout);
+//  fwrite(buf, size, 1, stdout);
     free(bbuf);
     free(obuf);
     return size;
