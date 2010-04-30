@@ -1,11 +1,11 @@
 EncFS code is already fully umfuse compatible.
 In fact EncFS uses private_data instead of global variables to
-keep the file system state (as should be required by fuse interface)
+keep the file system state (as should be required by the fuse API)
 
-The source code can be downloaded from encfs project site:
+The source code can be downloaded from the encfs project site:
 http://code.google.com/p/encfs/
 
-This directory include just a patch to encfs/Makefile.am which
+This directory includes a patch to encfs/Makefile.am which
 adds the generation of umfuseencfs to the automake process.
 
 HOWTO:
