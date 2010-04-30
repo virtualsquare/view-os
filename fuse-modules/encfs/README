@@ -1,11 +1,12 @@
-EncFS code is full umfuse compatible.
-In fact EncFS use private_data instead of global variables to
+EncFS code is already fully umfuse compatible.
+In fact EncFS uses private_data instead of global variables to
 keep the file system state (as should be required by fuse interface)
 
+The source code can be downloaded from encfs project site:
 http://code.google.com/p/encfs/
 
-This directory include just a patch to Makefile.am file to
-add the generation of umfuseencfs to the automake process.
+This directory include just a patch to encfs/Makefile.am which
+adds the generation of umfuseencfs to the automake process.
 
 HOWTO:
 
@@ -21,12 +22,11 @@ $ tar zxvf encfs.?????
 $ cd encfs-read-only
 or 
 $ cd encfs.?????
-and
 
 - apply the patch
 $ patch -p 1 < /dir/of/the/patch/viewos.encfs.patch
 
-- start all the automake preocedure
+- start the whole automake preocedure
 $ autoreconf -i
 $ ./configure
 $ make
@@ -39,5 +39,5 @@ April, 30 2010 (renzo)
 Temporary note: (Apr. 30 2010) as to today's encfs version there is an
 incompatibility with libboost-serialization 1.42. 
 It works if linked against v. 1.40 or earlier.
-It is not a problem of viewos/umfuse, the behavior is the same for fuse
-and umfuse.
+It is not a problem of viewos/umfuse, the behavior is the same when running
+fuse-encfs and umfuse-encfs.
