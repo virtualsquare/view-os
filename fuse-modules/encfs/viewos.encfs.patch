@@ -1,0 +1,44 @@
+--- encfs-read-only/encfs/Makefile.am	2010-04-30 06:39:27.000000000 +0200
++++ encfs-umfuse/encfs/Makefile.am	2010-04-29 20:59:51.000000000 +0200
+@@ -1,3 +1,4 @@
++moddir = $(libdir)/umview/modules
+ 
+ include $(top_srcdir)/Makefile.common
+ 
+@@ -23,16 +24,25 @@
+ endif
+ 
+ lib_LTLIBRARIES = libencfs.la
++mod_LTLIBRARIES = umfuseencfs.la
++
+ bin_PROGRAMS = encfs encfsctl
+ dist_bin_SCRIPTS = encfssh
+ noinst_PROGRAMS = test makeKey
+ 
+ all-local: encfs-man.html
+ 
++encfs_CXXFLAGS = $(AM_CFLAGS)
++
+ encfs_LDADD   = libencfs.la $(ALL_LDFLAGS)
+ encfsctl_LDADD = libencfs.la $(ALL_LDFLAGS)
+ test_LDADD   = libencfs.la $(ALL_LDFLAGS)
+ makeKey_LDADD   = libencfs.la $(ALL_LDFLAGS)
++umfuseencfs_la_LDFLAGS = \
++												 -module \
++												 -avoid-version \
++												 -export-dynamic \
++												 libencfs.la $(ALL_LDFLAGS)
+ 
+ if BUILD_STATIC
+ encfs_LDFLAGS = -all-static
+@@ -88,6 +98,10 @@
+     encfs.cpp \
+     main.cpp
+ 
++umfuseencfs_la_SOURCES = \
++		encfs.cpp \
++		main.cpp
++
+ test_SOURCES = \
+     test.cpp
+ 
