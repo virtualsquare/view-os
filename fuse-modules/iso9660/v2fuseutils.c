@@ -48,20 +48,20 @@ void v2f_usage(char *progname,struct fuse_operations *ops)
 
 void v2f_rearrangeargv(int argc, char *argv[])
 {
-	  int i,sourcearg,dasho;
-		  for (i=1,dasho=sourcearg=0;i<argc && sourcearg==0;i++) {
-				    if (*argv[i] != '-' && !dasho)
-							      sourcearg=i;
-						    dasho=(strcmp(argv[i],"-o")==0);
-								  }
-			  if (sourcearg > 1 && sourcearg < argc-1) {
-					    char *sourcepath=argv[sourcearg];
-							    char *mountpoint=argv[sourcearg+1];
-									    for (i=sourcearg; i>1; i--)
-												      argv[i+1]=argv[i-1];
-											    argv[1]=sourcepath;
-													    argv[2]=mountpoint;
-															  }
+	int i,sourcearg,dasho;
+	for (i=1,dasho=sourcearg=0;i<argc && sourcearg==0;i++) {
+		if (*argv[i] != '-' && !dasho)
+			sourcearg=i;
+		dasho=(strcmp(argv[i],"-o")==0);
+	}
+	if (sourcearg > 1 && sourcearg < argc-1) {
+		char *sourcepath=argv[sourcearg];
+		char *mountpoint=argv[sourcearg+1];
+		for (i=sourcearg; i>1; i--)
+			argv[i+1]=argv[i-1];
+		argv[1]=sourcepath;
+		argv[2]=mountpoint;
+	}
 }
 
 int v2f_checkrorwplus(int argc, char *argv[])
