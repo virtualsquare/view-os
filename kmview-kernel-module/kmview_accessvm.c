@@ -22,6 +22,7 @@
 #include <linux/sched.h>
 #include <linux/highmem.h>
 #include <linux/pagemap.h>
+#include <linux/slab.h>
 
 /*
  * Access another process' address space to/from user space

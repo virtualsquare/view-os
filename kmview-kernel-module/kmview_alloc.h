@@ -25,6 +25,7 @@
 #include <linux/err.h>
 #include <linux/fs.h>
 #include <linux/errno.h>
+#include <linux/slab.h>
 
 extern int kmpid_deny_new_threads;
 

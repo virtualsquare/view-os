@@ -24,6 +24,7 @@
 #include <linux/wait.h>
 #include <linux/semaphore.h>
 #include <linux/spinlock.h>
+#include <linux/slab.h>
 /* PUBLIC INTERFACE IS IN kmview.h */
 #include "kmview.h"
 #include "kmview_arch.h"
