@@ -33,25 +33,26 @@
 
 int execl(const char *path, const char *arg, ...){
 	va_list ap;
-	int argc=1,i;
+	int argc=2,i;
 	char **argv;
 	va_start(ap,arg);
 	while(va_arg(ap,char *) != 0)
 		argc++;
 	va_end(ap);
-	argv=alloca(argc*sizeof(char *));
+	argv=alloca((argc*sizeof(char *)));
 	assert(argv);
 	argv[0]=(char *)arg;
 	va_start(ap,arg);
 	for (i=1;i<argc;i++)
 		argv[i]=va_arg(ap,char*);
+	argv[i]=(char *) 0;
 	va_end(ap);
 	return execve(path,argv,environ);
 }
 
 int execlp(const char *file, const char *arg, ...){
 	va_list ap;
-	int argc=1,i;
+	int argc=2,i;
 	char **argv;
 	va_start(ap,arg);
 	while(va_arg(ap,char *) != 0)
@@ -69,7 +70,7 @@ int execlp(const char *file, const char *arg, ...){
 
 int execle(const char *path, const char *arg , .../*, char * const envp[]*/){
 	va_list ap;
-	int argc=1,i;
+	int argc=2,i;
 	char **argv;
 	char **envp;
 	va_start(ap,arg);
