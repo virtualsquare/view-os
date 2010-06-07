@@ -1,0 +1,16 @@
+/dev/kmview is 10.233 as defined in the Kernel source tree.
+In Documentation/devices.txt (since 2.6.30):
+...
+ 10 char  Non-serial mice, misc features
+     233 = /dev/kmview View-OS A process with a view
+
+Somebody erroneously assigned the same number to vhost_net device, thus
+the two features are incompatible as thay share the same device id.
+
+In include/linux/miscdevice.h:
+#define VHOST_NET_MINOR   233
+
+We hope that this bug will be fixed as soon as possible.
+
+Bologna, June 7 2010
+		renzo
