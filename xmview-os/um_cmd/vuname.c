@@ -59,12 +59,13 @@ void usage()
 char flags[12];
 int quiet;
 int unameok=1;
+struct viewinfo vi;
+
 main(int argc, char *argv[])
 {
 	int c;
 	int position=0;
 	int i;
-	struct viewinfo vi;
 	while (1) {
 		int option_index = 0;
 		static struct option long_options[] = {
@@ -139,32 +140,36 @@ main(int argc, char *argv[])
 	for (c=i=0;i<12;i++)
 		c+=flags[i];
 	if (c) {
+		int n=0;
+#define SPACE ((n++ == 0)?"":" ")
 		if(flags[0] || flags[1])
-			printf("%s ",vi.uname.sysname);
+			printf("%s%s",SPACE,vi.uname.sysname);
 		if(flags[0] || flags[2])
-			printf("%s ",vi.uname.nodename);
+			printf("%s%s",SPACE,vi.uname.nodename);
 		if(flags[0] || flags[3])
-			printf("%s ",vi.uname.release);
+			printf("%s%s",SPACE,vi.uname.release);
 		if(flags[0] || flags[4])
-			printf("%s ",vi.uname.version);
+			printf("%s%s",SPACE,vi.uname.version);
 		if(flags[0] || flags[5])
-			printf("%s ",vi.uname.machine);
+			printf("%s%s",SPACE,vi.uname.machine);
 		if(flags[6])
-			printf("%s ","unknown");
+			printf("%s%s",SPACE,"unknown");
 		if(flags[7])
-			printf("%s ","unknown");
+			printf("%s%s",SPACE,"unknown");
 		if(flags[0] || flags[8]) {
 			if (unameok)
-				printf("%s ","GNU/Linux");
+				printf("%s%s",SPACE,"GNU/Linux");
 			else
-				printf("%s ","GNU/Linux/View-OS");
+				printf("%s%s",SPACE,"GNU/Linux/View-OS");
 		}
-		if(flags[0] || flags[9])
-			printf("%d ",vi.serverid);
-		if(flags[0] || flags[10])
-			printf("%d ",vi.viewid);
-		if(flags[0] || flags[11])
-			printf("%s ",vi.viewname);
+		if (!unameok) {
+			if(flags[0] || flags[9])
+				printf("%s%d",SPACE,vi.serverid);
+			if(flags[0] || flags[10])
+				printf("%s%d",SPACE,vi.viewid);
+			if(flags[0] || flags[11])
+				printf("%s%s",SPACE,vi.viewname);
+		}
 		printf("\n");
 	} else {
 			printf("%s\n",vi.uname.nodename);
