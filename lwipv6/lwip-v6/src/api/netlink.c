@@ -20,7 +20,6 @@
  */   
 
 #include <sys/types.h>
-#define SELECT4ALE
 #include "lwip/opt.h"
 
 #if LWIP_NL 

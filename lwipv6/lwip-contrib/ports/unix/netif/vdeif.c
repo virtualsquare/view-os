@@ -55,6 +55,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <poll.h>
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/socket.h>
@@ -315,33 +316,22 @@ static struct pbuf *low_level_input(struct vdeif *vdeif, u16_t ifflags)
 /*-----------------------------------------------------------------------------------*/
 static void vdeif_thread(void *arg)
 {
-	struct netif *netif;
-	struct vdeif *vdeif;
-	fd_set fdset;
+	struct netif *netif = arg;
+	struct vdeif *vdeif = netif->state;
+	struct pollfd pfd[]={{vdeplug.vde_datafd(vdeif->vdefd),POLLIN,0}};
 	int ret;
-	struct timeval tv;
-
-	netif = arg;
-	vdeif = netif->state;
 
 	/* Check if we have to exit and wait 100ms for new data */
 	while (vdeif->active) {
-		int datafd=vdeplug.vde_datafd(vdeif->vdefd);
-
-		FD_ZERO(&fdset);
-		FD_SET(datafd, &fdset);
-
-		tv.tv_sec = 0;
-		tv.tv_usec = 100000;
 
 		/* Wait for a packet to arrive. */
-		ret = select(datafd+1, &fdset, NULL, NULL, &tv);
+		ret = poll(pfd, 1, 100);
 		if (ret == 1) {
 			/* Handle incoming packet. */
 			vdeif_input(netif);
 		}
 		else if (ret == -1 && errno != EINTR) {
-			perror("vdeif_thread: select");
+			perror("vdeif_thread: poll");
 		}
 	}
 

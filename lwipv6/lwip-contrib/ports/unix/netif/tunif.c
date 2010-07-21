@@ -35,6 +35,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <poll.h>
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/socket.h>
@@ -200,26 +201,20 @@ low_level_input(struct tunif *tunif,u16_t ifflags)
 static void 
 tunif_thread(void *arg)
 {
-  struct netif *netif;
-  struct tunif *tunif;
-  fd_set fdset;
+  struct netif *netif = arg;
+  struct tunif *tunif = netif->state;
+	struct pollfd pfd[] = {{tunif->fd,POLLIN,0}};
   int ret;
   
-  netif = arg;
-  tunif = netif->state;
-  
   while (1) {
-    FD_ZERO(&fdset);
-    FD_SET(tunif->fd, &fdset);
-
     /* Wait for a packet to arrive. */
-    ret = select(tunif->fd + 1, &fdset, NULL, NULL, NULL);
+		ret = poll(pfd, 1, -1);
 
     if (ret == 1) {
       /* Handle incoming packet. */
       tunif_input(netif);
     } else if (ret == -1) {
-      perror("tunif_thread: select");
+      perror("tunif_thread: poll");
     }
   }
 }

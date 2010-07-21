@@ -1,7 +1,6 @@
 /*   This is part of LWIPv6
  *   
- *   VDE (virtual distributed ethernet) interface for ale4net
- *   (based on tapif interface Adam Dunkels <adam@sics.se>)
+ *   tap interface for ale4net
  *   Copyright 2005 Renzo Davoli University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
@@ -55,6 +54,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <poll.h>
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/socket.h>
@@ -295,31 +295,20 @@ low_level_input(struct tapif *tapif,u16_t ifflags)
 static void 
 tapif_thread(void *arg)
 {
-	struct netif *netif;
-	struct tapif *tapif;
-	fd_set fdset;
+	struct netif *netif = arg;
+	struct tapif *tapif = netif->state;
+	struct pollfd pfd[]={{tapif->fd,POLLIN,0}};
 	int ret;
-	struct timeval tv;
 	
-	netif = arg;
-	tapif = netif->state;
-
 	/* Check if we have to exit and wait 100ms for new data */
 	while (tapif->active) {
-	
-		FD_ZERO(&fdset);
-		FD_SET(tapif->fd, &fdset);
-
-		tv.tv_sec = 0;
-		tv.tv_usec = 100000;
-
 		/* Wait for a packet to arrive. */
-		ret = select(tapif->fd + 1, &fdset, NULL, NULL, &tv);
+		ret = poll(pfd, 1, 100);
 		if(ret == 1) {
 			/* Handle incoming packet. */
 			tapif_input(netif);
 		} else if(ret == -1) {
-			perror("tapif_thread: select");
+			perror("tapif_thread: poll");
 		}
 	}
 
