@@ -437,7 +437,7 @@ static void *startmain(void *vsmo)
 	if ((newnewargv=malloc(newargc * sizeof (char *))) != NULL) {
 		for (i=0;i<newargc;i++) 
 			newnewargv[i]=newargv[i];
-		optind=1;
+		optind=0;
 		if (pmain(newargc,newnewargv) != 0)
 			umfuse_abort(psmo->new->fuse);
 		free(newnewargv);
@@ -804,10 +804,10 @@ static void um_mergedir(char *path,struct fuse_context *fc,fuse_dirh_t h)
 		char buf[4096];
 		int len;
 		struct umdirent *oldtail=h->tail;
-		while ((len=getdents64(fd,buf,4096)) > 0) {
+		while ((len=getdents64(fd,(struct dirent64 *)buf,4096)) > 0) {
 			off_t off=0;
 			while (off<len) {
-				struct dirent64 *de=(struct dirent *)(buf+off);
+				struct dirent64 *de=(struct dirent64 *)(buf+off);
 				if (merge_newentry(de->d_name,h->tail,oldtail))
 				{
 					struct umdirent *new=(struct umdirent *)malloc(sizeof(struct umdirent));
@@ -1341,7 +1341,7 @@ static long umfuse_mknod(const char *path, mode_t mode, dev_t dev)
 {
 	struct fuse_context *fc = um_mod_get_private_data();
 	int rv;
-	char *unpath=unwrap(fc, path);
+	char *unpath=unwrap(fc, (char *)path);
 	assert(fc != NULL);
 
 	if (fc->fuse->flags & MS_RDONLY) {
