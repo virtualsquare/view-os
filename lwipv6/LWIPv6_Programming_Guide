@@ -1,0 +1,525 @@
+LWIPv6 programming guide
+========================
+
+The most recent version of this document can be found on the VirtualSquare wiki:
+http://wiki.virtualsquare.org/index.php/LWIPv6_programming_guide
+This file has been updated on Jun 11, 2008.
+
+This is a short guide of the LWIPv6 library. It is intended for programmers
+wishing to write programs using LWIPv6.
+
+LWIPv6 implements an entire LWIPv4/v6 stack as a library, thus when a program
+uses LWIPv6 it can interoperate using its own TCP-IP stack (or even multiple
+LWIPV6 stacks, the library supports many stacks at the same time).
+
+LWIPv6 stacks communicate using three different types of interfaces:
+
+    * tap: (access to /dev/net/tun required) it uses a point to point layer 2
+      (ethernet) virtual interface with the hosting machine;
+    * tun: (access to /dev/net/tun required) similar fo the previous one, it
+      uses a point to point layer 3 (IP) virtual connection;
+    * vde: it gets connected to a Virtual Distributed Ethernet switch. 
+
+
+Contents
+--------
+    * 1 Loading and Linking LWIPV6
+    * 2 How to start a stack (or several stacks)
+    * 3 How to use a Hybrid Stack
+    * 4 How to define interfaces, addresses, routes
+    * 5 Remember to turn on the interfaces!
+    * 6 How to use a stack (or several stacks)
+    * 7 A complete example
+    * 8 A different model for asynchrony: event_subscribe
+    * 9 List of most relevant functions provided by LWIPv6
+		* 10 Slirp
+
+
+1. Loading and Linking LWIPV6
+-----------------------------
+A program can use LWIPv6 in three different ways.
+
+    * By linking statically the library. 
+
+ gcc -o static static.c /usr/local/lib/liblwipv6.a  -lpthread -ldl
+
+in this case the constructor/destructor must be explicitely called in the code:
+
+ main(int argc,char *argv[])
+ {
+   lwip_init();
+   /* core of the application */
+   lwip_fini();
+ }
+
+    * Using a dynamic linking. 
+
+ gcc -o dynamic dynamic.c -llwipv6 -lpthread -ldl
+
+lwip_init, lwip_fini are automagically called when the library is loaded. Do not call them in the code.
+
+    * Dynamically loading the dynamic library. 
+
+The code appears like this:
+
+ void *handle
+ ...
+ handle=loadlwipv6dl();
+ ....
+ /* handle==NULL in case of errors; to unload the library use: dlclose(handle) */
+
+This application should be compiled in this way:
+
+ gcc -o dynload dynload.c -lpthread -ldl
+
+The advantage of this approach is the lack of direct dependence (requirement)
+for the lwipv6 library. It is possible to write programs able to run both on
+systems where lwipv6 is installed and on system where lwipv6 does not exist.
+The choice of features can be done at run time.
+
+
+2. How to start a stack (or several stacks)
+-------------------------------------------
+A stack descriptor is defined as a (opaque) stucture:
+
+ struct stack *stackd;
+
+The program can start a stack by calling:
+
+ stackd=lwip_stack_new();
+
+If something goes wrong, lwip_stack_new returns NULL. A program can call
+lwip_stack_new several times to define several TCP-IP stacks.
+
+It is also possible to shut down a stack in this way:
+
+ lwip_stack_free(stackd);
+
+
+3. How to use a Hybrid Stack
+----------------------------
+LWIPv6 is a Hybrid stack. In a raw and intuitive definition, it means that it
+has only one packet engine (lwipv6) and it is backward compatible with IPv4
+using some exceptions in the code where the management is different.
+
+LWIPv6 internal engine uses exclusively IPv6 addresses. All the calls to set up
+the addresses and routes use addresses defined as:
+
+ struct ip_addr {
+     uint32_t addr[4];
+ };
+
+This data structure contains an IPv6 address. IPv4 address are stored as IPv4
+mapped address, i.e. in the following form: the first 80 bits set to zero, the
+next 16 set to one, while the last 32 bits are the IPv4 address.
+
+There are macro in the lwipv6 include file to help programmers to define IPv4
+and IPv6 addresses and masks.
+
+ IP6_ADDR(addr,0x2001,0x760,0x0,0x0,0x0,0x0,0x0,0x1)
+
+defines addr as 2001:760::1. IP6ADDR can be used both for address and masks,
+e.g.
+
+ IP6_ADDR(mask,0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0)
+
+is a /64 mask.
+
+For IPV4 there are two different macros:
+
+ IP64_ADDR(addr4,192,168,1,1);
+ IP64_MASKADDR(mask4,255,255,255,0);
+
+define addr4 e mask4 the IPv4 mapped adress 192.168.1.1 and a /24 mask (255.255.255.0) respectively.
+
+4. How to define interfaces, addresses, routes
+----------------------------------------------
+Once a stack has been created, it is useless until it has a non trivial
+interface. The loopback lo0 interface is the only one automatically defined in
+a new stack.
+
+ struct netif *lwip_vdeif_add(struct stack *stack, void *arg);
+ struct netif *lwip_tapif_add(struct stack *stack, void *arg);
+ struct netif *lwip_tunif_add(struct stack *stack, void *arg);
+ struct netif *lwip_slirpif_add(struct stack *stack, void *arg);
+
+The four functions above define new interfaces. For tun and tap interfaces,
+the argument is a string that will be used as the name of the virtual
+interface. lwip_vdeif_add argument is the path of the vde_switch.
+
+ struct netif *tunnif,*vdenif,*vde2nif;
+ tunnif=lwip_tunif_add(stackd,"tun4");
+ vdenif=lwip_tunif_add(stackd,"/var/run/vde.ctl");
+ vde2nif=lwip_tunif_add(stackd,"/var/run/vde.ctl[4]");
+
+In this example three interfaces get added to the stack defined by stackd. The
+first is the tun interface named tun4, the second a vde connection to a switch,
+the third another connection to the port #4 to the same switch. In fact the
+square brackets syntax is commonly used in vde to indicate a specfic port of a
+switch.
+
+Interfaces must be assigned TCP-IP addresses to communicate.
+(notable exception slirpif).
+
+ int lwip_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
+ int lwip_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
+
+for example the following chunk of code sets the address 192.168.1.1/24 for
+vdenif.
+
+ struct ip_addr addr4, mask4;
+ IP64_ADDR(&addr4,192,168,1,1);
+ IP64_MASKADDR(&mask4,255,255,255,0);
+ lwip_add_addr(vdenif,&addr4,&mask4);
+
+An interface can have several IPv4 and IPv6 addresses. IPv6 supports stateless
+address autoconfiguration.
+
+In a similar manner it is possible to define routes.
+
+ int lwip_add_route(struct stack *stack, struct ip_addr *addr, struct ip_addr *netmask, 
+                                   struct ip_addr *nexthop, struct netif *netif, int flags);
+ int lwip_del_route(struct stack *stack, struct ip_addr *addr, struct ip_addr *netmask, 
+                                   struct ip_addr *nexthop, struct netif *netif, int flags);
+
+addr/netmask is the destination address for the route. nexthop is the next hop
+destination address and netif is the network interface where the packet must be
+dispatched. To define a default route, use IPADDR_ANY both for address and for
+netmask, e.g.
+
+ struct ip_addr gwaddr4;
+ IP64_ADDR(&gwaddr4,192,168,1,254);
+ lwip_add_route(stackd, IPADDR_ANY, IPADDR_ANY, &gwaddr4, vdenif, 0);
+
+defines the default route to be 192.168.1.254 on interface vdenif.
+
+
+5. Remember to turn on the interfaces!
+--------------------------------------
+All the interfaces added by lwip_vdeif_add, lwip_tunif_add or lwip_tapif_add
+are disabled upon creation. lwip_ifup turns on an interface, lwip_ifdown turns
+it off. e.g.
+
+ lwip_ifup(vdeif);
+
+Remember to turn on the interfaces otherwise the stack won't work!
+
+
+6. How to use a stack (or several stacks)
+--------------------------------------
+lwip_msocket is similar to the msocket call defined by the multiple stack
+exstension of the Berkeley socket API definition (msockets). The sole
+difference between the signature of msocket and lwip_socket is that the socket
+decriptor gets used instead of the pathname of the stack special file.
+
+ int lwip_msocket(struct stack *stack, int domain, int type, int protocol);
+
+For example, a TCP (V4) socket on the lwip stack stackd gets created by the
+following call.
+
+ fd=lwip_msocket(stackd, AF_INET, SOCK_STREAM, 0);
+
+fd can be used in Berkeley Sockets API like calls: lwip_bind, lwip_connect,
+lwip_accept, lwip_recv, lwip_send ... that correspond to bind, accept, recv,
+send, etc.
+
+"sockaddr" parameters (like in bind, connect, etc) use the standard definitions
+(sockaddr_in, sockaddr_in6).
+
+For application using only one stack (or at least one stack at a time) it is
+possible to define the default stack:
+
+ lwip_stack_set(stackd);
+
+If the default stack has been already defined the call
+
+ lwip_socket(AF_INET, SOCK_STREAM, 0);
+
+implicitely refers to stackd. THe default stack gets defined for the whole
+library, thus the use of default networks is discouraged on multithreaded
+applications working on several stack concurrently.
+
+
+7. A complete example
+---------------------
+The following code is a simple TCP terminal emulator working on LWIPv6. It
+works like the utility nc used as a TCP client. In fact our utility (say it is
+named lwipnc):
+
+ lwipnc 192.168.250.1 9999
+
+has the same behavior of:
+
+ nc 192.168.250.1 9999
+
+One way to test this program is by starting a tcp server on the other end of
+the network link:
+
+ nc -l -p 9999
+
+Here is the code of lwipnc.c:
+
+/* Copyright 2008 Renzo Davoli for LWIPv6 documentation.
+ * Licensed inder the GPLv2
+ *
+ * Minimal terminal emulator on a TCP socket
+ */
+
+#include <stdio.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <lwipv6.h>
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <netinet/in.h>
+
+#define BUFSIZE 1024
+char buf[BUFSIZE];
+
+int main(int argc,char *argv[])
+{
+  struct sockaddr_in serv_addr;
+  int fd;
+  void *handle;
+  struct stack *stack;
+  struct netif *nif;
+  struct ip_addr addr;
+  struct ip_addr mask;
+
+#ifdef LWIPV6DL
+  /* Run-time load the library (if requested) */
+  if ((handle=loadlwipv6dl()) == NULL) {
+    perror("LWIP lib not loaded");
+    exit(-1);
+  }
+#endif
+  /* define a new stack */
+  if((stack=lwip_stack_new())==NULL){
+    perror("Lwipstack not created");
+    exit(-1);
+  }
+  /* add an interface */
+  if((nif=lwip_vdeif_add(stack,"/var/run/vde.ctl"))==NULL){
+    perror("Interface not loaded");
+    exit(-1);
+  }
+  /* set the local IP address of the interface */
+  IP64_ADDR(&addr,192,168,250,20);
+  IP64_MASKADDR(&mask,255,255,255,0);
+  lwip_add_addr(nif,&addr,&mask);
+  /* turn on the interface */
+  lwip_ifup(nif);
+
+  memset((char *) &serv_addr,0,sizeof(serv_addr));
+  serv_addr.sin_family      = AF_INET;
+  serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
+  serv_addr.sin_port        = htons(atoi(argv[2]));
+
+  /* create a TCP lwipv6 socket */
+  if((fd=lwip_msocket(stack,PF_INET,SOCK_STREAM,0))<0) {
+    perror("Socket opening error");
+    exit(-1);
+  }
+  /* connect it to the address specified as argv[1] port argv[2] */
+  if (lwip_connect(fd,(struct sockaddr *)(&serv_addr),sizeof(serv_addr)) < 0) {
+    perror("Socket connecting error");
+    exit(-1);
+  }
+  while(1) {
+    fd_set rfds;
+    int n;
+    FD_ZERO(&rfds);
+    FD_SET(STDIN_FILENO,&rfds);
+    FD_SET(fd,&rfds);
+    /* wait for input both from stdin and from the socket */
+    lwip_select(fd+1,&rfds,NULL,NULL,NULL);
+    /* copy data from the socket to stdout */
+    if(FD_ISSET(fd,&rfds)) {
+      if((n=lwip_read(fd,buf,BUFSIZE)) == 0)
+        exit(0);
+      write(STDOUT_FILENO,buf,n);
+    }
+    /* copy data from stdin to the socket */
+    if(FD_ISSET(STDIN_FILENO,&rfds)) {
+      if((n=read(STDIN_FILENO,buf,BUFSIZE)) == 0)
+        exit(0);
+      lwip_write(fd,buf,n);
+    }
+  }
+}
+
+Compile it using lwipv6 as a dynamic library in this way:
+
+gcc -o lwipnc lwipnc.c -ldl -lpthread -llwipv6
+
+or as a run-time dinamically loaded library in this way:
+
+gcc -o lwipnc lwipnc.c -D LWIPV6DL -ldl -lpthread
+
+It is possible to run the same example on a tun or on a tap interface just by
+changing the source code line:
+
+ if((nif=lwip_vdeif_add(stack,"/var/run/vde.ctl"))==NULL){
+
+into
+
+ if((nif=lwip_tunif_add(stack,"tun1"))==NULL){
+
+or
+
+ if((nif=lwip_tapif_add(stack,"tap1"))==NULL){
+
+
+8. A different model for asynchrony: event_subscribe
+----------------------------------------------------
+LWIPv6 provides lwip_select, lwip_pselect, lwip_poll, lwip_ppoll having the
+same semantics of the correspondent system call (those without the prefix
+lwip_). These calls are useful when porting applications using the standard
+Berkeley socket API to LWIPv6.
+
+There is however in LWIPv6 another way to deal with asynchronous events generated by the stack:
+
+ typedef void (*lwipvoidfun)();
+ int lwip_event_subscribe(void (*cb)(void *), void *arg, int fd, int how);
+
+cb is the address of a callback function (or NULL), arg is the argument that
+will be passed to the callback function, fd is a LWIPv6 file descriptor, how is
+an event code. how gets the same encoding of events as in poll(2). The return
+value is a bitmask filled in with the event that actually occured. (The return
+value always reports a subset of events with respect to those encoded in how).
+This function has three different meanings:
+
+    * If cb==NULL and arg==NULL, it tests which events(s) already happened. 
+
+e.g.
+
+  rv=lwip_event_subscribe(NULL,NULL,fd,POLLIN);
+
+rv is non-zero if there is data to read.
+
+    * if cb!=NULL LWIPv6 tests which events(s) among those defined in how
+      already happened. If rv==0, i.e. no one of the event happened, it
+      subscribes for a notification. When an event of how happens LWIPv6
+      calls cb(arg).
+    * If cb==NULL, lwip_event_subscribe checks again to see which event(s)
+      happened. If there is a pending notification request with the same
+      arg, it is cancelled. 
+
+
+9. List of most relevant functions provided by LWIPv6
+-----------------------------------------------------
+Constructor/destructor: do not call these functions unless you are writing a
+statically linked program
+
+ void lwip_init(void);
+ void lwip_fini(void);
+
+Define a new stack, terminate an existing stack:
+
+ struct stack *lwip_stack_new(void);
+ void lwip_stack_free(struct stack *stack);
+
+Set/Get the current default stack (for lwip_socket).
+
+ struct stack *lwip_stack_get(void);
+ void lwip_stack_set(struct stack *stack);
+
+Define new interfaces:
+
+ struct netif *lwip_vdeif_add(struct stack *stack, void *arg);
+ struct netif *lwip_tapif_add(struct stack *stack, void *arg);
+ struct netif *lwip_tunif_add(struct stack *stack, void *arg);
+ struct netif *lwip_slirpif_add(struct stack *stack, void *arg);
+
+Add/delete addresses:
+
+ int lwip_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
+ int lwip_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
+
+Add/delete routes:
+
+ int lwip_add_route(struct stack *stack, struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags);
+ int lwip_del_route(struct stack *stack, struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags);
+
+Turn the interface up/down:
+
+ int lwip_ifup(struct netif *netif);
+ int lwip_ifdown(struct netif *netif);
+
+LWIPv6 implementation of comm syscalls:
+
+ int lwip_msocket(struct stack *stack, int domain, int type, int protocol);
+ int lwip_socket(int domain, int type, int protocol);
+ int lwip_bind(int s, struct sockaddr *name, socklen_t namelen);
+ int lwip_connect(int s, struct sockaddr *name, socklen_t namelen);
+ int lwip_listen(int s, int backlog);
+ int lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen);
+ int lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen);
+ int lwip_getpeername (int s, struct sockaddr *name, socklen_t *namelen);
+ int lwip_send(int s, void *dataptr, int size, unsigned int flags);
+ int lwip_recv(int s, void *mem, int len, unsigned int flags);
+ int lwip_sendto(int s, void *dataptr, int size, unsigned int flags,
+       struct sockaddr *to, socklen_t tolen);
+ int lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
+         struct sockaddr *from, socklen_t *fromlen);
+ int lwip_shutdown(int s, int how);
+ int lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t optlen);
+ int lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen);
+ int lwip_sendmsg(int fd, const struct msghdr *msg, int flags);
+ int lwip_recvmsg(int fd, struct msghdr *msg, int flags);
+ int lwip_write(int s, void *dataptr, int size);
+ int lwip_read(int s, void *mem, int len);
+ int lwip_writev(int s, struct iovec *vector, int count);
+ int lwip_readv(int s, struct iovec *vector, int count);
+ int lwip_ioctl(int s, long cmd, void *argp);
+ int lwip_close(int s);
+ int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
+   struct timeval *timeout);
+ int lwip_pselect(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
+   const struct timespec *timeout, const sigset_t *sigmask);
+ int lwip_poll(struct pollfd *fds, nfds_t nfds, int timeout);
+ int lwip_ppoll(struct pollfd *fds, nfds_t nfds,
+   const struct timespec *timeout, const sigset_t *sigmask);
+
+Management of asynchronous events:
+
+ int lwip_event_subscribe(lwipvoidfun cb, void *arg, int fd, int how);
+
+10. SlirpV6
+-----------
+
+LWIPv6 provides slirpV6 support.
+A slirp interface can have no ip addresses and "forwards" all the packets 
+routed to it as a client of the hosting machine (like slirp).
+LWIPv6/slirpV6 supports both IPv4 and IPv6. It supports UDP connection 
+tracking, too.
+The slirp interface appears as a NAT router from LWIP.
+
+It is possible to forward specific ports (like port forwarding
+for NAT):
+
+#define SLIRP_LISTEN_UDP 0x1000
+#define SLIRP_LISTEN_TCP 0x2000
+#define SLIRP_LISTEN_UNIXSTREAM 0x3000
+
+int slirp_listen_add(struct netif *slirpif,
+	struct ip_addr *dest,  u16_t destport,
+	void *src,  u16_t srcport, int flags);
+
+where slirpif is the interface (the return value of lwip_slirpif_add),
+dest/destport is the lwipv6 address of the target of the forwarding service,
+while src/srcport is the source address (on the hosting machine).
+
+It is possible to forward UDP, TCP ports or convert a UNIX socket on the
+hosting OS to a tcp port in LWIPv6, depending on the value of flags:
+SLIRP_LISTEN_UDP, SLIRP_LISTEN_TCP, SLIRP_LISTEN_UNIXSTREAM respectively.
+
+The forwarding service for a port can be deleted using the following
+function. It has the same arguments of slirp_listen_add.
+
+int slirp_listen_del(struct netif *slirpif,
+	struct ip_addr *dest,  u16_t destport,
+	void *src,  u16_t srcport, int flags);
+
