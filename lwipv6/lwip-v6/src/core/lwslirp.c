@@ -907,8 +907,9 @@ static void slirp_listen_cb(struct netif *netif, int pos, void *arg)
 		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_listen_cb: udp packet on %d\n", slirp_fd));
 		/* create a new unconnected socket for new udp sequence 
 			 from a different source/port */
-		slirp_listen_add(sl->slirpif, &sl->destaddr, sl->destport, &sl->src.srcaddr, sl->srcport, 
-				stack->netif_pfd_args[pos].flags);
+		if (!stack->netif_pfd_args[pos].flags & SLIRP_LISTEN_ONCE)
+			lwip_slirp_listen_add(sl->slirpif, &sl->destaddr, sl->destport, &sl->src.srcaddr, sl->srcport, 
+					stack->netif_pfd_args[pos].flags);
 		/* connect the current socket to the source of the first packet */
 		ret = connect(slirp_fd,(struct sockaddr *)&srcaddr,srclen);
 		lwsrcport=ntohs(srcaddr.sin6_port);
@@ -968,8 +969,13 @@ udp_err:
 		/* add the new fd to the main eventi loop */
 		pcb->slirp_posfd = netif_addfd(sl->slirpif, conn, slirp_listening_io, pcb, 0);
 		/* connect to the internal/virtual/lwipv6 end of the connection */
-		tcp_connect(pcb, &sl->destaddr, sl->destport, 
-				slirp_tcp_connected);
+		tcp_connect(pcb, &sl->destaddr, sl->destport, slirp_tcp_connected);
+		if (stack->netif_pfd_args[pos].flags & SLIRP_LISTEN_ONCE) {
+			close(slirp_fd);
+			/* remove the old listening item from the main loop */
+			netif_delfd(stack, pos);
+			mem_free(arg);
+		}
 
 		return;
 tcp_err:
@@ -982,9 +988,9 @@ tcp_err:
 	 src/srcport is the local address/port (in the native stack)
 	 dest/destport is the virtual address/port where all the 
 	 traffic to src/srcport must be forwarded */
-int slirp_listen_add(struct netif *slirpif,
-		struct ip_addr *dest,  u16_t destport,
-		void *src,  u16_t srcport, int flags)
+int lwip_slirp_listen_add(struct netif *slirpif,
+		struct ip_addr *dest,  int destport,
+		void *src,  int srcport, int flags)
 {
 	int s;
 	int conntype=flags & SLIRP_LISTEN_TYPEMASK;
@@ -1077,9 +1083,9 @@ err_free:
 	return ERR_CONN;
 }
 
-int slirp_listen_del(struct netif *slirpif,
-		struct ip_addr *dest,  u16_t destport,
-		void *src,  u16_t srcport, int flags)
+int lwip_slirp_listen_del(struct netif *slirpif,
+		struct ip_addr *dest,  int destport,
+		void *src,  int srcport, int flags)
 {
 	struct stack *stack=slirpif->stack;
 	int n;

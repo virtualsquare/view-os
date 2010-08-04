@@ -143,13 +143,13 @@ void slirp_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p,
 #define SLIRP_LISTEN_TYPEMASK 0x7000
 #define SLIRP_LISTEN_ONCE 0x8000
 
-int slirp_listen_add(struct netif *slirpif,
-		struct ip_addr *dest,  u16_t destport,
-		void *src,  u16_t srcport, int flags);
+int lwip_slirp_listen_add(struct netif *slirpif,
+		struct ip_addr *dest,  int destport,
+		void *src,  int srcport, int flags);
 
-int slirp_listen_del(struct netif *slirpif,
-		struct ip_addr *dest,  u16_t destport,
-		void *src,  u16_t srcport, int flags);
+int lwip_slirp_listen_del(struct netif *slirpif,
+		struct ip_addr *dest,  int destport,
+		void *src,  int srcport, int flags);
 
 #endif
 #endif

@@ -165,6 +165,23 @@ int lwip_radv_load_configfile(struct stack *stack,void *arg);
 int lwip_event_subscribe(lwipvoidfun cb, void *arg, int fd, int how);
 
 
+/* add/delete a slirp port forwarding rule.
+	 src/srcport is the local address/port (in the native stack)
+	 dest/destport is the virtual address/port where all the 
+	 traffic to src/srcport must be forwarded */
+#define SLIRP_LISTEN_UDP 0x1000
+#define SLIRP_LISTEN_TCP 0x2000
+#define SLIRP_LISTEN_UNIXSTREAM 0x3000
+#define SLIRP_LISTEN_TYPEMASK 0x7000
+#define SLIRP_LISTEN_ONCE 0x8000
+
+int lwip_slirp_listen_add(struct netif *slirpif,
+		struct ip_addr *dest,  int destport,
+		const void *src,  int srcport, int flags);
+int lwip_slirp_listen_del(struct netif *slirpif,
+		struct ip_addr *dest,  int destport,
+		const void *src,  int srcport, int flags);
+
 #else   /* Dynamic Loading */
 #include <dlfcn.h>
 
