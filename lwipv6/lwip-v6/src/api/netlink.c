@@ -181,7 +181,7 @@ static void netlink_decode (struct stack *stack, void *msg,int size,int bufsize,
 
 
 #if 0
-static void dump(char *data,int size)
+static void dump(unsigned char *data,int size)
 {
 	register int i,j;
 	printf("DUMP size=%d\n",size);
@@ -276,6 +276,13 @@ netlink_recvfrom(void *sock, void *mem, int len, unsigned int flags,
 		return 0;
 	}
 	/* it is not able to split the answer into several messages */
+	else if (flags & MSG_PEEK) {
+		register int outlen=nl->answer[0]->tot_len;
+		if (len < outlen) outlen=len;
+		/*printf("PEEK\n"); dump(mem,outlen);*/
+		memcpy(mem,nl->answer[0]->payload,outlen);
+		return outlen;
+	}
 	else if (nl->answer[0]->tot_len > len) {
 		pbuf_free(nl->answer[0]);
 		nl->answer[0]=NULL;

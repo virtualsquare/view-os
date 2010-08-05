@@ -562,11 +562,24 @@ int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr)
 	struct netif *nip;
 	register int i;
 
+	/*printf("netif_ioctl %x %p\n",cmd,ifr);*/
 	if (ifr == NULL)
 		retval=EFAULT;
 	else {
 		if (cmd == SIOCGIFCONF) {
 			retval=netif_ifconf(stack, (struct ifconf *)ifr);
+		} if (cmd == SIOCGIFNAME) {
+			if ((nip = netif_find_id(stack, ifr->ifr_ifindex)) == NULL)
+				 retval=EINVAL;
+			else {
+				ifr->ifr_name[0]=nip->name[0];
+				ifr->ifr_name[1]=nip->name[1];
+				ifr->ifr_name[2]=(nip->num%10)+'0';
+				ifr->ifr_name[3]= 0;
+				ifr->ifr_name[4]= 0;
+				ifr->ifr_name[5]= 0;
+				retval=ERR_OK;
+			}
 		} else {
 #define ifrname ifr->ifr_name
 			ifrname[4]=ifrname[5]=0;
@@ -907,7 +920,6 @@ void netif_netlink_getaddr(struct stack *stack, struct nlmsghdr *msg,void * buf,
 		if ((flag & NLM_F_DUMP) == NLM_F_DUMP ||
 				ifa->ifa_index == nip->id) {
 			struct ip_addr_list *ial=nip->addrs;
-			/*for(ial=nip->addrs;ial != NULL;ial=ial->next)*/
 			if (ial != NULL) {
 				ial=nip->addrs->next;
 				do {
@@ -918,7 +930,6 @@ void netif_netlink_getaddr(struct stack *stack, struct nlmsghdr *msg,void * buf,
 					ial=ial->next;
 				} while (ial != nip->addrs->next);
 			}
-
 		}
 	}
 	msg->nlmsg_type = NLMSG_DONE;
