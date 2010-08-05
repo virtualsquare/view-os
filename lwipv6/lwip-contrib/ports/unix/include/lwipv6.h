@@ -111,6 +111,10 @@ void lwip_stack_free(struct stack *stack);
 struct stack *lwip_stack_get(void);
 void lwip_stack_set(struct stack *stack);
 
+#define LWIP_STACK_FLAG_FORWARDING 1
+unsigned long lwip_stack_flags_get(struct stack *stackid);
+void lwip_stack_flags_set(struct stack *stackid, unsigned long flags);
+
 struct netif *lwip_vdeif_add(struct stack *stack, void *arg);
 struct netif *lwip_tapif_add(struct stack *stack, void *arg);
 struct netif *lwip_tunif_add(struct stack *stack, void *arg);

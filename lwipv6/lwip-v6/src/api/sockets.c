@@ -968,6 +968,11 @@ lwip_msocket(struct stack *stack, int domain, int type, int protocol)
 		set_errno(EAFNOSUPPORT);
 		return -1;
 	}
+	
+	if (stack==NULL) {
+		set_errno(ENONET);
+		return -1;
+	}
 
 	//#if LWIP_NL || LWIP_PACKET
 	switch(domain) {
@@ -1900,10 +1905,7 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 	return err ? -1 : 0;
 }
 
-
 int multistack_cmd(int cmd, void *param);
-
-
 
 int lwip_ioctl(int s, unsigned long cmd, void *argp)
 {
@@ -1917,7 +1919,7 @@ int lwip_ioctl(int s, unsigned long cmd, void *argp)
 			|| sock->family == PF_SOCKET
 #endif
 	   ) {
-		printf("lwip_ioctl %d %ld BADF\n",s,cmd);
+		LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_ioctl(%d, %u,... ) BADF\n", s, cmd));
 		set_errno(EBADF);
 		return -1;
 	}

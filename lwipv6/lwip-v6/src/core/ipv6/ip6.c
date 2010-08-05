@@ -600,7 +600,7 @@ ip_input(struct pbuf *p, struct netif *inp)
 #endif /* LWIP_DHCP */
 
 #if IP_FORWARD
-  else if (ip_route_findpath(stack, piphdr.dest, &nexthop, &netif, &fwflags) == ERR_OK && netif != inp)
+  else if ((stack->stack_flags & LWIP_STACK_FLAG_FORWARDING) && ip_route_findpath(stack, piphdr.dest, &nexthop, &netif, &fwflags) == ERR_OK && netif != inp)
   { 
     /* forwarding */
     ip_forward(stack, p, iphdr, inp, netif, nexthop, &piphdr);

@@ -185,6 +185,16 @@ void lwip_stack_free(struct stack * stackid)
 #endif
 }
 
+unsigned long lwip_stack_flags_get(struct stack *stackid)
+{
+	return stackid->stack_flags;
+}
+
+void lwip_stack_flags_set(struct stack *stackid, unsigned long flags)
+{
+	stackid->stack_flags=flags;
+}
+
 /**
  * Shutdown the LwIPv6 Stack.
  *

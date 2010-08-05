@@ -206,7 +206,8 @@ err_t slirp_tcp_recv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
 	return ERR_OK;
 }
 
-int slirp_read (struct tcp_pcb *pcb, int posfd) {
+/* Read data from a slirp interface */
+static int slirp_read (struct tcp_pcb *pcb, int posfd) {
 	int ret, n;
 	err_t res;
 	char *buf;
@@ -236,7 +237,7 @@ int slirp_read (struct tcp_pcb *pcb, int posfd) {
 	}
 
 	/* There is room for store the read data, so I read it */
-	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_read: I can read %d byte, and I have read ", n));
+	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_read: I can read %d bytes, and I have read ", n));
 
 	buf = mem_malloc(n);
 
@@ -244,12 +245,14 @@ int slirp_read (struct tcp_pcb *pcb, int posfd) {
 
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("%d bytes\n", ret));
 	if(ret <= 0) {
-		if(ret < 0 && (errno == EINTR || errno == EAGAIN))
+		if(ret < 0 && (errno == EINTR || errno == EAGAIN)) {
+			mem_free(buf);
 			return 0;
-		else {
+		} else {
 			/* ret = 0, So */
 			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_read: disconnected, ret = %d, errno = %d-%s\n", ret, errno,strerror(errno)));
 			slirp_fcantrcvmore(pcb, posfd);
+			mem_free(buf);
 			tcp_close(pcb);
 			return -1;
 		}
@@ -262,6 +265,7 @@ int slirp_read (struct tcp_pcb *pcb, int posfd) {
 	if(res == ERR_MEM) {
 		/* I close the connection */
 		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_read: error memory, I close the connection.\n"));
+		mem_free(buf);
 		tcp_close(pcb);
 		return -1;
 	}
@@ -271,7 +275,27 @@ int slirp_read (struct tcp_pcb *pcb, int posfd) {
 	return ret;
 }
 
-int slirp_write(struct tcp_pcb *pcb, int posfd)
+/* discard data from a slirp interface when the interface is down */
+static void slirp_discard_input(struct tcp_pcb *pcb)
+{
+	struct stack *stack = pcb->stack;
+	int slirp_fd=netif_slirp_fd(stack, pcb);
+	int n;
+	char *buf;
+
+	/* I get the number of bytes I can read from the read buffer */
+	ioctl(slirp_fd, FIONREAD, &n);
+
+	buf = mem_malloc(n);
+	if (buf) {
+		read(slirp_fd, buf, n);
+		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_read: Interface is down: %d bytes discarded ", n));
+		mem_free(buf);
+	}
+}
+
+/* write data to a slirp interface */
+static int slirp_write(struct tcp_pcb *pcb, int posfd, struct netif *netif)
 {
 	int ret, total_ret = 0;
 	struct pbuf *p;
@@ -279,11 +303,12 @@ int slirp_write(struct tcp_pcb *pcb, int posfd)
 	int slirp_fd=netif_slirp_fd(stack, pcb);
 
 	netif_slirp_events(pcb) &= ~POLLOUT;
-	//assert(pcb->slirp_recvbuf != NULL);
+	assert(pcb->slirp_recvbuf != NULL);
+	/*
 	if (pcb->slirp_recvbuf == NULL) {
 		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_write: ->slirp_recvbuf = NULL!!!!!!!!!!!!!!!!!!!!!\n"));
 		return 0;
-	}
+	}*/
 
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_write: ->slirp_recvbuf = %p, total lenght of recv "
 				"queue = %d.\n", pcb->slirp_recvbuf, pcb->slirp_recvbuf->tot_len));
@@ -292,9 +317,13 @@ int slirp_write(struct tcp_pcb *pcb, int posfd)
 	while(p != NULL) {
 		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_write: Try to send (write) %d bytes of pbuf %p. (totlen = %d)\n", p->len, p, p->tot_len));
 
-		ret = write(slirp_fd, p->payload, p->len);
-
-		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_write: write %d of %d bytes of pbuf %p\n", ret, p->len, p));
+		if (netif->flags & NETIF_FLAG_UP) {
+			ret = write(slirp_fd, p->payload, p->len);
+			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_write: write %d of %d bytes of pbuf %p\n", ret, p->len, p));
+		} else {
+			ret = p->len;
+			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_write: Interface is down: %d bytes discarded\n", ret));
+		}
 
 		/* This should never happen, but people tell me it does *shrug* */
 		if (ret < 0 && (errno == EAGAIN || errno == EINTR))
@@ -467,21 +496,27 @@ static void slirp_tcp_io(struct netif *netif, int posfd, void *arg)
 	}
 	if (revents & POLLPRI) {
 		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_io: socket(%d) has urgent data, I read them.\n", pcb->slirp_posfd));
-		if (slirp_read(pcb, posfd)) {
-			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_io: socket(%d) sending urgent data to tcp_output.\n", pcb->slirp_posfd));
-			tcp_output(pcb);
-		}
+		if (netif->flags & NETIF_FLAG_UP) {
+			if (slirp_read(pcb, posfd)) {
+				LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_io: socket(%d) sending urgent data to tcp_output.\n", pcb->slirp_posfd));
+				tcp_output(pcb);
+			}
+		} else
+			slirp_discard_input(pcb);
 	}
 	if (revents & POLLIN) {
 		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_io: socket(%d) has data, I read them.\n", pcb->slirp_posfd));
-		if (slirp_read(pcb, posfd)) {
-			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_io: socket(%d) sending data to tcp_output.\n", pcb->slirp_posfd));
-			tcp_output(pcb);
-		}
+		if (netif->flags & NETIF_FLAG_UP) {
+			if (slirp_read(pcb, posfd)) {
+				LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_io: socket(%d) sending data to tcp_output.\n", pcb->slirp_posfd));
+				tcp_output(pcb);
+			}
+		} else
+			slirp_discard_input(pcb);
 	}
 	if (revents & POLLOUT) {
 		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_io: socket(%d) sending data\n", pcb->slirp_posfd));
-		slirp_write(pcb, posfd);
+		slirp_write(pcb, posfd, netif);
 	}
 }
 
@@ -574,7 +609,8 @@ int slirp_tcp_fconnect(struct tcp_pcb_listen *lpcb, u16_t dest_port, struct ip_a
 	int lslirp_fd;
 	LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_fconnect: start. Try to connect a socket to the listening tcp pcb.\n"));
 
-	if((lslirp_fd = slirpif->netifctl(slirpif, NETIFCTL_SLIRPSOCK_STREAM,NULL)) >= 0) {
+	if((slirpif->flags & NETIF_FLAG_UP) 
+			&& (lslirp_fd = slirpif->netifctl(slirpif, NETIFCTL_SLIRPSOCK_STREAM,NULL)) >= 0) {
 		int opt;
 		unsigned char version;
 		struct sockaddr_in6 addr6;
@@ -715,6 +751,9 @@ static int slirp_sendto(struct udp_pcb *pcb, struct pbuf *p, struct netif *slirp
 	struct stack *stack = slirpif->stack;
 	int slirp_fd=netif_slirp_fd(stack, pcb);
 
+	if (!(slirpif->flags & NETIF_FLAG_UP))
+		return -1;
+
 	version = ip_addr_is_v4comp(&pcb->local_ip) ? 4 : 6;
 
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_sendto: I'll send a %s packet.\n", version == 6 ? "IPv6" : "v4-mapped-v6"));
@@ -822,34 +861,36 @@ static void slirp_udp_input(struct netif *netif, int posfd, void *arg)
 			icmp_dest_unreach(stack, p, type);
 			/* I free the packet created. */
 			pbuf_free(p);
+			pbuf_free(m);
 		}
 	} else {
-		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_udp_input: src = "));
-		ip_addr_debug_print(LWSLIRP_DEBUG, &pcb->local_ip);
-		LWIP_DEBUGF(LWSLIRP_DEBUG, (", "));
+		if (netif->flags & NETIF_FLAG_UP) {
+			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_udp_input: src = "));
+			ip_addr_debug_print(LWSLIRP_DEBUG, &pcb->local_ip);
+			LWIP_DEBUGF(LWSLIRP_DEBUG, (", "));
 
-		LWIP_DEBUGF(LWSLIRP_DEBUG, ("dest = "));
-		ip_addr_debug_print(LWSLIRP_DEBUG, &pcb->remote_ip);
-		LWIP_DEBUGF(LWSLIRP_DEBUG, ("\n"));
+			LWIP_DEBUGF(LWSLIRP_DEBUG, ("dest = "));
+			ip_addr_debug_print(LWSLIRP_DEBUG, &pcb->remote_ip);
+			LWIP_DEBUGF(LWSLIRP_DEBUG, ("\n"));
 
-		/* Hack: domain name lookup will be used the most for UDP,
-		 * and since they'll only be used once there's no need
-		 * for the 4 minute (or whatever) timeout... So we time them
-		 * out much quicker (10 seconds  for now...)
-		 */
-		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_udp_input: pcb->local_port = %d. BEFORE pcb->slirp_expire = %d --- "
-					"AFTER pcb->slirp_expire = (%ld + ", pcb->local_port, pcb->slirp_expire, time_now()));
-		if (pcb->local_port == 53) {
-			pcb->slirp_expire = time_now() + UDP_PCB_EXPIREFAST;
-			LWIP_DEBUGF(LWSLIRP_DEBUG, ("%d", UDP_PCB_EXPIREFAST));
-		} else {
-			pcb->slirp_expire = time_now() + UDP_PCB_EXPIRE;
-			LWIP_DEBUGF(LWSLIRP_DEBUG, ("%d", UDP_PCB_EXPIRE));
+			/* Hack: domain name lookup will be used the most for UDP,
+			 * and since they'll only be used once there's no need
+			 * for the 4 minute (or whatever) timeout... So we time them
+			 * out much quicker (10 seconds  for now...)
+			 */
+			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_udp_input: pcb->local_port = %d. BEFORE pcb->slirp_expire = %d --- "
+						"AFTER pcb->slirp_expire = (%ld + ", pcb->local_port, pcb->slirp_expire, time_now()));
+			if (pcb->local_port == 53) {
+				pcb->slirp_expire = time_now() + UDP_PCB_EXPIREFAST;
+				LWIP_DEBUGF(LWSLIRP_DEBUG, ("%d", UDP_PCB_EXPIREFAST));
+			} else {
+				pcb->slirp_expire = time_now() + UDP_PCB_EXPIRE;
+				LWIP_DEBUGF(LWSLIRP_DEBUG, ("%d", UDP_PCB_EXPIRE));
+			}
+			LWIP_DEBUGF(LWSLIRP_DEBUG, (") = %ld\n", pcb->slirp_expire));
+			/* I send the data read */
+			udp_sendto(pcb, m, &pcb->remote_ip, pcb->remote_port);
 		}
-		LWIP_DEBUGF(LWSLIRP_DEBUG, (") = %ld\n", pcb->slirp_expire));
-		/* I send the data read */
-		udp_sendto(pcb, m, &pcb->remote_ip, pcb->remote_port);
-
 		pbuf_free(m);
 	}
 }

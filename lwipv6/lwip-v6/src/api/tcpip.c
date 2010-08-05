@@ -349,7 +349,7 @@ tcpip_start(tcpip_handler init_func, void *arg)
 
 struct stack *tcpip_stack_get(void)
 {
-    return current_stack;
+	return current_stack;
 }
 
 struct stack *tcpip_stack_set(struct stack * id)

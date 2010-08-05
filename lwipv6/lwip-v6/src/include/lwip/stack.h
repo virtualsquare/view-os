@@ -36,7 +36,12 @@ struct tcp_pcb;
 /* IP_ROUTE_POOL_SIZE IP_ADDR_POOL_SIZE IP_REASS_POOL_SIZE need defs*/
 #define NETIF_POS2FD(stack,fpos) ((stack)->numif_pfd[(fpos)].fd)
 
+#define LWIP_STACK_FLAG_FORWARDING 1
+
 struct stack {
+	/* global */
+	u32_t	stack_flags;
+
 	/* lwip-v6/src/core/netif.c */
 	struct netif *netif_list;
 	struct pollfd *netif_pfd;
