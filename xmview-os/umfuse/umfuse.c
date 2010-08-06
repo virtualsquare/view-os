@@ -1264,7 +1264,7 @@ static long umfuse_lstat64(char *path, struct stat64 *buf64, int fd)
 			buf.st_ino=(ino_t) hashnodeid(path);
 		/*heuristics for file system which does not set st_dev */
 		if (buf.st_dev == 0)
-			buf.st_dev=(dev_t) fc;
+			buf.st_dev=(dev_t)((unsigned long) fc);
 		stat2stat64(buf64,&buf);
 	}
 	return rv;
@@ -1828,15 +1828,22 @@ static long umfuse_utimes(char *path, struct timeval tv[2])
 
 	fc->pid=um_mod_getpid();
 	if (fc->fuse->fops.utimens) {
+		struct timespec tvspec[2];
 		if (fc->fuse->flags & FUSE_DEBUG)
 			GMESSAGE("UTIMENS [%s] => %s ", fc->fuse->path, path);
 		if (tv == NULL) {
-			struct timeval nowtv[2];
-			gettimeofday(&nowtv[0],NULL);
-			nowtv[1]=nowtv[0];
-			rv = fc->fuse->fops.utimens(unwrap(fc, path), nowtv);
-		} else
-			rv = fc->fuse->fops.utimens(unwrap(fc, path), tv);
+			struct timeval nowtv;
+			gettimeofday(&nowtv,NULL);
+			tvspec[0].tv_sec = nowtv.tv_sec;
+			tvspec[0].tv_nsec = nowtv.tv_usec * 1000;
+			tvspec[1]=tvspec[0];
+		} else {
+			tvspec[0].tv_sec = tv[0].tv_sec;
+			tvspec[1].tv_sec = tv[1].tv_sec;
+			tvspec[0].tv_nsec = tv[0].tv_usec * 1000;
+			tvspec[1].tv_nsec = tv[1].tv_usec * 1000;
+		}
+		rv = fc->fuse->fops.utimens(unwrap(fc, path), tvspec);
 	} else {
 		struct utimbuf buf;
 		if (tv == NULL) 
