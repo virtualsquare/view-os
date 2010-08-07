@@ -300,6 +300,8 @@ init (void)
 	UMNETLWIPV6(recv);
 	UMNETLWIPV6(sendto);
 	UMNETLWIPV6(recvfrom);
+	UMNETLWIPV6(sendmsg);
+	UMNETLWIPV6(recvmsg);
 	//UMNETLWIPV6(shutdown);
 	UMNETLWIPV6(getsockopt);
 	UMNETLWIPV6(setsockopt);
