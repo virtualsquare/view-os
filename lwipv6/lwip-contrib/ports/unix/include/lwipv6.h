@@ -27,7 +27,9 @@
 #include <stdint.h>   /* uint32_t */ 
 #include <errno.h>   
 #include <sys/poll.h>   
-///#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 #ifndef AF_UNSPEC
 #define AF_UNSPEC       0
@@ -88,6 +90,10 @@ struct ip_addr {
 	  (ipaddr)->addr[2] = 0xffffffff; \
 	  IP4_ADDRX(((ipaddr)->addr[3]),(a),(b),(c),(d)); } while (0)
 
+#define IP_ADDR_IS_V4(ipaddr) \
+	(((ipaddr)->addr[0] == 0) && \
+	 ((ipaddr)->addr[1] == 0) && \
+	 ((ipaddr)->addr[2] == IP64_PREFIX))
 
 #ifndef LWIPV6DL
 typedef void (*lwipvoidfun)();
