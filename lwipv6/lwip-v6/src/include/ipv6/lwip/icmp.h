@@ -107,9 +107,6 @@ void icmp_time_exceeded(struct stack *stack, struct pbuf *p, enum icmp_te_type t
 
 void icmp_packet_too_big(struct stack *stack, struct pbuf *p, u16_t mtu);
 
-void icmp4_dest_unreach(struct stack *stack, struct pbuf *p, enum icmp_dur_type t, u16_t nextmtu );
-void icmp4_time_exceeded(struct stack *stack, struct pbuf *p, enum icmp_te_type t);
-
 /*
  * ICMP Headers used for IPv4 and IPv6
  */

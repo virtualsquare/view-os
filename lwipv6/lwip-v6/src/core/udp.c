@@ -161,15 +161,27 @@ udp_input(struct pbuf *p, struct ip_addr_list *inad,struct pseudo_iphdr *piphdr
 
   /* print the UDP source and destination */
 #if 0
-#ifdef IPv6
-  /* XXX */
-#else
-  LWIP_DEBUGF(UDP_DEBUG, ("udp (%u.%u.%u.%u, %u) <-- (%u.%u.%u.%u, %u)\n",
-    ip4_addr1(&iphdr->dest), ip4_addr2(&iphdr->dest),
-    ip4_addr3(&iphdr->dest), ip4_addr4(&iphdr->dest), ntohs(udphdr->dest),
-    ip4_addr1(&iphdr->src), ip4_addr2(&iphdr->src),
-    ip4_addr3(&iphdr->src), ip4_addr4(&iphdr->src), ntohs(udphdr->src)));
-#endif
+		printf("C%d %d %d - %d %d -%x:%x:%x:%x %d %x:%x:%x:%x - %x:%x:%x:%x %d %x:%x:%x:%x\n",
+				(pcb->flags & UDP_FLAGS_CONNECTED),
+				pcb->remote_port,src,pcb->local_port,dest,
+				pcb->remote_ip.addr[0],
+				pcb->remote_ip.addr[1],
+				pcb->remote_ip.addr[2],
+				pcb->remote_ip.addr[3],
+				ip_addr_isany(&pcb->remote_ip),
+				piphdr->src->addr[0],
+				piphdr->src->addr[1],
+				piphdr->src->addr[2],
+				piphdr->src->addr[3],
+				pcb->local_ip.addr[0],
+				pcb->local_ip.addr[1],
+				pcb->local_ip.addr[2],
+				pcb->local_ip.addr[3],
+				ip_addr_isany(&pcb->local_ip),
+				piphdr->dest->addr[0],
+				piphdr->dest->addr[1],
+				piphdr->dest->addr[2],
+				piphdr->dest->addr[3]);
 #endif
 
 #if SO_REUSE

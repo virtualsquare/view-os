@@ -278,9 +278,8 @@ netlink_recvfrom(void *sock, void *mem, int len, unsigned int flags,
 	/* it is not able to split the answer into several messages */
 	else if (flags & MSG_PEEK) {
 		register int outlen=nl->answer[0]->tot_len;
-		if (len < outlen) outlen=len;
 		/*printf("PEEK\n"); dump(mem,outlen);*/
-		memcpy(mem,nl->answer[0]->payload,outlen);
+		memcpy(mem,nl->answer[0]->payload,(len < outlen) ? len : outlen);
 		return outlen;
 	}
 	else if (nl->answer[0]->tot_len > len) {

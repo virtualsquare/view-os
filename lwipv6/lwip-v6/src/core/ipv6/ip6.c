@@ -254,6 +254,7 @@ ip_inpacket(struct stack *stack, struct ip_addr_list *addr, struct pbuf *p, stru
     case IP_PROTO_UDP + (4 << 8):
     case IP_PROTO_UDP + (6 << 8):
       LWIP_DEBUGF(IP_DEBUG,("->UDP\n"));
+
       udp_input(p, addr, piphdr
 #ifdef LWSLIRP
 					, slirpif
@@ -322,7 +323,7 @@ ip_forward(struct stack *stack, struct pbuf *p, struct ip_hdr *iphdr, struct net
       LWIP_DEBUGF(IP_DEBUG, ("ip_forward: dropped packet! TTL <= 0 "));
       /* Don't send ICMP messages in response to ICMP messages */
       if (piphdr->proto != IP_PROTO_ICMP4) 
-        icmp4_time_exceeded(stack, p, ICMP_TE_TTL);
+        icmp_time_exceeded(stack, p, ICMP_TE_TTL);
       pbuf_free(p);
       return;
     }
@@ -370,7 +371,7 @@ ip_forward(struct stack *stack, struct pbuf *p, struct ip_hdr *iphdr, struct net
 
       if (IPH4_OFFSET(ip4hdr) & htons(IP_MF)) {
         LWIP_DEBUGF(IP_DEBUG, ("ip_forward: IPv4 DF bit set. Don't fragment!"));
-        icmp4_dest_unreach(stack, p, ICMP_DUR_FRAG, netif->mtu);
+        icmp_dest_unreach(stack, p, ICMP_DUR_FRAG /*, netif->mtu*/);
         pbuf_free(p);
         return;
       }
@@ -517,7 +518,6 @@ ip_input(struct pbuf *p, struct netif *inp)
     IP_STATS_INC(ip.drop);
     return;
   }
-
 #if IPv4_CHECK_CHECKSUM
   if (IPH_V(iphdr) == 4) {
     /* Only IPv4 has checksum field */
@@ -841,6 +841,12 @@ ip_output(struct stack *stack, struct pbuf *p, struct ip_addr *src, struct ip_ad
     return ERR_RTE;
   }
   else {
+		if (src==NULL) {
+			struct ip_addr_list *el;
+			if ((el=ip_route_select_source_ip(netif, dest, nexthop)) == NULL)
+				return ERR_RTE;
+			src = &(el->ipaddr);
+		}
     return ip_output_if (stack, p, src, dest, ttl, tos, proto, netif, nexthop, flags);
   }
 }

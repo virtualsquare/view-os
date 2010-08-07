@@ -184,11 +184,11 @@ netbuf_copy_partial(struct netbuf *buf, void *dataptr, u16_t len, u16_t offset)
     if (offset != 0 && offset >= p->len) {
       offset -= p->len;
     } else {    
-      for(i = offset; i < p->len; ++i) {
-  ((char *)dataptr)[left] = ((char *)p->payload)[i];
-  if (++left >= len) {
-    return;
-  }
+			for(i = offset; i < p->len; ++i) {
+				((char *)dataptr)[left] = ((char *)p->payload)[i];
+				if (++left >= len) {
+					return;
+				}
       }
       offset = 0;
     }

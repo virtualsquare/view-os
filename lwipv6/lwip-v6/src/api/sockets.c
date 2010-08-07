@@ -730,10 +730,14 @@ lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 #endif
 		}
 
+		if (flags & MSG_PEEK) {
+			sock->lastdata = buf;
+			/* lastoffset does not change, usually it is 0 and it keeps its value */
+		}
 		/* If this is a TCP socket, check if there is data left in the
 		   buffer. If so, it should be saved in the sock structure for next
 		   time around. */
-		if (netconn_type(sock->conn) == NETCONN_TCP && buflen - copylen > 0) {
+		else if (netconn_type(sock->conn) == NETCONN_TCP && buflen - copylen > 0) {
 			sock->lastdata = buf;
 			sock->lastoffset += copylen;
 		} else {
@@ -743,7 +747,10 @@ lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 		}
 
 		sock_set_errno(sock, 0);
-		return copylen;
+		if (flags & MSG_TRUNC) 
+			return buflen;
+		else
+			return copylen;
 	}
 }
 
@@ -763,10 +770,14 @@ ssize_t lwip_recvmsg(int fd, struct msghdr *msg, int flags)
 {
 	msg->msg_controllen=0;
 	if (msg->msg_iovlen == 1) {
-		return lwip_recvfrom(fd, msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
+		ssize_t ret=lwip_recvfrom(fd, msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
 				msg->msg_name,&(msg->msg_namelen));
+		if (ret > msg->msg_iov->iov_len) 
+			msg->msg_flags |= MSG_TRUNC;
+		return ret;
+
 	} else {
-		struct iovec liovec,*msg_iov;
+		struct iovec *msg_iov;
 		size_t msg_iovlen;
 		unsigned int i,totalsize;
 		size_t size;
@@ -775,9 +786,10 @@ ssize_t lwip_recvmsg(int fd, struct msghdr *msg, int flags)
 		msg_iovlen=msg->msg_iovlen;
 		for (i=0,totalsize=0;i<msg_iovlen;i++)
 			totalsize += msg_iov[i].iov_len;
-		liovec.iov_base=lbuf=alloca(totalsize);
-		liovec.iov_len=totalsize;
-		size=lwip_recvfrom(fd, liovec.iov_base, liovec.iov_len, flags, msg->msg_name,&(msg->msg_namelen));
+		lbuf=alloca(totalsize);
+		size=lwip_recvfrom(fd, lbuf, totalsize, flags, msg->msg_name,&(msg->msg_namelen));
+		if (size > totalsize)
+			msg->msg_flags |= MSG_TRUNC;
 		for (i=0;size > 0 && i<msg_iovlen;i++) {
 			int qty=(size > msg_iov[i].iov_len)?msg_iov[i].iov_len:size;
 			memcpy(msg_iov[i].iov_base,lbuf,qty);
@@ -929,7 +941,7 @@ ssize_t lwip_sendmsg(int fd, struct msghdr *msg, int flags)
 		return lwip_sendto(fd, msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
 				msg->msg_name,msg->msg_namelen);
 	} else {
-		struct iovec liovec,*msg_iov;
+		struct iovec *msg_iov;
 		size_t msg_iovlen;
 		unsigned int i,totalsize;
 		size_t size;
@@ -938,15 +950,13 @@ ssize_t lwip_sendmsg(int fd, struct msghdr *msg, int flags)
 		msg_iovlen=msg->msg_iovlen;
 		for (i=0,totalsize=0;i<msg_iovlen;i++)
 			totalsize += msg_iov[i].iov_len;
-		liovec.iov_base=lbuf=alloca(totalsize);
-		liovec.iov_len=size=totalsize;
 		for (i=0;size > 0 && i<msg_iovlen;i++) {
 			int qty=msg_iov[i].iov_len;
 			memcpy(lbuf,msg_iov[i].iov_base,qty);
 			lbuf+=qty;
 			size-=qty;
 		}
-		size=lwip_sendto(fd, liovec.iov_base, liovec.iov_len, flags, msg->msg_name,msg->msg_namelen);
+		size=lwip_sendto(fd, lbuf, totalsize, flags, msg->msg_name,msg->msg_namelen);
 		return size;
 	}
 }
@@ -974,7 +984,6 @@ lwip_msocket(struct stack *stack, int domain, int type, int protocol)
 		return -1;
 	}
 
-	//#if LWIP_NL || LWIP_PACKET
 	switch(domain) {
 #if LWIP_NL
 		case PF_NETLINK:
@@ -1017,7 +1026,6 @@ lwip_msocket(struct stack *stack, int domain, int type, int protocol)
 
 		case PF_INET:
 		case PF_INET6:
-			//#endif 
 
 			/* create a netconn */
 			switch (type) {
@@ -1041,10 +1049,7 @@ lwip_msocket(struct stack *stack, int domain, int type, int protocol)
 			break;
 		default:
 			LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_socket(%d/UNKNOWN, %d, %d) = -1\n", domain, type, protocol));
-
-			//#if LWIP_NL
 	}
-	//#endif
 
 	if (!conn) {
 		LWIP_DEBUGF(SOCKETS_DEBUG, ("-1 / ENOBUFS (could not create netconn)\n"));
