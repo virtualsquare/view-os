@@ -186,6 +186,7 @@ static err_t cleanup(struct netif *netif)
 		tapif->active = 0;
 		sys_sem_wait_timeout(tapif->cleanup_mutex, 0); 
 		sys_sem_free(tapif->cleanup_mutex);
+		mem_free(tapif);
 	}
 	return ERR_OK;
 }

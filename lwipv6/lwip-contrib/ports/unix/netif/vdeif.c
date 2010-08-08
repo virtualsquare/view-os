@@ -197,6 +197,7 @@ static err_t cleanup(struct netif *netif)
 		libvdeplug_dynclose(vdeplug);
 		sys_sem_wait_timeout(vdeif->cleanup_mutex, 0); 
 		sys_sem_free(vdeif->cleanup_mutex);
+		mem_free(vdeif);
 	}
 	return ERR_OK;
 }
