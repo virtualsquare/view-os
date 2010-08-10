@@ -230,6 +230,9 @@ netif_init(struct stack *stack)
 	
 	stack->netif_list = NULL;
 
+	/* add some fds for interfaces */
+	netif_enlarge_fdtab(stack);
+
 	stack->netif_cleanup_mutex = sys_sem_new(0);
 	sys_thread_new(netif_thread, stack, DEFAULT_THREAD_PRIO);
 }

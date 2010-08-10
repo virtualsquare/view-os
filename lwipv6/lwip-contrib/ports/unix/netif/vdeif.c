@@ -177,7 +177,7 @@ static int low_level_init(struct netif *netif, char *path)
 	} else {
 		int fdin;
 		int fdout;
-		if (path[1]=0) {
+		if (path[1]==0) {
 			fdin=STDIN_FILENO;
 			fdout=STDOUT_FILENO;
 		} else {
