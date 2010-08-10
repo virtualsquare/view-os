@@ -665,7 +665,7 @@ void slirp_tcp_update_listen2data(struct tcp_pcb *pcb)
 {
 	LWIP_DEBUGF(TCP_INPUT_DEBUG, ("slirp_tcp_update_listen2data connection ok -> now data.\n"));
 	netif_updatefd(pcb->stack, pcb->slirp_posfd, slirp_tcp_io, pcb, 0);
-	netif_slirp_events(pcb) != POLLPRI;
+	netif_slirp_events(pcb) |= POLLPRI;
 }
 
 void slirp_tcp_close(struct tcp_pcb *pcb)
