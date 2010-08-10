@@ -77,10 +77,29 @@
 #endif
 
 #define NETIF_MAX_STEP 8
+#define NETIF_MIN_FREE 4
+
+static int netif_enlarge_fdtab(struct stack *stack)
+{
+	int newmax=stack->netif_npfd_max + NETIF_MAX_STEP;
+	void *newpfd=mem_realloc(stack->netif_pfd,(newmax * sizeof(struct pollfd)));
+	void *newpfdargs=mem_realloc(stack->netif_pfd_args,
+			(newmax * sizeof (struct netif_args)));
+	if (newpfd && newpfdargs) {
+		stack->netif_pfd=newpfd;
+		stack->netif_pfd_args=newpfdargs;
+		stack->netif_npfd_max=newmax;
+		return 0;
+	} else {
+		if (newpfd) mem_free(newpfd);
+		if (newpfdargs) mem_free(newpfdargs);
+		return -1;
+	}
+}
 
 int netif_addfd(struct netif *netif, int fd,
 		void (*fun)(struct netif *netif, int posfd, void *arg),
-		void *funarg, int flags)
+		void *funarg, int flags, short events)
 {
 	struct stack *stack=netif->stack;
 	int n;
@@ -92,24 +111,30 @@ int netif_addfd(struct netif *netif, int fd,
 		;
 	if (n == stack->netif_npfd) {
 		if (n >= stack->netif_npfd_max) {
+			/*if (netif_enlarge_fdtab(stack) < 0)*/
+				return -1;
+#if 0
 			int newmax=stack->netif_npfd_max + NETIF_MAX_STEP;
 			void *newpfd=mem_realloc(stack->netif_pfd,(newmax * sizeof(struct pollfd)));
 			void *newpfdargs=mem_realloc(stack->netif_pfd_args,
 					(newmax * sizeof (struct netif_args)));
 			if (newpfd && newpfdargs) {
+				printf("OKAY %d\n",newmax);
 				stack->netif_pfd=newpfd;
 				stack->netif_pfd_args=newpfdargs;
 				stack->netif_npfd_max=newmax;
 			} else {
+				printf("NO %d\n",newmax);
 				if (newpfd) mem_free(newpfd);
 				if (newpfdargs) mem_free(newpfdargs);
 				return -1;
 			}
+#endif
 		}
 		stack->netif_npfd++;
 	}
 	stack->netif_pfd[n].fd = fd;
-	stack->netif_pfd[n].events = POLLIN;
+	stack->netif_pfd[n].events = events;
 	stack->netif_pfd[n].revents = 0;
 	stack->netif_pfd_args[n].fun = fun;
 	stack->netif_pfd_args[n].netif = netif;
@@ -157,6 +182,16 @@ netif_thread(void *arg)
 		int i;
 		int ret;
 		unsigned long newtime;
+		{
+			unsigned int unused=stack->netif_npfd_max - stack->netif_npfd;
+			if (unused < NETIF_MIN_FREE) {
+				for (i=0; i<stack->netif_npfd; i++)
+					if (stack->netif_pfd[i].fd < 0) 
+						unused++;
+				if (unused < NETIF_MIN_FREE)
+					netif_enlarge_fdtab(stack);
+			}
+		}
 		LWIP_DEBUGF( NETIF_DEBUG, ("netif_thread poll %d %d\n",stack->netif_npfd_max,stack->netif_npfd));
 		ret = poll(stack->netif_pfd, stack->netif_npfd, 100);
 		LWIP_DEBUGF( NETIF_DEBUG, ("netif_thread poll %d out\n",stack->netif_npfd_max));

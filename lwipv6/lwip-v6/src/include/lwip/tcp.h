@@ -336,9 +336,9 @@ struct tcp_pcb {
   u8_t keep_cnt;
 
 #ifdef LWSLIRP
-		/* Buffer of packet received by LWIP stack and 
-			 waiting to be sent on the socket ->slirp */
-		struct pbuf *slirp_recvbuf;
+	/* Buffer of packet received by LWIP stack and 
+		 waiting to be sent on the socket ->slirp */
+	struct pbuf *slirp_recvbuf;
 #endif
 
 };

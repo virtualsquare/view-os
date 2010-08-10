@@ -186,7 +186,7 @@ void netif_cleanup(struct stack *stack);
 
 int netif_addfd(struct netif *netif, int fd, 
 		void (*fun)(struct netif *netif, int posfd, void *arg),
-		void *funarg, int flags);
+		void *funarg, int flags, short events);
 
 void netif_updatefd(struct stack *stack, int posfd, 
 		void (*fun)(struct netif *netif, int posfd, void *arg),

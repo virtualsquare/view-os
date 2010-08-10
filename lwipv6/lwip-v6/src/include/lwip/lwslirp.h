@@ -92,39 +92,13 @@
 		((((from)->s_addr) >> 16) & 0x000000ff), \
 		((((from)->s_addr) >> 24) & 0x000000ff))
 
-# if 0
-/*
- * Socket state bits. (peer means the host on the Internet,
- * local host means the host on the other end of the modem)
- */
-
-int so_ip_addr_cmp(struct in6_addr *addr1, struct ip_addr *addr2);
-
-void so_recvfrom(struct udp_pcb *pcb);
-void so_recvoob(struct tcp_pcb *pcb, fd_set *writefds);
-int so_read (struct tcp_pcb *pcb, fd_set *writefds);
-int so_write(struct tcp_pcb *pcb, fd_set *readfds, fd_set *xfds);
-
-/* Callback functions registered into the TCP pcbs */
-err_t so_tcp_accept(void *arg, struct tcp_pcb *pcb, err_t err);
-err_t so_tcp_recv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err);
-
-/* err_t so_tcp_connected(void *arg, struct tcp_pcb *pcb, err_t err) */
-#if SOCKETVDE_DEBUG
-void so_debug_print_state(int debk, struct tcp_pcb *pcb);
-#else
-
-#define so_debug_print_state(debk, pcb)
-
-#endif /* SOCKETVDE_DEBUG*/
-#endif
-
 int slirp_tcp_fconnect(struct tcp_pcb_listen *lpcb, u16_t dest_port, 
 		struct ip_addr *dest_addr, struct netif *slirpif);
 void slirp_tcp_update_listen2data(struct tcp_pcb *pcb);
 void slirp_tcp_close(struct tcp_pcb *pcb);
 err_t slirp_tcp_accept(void *arg, struct tcp_pcb *pcb, err_t err);
 err_t slirp_tcp_recv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err);
+err_t slirp_tcp_sent(void *arg, struct tcp_pcb *pcb, u16_t len);
 
 /* Callback function registered into the UDP pcbs */
 #define UDP_PERMANENT 1

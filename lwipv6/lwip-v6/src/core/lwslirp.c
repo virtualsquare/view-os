@@ -43,89 +43,294 @@
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <sys/un.h>
+//#undef LWSLIRP_DEBUG
+//#define LWSLIRP_DEBUG DBG_ON
+
+//#define THREAD_DEBUG
+#ifdef THREAD_DEBUG
+#define PRINTTHREAD(X) do {\
+	printf("thread %s: %u\n",(X),pthread_self());\
+} while(0);
+#else
+#define PRINTTHREAD(X)
+#endif
 
 /* Local function */
 static void slirp_isfconnecting(struct tcp_pcb *pcb);
 static void slirp_isfconnected(struct tcp_pcb *pcb);
-static void slirp_fcantrcvmore(struct tcp_pcb *pcb, int posfd);
-static void slirp_fcantsendmore(struct tcp_pcb *pcb, int posfd);
+static void slirp_fcantrcvmore(struct tcp_pcb *pcb);
+static void slirp_fcantsendmore(struct tcp_pcb *pcb);
 static void slirp_fd_nonblock(int fd);
+static void slirp_udp_input(struct netif *netif, int posfd, void *arg);
+static int slirp_sendto(struct udp_pcb *pcb, struct pbuf *p, struct netif *slirpif);
+err_t slirp_tcp_connected(void *arg, struct tcp_pcb *pcb, err_t err);
+static void slirp_connecting_io(struct netif *netif, int posfd, void *arg);
+
 #if LWSLIRP_DEBUG
 void slirp_debug_print_state(int debk, struct tcp_pcb *pcb);
 #else
 #define slirp_debug_print_state(A,B) 
 #endif
+/* MSGS to tcpip */
 
-/* The function gets the pcb of the connection, and the version of IP protocolo (4 or 6)
- * and it returns the right destination IP address.
- *
- * NOTE: the function works both with UDP and TCP pcb, because it only use
- * ->local_ip field that is present in both pcb.*/
-static struct ip_addr *slirp_get_destaddr(struct udp_pcb *pcb, unsigned char version) {
-	struct ip_addr netmask, netmask6, *remote_addr;
-	int last_byte_mask;
+struct tcp_sndbuf_output_arg {
+	struct tcp_pcb *pcb;
+	int len;
+	sys_sem_t *sem;
+};
 
-#if 0
-	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xff00);
-	IP6_ADDR(&netmask6, 0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xffff,0xfff0);
-
-	/* I control if it's one of our IPv4 or IPv6 addresses */
-	if( (version == 4 && ip_addr_maskcmp(&pcb->local_ip, &special_addr, &netmask)) ||
-			(version == 6 && ip_addr_maskcmp(&pcb->local_ip, &special_addr6, &netmask6)) ) {
-
-		/* get the right mask based on IP version*/
-		if(version == 6)
-			last_byte_mask = 0x000000f;
-		else
-			last_byte_mask = 0x00000ff;
-
-		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_get_destaddr: it's an our address, (htonl((pcb->local_ip).addr[3]) & %d) = %d\n",
-					last_byte_mask, (htonl((pcb->local_ip).addr[3]) & last_byte_mask)));
-
-		switch((htonl((pcb->local_ip).addr[3]) & last_byte_mask)) {
-			case CTL_DNS:
-				LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_get_destaddr: I'l send to DNS address: "));
-				if(version == 4 && ip_addr_isany(&dns_addr)) {
-					/* There is no IPv4 dns address, so I use IPv6 DNS addess*/
-					remote_addr = &dns_addr6;
-					LWIP_DEBUGF(LWSLIRP_DEBUG, ("its IPv4 but no IPv4 DNS exists, so I use IPv6 address\n"));
-				} else if(version == 6 && ip_addr_isany(&dns_addr6)) {
-					/* There is no IPv6 dns address, so I use IPv4 DNS addess*/
-					remote_addr = &dns_addr;
-					LWIP_DEBUGF(LWSLIRP_DEBUG, ("its IPv6 but no IPv6 DNS exists, so I use IPv4 address\n"));
-				} else if(version == 4) {
-					/* IPv4 DNS exists */
-					remote_addr = &dns_addr;
-					LWIP_DEBUGF(LWSLIRP_DEBUG, ("its IPv4 and I use IPv4 DNS address\n"));
-				} else {
-					/* IPv6 DNS exists */
-					remote_addr = &dns_addr6;
-					LWIP_DEBUGF(LWSLIRP_DEBUG, ("its IPv6 and I use IPv6 DNS address\n"));
-				}
-
-				break;
-			case CTL_ALIAS:
-				LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_get_destaddr: I'l send to ALIAS address and "));
-			default:
-				LWIP_DEBUGF(LWSLIRP_DEBUG, ("to DEFAULT address: "));
-				if(version == 4 ) {
-					remote_addr = &loopback_addr;
-					LWIP_DEBUGF(LWSLIRP_DEBUG, ("IPv4 loopback\n"));
-				} else {
-					remote_addr = &loopback_addr6;
-					LWIP_DEBUGF(LWSLIRP_DEBUG, ("IPv6 loopback\n"));
-				}
-				break;
-		}
-	} else 
-#endif
-	{
-		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_sendto: it's not one of our addresses\n"));
-		remote_addr = &pcb->local_ip;
-	}
-
-	return remote_addr;
+static void callback_from_tcp_sndbuf_output(void *varg)
+{
+	struct tcp_sndbuf_output_arg *arg	= varg;
+	PRINTTHREAD("callback_from_tcp_output");
+	/*if(arg->len > tcp_sndbuf(arg->pcb))
+		tcp_output(arg->pcb);*/
+	if(arg->len > tcp_sndbuf(arg->pcb))
+		arg->len = tcp_sndbuf(arg->pcb);
+	sys_sem_signal(*arg->sem);
 }
+
+static int callback_to_tcp_sndbuf_output(struct stack *stack,struct tcp_pcb *pcb,int len)
+{
+	struct tcp_sndbuf_output_arg arg;
+	sys_sem_t sync;
+	arg.pcb=pcb;
+	arg.len=len;
+	sync = sys_sem_new(0);
+	arg.sem = &sync;
+	tcpip_callback(stack, callback_from_tcp_sndbuf_output, &arg);
+	sys_sem_wait_timeout(sync, 0);
+	sys_sem_free(sync);
+	return arg.len;
+}
+
+struct tcp_write_arg {
+	struct tcp_pcb *pcb;
+	char *buf;
+	int len;
+};
+
+static void callback_from_tcp_write(void *varg)
+{
+	struct tcp_write_arg *arg  = varg;
+	int res;
+	PRINTTHREAD("callback_from_tcp_write");
+	res=tcp_write(arg->pcb, arg->buf, arg->len, 1);
+	mem_free(arg->buf);
+	if(res == ERR_MEM) {
+		/* I close the connection */
+		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_read: error memory, I close the connection.\n"));
+		tcp_close(arg->pcb);
+	} else {
+		tcp_output(arg->pcb);
+	}
+	mem_free(arg);
+}
+
+static void callback_to_tcp_write(struct stack *stack,struct tcp_pcb *pcb,char *buf,int len)
+{
+	struct tcp_write_arg *arg=mem_malloc(sizeof(struct tcp_write_arg));
+	if (arg) {
+		arg->pcb=pcb;
+		arg->buf=buf;
+		arg->len=len;
+		tcpip_callback(stack, callback_from_tcp_write, arg);
+	}
+}
+
+struct tcp_input_arg {
+	struct tcp_pcb_listen *pcb;
+	struct netif *netif;
+};
+
+static void callback_from_tcp_input(void *varg)
+{
+	struct tcp_input_arg *arg  = varg;
+	PRINTTHREAD("callback_from_tcp_input");
+	struct pseudo_iphdr piphdr;
+	struct ip_addr src4,dest4;
+	struct ip_addr_list *addr;
+	struct tcp_pcb_listen *pcb=arg->pcb;
+	struct stack *stack=pcb->stack;
+	/* I build a new pseudo header for tcp_input() */
+	/* I don't test the return value of ip_build_piphdr because I know 
+	 * that it's right, infact the packet in pbuf ->slirp_m was already controlled
+	 * by ip_input() the first time it was arrived. */
+	ip_build_piphdr(&piphdr, arg->pcb->slirp_m, &src4, &dest4);
+
+	/* I set the ip address list */
+	addr = ip_addr_list_alloc(stack);
+	if(addr == NULL) {
+		/* There aren't no more ip_addr_list avaible, so I abort.*/
+		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_listening_io: ip_addr_list_alloc() returned NULL, so I abort!\n"));
+	} else {
+		addr->netif = arg->netif;
+		addr->next = NULL;
+		memcpy(&addr->ipaddr, &piphdr.dest, sizeof(struct ip_addr));
+		tcp_input(pcb->slirp_m, addr, &piphdr, arg->netif);
+	}
+	/* free the ip address list*/
+	ip_addr_list_free(stack, addr);
+
+	mem_free(arg);
+}
+
+static void callback_to_tcp_input(struct stack *stack,struct tcp_pcb_listen *pcb,struct netif *netif)
+{
+	struct tcp_input_arg *arg=mem_malloc(sizeof(struct tcp_input_arg));
+	if (arg) {
+		arg->pcb=pcb;
+		arg->netif=netif;
+		tcpip_callback(stack, callback_from_tcp_input, arg);
+	}
+}
+
+struct udp_sendto_arg {
+	struct udp_pcb *pcb;
+	struct pbuf *m;
+};
+
+static void callback_from_udp_sendto(void *varg)
+{
+	struct udp_sendto_arg *arg  = varg;
+	struct udp_pcb *pcb = arg->pcb;
+	PRINTTHREAD("callback_from_udp_sendto");
+	
+	udp_sendto(pcb, arg->m, &pcb->remote_ip, pcb->remote_port);
+	pbuf_free(arg->m);
+	mem_free(arg);
+}
+
+static void callback_to_udp_sendto(struct stack *stack,struct udp_pcb *pcb,struct pbuf *m)
+{
+	struct udp_sendto_arg *arg=mem_malloc(sizeof(struct udp_sendto_arg));
+	if (arg) {
+		arg->pcb=pcb;
+		arg->m=m;
+		tcpip_callback(stack, callback_from_udp_sendto, arg);
+	}
+}
+
+static void callback_from_tcp_close(void *varg)
+{
+	struct tcp_pcb *pcb=varg;
+	tcp_arg(pcb, NULL);
+	tcp_sent(pcb, NULL);
+	tcp_recv(pcb, NULL);
+	tcp_poll(pcb, NULL, 0);
+	tcp_err(pcb, NULL);
+	if (tcp_close(pcb) != ERR_OK) 
+		tcp_abort(pcb);
+}
+
+static void callback_to_tcp_close(struct stack *stack,struct tcp_pcb *pcb)
+{
+	tcpip_callback(stack, callback_from_tcp_close, pcb);
+}
+
+struct new_forwarding_arg {
+	struct stack *stack;
+	struct netif *slirpif;
+	int fd;
+	struct ip_addr *src;
+	int srcport;
+	struct ip_addr *dest;
+	int destport;
+	void *new_pcb;
+	sys_sem_t *sem;
+};
+
+static void callback_from_tcp_new_forwarding(void *varg){
+	struct new_forwarding_arg *arg=varg;
+	struct tcp_pcb *pcb;
+	/* new pcb tcp */
+	if ((pcb = tcp_new(arg->stack)) != NULL) {
+		tcp_arg(pcb, NULL);
+		/* callbacks */
+		tcp_recv(pcb, slirp_tcp_recv);
+		tcp_sent(pcb, slirp_tcp_sent);
+		/* bind to "fake" the remote sender on the packets */
+		tcp_bind(pcb, arg->src, arg->srcport);
+
+		/* add the new fd to the main event loop */
+		pcb->keep_cnt=0;
+		pcb->slirp_posfd = netif_addfd(arg->slirpif, arg->fd, 
+				slirp_connecting_io, pcb, NETIF_ARGS_1SEC_POLL, 0);
+		/* connect to the internal/virtual/lwipv6 end of the connection */
+		tcp_connect(pcb, arg->dest, arg->destport, slirp_tcp_connected);
+	}
+	arg->new_pcb=pcb;
+	sys_sem_signal(*arg->sem);
+}
+
+static void callback_from_udp_new_forwarding(void *varg){
+	struct new_forwarding_arg *arg=varg;
+	struct udp_pcb *pcb;
+	/* set up the new udp pcb */
+	if ((pcb = udp_new(arg->stack)) != NULL) {
+		udp_recv(pcb, slirp_udp_recv, arg->slirpif);
+		pcb->so_options |=  SOF_REUSEPORT;
+		/* bind the pcb to the source of the packet (such that the packet
+			 will be forwarded with the right/real-world src/srcport) */
+		udp_bind(pcb, arg->src, arg->srcport, NULL);
+		pcb->slirp_expire = time_now() + UDP_PCB_EXPIRE;
+		/* add the socket to the main event loop poll (with the new parms) */
+		pcb->slirp_posfd = netif_addfd(arg->slirpif, arg->fd, 
+				slirp_udp_input, pcb, NETIF_ARGS_1SEC_POLL, POLLIN);
+		/* connect the socket to the (virtual LWIP-side) remote address
+			 (target of forwarding) */
+		udp_connect(pcb, arg->dest, arg->destport);
+	}
+	arg->new_pcb=pcb;
+	sys_sem_signal(*arg->sem);
+}
+
+
+static struct tcp_pcb *callback_to_tcp_new_forwarding(struct stack *stack,
+		  struct netif *slirpif, int fd,
+			struct ip_addr *src, int srcport,
+			struct ip_addr *dest, int destport)
+{
+	struct new_forwarding_arg arg;
+	sys_sem_t sync;
+	arg.stack=stack;
+	arg.slirpif=slirpif;
+	arg.fd=fd;
+	arg.src=src;
+	arg.srcport=srcport;
+	arg.dest=dest;
+	arg.destport=destport;
+	sync = sys_sem_new(0);
+	arg.sem = &sync;
+	tcpip_callback(stack,callback_from_tcp_new_forwarding,&arg);
+	sys_sem_wait_timeout(sync, 0);
+	sys_sem_free(sync);
+	return (struct tcp_pcb *)(arg.new_pcb);
+}
+
+static struct udp_pcb *callback_to_udp_new_forwarding(struct stack *stack,
+		  struct netif *slirpif, int fd,
+			struct ip_addr *src, int srcport,
+			struct ip_addr *dest, int destport)
+{
+	struct new_forwarding_arg arg;
+
+	sys_sem_t sync;
+	arg.stack=stack;
+	arg.slirpif=slirpif;
+	arg.fd=fd;
+	arg.src=src;
+	arg.srcport=srcport;
+	arg.dest=dest;
+	arg.destport=destport;
+	sync = sys_sem_new(0);
+	arg.sem = &sync;
+	tcpip_callback(stack,callback_from_udp_new_forwarding,&arg);
+	sys_sem_wait_timeout(sync, 0);
+	sys_sem_free(sync);
+	return (struct udp_pcb *)(arg.new_pcb);
+}
+
 
 /* TCP ****************************************************************************************/
 
@@ -134,6 +339,7 @@ static struct ip_addr *slirp_get_destaddr(struct udp_pcb *pcb, unsigned char ver
  * SS_ISFCONNECTED */
 err_t slirp_tcp_accept(void *arg, struct tcp_pcb *pcb, err_t err)
 {
+	PRINTTHREAD("slirp_tcp_accept");
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_accept: I change the state of socket %d from ", pcb->slirp_posfd));
 	slirp_debug_print_state(LWSLIRP_DEBUG, pcb);
 
@@ -151,16 +357,27 @@ err_t slirp_tcp_accept(void *arg, struct tcp_pcb *pcb, err_t err)
  * SS_ISFCONNECTED */
 err_t slirp_tcp_connected(void *arg, struct tcp_pcb *pcb, err_t err)
 {
+	PRINTTHREAD("slirp_tcp_connected");
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_connected: I change the state of socket %d from ", pcb->slirp_posfd));
 	slirp_debug_print_state(LWSLIRP_DEBUG, pcb);
 
 	slirp_isfconnected(pcb);
 	slirp_tcp_update_listen2data(pcb);
+	pcb->keep_cnt=0;
 
 	LWIP_DEBUGF(LWSLIRP_DEBUG, (" to "));
 	slirp_debug_print_state(LWSLIRP_DEBUG, pcb);
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("\n"));
 							  
+	return ERR_OK;
+}
+
+/* this callback function is called when tcp data is leaving the sndbuf */
+err_t slirp_tcp_sent(void *arg, struct tcp_pcb *pcb, u16_t len)
+{
+	int posfd = (int) arg;
+	//printf("data sent on %d l%d\n",posfd,len);
+	netif_slirp_events(pcb) |= (POLLIN | POLLOUT);
 	return ERR_OK;
 }
 
@@ -170,6 +387,7 @@ err_t slirp_tcp_connected(void *arg, struct tcp_pcb *pcb, err_t err)
  * takes the data to send.*/
 err_t slirp_tcp_recv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
 {
+	PRINTTHREAD("slirp_tcp_recv");
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_recv: pbuf p (%p)", p));
 #if LWSLIRP_DEBUG
 	if(p != NULL)
@@ -208,34 +426,26 @@ err_t slirp_tcp_recv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
 
 /* Read data from a slirp interface */
 static int slirp_read (struct tcp_pcb *pcb, int posfd) {
-	int ret, n;
+	int ret, nin, n;
 	err_t res;
 	char *buf;
 	struct stack *stack = pcb->stack;
 	int slirp_fd=netif_slirp_fd(stack, pcb);
+	PRINTTHREAD("slirp_read");
 
 	/* I get the number of bytes I can read from the read buffer */
-	ioctl(slirp_fd, FIONREAD, &n);
+	ioctl(slirp_fd, FIONREAD, &nin);
 
 	/* I test if there is enough room in the send queue of the TCP pcb */
-	if( n > tcp_sndbuf(pcb)) {
-		/* I try to empty the send buffer and try again */
-		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_read: no enought room in the send buffer, I can store "
-					"%d bytes, but I have to read %d bytes. I try to empty the buffer.\n", tcp_sndbuf(pcb), n));
-		tcp_output(pcb);
-		if(n > tcp_sndbuf(pcb)) {
-			/* I don't read nothing and I wait until there is more room */
-			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_read: I have tried to empty the send buffer, "));
-			if(( n = tcp_sndbuf(pcb) ) == 0) {
-				LWIP_DEBUGF(LWSLIRP_DEBUG, ("but the free space is equal to %d, so I return without reading.\n",
-							tcp_sndbuf(pcb)));
-				return -1;
-			}
-			LWIP_DEBUGF(LWSLIRP_DEBUG, ("but I have only %d bytes of free space when I need "
-						"of %d bytes of space so I read only %d bytes.\n", tcp_sndbuf(pcb), n, tcp_sndbuf(pcb)));
-		}
-	}
+	n=callback_to_tcp_sndbuf_output(stack,pcb,nin);
+	/*if (nin != n)
+		printf("slirp_read ready %d - read %d\n",nin,n);*/
 
+	if (nin > 0 && n==0) {
+		netif_slirp_events(pcb) &= ~(POLLIN | POLLOUT);
+		return ERR_OK;
+	}
+	//printf("enqueue! tcp_sndbuf %d toread %d\n",tcp_sndbuf(pcb),n);
 	/* There is room for store the read data, so I read it */
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_read: I can read %d bytes, and I have read ", n));
 
@@ -251,28 +461,14 @@ static int slirp_read (struct tcp_pcb *pcb, int posfd) {
 		} else {
 			/* ret = 0, So */
 			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_read: disconnected, ret = %d, errno = %d-%s\n", ret, errno,strerror(errno)));
-			slirp_fcantrcvmore(pcb, posfd);
+			slirp_fcantrcvmore(pcb);
 			mem_free(buf);
-			tcp_close(pcb);
+			callback_to_tcp_close(stack, pcb);
 			return -1;
 		}
 	}
-	/* Now I enqueue the data, passing them to tcp_write().
-	 * I know, from the previous control, that there is enough room 
-	 * to store the read data, but a memory error can occur and so I
-	 * close the connection. */
-	res = tcp_write(pcb, buf, n, 1);
-	if(res == ERR_MEM) {
-		/* I close the connection */
-		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_read: error memory, I close the connection.\n"));
-		mem_free(buf);
-		tcp_close(pcb);
-		return -1;
-	}
-
-	/* free the buffer */
-	mem_free(buf);
-	return ret;
+	callback_to_tcp_write(stack, pcb, buf, n);
+	return ERR_OK;
 }
 
 /* discard data from a slirp interface when the interface is down */
@@ -282,6 +478,7 @@ static void slirp_discard_input(struct tcp_pcb *pcb)
 	int slirp_fd=netif_slirp_fd(stack, pcb);
 	int n;
 	char *buf;
+	PRINTTHREAD("slirp_discard_input");
 
 	/* I get the number of bytes I can read from the read buffer */
 	ioctl(slirp_fd, FIONREAD, &n);
@@ -295,20 +492,20 @@ static void slirp_discard_input(struct tcp_pcb *pcb)
 }
 
 /* write data to a slirp interface */
-static int slirp_write(struct tcp_pcb *pcb, int posfd, struct netif *netif)
+static int slirp_write(struct tcp_pcb *pcb, struct netif *netif)
 {
 	int ret, total_ret = 0;
 	struct pbuf *p;
 	struct stack *stack = pcb->stack;
 	int slirp_fd=netif_slirp_fd(stack, pcb);
+	PRINTTHREAD("slirp_write");
 
 	netif_slirp_events(pcb) &= ~POLLOUT;
-	assert(pcb->slirp_recvbuf != NULL);
-	/*
+	/*assert(pcb->slirp_recvbuf != NULL);*/
 	if (pcb->slirp_recvbuf == NULL) {
 		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_write: ->slirp_recvbuf = NULL!!!!!!!!!!!!!!!!!!!!!\n"));
 		return 0;
-	}*/
+	}
 
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_write: ->slirp_recvbuf = %p, total lenght of recv "
 				"queue = %d.\n", pcb->slirp_recvbuf, pcb->slirp_recvbuf->tot_len));
@@ -325,14 +522,15 @@ static int slirp_write(struct tcp_pcb *pcb, int posfd, struct netif *netif)
 			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_write: Interface is down: %d bytes discarded\n", ret));
 		}
 
+		//printf("RET PLEN %d %d %s\n",ret, p->len, (ret<p->len)?"<<<<<<<<<<<<<<<<<<":"");
 		/* This should never happen, but people tell me it does *shrug* */
 		if (ret < 0 && (errno == EAGAIN || errno == EINTR))
 			return 0;
 
-		if(ret <= 0) {
+		if(ret < 0) {
 			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_write: disconnected, ret = %d, errno = %d-%s\n", ret, errno,strerror(errno)));
-			slirp_fcantsendmore(pcb, posfd);
-			tcp_close(pcb);
+			slirp_fcantsendmore(pcb);
+			callback_to_tcp_close(stack,pcb);
 			return -1;
 		}
 
@@ -359,13 +557,6 @@ static int slirp_write(struct tcp_pcb *pcb, int posfd, struct netif *netif)
 				LWIP_DEBUGF(LWSLIRP_DEBUG, ("\n"));
 #endif /* LWSLIRP_DEBUG */
 
-
-			if(p == NULL) {
-				/* no more pbuf */
-				total_ret += ret;
-				return total_ret;
-			}
-
 			total_ret += ret;
 
 		} else if (ret < p->len ) {
@@ -375,9 +566,10 @@ static int slirp_write(struct tcp_pcb *pcb, int posfd, struct netif *netif)
 			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_write: ret (%d) < p->len (%d), so "
 						"I adjust the payload of p (%p)  from "
 						"%x I add (%d)\n", ret, p->len, p, p->payload, ret ));
-			pbuf_header(p, ret);
+			pbuf_header(p, -ret);
 			LWIP_DEBUGF(LWSLIRP_DEBUG, ("%x(%d).\n", p->payload, p->payload));
 			/* I cannot send more, so I exit from the while */
+			total_ret += ret;
 			break;
 		} else {
 			/* ret > p -> len : It's impossible! */
@@ -386,17 +578,46 @@ static int slirp_write(struct tcp_pcb *pcb, int posfd, struct netif *netif)
 		}
 	}
 
-	/* if p == NULL or ret < p->len I have not added the last ret to total_ret, so I do it now. */
-	total_ret += ret;
+	//tcp_recved(pcb, total_ret);
 
 	return total_ret;
 }
+
+struct slirp_write_arg {
+	  struct tcp_pcb *pcb;
+		struct netif *netif;
+		sys_sem_t *sem;
+};
+
+static void callback_from_slirp_write(void *varg)
+{
+	struct slirp_write_arg *arg = varg;
+	int rv;
+	PRINTTHREAD("callback_from_slirp_write");
+	rv=slirp_write(arg->pcb, arg->netif);
+	sys_sem_signal(*arg->sem);
+}
+
+static int callback_to_slirp_write(struct stack *stack,struct tcp_pcb *pcb,struct netif *netif)
+{
+	struct slirp_write_arg arg;
+	sys_sem_t sync;
+	arg.pcb=pcb;
+	arg.netif=netif;
+	sync = sys_sem_new(0);
+	arg.sem = &sync;
+	tcpip_callback(stack, callback_from_slirp_write, &arg);
+	sys_sem_wait_timeout(sync, 0);
+	sys_sem_free(sync);
+}
+
 
 /*
  * Various session state calls
  */
 static void slirp_isfconnecting(struct tcp_pcb *pcb)
 {
+	PRINTTHREAD("slirp_isfconnecting");
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_isfconnecting: before changes: "));
 	slirp_debug_print_state(LWSLIRP_DEBUG, pcb);
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("\n"));
@@ -412,14 +633,16 @@ static void slirp_isfconnecting(struct tcp_pcb *pcb)
 
 static void slirp_isfconnected(struct tcp_pcb *pcb)
 {
+	PRINTTHREAD("slirp_isfconnected");
 	pcb->slirp_state &= ~(SS_ISFCONNECTING|SS_FWDRAIN|SS_NOFDREF);
 	pcb->slirp_state |= SS_ISFCONNECTED;
 }
 
-static void slirp_fcantrcvmore(struct tcp_pcb *pcb, int posfd)
+static void slirp_fcantrcvmore(struct tcp_pcb *pcb)
 {
 	struct stack *stack = pcb->stack;
 	int slirp_fd=netif_slirp_fd(stack, pcb);
+	PRINTTHREAD("slirp_fcantrcvmore");
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_isfcantrcvmore: SHUT_RD = %d\n", SHUT_RD));
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_isfcantrcvmore: before changes: "));
 	slirp_debug_print_state(LWSLIRP_DEBUG, pcb);
@@ -430,7 +653,8 @@ static void slirp_fcantrcvmore(struct tcp_pcb *pcb, int posfd)
 	 * write fd set*/
 	if (!(pcb->slirp_state & SS_NOFDREF)) {
 		shutdown(slirp_fd, SHUT_RD); /* SHUT_RD: further receptions  will  be  disallowed */
-		stack->netif_pfd[posfd].revents &= ~POLLOUT;
+		netif_slirp_events(pcb) &= ~(POLLIN | POLLPRI);
+		//stack->netif_pfd[posfd].revents &= ~POLLOUT;
 	}
 
 	pcb->slirp_state &= ~(SS_ISFCONNECTING);
@@ -447,10 +671,11 @@ static void slirp_fcantrcvmore(struct tcp_pcb *pcb, int posfd)
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("\n"));
 }
 
-static void slirp_fcantsendmore(struct tcp_pcb *pcb, int posfd)
+static void slirp_fcantsendmore(struct tcp_pcb *pcb)
 {
 	struct stack *stack = pcb->stack;
 	int slirp_fd=netif_slirp_fd(stack, pcb);
+	PRINTTHREAD("slirp_fcantsendmore");
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_fcantsendmore: is SHUT_WR (%d) == 1?\n", SHUT_WR));
 
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_isfcantsendmore: before changes: "));
@@ -458,7 +683,8 @@ static void slirp_fcantsendmore(struct tcp_pcb *pcb, int posfd)
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("\n"));
 	if (!(pcb->slirp_state & SS_NOFDREF)) {
 		shutdown(slirp_fd, SHUT_WR);  /* SHUT_WR : further transmissions will be disallowed. */
-		netif_slirp_events(pcb) &= ~(POLLIN | POLLPRI);
+		//netif_slirp_events(pcb) &= ~(POLLIN | POLLPRI);
+		netif_slirp_events(pcb) &= ~(POLLOUT);
 	}
 	pcb->slirp_state &= ~(SS_ISFCONNECTING);
 
@@ -489,6 +715,12 @@ static void slirp_tcp_io(struct netif *netif, int posfd, void *arg)
 	struct tcp_pcb *pcb = arg;
 	struct stack *stack = netif->stack;
 	int revents = stack->netif_pfd[posfd].revents;
+	PRINTTHREAD("slirp_tcp_io");
+#if 0
+	if ((stack->netif_pfd[posfd].events & POLLIN) == 0) {
+		stack->netif_pfd[posfd].events |= (POLLIN | POLLPRI);
+	}
+#endif
 
 	if (pcb->slirp_state & SS_NOFDREF || pcb->slirp_posfd == -1) {
 		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_io: tcp_pcb(%p) (->slirp_state & SS_NOFDREF) OR (->slirp == -1). return\n", pcb));
@@ -497,9 +729,8 @@ static void slirp_tcp_io(struct netif *netif, int posfd, void *arg)
 	if (revents & POLLPRI) {
 		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_io: socket(%d) has urgent data, I read them.\n", pcb->slirp_posfd));
 		if (netif->flags & NETIF_FLAG_UP) {
-			if (slirp_read(pcb, posfd)) {
+			if (slirp_read(pcb, posfd) >= 0) {
 				LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_io: socket(%d) sending urgent data to tcp_output.\n", pcb->slirp_posfd));
-				tcp_output(pcb);
 			}
 		} else
 			slirp_discard_input(pcb);
@@ -507,17 +738,28 @@ static void slirp_tcp_io(struct netif *netif, int posfd, void *arg)
 	if (revents & POLLIN) {
 		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_io: socket(%d) has data, I read them.\n", pcb->slirp_posfd));
 		if (netif->flags & NETIF_FLAG_UP) {
-			if (slirp_read(pcb, posfd)) {
+			if (slirp_read(pcb, posfd) >= 0) {
 				LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_io: socket(%d) sending data to tcp_output.\n", pcb->slirp_posfd));
-				tcp_output(pcb);
 			}
 		} else
 			slirp_discard_input(pcb);
 	}
 	if (revents & POLLOUT) {
 		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_tcp_io: socket(%d) sending data\n", pcb->slirp_posfd));
-		slirp_write(pcb, posfd, netif);
+		callback_to_slirp_write(stack,pcb, netif);
 	}
+	stack->netif_pfd[posfd].revents=0;
+}
+
+static void slirp_connecting_io(struct netif *netif, int posfd, void *arg)
+{
+	struct tcp_pcb *pcb = arg;
+	struct stack *stack = netif->stack;
+	int slirp_fd=netif_slirp_fd(stack, pcb);
+	pcb->keep_cnt++;
+	printf("waiting %d\n", pcb->keep_cnt);
+	if (pcb->keep_cnt > 2) 
+		callback_to_tcp_close(stack,pcb);
 }
 
 static void slirp_listening_io(struct netif *netif, int posfd, void *arg)
@@ -526,17 +768,15 @@ static void slirp_listening_io(struct netif *netif, int posfd, void *arg)
 	struct stack *stack = netif->stack;
 	int slirp_fd=netif_slirp_fd(stack, pcb);
 	int revents = stack->netif_pfd[posfd].revents;
+	PRINTTHREAD("slirp_listening_io");
 	if (pcb->slirp_state & SS_NOFDREF || pcb->slirp_posfd == -1) {
-		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_listening_io: tcp_pcb(%p) (->slirp_state & SS_NOFDREF) OR (->slirp == -1). return\n", pcb));
+		//printf("slirp_listening_io LOOP!\n");
+		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_listening_io: tcp_pcb(%p) (->slirp_state%d & SS_NOFDREF) OR (->slirp%d == -1). return\n", pcb, pcb->slirp_state, pcb->slirp_posfd));
 		return;
 	}
 	if (revents & POLLOUT) {
-		struct pseudo_iphdr piphdr;
-		struct ip_addr src4,dest4;
-		struct ip_addr_list *addr;
-		int ret;
-
 		if(pcb->slirp_state & SS_ISFCONNECTING) {
+			int ret;
 			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_listening_io: socket(%d) is try to connect to the peer (SS_ISFCONNECTING state)."
 						"Is connected?... ", pcb->slirp_posfd));
 			/* If ret > 0, the socket is still connecting, so
@@ -563,31 +803,8 @@ static void slirp_listening_io(struct netif *netif, int posfd, void *arg)
 			 */
 			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_listening_io: now that it is connected send the SYN to the stack and forawrd the pending packets\n"));
 
-			/* I build a new pseudo header for tcp_input() */
-			/* I don't test the return value of ip_build_piphdr because I know 
-			 * that it's right, infact the packet in pbuf ->slirp_m was already controlled
-			 * by ip_input() the first time it was arrived. */
-			ip_build_piphdr(&piphdr, pcb->slirp_m, &src4, &dest4);
-
-			/* I set the ip address list */
-			addr = ip_addr_list_alloc(stack);
-			if(addr == NULL) {
-				/* There aren't no more ip_addr_list avaible, so I abort.*/
-				LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_listening_io: ip_addr_list_alloc() returned NULL, so I abort!\n"));
-				abort();
-			}
-
-			addr->next = NULL;
-			memcpy(&addr->ipaddr, &piphdr.dest, sizeof(struct ip_addr));
-
-			tcp_input(pcb->slirp_m, addr, &piphdr, netif);
-
-			/* free the ip address list*/
-			ip_addr_list_free(stack, addr);
+			callback_to_tcp_input(stack, pcb, netif);
 		}
-	}
-	if (revents & POLLIN) {
-		/* nothing? */
 	}
 }
 
@@ -607,6 +824,7 @@ int slirp_tcp_fconnect(struct tcp_pcb_listen *lpcb, u16_t dest_port, struct ip_a
 {
 	int ret = 0;
 	int lslirp_fd;
+	PRINTTHREAD("slirp_tcp_fconnect");
 	LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_fconnect: start. Try to connect a socket to the listening tcp pcb.\n"));
 
 	if((slirpif->flags & NETIF_FLAG_UP) 
@@ -628,7 +846,7 @@ int slirp_tcp_fconnect(struct tcp_pcb_listen *lpcb, u16_t dest_port, struct ip_a
 
 		version = ip_addr_is_v4comp(&lpcb->local_ip) ? 4 : 6;
 
-		remote_addr = slirp_get_destaddr((struct udp_pcb *)lpcb, version);
+		remote_addr = &lpcb->local_ip;
 
 		/* I convert remote_addr (a ip_addr IPv6 address) in a in6_addr. */
 		SO_IP_ADDR2IN6_ADDR(remote_addr, &addr6.sin6_addr);
@@ -642,7 +860,7 @@ int slirp_tcp_fconnect(struct tcp_pcb_listen *lpcb, u16_t dest_port, struct ip_a
 						inet_ntop(AF_INET6, &addr6.sin6_addr, str_addr6, sizeof(str_addr6))));
 		}
 #endif /* LWSLIRP_DEBUG */
-		lpcb->slirp_posfd = netif_addfd(slirpif, lslirp_fd, slirp_listening_io, lpcb, 0);
+		lpcb->slirp_posfd = netif_addfd(slirpif, lslirp_fd, slirp_listening_io, lpcb, 0, POLLOUT);
 
 		/* I do the connect*/
 		ret = connect(lslirp_fd,(struct sockaddr *)&addr6, sizeof(addr6));
@@ -663,9 +881,10 @@ int slirp_tcp_fconnect(struct tcp_pcb_listen *lpcb, u16_t dest_port, struct ip_a
 
 void slirp_tcp_update_listen2data(struct tcp_pcb *pcb)
 {
+	PRINTTHREAD("slirp_tcp_update_listen2data");
 	LWIP_DEBUGF(TCP_INPUT_DEBUG, ("slirp_tcp_update_listen2data connection ok -> now data.\n"));
 	netif_updatefd(pcb->stack, pcb->slirp_posfd, slirp_tcp_io, pcb, 0);
-	netif_slirp_events(pcb) |= POLLPRI;
+	netif_slirp_events(pcb) |= POLLIN | POLLPRI;
 }
 
 void slirp_tcp_close(struct tcp_pcb *pcb)
@@ -681,12 +900,10 @@ void slirp_tcp_close(struct tcp_pcb *pcb)
 
 /* from lwipv6 to slirp (outgoing stream). */
 
-static int slirp_sendto(struct udp_pcb *pcb, struct pbuf *p, struct netif *slirpif);
-static void slirp_udp_input(struct netif *netif, int posfd, void *arg);
-
 int slirp_udp_bind(struct udp_pcb *pcb, struct netif *slirpif, int flags)
 {
 	int slirp_fd;
+	PRINTTHREAD("slirp_udp_bind");
 	if (slirpif->netifctl != NULL) {
 		struct sockaddr_in6 addr6;
 		LWIP_DEBUGF(UDP_DEBUG, ("slirp_udp_bind: I'll bind the socket to a %s address\n",
@@ -709,7 +926,7 @@ int slirp_udp_bind(struct udp_pcb *pcb, struct netif *slirpif, int flags)
 				pcb->slirp_expire = time_now() + UDP_PCB_EXPIRE;
 				LWIP_DEBUGF(UDP_DEBUG, ("slirp_udp_bind: pcb->slirp_expire = (%ld + %ld) = %ld\n", time_now(),
 							UDP_PCB_EXPIRE, pcb->slirp_expire));
-				pcb->slirp_posfd = netif_addfd(slirpif, slirp_fd, slirp_udp_input, pcb, NETIF_ARGS_1SEC_POLL);
+				pcb->slirp_posfd = netif_addfd(slirpif, slirp_fd, slirp_udp_input, pcb, NETIF_ARGS_1SEC_POLL, POLLIN);
 			}
 		}
 	}
@@ -717,6 +934,7 @@ int slirp_udp_bind(struct udp_pcb *pcb, struct netif *slirpif, int flags)
 
 void slirp_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p,
 		struct ip_addr *addr, u16_t port) {
+	PRINTTHREAD("slirp_udp_recv");
 	LWIP_DEBUGF(UDP_DEBUG, ("slirp_udp_rcv: received pbuf %p, tot_len = %d\n", p, p->tot_len));
 	
 	{
@@ -750,6 +968,7 @@ static int slirp_sendto(struct udp_pcb *pcb, struct pbuf *p, struct netif *slirp
 	struct ip_addr *remote_addr;
 	struct stack *stack = slirpif->stack;
 	int slirp_fd=netif_slirp_fd(stack, pcb);
+	PRINTTHREAD("slirp_sendto");
 
 	if (!(slirpif->flags & NETIF_FLAG_UP))
 		return -1;
@@ -761,7 +980,7 @@ static int slirp_sendto(struct udp_pcb *pcb, struct pbuf *p, struct netif *slirp
 	/* I sets the family */
 	addr6.sin6_family = AF_INET6;
 
-	remote_addr = slirp_get_destaddr(pcb, version);
+	remote_addr = &pcb->local_ip;
 
 	/* I convert remote_addr (a ip_addr IPv6 address) in a in6_addr. */
 	SO_IP_ADDR2IN6_ADDR(remote_addr, &addr6.sin6_addr);
@@ -812,11 +1031,11 @@ static void slirp_udp_input(struct netif *netif, int posfd, void *arg)
 	struct stack *stack = netif->stack;
 	int slirp_fd=netif_slirp_fd(stack, pcb);
 
+	PRINTTHREAD("slirp_udp_input");
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_udp_input: pcb = %p\n", pcb));
 
 	/* get the number of bytes I can read from the read buffer */
 	ret=ioctl(slirp_fd, FIONREAD, &n);
-	//printf("0 %d n=%d ret=%d\n",slirp_fd,n,ret);
 
 	if (n == 0) {
 		unsigned long now=time_now();
@@ -861,8 +1080,8 @@ static void slirp_udp_input(struct netif *netif, int posfd, void *arg)
 			icmp_dest_unreach(stack, p, type);
 			/* I free the packet created. */
 			pbuf_free(p);
-			pbuf_free(m);
 		}
+		pbuf_free(m);
 	} else {
 		if (netif->flags & NETIF_FLAG_UP) {
 			LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_udp_input: src = "));
@@ -889,13 +1108,14 @@ static void slirp_udp_input(struct netif *netif, int posfd, void *arg)
 			}
 			LWIP_DEBUGF(LWSLIRP_DEBUG, (") = %ld\n", pcb->slirp_expire));
 			/* I send the data read */
-			udp_sendto(pcb, m, &pcb->remote_ip, pcb->remote_port);
-		}
-		pbuf_free(m);
+			//udp_sendto(pcb, m, &pcb->remote_ip, pcb->remote_port);
+			callback_to_udp_sendto(stack,pcb,m);
+		} else
+			pbuf_free(m);
 	}
 }
 
-/*============ listening ===================*/
+/*============ PORT FORWARDING ===================*/
 struct slirp_listen {
 	struct netif *slirpif;
 	struct ip_addr destaddr;
@@ -927,6 +1147,7 @@ static void slirp_listen_cb(struct netif *netif, int pos, void *arg)
 	struct stack *stack=netif->stack;
 	int ret;
 	int slirp_fd=stack->netif_pfd[pos].fd;
+	PRINTTHREAD("slirp_listen_cb");
 	
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_listen_cb: new data on %d\n", slirp_fd));
 
@@ -937,7 +1158,6 @@ static void slirp_listen_cb(struct netif *netif, int pos, void *arg)
 		struct sockaddr_in6 srcaddr;
 		struct udp_pcb *udp_pcb=NULL;
 		int srclen = sizeof(struct sockaddr_in6);
-		int lwsrcport;
 		ioctl(slirp_fd, FIONREAD, &n);
 		m = pbuf_alloc(PBUF_TRANSPORT, n, PBUF_RAM);
 		if (m==NULL)
@@ -949,32 +1169,21 @@ static void slirp_listen_cb(struct netif *netif, int pos, void *arg)
 		/* create a new unconnected socket for new udp sequence 
 			 from a different source/port */
 		if (!stack->netif_pfd_args[pos].flags & SLIRP_LISTEN_ONCE)
-			lwip_slirp_listen_add(sl->slirpif, &sl->destaddr, sl->destport, &sl->src.srcaddr, sl->srcport, 
+			lwip_slirp_listen_add(sl->slirpif, &sl->destaddr, sl->destport, 
+					&sl->src.srcaddr, sl->srcport, 
 					stack->netif_pfd_args[pos].flags);
 		/* connect the current socket to the source of the first packet */
 		ret = connect(slirp_fd,(struct sockaddr *)&srcaddr,srclen);
-		lwsrcport=ntohs(srcaddr.sin6_port);
-		if ((udp_pcb = udp_new(stack)) == NULL) 
-			goto udp_err;
-		/* set up the new udp pcb */
-		udp_recv(udp_pcb, slirp_udp_recv, sl->slirpif);
-		udp_pcb->so_options |=  SOF_REUSEPORT;
-		/* bind the pcb to the source of the packet (such that the packet
-		will be forwarded with the right/real-world src/srcport) */
-		ret = udp_bind(udp_pcb, (struct ip_addr *)&(srcaddr.sin6_addr), ntohs(srcaddr.sin6_port), NULL);
-		udp_pcb->slirp_expire = time_now() + UDP_PCB_EXPIRE;
-		/* add the socket to the main event loop poll (with the new parms) */
-		udp_pcb->slirp_posfd = netif_addfd(sl->slirpif, slirp_fd, slirp_udp_input, udp_pcb, NETIF_ARGS_1SEC_POLL);
-		/* connect the socket to the (virtual LWIP-side) remote address
-			 (target of forwarding) */
-		ret=udp_connect(udp_pcb, &sl->destaddr, sl->destport);
+		udp_pcb=callback_to_udp_new_forwarding(stack, sl->slirpif, slirp_fd, 
+				(struct ip_addr *)&(srcaddr.sin6_addr), ntohs(srcaddr.sin6_port),
+				&sl->destaddr, sl->destport);
 		/* remove the old listening item from the main loop */
 		netif_delfd(stack, pos);
-		mem_free(arg);
+		mem_free(sl);
 		/* forward the first packet */
-		udp_sendto(udp_pcb, m, &udp_pcb->remote_ip, udp_pcb->remote_port);
+		if (udp_pcb != NULL)
+			callback_to_udp_sendto(stack, udp_pcb, m);
 udp_err:
-		pbuf_free(m);
 		return;
 	} else {
 		/*STREAM*/
@@ -997,20 +1206,9 @@ udp_err:
 						inet_ntop(AF_INET6, &srcaddr.sin6_addr, str_addr6, sizeof(str_addr6))));
 		}
 #endif
-		/* new pcb tcp */
-		if ((pcb = tcp_new(stack)) == NULL)
-			goto tcp_err;
-		struct ip_addr *ipaddr=(struct ip_addr *)&(srcaddr.sin6_addr);
-		/* set up the new tcp connection... */
-		tcp_arg(pcb, NULL);
-		/* callbacks */
-		tcp_recv(pcb, slirp_tcp_recv);
-		/* bind to "fake" the remote sender on the packets */
-		tcp_bind(pcb, (struct ip_addr *)&(srcaddr.sin6_addr), ntohs(srcaddr.sin6_port));
-		/* add the new fd to the main eventi loop */
-		pcb->slirp_posfd = netif_addfd(sl->slirpif, conn, slirp_listening_io, pcb, 0);
-		/* connect to the internal/virtual/lwipv6 end of the connection */
-		tcp_connect(pcb, &sl->destaddr, sl->destport, slirp_tcp_connected);
+		pcb=callback_to_tcp_new_forwarding(stack, sl->slirpif, conn,
+				(struct ip_addr *)&(srcaddr.sin6_addr), ntohs(srcaddr.sin6_port),
+				&sl->destaddr, sl->destport);
 		if (stack->netif_pfd_args[pos].flags & SLIRP_LISTEN_ONCE) {
 			close(slirp_fd);
 			/* remove the old listening item from the main loop */
@@ -1039,6 +1237,7 @@ int lwip_slirp_listen_add(struct netif *slirpif,
 	struct stack *stack=slirpif->stack;;
 	int ret;
 	int one=1;
+	PRINTTHREAD("lwip_slirp_listen_add");
 	LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_listen_add: srcport %d flags %x\n",
 				srcport, flags));
 	if (conntype == SLIRP_LISTEN_UNIXSTREAM && src==NULL)
@@ -1101,7 +1300,6 @@ int lwip_slirp_listen_add(struct netif *slirpif,
 		ret=ERR_ARG;
 		goto err_free;
 	}
-	//setsockopt(3, SOL_SOCKET, SO_OOBINLINE, [1], 4);
 	/* connection oriented forwarding services need listen */
   if ((conntype == SLIRP_LISTEN_TCP || conntype == SLIRP_LISTEN_UNIXSTREAM)) {
 		if (listen(s,5) < 0) {
@@ -1111,7 +1309,7 @@ int lwip_slirp_listen_add(struct netif *slirpif,
 		LWIP_DEBUGF(LWSLIRP_DEBUG, ("slirp_listen_add: stream socket %d listen ok\n", s));
 	}
 	/* add the fd descriptor */
-	if (netif_addfd(slirpif, s, slirp_listen_cb, sl_item, flags) < 0) {
+	if (netif_addfd(slirpif, s, slirp_listen_cb, sl_item, flags, POLLIN) < 0) {
 		ret=ERR_CONN;
 		goto err_close;
 	}
@@ -1131,6 +1329,7 @@ int lwip_slirp_listen_del(struct netif *slirpif,
 	struct stack *stack=slirpif->stack;
 	int n;
 	int ret;
+	PRINTTHREAD("lwip_slirp_listen_del");
 	for (n=0; n<stack->netif_npfd && stack->netif_pfd[n].fd >= 0; n++) {
 		struct slirp_listen *sl=stack->netif_pfd_args[n].funarg;
 		int conntype=stack->netif_pfd_args[n].flags & SLIRP_LISTEN_TYPEMASK;

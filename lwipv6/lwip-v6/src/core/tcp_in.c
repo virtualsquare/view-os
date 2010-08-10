@@ -658,6 +658,7 @@ tcp_listen_input(struct tcp_pcb_listen *pcb, struct pseudo_iphdr *piphdr
 		if (slirpif) {
 			tcp_arg(npcb, NULL);
 			tcp_recv(npcb, slirp_tcp_recv);
+			tcp_sent(npcb, slirp_tcp_sent);
 		}
 #endif
 #endif /* LWIP_CALLBACK_API */

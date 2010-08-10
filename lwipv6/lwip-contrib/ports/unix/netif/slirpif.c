@@ -121,9 +121,7 @@ static err_t slirpif_output(struct netif *netif, struct pbuf *p, struct ip_addr 
 		return ERR_OK;
 	}
 
-	//printf("VDEbuf_alloc\n");
 	r = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
-	//printf("VDEbuf done\n");
 	if (r != NULL) {
 		ptr = r->payload;
 

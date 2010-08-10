@@ -163,11 +163,6 @@ tcp_close(struct tcp_pcb *pcb)
   
   err_t err;
 
-#ifdef LWSLIRP
-	if (pcb->slirp_posfd >= 0)
-		slirp_tcp_close(pcb);
-#endif
-
 
 #if TCP_DEBUG
   LWIP_DEBUGF(TCP_DEBUG, ("tcp_close: closing in state "));
@@ -1209,6 +1204,11 @@ void
 tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb)
 {
   TCP_RMV(pcblist, pcb);
+
+#ifdef LWSLIRP
+	if (pcb->slirp_posfd >= 0)
+		slirp_tcp_close(pcb);
+#endif
 
   tcp_pcb_purge(pcb);
   

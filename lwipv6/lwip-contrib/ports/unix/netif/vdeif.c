@@ -169,7 +169,7 @@ static int low_level_init(struct netif *netif, char *path)
 		if (vdeif->vdefd && 
 				(vdeif->posfd=netif_addfd(netif, 
 																	vdeplug.vde_datafd(vdeif->vdefd),
-																	vdeif_input, NULL, 0))>=0
+																	vdeif_input, NULL, 0, POLLIN))>=0
 		 ) 
 			return ERR_OK;
 		else 
@@ -188,7 +188,7 @@ static int low_level_init(struct netif *netif, char *path)
 		vdeif->vdestream=vdeplug.vdestream_open(netif,fdout,vdeif_streampkt_input,NULL);
 		if (vdeif->vdestream != NULL &&
 				(vdeif->posfd=netif_addfd(netif, fdin, 
-																	vdeif_stream_input, NULL, 0))>=0)
+																	vdeif_stream_input, NULL, 0, POLLIN))>=0)
 			return ERR_OK;
 		else
 			return ERR_IF;

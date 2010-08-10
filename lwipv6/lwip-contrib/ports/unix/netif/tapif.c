@@ -159,7 +159,7 @@ low_level_init(struct netif *netif, char *ifname)
 		}
 	}
 	if ((tapif->posfd=netif_addfd(netif,
-				tapif->fd, tapif_input, NULL, 0)) < 0)
+				tapif->fd, tapif_input, NULL, 0, POLLIN)) < 0)
 		return ERR_IF;
 	else
 		return ERR_OK;
