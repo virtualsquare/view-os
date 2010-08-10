@@ -60,7 +60,7 @@ struct dns_session {
 		int fdout;
 		struct dns_data *dnsd;
 
-    int timestamp;
+    time_t timestamp;
 };
 
 static struct dns_session dns_sessions[DNS_SESSIONS_MAX];
@@ -92,15 +92,29 @@ static int dns_session_allocate(struct sockaddr *addr, int addrlen,
 {
   struct dns_session *dnx;
   int k;
+	unsigned int mintime = ~0;
+	int kmin;
 
   for (k = 0; k < DNS_SESSIONS_MAX; k++) {
     dnx = &dns_sessions[k];
 
     if (!dns_session_in_use(dnx))
         goto found;
+
+		if (dns_sessions[k].timestamp < mintime) {
+			mintime=dns_sessions[k].timestamp;
+			kmin=k;
+		}
   }
 
+#ifdef NOLRU
   return -1;
+#else
+	//LRU
+	k=kmin;
+	dnx=&dns_sessions[k];
+	dns_session_terminate(dnx);
+#endif
 
  found:
   memset(dnx, 0, sizeof(*dnx));
@@ -239,7 +253,8 @@ static void dns_lwip_input(int fd, void *arg)
 		s=dns_session_allocate(src_addr,srclen,outfd,dnsd);
 		if (s<0)
 			close(outfd);
-		slirpoll_addfd(outfd,dns_reply_input,(void *) s);
+		else
+			slirpoll_addfd(outfd,dns_reply_input,(void *) s);
 	}
 	//printf("dns -> %d %d\n",s,len);
 	if (s>=0) {
