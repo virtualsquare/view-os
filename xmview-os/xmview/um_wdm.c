@@ -46,6 +46,10 @@
 #include "scmap.h"
 #include "utils.h"
 #include "gdebug.h"
+#ifdef _VIEWOS_KM
+#include "capture_km.h"
+#endif
+
 
 int wrap_in_getcwd(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
@@ -82,6 +86,28 @@ int wrap_in_getcwd(int sc_number,struct pcb *pc,
 	return SC_FAKE;
 }
 
+/* kmview: set/unset privatedir for ghost mount */
+static inline void set_wdm_kmview_chroot(struct pcb *pc)
+{
+#ifdef _VIEWOS_KM
+	/* when chroot-ed, PCB_KM_PRIVATEDIR is always set */
+	if (strcmp(pc->fdfs->root,"/")==0) {
+		/* if this is a ghost mount (returns 0 when pc->hte is NULL) */
+		if (ht_get_mountflags(pc->hte) & MS_GHOST) {
+			if ((pc->flags & PCB_KM_PRIVATEDIR) == 0) {
+				capture_km_kmpid_chroot(pc->kmpid,1);
+				pc->flags |= PCB_KM_PRIVATEDIR;
+			}
+		} else {
+			if ((pc->flags & PCB_KM_PRIVATEDIR) != 0) {
+				capture_km_kmpid_chroot(pc->kmpid,0);
+				pc->flags &= ~PCB_KM_PRIVATEDIR;
+			}
+		}
+	}
+#endif
+}
+
 /* TODO: While fchdir tries to make a chdir to the real directory instead of
  * /tmp (if it exists), chdir does not try this yet. I was not sure about
  * the correct check and where to put it, so I haven't done it at the moment.
@@ -95,7 +121,7 @@ int wrap_in_chdir(int sc_number,struct pcb *pc,
 		else
 			pc->erno=ENOTDIR;
 	}
-	if ( (pc->erno==0) && (um_x_access(pc->path,X_OK,pc)!=0) ) {
+	if ( (pc->erno==0) && (um_x_access(pc->path,X_OK,pc,&pc->pathstat)!=0) ) {
 			pc->erno=EACCES;
 	}
 	if (pc->erno == 0 && S_ISDIR(pc->pathstat.st_mode)) {
@@ -123,6 +149,7 @@ int wrap_out_chdir(int sc_number,struct pcb *pc)
 	} else {
 		pc->retval=getrv(pc);
 		if (pc->retval >= 0) {
+			set_wdm_kmview_chroot(pc);
 			free(pc->fdfs->cwd);
 			pc->fdfs->cwd = pc->path;
 			pc->path=NULL;
@@ -136,8 +163,17 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
 	char *path;
-
-	if ((path=fd_getpath(pc->fds,pc->sysargs[0])) != NULL) {
+	path=fd_getpath(pc->fds,pc->sysargs[0]);
+	if (path == NULL) {
+		int rv;
+		path=alloca(PATH_MAX);
+		snprintf(path,PATH_MAX,"/proc/%d/fd/%ld",pc->pid,pc->sysargs[0]);
+		if ((rv=readlink(path,path,PATH_MAX)) < 0) 
+			path=NULL;
+		else 
+			path[rv]=0;
+	}
+	if (path != NULL) {
 		//printk("fchdir to %s\n",path);
 		pc->path=strdup(path);
 		um_x_lstat64(pc->path, &(pc->pathstat), pc, 0);
@@ -157,7 +193,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 		else
 		{
 			if (S_ISDIR(pc->pathstat.st_mode)) {
-				if (um_x_access(pc->path,X_OK,pc)!=0) {
+				if (um_x_access(pc->path,X_OK,pc,&pc->pathstat)!=0) {
 					GDEBUG(4, "FCHDIR EACCES for %s", pc->path);
 					pc->erno=EACCES;
 					pc->retval = -1;
@@ -202,11 +238,28 @@ int wrap_in_chroot(int sc_number,struct pcb *pc,
 		pc->erno = ENOENT;
 		return SC_FAKE;
 	} else {
-		free(pc->fdfs->root);
-		pc->fdfs->root=strdup(pc->path); 
-		pc->retval = 0;
-		pc->erno = 0;
-		return SC_FAKE;
+		/* view-OS chroot can only restrict the visible subtree,
+			 no risk for users */
+#if 0
+		if (secure && capcheck(CAP_SYS_CHROOT,pc)) {
+			pc->retval = -1;
+			pc->erno = EPERM;
+			return SC_FAKE;
+		} else 
+#endif
+		{
+			if (strcmp(pc->fdfs->root,pc->path) != 0) {
+#ifdef _VIEWOS_KM
+				if (strcmp(pc->fdfs->root,"/")==0)
+					capture_km_kmpid_chroot(pc->kmpid,1);
+#endif
+				free(pc->fdfs->root);
+				pc->fdfs->root=strdup(pc->path); 
+			}
+			pc->retval = 0;
+			pc->erno = 0;
+			return SC_FAKE;
+		}
 	}
 }
 

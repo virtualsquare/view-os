@@ -1264,7 +1264,7 @@ static long umfuse_lstat64(char *path, struct stat64 *buf64, int fd)
 			buf.st_ino=(ino_t) hashnodeid(path);
 		/*heuristics for file system which does not set st_dev */
 		if (buf.st_dev == 0)
-			buf.st_dev=(dev_t) ((unsigned long)fc);
+			buf.st_dev=(dev_t)((unsigned long) fc);
 		stat2stat64(buf64,&buf);
 	}
 	return rv;

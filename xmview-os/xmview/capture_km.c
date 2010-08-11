@@ -48,7 +48,9 @@
 #include "kmview.h"
 
 #define NEVENTS 1
+int kmversion;
 int kmviewfd;
+long kmflags;
 struct kmview_event event[NEVENTS];
 #define umpid2pcb(X) (pcbtab[(X)-1])
 #define PCBSIZE 10
@@ -91,6 +93,9 @@ static int pcbtabsize;                /* actual size of the pcb table */
 
 divfun scdtab[_UM_NR_syscalls];                 /* upcalls */
 char scdnarg[_UM_NR_syscalls];  /*nargs*/
+unsigned int scdtab_bitmap[INT_PER_MAXSYSCALL]; /* bitmap */
+struct ghosthash64 ghostmounts={{GH_TERMINATE},{}};
+
 
 #if __NR_socketcall != __NR_doesnotexist
 divfun sockcdtab[19];                 /* upcalls */
@@ -186,9 +191,8 @@ void forallpcbdo(voidfun f,void *arg)
 }
 
 
-#if 0
 /* pid 2 pcb conversion (by linear search) */
-static struct pcb *pid2pcb(int pid)
+struct pcb *pid2pcb(int pid)
 {
 	register int i;
 	for (i = 0; i < pcbtabsize; i++) {
@@ -198,7 +202,6 @@ static struct pcb *pid2pcb(int pid)
 	}
 	return NULL;
 }
-#endif
 
 /* orphan processes must NULL-ify their parent process pointer */
 static void _cut_pp(struct pcb *pc, struct pcb *delpc)
@@ -509,20 +512,191 @@ void capture_execrc(const char *path,const char *argv1)
 	}
 }
 
+/* ghostmount management */
+/* hash sum and mod are separate functions:
+	 hash sums are used to quicly elimiate false positives,
+	 intermediate results can be completed during the scan */
+static inline unsigned int hashadd (long prevhash, char c) {
+	return prevhash ^ ((prevhash << 5) + (prevhash >> 2) + c);
+}
+
+static inline unsigned int hashsum (int sum,const char *path,int len) {
+	int i;
+	for (i=0;i<len;i++,path++)
+		sum=hashadd(sum,*path);
+	return sum;
+}
+
+static int gh2array(struct ghosthash64 *gh,
+		unsigned short *tmplen, unsigned int *tmphash)
+{
+	int i,ntmp;
+	short scanlen;
+	for (i=0,ntmp=0,scanlen=0;i<GH_SIZE &&
+			gh->deltalen[i] != GH_TERMINATE;i++) {
+		scanlen += gh->deltalen[i];
+		if (gh->deltalen[i] != GH_DUMMY) {
+			tmplen[ntmp] = scanlen;
+			tmphash[ntmp] = gh->hash[i];
+			ntmp++;
+		}
+	}
+	return ntmp;
+}
+
+static int array2gh(unsigned short *tmplen,unsigned int *tmphash,int ntmp,
+		struct ghosthash64 *gh)
+{
+	int ngh;
+	if (ntmp > 0) {
+		ngh=(tmplen[0]/GH_DUMMY)+1;
+		int i,j;
+		short scanlen;
+		for(i=1;i<ntmp;i++)
+			ngh+=((tmplen[i]-tmplen[i-1])/GH_DUMMY)+1;
+		if (ngh > GH_SIZE)
+			return -ENOMEM;
+		i=j=scanlen=0;
+		while (i<ntmp) {
+			if (tmplen[i] - scanlen >= GH_DUMMY) {
+				gh->deltalen[j] = GH_DUMMY;
+				scanlen += GH_DUMMY;
+				gh->hash[j] = -1;
+				j++;
+			} else {
+				gh->deltalen[j] = tmplen[i] - scanlen;
+				gh->hash[j] = tmphash[i];
+				scanlen=tmplen[i];
+				i++;
+				j++;
+			}
+		}
+	} else
+		ngh=0;
+	if (ngh < GH_SIZE)
+		gh->deltalen[ngh] = GH_TERMINATE;
+	return ngh;
+}
+
+int ghosthash_add(const char *path,int len)
+{
+	unsigned short tmplen[GH_SIZE];
+	unsigned int tmphash[GH_SIZE];
+	unsigned short ntmp=gh2array(&ghostmounts,tmplen,tmphash);
+	int pos,rv;
+	if (ntmp >= GH_SIZE)
+		return -ENOMEM;
+	for (pos=0;pos<ntmp && tmplen[pos]<len;pos++)
+		;
+	memmove(&tmplen[pos+1],&tmplen[pos],(ntmp-pos)*sizeof(short));
+	memmove(&tmphash[pos+1],&tmphash[pos],(ntmp-pos)*sizeof(int));
+	ntmp++;
+	tmplen[pos]=len;
+	tmphash[pos]=hashsum(0,path,len);
+	rv=array2gh(tmplen, tmphash, ntmp, &ghostmounts);
+	if (rv >= 0 && kmversion >= 2)
+		r_ioctl(kmviewfd, KMVIEW_GHOSTMOUNTS, &ghostmounts);
+	return rv;
+}
+
+int ghosthash_del(const char *path,int len)
+{
+	unsigned int hash=hashsum(0,path,len);
+	unsigned short tmplen[GH_SIZE];
+	unsigned int tmphash[GH_SIZE];
+	unsigned short ntmp=gh2array(&ghostmounts,tmplen,tmphash);
+	int pos;
+	for (pos=0;pos<ntmp && tmplen[pos]<=len && hash!=tmphash[pos];pos++)
+		;
+	if (pos<ntmp && len == tmplen[pos] &&  hash == tmphash[pos]) {
+		int rv;
+		memmove(&tmplen[pos],&tmplen[pos+1],(ntmp-pos-1)*sizeof(short));
+		memmove(&tmphash[pos],&tmphash[pos+1],(ntmp-pos-1)*sizeof(int));
+		ntmp--;
+		rv=array2gh(tmplen, tmphash, ntmp, &ghostmounts);
+		if (rv >= 0 && kmversion >= 2)
+			r_ioctl(kmviewfd, KMVIEW_GHOSTMOUNTS, &ghostmounts);
+		return rv;
+	} else
+		return -ENOENT;
+}
+
+static void scdtab_bitmap_init()
+{
+	register int i;
+	scbitmap_fill(scdtab_bitmap);
+	for (i=0; i<_UM_NR_syscalls; i++)
+		if (scdtab[i] != NULL) 
+			scbitmap_clr(scdtab_bitmap,i);
+#if __NR_socketcall != __NR_doesnotexist
+	scbitmap_clr(scdtab_bitmap,__NR_socketcall);
+#endif
+	/*for (i=0; i<MAXSYSCALL; i++)
+		if (scbitmap_isset(scdtab_bitmap,i) == 0)
+			printk("%d ",i);*/
+}
+
+void capture_km_kmpid_chroot(pid_t kmpid,int onoff)
+{
+	if (kmversion >= 2) {
+		if (onoff)
+			r_ioctl(kmviewfd, KMVIEW_SET_CHROOT, kmpid);
+		else
+			r_ioctl(kmviewfd, KMVIEW_CLR_CHROOT, kmpid);
+	}
+}
+
+void capture_km_global_get_path_syscalls(void)
+{
+	if (kmversion >= 2) {
+		kmflags &= ~KMVIEW_FLAG_PATH_SYSCALL_SKIP;
+		r_ioctl(kmviewfd, KMVIEW_SET_FLAGS, kmflags);
+	}
+}
+
+void capture_km_global_skip_path_syscalls(void)
+{
+	if (kmversion >= 2) {
+		kmflags |= KMVIEW_FLAG_PATH_SYSCALL_SKIP;
+		r_ioctl(kmviewfd, KMVIEW_SET_FLAGS, kmflags);
+	}
+}
+
 /* main capture startup */
 int capture_main(char **argv,void (*root_process_init)(void),char *rc)
 {
 	struct kmview_magicpoll mp={(long)&event,1};
-	long flags;
 	kmviewfd=r_open("/dev/kmview",O_RDONLY,0);
 	if (kmviewfd < 0)
 		return -1;
+	kmversion=r_ioctl(kmviewfd,KMVIEW_GET_VERSION);
 	r_ioctl(kmviewfd, KMVIEW_MAGICPOLL, &mp);
-	flags =  KMVIEW_FLAG_FDSET|KMVIEW_FLAG_EXCEPT_CLOSE|KMVIEW_FLAG_EXCEPT_FCHDIR;
+	kmflags =  KMVIEW_FLAG_FDSET|KMVIEW_FLAG_EXCEPT_FCHDIR;
 #if __NR_socketcall != __NR_doesnotexist
-	flags |= KMVIEW_FLAG_SOCKETCALL;
+	kmflags |= KMVIEW_FLAG_SOCKETCALL;
 #endif
-	r_ioctl(kmviewfd, KMVIEW_SET_FLAGS, flags);
+	if (kmversion >= 2)
+		kmflags |= KMVIEW_FLAG_PATH_SYSCALL_SKIP;
+	else
+		kmflags |= KMVIEW_FLAG_EXCEPT_CLOSE;
+	if (kmversion >= 2) {
+		ghosthash_add("/proc/0",7);
+		ghosthash_add("/proc/1",7);
+		ghosthash_add("/proc/2",7);
+		ghosthash_add("/proc/3",7);
+		ghosthash_add("/proc/4",7);
+		ghosthash_add("/proc/5",7);
+		ghosthash_add("/proc/6",7);
+		ghosthash_add("/proc/7",7);
+		ghosthash_add("/proc/8",7);
+		ghosthash_add("/proc/9",7);
+	}
+
+	r_ioctl(kmviewfd, KMVIEW_SET_FLAGS, kmflags);
+	if (kmversion >= 2) {
+		scdtab_bitmap_init();
+		r_ioctl(kmviewfd, KMVIEW_SYSCALLBITMAP, scdtab_bitmap);
+	}
 	allocatepcbtab();
 	switch (r_fork()) {
 		case -1:

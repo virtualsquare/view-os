@@ -26,6 +26,8 @@ char *user;
 int uid;
 int gid;
 char *arg0;
+int ngroups;
+gid_t *groups;
 
 void usage(char *argv0)
 {
@@ -133,6 +135,7 @@ int main(int argc, char *argv[])
 		gid=pwd->pw_gid;
 		shell=pwd->pw_shell;
 	} else {
+		user="root";
 		pwd=getpwuid(0);
 		if(pwd)
 			shell=pwd->pw_shell;
@@ -146,19 +149,33 @@ int main(int argc, char *argv[])
 		asprintf(&arg0,"-%s",shell);
 	else
 		arg0=shell;
+	getgrouplist(user,gid,NULL,&ngroups);
+	groups=malloc(ngroups * sizeof (gid_t));
+	if (groups == NULL) 
+		ngroups=0;
+	else
+		getgrouplist(user,gid,groups,&ngroups);
 
 	switch (pid=fork()) {
 		case -1: exit(1);
 		case 0: 
-						 setresuid(uid,uid,uid);
-						 setresgid(gid,gid,gid);
-						 setpath();
-						 if (command)
-							 execl(shell,arg0,"-c",command,0);
-						 else
-							 execl(shell,arg0,0);
+						 if (setresuid(uid,uid,uid) < 0)
+							 perror(argv[0]);
+						 else {
+							 setresgid(gid,gid,gid);
+							 setgroups(ngroups,groups);
+							 setpath();
+							 if (command)
+								 execl(shell,arg0,"-c",command,0);
+							 else
+								 execl(shell,arg0,0);
+							 perror(arg0);
+						 }
+						 exit(1);
 						 break;
 		default:
 						 waitpid(pid,&status,0);
+						 exit(WEXITSTATUS(status));
 	}
+	return 0;
 }

@@ -56,6 +56,8 @@ void wake_tracer(int s);
 void do_wake_tracer();
 /* This is the handler of sigchld from user processes */
 void tracehand();
+/* pcb search (linear scan) */
+struct pcb *pid2pcb(int pid);
 
 int capture_attach(struct pcb *pc,pid_t pid);
 

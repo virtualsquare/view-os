@@ -69,8 +69,12 @@ int wrap_in_mkdir(int sc_number,struct pcb *pc,
 	if (pc->pathstat.st_mode != 0) {
 		pc->retval= -1; 
 		pc->erno= EEXIST; 
-	} else if ((pc->retval = um_syscall(pc->path,mode & ~ (pc->fdfs->mask))) < 0)
-		pc->erno=errno;
+	} else {
+		if (secure && (pc->retval=(um_parentwaccess(pc->path,pc))) < 0)
+			pc->erno=errno;
+		else if ((pc->retval = um_syscall(pc->path,mode & ~ (pc->fdfs->mask))) < 0)
+			pc->erno=errno;
+	}
 	return SC_FAKE;
 }
 
@@ -98,6 +102,22 @@ int wrap_in_mknod(int sc_number,struct pcb *pc,
 		mode=pc->sysargs[1];
 		dev=pc->sysargs[2];
 	}
+	if (secure) {
+		/* mode  requested creation of something other than a regular file,
+			 FIFO (named pipe), or Unix domain socket, and the caller is  not
+			 privileged (Linux: does not have the CAP_MKNOD capability); */
+		if (mode != S_IFREG && mode != S_IFIFO && mode != S_IFSOCK &&
+				capcheck(CAP_MKNOD,pc)) {
+			pc->retval = -1;
+			pc->erno = EPERM;
+			return SC_FAKE;
+		}
+		if (um_parentwaccess(pc->path,pc)) {
+			pc->retval = -1;
+			pc->erno = errno;
+			return SC_FAKE;
+		}
+	}
 	if (pc->pathstat.st_mode != 0) {
 		pc->retval= -1;
 		pc->erno= EEXIST;
@@ -114,15 +134,36 @@ int wrap_in_unlink(int sc_number,struct pcb *pc,
 		 um_syscall=ht_syscall(hte,uscno(__NR_rmdir));
 	} 
 #endif
-	if ((pc->retval = um_syscall(pc->path)) < 0)
+	if (secure && (pc->retval=(um_parentwaccess(pc->path,pc))) < 0)
+		pc->erno=errno;
+	else if ((pc->retval = um_syscall(pc->path)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
+}
+
+static inline int chown_eperm(struct pcb *pc,unsigned int owner,unsigned int group)
+{
+	/*  Only a privileged process (Linux: one with  the  CAP_CHOWN  capability)
+			may  change  the  owner  of a file.  The owner of a file may change the
+			group of the file to any group of which that  owner  is  a  member.   A
+			privileged  process  (Linux: with CAP_CHOWN) may change the group arbi‐
+			trarily. */
+	if (capcheck(CAP_CHOWN,pc)) {
+		if (owner != (unsigned int) -1 &&
+				owner != pc->pathstat.st_uid)
+			return 1;
+		if (group != (unsigned int) -1 &&
+				group != pc->pathstat.st_gid &&
+				in_supgrplist(group,pc) == 0)
+			return 1;
+	}
+	return 0;
 }
 
 int wrap_in_chown(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
-	unsigned int owner,group;
+	int owner,group;
 #ifdef __NR_fchownat
 	if (sc_number == __NR_fchownat) {
 		owner=pc->sysargs[2];
@@ -139,6 +180,13 @@ int wrap_in_chown(int sc_number,struct pcb *pc,
 		group=id16to32(group);
 	}
 #endif
+	if (secure) {
+		if (chown_eperm(pc,owner,group)) {
+			pc->retval=-1;
+			pc->erno=EPERM;
+			return SC_FAKE;
+		}
+	}
 	if ((pc->retval = um_syscall(pc->path,owner,group,-1)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
@@ -163,10 +211,37 @@ int wrap_in_fchown(int sc_number,struct pcb *pc,
 			group=id16to32(group);
 		}
 #endif
+		if (secure) {
+			pc->path=strdup(path);
+			um_x_lstat64(pc->path, &(pc->pathstat), pc, 0);
+			if (chown_eperm(pc,owner,group)) {
+				pc->retval=-1;
+				pc->erno=EPERM;
+				return SC_FAKE;
+			}
+		}
 		if ((pc->retval = um_syscall(path,owner,group,sfd)) < 0)
 			pc->erno=errno;
 		return SC_FAKE;
 	}
+}
+
+static inline int chmod_eperm(struct pcb *pc,int *pmode)
+{
+	/* The effective UID of the calling process must match the  owner  of  the
+		 file,  or  the  process  must  be  privileged  (Linux: it must have the
+		 CAP_FOWNER capability). */
+	if (capcheck(CAP_FOWNER,pc) && pc->euid != pc->pathstat.st_uid) 
+		return 1;
+	/* If the calling process is not privileged  (Linux:  does  not  have  the
+		 CAP_FSETID  capability),  and  the group of the file does not match the
+		 effective group ID of the process or one  of  its  supplementary  group
+		 IDs,  the  S_ISGID  bit  will be turned off, but this will not cause an
+		 error to be returned. */
+	if (capcheck(CAP_FSETID,pc) && pc->egid != pc->pathstat.st_gid &&
+			in_supgrplist(pc->pathstat.st_gid,pc) == 0) 
+		*pmode &= ~S_ISGID;
+	return 0;
 }
 
 int wrap_in_chmod(int sc_number,struct pcb *pc,
@@ -179,6 +254,13 @@ int wrap_in_chmod(int sc_number,struct pcb *pc,
 	else
 #endif
 		mode=pc->sysargs[1];
+	if (secure) {
+		if (chmod_eperm(pc,&mode)) {
+			pc->retval=-1;
+			pc->erno=EPERM;
+			return SC_FAKE;
+		}
+	}
 	if ((pc->retval = um_syscall(pc->path,mode,-1)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
@@ -196,6 +278,15 @@ int wrap_in_fchmod(int sc_number,struct pcb *pc,
 		int mode;
 		int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 		mode=pc->sysargs[1];
+		if (secure) {
+			pc->path=strdup(path);
+			um_x_lstat64(pc->path, &(pc->pathstat), pc, 0); 
+			if (chmod_eperm(pc,&mode)) {
+				pc->retval=-1;
+				pc->erno=EPERM;
+				return SC_FAKE;
+			}
+		}
 		if ((pc->retval = um_syscall(path,mode,sfd)) < 0)
 			pc->erno=errno;
 		return SC_FAKE;
@@ -230,9 +321,13 @@ int wrap_in_dup(int sc_number,struct pcb *pc,
 	} else {
 		pc->retval=fd2lfd(pc->fds,pc->sysargs[0]);
 		pc->erno = 0;
-		if (pc->retval >= 0)
+		if (pc->retval >= 0) {
 			lfd_dup(pc->retval);
-		return SC_CALLONXIT;
+			return SC_CALLONXIT;
+		} else if (fd2lfd(pc->fds,pc->sysargs[1]) >= 0)
+			return SC_CALLONXIT;
+		else
+			return STD_BEHAVIOR;
 	}
 }
 
@@ -508,6 +603,13 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 			pc->retval= -1;
 			pc->erno= EXDEV;
 		} else {
+			pc->hte=hte;
+			if (secure && (pc->retval=(um_parentwaccess(pc->path,pc))) < 0)
+				pc->erno=errno;
+			if (secure && 
+					(sc_number == __NR_rename || sc_number == __NR_renameat) &&
+					(pc->retval=(um_parentwaccess(source,pc))) < 0)
+				pc->erno=errno;
 			if ((pc->retval=um_syscall(source,pc->path)) < 0)
 				pc->erno= errno;
 		}
@@ -529,6 +631,8 @@ int wrap_in_symlink(int sc_number,struct pcb *pc,
 		pc->retval= -1;
 		pc->erno= ENOENT;
 	} else {
+		if (secure && (pc->retval=(um_parentwaccess(pc->path,pc))) < 0)
+			pc->erno=errno;
 		if ((pc->retval=um_syscall(source,pc->path)) < 0)
 			pc->erno= errno;
 		free(source);
@@ -578,6 +682,8 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 			umoven(pc,argaddr,2*sizeof(struct timeval),tv);
 		larg=tv;
 	}
+	if (secure && (pc->retval=(um_x_access(pc->path,W_OK,pc,&pc->pathstat))) < 0)
+		pc->erno=errno;
 	if ((pc->retval = um_syscall(pc->path,larg)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
@@ -596,6 +702,11 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 	unsigned int mountflags=pc->sysargs[3];
 	unsigned long pdata=pc->sysargs[4];
 	struct stat64 imagestat;
+	if (secure && capcheck(CAP_SYS_ADMIN,pc)) {
+		pc->retval = -1;
+		pc->erno = EPERM;
+		return SC_FAKE;
+	}
 	umovestr(pc,fstype,PATH_MAX,filesystemtype);
 	source = um_abspath(AT_FDCWD,argaddr,pc,&imagestat,0);
 	/* maybe the source is not a path at all. source must exist.
@@ -608,9 +719,14 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 		assert(source);
 		umovestr(pc,argaddr,PATH_MAX,source);
 	} 
-	if (pdata != umNULL)
+	mountflags &= ~MS_GHOST;
+	if (pdata != umNULL) {
+		char *ghost;
 		umovestr(pc,pdata,PATH_MAX,data);
-	else
+		if ((ghost=strstr(data,"ghost")) != NULL && (ghost==data || ghost[-1]==',') &&
+				(ghost[5]=='\0' || ghost[5]==','))
+			mountflags |= MS_GHOST;
+	} else
 		datax=NULL;
 	if ((pc->retval = um_syscall(source,pc->path,get_alias(CHECKFSALIAS,filesystemtype),
 					mountflags,datax)) < 0)
@@ -624,7 +740,10 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 static int wrap_in_umount_generic(struct pcb *pc,struct ht_elem *hte, 
 		sysfun um_syscall,int flags)
 {
-	if (ht_get_count(hte) > 0) {
+	if (secure && capcheck(CAP_SYS_ADMIN,pc)) {
+		pc->retval = -1;
+		pc->erno = EPERM;
+	} else if (ht_get_count(hte) > 0) {
 		pc->retval=-1;
 		pc->erno=EBUSY;
 	} else if ((pc->retval = um_syscall(pc->path,flags)) < 0)
@@ -661,6 +780,8 @@ int wrap_in_truncate(int sc_number,struct pcb *pc,
 	else
 #endif
 		off=pc->sysargs[1];
+	if (secure && (pc->retval=(um_x_access(pc->path,W_OK,pc,&pc->pathstat))) < 0)
+		pc->erno=errno;
 	if ((pc->retval=um_syscall(pc->path,off)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;

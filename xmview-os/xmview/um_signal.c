@@ -22,15 +22,48 @@
  */
 
 #include <config.h>
+#include <sys/types.h>
+#include <signal.h>
+#include <errno.h>
 #include "defs.h"
 #include "hashtab.h"
 #include "mainpoll.h"
+#include "capture.h"
+#include "sctab.h"
 
 int wrap_in_kill(int sc_number,struct pcb *pc,
 		    struct ht_elem *hte, sysfun um_syscall)
 {
 	long pid=pc->sysargs[0];
-	if (bq_pidwake(pid,pc->sysargs[1])) {
+	long signo=pc->sysargs[1];
+	if (secure) {
+		if (capcheck(CAP_KILL,pc)) {
+			/* For  a  process  to  have permission to send a signal it must either be
+				 privileged (under Linux: have the CAP_KILL capability), or the real  or
+				 effective  user  ID of the sending process must equal the real or saved
+				 set-user-ID of the target process. */
+			struct pcb *target=pid2pcb(pid);
+			if (target != NULL) {
+				if (pc->ruid != target->ruid && pc->ruid != target->suid &&
+						pc->euid != target->ruid && pc->euid != target->suid) {
+					/* XXX todo: In the case of SIGCONT it  suffices
+						 when the sending and receiving processes belong to the same session. */
+					if (signo != SIGCONT) {
+						pc->retval=-1;
+						pc->erno=EPERM;
+						return SC_FAKE;
+					}
+				}
+			} else {
+				/* XXX signals to external process: allow or deny? option? */
+				/* NOW: CAP_KILL->allow !CAP_KILL->deny */
+				pc->retval=-1;
+				pc->erno=EPERM;
+				return SC_FAKE;
+			}
+		}
+	}
+	if (bq_pidwake(pid,signo)) {
 		putscno(__NR_getpid,pc);
 		return SC_MODICALL;
 	} else
@@ -39,5 +72,7 @@ int wrap_in_kill(int sc_number,struct pcb *pc,
 
 int wrap_out_kill(int sc_number,struct pcb *pc)
 {
-	return STD_BEHAVIOR;
+	if (pc->retval < 0)
+		puterrno(pc->erno,pc);
+	return SC_MODICALL;
 }

@@ -32,6 +32,7 @@
 
 #define VIRSYS_MSOCKET 2
 
+#ifdef OLDVIRSC
 static inline long msocket(char *path, int domain, int type, int protocol) {
 	struct __sysctl_args scarg;
 	long args[6]={(long) path,domain,type,protocol,0,0};
@@ -43,6 +44,12 @@ static inline long msocket(char *path, int domain, int type, int protocol) {
 	scarg.newlen=4;
 	return syscall(__NR__sysctl,&scarg);
 }
+#else
+static inline long msocket(char *path, int domain, int type, int protocol) {
+	long args[6]={(long) path,domain,type,protocol,0,0};
+	return syscall(__NR_pivot_root,NULL,4,VIRSYS_MSOCKET,args);
+}
+#endif
 
 #define S_IFSTACK 0160000
 #define SOCK_DEFAULT 0

@@ -27,6 +27,7 @@
 #include <config.h>
 #include <um_lib.h>
 
+#ifdef OLDVIRSC
 static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,long arg4,long arg5,long arg6) {
 	struct __sysctl_args scarg;
 	long args[6]={arg1,arg2,arg3,arg4,arg5,arg6};
@@ -38,6 +39,12 @@ static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,lon
 	scarg.newlen=n;
 	return syscall(__NR__sysctl,&scarg);
 }
+#else
+static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,long arg4,long arg5,long arg6) {
+	long args[6]={arg1,arg2,arg3,arg4,arg5,arg6};
+	return syscall(__NR_pivot_root,NULL,n,virscno,args);
+}
+#endif
 
 long (*virnsyscall)() = int_virnsyscall;
 

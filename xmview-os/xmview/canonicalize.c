@@ -197,7 +197,7 @@ static int rec_realpath(struct canonstruct *cdata, char *dest)
 		 	if (!S_ISDIR(cdata->statbuf->st_mode)) {
 				um_set_errno(cdata->xpc,ENOTDIR);
 				return -1;
-			} else if (um_x_access(cdata->resolved,X_OK,cdata->xpc) < 0) {
+			} else if (um_x_access(cdata->resolved,X_OK,cdata->xpc,cdata->statbuf) < 0) {
 				um_set_errno(cdata->xpc,errno);
 				return -1;
 			}

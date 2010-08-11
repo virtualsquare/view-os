@@ -1,8 +1,5 @@
 ACLOCAL_AMFLAGS = -I m4
 
-#SUBDIRS = um-viewos um_lib um_cmd include doc um_testmodule um_viewfs umdev \
-#umdev_testmodules umdevmbr umbinfmt
-
 DEBUGLEVEL = 3
 
 SUBDIRS = doc include um_lib um_cmd um_testmodule umdev umdev_testmodules umdevmbr umbinfmt xmview ummisc ummisc_modules um_viewfs umnet umnet_modules
@@ -18,11 +15,6 @@ endif
 if ENABLE_UM_LWIP
 SUBDIRS += umnetlwipv6
 endif
-
-#umpyew disabled
-#if ENABLE_UMPYEW
-#SUBDIRS += umpyew
-#endif
 
 tags:
 	ctags -R .

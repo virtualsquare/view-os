@@ -57,6 +57,9 @@
 #ifndef __NR_getgroups32
 #define __NR_getgroups32 __NR_getgroups
 #endif
+#ifndef __NR_setgroups32
+#define __NR_setgroups32 __NR_setgroups
+#endif
 #ifndef __NR_getresuid32
 #define __NR_getresuid32 __NR_getresuid
 #endif

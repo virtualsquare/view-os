@@ -29,6 +29,8 @@
 #include <sys/ptrace.h>
 #include <sys/select.h>
 #include <sys/mman.h>
+#include <sys/mount.h>
+#include <sys/types.h>
 #include <sched.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
@@ -38,7 +40,10 @@
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#ifdef OLDVIRSC
 #include <linux/sysctl.h>
+#endif
 #include <config.h>
 
 #include "defs.h"
@@ -54,6 +59,9 @@
 #include "capture_nested.h"
 #include "hashtab.h"
 #include "gdebug.h"
+
+uid_t host_uid;
+gid_t host_gid;
 
 static const char *const _sys_sigabbrev[NSIG] =
 {
@@ -133,6 +141,50 @@ int um_x_lstat64(char *filename, struct stat64 *buf, struct pcb *pc, int isdotdo
 	return retval;
 }
 
+static int um_stat2access(int mode, struct pcb *pc, 
+		struct stat64 *stbuf, int real_uid)
+{
+	if (stbuf->st_mode == 0) {
+		errno=ENOENT;
+		return -1;
+	} else if ((mode & W_OK) && (ht_get_mountflags(pc->hte) & MS_RDONLY)) {
+		errno=EROFS;
+		return -1;
+	} else {
+		uid_t uid;
+		gid_t gid;
+		if (pc->hte == NULL) {
+			uid=host_uid;
+			gid=host_gid;
+		} else {
+			uid=(real_uid)?pc->ruid:pc->fsuid;
+			gid=(real_uid)?pc->rgid:pc->fsgid;
+		}
+		if (uid == 0 || secure == 0) {
+			if ((mode & X_OK) && 
+					!(stbuf->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH))) {
+				errno=EACCES;
+				return -1;
+			} else
+				return 0;
+		} else {
+			if (uid == stbuf->st_uid &&
+					(((stbuf->st_mode & S_IRWXU) >> 6) & mode) == mode)
+				return 0;
+			else if ((gid == stbuf->st_gid ||
+						in_supgrplist(stbuf->st_gid, pc)) &&
+					(((stbuf->st_mode & S_IRWXG) >> 3) & mode) == mode)
+				return 0;
+			else if ((stbuf->st_mode & S_IRWXO & mode) == mode)
+				return 0;
+			else {
+				errno=EACCES;
+				return -1;
+			}
+		}
+	}
+}
+
 /* internal call: check the permissions for a file,
    search for module */
 int um_xx_access(char *filename, int mode, struct pcb *pc)
@@ -158,9 +210,64 @@ int um_xx_access(char *filename, int mode, struct pcb *pc)
 	return retval;
 }
 										 
+int um_parentwaccess(char *filename, struct pcb *pc)
+{
+	int lastslash=strlen(filename)-1;
+	char *parent=filename;
+	struct ht_elem *hte;
+	struct stat64 stbuf;
+	long oldscno;
+	int retval;
+	epoch_t epoch,nestepoch;
+	//printk("%s \n",filename);
+	while ((parent[lastslash]!='/') && (lastslash>0)) 
+		lastslash--;
+	if (lastslash==0)
+		parent="/";
+	parent[lastslash]='\0';
+	//printk("-> um_parentwaccess: %s\n",parent);
+	/* internal nested call save data */
+	oldscno = pc->sysscno;
+	epoch=pc->tst.epoch;
+	nestepoch=pc->nestepoch;
+	pc->sysscno = NR64_lstat;
+	pc->tst.epoch=pc->nestepoch=get_epoch();
+	if ((hte=ht_check(CHECKPATH,parent,NULL,0)) == NULL) {
+		retval = r_lstat64(filename,&stbuf);
+	} else {
+		struct ht_elem *oldhte=pc->hte;
+		pc->hte=hte;
+		retval = ht_syscall(hte,uscno(NR64_lstat))(filename,&stbuf,-1);
+		pc->hte=oldhte;
+	}
+	pc->sysscno = oldscno;
+	pc->tst.epoch=epoch;
+	pc->nestepoch=nestepoch;
+	filename[lastslash]='/';
+	if (pc->suid == stbuf.st_uid && (stbuf.st_mode & S_IWUSR))
+		return 0;
+	else if ((stbuf.st_mode & S_IWGRP) && 
+			(pc->sgid == stbuf.st_gid || in_supgrplist(stbuf.st_gid, pc)))
+		return 0;
+	else if (stbuf.st_mode & S_IWOTH)
+		return 0;
+	else {
+		errno=EACCES;
+		return -1;
+	}
+	return 0;
+}
+
+#define FASTACCESS
 /* internal call: check the permissions for a file,
    this must follow a um_x_lstat64 */
-int um_x_access(char *filename, int mode, struct pcb *pc)
+#ifdef FASTACCESS
+int um_x_access(char *filename, int mode, struct pcb *pc, struct stat64 *stbuf)
+{
+	return um_stat2access(mode, pc, stbuf, 0);
+}
+#else
+int um_x_access(char *filename, int mode, struct pcb *pc, struct stat64 *stbuf)
 {
 	int retval;
 	long oldscno;
@@ -174,12 +281,21 @@ int um_x_access(char *filename, int mode, struct pcb *pc)
 		epoch_t epoch=pc->nestepoch;
 		pc->nestepoch=ht_get_epoch(pc->hte);
 		retval = ht_syscall(pc->hte,uscno(__NR_access))(filename,mode);
+#if 0
+		{
+			int test;
+			test=um_stat2access(mode, pc, stbuf, 0);
+			if (test != retval) 
+				printk("diff %s %d -> %d %d %o %s\n",filename, mode, retval, test, pc->pathstat.st_mode, strerror(errno));
+		}
+#endif
 		pc->nestepoch=epoch;
 	}
 	/* internal nested call restore data */
 	pc->sysscno=oldscno;
 	return retval;
 }
+#endif
 										 
 /* internal call: read a symbolic link target 
    this must follow a um_x_lstat64 */
@@ -239,10 +355,16 @@ static char *utimensat_nullpath(int dirfd,struct pcb *pc,struct stat64 *pst,int 
 	} else {
 		char *path=fd_getpath(pc->fds,dirfd);
 		if (path==NULL) {
-			pc->erno = EBADF;
-			return um_patherror;
-		} else
-			return strdup(path);
+			int rv;
+			path=alloca(PATH_MAX);
+			snprintf(path,PATH_MAX,"/proc/%d/fd/%d",pc->pid,dirfd);
+			if ((rv=readlink(path,path,PATH_MAX)) < 0) {
+				pc->erno = EBADF;
+				return um_patherror;
+			} else
+				path[rv]=0;
+		}
+		return strdup(path);
 	}
 }
 
@@ -260,12 +382,19 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 		else {
 			cwd=fd_getpath(pc->fds,dirfd);
 			if (cwd==NULL) {
-				pc->erno = EBADF;
-				return um_patherror;
+				int rv;
+				cwd=alloca(PATH_MAX);
+				snprintf(cwd,PATH_MAX,"/proc/%d/fd/%d",pc->pid,dirfd);
+				if ((rv=readlink(cwd,cwd,PATH_MAX)) < 0) {
+					pc->erno = EBADF;
+					return um_patherror;
+				} else 
+					cwd[rv]=0;
 			}
 		}
 		pc->hte=NULL;
 		um_realpath(path,cwd,newpath,pst,dontfollowlink,pc);
+		/* View-OS core chroot management: if root is not '/' always rewrite pathnames */
 		if (root[1] != 0 && pc->hte == NULL)
 			pc->needs_path_rewrite=1;
 		/* printk("PATH %s (%s,%s) NEWPATH %s (%p,%d) %lld\n",path,um_getroot(pc),pc->fdfs->cwd,newpath,pc->hte,pc->erno,pc->nestepoch); */
@@ -280,7 +409,7 @@ char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int don
 	}
 }
 
-/* Common framework for the dsys_{megawrap,socketwrap,sysctlwrap,...} - they all
+/* Common framework for the dsys_{megawrap,socketwrap,virscwrap,...} - they all
  * do the usual work, but with different parameter handling.
  * What a dsys_* function do is, in general, receiving the notification of an
  * IN/OUT phase of syscall about a certain process, and decide what to do. What
@@ -456,8 +585,9 @@ int dsys_socketwrap(int sc_number,int inout,struct pcb *pc)
 }
 #endif
 
-/* sysctl argument parsing function */
-void dsys_um_sysctl_parse_arguments(struct pcb *pc, int scno)
+/* virsc argument parsing function */
+#ifdef OLDVIRSC
+void dsys_um_virsc_parse_arguments(struct pcb *pc, int scno)
 {
 	struct __sysctl_args sysctlargs;
 	sysctlargs.name=NULL;
@@ -478,20 +608,30 @@ void dsys_um_sysctl_parse_arguments(struct pcb *pc, int scno)
 		pc->sysargs[1] = 0;
 	}
 }
+#else
+void dsys_um_virsc_parse_arguments(struct pcb *pc, int scno)
+{
+	if (pc->sysargs[0] == umNULL && pc->sysargs[1] <= 6) { /* virtual syscall */
+		pc->private_scno = pc->sysargs[2] | ESCNO_VIRSC;
+		umoven(pc,pc->sysargs[3], pc->sysargs[1] * sizeof(long), pc->sysargs);
+	} else
+		pc->private_scno = ESCNO_VIRSC;
+}
+#endif
 
 /* index function for sysctl: parse args above puts the 
  * number of syscall in sysargs[1]*/
-int dsys_um_sysctl_index_function(struct pcb *pc, int scno)
+int dsys_um_virsc_index_function(struct pcb *pc, int scno)
 {
 	return (pc->private_scno & ESCNO_MASK);
 }
 
-/* megawrap for sysctl */
-int dsys_um_sysctl(int sc_number,int inout,struct pcb *pc)
+/* megawrap for virsc */
+int dsys_um_virsc(int sc_number,int inout,struct pcb *pc)
 {
 	return dsys_commonwrap(sc_number, inout, pc,
-			dsys_um_sysctl_parse_arguments,
-			dsys_um_sysctl_index_function, ht_virsyscall,
+			dsys_um_virsc_parse_arguments,
+			dsys_um_virsc_index_function, ht_virsyscall,
 			virscmap);
 }
 
@@ -571,27 +711,43 @@ void pcb_plus(struct pcb *pc,int flags,int npcflag)
 				pc->fdfs->root=strdup("/");
 				/*pc->fdfs->mask=local_getumask();*/
 				pc->fdfs->mask=r_umask(0);
-				r_umask(pc->fdfs->mask);
-				/* create the root of the treepoch */
-				pc->tst=tst_newfork(NULL);
-				/* set the initial uid */
-				r_getresuid(&pc->ruid,&pc->euid,&pc->suid);
-				r_getresgid(&pc->rgid,&pc->egid,&pc->sgid);
-				pc->fsuid=pc->euid;
-				pc->fsgid=pc->egid;
-				pc->hte=NULL;
 			} else {
 				pc->fdfs->cwd=strdup(pc->pp->fdfs->cwd);
 				pc->fdfs->root=strdup(pc->pp->fdfs->root);
 				pc->fdfs->mask=pc->pp->fdfs->mask;
-				pc->ruid=pc->pp->ruid;
-				pc->euid=pc->fsuid=pc->pp->euid;
-				pc->suid=pc->pp->suid;
-				pc->rgid=pc->pp->rgid;
-				pc->egid=pc->fsgid=pc->pp->egid;
-				pc->sgid=pc->pp->sgid;
-				pc->hte=pc->pp->hte;
 			}
+		}
+		if (rootprocess) {
+			int ngroups=r_getgroups(0,NULL);
+			r_umask(pc->fdfs->mask);
+			/* create the root of the treepoch */
+			pc->tst=tst_newfork(NULL);
+			/* set the initial uid */
+			if (secure) {
+				pc->ruid=pc->euid=pc->suid=0;
+				pc->rgid=pc->egid=pc->sgid=0;
+				r_getresuid(NULL,&host_uid,NULL);
+				r_getresgid(NULL,&host_gid,NULL);
+			} else {
+				r_getresuid(&pc->ruid,&pc->euid,&pc->suid);
+				r_getresgid(&pc->rgid,&pc->egid,&pc->sgid);
+				host_uid=pc->euid;
+				host_gid=pc->egid;
+			}
+			pc->fsuid=pc->euid;
+			pc->fsgid=pc->egid;
+			pc->hte=NULL;
+			pc->grouplist=supgrp_create(ngroups);
+			r_getgroups(ngroups,pc->grouplist->list);
+		} else {
+			pc->ruid=pc->pp->ruid;
+			pc->euid=pc->fsuid=pc->pp->euid;
+			pc->suid=pc->pp->suid;
+			pc->rgid=pc->pp->rgid;
+			pc->egid=pc->fsgid=pc->pp->egid;
+			pc->sgid=pc->pp->sgid;
+			pc->hte=pc->pp->hte;
+			pc->grouplist=supgrp_get(pc->pp->grouplist);
 		}
 		pc->tst=tst_newproc(&(pc->pp->tst));
 #if 0
@@ -630,6 +786,7 @@ void pcb_minus(struct pcb *pc,int flags,int npcbflag)
 			free(pc->data->fdfs->cwd);
 			free(pc->data);
 			}*/
+		supgrp_put(pc->grouplist);
 	}
 }
 
@@ -1194,6 +1351,39 @@ int um_mod_nrsyscalls(void)
 	return _UM_NR_syscalls;
 }
 
+/* management of supplementary groups */
+
+struct supgroups *supgrp_create(size_t size)
+{
+	struct supgroups *rv=malloc(sizeof(struct supgroups) + size*sizeof(gid_t));
+	assert(rv != NULL);
+	rv->size=size;
+	rv->count=1;
+	return rv;
+}
+
+struct supgroups *supgrp_get(struct supgroups *supgrp)
+{
+	supgrp->count++;
+	return supgrp;
+}
+
+void supgrp_put(struct supgroups *supgrp)
+{
+	supgrp->count--;
+	if (supgrp->count == 0)
+		free(supgrp);
+}
+
+int capcheck(int capability, struct pcb *pc)
+{
+	if (pc->euid == 0)
+		return 0;
+	else {
+		return -1;
+	}
+}
+
 /* for modules: management of module filetab. */
 #define FILETABSTEP 4 /* must be a power of two */
 #define FILETABSTEP_1 (FILETABSTEP-1)
@@ -1243,6 +1433,38 @@ void *getfiletab(int i)
 	return rv;
 }
 
+#ifdef _VIEWOS_KM
+/* upcall: hashtable calls this function when an element gets added/deleted */
+static void ht_zerovirt_upcall(int tag, unsigned char type,const void *obj,int objlen,long mountflags)
+{
+	/* ghost mount: this mount does not switch off/on zerovirt.
+		 update the ghosthash table instead */
+	if (type==CHECKPATH && (mountflags & MS_GHOST)) {
+		switch (tag) {
+			case HT_ADD: ghosthash_add(obj,objlen); break;
+			case HT_DEL: ghosthash_del(obj,objlen); break;
+		}
+	} else {
+		/* ht_count keeps track of the number of elements in the hashtable
+			 for each tag*/
+		static unsigned long ht_count[NCHECKS];
+		int oldsum=ht_count[CHECKPATH] + ht_count[CHECKCHRDEVICE] + ht_count[CHECKBLKDEVICE];
+		int newsum;
+		switch (tag) {
+			case HT_ADD: ht_count[type]++; break;
+			case HT_DEL: ht_count[type]--; break;
+		}
+		newsum=ht_count[CHECKPATH] + ht_count[CHECKCHRDEVICE] + ht_count[CHECKBLKDEVICE];
+		/* if this is the first (non ghost) element turn zerovirt off */
+		if (oldsum == 0 && newsum == 1)
+			capture_km_global_get_path_syscalls();
+		/* if this is the last (non ghost) element turn zerovirt on */
+		if (oldsum == 1 && newsum == 0)
+			capture_km_global_skip_path_syscalls();
+	}
+}
+#endif
+
 /* scdtab: interface between capture_* and the wrapper (wrap-in/out)
  * implemented for each system call (see um_*.c files) */
 /* capture_* call a "megawrap" that implements all the common code
@@ -1254,9 +1476,15 @@ void scdtab_init()
 	/* init service management */
 	service_addregfun(MC_PROC, (sysfun)reg_processes, (sysfun)dereg_processes);
 
+#ifdef OLDVIRSC
 	/* sysctl is used to define private system calls */
-	scdtab[__NR__sysctl]=dsys_um_sysctl;
+	scdtab[__NR__sysctl]=dsys_um_virsc;
 	scdnarg[__NR__sysctl]=1;
+#else
+	/* pivot_root is used to define private system calls */
+	scdtab[__NR_pivot_root]=dsys_um_virsc;
+	scdnarg[__NR_pivot_root]=4;
+#endif
 
 	/* initialize scmap */
 	init_scmap();
@@ -1281,6 +1509,9 @@ void scdtab_init()
 	/* start umproc (file management) and define an atexit function for
 	 * the final cleaning up */
 	um_proc_open();
+#ifdef _VIEWOS_KM
+	ht_init(ht_zerovirt_upcall);
+#endif
 	atexit(um_proc_close);
 	atexit(ht_terminate);
 }

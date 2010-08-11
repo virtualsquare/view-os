@@ -36,7 +36,9 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <signal.h>
+#ifdef OLDVIRSC
 #include <linux/sysctl.h>
+#endif
 #include <config.h>
 
 #ifndef _VIEWOS_KM
@@ -66,6 +68,7 @@ int _umview_version = 2; /* modules interface version id.
 										modules can test to be compatible with
 										um-viewos kernel*/
 unsigned int quiet = 0;
+unsigned int secure = 0;
 static char *viewname;
 
 extern int nprocs;
@@ -90,6 +93,7 @@ static void preadd(struct prelist **head,char *module)
 
 #ifdef KMVIEW_USER_NESTING
 /* virtual syscall for the underlying umview */
+#ifdef OLDVIRSC
 static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,long arg4,long arg5,long arg6) {
 	struct __sysctl_args scarg;
 	long args[6]={arg1,arg2,arg3,arg4,arg5,arg6};
@@ -101,6 +105,12 @@ static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,lon
 	scarg.newlen=n;
 	return native_syscall(__NR__sysctl,&scarg);
 }
+#else
+static long int_virnsyscall(long virscno,int n,long arg1,long arg2,long arg3,long arg4,long arg5,long arg6) {
+	long args[6]={arg1,arg2,arg3,arg4,arg5,arg6};
+	return native_syscall(__NR_pivot_root,NULL,n,virscno,args);
+}
+#endif
 #endif
 
 /* preload of modules */
@@ -179,7 +189,8 @@ static void usage(char *s)
 			"  -o file, --output file    send debug messages to file instead of stderr\n"
 #endif
 			"  -x, --nonesting           do not permit module nesting\n"
-			"  -u, --userrecursion       recursive invocation on the existing hypervisor\n",
+			"  -u, --userrecursion       recursive invocation on the existing hypervisor\n"
+			"  -s, --secure		           force permissions and capabilities\n",
 			s);
 	exit(0);
 }
@@ -195,6 +206,7 @@ static struct option long_options[] = {
 	{"help",0,0,'h'},
 	{"nonesting",0,0,'x'},
 	{"userrecursion",0,0,'u'},
+	{"secure",0,0,'s'},
 	{0,0,0,0}
 };
 
@@ -403,6 +415,9 @@ int main(int argc,char *argv[])
 				break;
 			case 'q':
 				quiet = 1;
+				break;
+			case 's':
+				secure = 1;
 				break;
 #ifdef GDEBUG_ENABLED
 			case 'o': /* debugging output file redirection */ { 

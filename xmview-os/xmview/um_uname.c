@@ -31,6 +31,7 @@
 #include <config.h>
 #include "defs.h"
 #include "hashtab.h"
+#include "sctab.h"
 #include "utils.h"
 
 int wrap_in_uname(int sc_number,struct pcb *pc,
@@ -101,6 +102,11 @@ int wrap_in_sethostname(int sc_number,struct pcb *pc,
 	long addr=pc->sysargs[0];
 	if (addr != umNULL) {
 		long size=pc->sysargs[1];
+		if (secure && capcheck(CAP_SYS_ADMIN,pc)) {
+			pc->retval = -1;
+			pc->erno = EPERM;
+			return SC_FAKE;
+		}
 		if (size > 0 || size <= HOST_NAME_MAX) {
 			char *name=alloca(size);
 			umovestr(pc,addr,size,name);

@@ -38,6 +38,7 @@
 #include <sys/ptrace.h>
 #include <sys/utsname.h>
 #include <asm/ptrace.h>
+#include <sys/capability.h>
 
 #define umNULL ((long) NULL)
 #undef SNDRCVMSGUNIFY
@@ -61,6 +62,11 @@
 #include <syscallnames.h>
 #endif
 // #define FAKESIGSTOP
+
+#ifndef MS_KERNMOUNT
+#define MS_KERNMOUNT    (1<<22) /* this is a kern_mount call */
+#endif
+#define MS_GHOST MS_KERNMOUNT /* ghost mount */
 
 #ifdef _VIEWOS_KM
 #	define sysargs	event.args
@@ -111,7 +117,7 @@ extern sfun native_syscall;
 #define r_pipe(v) (native_syscall(__NR_pipe,(v)))
 #define r_access(p,m) (native_syscall(__NR_access,(p),(m)))
 #define r_setpriority(w,p,o) (native_syscall(__NR_setpriority,(w),(p),(o)))
-#define r_setuid(u) (native_syscall(__NR_setuid,(u)))
+#define r_setuid(u) (native_syscall(__NR_setresuid,(u),(u),(u)))
 #define r_getuid() (native_syscall(__NR_getuid))
 #define r_getpid() (native_syscall(__NR_getpid))
 /* be careful getcwd syscall does not allocate the string for path=NULL */
@@ -149,6 +155,13 @@ extern sfun native_syscall;
 #define r_pread64(f,b,c,o1,o2) (native_syscall(__NR_pread64,(f),(b),(c),__LONG_LONG_PAIR((o1),(o2))))
 #define r_pwrite64(f,b,c,o1,o2) (native_syscall(__NR_pwrite64,(f),(b),(c),__LONG_LONG_PAIR((o1),(o2))))
 #endif
+#ifdef __NR_getgroups32
+#define r_getgroups(s,g) (native_syscall(__NR_getgroups32,(s),(g)))
+#define r_setgroups(s,g) (native_syscall(__NR_setgroups32,(s),(g)))
+#else
+#define r_getgroups(s,g) (native_syscall(__NR_getgroups,(s),(g)))
+#define r_setgroups(s,g) (native_syscall(__NR_setgroups,(s),(g)))
+#endif
 
 /* debugging functions */
 extern int printk(const char *fmt, ...);
@@ -156,6 +169,8 @@ extern int vprintk(const char *fmt, va_list ap);
 
 /* verbosity/quietness */
 extern unsigned int quiet;
+/* omnipotent/human */
+extern unsigned int secure;
 
 #ifdef _VIEWOS_UM
 	/* flags on the underlying kernel support */

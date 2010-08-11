@@ -63,6 +63,10 @@ wrapinfun wrap_in_utime, wrap_in_mount, wrap_in_umount,wrap_in_umount2;
 wrapinfun wrap_in_umask, wrap_in_chroot, wrap_in_mknod;
 wrapinfun wrap_in_truncate, wrap_in_ftruncate, wrap_in_execve;
 wrapinfun wrap_in_statfs, wrap_in_fstatfs;
+wrapinfun wrap_in_getgroups, wrap_in_setgroups;
+#ifdef VIEW_CAPABILITY
+wrapinfun wrap_in_capget, wrap_in_capset;
+#endif
 
 /* XXX: find a better way (see defs_x86_64*.h) */
 #if __NR_statfs64 != __NR_doesnotexist
@@ -338,6 +342,8 @@ struct sc_map scmap[]={
 	{__NR_setregid,	choice_sc,	wrap_in_setregid, wrap_out_std, 	always_null,	NULL, ALWAYS,	2, SOC_UID},
 	{__NR_getresgid, choice_sc,	wrap_in_getresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	{__NR_setresgid, choice_sc,	wrap_in_setresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
+	{__NR_getgroups, choice_sc,	wrap_in_getgroups, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
+	{__NR_setgroups, choice_sc,	wrap_in_setgroups, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	{__NR_getuid32,	choice_sc,	wrap_in_getxid, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
 	{__NR_setuid32,	choice_sc,	wrap_in_setuid, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
 	{__NR_geteuid32,	choice_sc,	wrap_in_getxid, wrap_out_std, 	always_null,	NULL, ALWAYS,	1, SOC_UID},
@@ -352,6 +358,8 @@ struct sc_map scmap[]={
 	{__NR_setregid32,	choice_sc,	wrap_in_setregid, wrap_out_std, 	always_null,	NULL, ALWAYS,	2, SOC_UID},
 	{__NR_getresgid32, choice_sc,	wrap_in_getresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	{__NR_setresgid32, choice_sc,	wrap_in_setresgid, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
+	{__NR_getgroups32, choice_sc,	wrap_in_getgroups, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
+	{__NR_setgroups32, choice_sc,	wrap_in_setgroups, wrap_out_std, 	always_null,	NULL, ALWAYS,	3, SOC_UID},
 	  
 	/* priority related calls */
 	{__NR_nice,	choice_sc,	wrap_in_nice,  wrap_out_std,	always_null,	NULL, 0,	1, SOC_PRIO},
@@ -368,6 +376,10 @@ struct sc_map scmap[]={
 	{__NR_getsid,	choice_sc,	wrap_in_getpid_1, wrap_out_std,	always_null,	NULL, 0,	1, SOC_PID},
 	{__NR_setsid,	choice_sc,	wrap_in_setpid,  wrap_out_std,	always_null,	NULL, 0,	0, SOC_PID},
 
+#ifdef VIEW_CAPABILITY
+	{__NR_capget, choice_sc, wrap_in_capget, wrap_out_std, always_null,  NULL, 0,  0, 0},
+	{__NR_capset, choice_sc, wrap_in_capset, wrap_out_std, always_null,  NULL, 0,  0, 0},
+#endif
 #if 0
 	{__NR_sysctl, choice_sysctl, wrap_in_sysctl, wrap_out_sysctl, always_null,	NULL, 0, 2, 0}
 	/* this is a trip */
@@ -414,12 +426,17 @@ struct sc_map sockmap[]={
 };
 #endif
 
+#ifdef OLDVIRSC
 /* virtual system calls, emulated on sysctl with name==NULL,
  * nlen is the number of call
  * oldval, oldlenp unused
  * newval is the args array
  * newlen is the number of arguments (NOT bytes, number of "long" args)
  * when name != NULL the entry 0 is used thus sysctl could be virtualized */
+#else
+/* virtual system calls, emulated on pivot_root with newroot==NULL,
+	 4 args: NULL, the number of virtual syscall, the number orf args, the address of the arg array (max 6 long ints) */
+#endif
 struct sc_map virscmap[]={
 	{__NR_doesnotexist,     always_null,          NULL,                   NULL,   always_null,  NULL, 0,        0, 0},
 	{VIRSYS_UMSERVICE,	always_null, wrap_in_umservice, wrap_out_umservice,   always_null,  NULL, ALWAYS, 1, SOC_NONE},

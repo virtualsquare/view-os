@@ -412,14 +412,23 @@ static long umnet_recvfrom(int fd, void *buf, size_t len, int flags,
 }
 
 long umnet_sendmsg(int fd, const struct msghdr *msg, int flags) {
-	return umnet_sendto(fd,msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
+	struct fileinfo *ft=getfiletab(fd);
+	if (ft->umnet->netops->sendmsg) 
+		return(ft->umnet->netops->sendmsg(ft->nfd,msg,flags));
+	else
+		return umnet_sendto(ft->nfd,msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
 			msg->msg_name,msg->msg_namelen);
 }
 
 long umnet_recvmsg(int fd, struct msghdr *msg, int flags) {
-	msg->msg_controllen=0;
-	return umnet_recvfrom(fd,msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
-			msg->msg_name,&msg->msg_namelen);
+	struct fileinfo *ft=getfiletab(fd);
+	if (ft->umnet->netops->recvmsg) 
+		return(ft->umnet->netops->recvmsg(ft->nfd, msg, flags));
+	else {
+		msg->msg_controllen=0;
+		return umnet_recvfrom(ft->nfd,msg->msg_iov->iov_base,msg->msg_iov->iov_len,flags,
+				msg->msg_name,&msg->msg_namelen);
+	}
 }
 
 static long umnet_getsockopt(int fd, int level, int optname,
