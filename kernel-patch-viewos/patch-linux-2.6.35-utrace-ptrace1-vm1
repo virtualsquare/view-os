@@ -1,0 +1,212 @@
+diff -Naur linux-2.6.35.utrace/include/linux/ptrace.h linux-2.6.35.utrace.vm1/include/linux/ptrace.h
+--- linux-2.6.35.utrace/include/linux/ptrace.h	2010-08-11 22:02:34.000000000 +0200
++++ linux-2.6.35.utrace.vm1/include/linux/ptrace.h	2010-08-12 18:03:51.000000000 +0200
+@@ -66,6 +66,11 @@
+ #define PTRACE_EVENT_VFORK_DONE	5
+ #define PTRACE_EVENT_EXIT	6
+ 
++/* options for new PTRACE_SYSCALL syntax*/
++#define PTRACE_SYSCALL_SKIPEXIT  0x2
++#define PTRACE_SYSCALL_SKIPCALL  0x6
++#define PTRACE_SYSCALL_MASK    0x00000006
++
+ #include <asm/ptrace.h>
+ 
+ #ifdef __KERNEL__
+@@ -88,6 +93,11 @@
+ #define PT_TRACE_VFORK_DONE	0x00000100
+ #define PT_TRACE_EXIT	0x00000200
+ 
++#define PT_SYSCALL_SKIPEXIT  0x60000000
++#define PT_SYSCALL_SKIPCALL  0x40000000
++#define PT_SYSCALL_MASK      0x60000000
++#define PTRACE2PT_SYSCALL(X)	(((X) & PTRACE_SYSCALL_MASK) << 28)
++
+ #define PT_TRACE_MASK	0x000003f4
+ 
+ /* single stepping state bits (used on ARM and PA-RISC) */
+diff -Naur linux-2.6.35.utrace/include/linux/tracehook.h linux-2.6.35.utrace.vm1/include/linux/tracehook.h
+--- linux-2.6.35.utrace/include/linux/tracehook.h	2010-08-11 22:02:28.000000000 +0200
++++ linux-2.6.35.utrace.vm1/include/linux/tracehook.h	2010-08-12 18:03:51.000000000 +0200
+@@ -118,7 +118,7 @@
+ 	    utrace_report_syscall_entry(regs))
+ 		return 1;
+ 	ptrace_report_syscall(regs);
+-	return 0;
++	return (task_ptrace(current) & PT_SYSCALL_SKIPCALL) ? 1 : 0;
+ }
+ 
+ /**
+@@ -150,7 +150,8 @@
+ 		return;
+ 	}
+ 
+-	ptrace_report_syscall(regs);
++	if (!(task_ptrace(current) & PT_SYSCALL_SKIPEXIT))
++		ptrace_report_syscall(regs);
+ }
+ 
+ /**
+diff -Naur linux-2.6.35.utrace/kernel/ptrace-utrace.c linux-2.6.35.utrace.vm1/kernel/ptrace-utrace.c
+--- linux-2.6.35.utrace/kernel/ptrace-utrace.c	2010-08-11 22:02:34.000000000 +0200
++++ linux-2.6.35.utrace.vm1/kernel/ptrace-utrace.c	2010-08-12 18:03:51.000000000 +0200
+@@ -67,6 +67,7 @@
+ #define PT_UTRACED			0x00001000
+ 
+ #define PTRACE_O_SYSEMU			0x100
++#define PTRACE_O_SKIPCALL		0x200
+ 
+ #define PTRACE_EVENT_SYSCALL		(1 << 16)
+ #define PTRACE_EVENT_SIGTRAP		(2 << 16)
+@@ -219,6 +220,8 @@
+ 				enum utrace_resume_action action,
+ 				bool force_wakeup)
+ {
++	struct ptrace_context *ctx = ptrace_context(engine);
++
+ 	if (force_wakeup) {
+ 		unsigned long flags;
+ 		/*
+@@ -232,7 +235,7 @@
+ 		}
+ 	}
+ 
+-	if (action != UTRACE_REPORT)
++	if (action != UTRACE_REPORT || ctx->options & PTRACE_O_SKIPCALL)
+ 		ptrace_context(engine)->stop_code = 0;
+ 
+ 	return utrace_control(tracee, engine, action);
+@@ -383,7 +386,7 @@
+ 		 * We already reported the first time.
+ 		 * Nothing more to do now.
+ 		 */
+-		if (unlikely(ctx->options & PTRACE_O_SYSEMU))
++		if (unlikely(ctx->options & (PTRACE_O_SYSEMU | PTRACE_O_SKIPCALL)))
+ 			return UTRACE_SYSCALL_ABORT | UTRACE_REPORT;
+ 		return utrace_syscall_action(action) | UTRACE_RESUME;
+ 	}
+@@ -394,6 +397,7 @@
+ 
+ 	if (unlikely(ctx->options & PTRACE_O_SYSEMU))
+ 		return UTRACE_SYSCALL_ABORT | UTRACE_REPORT;
++
+ 	/*
+ 	 * Stop now to report.  We will get another callback after
+ 	 * we resume, with the UTRACE_SYSCALL_RESUMED flag set.
+@@ -551,6 +555,10 @@
+ {
+ 	struct ptrace_context *ctx = ptrace_context(engine);
+ 
++	if (unlikely((ctx->options & PTRACE_O_SKIPCALL) &&
++				event == UTRACE_EVENT(SYSCALL_ENTRY)))
++		return event ? UTRACE_RESUME : ctx->resume;
++
+ 	if (ptrace_event_pending(ctx))
+ 		return UTRACE_STOP;
+ 
+@@ -831,13 +839,13 @@
+ }
+ 
+ static int ptrace_resume_action(struct task_struct *tracee,
+-				struct utrace_engine *engine, long request)
++				struct utrace_engine *engine, long request, long addr)
+ {
+ 	struct ptrace_context *ctx = ptrace_context(engine);
+ 	unsigned long events;
+ 	int action;
+ 
+-	ctx->options &= ~PTRACE_O_SYSEMU;
++	ctx->options &= ~(PTRACE_O_SYSEMU | PTRACE_O_SKIPCALL);
+ 	events = engine->flags & ~UTRACE_EVENT_SYSCALL;
+ 	action = UTRACE_RESUME;
+ 
+@@ -872,7 +880,14 @@
+ #endif
+ 
+ 	case PTRACE_SYSCALL:
+-		events |= UTRACE_EVENT_SYSCALL;
++		if (addr & (PTRACE_SYSCALL_SKIPCALL - PTRACE_SYSCALL_SKIPEXIT)) {
++			ctx->options |= PTRACE_O_SKIPCALL;
++			action = UTRACE_REPORT;
++		}
++		if (addr & PTRACE_SYSCALL_SKIPEXIT)
++			events |= UTRACE_EVENT(SYSCALL_ENTRY);
++		else
++			events |= UTRACE_EVENT_SYSCALL;
+ 		break;
+ 
+ 	case PTRACE_CONT:
+@@ -890,7 +905,7 @@
+ 
+ static int ptrace_resume(struct task_struct *tracee,
+ 				struct utrace_engine *engine,
+-				long request, long data)
++				long request, long addr, long data)
+ {
+ 	struct ptrace_context *ctx = ptrace_context(engine);
+ 	int action;
+@@ -898,7 +913,7 @@
+ 	if (!valid_signal(data))
+ 		return -EIO;
+ 
+-	action = ptrace_resume_action(tracee, engine, request);
++	action = ptrace_resume_action(tracee, engine, request, addr);
+ 	if (action < 0)
+ 		return action;
+ 
+@@ -1003,7 +1018,7 @@
+ 	case PTRACE_KILL:
+ 		/* Ugly historical behaviour. */
+ 		if (task_is_traced(child))
+-			ptrace_resume(child, engine, PTRACE_CONT, SIGKILL);
++			ptrace_resume(child, engine, PTRACE_CONT, addr, SIGKILL);
+ 		ret = 0;
+ 		break;
+ 
+@@ -1027,7 +1042,7 @@
+ 	}
+ 
+ 	default:
+-		ret = ptrace_resume(child, engine, request, data);
++		ret = ptrace_resume(child, engine, request, addr, data);
+ 		break;
+ 	}
+ 
+diff -Naur linux-2.6.35.utrace/kernel/ptrace.c linux-2.6.35.utrace.vm1/kernel/ptrace.c
+--- linux-2.6.35.utrace/kernel/ptrace.c	2010-08-11 22:02:34.000000000 +0200
++++ linux-2.6.35.utrace.vm1/kernel/ptrace.c	2010-08-12 18:03:51.000000000 +0200
+@@ -637,7 +637,8 @@
+ #define is_sysemu_singlestep(request)	0
+ #endif
+ 
+-static int ptrace_resume(struct task_struct *child, long request, long data)
++static int ptrace_resume(struct task_struct *child, long request, 
++		   long addr, long data)
+ {
+ 	if (!valid_signal(data))
+ 		return -EIO;
+@@ -666,6 +667,9 @@
+ 		user_disable_single_step(child);
+ 	}
+ 
++	child->ptrace &= ~PT_SYSCALL_MASK;
++	child->ptrace |= PTRACE2PT_SYSCALL(addr);
++
+ 	child->exit_code = data;
+ 	wake_up_process(child);
+ 
+@@ -753,12 +757,12 @@
+ #endif
+ 	case PTRACE_SYSCALL:
+ 	case PTRACE_CONT:
+-		return ptrace_resume(child, request, data);
++		return ptrace_resume(child, request, addr, data);
+ 
+ 	case PTRACE_KILL:
+ 		if (child->exit_state)	/* already dead */
+ 			return 0;
+-		return ptrace_resume(child, request, SIGKILL);
++		return ptrace_resume(child, request, addr, SIGKILL);
+ 
+ #ifdef CONFIG_HAVE_ARCH_TRACEHOOK
+ 	case PTRACE_GETREGSET:
