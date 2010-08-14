@@ -169,6 +169,8 @@ err_t etharp_output(struct netif *netif, struct ip_addr *ipaddr,
 err_t etharp_query(struct ip_addr_list *al, struct ip_addr *ipaddr, struct pbuf *q);
 err_t etharp_request(struct ip_addr_list *al, struct ip_addr *ipaddr);
 int etharp_ioctl(struct stack *stack, int cmd,struct arpreq *ifr);
+err_t update_arp_entry(struct netif *netif, struct ip_addr *ipaddr, struct eth_addr *ethaddr, u32_t flags);
+
 
 
 #endif /* __NETIF_ARP_H__ */

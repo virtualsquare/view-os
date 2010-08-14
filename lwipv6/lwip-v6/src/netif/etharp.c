@@ -146,7 +146,7 @@ static struct etharp_entry arp_table[ARP_TABLE_SIZE];
 #define ETHARP_TRY_HARD 0x80000000
 
 static s8_t find_entry(struct ip_addr *ipaddr, u32_t flags);
-static err_t update_arp_entry(struct netif *netif, struct ip_addr *ipaddr, struct eth_addr *ethaddr, u32_t flags);
+err_t update_arp_entry(struct netif *netif, struct ip_addr *ipaddr, struct eth_addr *ethaddr, u32_t flags);
 
 /**
  * Initializes ARP module.
@@ -399,7 +399,7 @@ static s8_t find_entry(struct ip_addr *ipaddr, u32_t flags)
  *
  * @see pbuf_free()
  */
-static err_t
+err_t
 update_arp_entry(struct netif *netif, struct ip_addr *ipaddr, struct eth_addr *ethaddr, u32_t flags)
 {
   s8_t i, k;

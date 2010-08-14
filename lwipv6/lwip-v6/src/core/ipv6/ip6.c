@@ -648,12 +648,10 @@ ip_output_if (struct stack *stack, struct pbuf *p, struct ip_addr *src, struct i
 
   PERF_START;
 
-  if (!ip_addr_isany(src)) {
-  	version = ip_addr_is_v4comp(src) ? 4 : 6;
-  }
-  else {
+  if (ip_addr_isany(src)) 
   	version = ip_addr_is_v4comp(dest) ? 4 : 6;
-  }
+  else 
+  	version = (ip_addr_is_v4comp(src) && ip_addr_is_v4comp(dest)) ? 4 : 6;
 
   /* Get size for the IP header */
   if (dest != IP_LWHDRINCL && pbuf_header(p, version==6?IP_HLEN:IP4_HLEN)) {

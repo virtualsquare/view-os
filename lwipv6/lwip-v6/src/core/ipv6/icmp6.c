@@ -64,6 +64,7 @@
 #include "lwip/def.h"
 
 #include "lwip/stats.h"
+#include "netif/etharp.h"
 
 #if IPv6_AUTO_CONFIGURATION
 #include "lwip/ip_autoconf.h"
@@ -147,7 +148,7 @@ icmp_input(struct stack *stack, struct pbuf *p, struct ip_addr_list *inad, struc
 			break;
 
 		/*
-		 * Neighbor Sollicitation protocol
+		 * Neighbor Solicitation protocol
 		 */
 		case ICMP6_NS | (6 << 8):
 			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: icmp6 neighbor solicitation\n"));
@@ -258,11 +259,8 @@ icmp_input(struct stack *stack, struct pbuf *p, struct ip_addr_list *inad, struc
 			ip_autoconf_handle_na(inad->netif, p, iphdr, ina);
 #endif
 
-#if IPv6_PMTU_DISCOVERY
-			/* FIX: this function is 'static' in etharp.c 
-			update_arp_entry(inp, & ina->targetip, & opt->addr, 0); 
-			*/
-#endif
+			update_arp_entry(inp, (struct ip_addr *)&ina->targetip, 
+					(struct eth_addr *)&opt->addr, 0); 
 			break;
 
 		/*
