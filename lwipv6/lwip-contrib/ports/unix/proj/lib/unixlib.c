@@ -119,7 +119,7 @@ shutdown_done(void *arg)
  */
 void lwip_init(void)
 {
-	if (getenv("_INSIDE_UMVIEW_MODULE") != NULL) {
+	if (getenv("_INSIDE_VIEWOS_MODULE") != NULL) {
 		_nofdfake = 1;
 	}
 	
