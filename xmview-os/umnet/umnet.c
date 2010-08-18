@@ -70,7 +70,6 @@ struct umnet {
 	time_t mounttime;
 	time_t sockettime;
 	void *private_data;
-	struct ht_elem *socket_ht;
 };
 
 struct fileinfo {
@@ -89,7 +88,10 @@ struct umnetdefault {
 };
 
 static struct umnetdefault **defnet=NULL;
+/* TAG for NULLNET */
+#define NULLNET ((struct umnet*)defnet)
 static int defnetsize=0;
+static struct ht_elem *socket_ht;
 
 void *net_getdl(struct umnet *mh)
 {
@@ -113,10 +115,10 @@ static long umnet_addproc(int id, int ppid, int max) {
 		//printk("defnet ROOT %d\n",id);
 		defnet[id]=NULL;
 	} else {
-		//printk("+net %d<-%d %p %p\n",id,ppid,defnet[ppid],defnet[ppid]?defnet[ppid]->defstack[1]:0);
+		//printk("+net %d<-%d %p %p\n",id,ppid,defnet[ppid],defnet[ppid]);
 		defnet[id]=defnet[ppid];
 		if (defnet[id] != NULL) {
-			//printk("+net %d<-%d %x %d\n",id,defnet[id],defnet[id]->count);
+			//printk("+net %d<-%p %x %d\n",id,defnet[id],defnet[id]->count);
 			defnet[id]->count++;
 		}
 	}
@@ -228,14 +230,16 @@ static long umnet_ioctlparms(int fd,int req)
 static int checksocket(int type, void *arg, int arglen,
 		struct ht_elem *ht)
 {
-	int *sock=arg;
-	struct umnet *mc=umnet_getdefstack(um_mod_getumpid(),*sock);
-	/*printk("checksocket %d %d %p\n",um_mod_getpid(),type,mc);*/
-	if (mc==NULL)
-		return 0;
-	else {
-		/* SET HTE! XXX EXP XXX */
-		//return 1;
+	int *family=arg;
+	struct umnet *mc=umnet_getdefstack(um_mod_getumpid(),*family);
+	//printk("checksocket %d %d %p\n",um_mod_getpid(),*family,mc);
+	if (mc==NULL) {
+		char *defnetstr=ht_get_private_data(ht);
+		if (defnetstr)
+		 return defnetstr[*family];
+		else
+			return 0;
+	} else {
 		return 1;
 	}
 }
@@ -248,8 +252,10 @@ static long umnet_msocket(char *path, int domain, int type, int protocol)
 		mh = um_mod_get_private_data();
 	else
 		mh = umnet_getdefstack(um_mod_getumpid(),domain);
-	assert(mh!=NULL);
-
+	if (mh == NULL) {
+		errno = EAFNOSUPPORT;
+		return -1;
+	}
 	//printk("msocket %s %d %d %d\n",path,domain, type, protocol);
 	if (type == SOCK_DEFAULT) {
 		if (domain == PF_UNSPEC) {
@@ -601,7 +607,6 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 		new->flags=mountflags;
 		if (new->netops->init) 
 			new->netops->init(source,new->path,mountflags,data,new);
-		new->socket_ht=ht_tab_add(CHECKSOCKET,NULL,0,&s,checksocket,NULL);
 		ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,mountflags,data,&s,0,NULL,new);
 		return 0;
 	}
@@ -609,11 +614,11 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 
 static void umnet_umount_internal(struct umnet *mh, int flags)
 {
-	ht_tab_invalidate(mh->socket_ht);
+	//ht_tab_invalidate(mh->socket_ht);
 	ht_tab_invalidate(um_mod_get_hte());
 	if (mh->netops->fini)
 		mh->netops->fini(mh);
-	free(mh->path);
+	//free(mh->path);
 	free(mh);
 }
 
@@ -624,9 +629,9 @@ static long umnet_umount2(char *target, int flags)
 		errno=EINVAL;
 		return -1;
 	} else {
-		struct ht_elem *socket_ht=mh->socket_ht;
+		//struct ht_elem *socket_ht=mh->socket_ht;
 		umnet_umount_internal(mh,flags);
-		ht_tab_del(socket_ht);
+		//ht_tab_del(socket_ht);
 		ht_tab_del(um_mod_get_hte());
 		return 0;
 	}
@@ -664,6 +669,94 @@ static long umnet_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 		errno = 1;
 		return -1;
 	}
+}
+
+#define PF_ALL PF_MAXMAX+1
+#define PF_ALLIP PF_MAXMAX+2
+	
+static uint32_t hash4(char *s) {
+	uint32_t result=0;
+	uint32_t wrap=0;
+	while (*s) {
+		wrap = result >> 24;
+		result <<= 8;
+		result |= (*s ^ wrap);
+		s++;
+	}
+	return result;
+}
+
+static void defnet_update (char *defnetstr, 
+		char plusminus, int family)
+{
+	if (family > 0 && family < AF_MAXMAX) {
+		switch (plusminus) {
+			case '+' : defnetstr[family]=0; break;
+			case '-' : defnetstr[family]=1; break;
+		}
+	}
+}
+
+void *viewos_init(char *args)
+{
+	char *defnetstr = NULL;
+	if (args && *args) {
+		char *str, *token, *saveptr;
+		char plusminus='-';
+		int i;
+		defnetstr = calloc(1,AF_MAXMAX);
+		if (*args == '+')
+			for (i=0; i<AF_MAXMAX; i++) 
+				defnet_update(defnetstr,'-',i);
+		for (str=args;
+				(token=strtok_r(str, ",", &saveptr))!=NULL;str=NULL) {
+			//printf("option %s\n",token);
+			if (*token=='+' || *token=='-') {
+				plusminus=*token;
+				token++;
+			}
+			switch (hash4(token)) {
+				case 0x00616c6c: for (i=0; i<AF_MAXMAX; i++)
+													 defnet_update(defnetstr,plusminus,i);
+												 break;
+				case 0x00000075:
+				case 0x756e6978: defnet_update(defnetstr,plusminus,AF_UNIX); break;
+				case 0x00000034:
+				case 0x69707634: defnet_update(defnetstr,plusminus,AF_INET); break;
+				case 0x00000036:
+				case 0x69707636: defnet_update(defnetstr,plusminus,AF_INET6); break;
+				case 0x0000006e:
+				case 0x6c070b1f: defnet_update(defnetstr,plusminus,AF_NETLINK); break;
+				case 0x00000070:
+				case 0x636b1515: defnet_update(defnetstr,plusminus,AF_PACKET); break;
+				case 0x00000062:
+				case 0x031a117e: defnet_update(defnetstr,plusminus,AF_BLUETOOTH); break;
+				case 0x00000069:
+				case 0x69726461: defnet_update(defnetstr,plusminus,AF_IRDA); break;
+				case 0x00006970: defnet_update(defnetstr,plusminus,AF_INET);
+												 defnet_update(defnetstr,plusminus,AF_INET6);
+												 defnet_update(defnetstr,plusminus,AF_NETLINK);
+												 defnet_update(defnetstr,plusminus,AF_PACKET);
+												 break;
+				default: if (*token == '#')
+									 defnet_update(defnetstr,plusminus,atoi(token+1));
+								 else
+									 printk("umnet: unknown protocol \"%s\"\n",token);
+								 break;
+			}
+		}
+	}
+	return ht_tab_add(CHECKSOCKET,NULL,0,&s,checksocket,defnetstr);
+}
+
+void viewos_fini(void *arg)
+{
+	struct ht_elem *socket_ht=arg;
+	struct umnetdefault *defnetstr=ht_get_private_data(socket_ht);
+	if (defnetstr != NULL)
+		free(defnetstr);
+	ht_tab_invalidate(socket_ht);
+	ht_tab_del(socket_ht);
 }
 
 	static void

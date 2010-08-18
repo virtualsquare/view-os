@@ -55,10 +55,10 @@ AC_CHECK_HEADER([libvdeplug.h],, [enable_umdevtap=warn])
 
 AC_CHECK_HEADER([lwipv6.h], [enable_um_lwip=yes], [enable_um_lwip=warn])
 
-CPPFLAGS_save="${CPPFLAGS}"
-CPPFLAGS="${PYTHON_CFLAGS}"
-AC_CHECK_HEADER([Python.h],, [enable_umpyew=warn])
-CPPFLAGS="${CPPFLAGS_save}"
+#CPPFLAGS_save="${CPPFLAGS}"
+#CPPFLAGS="${PYTHON_CFLAGS}"
+#AC_CHECK_HEADER([Python.h],, [enable_umpyew=warn])
+#CPPFLAGS="${CPPFLAGS_save}"
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST

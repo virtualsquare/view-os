@@ -345,8 +345,6 @@ int add_service(char *file,int permanent)
 	}
 }
 
-
-
 /* delete a service */
 static void del_service_internal(struct ht_elem *hte,void *arg)
 {

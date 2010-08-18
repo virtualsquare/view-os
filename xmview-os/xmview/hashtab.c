@@ -49,7 +49,7 @@ static void (*ht_upcall)(int, unsigned char,const void *,int,long)=ht_nullcall;
 	 @private_data: opaque container for module data
 	 @objlen: len of the hash key
 	 @hashsum: hash sum for quick negative matching
-	 @count: usage coune
+	 @count: usage count
 	 @confirmfun: confirmation function for exceptions
 	 @prev/next/pprevhash,nexthash: addresses for list linking
 	 */
