@@ -124,7 +124,7 @@ void lwip_init(void)
 {
 	sys_sem_t sem;
 	
-	if (getenv("_INSIDE_UMVIEW_MODULE") != NULL) {
+	if (getenv("_INSIDE_VIEWOS_MODULE") != NULL) {
 		_nofdfake = 1;
 	}
 	

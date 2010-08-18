@@ -476,7 +476,7 @@ int main(int argc,char *argv[])
 		sigprocmask(SIG_BLOCK,NULL,&unblockchild);
 		pcb_inits(1);
 		capture_main(argv+optind,1,rcfile);
-		setenv("_INSIDE_UMVIEW_MODULE","",1);
+		setenv("_INSIDE_VIEWOS_MODULE","",1);
 		do_preload(prehead);
 		do_set_viewname(viewname);
 		while (nprocs) {
