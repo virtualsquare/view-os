@@ -70,6 +70,7 @@ struct umnet {
 	time_t mounttime;
 	time_t sockettime;
 	void *private_data;
+	struct ht_elem *socket_ht;
 };
 
 struct fileinfo {
@@ -232,7 +233,7 @@ static int checksocket(int type, void *arg, int arglen,
 {
 	int *family=arg;
 	struct umnet *mc=umnet_getdefstack(um_mod_getumpid(),*family);
-	//printk("checksocket %d %d %p\n",um_mod_getpid(),*family,mc);
+	//printk("checksocket %d %d %p\n",um_mod_getumpid(),*family,mc);
 	if (mc==NULL) {
 		char *defnetstr=ht_get_private_data(ht);
 		if (defnetstr)
@@ -607,6 +608,7 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 		new->flags=mountflags;
 		if (new->netops->init) 
 			new->netops->init(source,new->path,mountflags,data,new);
+		new->socket_ht=ht_tab_add(CHECKSOCKET,NULL,0,&s,checksocket,NULL);
 		ht_tab_pathadd(CHECKPATH,source,target,filesystemtype,mountflags,data,&s,0,NULL,new);
 		return 0;
 	}
@@ -614,11 +616,11 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 
 static void umnet_umount_internal(struct umnet *mh, int flags)
 {
-	//ht_tab_invalidate(mh->socket_ht);
+	ht_tab_invalidate(mh->socket_ht);
 	ht_tab_invalidate(um_mod_get_hte());
 	if (mh->netops->fini)
 		mh->netops->fini(mh);
-	//free(mh->path);
+	free(mh->path);
 	free(mh);
 }
 
@@ -629,9 +631,9 @@ static long umnet_umount2(char *target, int flags)
 		errno=EINVAL;
 		return -1;
 	} else {
-		//struct ht_elem *socket_ht=mh->socket_ht;
+		struct ht_elem *socket_ht=mh->socket_ht;
 		umnet_umount_internal(mh,flags);
-		//ht_tab_del(socket_ht);
+		ht_tab_del(socket_ht);
 		ht_tab_del(um_mod_get_hte());
 		return 0;
 	}
