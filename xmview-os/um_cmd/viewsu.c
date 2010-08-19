@@ -133,16 +133,17 @@ int main(int argc, char *argv[])
 		}
 		uid=pwd->pw_uid;
 		gid=pwd->pw_gid;
-		shell=pwd->pw_shell;
+		if (shell == NULL)
+			shell=pwd->pw_shell;
 	} else {
 		user="root";
 		pwd=getpwuid(0);
-		if(pwd)
+		if(pwd && shell == NULL)
 			shell=pwd->pw_shell;
 	}
 	if (pwd)
 		setenv("HOME",pwd->pw_dir,1);
-	if (!shell) 
+	if (shell == NULL) 
 		shell="/bin/sh";
 	setenv("SHELL",shell,1);
 	if (login)

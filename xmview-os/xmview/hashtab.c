@@ -254,6 +254,7 @@ static inline int ht_scan_terminate(unsigned char type, char *objc, int len, int
 			return 0;
 	}
 }
+
 static inline int call_confirmfun(int (*confirmfun)(),unsigned char type,void *checkobj,int len,struct ht_elem *ht) {
 	epoch_t epoch=um_setnestepoch(ht->tst.epoch);
 	struct ht_elem *ht_old=um_mod_get_hte();

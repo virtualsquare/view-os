@@ -58,9 +58,9 @@
 #include "loginshell.h"
 
 #ifdef GDEBUG_ENABLED
-#	define OPTSTRING "+p:f:o:hvxqV:u"
+#	define OPTSTRING "+p:f:o:hvxqV:us"
 #else
-#	define OPTSTRING "+p:f:hvxqV:u"
+#	define OPTSTRING "+p:f:hvxqV:us"
 #endif
 #define KMVIEW_USER_NESTING
 

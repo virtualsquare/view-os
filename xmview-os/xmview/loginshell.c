@@ -104,7 +104,7 @@ static int argcount(char *s)
 /* second scan: split and strip quoting chars at the same time:
 	 FSA used as a translator. 
 	 On site translation (on the same string): the traslation is always
-	 not longer than tha original string */
+	 not longer than the original string */
 static char **splitargs(char *s,char **argv)
 {
 	int state=NEWARG;
