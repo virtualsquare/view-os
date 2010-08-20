@@ -707,9 +707,13 @@ void *viewos_init(char *args)
 		char plusminus='-';
 		int i;
 		defnetstr = calloc(1,AF_MAXMAX);
-		if (*args == '+')
+		if (args[0] == '+' || (args[0] == '-' && args[1] == 0)) {
 			for (i=0; i<AF_MAXMAX; i++) 
 				defnet_update(defnetstr,'-',i);
+		} else {
+			for (i=0; i<AF_MAXMAX; i++)
+				defnet_update(defnetstr,'+',i);
+		}
 		for (str=args;
 				(token=strtok_r(str, ",", &saveptr))!=NULL;str=NULL) {
 			//printf("option %s\n",token);
@@ -718,6 +722,7 @@ void *viewos_init(char *args)
 				token++;
 			}
 			switch (hash4(token)) {
+				case 0x00000000:
 				case 0x00616c6c: for (i=0; i<AF_MAXMAX; i++)
 													 defnet_update(defnetstr,plusminus,i);
 												 break;
