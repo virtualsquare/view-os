@@ -38,21 +38,21 @@ addresses or define virtual devices for each process (or for hierarchies of
 processes).
 .br
 .B kmview 
-is the kernel mode implementation of View-OS concepts.
+is the kernel module implementation of View-OS concepts.
 It works on a linux kernel providing utrace and it needs the 
 .B kmview 
 kernel module already loaded to work.
 It is a modular partial virtual machine. 
-.B umview 
+.B kmview 
 before loading any module is completely transparent, a process
 behaves inside 
-.B umview
+.B kmview
 as it would have behaved outside.
 Each module can customize specific entities: there are modules to mount
 filesystems at user-level
 .B (umfuse)
-, to define virtual network interfaces
-.B (lwipv6)
+, to define virtual networking stacks
+.B (net)
 , to define virtual devices
 .B (umdev)
 , to provide interpreters for executables, e.g. to support executables for
@@ -62,7 +62,7 @@ foreign architectures
 .B (viewfs).
 .br
 These are some examples of modules provided by the View-OS team. 
-.B umview
+.B kmview
 aims to provide a general interface to customize the system call semantics
 of process under specified conditions. So more modules will be added both
 by the View-OS team and by third parties.
@@ -91,6 +91,20 @@ should refer to each service module manual for a complete description.
 Modules can be loaded at run time using the
 .B um_add_service
 command.
+.IP "\fB\-s\fP" 4 
+.PD 0
+.IP "\fB\-\-secure\fR" 4
+set kmview in \fIhuman mode\fR, i.e. force the check of capabilities and
+permissions. uid is 0 at startup, in this way it is possible to load
+modules and mount services. When a process sets its uid as an unprivileged
+user (via setuid(2) or viewsu(1)), capability and permissions are enforced.
+.IP "\fB\-f\fP \fIrcfile\fP" 4
+.PD 0
+.IP "\fB\-\-rc\fR \fIrcfile\fP" 4
+Use \fIrcfile\fR as the initialization file for kmview.
+kmview always executes \fB/etc/viewosrc\fR if exists, then kmview 
+executes the initialization
+file set by this option or \fB~/.viewosrc\fR.
 .IP "\fB\-x\fP" 4 
 .PD 0
 .IP "\fB\-\-nonesting\fR" 4

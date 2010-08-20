@@ -83,7 +83,7 @@ main(int argc, char *argv[])
 	int c;
 	argv++;
 	argc--;
-	while (**argv == '-') {
+	while (*argv && **argv == '-') {
 		char *s=*argv;
 		char ff=0;
 		while (*s) {

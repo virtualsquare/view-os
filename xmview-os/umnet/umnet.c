@@ -537,16 +537,24 @@ static long umnet_lstat64(char *path, struct stat64 *buf64)
 }
 
 /* TODO management of fcntl */
-static long umnet_fcntl64(int fd, int cmd, void *arg)
+static long umnet_fcntl64(int fd, int cmd, int arg)
 {
-	//print2("umnet_fcntl64\n");
-	errno=0;
-	return 0;
+	//printk("umnet_fcntl64 %d\n",cmd);
+	struct fileinfo *ft=getfiletab(fd);
+	if(ft->umnet->netops->fcntl) {
+		return ft->umnet->netops->fcntl(
+				ft->nfd, cmd, arg);
+	} else {
+		errno = EINVAL;
+		return -1;
+	}
+	//errno=0;
+	//return 0;
 }
 
 static long umnet_fsync(int fd, int cmd, void *arg)
 {
-	//print2("umnet_fsync\n");
+	//printk("umnet_fsync\n");
 	errno=0;
 	return 0;
 }
@@ -745,9 +753,13 @@ void *viewos_init(char *args)
 												 defnet_update(defnetstr,plusminus,AF_NETLINK);
 												 defnet_update(defnetstr,plusminus,AF_PACKET);
 												 break;
-				default: if (*token == '#')
-									 defnet_update(defnetstr,plusminus,atoi(token+1));
-								 else
+				default: if (*token == '#') {
+									 int family=atoi(token+1);
+									 if (family > 0 && family < AF_MAXMAX)
+										 defnet_update(defnetstr,plusminus,family);
+									 else
+										 printk("umnet: unknown protocol \"%s\"\n",token);
+								 } else
 									 printk("umnet: unknown protocol \"%s\"\n",token);
 								 break;
 			}
