@@ -587,6 +587,17 @@ int fd_getflfl(struct pcb_file *p, int fd) {
 		return -1;
 }
 
+#define SETFLSET (O_APPEND | O_ASYNC | O_DIRECT | O_NOATIME | O_NONBLOCK)
+int fd_setflfl(struct pcb_file *p, int fd, int flags) {
+	if (fd>=0 && fd < p->nolfd && p->lfdlist[fd]>=0) {
+		int lfd=FD2LFD(p,fd);
+		lfd_tab[lfd]->flags &= ~SETFLSET;
+		lfd_tab[lfd]->flags |= (flags & SETFLSET);
+		return 0;
+	} else
+		return -1;
+}
+
 /* fd 2 path mapping (given the file table of a process) */
 char *fd_getpath(struct pcb_file *p, int fd)
 {

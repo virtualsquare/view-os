@@ -70,6 +70,7 @@ int fd2lfd (struct pcb_file *p, int fd);
 int fd_getfdfl(struct pcb_file *p, int fd);
 int fd_setfdfl(struct pcb_file *p, int fd, int val);
 int fd_getflfl(struct pcb_file *p, int fd);
+int fd_setflfl(struct pcb_file *p, int fd, int flags);
 int fd2sfd (struct pcb_file *p, int fd);
 char *fd_getpath(struct pcb_file *p, int fd);
 void lfd_register (struct pcb_file *p, int fd, int lfd);

@@ -137,7 +137,9 @@ int check_suspend_on(struct pcb *pc, int fd, int how)
 	/* check the fd is managed by some service and gets its service fd (sfd) */
 	if (hte != NULL && (sfd=fd2sfd(pc->fds,fd)) >= 0) {
 		sysfun local_event_subscribe;
-		if ((local_event_subscribe=ht_event_subscribe(hte)) != NULL) {
+		int flfl=fd_getflfl(pc->fds,fd);
+		if ((local_event_subscribe=ht_event_subscribe(hte)) != NULL &&
+				!(flfl & O_NONBLOCK)) {
 			bq_block(pc);
 			if (local_event_subscribe(bq_signal, pc, sfd, how) == 0)
 			{

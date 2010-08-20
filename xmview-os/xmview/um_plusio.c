@@ -512,6 +512,9 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 			default:
 				if ((pc->retval = um_syscall(sfd,cmd,arg)) == -1)
 					pc->erno= errno;
+				/* remember the change (if the syscall succeeded */
+				if (pc->retval >= 0 && cmd == F_SETFL)
+					fd_setflfl(pc->fds,fd,arg);
 				if (pc->retval < 0 && pc->erno == ENOSYS) { /* last chance */
 					switch (cmd) {
 						/* this is just a workaround for module that does not manage

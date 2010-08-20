@@ -539,7 +539,7 @@ static long umnet_lstat64(char *path, struct stat64 *buf64)
 /* TODO management of fcntl */
 static long umnet_fcntl64(int fd, int cmd, int arg)
 {
-	//printk("umnet_fcntl64 %d\n",cmd);
+	//printk("umnet_fcntl64 %d %x\n",cmd,arg);
 	struct fileinfo *ft=getfiletab(fd);
 	if(ft->umnet->netops->fcntl) {
 		return ft->umnet->netops->fcntl(
