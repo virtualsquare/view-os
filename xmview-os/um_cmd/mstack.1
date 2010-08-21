@@ -26,8 +26,8 @@
 mstack \- networking stack selection
 .SH SYNOPSIS
 .B mstack
-[\fI-u46npbihv\fR]
-[\fI-f\fR num,num#]
+[\fI-hv\fR]
+[\fI-o\fR protocol list]
 \fIstack_mountpoint\fR \fIcommand\fI
 .br
 .SH DESCRIPTION
@@ -42,11 +42,11 @@ The stack mountpoint identifies the stack. In ViewOS it is the mountpoint
 where the stack was mounted (by \fBmount(2)(8)\fR.
 In fact the call:
 .br
-"socket(domain,type,protocol)" 4
+"socket(domain,type,protocol)" 
 .br
 is equivalent to:
 .br
-"msocket(NULL,domain,type protocol)" 4
+"msocket(NULL,domain,type protocol)" 
 .br
 mstacks changes the default stack for the desired protocol families and
 executes the command (by \fBexecve(2)).
@@ -55,22 +55,16 @@ executes the command (by \fBexecve(2)).
 prints the mstack command usage
 .IP "\fB\-v\fR" 4
 sets the verbose mode on
-.IP "\fB\-u\fR" 4
-redefines the protocol stack for AF_UNIX \fBunix(7)\fR
-.IP "\fB\-4\fR" 4
-redefines the protocol stack for AF_INET, i.e. ipv4 \fBip(7)\fR
-.IP "\fB\-6\fR" 4
-redefines the protocol stack for AF_INET6, i.e. ipv6 \fBipv6(7)\fR
-.IP "\fB\-n\fR" 4
-redefines the protocol stack for AF_NETLINK \fBnetlink(7)\fR
-.IP "\fB\-p\fR" 4
-redefines the protocol stack for AF_PACKET \fBpacket(7)\fR
-.IP "\fB\-b\fR" 4
-redefines the protocol stack for AF_BLUETOOTH\fR
-.IP "\fB\-i\fR" 4
-redefines the protocol stack for AF_IRDA\fR
-.IP "\fB\-f\fR \fInum,num...\fR" 4
-redefines the protocol stack for the listed protocols (list of numeric tags).
+.IP "\fB\-o\fR" 4
+defines the list of protocols. Without a -o option, 
+mstack redefines the default stack for all protocols families.
+The list of protocols may include the a comma separated sequence of the 
+following items:
+all, unix (or simply u), ipv4 (4), ipv6 (6), netlink (n), packet (p),
+bluetooth (b), irda (i), ip (which include all ip related protocols
+ipv4, ipv6, netlink and packet), #\fIn\fR where n is the number of protocol.
+Each item can be prefixed by + or - to specify whether the protocol/group
+of protocols must be added or removed from the set.
 .SH EXAMPLES
 .IP "\fBmstack /dev/net/lwip ip addr\fR"
 .br
@@ -78,6 +72,18 @@ lists the address managed by the stack mounted on \fB/dev/net/lwip\fR.
 .IP "\fBexec mstack /dev/net/null bash\fR"
 .br
 disables the standard stack in a new bash (which overcomes the current one).
+.IP "\fBmstack -o ip /dev/net/lwip bash\fR"
+.br
+starts a new bash which uses the stack \fB/dev/net/lwip\fR for ipv4 and ipv6
+but not for the other protocols.
+.IP "\fBmstack -o -unix /dev/net/lwip bash\fR"
+.br
+starts a new bash which uses the stack \fB/dev/net/lwip\fR for all protocols
+but AF_UNIX.
+.IP "\fBmstack -o +ip,-ipv6 /dev/net/lwip bash\fR"
+.br
+starts a new bash which uses the stack \fB/dev/net/lwip\fR for ipv4, netlink,
+packet but not ipv6.
 .SH SEE ALSO
 .BR umview(1), 
 .BR	kmview(1), 
