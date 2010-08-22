@@ -745,7 +745,7 @@ static long umdev_lchown(char *path, uid_t owner, gid_t group)
 	assert(umdev != NULL);
 	type=set_dev(&device,umdev,path);
 
-	if (umdev->devops->chmod)
+	if (umdev->devops->chown)
 		rv= umdev->devops->chown(type,device,owner,group,umdev);
 	else {
 		umdev->uid=owner;
