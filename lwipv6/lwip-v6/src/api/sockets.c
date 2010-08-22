@@ -1449,6 +1449,9 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 					/* UNIMPL case SO_OOBINLINE: */
 					/* UNINPL case SO_RCVBUF: */
 					/* UNINPL case SO_SNDBUF: */
+					/* FAKE SO_RCVBUF, SO_SNDBUF */
+				case SO_RCVBUF:
+				case SO_SNDBUF:
 					/* UNIMPL case SO_RCVLOWAT: */
 					/* UNIMPL case SO_SNDLOWAT: */
 #if SO_REUSE
@@ -1571,6 +1574,12 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 					sock->err = 0;
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_getsockopt(%d, SOL_SOCKET, SO_ERROR) = %d\n", s, *(int *)optval));
 					break;
+
+					/*fake SO_RCVBUF, SO_SNDBUF, return the max value */
+				case SO_RCVBUF:
+				case SO_SNDBUF:
+					*(int *)optval = 262144;
+					break;
 			}  /* switch */
 			break;
 
@@ -1606,7 +1615,6 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 			break;
 	}
 
-
 	sock_set_errno(sock, err);
 	return err ? -1 : 0;
 }
@@ -1617,7 +1625,6 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 	struct lwip_socket *sock;
 	int err = 0;
 
-	//printf("lwip_setsockopt %d %d\n",level,optname);
 	sock = get_socket(s);
 	if (!sock) {
 		set_errno(EBADF);
@@ -1655,9 +1662,10 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 					/* UNIMPL case SO_OOBINLINE: */
 					/* UNIMPL case SO_RCVBUF: */
 					/* UNIMPL case SO_SNDBUF: */
-					/* FAKE SO_SNDBUF, SO_RCVBUF */
+					/* FAKE SO_SNDBUF, SO_RCVBUF, SO_TIMESTAMP */
 				case SO_RCVBUF:
 				case SO_SNDBUF:
+				case SO_TIMESTAMP:
 					/* UNIMPL case SO_RCVLOWAT: */
 					/* UNIMPL case SO_SNDLOWAT: */
 #if SO_REUSE
@@ -1685,6 +1693,7 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 					/* UNIMPL case IP_RCVIF: */
 				case IP_TTL:
 				case IP_TOS:
+					/* FAKE IP_MTU_DISCOVER */
 				case IP_MTU_DISCOVER:
 				case IP_RECVERR:
 				case IP_RECVTTL:
@@ -2003,7 +2012,11 @@ int lwip_ioctl(int s, unsigned long cmd, void *argp)
 	}
 }
 
-
+#ifdef __USE_GNU
+#define FCNTL_SETFL_MASK (O_APPEND|O_ASYNC|O_DIRECT|O_NOATIME|O_NONBLOCK)
+#else
+#define FCNTL_SETFL_MASK (O_APPEND|O_ASYNC|O_NONBLOCK)
+#endif
 int lwip_fcntl64(int s, int cmd, long arg)
 {
 	struct lwip_socket *sock = get_socket(s);
@@ -2025,7 +2038,7 @@ int lwip_fcntl64(int s, int cmd, long arg)
 		case F_GETFL:
 			return sock->flags;
 		case F_SETFL:
-			sock->flags = arg;
+			sock->flags = (sock->flags & ~FCNTL_SETFL_MASK) | (arg & FCNTL_SETFL_MASK);
 			return 0;
 		default:
 			return -1;

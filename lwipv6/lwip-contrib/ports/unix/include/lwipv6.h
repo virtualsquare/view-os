@@ -165,6 +165,8 @@ int lwip_ppoll(struct pollfd *fds, nfds_t nfds,
 		const struct timespec *timeout, const sigset_t *sigmask);
 
 int lwip_ioctl(int s, long cmd, void *argp);
+int lwip_fcntl64(int s, int cmd, long arg);
+int lwip_fcntl(int s, int cmd, long arg);
 
 struct iovec;
 ssize_t lwip_writev(int s, struct iovec *vector, int count);
