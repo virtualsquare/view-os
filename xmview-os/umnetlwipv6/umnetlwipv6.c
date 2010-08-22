@@ -124,22 +124,22 @@ struct ifname {
 
 static void iffree(struct ifname *head)
 {
-	  if (head==NULL)
-			    return;
-		  else {
-				    iffree(head->next);
-						    free(head->name);
-								    free(head);
-										  }
+	if (head==NULL)
+		return;
+	else {
+		iffree(head->next);
+		free(head->name);
+		free(head);
+	}
 }
 
 static char *ifname(struct ifname *head,unsigned char type,unsigned char num)
 {
-	  if (head==NULL)
-			    return NULL;
-		  else if (head->type == type && head->num == num)
-				    return head->name;
-			  else return ifname(head->next,type,num);
+	if (head==NULL)
+		return NULL;
+	else if (head->type == type && head->num == num)
+		return head->name;
+	else return ifname(head->next,type,num);
 }
 
 static void ifaddname(struct ifname **head,char type,char num,char *name)
@@ -272,7 +272,6 @@ int umnetlwipv6_supported_domain(int domain)
 	}
 }
 
-
 struct umnet_operations umnet_ops={
 	.msocket=umnetlwipv6_msocket,
 	.ioctl=umnetlwipv6_ioctl,
@@ -308,6 +307,7 @@ init (void)
 	UMNETLWIPV6(read);
 	UMNETLWIPV6(write);
 	UMNETLWIPV6(close);
+	umnet_ops.fcntl = (intfun)lwip_fcntl64;
 	UMNETLWIPV6(event_subscribe);
 }
 
