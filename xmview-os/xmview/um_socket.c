@@ -598,8 +598,11 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,
 			lmsg.msg_iov=&liovec;
 			lmsg.msg_iovlen=1;
 			//printk("%d size->%d\n",sfd,size);
-			if ((size=pc->retval = um_syscall(sfd,&lmsg,flags)) < 0)
-				pc->erno=errno;
+			if ((pc->retval = um_syscall(sfd,&lmsg,flags)) < 0) {
+				size = 0;
+				pc->erno = errno;
+			} else
+				size = pc->retval;
 			if (size > 0) {
 				for (i=0;i<msg.msg_iovlen && size>0;i++) {
 					int qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
@@ -678,8 +681,10 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,
 				umoven(pc,(long)iovec[i].iov_base,qty,p);
 				p += qty;
 			}
-			if ((size=pc->retval = um_syscall(sfd,&lmsg,flags)) < 0)
+			if ((pc->retval = um_syscall(sfd,&lmsg,flags)) < 0)
 				pc->erno=errno;
+			else
+				size=pc->retval;
 			//printk("%d size->%d\n",sfd,size);
 			lfree(lbuf,totalsize);
 		}
