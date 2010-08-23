@@ -60,6 +60,10 @@ int um_mmap_pageshift;
 #endif
 
 struct lfd_vtable;
+#ifdef _UM_EPOLL
+#include <sys/epoll.h>
+struct lfd_epoll;
+#endif
 
 struct lfd_table {
 	short count; /*how many pcbs have opened this lfd - look at dup implementation */
@@ -69,6 +73,9 @@ struct lfd_table {
 	char *path; /* the real path */
 	epoch_t epoch;
 	struct lfd_vtable *pvtab;
+#ifdef _UM_EPOLL
+	struct lfd_epoll *epoll;
+#endif
 };
 
 struct lfd_vtable {
@@ -78,6 +85,15 @@ struct lfd_vtable {
 	char *filename; /* the fifo */
 	int ififo,ofifo;
 };
+
+#ifdef _UM_EPOLL
+#define UM_EPOLL_STEP 3
+struct lfd_epoll {
+	int ep_n;
+	struct lfd_epoll_item *ep_list[UM_EPOLL_STEP];
+};
+#endif
+
 
 static int lfd_tabmax=0;
 static struct lfd_table **lfd_tab=NULL;
@@ -413,6 +429,9 @@ int lfd_open (struct ht_elem *hte, int sfd, char *path, int flags, int nested)
 	lfd_tab[lfd]->epoch=um_setnestepoch(0);
 	lfd_tab[lfd]->count=1;
 	lfd_tab[lfd]->pvtab=NULL;
+#if _UM_EPOLL
+	lfd_tab[lfd]->epoll=NULL;
+#endif
 	if (hte != NULL && !nested) {
 		char *filename;
 		lfd_tab[lfd]->pvtab = (struct lfd_vtable *)malloc (sizeof(struct lfd_vtable));
@@ -468,6 +487,17 @@ void lfd_close (int lfd)
 		/* call the close method of the service module */
 		if (hte != NULL && lfd_tab[lfd]->sfd >= 0) 
 			ht_syscall(hte,uscno(__NR_close))(lfd_tab[lfd]->sfd); 
+#ifdef _UM_EPOLL
+		if (lfd_tab[lfd]->epoll != NULL) {
+			int i;
+			struct lfd_epoll *epoll=lfd_tab[lfd]->epoll;
+			for (i=0;i<epoll->ep_n;i++) {
+				if (epoll->ep_list[i] != NULL)
+					free(epoll->ep_list[i]);
+			}
+			free(lfd_tab[lfd]->epoll);
+		}
+#endif
 		/* free path and structure */
 		if (lfd_tab[lfd]->path != NULL)
 			free(lfd_tab[lfd]->path);
@@ -727,6 +757,103 @@ void lfd_delsignal(int lfd)
 		r_read(lfd_tab[lfd]->pvtab->ififo,buf,1024);
 	}
 }
+
+#ifdef _UM_EPOLL
+/* management of epoll structure */
+void lfd_epoll_add(struct pcb_file *p,int epfd,struct lfd_epoll_item *ep_item)
+{
+	int lfd=FD2LFD(p,epfd);
+	struct lfd_epoll *epoll;
+	int new;
+	if (lfd < 0)
+		return;
+	epoll=lfd_tab[lfd]->epoll;
+	if (epoll == NULL) {
+		int i;
+		epoll = lfd_tab[lfd]->epoll = malloc(sizeof(struct lfd_epoll));
+		if (epoll == NULL)
+			return;
+		epoll->ep_n=UM_EPOLL_STEP;
+		for (i=0;i<UM_EPOLL_STEP;i++) 
+			epoll->ep_list[i] = NULL;
+	}
+	for (new = 0; new < epoll->ep_n && epoll->ep_list[new] != NULL; new++)
+		;
+	if (new >= epoll->ep_n) {
+		int i;
+		epoll->ep_n += UM_EPOLL_STEP;
+		epoll = lfd_tab[lfd]->epoll = realloc(lfd_tab[lfd]->epoll,
+				sizeof(struct lfd_epoll *) 
+				+ sizeof(struct lfd_epoll_item) * (epoll->ep_n - UM_EPOLL_STEP));
+		if (epoll == NULL) {
+			printk("Out of memory on epoll\n");
+			return;
+		}
+		for (i=new;i<epoll->ep_n;i++)
+			epoll->ep_list[i]= NULL;
+	}
+	epoll->ep_list[new] = ep_item;
+}
+
+void lfd_epoll_del(struct pcb_file *p,int epfd,int fd)
+{
+	int lfd=FD2LFD(p,epfd);
+	struct lfd_epoll *epoll;
+	if (lfd < 0)
+		return;
+	epoll=lfd_tab[lfd]->epoll;
+	if (epoll != NULL) {
+		int i;
+		for (i=0;i<epoll->ep_n;i++) {
+			if (epoll->ep_list[i] &&
+					epoll->ep_list[i]->fd == fd) {
+				struct lfd_epoll_item *old=epoll->ep_list[i];
+				epoll->ep_list[i] = NULL;
+				free(old);
+				break;
+			}
+		}
+	}
+}
+
+struct lfd_epoll_item *lfd_epoll_search(struct pcb_file *p,int epfd,int fd)
+{
+	int lfd=FD2LFD(p,epfd);
+	struct lfd_epoll *epoll;
+	if (lfd < 0)
+		return NULL;
+	epoll=lfd_tab[lfd]->epoll;
+	if (epoll != NULL) {
+		int i;
+		for (i=0;i<epoll->ep_n;i++) {
+			if (epoll->ep_list[i] &&
+					epoll->ep_list[i]->fd == fd) {
+				return epoll->ep_list[i];
+			}
+		}
+	}
+	return NULL;
+}
+
+void lfd_epoll_forall(struct pcb_file *p, int epfd,
+		void (* fun)(struct lfd_epoll_item *epoll,void *arg),
+		void *arg)
+{
+	int lfd=FD2LFD(p,epfd);
+	struct lfd_epoll *epoll;
+	if (lfd < 0)
+		return;
+	epoll=lfd_tab[lfd]->epoll;
+	if (epoll != NULL) {
+		int i;
+		for (i=0;i<epoll->ep_n;i++) {
+			if (epoll->ep_list[i] != NULL) 
+				fun(epoll->ep_list[i], arg);
+		}
+	}
+}
+
+#endif
 
 /* sfd + service --2--> path conversion
  * linear scan, slow! */

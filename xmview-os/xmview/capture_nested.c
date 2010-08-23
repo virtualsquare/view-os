@@ -86,13 +86,11 @@ int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 	} else {
 		struct pollfd pdf={fd,how,0};
 		rv=poll(&pdf,1,0);
-		if (cb) {
-			if (rv == 0) 
+		mp_del(fd,arg);
+		if (cb && rv == 0) 
 				mp_add(fd,how,cb,arg,0);
-		}else
-			mp_del(fd,arg);
 		if (rv > 0) 
-			rv = pdf.revents ;
+			rv = pdf.revents;
   }	
 	pc->nestepoch = nestepoch;
 	pc->tst.epoch = epoch;

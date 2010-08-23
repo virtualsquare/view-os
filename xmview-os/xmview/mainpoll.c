@@ -173,6 +173,8 @@ void bq_ppolltry()
 void mp_add(int fd, short events, void (*fun)(void *), void *arg, int persistent)
 {
 	//printk("mp_add %d %p\n",fd,arg);
+	if (fun == NULL)
+		return;
 	if (gnfds >= maxgnfds) {
 		maxgnfds += STEP_SIZE_POLLFD_TABLE;
 		gpollfd = realloc(gpollfd,maxgnfds * sizeof(struct pollfd));
@@ -255,6 +257,7 @@ int mp_poll()
 	FD_ZERO(&rf);
 	FD_ZERO(&wf);
 	FD_ZERO(&ef);
+	mp_pack();
 	for (i=0; i<gnfds; i++) {
 		if(gpollfd[i].events & POLLIN) FD_SET(gpollfd[i].fd,&rf);
 		if(gpollfd[i].events & POLLOUT) FD_SET(gpollfd[i].fd,&wf);
