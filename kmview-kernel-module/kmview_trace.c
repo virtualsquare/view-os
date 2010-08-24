@@ -520,7 +520,7 @@ static u32 kmview_syscall_entry(u32 action, struct utrace_engine *engine,
 {
 	struct kmview_thread* kmt = (struct kmview_thread*)engine->data;
 #ifdef KMVIEW_DEBUG
-	printk("syscall entry(%d) A:%x : %ld %ld regs...\n",tsk->pid,action,arch_scno(regs),arch_n(regs,0));
+	printk("syscall entry(%d) A:%x : %ld %ld regs...\n",kmt->task->pid,action,arch_scno(regs),arch_n(regs,0));
 #endif
 
 	if (kmt->tracer) {
@@ -544,7 +544,7 @@ static u32 kmview_syscall_entry(u32 action, struct utrace_engine *engine,
 #ifdef __NR_mmap2
 					 || kmt->scno == __NR_mmap2
 #endif
-				 ) && !isinfdset(arch_n(regs,5),kmt->fdset))
+				 ) && !isinfdset(arch_n(regs,4),kmt->fdset))
 			 goto kmview_syscall_resume;
 		}
 #ifdef __NR_socketcall
@@ -592,7 +592,7 @@ static u32 kmview_syscall_exit(enum utrace_resume_action action,
 {
 	struct kmview_thread* kmt = (struct kmview_thread*)engine->data;
 #ifdef KMVIEW_DEBUG
-	printk("syscall exit(%d) A:%x : %ld regs ...\n",tsk->pid,action,arch_scno(regs));
+	printk("syscall exit(%d) A:%x : %ld %ld regs ...\n",kmt->task->pid,action,arch_scno(regs),arch_n(regs,0));
 #endif
 	if (kmt->tracer) {
 		kmt->regs=regs;
