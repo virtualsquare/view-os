@@ -49,6 +49,7 @@ unsigned int fdsyscall[]=FDSYSCALL;
 #ifdef USE_KMEM_CACHE
 static struct kmem_cache *kmview_thread_cache;
 static struct kmem_cache *kmview_module_event_cache;
+static struct kmem_cache *kmview_fdset_cache;
 #endif
 
 static u32 kmview_clone(enum utrace_resume_action action,
@@ -111,7 +112,7 @@ static inline u32 kmview_resume_task(struct kmview_thread *kmt)
 
 #ifdef __NR_socketcall
 char socketcallnargs[] = {
-	0,
+	4, /* 0 sys_msocket new call for multiple stack access */
   3, /* 1 sys_socket(2)    */
   3, /* 2 sys_bind(2)      */
   3, /* 3 sys_connect(2)   */
@@ -129,8 +130,7 @@ char socketcallnargs[] = {
   5, /*15 sys_getsockopt(2)    */
   3, /*16 sys_sendmsg(2)   */
   3, /*17 sys_recvmsg(2)   */
-	4, /*18 sys_accept4(2) */
-	4  /*19 sys_msocket new call for multiple stack access */
+	4  /*18 sys_accept4(2) */
 };
 
 static inline int isfdsocket(unsigned long x) {
@@ -204,8 +204,9 @@ static inline pid_t kmview_new_thread(
 		struct task_struct *task,
 		struct kmview_tracer *tracer,
 		struct utrace_engine *engine,
-		struct kmview_fdsysset *fdset,
-		u32 inherited_flags)
+		struct kmview_fdset *fdset,
+		u32 inherited_flags,
+		unsigned long clone_flags)
 {
 	struct kmview_thread *kmt;
 #ifdef USE_KMEM_CACHE
@@ -231,7 +232,21 @@ static inline pid_t kmview_new_thread(
 	kmt->tracer->ntraced++;
 	up(&kmt->tracer->sem);
 	kmt->engine=engine;
-	kmt->fdset=fdsysset_copy(fdset);
+	if (clone_flags & CLONE_FILES) {
+		atomic_inc(&fdset->nusers);
+		kmt->fdset=fdset;
+	} else {
+#ifdef USE_KMEM_CACHE
+		kmt->fdset=kmem_cache_alloc(kmview_fdset_cache, GFP_KERNEL);
+#else
+		kmt->fdset=kmalloc(sizeof(struct kmview_thread),GFP_KERNEL);
+#endif
+		atomic_set(&kmt->fdset->nusers,1);
+		if (fdset == NULL) 
+			kmt->fdset->fdsysset=NULL;
+		else
+			kmt->fdset->fdsysset=fdsysset_copy(fdset->fdsysset);
+	}
 	if (engine) 
 		engine->data=kmt;
 	return kmt->kmpid;
@@ -244,7 +259,7 @@ pid_t kmview_root_thread(struct task_struct *task, struct kmview_tracer *tracer)
 	struct kmview_thread* kmt;
 	if (!engine)
 		return -EIO;
-	kmpid=kmview_new_thread(task,tracer,engine,NULL,0);
+	kmpid=kmview_new_thread(task,tracer,engine,NULL,0,0);
 	if (kmpid < 0)
 		return -EIO;
 	kmt = (struct kmview_thread*)engine->data;
@@ -289,7 +304,7 @@ static u32 kmview_clone(u32 action,
 	kmt=engine->data;
 	if (kmt->tracer) {
 		kmpid=kmview_new_thread(child,kmt->tracer,childengine,kmt->fdset,
-				kmt->flags & KMVIEW_THREAD_INHERITED_FLAGS);
+				kmt->flags & KMVIEW_THREAD_INHERITED_FLAGS,clone_flags);
 		if (kmpid < 0) 
 			return kmview_abort_task(child);
 		kmview_event_enqueue(KMVIEW_EVENT_NEWTHREAD,kmpid_search(kmpid)->km_thread,kmt->kmpid,clone_flags);
@@ -372,7 +387,14 @@ void kmview_thread_free(struct kmview_thread *kmt, int kill)
 		up(&kmt->kmstop);
 #endif
 	}
-	fdsysset_free(kmt->fdset);
+	if (atomic_dec_and_test(&kmt->fdset->nusers)) {
+		fdsysset_free(kmt->fdset->fdsysset);
+#ifdef USE_KMEM_CACHE
+		kmem_cache_free(kmview_fdset_cache,kmt->fdset);
+#else
+		kfree(kmt->fdset);
+#endif
+	}
 	kmpid_free(kmt->kmpid);
 #ifdef USE_KMEM_CACHE
 	kmem_cache_free(kmview_thread_cache,kmt);
@@ -390,14 +412,15 @@ void kmview_module_event_free(struct kmview_module_event *kme)
 #endif
 }
 
-static inline int isinfdset(int fd, struct kmview_fdsysset *fdset)
+static inline int isinfdset(int fd, struct kmview_fdset *fdset)
 {
-	if (fdset == NULL)
+	struct kmview_fdsysset *fdsysset=fdset->fdsysset;
+	if (fdsysset == NULL)
 		return 0;
-	return FD_ISSET(fd,&fdset->fdset);
+	return FD_ISSET(fd,&fdsysset->fdset);
 }
 
-static inline int iskmviewfd (unsigned long sysno, int fd, struct kmview_fdsysset *fdset,
+static inline int iskmviewfd (unsigned long sysno, int fd, struct kmview_fdset *fdset,
 		    int except_close, int except_fchdir) {
 	if (!scbitmap_isset(fdsyscall,sysno))
 		return 1;
@@ -412,13 +435,11 @@ static inline int iskmviewfd (unsigned long sysno, int fd, struct kmview_fdsysse
 	return isinfdset(fd,fdset);
 }
 
-static inline int iskmviewsockfd(unsigned long socketcallno, int fd, struct kmview_fdsysset *fdset)
+static inline int iskmviewsockfd(unsigned long socketcallno, int fd, struct kmview_fdset *fdset)
 {
 	if (!isfdsocket(socketcallno))
 		return 1;
-	if (fdset == NULL)
-		return 0;
-	return FD_ISSET(fd,&fdset->fdset);
+	return isinfdset(fd,fdset);
 }
 
 static inline unsigned int hashadd (long prevhash, char c) {
@@ -517,7 +538,7 @@ static u32 kmview_syscall_entry(u32 action, struct utrace_engine *engine,
 		}
 		/* skip select/poll if all the fds are real! */
 		if (tracer_flags & KMVIEW_FLAG_FDSET) {
-		 if (scbitmap_isset(selectpollsyscall,kmt->scno) && kmt->fdset == NULL)
+		 if (scbitmap_isset(selectpollsyscall,kmt->scno) && kmt->fdset->fdsysset == NULL)
 			goto kmview_syscall_resume;
 		 if ((kmt->scno == __NR_mmap 
 #ifdef __NR_mmap2
@@ -592,7 +613,8 @@ int kmview_trace_init(void)
 {
 #ifdef USE_KMEM_CACHE
 	if ((kmview_thread_cache = KMEM_CACHE(kmview_thread, 0)) && 
-			(kmview_module_event_cache = KMEM_CACHE(kmview_module_event, 0)))
+			(kmview_module_event_cache = KMEM_CACHE(kmview_module_event, 0)) &&
+			(kmview_fdset_cache = KMEM_CACHE(kmview_fdset, 0)))
 		return 0;
 	else
 		return -ENOMEM;
@@ -608,5 +630,7 @@ void kmview_trace_fini(void)
 		        kmem_cache_destroy(kmview_thread_cache);
 	if (kmview_module_event_cache)
 		        kmem_cache_destroy(kmview_module_event_cache);
+	if (kmview_fdset_cache)
+		        kmem_cache_destroy(kmview_fdset_cache);
 #endif
 }

@@ -408,9 +408,9 @@ static int kmview_ioctl(struct inode *inode, struct file *filp,
 					ret=-EINVAL;
 				else {
 					if (cmd == KMVIEW_ADDFD) 
-						kmpids->km_thread->fdset=fdsysset_set(kmview_fdarg.fd,kmpids->km_thread->fdset);
+						kmpids->km_thread->fdset->fdsysset=fdsysset_set(kmview_fdarg.fd,kmpids->km_thread->fdset->fdsysset);
 					else /*KMVIEW_DELFD*/
-						kmpids->km_thread->fdset=fdsysset_clr(kmview_fdarg.fd,kmpids->km_thread->fdset);
+						kmpids->km_thread->fdset->fdsysset=fdsysset_clr(kmview_fdarg.fd,kmpids->km_thread->fdset->fdsysset);
 				}
 			break;
 			}

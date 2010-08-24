@@ -52,6 +52,11 @@ struct kmview_tracer {
 #define KMVIEW_THREAD_CHROOT 0x10
 #define KMVIEW_THREAD_INHERITED_FLAGS KMVIEW_THREAD_CHROOT
 
+struct kmview_fdset {
+	atomic_t nusers;
+	struct kmview_fdsysset *fdsysset;
+};
+
 struct kmview_thread {
 	struct task_struct *task;
 	struct kmview_tracer *tracer;
@@ -68,7 +73,7 @@ struct kmview_thread {
 	unsigned long socketcallargs[6];
 #endif
 	//struct utrace_examiner exam;
-	struct kmview_fdsysset *fdset;
+	struct kmview_fdset *fdset;
 };
 
 
