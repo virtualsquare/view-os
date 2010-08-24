@@ -306,15 +306,10 @@ int wrap_in_dup(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd;
-	if (sc_number == __NR_dup) 
-		pc->sysargs[1]= -1;
-#ifdef __NR_dup3
-	if (sc_number != __NR_dup3) 
-#endif
-		pc->sysargs[2]= 0;
+	int oldfd=(sc_number==__NR_dup)?-1:pc->sysargs[1];
 	sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	GDEBUG(4, "DUP %d %d sfd %d %s",pc->sysargs[0],pc->sysargs[1],sfd,fd_getpath(pc->fds,pc->sysargs[0]));
-	if (pc->sysargs[1] == um_mmap_secret || (sfd < 0 && hte != NULL)) {
+	if (oldfd == um_mmap_secret || (sfd < 0 && hte != NULL)) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 		return SC_FAKE;
@@ -324,7 +319,7 @@ int wrap_in_dup(int sc_number,struct pcb *pc,
 		if (pc->retval >= 0) {
 			lfd_dup(pc->retval);
 			return SC_CALLONXIT;
-		} else if (fd2lfd(pc->fds,pc->sysargs[1]) >= 0)
+		} else if (fd2lfd(pc->fds,oldfd) >= 0)
 			return SC_CALLONXIT;
 		else
 			return STD_BEHAVIOR;
@@ -333,6 +328,7 @@ int wrap_in_dup(int sc_number,struct pcb *pc,
 
 int wrap_out_dup(int sc_number,struct pcb *pc)
 {
+	int oldfd=(sc_number==__NR_dup)?-1:pc->sysargs[1];
 	/* SC_CALLONXIT both for NULL and module managed files.
 	 * FAKE only when the module gave an error */
 	if (pc->behavior == SC_CALLONXIT) {
@@ -343,8 +339,7 @@ int wrap_out_dup(int sc_number,struct pcb *pc)
 				 || addfd(pc,fd) == 0)) {
 			/* DUP2 case, the previous fd has been closed, umview must
 			 * update its lfd table */
-			if (pc->sysargs[1] != -1) {
-				int oldfd=pc->sysargs[1];
+			if (oldfd != -1) {
 				int oldlfd=fd2lfd(pc->fds,oldfd);
 				if (oldlfd >= 0) /* socket and stdin/out/err are -1*/
 				{
@@ -352,7 +347,7 @@ int wrap_out_dup(int sc_number,struct pcb *pc)
 					/* pc->hte for newfd is saved and restored */
 					struct ht_elem *newhte=pc->hte;
 					if ((pc->hte=lfd_getht(oldlfd)) != NULL)
-						delfd(pc,pc->sysargs[1]);
+						delfd(pc,oldfd);
 					lfd_deregister_n_close(pc->fds,oldfd);
 					pc->hte=newhte;
 				}
@@ -360,7 +355,7 @@ int wrap_out_dup(int sc_number,struct pcb *pc)
 			if (pc->retval >= 0)
 				lfd_register(pc->fds,fd,pc->retval);
 #ifdef __NR_dup3
-			if (pc->sysargs[2] & O_CLOEXEC) {
+			if ((sc_number == __NR_dup3) && (pc->sysargs[2] & O_CLOEXEC)) {
 				fd_setfdfl(pc->fds,fd,FD_CLOEXEC);
 			}
 #endif
