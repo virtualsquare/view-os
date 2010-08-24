@@ -608,9 +608,24 @@ int wrap_in_epoll_wait(int sc_number,struct pcb *pc,
 	return SC_CALLONXIT;
 }
 
+static void wrap_out_epoll_wait_unsubscribe(struct lfd_epoll_item *ep_item, void *arg)
+{
+	struct pcb *pc=arg;
+	int fd=ep_item->fd;
+	struct ht_elem *hte=ht_fd(pc->fds,fd,1);
+	if (hte != NULL) {
+		int sfd=fd2sfd(pc->fds,fd);
+		sysfun local_event_subscribe=ht_event_subscribe(hte);
+		if (sfd >= 0 && local_event_subscribe) {
+			int lfd=fd2lfd(pc->fds,fd);
+			local_event_subscribe(NULL, (void *)lfd, sfd, ep_item->event.events); 
+		}
+	}
+}
+
 int wrap_out_epoll_wait(int sc_number,struct pcb *pc)
 {
-	//int epfd = pc->sysargs[0];
+	int epfd = pc->sysargs[0];
 	long pevents = pc->sysargs[1];
 	int maxevents = pc->sysargs[2];
 	int size_events = maxevents * sizeof(struct epoll_event *);
@@ -631,7 +646,7 @@ int wrap_out_epoll_wait(int sc_number,struct pcb *pc)
 					sysfun local_event_subscribe=ht_event_subscribe(hte);
 					if (sfd >= 0 && local_event_subscribe) {
 						int lfd=fd2lfd(pc->fds,ep_item->fd);
-						events[i].events = local_event_subscribe(NULL, pc, sfd, ep_item->event.events);
+						events[i].events = local_event_subscribe(NULL, (void *)lfd, sfd, ep_item->event.events);
 						lfd_delsignal(lfd);
 					}
 				}
@@ -641,6 +656,7 @@ int wrap_out_epoll_wait(int sc_number,struct pcb *pc)
 		}
 		lfree(events,size_events);
 	}
+	lfd_epoll_forall(pc->fds, epfd, wrap_out_epoll_wait_unsubscribe, pc);
 	//printk("wrap_out_epoll_wait\n");
 	return SC_MODICALL;
 }

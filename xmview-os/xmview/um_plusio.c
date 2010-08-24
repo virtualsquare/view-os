@@ -541,7 +541,9 @@ int wrap_out_fcntl(int sc_number,struct pcb *pc)
 		case F_DUPFD:
 			fd=getrv(pc);
 			//printk("F_DUPFD %d->%d\n",pc->retval,fd);
-			if (fd>=0)
+			if (fd>=0 &&
+					(lfd_getht(pc->retval) == NULL
+					 || addfd(pc,fd) == 0))
 				lfd_register(pc->fds,fd,pc->retval);
 			else
 				lfd_close(pc->retval);
