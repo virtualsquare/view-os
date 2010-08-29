@@ -313,7 +313,7 @@ static err_t dhcp_select(struct netif *netif)
 
     /* TODO: we really should bind to a specific local interface here
        but we cannot specify an unconfigured netif as it is addressless */
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
 
     /* send broadcast to any DHCP server */
 	{
@@ -738,7 +738,7 @@ void dhcp_inform(struct netif *netif)
 
     pbuf_realloc(dhcp->p_out, sizeof(struct dhcp_msg) - DHCP_OPTIONS_LEN + dhcp->options_out_len);
 
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
 
 	{
     ///udp_connect(dhcp->pcb, IP4_ADDR_BROADCAST, DHCP_SERVER_PORT);
@@ -824,7 +824,7 @@ static err_t dhcp_decline(struct netif *netif)
     /* resize pbuf to reflect true size of options */
     pbuf_realloc(dhcp->p_out, sizeof(struct dhcp_msg) - DHCP_OPTIONS_LEN + dhcp->options_out_len);
 
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
 
     /* @todo: should we really connect here? we are performing sendto() */
     udp_connect(dhcp->pcb, IP4_ADDR_ANY, DHCP_SERVER_PORT);
@@ -893,7 +893,7 @@ static err_t dhcp_discover(struct netif *netif)
     ///CHANGED udp_recv(dhcp->pcb, dhcp_recv, netif);
 	udp_recv(dhcp->pcb, dhcp_recv_wrapper, netif);
 
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
 
     udp_connect(dhcp->pcb, IP4_ADDR_ANY, DHCP_SERVER_PORT);
 
@@ -1062,7 +1062,7 @@ err_t dhcp_renew(struct netif *netif)
 
     pbuf_realloc(dhcp->p_out, sizeof(struct dhcp_msg) - DHCP_OPTIONS_LEN + dhcp->options_out_len);
 
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
 
     { //
     struct ip_addr serverip;
@@ -1125,7 +1125,7 @@ static err_t dhcp_rebind(struct netif *netif)
     pbuf_realloc(dhcp->p_out, sizeof(struct dhcp_msg) - DHCP_OPTIONS_LEN + dhcp->options_out_len);
 
     /* set remote IP association to any DHCP server */
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
     udp_connect(dhcp->pcb, IP4_ADDR_ANY, DHCP_SERVER_PORT);
 
     /* broadcast to server */
@@ -1195,7 +1195,7 @@ err_t dhcp_release(struct netif *netif)
 
     pbuf_realloc(dhcp->p_out, sizeof(struct dhcp_msg) - DHCP_OPTIONS_LEN + dhcp->options_out_len);
 
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
 
     { //
     struct ip_addr serverip;
@@ -1519,8 +1519,7 @@ static void dhcp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, struct ip4
 
 /* Work around for original dhcp_recv() */
 static void dhcp_recv_wrapper(void *arg, struct udp_pcb *pcb, struct pbuf *p, 
-		struct ip_addr *addr, u16_t port,
-		struct ip_addr *destaddr, u16_t destport)
+		struct ip_addr *addr, u16_t port)
 {
 	struct ip4_addr ip;
 	ip64_addr_set(&ip, addr);
@@ -1772,7 +1771,7 @@ udp_send_netif(struct udp_pcb *pcb, struct pbuf *p, struct netif *netif)
   /* if the PCB is not yet bound to a port, bind it here */
   if (pcb->local_port == 0) {
     LWIP_DEBUGF(UDP_DEBUG | DBG_TRACE | 2, ("udp_send: not yet bound to a port, binding now\n"));
-    err = udp_bind(pcb, &pcb->local_ip, pcb->local_port);
+    err = udp_bind(pcb, &pcb->local_ip, pcb->local_port, NULL);
     if (err != ERR_OK) {
       LWIP_DEBUGF(UDP_DEBUG | DBG_TRACE | 2, ("udp_send: forced port bind failed\n"));
       return err;

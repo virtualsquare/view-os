@@ -24,7 +24,7 @@
 #ifndef __LWIP_RADVCONF_H__
 #define __LWIP_RADVCONF_H__
 
-int radv_load_configfile(char *path);
+int radv_load_configfile(struct stack *stack, char *path);
 
 #endif
 

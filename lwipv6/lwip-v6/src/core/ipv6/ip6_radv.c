@@ -184,6 +184,7 @@ static void
 send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
 {
 	int totlen;
+	struct stack *stack = netif->stack;
 	struct radv_prefix *list;
 
 	struct pbuf *p;
@@ -320,7 +321,7 @@ send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
 	
 	ICMP_STATS_INC(icmp.xmit);
 	
-	ip_output_if(p, &srcip, &dstip, 255, 0, IP_PROTO_ICMP , netif, &dstip, 0);
+	ip_output_if(stack, p, &srcip, &dstip, 255, 0, IP_PROTO_ICMP , netif, &dstip, 0);
 
 	pbuf_free(p);
 }
