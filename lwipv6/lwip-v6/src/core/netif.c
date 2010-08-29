@@ -525,10 +525,14 @@ netif_cleanup(struct stack *stack)
 {
 	struct netif *nip;
 	
-	for (nip=stack->netif_list; nip!=NULL; nip=nip->next)
-		// FIX: shutdown interface? RA needs this.
+	for (nip=stack->netif_list; nip!=NULL; nip=nip->next) {
+		// shutdown interface
+		if ((nip->flags & IFF_UP) && (nip->change))
+			nip->change(nip, NETIF_CHANGE_DOWN);
+
 		if (nip->netifctl)
 			nip->netifctl(nip,NETIFCTL_CLEANUP,NULL);
+	}
 }
 
 

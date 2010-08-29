@@ -377,7 +377,7 @@ void dhcp_coarse_tmr(void *arg)
     netif = netif->next;
   }
 
-	sys_timeout(DHCP_COARSE_TIMER_SECS * 1000, dhcp_coarse_tmr  , NULL);
+	sys_timeout(DHCP_COARSE_TIMER_SECS * 1000, dhcp_coarse_tmr  , stack);
 }
 
 /**
@@ -411,17 +411,14 @@ void dhcp_fine_tmr(void *arg)
     netif = netif->next;
   }
 
-	sys_timeout(DHCP_FINE_TIMER_MSECS, dhcp_fine_tmr  , NULL);
+	sys_timeout(DHCP_FINE_TIMER_MSECS, dhcp_fine_tmr  , stack);
 }
-
-
 
 void dhcp_init(struct stack *stack)
 {
 	sys_timeout(DHCP_FINE_TIMER_MSECS        , dhcp_fine_tmr    , (void*)stack);
 	sys_timeout(DHCP_COARSE_TIMER_SECS * 1000, dhcp_coarse_tmr  , (void*)stack);
 }
-
 
 /**
  * A DHCP negotiation transaction, or ARP request, has timed out.

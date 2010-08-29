@@ -128,12 +128,10 @@ struct netif {
    *  to state information for the device. */
   void *state;
 
-
 #define NETIF_CHANGE_UP    1
 #define NETIF_CHANGE_DOWN  2
 #define NETIF_CHANGE_MTU   3
   void (* change)(struct netif *netif, u32_t type);
-
 
 #if LWIP_DHCP
   /** the DHCP client state information for this netif */
