@@ -126,8 +126,9 @@ PACK_STRUCT_END
 #  include "arch/epstruct.h"
 #endif
 
-
+#if 0
 void dhcp_init(struct stack *stack);
+#endif
 
 /** start DHCP configuration */
 err_t dhcp_start(struct netif *netif);

@@ -414,10 +414,38 @@ void dhcp_fine_tmr(void *arg)
 	sys_timeout(DHCP_FINE_TIMER_MSECS, dhcp_fine_tmr  , stack);
 }
 
+#if 0
 void dhcp_init(struct stack *stack)
 {
 	sys_timeout(DHCP_FINE_TIMER_MSECS        , dhcp_fine_tmr    , (void*)stack);
 	sys_timeout(DHCP_COARSE_TIMER_SECS * 1000, dhcp_coarse_tmr  , (void*)stack);
+}
+#endif
+
+/* start timers if there are no interfaces requiring DHCP,
+	 call this just before assigning netif->dhcp */
+static void dhcp_starttimers(struct stack *stack)
+{
+	struct netif *netif;
+	for(netif = stack->netif_list; netif != NULL; netif = netif->next)
+		if (netif->dhcp != NULL) break;
+	if (netif==NULL) {
+		sys_timeout(DHCP_FINE_TIMER_MSECS        , dhcp_fine_tmr    , (void*)stack);
+	  sys_timeout(DHCP_COARSE_TIMER_SECS * 1000, dhcp_coarse_tmr  , (void*)stack);
+	}
+}
+
+/* stop timers if there are no interfaces requiring DHCP,
+	 call this just after assigning netif->dhcp=NULL */
+static void dhcp_stoptimers(struct stack *stack)
+{
+	struct netif *netif;
+	for(netif = stack->netif_list; netif != NULL; netif = netif->next) 
+		if (netif->dhcp != NULL) break;
+	if (netif==NULL) {
+		sys_untimeout(dhcp_fine_tmr    , (void*)stack);
+		sys_untimeout(dhcp_coarse_tmr  , (void*)stack);
+	}
 }
 
 /**
@@ -644,6 +672,7 @@ err_t dhcp_start(struct netif *netif)
       LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE, ("dhcp_start(): could not allocate dhcp\n"));
       return ERR_MEM;
     }
+		dhcp_starttimers(stack);
     /* store this dhcp client in the netif */
     netif->dhcp = dhcp;
     LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE, ("dhcp_start(): allocated dhcp"));
@@ -653,8 +682,7 @@ err_t dhcp_start(struct netif *netif)
     LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE | DBG_STATE | 3, ("dhcp_start(): restarting DHCP configuration\n"));
   }
 
-
-///  /* FIX FIX FIX: devo dare un indirizzo all'interfaccia altrimenti non funziona */
+///  /* FIX FIX FIX: I must give an address to the interface otherwise it does not work */
 ///  {	
 ///	struct ip_addr ip,netmask;
 ///	IP64_ADDR(&ip, 0,0,0,0);
@@ -662,8 +690,6 @@ err_t dhcp_start(struct netif *netif)
 ///	netif_add_addr(netif, &ip, &netmask);
 ///	//ip_route_list_add(&ip, &netmask, &netmask, netif, 0);		
 ///  }
-
-
   	
   /* clear data structure */
   memset(dhcp, 0, sizeof(struct dhcp));
@@ -673,6 +699,7 @@ err_t dhcp_start(struct netif *netif)
     LWIP_DEBUGF(DHCP_DEBUG  | DBG_TRACE, ("dhcp_start(): could not obtain pcb\n"));
     mem_free((void *)dhcp);
     netif->dhcp = dhcp = NULL;
+		dhcp_stoptimers(stack);
     return ERR_MEM;
   }
   LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE, ("dhcp_start(): starting DHCP configuration\n"));
@@ -709,6 +736,7 @@ void dhcp_inform(struct netif *netif)
     LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE | 2, ("dhcp_inform(): could not allocate dhcp\n"));
     return;
   }
+	dhcp_starttimers(stack);
   netif->dhcp = dhcp;
   memset(dhcp, 0, sizeof(struct dhcp));
 
@@ -716,7 +744,9 @@ void dhcp_inform(struct netif *netif)
   dhcp->pcb = udp_new(stack);
   if (dhcp->pcb == NULL) {
     LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE | 2, ("dhcp_inform(): could not obtain pcb"));
+		netif->dhcp=NULL;
     mem_free((void *)dhcp);
+		dhcp_stoptimers(stack);
     return;
   }
   LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE, ("dhcp_inform(): created new udp pcb\n"));
@@ -757,8 +787,9 @@ void dhcp_inform(struct netif *netif)
   if (dhcp != NULL) {
     if (dhcp->pcb != NULL) udp_remove(dhcp->pcb);
     dhcp->pcb = NULL;
-    mem_free((void *)dhcp);
     netif->dhcp = NULL;
+    mem_free((void *)dhcp);
+		dhcp_stoptimers(stack);
   }
 }
 
@@ -1271,7 +1302,9 @@ void dhcp_stop(struct netif *netif)
     /* free unfolded reply */
     dhcp_free_reply(dhcp);
     mem_free((void *)dhcp);
+		netif->flags &= ~NETIF_FLAG_DHCP;
     netif->dhcp = NULL;
+		dhcp_stoptimers(netif->stack);
   }
 }
 

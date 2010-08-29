@@ -403,6 +403,30 @@ int lwip_ifup(struct netif *netif)
 }
 
 /**
+ * Bring the input network interface up and set up address by DHCP. 
+ *
+ * @param netif The interface to bring up.
+ *
+ * Bring the input network interface up. It doesn't check if input is NULL.
+ *
+ * @return It returns always 0.
+ *
+ * @note If IPv6 Stateless Address Autoconfiguration is enabled, the
+ *       autoconfiguration protocol will start.
+ *
+ * @bug It doesn't check if the interface is already up.
+ */
+int lwip_ifup_dhcp(struct netif *netif)
+{
+#if LWIP_DHCP
+	netif_set_up_dhcp(netif);
+	return 0;
+#else
+	return -ENOSYS;
+#endif
+}
+
+/**
  * Bring the input network interface down. 
  *
  * @param netif The interface to bring down.

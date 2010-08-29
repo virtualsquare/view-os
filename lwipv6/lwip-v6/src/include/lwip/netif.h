@@ -79,9 +79,10 @@
 #define NETIF_FLAG_UP 0x1U
 /** if set, the netif has broadcast capability */
 #define NETIF_FLAG_BROADCAST 0x2U
-/** if set, the netif is one end of a point-to-point connection */
+/** if set, the netif id the loopback interface */
 #define NETIF_FLAG_LOOPBACK 0x8U
 
+/** if set, the netif is one end of a point-to-point connection */
 #define NETIF_FLAG_POINTTOPOINT 0x10U
 /** if set, the interface is configured using DHCP */
 #define NETIF_FLAG_DHCP 0x08U
@@ -238,6 +239,7 @@ struct netif * netif_find_direct_destination(struct stack *stack, struct ip_addr
 
 /* These functions change interface state and inform IP layer */
 void netif_set_up(struct netif *netif);
+void netif_set_up_dhcp(struct netif *netif);
 u8_t netif_is_up(struct netif *netif);
 void netif_set_down(struct netif *netif);
 

@@ -732,6 +732,18 @@ void netif_set_up(struct netif *netif)
 		netif->change(netif, NETIF_CHANGE_UP);
 }
 
+#if LWIP_DHCP
+void netif_set_up_dhcp(struct netif *netif)
+{
+	if (!(netif->flags & NETIF_FLAG_UP)) {
+		netif->flags |= (NETIF_FLAG_UP | NETIF_FLAG_DHCP);
+
+		if (netif->change)
+			netif->change(netif, NETIF_CHANGE_UP);
+	}
+}
+#endif
+
 void netif_set_up_low(struct netif *netif)
 {
 	netif->flags |= NETIF_FLAG_UP;
@@ -749,8 +761,6 @@ void netif_set_down_low(struct netif *netif)
 {
 	netif->flags &= ~NETIF_FLAG_UP;
 }
-
-
 
 #if LWIP_NL
 

@@ -131,8 +131,10 @@ ip_init(struct stack *stack)
   ip_autoconf_init(stack);
 #endif 
 
+#if 0
 #if LWIP_DHCP
   dhcp_init(stack);
+#endif
 #endif
 
 #if IPv6_ROUTER_ADVERTISEMENT
@@ -868,7 +870,8 @@ ip_notify(struct netif *netif, u32_t type)
 
 #if LWIP_DHCP
       /* FIX: under testing */
-      dhcp_start(netif);
+			if (netif->flags & NETIF_FLAG_DHCP)
+				dhcp_start(netif);
 #endif
 
 #if IPv6_AUTO_CONFIGURATION
@@ -886,8 +889,10 @@ ip_notify(struct netif *netif, u32_t type)
 
 #if LWIP_DHCP
       /* FIX: under testing */
-      dhcp_release(netif);
-      dhcp_stop(netif);
+			if (netif->flags & NETIF_FLAG_DHCP) {
+				dhcp_release(netif);
+				dhcp_stop(netif);
+			}
 #endif
 
 #if IPv6_ROUTER_ADVERTISEMENT
