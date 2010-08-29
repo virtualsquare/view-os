@@ -43,6 +43,7 @@
 #include "dnsforward.h"
 #include "xlocal.h"
 #include "slirpvde6.h"
+#include "config.h"
 
 #ifdef HAVE_GETOPT_LONG_ONLY
 #define GETOPT_LONG getopt_long_only
@@ -596,6 +597,12 @@ int main(int argc, char **argv)
 	if (optind < argc)
 		usage(prog);
 
+	if(sockname && sockname[0]=='-' && sockname[1]==0) {
+		/* if vdestream on stdin-stdout be quiet and do not
+			 daemonize */
+		daemonize = 0;
+		quiet = 1;
+	}
 	atexit(cleanup);
 	if (daemonize) {
 		openlog(basename(prog), LOG_PID, 0);
@@ -608,8 +615,6 @@ int main(int argc, char **argv)
 	}
 
 	if(pidfile) save_pidfile();
-	if(sockname && *sockname=='-')
-		quiet=1;
 	if(dhcpmgmt) {
 		int i;
 		for (i=0; i<nvhosts; i++) {
@@ -640,6 +645,11 @@ int main(int argc, char **argv)
 	}
 	if(dhcpmgmt && vdhcp_naddr==0)
 		vdhcp_naddr=10;
+
+	if (daemonize && daemon(0, 0)) {
+		printlog(LOG_ERR,"daemon: %s",strerror(errno));
+		exit(1);
+	}
 
 	if (!quiet) {
 		char hostbuf[NAMEINFO_LEN];
