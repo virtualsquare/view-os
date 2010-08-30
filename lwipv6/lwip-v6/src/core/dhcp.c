@@ -1023,9 +1023,10 @@ static void dhcp_bind(struct netif *netif)
     ip_addr_debug_print(DHCP_DEBUG | DBG_STATE, &sn_mask);
   LWIP_DEBUGF(DHCP_DEBUG | DBG_STATE, ("\nGW: "));
   	ip_addr_debug_print(DHCP_DEBUG | DBG_STATE, &gw_addr);
+  LWIP_DEBUGF(DHCP_DEBUG | DBG_STATE, ("\n"));
 
 
-///  /* FIX FIX FIX FIX: rimuovo l'indirizzo fittizio */
+///  /* FIX FIX FIX FIX: remove the fake address */
 ///  {	
 ///	struct ip_addr ip2,netmask2;
 ///	IP64_ADDR(&ip2, 0,0,0,0);
