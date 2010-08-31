@@ -95,7 +95,7 @@ long _pure_debug_printf(const char *format, ...)
 // open must consider two mode of calling: with two or three arguments
 int open(const char* pathname,int flags,...){
 	va_list arg_list;
-	if( flags |  O_CREAT ){
+	if( flags &  O_CREAT ){
 		mode_t mode;
 		va_start(arg_list,flags);
 		mode = va_arg(arg_list,mode_t);
@@ -108,7 +108,7 @@ int open(const char* pathname,int flags,...){
 
 int open64(const char* pathname,int flags,...){
 	va_list arg_list;
-	if( flags |  O_CREAT ){
+	if( flags &  O_CREAT ){
 		mode_t mode;
 		va_start(arg_list,flags);
 		mode = va_arg(arg_list,mode_t);
@@ -728,7 +728,7 @@ int setreuid(uid_t ruid, uid_t euid){
 }
 
 int setregid(gid_t rgid, gid_t egid){
-	return _pure_syscall(__NR_setresgid,rgid,egid);
+	return _pure_syscall(__NR_setregid,rgid,egid);
 }
 
 int setresuid(uid_t ruid, uid_t euid, uid_t suid){
@@ -918,7 +918,7 @@ int getpriority(__priority_which_t which, id_t who){
 }
 
 int setpriority(__priority_which_t which, id_t who, int prio){
-	return _pure_syscall(__NR_getpriority,which,who,prio);
+	return _pure_syscall(__NR_setpriority,which,who,prio);
 }
 
 int statfs(const char *path, struct statfs *buf){
@@ -1219,7 +1219,7 @@ int ftime(struct timeb *tp){
 #ifdef __NR_openat
 int openat(int dirfd,const char* pathname,int flags,...){
 	va_list arg_list;
-	if( flags |  O_CREAT ){
+	if( flags &  O_CREAT ){
 		mode_t mode;
 		va_start(arg_list,flags);
 		mode = va_arg(arg_list,mode_t);
@@ -1232,7 +1232,7 @@ int openat(int dirfd,const char* pathname,int flags,...){
 
 int openat64(int dirfd,const char* pathname,int flags,...){
 	va_list arg_list;
-	if( flags |  O_CREAT ){
+	if( flags &  O_CREAT ){
 		mode_t mode;
 		va_start(arg_list,flags);
 		mode = va_arg(arg_list,mode_t);
