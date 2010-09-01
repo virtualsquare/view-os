@@ -109,7 +109,7 @@ redirect a X window screen of a virtual machine. Slirpvde gets the first unused 
 host running slirpvde6 and redirects all the requests to \fIvde_host\fR.
 \fIdisplay\fR and \fIscreen\fR] must be specified when different from :0.0.
 .TP
-\fB-x \fIport\fR:\fIunix_socket_path\fR]
+\fB-x \fIport\fR:\fIunix_socket_path\fR
 redirect a port of the virtual router (usually 10.0.2.2) to a unix stream socket.
 It is used for example to redirect a X display of the hosting computer on the virtual network. e.g. -x6000:/tmp/.X11-unix/X0. (A suitable xhost configuration is needed (e.g. 'xhost local:').
 .TP
@@ -118,6 +118,17 @@ slirpvde6 enables a tftp server sharing (read-only) the directory at \fIpathname
 .TP
 \fB-q, --quiet\fP
 Quiet;   do   not  write  anything  to  standard  output.
+.TP
+\fB-r\fR[\fIprefix\fR[,\fIprefix\fR]\fR]
+.TP
+\fB--radvd\fR[\fIprefix\fR[,\fIprefix\fR]\fR]
+start the router advertisement server for IPv6 (if this feature has been enabled at compile time).
+If prefix is omitted it gets the prefix of the first defined IPv6 address.
+.TP
+\fB-R \fIradvd_conf_file\fR]
+.TP
+\fB--radvdrc [\fIradvd_conf_file\fR]
+for more complex radvd setups the configuration can be loaded from a file.
 
 .SH NOTICE
 Virtual Distributed Ethernet is not related in any way with

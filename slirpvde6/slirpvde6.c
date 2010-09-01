@@ -45,6 +45,8 @@
 #include "slirpvde6.h"
 #include "config.h"
 
+//#define RADV
+
 #ifdef HAVE_GETOPT_LONG_ONLY
 #define GETOPT_LONG getopt_long_only
 #else
@@ -84,6 +86,10 @@ static char *pidfile = NULL;
 static char pidfile_path[PATH_MAX];
 int dhcpmgmt=0;
 int dnsforward=0;
+#ifdef RADV
+static char *radvd = NULL;
+static char *radvdfile = NULL;
+#endif
 
 struct slirpoll_args {
 	void (*fun)(int fd, void *arg);
@@ -519,6 +525,10 @@ int main(int argc, char **argv)
 		{"tftp",required_argument,NULL,'t'},
 		{"quiet",no_argument,NULL,'q'},
 		{"help",no_argument,NULL,'h'},
+#ifdef RADV
+		{"radvd",optional_argument,NULL,'r'},
+		{"radvdrc",optional_argument,NULL,'R'},
+#endif
 		{NULL,no_argument,NULL,0}};
 
 	vhosts=malloc(sizeof(struct ip_addr));
@@ -528,7 +538,12 @@ int main(int argc, char **argv)
 
 	prog=basename(argv[0]);
 
-	while ((opt=GETOPT_LONG(argc,argv,"D::s:n:H:p:g:m:L:U:X:x:t:N::dqh",slirpvdeopts,&longindx)) > 0) {
+	while ((opt=GETOPT_LONG(argc,argv,
+					"D::s:n:H:p:g:m:L:U:X:x:t:N::dqh"
+#ifdef RADV
+					"r::R:"
+#endif
+					,slirpvdeopts,&longindx)) > 0) {
 		switch (opt) {
 			case 's' : sockname=optarg;
 								 break;
@@ -563,6 +578,15 @@ int main(int argc, char **argv)
 									 vnameserver=&nameserver;
 								 }
 								 break;
+#ifdef RADV
+			case 'r' : if (optarg == NULL) 
+									 radvd = "";
+								 else 
+									 radvd = strdup(optarg);
+								 break;
+			case 'R' : radvdfile = strdup(optarg);
+								 break;
+#endif
 								 /*case 'm' : sscanf(optarg,"%o",(unsigned int *)&(open_args.mode));
 									 break;*/
 								 /*case 'g' : open_args.group=strdup(optarg);
@@ -597,6 +621,26 @@ int main(int argc, char **argv)
 	if (optind < argc)
 		usage(prog);
 
+#ifdef RADV
+	if (radvd != NULL && *radvd == 0 && radvdfile == NULL) {
+		for (i=0; (i<nvhosts) && (IP_ADDR_IS_V4(&vhosts[i])); i++) 
+			;
+		if (i<nvhosts) {
+			char hostbuf[NAMEINFO_LEN];
+			struct ip_addr tmpmask;
+			struct ip_addr tmpaddr=vhosts[i];
+			lwip_inet_mask(maskbits[i], &tmpaddr, &tmpmask);
+			tmpaddr.addr[0] &= tmpmask.addr[0];
+			tmpaddr.addr[1] &= tmpmask.addr[1];
+			tmpaddr.addr[2] &= tmpmask.addr[2];
+			tmpaddr.addr[3] &= tmpmask.addr[3];
+			asprintf(&radvd,"%s/%d",lwip_inet_ntoa(&tmpaddr, hostbuf, NAMEINFO_LEN), maskbits[i]);
+		} else {
+			lprint("router advertisement arg error no IPv6 addr\n");
+			exit(-1);
+		}
+	}
+#endif
 	if(sockname && sockname[0]=='-' && sockname[1]==0) {
 		/* if vdestream on stdin-stdout be quiet and do not
 			 daemonize */
@@ -684,8 +728,12 @@ int main(int argc, char **argv)
 						lwip_inet_ntoa(&tmpdns, hostbuf, NAMEINFO_LEN));
 			}
 		}
-		if (dhcpmgmt) {
-		}
+#ifdef RADV
+		if (radvdfile != NULL)
+			lprint("                    router adv  = file %s\n", radvdfile);
+		else if (radvd != NULL)
+			lprint("                    router adv  =%s\n", radvd);
+#endif
 		if (tftp_prefix != NULL)
 			lprint("                    tftp prefix =%s\n", tftp_prefix);
 		lprint("                    vde switch  =%s\n", 
@@ -700,10 +748,18 @@ int main(int argc, char **argv)
 	lwip_stack_flags_set(stack,LWIP_STACK_FLAG_FORWARDING);
 
 	/* add a vde interface */
-	if((vdenif=lwip_vdeif_add(stack,sockname))==NULL){
-		lprint("VDE Interface not loaded\n");
-		exit(-1);
-	}
+#ifdef RADV
+	if(radvd != NULL || radvdfile != NULL) {
+		if((vdenif=lwip_add_vdeif(stack,sockname,NETIF_FLAG_RADV))==NULL){
+			lprint("VDE Interface not loaded\n");
+			exit(-1);
+		}
+	} else
+#endif
+		if((vdenif=lwip_vdeif_add(stack,sockname))==NULL){
+			lprint("VDE Interface not loaded\n");
+			exit(-1);
+		}
 
 	/* add a slirp interface */
 	if((slirpnif=lwip_slirpif_add(stack,NULL))==NULL){
@@ -725,6 +781,33 @@ int main(int argc, char **argv)
 	do_redir_tcp(slirpnif,rtcp,quiet);
 	do_redir_x(slirpnif,rx,quiet);
 	do_redir_locx(stack,rlocx,quiet);
+
+#ifdef RADV
+	if(radvdfile != NULL)
+		lwip_radv_load_configfile(stack, radvd+5);
+	else if(radvd != NULL) { 
+		FILE *memfile;
+		char *buf;
+		int buflen;
+		memfile=open_memstream(&buf, &buflen);
+		if (memfile) {
+			char *oneprefix,*saveptr;
+			char *prefixes=radvd;
+			fprintf(memfile,"[vd0]\nAdvSendAdvert = ON\n");
+			while((oneprefix=strtok_r(prefixes,",",&saveptr))!= NULL) {
+				fprintf(memfile,"AddPrefix = %s\n",oneprefix);
+				prefixes=NULL;
+			}
+		}
+		fclose(memfile);
+		//printf("=====================\n%s=====================\n",buf);
+		memfile=fmemopen(buf,buflen,"r");
+		if (memfile)
+			lwip_radv_load_config(stack,memfile);
+		fclose(memfile);
+		free(buf);
+	}
+#endif
 
 	lwip_ifup(vdenif);
 	lwip_ifup(slirpnif);
