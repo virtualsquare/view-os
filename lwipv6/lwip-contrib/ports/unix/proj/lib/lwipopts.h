@@ -90,7 +90,7 @@
 #define LWIP_NAT                       0
 
 /* Set to 1 to enable DHCP IPv4 */
-#define LWIP_DHCP                      0
+#define LWIP_DHCP                      1
 
 
 /* ---------- Memory options ---------- */

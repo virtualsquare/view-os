@@ -30,6 +30,9 @@
 /*--------------------------------------------------------------------------*/
 /* Costants */
 /*--------------------------------------------------------------------------*/
+#ifndef UNSPECIFIED
+#define UNSPECIFIED	0
+#endif
 
 #ifndef TRUE
 #define TRUE    1
@@ -69,9 +72,9 @@
 #define MAX_MaxRtrAdvInterval		    1800
 
 #define MIN_MinRtrAdvInterval		    3
-#define MAX_MinRtrAdvInterval(netif)    (0.75 * (netif)->radv.MaxRtrAdvInterval)
+#define MAX_MinRtrAdvInterval(netif)    (0.75 * (netif)->radv->MaxRtrAdvInterval)
 
-#define MIN_AdvDefaultLifetime(netif)   (RADV_MAX(1,(netif)->radv.MaxRtrAdvInterval))
+#define MIN_AdvDefaultLifetime(netif)   (RADV_MAX(1,(netif)->radv->MaxRtrAdvInterval))
 #define MAX_AdvDefaultLifetime		    9000
 
 #define	MIN_AdvLinkMTU			        1280

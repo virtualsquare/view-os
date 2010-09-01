@@ -335,6 +335,8 @@ struct icmp_opt_prefix {
   PACK_STRUCT_FIELD(u8_t flags);      
 #define ICMP6_OPT_PREF_L  0x80
 #define ICMP6_OPT_PREF_A  0x40
+#define ICMP6_OPT_PREF_R  0x20
+#define ICMP6_OPT_PREF_S  0x10
   PACK_STRUCT_FIELD(u32_t valid);     
   PACK_STRUCT_FIELD(u32_t prefered);  /* seconds */
   PACK_STRUCT_FIELD(u32_t reserved);  /* seconds */

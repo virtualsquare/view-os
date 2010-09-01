@@ -2160,13 +2160,13 @@ int lwip_pselect(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *excepts
 			}
 		} else {
 			if (readset) {
-				if (FD_ISSET(i,readset)) count++; else FD_CLR(i,readset);
+				if (FD_ISSET(i,&lreadset)) count++; else FD_CLR(i,readset);
 			}
 			if (writeset) {
-				if (FD_ISSET(i,writeset)) count++; else FD_CLR(i,writeset);
+				if (FD_ISSET(i,&lwriteset)) count++; else FD_CLR(i,writeset);
 			}
 			if (exceptset) {
-				if (FD_ISSET(i,exceptset)) count++; else FD_CLR(i,exceptset);
+				if (FD_ISSET(i,&lexceptset)) count++; else FD_CLR(i,exceptset);
 			}
 		}
 	}

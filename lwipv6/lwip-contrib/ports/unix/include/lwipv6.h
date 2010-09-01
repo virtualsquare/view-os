@@ -23,6 +23,7 @@
  */ 
 #ifndef _LWIPV6_H
 #define _LWIPV6_H
+#include <stdio.h>
 #include <stdlib.h>   /* timeval */ 
 #include <stdint.h>   /* uint32_t */ 
 #include <errno.h>   
@@ -95,6 +96,25 @@ struct ip_addr {
 	 ((ipaddr)->addr[1] == 0) && \
 	 ((ipaddr)->addr[2] == IP64_PREFIX))
 
+/* if set use IPv6 AUTOCONF */
+#define NETIF_FLAG_AUTOCONF 0x1000U
+/* if set this interface supports Router Advertising */
+#define NETIF_FLAG_RADV     0x2000U
+#define NETIF_STD_FLAGS (NETIF_FLAG_AUTOCONF)
+#define NETIF_ADD_FLAGS (NETIF_FLAG_AUTOCONF | NETIF_FLAG_RADV)
+
+/** if set, the interface is configured using DHCP */
+#define NETIF_FLAG_DHCP 0x08U
+#define NETIF_IFUP_FLAGS (NETIF_FLAG_DHCP)
+
+/* netif creation with standard flags */
+#define lwip_vdeif_add(S,A) lwip_add_vdeif((S),(A),NETIF_STD_FLAGS)
+#define lwip_tapif_add(S,A) lwip_add_tapif((S),(A),NETIF_STD_FLAGS)
+#define lwip_tunif_add(S,A) lwip_add_tunif((S),(A),NETIF_STD_FLAGS)
+#define lwip_slirpif_add(S,A) lwip_add_slirpif((S),(A),0)
+#define lwip_ifup(N) lwip_ifup_flags((N),0)
+#define lwip_ifup_dhcp(N) lwip_ifup_flags((N),NETIF_FLAG_DHCP)
+
 #ifndef LWIPV6DL
 typedef void (*lwipvoidfun)();
 extern const struct ip_addr ip_addr_any;
@@ -121,16 +141,16 @@ void lwip_stack_set(struct stack *stack);
 unsigned long lwip_stack_flags_get(struct stack *stackid);
 void lwip_stack_flags_set(struct stack *stackid, unsigned long flags);
 
-struct netif *lwip_vdeif_add(struct stack *stack, void *arg);
-struct netif *lwip_tapif_add(struct stack *stack, void *arg);
-struct netif *lwip_tunif_add(struct stack *stack, void *arg);
-struct netif *lwip_slirpif_add(struct stack *stack, void *arg);
+struct netif *lwip_add_vdeif(struct stack *stack, void *arg, int flags);
+struct netif *lwip_add_tapif(struct stack *stack, void *arg, int flags);
+struct netif *lwip_add_tunif(struct stack *stack, void *arg, int flags);
+struct netif *lwip_add_slirpif(struct stack *stack, void *arg, int flags);
 
 int lwip_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
 int lwip_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
 int lwip_add_route(struct stack *stack, struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags);
 int lwip_del_route(struct stack *stack, struct ip_addr *addr, struct ip_addr *netmask, struct ip_addr *nexthop, struct netif *netif, int flags);
-int lwip_ifup(struct netif *netif);
+int lwip_ifup_flags(struct netif *netif, int flags);
 int lwip_ifdown(struct netif *netif);
 
 int lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen);
@@ -172,6 +192,7 @@ struct iovec;
 ssize_t lwip_writev(int s, struct iovec *vector, int count);
 ssize_t lwip_readv(int s, struct iovec *vector, int count);
 
+void lwip_radv_load_config(struct stack *stack,FILE *filein);
 int lwip_radv_load_configfile(struct stack *stack,void *arg);
 
 int lwip_event_subscribe(lwipvoidfun cb, void *arg, int fd, int how);
@@ -215,13 +236,13 @@ pstackfun lwip_stack_get;
 lwipvoidfun lwip_stack_set;
 lwipvoidfun lwip_thread_new;
 
-pnetiffun lwip_vdeif_add, lwip_tapif_add, lwip_tunif_add;
+pnetiffun lwip_add_vdeif, lwip_add_tapif, lwip_add_tunif, lwip_add_slirpif;
 
 lwiplongfun lwip_add_addr,
 			lwip_del_addr,
 			lwip_add_route,
 			lwip_del_route,
-			lwip_ifup,
+			lwip_ifup_flags,
 			lwip_ifdown,
 			lwip_accept,
 			lwip_bind,
@@ -271,7 +292,7 @@ static inline void *loadlwipv6dl()
 		{"lwip_del_addr", &lwip_del_addr},
 		{"lwip_add_route", &lwip_add_route},
 		{"lwip_del_route", &lwip_del_route},
-		{"lwip_ifup", &lwip_ifup}, 
+		{"lwip_ifup_flags", &lwip_ifup}, 
 		{"lwip_ifdown", &lwip_ifdown},
 		{"lwip_accept", &lwip_accept},
 		{"lwip_bind", &lwip_bind}, 
@@ -300,9 +321,10 @@ static inline void *loadlwipv6dl()
 		{"lwip_readv", &lwip_readv},
 		{"lwip_writev", &lwip_writev},
 		{"lwip_msocket", &lwip_msocket},
-		{"lwip_vdeif_add", (lwiplongfun *)(&lwip_vdeif_add)},
-		{"lwip_tapif_add", (lwiplongfun *)(&lwip_tapif_add)},
-		{"lwip_tunif_add", (lwiplongfun *)(&lwip_tunif_add)}, 
+		{"lwip_add_vdeif", (lwiplongfun *)(&lwip_add_vdeif)},
+		{"lwip_add_tapif", (lwiplongfun *)(&lwip_add_tapif)},
+		{"lwip_add_tunif", (lwiplongfun *)(&lwip_add_tunif)}, 
+		{"lwip_add_slirpif", (lwiplongfun *)(&lwip_add_slirpif)}, 
 		{"lwip_radv_load_configfile", (lwiplongfun *)(&lwip_radv_load_configfile)},
 		{"lwip_thread_new", (lwipvoidfun*) (&lwip_thread_new)},
 		{"lwip_event_subscribe", (lwipvoidfun*) (&lwip_event_subscribe)}

@@ -51,13 +51,6 @@
 #define NETIF_SLIPIF 5
 #define NETIF_NUMIF 6
 
-#if 0
-#if LWIP_DHCP
-#include "lwip/dhcp.h"
-#endif
-#endif
-
-
 #if IPv6_AUTO_CONFIGURATION
 #include "lwip/ip_autoconf.h"
 #endif
@@ -79,19 +72,32 @@
 #define NETIF_FLAG_UP 0x1U
 /** if set, the netif has broadcast capability */
 #define NETIF_FLAG_BROADCAST 0x2U
-/** if set, the netif id the loopback interface */
-#define NETIF_FLAG_LOOPBACK 0x8U
-
 /** if set, the netif is one end of a point-to-point connection */
-#define NETIF_FLAG_POINTTOPOINT 0x10U
+#define NETIF_FLAG_POINTTOPOINT 0x04U
 /** if set, the interface is configured using DHCP */
 #define NETIF_FLAG_DHCP 0x08U
 /** if set, the interface has an active link
  *  (set by the network interface driver) */
-#define NETIF_FLAG_LINK_UP NETIF_RUNNING
-#define NETIF_RUNNING 0x40U
+#define NETIF_FLAG_LINK_UP 0x10
+/* not used buf kept for comaptibility with LWIP
+#define NETIF_FLAG_ETHARP       0x20U
+#define NETIF_FLAG_ETHERNET     0x40U
+#define NETIF_FLAG_IGMP         0x80U
+*/
 
+/* Promisquous mode: pass all the traffic up to the stack */
 #define NETIF_PROMISC 0x100U
+/** if set, the netif id the loopback interface */
+#define NETIF_FLAG_LOOPBACK 0x200U
+
+/* if set use IPv6 AUTOCONF */
+#define NETIF_FLAG_AUTOCONF 0x1000U
+/* if set this interface supports Router Advertising */
+#define NETIF_FLAG_RADV	    0x2000U
+
+#define NETIF_STD_FLAGS (NETIF_FLAG_AUTOCONF)
+#define NETIF_ADD_FLAGS (NETIF_FLAG_AUTOCONF | NETIF_FLAG_RADV)
+#define NETIF_IFUP_FLAGS (NETIF_FLAG_DHCP)
 
 /** Generic data structure used for all lwIP network interfaces.
  *  The following fields should be filled in by the initialization
@@ -140,13 +146,11 @@ struct netif {
 #endif
 
 #if IPv6_AUTO_CONFIGURATION
-  /* FIX: make this a pointer? */
-  struct autoconf autoconf;
+  struct autoconf *autoconf;
 #endif
 
 #if IPv6_ROUTER_ADVERTISEMENT
-  /* FIX: make this a pointer? */
-  struct radv radv;
+  struct radv *radv;
 #endif
 
   /** number of bytes used in hwaddr */
@@ -161,10 +165,10 @@ struct netif {
   char name[2];
   /** number of this interface */
   u8_t num;
-	/** NETIF_FLAG_* */
-	u16_t flags;
 	/* unique id */
 	u8_t id;
+	/** NETIF_FLAG_* */
+	u16_t flags;
 
 #ifdef LWIP_NL
 	u16_t type;
@@ -238,8 +242,7 @@ struct netif *netif_find_id(struct stack *stack, int id);
 struct netif * netif_find_direct_destination(struct stack *stack, struct ip_addr *addr);
 
 /* These functions change interface state and inform IP layer */
-void netif_set_up(struct netif *netif);
-void netif_set_up_dhcp(struct netif *netif);
+void netif_set_up(struct netif *netif, int flags);
 u8_t netif_is_up(struct netif *netif);
 void netif_set_down(struct netif *netif);
 

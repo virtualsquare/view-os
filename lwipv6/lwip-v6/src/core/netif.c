@@ -298,7 +298,7 @@ struct netif * netif_add(
 
   netif->id = ++stack->uniqueid;
 
-  netif->flags = NETIF_RUNNING;
+  netif->flags |= NETIF_FLAG_LINK_UP;
   /* printf("netif_add %x netif->input %x\n",netif,netif->input); */
 
   /* call user specified initialization function for netif */
@@ -308,11 +308,17 @@ struct netif * netif_add(
   }
 
 #if IPv6_AUTO_CONFIGURATION  
-  ip_autoconf_netif_init(netif);
+	if (netif->flags & NETIF_FLAG_AUTOCONF)
+		ip_autoconf_netif_init(netif);
+	else
+		netif->autoconf = NULL;
 #endif
 
 #if IPv6_ROUTER_ADVERTISEMENT
-  ip_radv_netif_init(netif);
+	if (netif->flags & NETIF_FLAG_RADV)
+		ip_radv_netif_init(netif);
+	else
+		netif->radv = NULL;
 #endif
 
   if (stack->netif_list == NULL)
@@ -724,25 +730,13 @@ u8_t netif_is_up(struct netif *netif)
 	return (netif->flags & NETIF_FLAG_UP)?1:0;
 }
 
-void netif_set_up(struct netif *netif)
+void netif_set_up(struct netif *netif, int flags)
 {
-	netif->flags |= NETIF_FLAG_UP;
+	netif->flags |= (NETIF_FLAG_UP | (flags & NETIF_IFUP_FLAGS));
 	
 	if (netif->change)
 		netif->change(netif, NETIF_CHANGE_UP);
 }
-
-#if LWIP_DHCP
-void netif_set_up_dhcp(struct netif *netif)
-{
-	if (!(netif->flags & NETIF_FLAG_UP)) {
-		netif->flags |= (NETIF_FLAG_UP | NETIF_FLAG_DHCP);
-
-		if (netif->change)
-			netif->change(netif, NETIF_CHANGE_UP);
-	}
-}
-#endif
 
 void netif_set_up_low(struct netif *netif)
 {

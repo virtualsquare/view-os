@@ -305,6 +305,9 @@ int set_netif_prefix(struct netif *netif, char *val, int lineno)
 	int  num, i, err;
 	struct radv_prefix *prefix; 
 
+	if(netif->radv == NULL)
+		return 0;
+
 	prefix = radv_prefix_list_alloc();
 	if (prefix == NULL)
 		return 0;
@@ -362,15 +365,21 @@ int set_netif_prefix(struct netif *netif, char *val, int lineno)
 	ip_addr_debug_print(IP_RADVCONF_DEBUG, &prefix->Prefix);
 
 
-	prefix->next = netif->radv.prefix_list;
-	netif->radv.prefix_list =  prefix;
+	prefix->next = netif->radv->prefix_list;
+	netif->radv->prefix_list =  prefix;
 	
 	return 1;
 }
 
 int set_netif_parameter(struct netif *netif, char *parameter, char *val, int lineno)
 {
-	struct radv *rinfo = &(netif->radv);
+	struct radv *rinfo = netif->radv;
+
+	if (rinfo == NULL) {
+		LWIP_DEBUGF(IP_RADVCONF_DEBUG, ("%s: invalid interface '%c%c%d' at line: %d\n", __func__, 
+					netif->name[0], netif->name[1], netif->num, lineno));
+		return 0;
+	}
 
 	if (strcmp(parameter, "AdvSendAdvert") == 0) {
 		if (str_to_bool( &rinfo->AdvSendAdvert , val) == 1)
@@ -462,23 +471,16 @@ int set_netif_parameter(struct netif *netif, char *parameter, char *val, int lin
 
 /*--------------------------------------------------------------------------*/
 
-int radv_load_configfile(struct stack *stack, char *path)
+void radv_load_config(struct stack *stack, FILE *filein)
 {
 	char        lin[ASCIILINESZ+1];
 	char        sec[ASCIILINESZ+1];
 	char        key[ASCIILINESZ+1];
 	char        val[ASCIILINESZ+1];
 	char    *   where ;
-	FILE    *   filein ;
 	int         lineno ;
 
 	struct netif * curr_netif;
-
-	if ((filein=fopen(path, "r"))==NULL) {
-		LWIP_DEBUGF(IP_RADVCONF_DEBUG, ("%s: file '%s' not found!\n", __func__, path));
-
-		return 0;
-	}
 
 	sec[0]=0;
 	
@@ -540,11 +542,23 @@ int radv_load_configfile(struct stack *stack, char *path)
 
 		// FIX: check values
 	}
+}
 
+int radv_load_configfile(struct stack *stack, char *path)
+{
+	FILE    *   filein ;
+	if ((filein=fopen(path, "r"))==NULL) {
+		LWIP_DEBUGF(IP_RADVCONF_DEBUG, ("%s: file '%s' not found!\n", __func__, path));
+
+		return 0;
+	}
+	radv_load_config(stack, filein);
 	fclose(filein);
 
 	return 1 ;
 }
+
+
 
 #endif
 

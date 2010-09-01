@@ -91,7 +91,7 @@ extern int _nofdfake;
 
 /*static struct stack *mainstack;*/
 
-static void lwip_loopif_add(struct stack *stack);
+static void lwip_add_loopif(struct stack *stack);
 
 static void
 init_done(void *arg)
@@ -148,7 +148,7 @@ struct stack *lwip_stack_new(void)
 	sys_sem_free(sem);
 	
 	/* Add loop interface at least */       
-	lwip_loopif_add(newstack);
+	lwip_add_loopif(newstack);
 
 #ifdef MULTISTACKDEBUG
 	printf("%s: new %p\n", __func__, newstack);
@@ -224,13 +224,13 @@ static char *nullstring="";
  * @note If IPv6 Stateless Autoconfiguration Protocol is not enabled,
  *       a Link-scope IPv6 address will be assigned to the new interface.
  */
-struct netif *lwip_vdeif_add(struct stack *stack, void *arg)
+struct netif *lwip_add_vdeif(struct stack *stack, void *arg, int flags)
 {
-#if !IPv6_AUTO_CONFIGURATION
 	struct ip_addr ipaddr, netmask;
-#endif
 	struct netif *pnetif;
 	pnetif = mem_malloc(sizeof (struct netif));
+
+	pnetif->flags = flags & NETIF_ADD_FLAGS;
 	
 	if (arg == NULL) arg = nullstring;
 	if (tcpip_netif_add(stack, pnetif, arg, vdeif_init, tcpip_input, tcpip_notify) == NULL) {
@@ -238,23 +238,27 @@ struct netif *lwip_vdeif_add(struct stack *stack, void *arg)
 		return NULL;
 	}
 
-#if !IPv6_AUTO_CONFIGURATION
-	//IP6_ADDR(&ipaddr, 0xfe80,0x0,0x0,0x0,
-	//		(pnetif->hwaddr[0]<<8 |pnetif->hwaddr[1]),
-	//		(pnetif->hwaddr[2]<<8 | 0xff),
-	//		(0xfe00 | pnetif->hwaddr[3]),
-	//		(pnetif->hwaddr[4]<<8 |pnetif->hwaddr[5]));
-	//IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
-	//netif_add_addr(pnetif,&ipaddr, &netmask);
-
-	/* Link-scope address */
-	IP6_ADDR_LINKSCOPE(&ipaddr, pnetif->hwaddr);
-	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
-	netif_add_addr(pnetif, &ipaddr, &netmask);
+	if
+#if IPv6_AUTO_CONFIGURATION
+		(!(flags & NETIF_FLAG_AUTOCONF))
+#else
+		(1)
 #endif
+		{
+			/* Link-scope address */
+			IP6_ADDR_LINKSCOPE(&ipaddr, pnetif->hwaddr);
+			IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
+			netif_add_addr(pnetif, &ipaddr, &netmask);
+		}
 
 	return(pnetif);
 }
+
+struct netif *lwip_vdeif_add(struct stack *stack, void *arg)
+{
+	return lwip_add_vdeif(stack, arg, NETIF_STD_FLAGS);
+}
+
 /**
  * Creates and adds a new TAP network interface to the stack. 
  *
@@ -271,17 +275,13 @@ struct netif *lwip_vdeif_add(struct stack *stack, void *arg)
  *
  * @note You need to configure the host side of the TAP link.
  */
-struct netif *lwip_tapif_add(struct stack *stack, void *arg)
+struct netif *lwip_add_tapif(struct stack *stack, void *arg, int flags)
 {
-#if !IPv6_AUTO_CONFIGURATION
 	struct ip_addr ipaddr, netmask;
-#endif
 	struct netif *pnetif;
 	pnetif = mem_malloc(sizeof (struct netif));
-	if (pnetif == NULL) {
-		printf("VDEIF NULL!");
-		return NULL;
-	}
+
+	pnetif->flags = flags & NETIF_ADD_FLAGS;
 
 	if (arg == NULL) arg = nullstring;
 	if (tcpip_netif_add(stack, pnetif, arg, tapif_init, tcpip_input, tcpip_notify) == NULL) {
@@ -289,22 +289,25 @@ struct netif *lwip_tapif_add(struct stack *stack, void *arg)
 		return NULL;
 	}
 
-#if !IPv6_AUTO_CONFIGURATION
-	//IP6_ADDR(&ipaddr, 0xfe80,0x0,0x0,0x0,
-	//		(pnetif->hwaddr[0]<<8 |pnetif->hwaddr[1]),
-	//		(pnetif->hwaddr[2]<<8 | 0xff),
-	//		(0xfe00 | pnetif->hwaddr[3]),
-	//		(pnetif->hwaddr[4]<<8 |pnetif->hwaddr[5]));
-	//IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
-	//netif_add_addr(pnetif,&ipaddr, &netmask);
-
-	/* Link-scope address */
-	IP6_ADDR_LINKSCOPE(&ipaddr, pnetif->hwaddr);
-	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
-	netif_add_addr(pnetif, &ipaddr, &netmask);
+	if
+#if IPv6_AUTO_CONFIGURATION
+		(!(flags & NETIF_FLAG_AUTOCONF))
+#else
+		(1)
 #endif
+		{
+			/* Link-scope address */
+			IP6_ADDR_LINKSCOPE(&ipaddr, pnetif->hwaddr);
+			IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
+			netif_add_addr(pnetif, &ipaddr, &netmask);
+		}
 
 	return(pnetif);
+}
+
+struct netif *lwip_tapif_add(struct stack *stack, void *arg)
+{
+	return lwip_add_tapif(stack, arg, NETIF_STD_FLAGS);
 }
 
 /**
@@ -321,36 +324,47 @@ struct netif *lwip_tapif_add(struct stack *stack, void *arg)
  *
  * @note You need to configure the host side of the TUN link.
  */
-struct netif *lwip_tunif_add(struct stack *stack, void *arg)
+struct netif *lwip_add_tunif(struct stack *stack, void *arg, int flags)
 {
-#if ! IPv6_AUTO_CONFIGURATION
 	struct ip_addr ipaddr, netmask;
-#endif	
 	struct netif *pnetif;
 	pnetif = mem_malloc(sizeof (struct netif));
 
+	pnetif->flags = flags & NETIF_ADD_FLAGS;
 	if (arg == NULL) arg = nullstring;
 	if (tcpip_netif_add(stack, pnetif, arg, tunif_init, tcpip_input, tcpip_notify) == NULL) {
 		mem_free(pnetif);
 		return NULL;
 	}
 
-	/* Link-scope address */
-#if !IPv6_AUTO_CONFIGURATION
-	IP6_ADDR_LINKSCOPE(&ipaddr, pnetif->hwaddr);
-	IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
-	netif_add_addr(pnetif, &ipaddr, &netmask);
+	if
+#if IPv6_AUTO_CONFIGURATION
+		(!(flags & NETIF_FLAG_AUTOCONF))
+#else
+		(1)
 #endif
+		{
+			/* Link-scope address */
+			IP6_ADDR_LINKSCOPE(&ipaddr, pnetif->hwaddr);
+			IP6_ADDR(&netmask, 0xffff,0xffff,0xffff,0xffff,0x0,0x0,0x0,0x0);
+			netif_add_addr(pnetif, &ipaddr, &netmask);
+		}
 
 	return(pnetif);
 }
 
+struct netif *lwip_tunif_add(struct stack *stack, void *arg)
+{
+	return lwip_add_tunif(stack, arg, NETIF_STD_FLAGS);
+}
+
 #ifdef LWSLIRP
-struct netif *lwip_slirpif_add(struct stack *stack, void *arg)
+struct netif *lwip_add_slirpif(struct stack *stack, void *arg, int flags)
 {
 	struct netif *pnetif;
 	pnetif = mem_malloc(sizeof (struct netif));
 
+	pnetif->flags = flags & NETIF_ADD_FLAGS;
 	if (arg == NULL) arg = nullstring;
 	if (tcpip_netif_add(stack, pnetif, arg, slirpif_init, tcpip_input, tcpip_notify) == NULL) {
 		mem_free(pnetif);
@@ -359,9 +373,14 @@ struct netif *lwip_slirpif_add(struct stack *stack, void *arg)
 
 	return(pnetif);
 }
+
+struct netif *lwip_slirpif_add(struct stack *stack, void *arg)
+{
+	return lwip_add_slirpif(stack, arg, 0);
+}
 #endif
 
-static void lwip_loopif_add(struct stack *stack)
+static void lwip_add_loopif(struct stack *stack)
 {
 	struct netif *loopif;
 	struct ip_addr ipaddr, netmask;
@@ -396,34 +415,16 @@ static void lwip_loopif_add(struct stack *stack)
  *
  * @bug It doesn't check if the interface is already up.
  */
-int lwip_ifup(struct netif *netif)
+int lwip_ifup_flags(struct netif *netif, int flags)
 {
-	netif_set_up(netif);
+	netif_set_up(netif, flags);
 	return 0;
 }
 
-/**
- * Bring the input network interface up and set up address by DHCP. 
- *
- * @param netif The interface to bring up.
- *
- * Bring the input network interface up. It doesn't check if input is NULL.
- *
- * @return It returns always 0.
- *
- * @note If IPv6 Stateless Address Autoconfiguration is enabled, the
- *       autoconfiguration protocol will start.
- *
- * @bug It doesn't check if the interface is already up.
- */
-int lwip_ifup_dhcp(struct netif *netif)
+/* deprecated */
+int lwip_ifup(struct netif *netif)
 {
-#if LWIP_DHCP
-	netif_set_up_dhcp(netif);
-	return 0;
-#else
-	return -ENOSYS;
-#endif
+	lwip_ifup_flags(netif, 0);
 }
 
 /**
@@ -549,6 +550,13 @@ int lwip_radv_load_configfile(struct stack *stack,void *arg)
 	return radv_load_configfile(stack, (char*)arg);
 #else
 	return -1;
+#endif
+}
+
+void lwip_radv_load_config(struct stack *stack,FILE *filein)
+{
+#if IPv6_RADVCONF
+	radv_load_config(stack, filein);
 #endif
 }
 
