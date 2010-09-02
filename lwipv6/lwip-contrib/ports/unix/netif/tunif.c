@@ -40,6 +40,7 @@
 #include <sys/uio.h>
 #include <sys/socket.h>
 
+#include "netif/etharp.h"
 
 #include "lwip/debug.h"
 
@@ -70,14 +71,13 @@
 struct tunif {
   /* Add whatever per-interface state that is needed here. */
   int fd;
+	int posfd;
 };
 
 /* Forward declarations. */
-static void  tunif_input(struct netif *netif);
+static void  tunif_input(struct netif *netif, int posfd, void *arg);
 static err_t tunif_output(struct netif *netif, struct pbuf *p,
 			       struct ip_addr *ipaddr);
-
-static void tunif_thread(void *data);
 
 /*-----------------------------------------------------------------------------------*/
 static int
@@ -108,9 +108,11 @@ low_level_init(struct netif *netif, char *ifname)
 		}
 	}
 
-  sys_thread_new(tunif_thread, netif, DEFAULT_THREAD_PRIO);
-	return ERR_OK;
-
+	if ((tunif->posfd=netif_addfd(netif,
+					tunif->fd, tunif_input, NULL, 0, POLLIN)) < 0)
+		return ERR_IF;
+	else
+		return ERR_OK;
 }
 /*-----------------------------------------------------------------------------------*/
 /*
@@ -198,27 +200,6 @@ low_level_input(struct tunif *tunif,u16_t ifflags)
   return p;  
 }
 /*-----------------------------------------------------------------------------------*/
-static void 
-tunif_thread(void *arg)
-{
-  struct netif *netif = arg;
-  struct tunif *tunif = netif->state;
-	struct pollfd pfd[] = {{tunif->fd,POLLIN,0}};
-  int ret;
-  
-  while (1) {
-    /* Wait for a packet to arrive. */
-		ret = poll(pfd, 1, -1);
-
-    if (ret == 1) {
-      /* Handle incoming packet. */
-      tunif_input(netif);
-    } else if (ret == -1) {
-      perror("tunif_thread: poll");
-    }
-  }
-}
-/*-----------------------------------------------------------------------------------*/
 /*
  * tunif_output():
  *
@@ -253,11 +234,10 @@ tunif_output(struct netif *netif, struct pbuf *p,
  */
 /*-----------------------------------------------------------------------------------*/
 static void
-tunif_input(struct netif *netif)
+tunif_input(struct netif *netif, int posfd, void *arg)
 {
   struct tunif *tunif;
   struct pbuf *p;
-
 
   tunif = netif->state;
   
@@ -270,6 +250,26 @@ tunif_input(struct netif *netif)
 
 	netif->input(p, netif);
 }
+
+/* cleanup: garbage collection */
+static err_t tunif_ctl(struct netif *netif, int request, void *arg)
+{
+	struct tunif *tunif = netif->state;
+
+	if (tunif) {
+
+		switch (request) {
+
+			case NETIFCTL_CLEANUP:
+				close(tunif->fd);
+
+				netif_delfd(netif->stack, tunif->posfd);
+				mem_free(tunif);
+		}
+	}
+	return ERR_OK;
+}
+
 /*-----------------------------------------------------------------------------------*/
 /*
  * tunif_init():
@@ -296,6 +296,12 @@ tunif_init(struct netif *netif)
 	netif->link_type = NETIF_TUNIF;
 	netif->num=netif_next_num(netif,NETIF_TUNIF);
   netif->output = tunif_output;
+	netif->netifctl = tunif_ctl;
+	netif->mtu = 1500;
+	netif->hwaddr_len = 0;
+#if LWIP_NL
+	netif->type = ARPHRD_NONE;
+#endif
   
 	if (low_level_init(netif,ifname) < 0) {
 		mem_free(tunif);
