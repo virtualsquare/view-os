@@ -40,6 +40,11 @@
 #include <sys/uio.h>
 #include <sys/socket.h>
 
+#include "netif/etharp.h"
+
+#if LWIP_NL
+#include "lwip/arphdr.h"
+#endif
 
 #include "lwip/debug.h"
 
@@ -70,6 +75,9 @@
 struct tunif {
   /* Add whatever per-interface state that is needed here. */
   int fd;
+
+	u8_t      active;
+	sys_sem_t cleanup_mutex;
 };
 
 /* Forward declarations. */
@@ -108,10 +116,31 @@ low_level_init(struct netif *netif, char *ifname)
 		}
 	}
 
+	tunif->active = 1;
+	tunif->cleanup_mutex = sys_sem_new(0);
   sys_thread_new(tunif_thread, netif, DEFAULT_THREAD_PRIO);
 	return ERR_OK;
 
 }
+
+/* cleanup: garbage collection */
+static err_t cleanup(struct netif *netif)
+{
+	struct tunif *tunif = netif->state;
+
+	if (tunif) {
+
+		close(tunif->fd);
+
+		/* Stop interface thread and wait until it exits */
+		tunif->active = 0;
+		sys_sem_wait_timeout(tunif->cleanup_mutex, 0);
+		sys_sem_free(tunif->cleanup_mutex);
+		mem_free(tunif);
+	}
+	return ERR_OK;
+}
+
 /*-----------------------------------------------------------------------------------*/
 /*
  * low_level_output():
@@ -206,9 +235,9 @@ tunif_thread(void *arg)
 	struct pollfd pfd[] = {{tunif->fd,POLLIN,0}};
   int ret;
   
-  while (1) {
+  while (tunif->active) {
     /* Wait for a packet to arrive. */
-		ret = poll(pfd, 1, -1);
+		ret = poll(pfd, 1, 100);
 
     if (ret == 1) {
       /* Handle incoming packet. */
@@ -217,6 +246,9 @@ tunif_thread(void *arg)
       perror("tunif_thread: poll");
     }
   }
+
+	/* Ok, signal cleanup mutex */
+	sys_sem_signal(tunif->cleanup_mutex);
 }
 /*-----------------------------------------------------------------------------------*/
 /*
@@ -295,7 +327,13 @@ tunif_init(struct netif *netif)
   netif->name[1] = IFNAME1;
 	netif->num=netif_next_num(netif,NETIF_TUNIF);
   netif->output = tunif_output;
-  
+	netif->mtu = 1500;
+	netif->cleanup = cleanup;
+	netif->hwaddr_len = 0;
+#if LWIP_NL
+	netif->type = ARPHRD_NONE;
+#endif
+
 	if (low_level_init(netif,ifname) < 0) {
 		mem_free(tunif);
 		return ERR_IF;
