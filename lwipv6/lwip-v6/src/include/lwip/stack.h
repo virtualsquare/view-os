@@ -36,7 +36,16 @@ struct tcp_pcb;
 /* IP_ROUTE_POOL_SIZE IP_ADDR_POOL_SIZE IP_REASS_POOL_SIZE need defs*/
 #define NETIF_POS2FD(stack,fpos) ((stack)->numif_pfd[(fpos)].fd)
 
-#define LWIP_STACK_FLAG_FORWARDING 1
+#define LWIP_STACK_FLAG_FORWARDING 0x1
+#define LWIP_STACK_FLAG_USERFILTER 0x2
+#define LWIP_STACK_FLAG_UF_NAT     0x10000
+
+#if LWIP_USERFILTER
+struct stack_userfilter;
+#if LWIP_NAT
+struct stack_nat;
+#endif
+#endif
 
 struct stack {
 	/* global */
@@ -103,5 +112,13 @@ struct stack {
 
 	/* lwip-v6/src/netif/loopif.c */
 	int netif_num[NETIF_NUMIF];
+
+#if LWIP_USERFILTER
+	struct stack_userfilter *stack_userfilter;
+#if LWIP_NAT
+	struct stack_nat *stack_nat;
+#endif
+#endif
+
 };
 #endif

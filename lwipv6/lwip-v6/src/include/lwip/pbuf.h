@@ -41,7 +41,6 @@
 //struct nat_info;
 #endif
 
-
 #define PBUF_TRANSPORT_HLEN 20
 #define PBUF_IP_HLEN        IP_HLEN
 
@@ -99,7 +98,6 @@ struct pbuf {
   u16_t ref;
 
 /* added by Diego Billi */
-//#ifdef LWIP_NAT
 #if LWIP_USERFILTER && LWIP_NAT
   struct nat_info nat;
 #endif

@@ -172,7 +172,7 @@ void ip_radv_netif_reset(struct netif *netif);
 /*--------------------------------------------------------------------------*/
 
 /* Called by ip_init() */
-void ip_radv_init(void);
+void ip_radv_init(struct stack *stack);
 
 /* Called when netif goes UP */
 void ip_radv_start(struct netif *netif);

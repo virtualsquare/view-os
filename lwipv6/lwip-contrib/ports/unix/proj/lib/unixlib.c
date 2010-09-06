@@ -135,14 +135,14 @@ void lwip_init(void)
 	tcpip_init();
 }
 	
-struct stack *lwip_stack_new(void)
+struct stack *lwip_add_stack(unsigned long flags)
 {
 	sys_sem_t sem;
 	struct stack *newstack;  
 
 	/* Start the main stack */
 	sem = sys_sem_new(0);
-	newstack = tcpip_start(init_done, &sem);
+	newstack = tcpip_start(init_done, &sem, flags);
 	
 	sys_sem_wait(sem);
 	sys_sem_free(sem);
@@ -155,6 +155,11 @@ struct stack *lwip_stack_new(void)
 #endif
 
 	return newstack;
+}
+
+struct stack *lwip_stack_new(void)
+{
+	return lwip_add_stack(0);
 }
 
 struct stack *lwip_stack_get(void)
@@ -170,7 +175,7 @@ void lwip_stack_set(struct stack *stackid)
     tcpip_stack_set(stackid);
 }
 
-void lwip_stack_free(struct stack * stackid)
+void lwip_del_stack(struct stack * stackid)
 {
 	sys_sem_t sem;
 #ifdef MULTISTACKDEBUG
@@ -183,6 +188,11 @@ void lwip_stack_free(struct stack * stackid)
 #ifdef MULTISTACKDEBUG
 	printf("%s: %p done!\n", __func__, stackid);
 #endif
+}
+
+void lwip_stack_free(struct stack * stackid)
+{
+	lwip_del_stack(stackid);
 }
 
 unsigned long lwip_stack_flags_get(struct stack *stackid)

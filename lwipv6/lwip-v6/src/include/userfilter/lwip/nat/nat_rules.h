@@ -85,15 +85,6 @@ struct nat_rule
 };
 
 /*--------------------------------------------------------------------------*/
-/* NAT TABLE */
-/*--------------------------------------------------------------------------*/
-
-// PREROUTING rules
-extern struct nat_rule *nat_in_rules;
-// POSTROUTING rules
-extern struct nat_rule *nat_out_rules;
-
-/*--------------------------------------------------------------------------*/
 /* Functions */
 /*--------------------------------------------------------------------------*/
 
@@ -102,11 +93,13 @@ struct nat_rule * nat_new_rule(void);
 
 void nat_free_rule(struct nat_rule *rule);
 
-int nat_add_rule(int ipv, nat_table_t where, struct nat_rule *new_rule);	
-struct nat_rule * nat_del_rule(nat_table_t where, int pos);
+int nat_add_rule(struct stack *stack, int ipv, nat_table_t where, struct nat_rule *new_rule);	
+struct nat_rule * nat_del_rule(struct stack *stack, nat_table_t where, int pos);
 	
 /* Returns 1 if "rule" matches with the tuple "tuple" */
 int nat_match_rule(struct rule_matches *matches, struct netif *iface, struct ip_tuple *tuple);
+
+void nat_rules_shutdown(struct stack *stack);
 
 #endif 
 

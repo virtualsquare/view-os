@@ -39,7 +39,6 @@
 #include "lwip/ip_addr.h"
 #include "lwip/ip_route.h"
 
-
 #include "lwip/inet.h"
 #include "lwip/pbuf.h"
 

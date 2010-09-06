@@ -24,6 +24,8 @@
 #ifndef __NAT_H__
 #define __NAT_H__
 
+#include "lwip/sys.h"
+
 /* Don't remove these. */
 struct pbuf;
 struct netif;
@@ -31,6 +33,7 @@ struct netif;
 #include "lwip/userfilter.h"
 #include "lwip/pbuf.h"
 #include "lwip/netif.h"
+#include "lwip/nat/nat_tables.h"
 
 // Max number of session the module can handle
 #ifndef MEMP_NUM_NAT_PCB
@@ -172,6 +175,7 @@ enum track_status {
 struct nat_pcb 
 {
 	struct nat_pcb  *next; // For the linked list 
+	struct stack *stack;
 
 	unsigned int id;
 	u32_t        refcount;
@@ -181,7 +185,7 @@ struct nat_pcb
 	enum track_status status;
 
 	/* Connection's tuples in both directions. For NATed connections, 
-	   CONN_DIR_REPLY tuple's fieald are modifed. CONN_DIR_ORIGINAL
+	   CONN_DIR_REPLY tuple's fields are modifed. CONN_DIR_ORIGINAL
 	   tuple is fixed and never changes */
 	struct ip_tuple tuple[CONN_DIR_MAX];
 
@@ -201,7 +205,21 @@ struct nat_pcb
 	struct netif *iface;   // Interface linked with NAT session
 };
 
-extern struct nat_pcb *nat_active_pcbs; // List of all active IPv4 NAT PCBs 
+/*--------------------------------------------------------------------------*/
+/* Data stored in the stack structure */
+/*--------------------------------------------------------------------------*/
+
+struct stack_nat {
+	sys_sem_t nat_mutex;      /* Semaphore for critical section */
+	struct nat_pcb *nat_tentative_pcbs;
+	struct nat_pcb *nat_active_pcbs;
+	struct nat_rule *nat_in_rules;
+	struct nat_rule *nat_out_rules;
+	sys_sem_t tcp_lock;
+	unsigned char nat_tcp_table[TCP_PORTS_TABLE_SIZE];
+	unsigned char nat_udp_table[UDP_PORTS_TABLE_SIZE];
+	unsigned char nat_icmp_table[ICMP_PORTS_TABLE_SIZE];
+};
 
 /*--------------------------------------------------------------------------*/
 /* Pbuf data & functions */
@@ -266,11 +284,14 @@ extern struct track_protocol  udp_track;
 
 struct track_protocol * track_proto_find(u8_t protocol);
 
+struct stack;
+
 /*--------------------------------------------------------------------------*/
 /* NAT functions */
 /*--------------------------------------------------------------------------*/
 
-int nat_init(void);
+int nat_init(struct stack *stack);
+int nat_shutdown(struct stack *stack);
 
 int  conn_remove_timer(struct nat_pcb *pcb);
 void conn_refresh_timer(u32_t timeout, struct nat_pcb *pcb);
@@ -280,7 +301,7 @@ void conn_force_timeout(struct nat_pcb *pcb);
 int tuple_create(struct ip_tuple *tuple, char *p, struct track_protocol *proto);
 int tuple_inverse(struct ip_tuple *reply, struct ip_tuple *tuple) ;
 
-struct nat_pcb * conn_find_track(conn_dir_t *direction, struct ip_tuple * tuple );
+struct nat_pcb * conn_find_track(struct stack *stack, conn_dir_t *direction, struct ip_tuple * tuple );
 
 /* Functions used by NAT modules */
 void nat_chksum_adjust(u8_t * chksum, u8_t * optr, s16_t olen, u8_t * nptr, s16_t nlen);

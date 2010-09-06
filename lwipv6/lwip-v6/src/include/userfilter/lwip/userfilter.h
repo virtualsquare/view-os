@@ -24,6 +24,7 @@
 #ifndef __USERFILTER_H__
 #define __USERFILTER_H__
 
+struct stack;
 /*
  * Trip of IPv4/IPv6 packets throw Userfilter's hooks in the stack.
  *
@@ -92,7 +93,7 @@ typedef enum {
  * ATTENTION: hook handlers must not call pbuf_free() on 'p'. The handler
  * can return UF_DROP and tell to Userfilter to free the memory.
  */
-typedef uf_verdict_t  uf_hookfun_t(uf_hook_t hooknum, struct pbuf **p,  struct netif *inif, struct netif *outif);
+typedef uf_verdict_t  uf_hookfun_t(struct stack *stack, uf_hook_t hooknum, struct pbuf **p,  struct netif *inif, struct netif *outif);
 
 /* Hook handler priority */
 typedef short int uf_priority_t; 
@@ -100,15 +101,12 @@ typedef short int uf_priority_t;
 /* Hook handler descriptor */
 struct uf_hook_handler
 {
-	struct uf_hook_handler *next; /* used internaly */
+//	struct uf_hook_handler *next; /* used internaly */
 
 	uf_hook_t      hooknum;	 /* handled hook */
 	uf_hookfun_t  *hook;	 /* User fills in from here down. */
 	uf_priority_t  priority; /* ascending priority. */
 };
-
-/* Stack Hooks table. you SHOULD NOT access it directy! Possible race conditions. */
-extern  struct uf_hook_handler  * uf_hooks_list[UF_IP_NUMHOOKS];
 
 /*--------------------------------------------------------------------------*/
 /* Functions */
@@ -117,7 +115,12 @@ extern  struct uf_hook_handler  * uf_hooks_list[UF_IP_NUMHOOKS];
 /*
  * Initialize hooks. Call this first.
  */
-int userfilter_init(void);
+int userfilter_init(struct stack *stack);
+
+/*
+ * Cleanup hooks. 
+ */
+int userfilter_shutdown(struct stack *stack);
 
 /* 
  * ATTENTION: don't register/unregister hooks when the stack is active.
@@ -129,13 +132,13 @@ int userfilter_init(void);
  * handlers with same priority, 'h' is registered after them. 
  * Return 1 on success, 0 on failure. 
  */
-int uf_register_hook(struct uf_hook_handler *h);
+int uf_register_hook(struct stack *stack, struct uf_hook_handler *h);
 
 /* 
  * Unregister a hook. On success returns 1. If 'h' is not found, 
  * return 0. 
  */
-int uf_unregister_hook(struct uf_hook_handler *h);
+int uf_unregister_hook(struct stack *stack, struct uf_hook_handler *h);
 
 /*
  * Pass 'p' to all handlers registered ad hook 'hooknum'.
@@ -144,7 +147,7 @@ int uf_unregister_hook(struct uf_hook_handler *h);
  * Returns < 0 if 'p' has been dropped by a hook. (for a UF_DROP verdict).
  * If 'freedrop' is 1 then dropped packet 'p' is freed before exit.
  */
-int uf_visit_hook(uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct netif *out, u8_t freebuf); 
+int uf_visit_hook(struct stack *stack, uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct netif *out, u8_t freebuf); 
 
 #define UF_FREE_BUF      1
 #define UF_DONTFREE_BUF  0
@@ -152,10 +155,10 @@ int uf_visit_hook(uf_hook_t  hooknum, struct pbuf **p, struct netif *in, struct 
 /*
  * Used inside ip6.c source. 
  */
-#define UF_HOOK(hook, pbuf, inif, outif, freebuf) \
+#define UF_HOOK(stack, hook, pbuf, inif, outif, freebuf) \
 	({ int ___r = 1;                                                       \
-	if (uf_hooks_list[(hook)] != NULL)                                  \
-	___r = uf_visit_hook((hook), (pbuf), (inif), (outif), (freebuf)); \
+	if (stack->stack_userfilter != NULL)  \
+	___r = uf_visit_hook((stack), (hook), (pbuf), (inif), (outif), (freebuf)); \
 	___r; /* return value */                                            \
 	})
 	

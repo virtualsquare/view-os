@@ -120,7 +120,7 @@ int track_icmp6_inverse(struct ip_tuple *reply, struct ip_tuple *tuple)
 
 /*--------------------------------------------------------------------------*/
 
-static int error_message(uf_verdict_t *verdict, struct pbuf *p)
+static int error_message(struct stack *stack, uf_verdict_t *verdict, struct pbuf *p)
 {
 	struct ip4_hdr       *ip4hdr;
 	struct ip_hdr        *ip6hdr;
@@ -180,7 +180,7 @@ static int error_message(uf_verdict_t *verdict, struct pbuf *p)
 		return -1;
 	}
 
-	pcb = conn_find_track( & direction, &inverse );
+	pcb = conn_find_track(stack, & direction, &inverse );
 	if (pcb == NULL) {
 		/* No connection? */
 		LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: Not found original connection!\n", __func__ ));
@@ -210,7 +210,7 @@ static int error_message(uf_verdict_t *verdict, struct pbuf *p)
 }
 
 
-int track_icmp4_error (uf_verdict_t *verdict, struct pbuf *p)
+int track_icmp4_error (struct stack *stack, uf_verdict_t *verdict, struct pbuf *p)
 {
 	struct ip4_hdr *ip4hdr;
 	struct icmp_echo_hdr *icmphdr = NULL;
@@ -249,10 +249,10 @@ int track_icmp4_error (uf_verdict_t *verdict, struct pbuf *p)
 
 	LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: ICMPv4 error message %d.\n", __func__, icmphdr->type));
 
-	return error_message(verdict, p);
+	return error_message(stack, verdict, p);
 }
 
-int track_icmp6_error (uf_verdict_t *verdict, struct pbuf *p)
+int track_icmp6_error (struct stack *stack, uf_verdict_t *verdict, struct pbuf *p)
 {
 	struct ip_hdr *iphdr;
 	struct icmp_echo_hdr *icmph = NULL;
@@ -294,19 +294,19 @@ int track_icmp6_error (uf_verdict_t *verdict, struct pbuf *p)
 
 	LWIP_DEBUGF(NAT_ICMP_DEBUG, ("%s: ICMPv6 error message %d.\n", __func__, icmph->type));
 
-	return error_message(verdict, p);
+	return error_message(stack, verdict, p);
 }
 
 /*--------------------------------------------------------------------------*/
 
-int track_icmp4_new(struct nat_pcb *pcb, struct pbuf *p, void *iphdr, int iplen) 
+int track_icmp4_new(struct stack *stack, struct nat_pcb *pcb, struct pbuf *p, void *iphdr, int iplen) 
 { 
 	pcb->proto.icmp4.count = 0;
 	pcb->timeout           = NAT_IDLE_ICMP_TIMEOUT;
 
 	return 1;
 }
-int track_icmp6_new(struct nat_pcb *pcb, struct pbuf *p, void *iphdr, int iplen) 
+int track_icmp6_new(struct stack *stack, struct nat_pcb *pcb, struct pbuf *p, void *iphdr, int iplen) 
 { 
 	pcb->proto.icmp6.count = 0;
 	pcb->timeout           = NAT_IDLE_ICMP_TIMEOUT;
@@ -314,7 +314,7 @@ int track_icmp6_new(struct nat_pcb *pcb, struct pbuf *p, void *iphdr, int iplen)
 	return 1;
 }
 
-int track_icmp4_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction)
+int track_icmp4_handle(struct stack *stack, uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction)
 { 
 	struct icmp_echo_hdr *icmphdr = NULL;
 
@@ -352,7 +352,7 @@ int track_icmp4_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t directi
 	return 1;
 }
 
-int track_icmp6_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction)
+int track_icmp6_handle(struct stack *stack, uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction)
 { 
 	struct icmp_echo_hdr *icmphdr = NULL;
 
@@ -451,7 +451,7 @@ int nat_icmp6_manip (nat_manip_t type, void *iphdr, int iplen, struct ip_tuple *
 }
 
 
-int nat_icmp4_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
+int nat_icmp4_tuple_inverse (struct stack *stack, struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
 {
 	u16_t id;
 	u32_t min, max;
@@ -467,7 +467,7 @@ int nat_icmp4_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat
 			max = 0xFFFF;
 		}
 
-		if (nat_ports_getnew(IP_PROTO_ICMP4, &id, min, max) > 0) {
+		if (nat_ports_getnew(stack, IP_PROTO_ICMP4, &id, min, max) > 0) {
 			reply->src.proto.upi.icmp4.id = htons(id); 
 		}
 		else 
@@ -480,7 +480,7 @@ int nat_icmp4_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat
 	return -1;
 }
 
-int nat_icmp6_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
+int nat_icmp6_tuple_inverse (struct stack *stack, struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
 {
 	u16_t id;
 	u32_t min, max;
@@ -496,7 +496,7 @@ int nat_icmp6_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat
 			max = 0xFFFF;
 		}
 
-		if (nat_ports_getnew(IP_PROTO_ICMP, &id, min, max) > 0) {
+		if (nat_ports_getnew(stack, IP_PROTO_ICMP, &id, min, max) > 0) {
 			reply->src.proto.upi.icmp6.id = htons(id); 
 		}
 		else 
@@ -512,7 +512,7 @@ int nat_icmp6_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat
 int nat_icmp4_free(struct nat_pcb *pcb)
 {
 	if (pcb->nat_type == NAT_SNAT) {
-		nat_ports_free(IP_PROTO_ICMP4, ntohs( pcb->tuple[CONN_DIR_REPLY].src.proto.upi.icmp4.id ));
+		nat_ports_free(pcb->stack, IP_PROTO_ICMP4, ntohs( pcb->tuple[CONN_DIR_REPLY].src.proto.upi.icmp4.id ));
 	}
 
 	return 1;
@@ -521,7 +521,7 @@ int nat_icmp4_free(struct nat_pcb *pcb)
 int nat_icmp6_free(struct nat_pcb *pcb)
 {
 	if (pcb->nat_type == NAT_SNAT) {
-		nat_ports_free(IP_PROTO_ICMP, ntohs( pcb->tuple[CONN_DIR_REPLY].src.proto.upi.icmp6.id ));
+		nat_ports_free(pcb->stack, IP_PROTO_ICMP, ntohs( pcb->tuple[CONN_DIR_REPLY].src.proto.upi.icmp6.id ));
 	}
 
 	return 1;

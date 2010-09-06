@@ -519,7 +519,7 @@ send_unicast_ra_with_delay(struct netif *netif, struct ip_addr *src)
 /*--------------------------------------------------------------------------*/
 
 void
-ip_radv_init(void)
+ip_radv_init(struct stack *stack)
 {
 #if 0
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: init Routing Advertising tables.\n", __func__) );

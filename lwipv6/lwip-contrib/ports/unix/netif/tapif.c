@@ -152,7 +152,8 @@ low_level_init(struct netif *netif, char *ifname)
 		struct ifreq ifr;
 		memset(&ifr, 0, sizeof(ifr));
 		ifr.ifr_flags = IFF_TAP|IFF_NO_PI;
-		strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name) - 1);
+		if (ifname != NULL)
+			strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name) - 1);
 		if (ioctl(tapif->fd, TUNSETIFF, (void *) &ifr) < 0) {
 			perror("tapif_init: DEVTAP ioctl TUNSETIFF");
 			return ERR_IF;

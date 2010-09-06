@@ -131,13 +131,20 @@ void lwip_init(void);
 void lwip_fini(void);
 
 void lwip_thread_new(void (* thread)(void *arg), void *arg);
+/* old interface */
 struct stack *lwip_stack_new(void);
 void lwip_stack_free(struct stack *stack);
+#define LWIP_STACK_FLAG_FORWARDING 1
+#define LWIP_STACK_FLAG_USERFILTER 0x2
+#define LWIP_STACK_FLAG_UF_NAT     0x10000
+
+/* new api */
+struct stack *lwip_add_stack(unsigned long flags);
+void lwip_del_stack(struct stack *stack);
 
 struct stack *lwip_stack_get(void);
 void lwip_stack_set(struct stack *stack);
 
-#define LWIP_STACK_FLAG_FORWARDING 1
 unsigned long lwip_stack_flags_get(struct stack *stackid);
 void lwip_stack_flags_set(struct stack *stackid, unsigned long flags);
 

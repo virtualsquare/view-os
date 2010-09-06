@@ -84,7 +84,7 @@ int track_tcp_inverse(struct ip_tuple *reply, struct ip_tuple *tuple)
 
 /*--------------------------------------------------------------------------*/
 
-int track_tcp_error (uf_verdict_t *verdict, struct pbuf *p)
+int track_tcp_error (struct stack *stack, uf_verdict_t *verdict, struct pbuf *p)
 {
 	// FIX: check packet len and checksum
 	return 1;
@@ -121,7 +121,7 @@ int nat_tcp_manip (nat_manip_t type, void *iphdr, int iplen, struct ip_tuple *in
 	return 1;
 }
 
-int nat_tcp_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
+int nat_tcp_tuple_inverse (struct stack *stack, struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
 {
 	u16_t port;
 	u32_t min, max;
@@ -137,7 +137,7 @@ int nat_tcp_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_t
 			max = 0xFFFF;
 		}
 
-		if (nat_ports_getnew(IP_PROTO_TCP, &port, min, max) > 0) {
+		if (nat_ports_getnew(stack, IP_PROTO_TCP, &port, min, max) > 0) {
 			reply->dst.proto.upi.tcp.port = htons(port); 
 		}
 		else 
@@ -157,7 +157,7 @@ int nat_tcp_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_t
 int nat_tcp_free (struct nat_pcb *pcb)
 {
 	if (pcb->nat_type == NAT_SNAT) {
-		nat_ports_free(IP_PROTO_TCP, ntohs(pcb->tuple[CONN_DIR_REPLY].dst.proto.upi.tcp.port));
+		nat_ports_free(pcb->stack, IP_PROTO_TCP, ntohs(pcb->tuple[CONN_DIR_REPLY].dst.proto.upi.tcp.port));
 
 	} 
 
@@ -262,10 +262,6 @@ static inline  int between(u32_t seq1, u32_t seq2, u32_t seq3)
 {
 	return seq3 - seq2 >= seq1 - seq2;
 }
-
-/* Protects conntrack->proto.tcp */
-/*static DEFINE_RWLOCK(tcp_lock);*/
-sys_sem_t tcp_lock;
 
 /* "Be conservative in what you do, 
     be liberal in what you accept from others." 
@@ -893,7 +889,7 @@ static u8_t tcp_valid_flags[(TH_FIN|TH_SYN|TH_RST|TH_PUSH|TH_ACK|TH_URG) + 1] =
 
 /* Returns verdict for packet, or -1 for invalid. */
 
-static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t direction)
+static int track_tcp_handle2(struct stack *stack, uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t direction)
 {
 	enum tcp_conntrack new_state, old_state;
 	//enum ip_conntrack_dir dir;
@@ -914,7 +910,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 	
 	th = (struct tcp_hdr *) skb_header_pointer(skb, dataoff, sizeof(_tcph), &_tcph);
 	
-	write_lock_bh(&tcp_lock);
+	write_lock_bh(&stack->stack_nat->tcp_lock);
 
 	old_state = pcb->proto.TCP.state;
 	//dir       = CTINFO2DIR(ctinfo);
@@ -948,7 +944,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 			 * thus initiate a clean new session.
 			 */
 
-		    	write_unlock_bh(&tcp_lock);
+		    	write_unlock_bh(&stack->stack_nat->tcp_lock);
 
 			if (conn_remove_timer(pcb))
 				conn_force_timeout(pcb);
@@ -962,7 +958,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 		pcb->proto.TCP.last_seq   = ntohl(th->seqno);
 		pcb->proto.TCP.last_end   = segment_seq_plus_len(ntohl(th->seqno), skb->tot_len, iph, th);
 		
-		write_unlock_bh(&tcp_lock);
+		write_unlock_bh(&stack->stack_nat->tcp_lock);
 
 		//return NF_ACCEPT;
 		* verdict = UF_ACCEPT;
@@ -970,7 +966,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 
 	case TCP_CONNTRACK_MAX:
 		/* Invalid packet */
-		write_unlock_bh(&tcp_lock);
+		write_unlock_bh(&stack->stack_nat->tcp_lock);
 //		return -NF_ACCEPT;
 		* verdict = UF_ACCEPT;
 		return -1;
@@ -984,7 +980,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 		    	     pcb->proto.TCP.seen[dir].td_end)) {	
 		    	/* Attempt to reopen a closed connection.
 		    	* Delete this connection and look up again. */
-		    	write_unlock_bh(&tcp_lock);
+		    	write_unlock_bh(&stack->stack_nat->tcp_lock);
 
 			if (conn_remove_timer(pcb))
 				conn_force_timeout(pcb);
@@ -996,7 +992,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 			return -1;
 
 		} else {
-			write_unlock_bh(&tcp_lock);
+			write_unlock_bh(&stack->stack_nat->tcp_lock);
 			//return -NF_ACCEPT;
 			* verdict = UF_ACCEPT;
 			return -1;
@@ -1026,7 +1022,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 
 		LWIP_DEBUGF(NAT_TCP_DEBUG, ("%s: ! in window\n", __func__));
 
-		write_unlock_bh(&tcp_lock);
+		write_unlock_bh(&stack->stack_nat->tcp_lock);
 
 		//return -NF_ACCEPT;
 		* verdict = UF_ACCEPT;
@@ -1045,7 +1041,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 		  && *tcp_timeouts[new_state] > ip_ct_tcp_timeout_max_retrans
 		  ? ip_ct_tcp_timeout_max_retrans : *tcp_timeouts[new_state];
 
-	write_unlock_bh(&tcp_lock);
+	write_unlock_bh(&stack->stack_nat->tcp_lock);
 
 	//if (!test_bit(IPS_SEEN_REPLY_BIT, &conntrack->status)) {
 	if (!(TS_SEEN_REPLY & pcb->status)) {
@@ -1086,7 +1082,7 @@ static int track_tcp_handle2(uf_verdict_t *verdict, struct pbuf *skb, conn_dir_t
 	return 1;
 }
  
-int track_tcp_new2(struct nat_pcb *pcb, struct pbuf *p, void *iph, int iplen)
+int track_tcp_new2(struct stack *stack, struct nat_pcb *pcb, struct pbuf *p, void *iph, int iplen)
 {
 	enum tcp_conntrack new_state;
 #ifdef DEBUGP_VARS
@@ -1190,9 +1186,9 @@ struct track_protocol  tcp_track = {
 
 
 /* added by Diego Billi */
-int ip_conntrack_protocol_tcp_lockinit(void)
+int ip_conntrack_protocol_tcp_lockinit(struct stack *stack)
 {
-	tcp_lock = sys_sem_new(1);
+	stack->stack_nat->tcp_lock = sys_sem_new(1);
 	return 0;
 }
 

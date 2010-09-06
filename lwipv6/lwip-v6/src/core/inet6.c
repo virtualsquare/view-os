@@ -192,6 +192,7 @@ inet_chksum_pbuf(struct pbuf *p)
 
 
 /******************************************************************************/
+#if 0
 
 /* Here for now until needed in other places in lwIP */
 #ifndef isascii
@@ -356,7 +357,6 @@ char *inet_ntoa(struct in_addr addr)
 
 
 /******************************************************************************/
-
 /* FIX: review these */
 
 #include "lwip/ip_addr.h"
@@ -557,6 +557,7 @@ ntohl(u32_t n)
 {
   return htonl(n);
 }
+#endif
 
 #endif /* BYTE_ORDER == LITTLE_ENDIAN */
 #endif

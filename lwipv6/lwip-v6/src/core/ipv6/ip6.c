@@ -132,23 +132,40 @@ ip_init(struct stack *stack)
 #endif 
 
 #if IPv6_ROUTER_ADVERTISEMENT
-  ip_radv_init();
+  ip_radv_init(stack);
 #endif 
 
 #if LWIP_USERFILTER
   /* init UserFilter's internal tables */
-  userfilter_init();
-
+	if (stack->stack_flags & LWIP_STACK_FLAG_USERFILTER) {
+		userfilter_init(stack);
 #if LWIP_NAT
-  nat_init();
+		if (stack->stack_flags & LWIP_STACK_FLAG_UF_NAT)
+			nat_init(stack);
+		else
+			stack->stack_nat = NULL;
 #endif
-
+	} else {
+		stack->stack_userfilter = NULL;
+#if LWIP_NAT
+		stack->stack_nat = NULL;
+#endif
+	}
 #endif
 }
 
 void 
 ip_shutdown(struct stack *stack)
 {
+#if LWIP_USERFILTER
+#if LWIP_NAT
+	if (stack->stack_nat != NULL)
+		nat_shutdown(stack);
+#endif
+	if (stack->stack_userfilter != NULL)
+		userfilter_shutdown(stack);
+#endif
+
 #if IPv6_AUTO_CONFIGURATION
   ip_autoconf_shutdown(stack);
 #endif 
@@ -181,7 +198,7 @@ ip_inpacket(struct stack *stack, struct ip_addr_list *addr, struct pbuf *p, stru
 {
 
 #if LWIP_USERFILTER
-  if (UF_HOOK(UF_IP_LOCAL_IN, &p, addr->netif, NULL, UF_FREE_BUF) <= 0) {
+  if (UF_HOOK(stack, UF_IP_LOCAL_IN, &p, addr->netif, NULL, UF_FREE_BUF) <= 0) {
     return;
   }
 #endif
@@ -304,7 +321,7 @@ ip_forward(struct stack *stack, struct pbuf *p, struct ip_hdr *iphdr, struct net
   PERF_START;
 
 #if LWIP_USERFILTER
-  if (UF_HOOK(UF_IP_FORWARD, &p, NULL, netif, UF_FREE_BUF) <= 0) {
+  if (UF_HOOK(stack, UF_IP_FORWARD, &p, NULL, netif, UF_FREE_BUF) <= 0) {
     return;
   }
 #endif
@@ -351,7 +368,7 @@ ip_forward(struct stack *stack, struct pbuf *p, struct ip_hdr *iphdr, struct net
 
 #if LWIP_USERFILTER
   /* pbuf_free() is called by Caller */
-  if (UF_HOOK(UF_IP_POST_ROUTING, &p, NULL, netif, UF_FREE_BUF) <= 0) {
+  if (UF_HOOK(stack, UF_IP_POST_ROUTING, &p, NULL, netif, UF_FREE_BUF) <= 0) {
     return;
   }
 #endif
@@ -529,7 +546,7 @@ ip_input(struct pbuf *p, struct netif *inp)
 #endif
 
 #if LWIP_USERFILTER
-  if (UF_HOOK(UF_IP_PRE_ROUTING, &p, inp, NULL, UF_FREE_BUF) <= 0) {
+  if (UF_HOOK(stack, UF_IP_PRE_ROUTING, &p, inp, NULL, UF_FREE_BUF) <= 0) {
     return;
   }
   /* NATed packets need a new pseudo header used by the stack */
@@ -709,7 +726,7 @@ ip_output_if (struct stack *stack, struct pbuf *p, struct ip_addr *src, struct i
 
 #if LWIP_USERFILTER
   /* FIX: LOCAL_OUT after routing decisions? It this the right place */
-  if (UF_HOOK(UF_IP_LOCAL_OUT, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
+  if (UF_HOOK(stack, UF_IP_LOCAL_OUT, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
     goto end_ip_output_if;
   }
 #endif
@@ -739,7 +756,7 @@ ip_output_if (struct stack *stack, struct pbuf *p, struct ip_addr *src, struct i
     if (r != NULL) {
 
 #if LWIP_USERFILTER
-      if (UF_HOOK(UF_IP_POST_ROUTING, &r, NULL, netif, UF_DONTFREE_BUF) <= 0) {
+      if (UF_HOOK(stack, UF_IP_POST_ROUTING, &r, NULL, netif, UF_DONTFREE_BUF) <= 0) {
         goto end_ip_output_if;
       }
 #if LWIP_NAT
@@ -759,7 +776,7 @@ ip_output_if (struct stack *stack, struct pbuf *p, struct ip_addr *src, struct i
     LWIP_DEBUGF(IP_DEBUG, ("SENDING OUT %c%c%d\n", netif->name[0],netif->name[1],netif->num));
 	
 #if LWIP_USERFILTER
-    if (UF_HOOK(UF_IP_POST_ROUTING, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
+    if (UF_HOOK(stack, UF_IP_POST_ROUTING, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
       goto end_ip_output_if;
     }
 #endif

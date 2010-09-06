@@ -70,8 +70,7 @@ struct ip_ct_tcp
 	u32_t	last_end;	/* Last seq + len */
 };
 
-
-int ip_conntrack_protocol_tcp_lockinit(void);
+int ip_conntrack_protocol_tcp_lockinit(struct stack *stack);
 
 /*--------------------------------------------------------------------------*/
 /* Costants for hook registration. */

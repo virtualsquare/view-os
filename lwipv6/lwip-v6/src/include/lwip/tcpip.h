@@ -96,7 +96,7 @@ int tcpip_init(void);
 typedef void (* tcpip_handler)(void *arg);
 
 /* Alloc a new stack thread and return stack number */
-struct stack *tcpip_start(tcpip_handler init_func, void *arg);
+struct stack *tcpip_start(tcpip_handler init_func, void *arg, unsigned long flags);
 
 /* Signal to the stack to shutdown */
 void tcpip_shutdown(struct stack *stack, tcpip_handler shutdown_func, void *arg);
