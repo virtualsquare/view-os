@@ -222,11 +222,14 @@ static void lwipargtoenv(struct stack *s,char *initargs)
 	if (totint==0)
 		intnum[0]=1;
 	for (j=0;j<intnum[0];j++)
-		lwip_vdeif_add(s,ifname(ifh,0,j));
+		if (lwip_vdeif_add(s,ifname(ifh,0,j)) == NULL)
+			printk("umnetlwipv6: vd%d=%s error, interface not defined\n",j,ifname(ifh,0,j));
 	for (j=0;j<intnum[1];j++)
-		lwip_tunif_add(s,ifname(ifh,1,j));
+		if (lwip_tunif_add(s,ifname(ifh,1,j)) == NULL)
+			printk("umnetlwipv6: tn%d=%s error, interface not defined\n",j,ifname(ifh,0,j));
 	for (j=0;j<intnum[2];j++)
-		lwip_tapif_add(s,ifname(ifh,2,j));
+		if (lwip_tapif_add(s,ifname(ifh,2,j)) == NULL)
+			printk("umnetlwipv6: tp%d=%s error, interface not defined\n",j,ifname(ifh,0,j));
 	iffree(ifh);
 
 	if (paramval[0] != NULL)
