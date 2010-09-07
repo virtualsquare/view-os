@@ -1,0 +1,34 @@
+#
+# NAT IPv4-IPv4: A private virtual network of UserModeLinux hosts behind uNAT.
+#
+#                                                        |
+#                                        VIRTUAL NETWORK | REAL NETWORK
+#                                                        |
+#           192.168.2/24                  192.168.1/24   |
+#                                                        |
+#                           myvde       mytap       tap0 |+------+ eth0
+#           [vde_switch]..........[unat]+++++++++++++++++|| HOST |=======
+#              . . .         .2.1       .1.2        .1.1 |+------+ 
+#              . . .                                     |
+#         eth0 . . .                                     |
+#   [UML]....... . .                                
+#         .2.2   . . eth0               ====  Ethernet 
+#                . .......[UML]         ++++  Tuntap 
+#         eth0   .   .2.4               ....  unix socket 
+#   [UML]......... 
+#         .2.3    
+#
+
+iface add myvde vde /tmp/vde.ctl
+iface add mytap tap
+
+ip add myvde 192.168.2.1  255.255.255.0
+ip add mytap 192.168.1.2  255.255.255.0
+
+route add 0.0.0.0  0.0.0.0  192.168.1.1  mytap
+
+nat -A POSTROUTING -o mytap -j MASQUARADE
+
+iface up myvde
+iface up mytap
+

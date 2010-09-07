@@ -1,0 +1,124 @@
+#
+# UNAT configuration file.
+# by Diego Billi.
+#
+#
+# This is the logical view of the scenario we are going to set up:
+# 
+#     2001:1234:5678::/64       |            2001:760:202:f000::/64 
+#          (manual)             |            (Stateless autoconfig)
+#                               | 
+#     [VDE0]...............[NAT]|.....[VDE1]*****/ SSH TUNNEL /*****[VDE2]
+#       +              if0      |if1                                  +
+#  tap0 +                       |                                     + tap0
+#   +------+                                               +---------------------+
+#   | HOST |                                               | picione.cs.unibo.it |
+#   +------+                                               +---------------------+
+#  eth0 |                                                             | ethX
+#    ---+---                                                       ---+---
+#                             ... unix socket
+#                             +++ TUNTAP
+#    
+# STEPS:
+#                                         
+# 1) Create VDE Switch attached to the tap0 interface and set up the new tap 
+#    interface:
+# 
+# 	$ vde_switch -s /tmp/vde2.ctl -tap tap0 &         [VDE0]
+# 	$ ip link set up tap0
+# 
+#    Now you have a permanent virtual interface. 
+#
+# 2) Add manually a IPv6 address to the tap0 interface:
+# 
+# 	$ ip -6 addr add 2001:1234:5678::xxxx:xxff:fexx:xxxx/64  dev tap0
+#
+#    Replace 'xx:xx:xx:xx:xx:xx' with the MAC address of the HOST's tap0 
+#    inteface. You can get it with this:
+#
+#       $ ip a l tap0 | grep 'inet6 fe80' | sed -e 's/inet6 fe80:://' -e 's/\/64 scope link//'
+# 
+# 3) Create the second switch:
+# 
+# 	$ vde_switch &                                    [VDE1]
+# 
+# 4) Connect local switch ( VDE1) with remote switch (VDE2) running on
+#    'picione.cs.unibo.it' with a vde_plug+SSH connection:
+# 
+# 	$ dpipe vde_plug = ssh dbilli@router.cs.unibo.it vde_plug
+#
+# 5) Launch our NAT with a simple configuration file:
+# 
+# 	$ unat -v -c nat_ipv6_picione.txt                 [NAT]
+#
+# 6) Set our NAT as the HOST's default IPv6 route:
+# 
+# 	$ ip -6 route add default via 2001:1234:5678::2:6bff:fe8b:4506
+#                                                     ^^^^     ^^^^^^^
+#    ATTENTION: 22:6b:8b:45:06 is the random MAC address assigned to 'if0' 
+#    interface. You can get the right MAC address by entering this command 
+#    in the uNAT prompt:
+#
+#       unat> iface list  
+#
+# 7) Set up uNAT interface
+# 
+#       unat> iface up localif
+#       unat> iface up publicif
+#
+#-------------------------------------------------------------------------
+#
+# This is the real view of this example:
+#          
+#       [VDE1]..[vdeplug]                        [vdeplug]..[VDE2]       
+#          .       *                                 *        .
+#      if1 .       *                                 *        .
+#        [NAT]     *                                 *        .
+#      if0 .       *                                 *        .
+#          .       *                                 *        .
+#       [VDE0]     *                                 *        .
+#          .       *                                 *        .
+#          .       *       "VIRTUAL" NETWORK         *        .
+#    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#     tap0 .       *         REAL NETWORK            *        . tap0
+#       +------+   *                                 *   +---------+
+#       | HOST |   *                                 *   | picione |
+#       +------+   *        /                /       *   +---------+
+#     eth0 |       *********/  THE INTERNET  / *******        | ethX
+#      ----+-----           /                /            ----+---
+#                                                        
+#                       ... Unix socket / TAP link       
+#                       --- physical link
+#                       *** SSH TUNNEL 
+# 
+
+#
+# Create Interfaces
+#
+
+iface add if0  vde  /tmp/vde2.ctl
+iface add if1  vde  /tmp/vde.ctl
+
+#
+# Setup IP addresses
+#
+
+ip add if0  192.168.1.2  netmask  255.255.255.0
+ip add if1  2001:1234:5678::  netmask  64
+
+#
+# Setup routing (
+#
+#route add  0.0.0.0  0.0.0.0  192.168.1.1  if0
+
+#
+# NAT rules
+#
+
+nat -A POSTROUTING -ip 6 -o if1  -j MASQUERADE
+
+#
+# Activate interfaces (better to do it manually)
+#
+#iface up if0
+#iface up if1

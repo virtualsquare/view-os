@@ -1,0 +1,23 @@
+#
+# Dummy example: HOST can "ping" uNAT.
+#
+#                           |
+#           VIRTUAL NETWORK | REAL NETWORK
+#                           |
+#           dummyif    tap0 |+------+ eth0 
+#    [uNAT]+++++++++++++++++|| HOST |=============
+#           .1.2       .1.1 |+------+
+#                           |
+#
+# You have to config tap0 interface:
+#
+#     root# ifconfig tap0 192.168.1.1 netmask 255.255.255.0
+#     root# ifconfig tap0 up
+#
+#
+
+iface add dummyif tap
+
+ip add dummyif  192.168.1.2  255.255.255.0
+
+iface up dummyif

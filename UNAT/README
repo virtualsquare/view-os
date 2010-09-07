@@ -1,0 +1,11 @@
+uNAT - userspace (universal) NAT
+================================
+
+uNAT is a proof-of-concept userspace NAT/ daemon for IPv4/IPv6 traffic. It can
+manage IP traffic from virtual networks (e.g. it can be used with UserModeLinux or KVM) 
+and from real networks (it can send and receive IP packets from physical interfaces).
+
+License
+=======
+
+uNAT is under the GNU GPL license.

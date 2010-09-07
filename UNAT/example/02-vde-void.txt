@@ -1,0 +1,7 @@
+#
+# Very dummy configuration
+#
+iface add myvde vde /tmp/vde.ctl
+
+iface up myvde
+

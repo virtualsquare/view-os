@@ -1,0 +1,26 @@
+#
+# Dummy example with VDE Switch: HOST can "ping" uNAT
+#
+#                                         |
+#                         VIRTUAL NETWORK | REAL NETWORK
+#                                         |
+#          vdeif                     tap0 |+------+ eth0 
+#   [uNAT]..............[VDE]+++++++++++++|| HOST |======
+#          .1.2     (/tmp/vde.ctl)   .1.1 |+------+
+#                                         |
+#
+#           ... unix socket
+#           +++ TUNTAP link
+#
+
+#
+# You have to launch VDE Switch with this command:
+#
+#     $ vde_switch -tap tap0 &
+#
+
+iface add vdeif vde /tmp/vde.ctl
+
+ip add vdeif  192.168.1.2  255.255.255.0
+
+iface up vdeif
