@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
-#include <getopt.h>
 #include <config.h>
 #include <libgen.h>
 #include <msocket.h>
@@ -156,20 +155,33 @@ struct option long_options[] = {
 
 main(int argc, char *argv[])
 {
-	int i,c,option_index;
+	int i,c;
+	argv++;
+	argc--;
 	for (i=1;i<AF_MAXMAX;i++)
 		family[i]=1;
-
-	while ((c=getopt_long(argc,argv,"hvo:p:",long_options,&option_index)) >= 0) {
-		switch (c){
-			case 'h': usage(); break;
-			case 'v': flags |= MSTACK_VERBOSE; break;
-			case 'o':
-			case 'f': mstack_setproto(optarg, family, &flags); break;
+	while (**argv == '-') {
+		char *s=*argv;
+		s++;
+		if (strcmp(s,"-help") == 0 || strcmp(s,"-verbose") == 0 ||
+				strcmp(s,"-options") == 0 || strcmp(s,"-proto") == 0 ||
+				strcmp(s,"-protocols") == 0)
+			s[1]=0;
+		while (*s) {
+			switch (*s) {
+				case 'h': usage(); break;
+				case 'v': flags |= MSTACK_VERBOSE; break;
+				case 'o':
+				case 'p':
+				case 'f': argc--; 
+									argv++;
+									mstack_setproto(*argv, family, &flags); break;
+			}
+			s++;
 		}
+		argv++;
+		argc--;
 	}
-	argv += optind;
-	argc -= optind;
 	if (argc < 2)
 		usage();
 	else {
