@@ -367,30 +367,32 @@ lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
 	/* get the IP address and port of the remote host */
 	netconn_peer(newconn, &naddr, &port);
 
-	if (sock->family == PF_INET) {
-		struct sockaddr_in sin;
-		memset(&sin, 0, sizeof(sin));
-		sin.sin_family = sock->family;
-		sin.sin_port = htons(port);
-		/*memcpy(&(sin.sin_addr.s_addr),&(naddr.addr[3]),sizeof(sin.sin_addr.s_addr));*/
-		SOCK_IP46_CONV(&(sin.sin_addr.s_addr),&(naddr));
+	if (addr != NULL) {
+		if (sock->family == PF_INET) {
+			struct sockaddr_in sin;
+			memset(&sin, 0, sizeof(sin));
+			sin.sin_family = sock->family;
+			sin.sin_port = htons(port);
+			/*memcpy(&(sin.sin_addr.s_addr),&(naddr.addr[3]),sizeof(sin.sin_addr.s_addr));*/
+			SOCK_IP46_CONV(&(sin.sin_addr.s_addr),&(naddr));
 
-		if (*addrlen > sizeof(sin))
-			*addrlen = sizeof(sin);
+			if (*addrlen > sizeof(sin))
+				*addrlen = sizeof(sin);
 
-		memcpy(addr, &sin, *addrlen);
-	}           
-	else {      
-		struct sockaddr_in6 sin;
-		memset(&sin, 0, sizeof(sin));
-		sin.sin6_family = sock->family;
-		sin.sin6_port = htons(port);
-		memcpy(&(sin.sin6_addr),&(naddr.addr),sizeof(sin.sin6_addr));
+			memcpy(addr, &sin, *addrlen);
+		}           
+		else {      
+			struct sockaddr_in6 sin;
+			memset(&sin, 0, sizeof(sin));
+			sin.sin6_family = sock->family;
+			sin.sin6_port = htons(port);
+			memcpy(&(sin.sin6_addr),&(naddr.addr),sizeof(sin.sin6_addr));
 
-		if (*addrlen > sizeof(sin))
-			*addrlen = sizeof(sin);
+			if (*addrlen > sizeof(sin))
+				*addrlen = sizeof(sin);
 
-		memcpy(addr, &sin, *addrlen);
+			memcpy(addr, &sin, *addrlen);
+		}
 	}
 
 	/* set by the EVT_ACCEPTPLUS event */
