@@ -606,11 +606,11 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 			pc->hte=hte;
 			if (secure && (pc->retval=(um_parentwaccess(pc->path,pc))) < 0)
 				pc->erno=errno;
-			if (secure && 
+			else if (secure && 
 					(sc_number == __NR_rename || sc_number == __NR_renameat) &&
 					(pc->retval=(um_parentwaccess(source,pc))) < 0)
 				pc->erno=errno;
-			if ((pc->retval=um_syscall(source,pc->path)) < 0)
+			else if ((pc->retval=um_syscall(source,pc->path)) < 0)
 				pc->erno= errno;
 		}
 		free(source);
@@ -633,7 +633,7 @@ int wrap_in_symlink(int sc_number,struct pcb *pc,
 	} else {
 		if (secure && (pc->retval=(um_parentwaccess(pc->path,pc))) < 0)
 			pc->erno=errno;
-		if ((pc->retval=um_syscall(source,pc->path)) < 0)
+		else if ((pc->retval=um_syscall(source,pc->path)) < 0)
 			pc->erno= errno;
 		free(source);
 	}
@@ -647,6 +647,7 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 	unsigned long argaddr;
 	struct timeval tv[2];
 	struct timeval *larg;
+	int sfd = -1;
 #ifdef __NR_futimesat
 	if (sc_number == __NR_futimesat
 #ifdef __NR_utimensat
@@ -676,6 +677,8 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 				tv[1].tv_sec=times[1].tv_sec;
 				tv[0].tv_usec=times[0].tv_nsec/1000;
 				tv[1].tv_usec=times[1].tv_nsec/1000;
+				if (pc->sysargs[1] == umNULL)
+					sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 			} else 
 #endif
 			/* UTIMES FUTIMESAT*/
@@ -684,7 +687,7 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 	}
 	if (secure && (pc->retval=(um_x_access(pc->path,W_OK,pc,&pc->pathstat))) < 0)
 		pc->erno=errno;
-	if ((pc->retval = um_syscall(pc->path,larg)) < 0)
+	else if ((pc->retval = um_syscall(pc->path,larg,sfd)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }
@@ -782,7 +785,7 @@ int wrap_in_truncate(int sc_number,struct pcb *pc,
 		off=pc->sysargs[1];
 	if (secure && (pc->retval=(um_x_access(pc->path,W_OK,pc,&pc->pathstat))) < 0)
 		pc->erno=errno;
-	if ((pc->retval=um_syscall(pc->path,off)) < 0)
+	else if ((pc->retval=um_syscall(pc->path,off)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }

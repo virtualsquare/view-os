@@ -301,7 +301,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 			pc->erno=EACCES;
 		}
 		/* does the module define a semantics for execve? */
-		if (!isnosys(um_syscall)) {
+		else if (!isnosys(um_syscall)) {
 			long largv=pc->sysargs[1];
 			long lenv=pc->sysargs[2];
 			char **argv=getparms(pc,largv);
