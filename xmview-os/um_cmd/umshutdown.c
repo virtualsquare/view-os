@@ -43,7 +43,7 @@ void termhandler(int signo)
 {
 }
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	int wtime;
 	if (um_check_viewos()==0) {
@@ -62,4 +62,5 @@ main(int argc, char *argv[])
 	if (wtime>0)
 		sleep(wtime);
 	um_killall(SIGKILL);
+	return 0;
 }

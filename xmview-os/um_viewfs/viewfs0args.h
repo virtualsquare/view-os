@@ -33,5 +33,5 @@
 #define VIEWFS_WOK   0x200 
 #define VIEWFS_VSTAT 0x400 
 
-int viewfsarg(char *opts,int *pflags,char ***pexceptions);
+int viewfsargs(char *opts,int *pflags,char ***pexceptions);
 #endif

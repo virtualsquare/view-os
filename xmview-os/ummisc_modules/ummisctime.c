@@ -57,9 +57,9 @@ static long double umtime(struct umtimeinfo *umt)
 	long double now;
 	clock_gettime(CLOCK_REALTIME,&ts);
 	now=ts.tv_sec + ((long double) ts.tv_nsec) / 1000000000;
-	//printk("umtime now %llf\n",now);
+	//printk("umtime now %Lf\n",now);
 	now=now*umt->freq+umt->offset;
-	//printk("umtime umnow %llf\n",now);
+	//printk("umtime umnow %Lf\n",now);
 	return now;
 }
 
@@ -83,7 +83,7 @@ static void setnewfreq(struct umtimeinfo *umt,long double newfreq)
 	now=ts.tv_sec + ((long double) ts.tv_nsec) / 1000000000;
 	oldtime=now*umt->freq+umt->offset;
 	newuncorrected=now*newfreq+umt->offset;
-	//printk("setnewfreq %llf %llf %llf %llf\n",
+	//printk("setnewfreq %Lf %Lf %Lf %Lf\n",
 			//newfreq,now,oldtime,newuncorrected);
 	umt->offset += (oldtime-newuncorrected);
 	umt->freq=newfreq;
@@ -140,6 +140,7 @@ int misc_clock_settime(clockid_t clk_id, const struct timespec *tp,
 			newnow = tp->tv_sec + ((long double) tp->tv_nsec) / 1000000000;
 			umsettime(buf,newnow);
 		}
+		return 0;
 	} else
 		return clock_settime(clk_id,tp);
 }
@@ -147,16 +148,15 @@ int misc_clock_settime(clockid_t clk_id, const struct timespec *tp,
 static loff_t gp_time(int op,char *value,int size,struct ummisc *mh,int tag, char *path) {
 	struct umtimeinfo *buf=ummisc_getprivatedata(mh);
 	loff_t rv=0;
-	char *field;
 	switch (tag) {
 		case GP_OFFSET:
 			if (op==UMMISC_GET) {
-				snprintf(value,size,"%llf\n",buf->offset);
+				snprintf(value,size,"%Lf\n",buf->offset);
 				rv=strlen(value);
 			} else {
 				rv=size;
 				value[size]=0;
-				sscanf(value,"%llf",&buf->offset);
+				sscanf(value,"%Lf",&buf->offset);
 			}
 			break;
 		case GP_FREQ:
@@ -167,11 +167,12 @@ static loff_t gp_time(int op,char *value,int size,struct ummisc *mh,int tag, cha
 				long double newfreq;
 				rv=size;
 				value[size]=0;
-				sscanf(value,"%llf",&newfreq);
+				sscanf(value,"%Lf",&newfreq);
 				setnewfreq(buf,newfreq);
 			}
 			break;
 	}
+	return rv;
 }
 
 static void ummisc_time_init(char *path, unsigned long flags, char *args, struct ummisc *mh) {

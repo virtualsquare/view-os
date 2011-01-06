@@ -17,6 +17,7 @@ struct hd_geometry hd_geom;
 
 static int hd_open(char type, dev_t device, struct dev_info *di)
 {
+	return 0;
 }
 
 static int hd_read(char type, dev_t device, char *buf, size_t len, loff_t pos, struct dev_info *di)
@@ -45,6 +46,7 @@ static int hd_write(char type, dev_t device, const char *buf, size_t len, loff_t
 
 static int hd_release(char type, dev_t device, struct dev_info *di)
 {
+	return 0;
 }
 
 static loff_t hd_lseek(char type, dev_t device, loff_t offset, int whence, loff_t pos, struct dev_info *di)

@@ -156,7 +156,7 @@ static void ifaddname(struct ifname **head,char type,char num,char *name)
 
 static void myputenv(struct ifname **head, int *intnum, char *paramval[], char *arg)
 {
-	int i,j;
+	int i;
 	for (i=0;i<INTTYPES;i++) {
 		if (strncmp(arg,intname[i],2)==0 && arg[2] >= '0' && arg[2] <= '9') {
 			if (arg[3] == '=') {

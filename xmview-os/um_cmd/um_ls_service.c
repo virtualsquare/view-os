@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <config.h>
 #include <limits.h>
+#include <string.h>
 #include <um_lib.h>
 
 void usage()
@@ -35,16 +36,17 @@ void usage()
 
 int main(int argc, char *argv[])
 {
-	unsigned char lsbuf[PATH_MAX];
+	char lsbuf[PATH_MAX];
 	char descr[PATH_MAX];
 	int n;
 	if (um_check_viewos()==0) {
 		fprintf(stderr,"This is a View-OS command. It works only inside a umview/kmview virtual machine\n");
 		usage();
 	}            
-	if (argc != 1)
+	if (argc != 1) {
 		usage();
-	else {
+		exit(1);
+	} else {
 		if ((n=um_list_service(lsbuf,PATH_MAX)) < 0) {
 			perror("um_list_service");
 			exit(1);

@@ -39,7 +39,7 @@ void usage(char *name,char *what)
 	exit(2);
 }
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	char *aliasname;
 	char *what;

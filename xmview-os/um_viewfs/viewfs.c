@@ -37,7 +37,7 @@
 #include "viewfs0args.h"
 #include "module.h"
 #include "libummod.h"
-#include "syscallnames.h"
+#include "viewfs0args.h"
 
 #include "gdebug.h"
 #define INFOEXT "\377"
@@ -50,7 +50,6 @@ VIEWOS_SERVICE(s)
 
 static fd_set viewfs_dirset;
 static fd_set fastsysset;
-static fd_set parentsysset;
 static uid_t xuid;
 static gid_t xgid;
 static short fastsc[]={
@@ -71,9 +70,6 @@ struct viewfs {
 	int sourcelen;
 	int flags;
 };
-
-static struct viewfs **viewfstab=NULL;
-static int viewfstabmax=0;
 
 #define WORDLEN sizeof(int *)
 #define WORDALIGN(X) (((X) + WORDLEN) & ~(WORDLEN-1))
@@ -177,7 +173,6 @@ static int copyfile (char *oldpath, char *newpath, size_t truncate)
 	int fdin=open(oldpath,O_RDONLY);
 	int fdout=-1;
 	char buf[4096];
-	size_t outsize=0;
 
 	if (stat(oldpath,&oldstat)==0) {
 		if (S_ISDIR(oldstat.st_mode)) {
@@ -241,7 +236,7 @@ static inline void wipeunlink (struct viewfs *vfs,char *path)
 {
 	int erno=errno;
 	if (vfs->flags & VIEWFS_COW) {
-		char *realfile=unwrap(vfs,path);
+		//char *realfile=unwrap(vfs,path);
 		char *wipefile=wipeunwrap(vfs,path,"");
 		if (unlink(wipefile) >= 0)
 			destroy_path(vfs,wipefile,1);
@@ -273,7 +268,6 @@ static inline int wipeoutfile (struct viewfs *vfs,char *path)
 
 static inline void deleteinfo (struct viewfs *vfs,char *path)
 {
-	int rv=0;
 	int saveerrno=errno;
 	/* infofile must be eliminated when a VSTAT file system is later
 		 mounted without vstat */
@@ -428,9 +422,9 @@ static void copy_vvstat(struct viewfs *vfs,
 			lstat64(oldpath,&stold),lstat64(newpath,&stnew));*/
 	if (lstat64(oldpath,&stold) == 0 && lstat64(newpath,&stnew) == 0) {
 		gethexstat(vfs,oldvpath,&stold); /* update for virtual vstat */
-		if (stold.st_mode&0777 != stnew.st_mode&0777) {
+		if ((stold.st_mode&0777) != (stnew.st_mode&0777)) {
 			if (chmod(newpath,stold.st_mode)==0)
-				stnew.st_mode = stnew.st_mode&(~0777) | stold.st_mode&0777;
+				stnew.st_mode = (stnew.st_mode&(~0777)) | (stold.st_mode&0777);
 		}
 		if (stold.st_uid != stnew.st_uid || stold.st_gid != stnew.st_gid) {
 			if (chown(newpath,
@@ -465,7 +459,7 @@ static void create_vpath(struct viewfs *vfs,char *path,char *vfspath)
 					int rv;
 					*t=0;
 					rv=lstat64(path,&stold);
-					if (stold.st_mode & 07777 != mode)
+					if ((stold.st_mode & 07777) != mode)
 						chmod(vfspath,stold.st_mode);
 					if ((vfs->flags & VIEWFS_VSTAT) && rv==0 && (stold.st_uid != xuid || stold.st_gid != xgid))
 						puthexstat(vfs,path,0,
@@ -632,7 +626,7 @@ static inline int isexception(char *path, int pathlen, char **exceptions, struct
 					char *vfspath=unwrap(vfs,path);
 					int vfsrv=lstat64(vfspath,&buf);
 					int openargc=1;
-					long openflag=0;
+					//long openflag=0;
 					long *scargs=um_mod_getargs();
 #if 0
 					if ((vfs->flags & VIEWFS_COW)) {
@@ -1094,7 +1088,7 @@ static int viewfs_mknod(char *path, mode_t mode, dev_t dev)
 						create_vpath(vfs,path,vfspath);
 						rv=mknod(vfspath,mode,dev);
 						if (rv<0) 
-							rv=mknod(vfspath,mode&0777|S_IFREG,0);
+							rv=mknod(vfspath,(mode&0777)|S_IFREG,0);
 						if (rv>=0) wipeunlink(vfs,path);
 					}
 					if (rv >= 0 && (vfs->flags & VIEWFS_VSTAT))
@@ -1103,7 +1097,7 @@ static int viewfs_mknod(char *path, mode_t mode, dev_t dev)
 					create_vpath(vfs,path,vfspath);
 					rv=mknod(vfspath,mode,dev);
 					if (rv<0) 
-						rv=mknod(vfspath,mode&0777|S_IFREG,0);
+						rv=mknod(vfspath,(mode&0777)|S_IFREG,0);
 					if (rv>=0) wipeunlink(vfs,path);
 					if (rv >= 0 && (vfs->flags & VIEWFS_VSTAT))
 						new_vstat(vfs,path,mode& ~getumaskx(),dev);
@@ -1160,7 +1154,6 @@ static long viewfs_unlink(char *path)
 	struct viewfs *vfs = um_mod_get_private_data();
 	char *vfspath=unwrap(vfs,path);
 	int rv=0;
-	int saverrno;
 	if (vfs->flags & VIEWFS_DEBUG)
 		printk("VIEWFS_UNLINK %s->%s \n",path,vfspath);
 	//printk("viewfs_unlink %s\n",path);
@@ -1675,14 +1668,15 @@ static long viewfs_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned i
 				}
 			}
 			return curoffs;
-		}
+		} else
+			return -1;
 	} else
 		return getdents64(fd,dirp,count);
 }
 
 static void viewfs_cow_init(struct viewfs *new)
 {
-	struct stat64 wipestat;
+	//struct stat64 wipestat;
 	char *wipepath;
 	asprintf(&(wipepath),"%s/.-",new->source);
 	mkdir(wipepath,0777);
@@ -1750,6 +1744,7 @@ static long viewfs_umount2(char *target, int flags)
 	struct viewfs *vfs = um_mod_get_private_data();
 	viewfs_umountinternal(vfs,flags);
 	ht_tab_del(um_mod_get_hte());
+	return 0;
 }
 
 static void createscset(void)

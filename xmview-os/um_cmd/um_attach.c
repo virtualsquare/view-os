@@ -33,18 +33,18 @@ void usage()
 	fprintf(stderr, "Usage:\n\tum_attach pid\n");
 }
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
-	int pid;
-	if (argc != 2)
+	if (argc != 2) {
 		usage();
-	else {
+		return 1;
+	} else {
 		if (um_attach(atoi(argv[1])) < 0) {
 			perror("um_attach");
-			exit(-1);
+			return -1;
 		}
 		else
-			exit(0);
+			return 0;
 	}
 }
 

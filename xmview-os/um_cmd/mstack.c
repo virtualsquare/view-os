@@ -78,9 +78,8 @@ void usage()
 	exit(2);
 }
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
-	int c;
 	argv++;
 	argc--;
 	while (**argv == '-') {
@@ -123,9 +122,10 @@ main(int argc, char *argv[])
 		argc--;
 	}
 
-	if (argc < 2)
+	if (argc < 2) {
 		usage();
-	else {
+		return 2;
+	} else {
 		int fd;
 		char *cmd;
 		if (all) {
@@ -153,5 +153,6 @@ main(int argc, char *argv[])
 		argv[0]=basename(cmd);
 		execvp(cmd,argv);
 		perror("mstack: exec");
+		return 2;
 	}
 }

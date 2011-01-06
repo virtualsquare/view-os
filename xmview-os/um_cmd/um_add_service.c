@@ -34,7 +34,7 @@ void usage()
 	exit(2);
 }
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	int c;
 	int permanent=0;
@@ -55,9 +55,10 @@ main(int argc, char *argv[])
 								break;
 		}
 	}
-	if (argc - optind != 1)
+	if (argc - optind != 1) {
 		usage();
-	else {
+		exit(1);
+	} else {
 		if (um_add_service(argv[optind],permanent) < 0) {
 			perror("um_add_service");
 			exit(1);

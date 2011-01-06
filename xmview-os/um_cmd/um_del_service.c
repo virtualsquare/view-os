@@ -37,7 +37,6 @@ void usage()
 main(int argc, char *argv[])
 {
 	int c;
-	int position=0;
 	if (um_check_viewos()==0) {
 		fprintf(stderr,"This is a View-OS command. It works only inside a umview/kmview virtual machine\n");
 		usage();
@@ -50,9 +49,10 @@ main(int argc, char *argv[])
 		c=getopt_long(argc,argv,"",long_options,&option_index);
 		if (c == -1) break;
 	}
-	if (argc - optind != 1)
+	if (argc - optind != 1) {
 		usage();
-	else {
+		exit (1);
+	} else {
 		if (um_del_service(argv[optind]) < 0) {
 			perror("um_del_service");
 			exit(1);

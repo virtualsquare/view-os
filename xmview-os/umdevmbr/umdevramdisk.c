@@ -165,6 +165,7 @@ static int rd_fini(char type, dev_t device, struct umdev *devhandle)
 			free(ramdisk->diskdata);
 			free(ramdisk);
 		}
+		return 0;
 }
 
 static int rd_ioctl(char type, dev_t device, int req, void * arg, struct dev_info *di)

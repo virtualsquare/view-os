@@ -1,3 +1,28 @@
+/*   This is part of um-ViewOS
+ *   The user-mode implementation of OSVIEW -- A Process with a View
+ *
+ *   viewsu user command
+ *   
+ *   Copyright 2010 Renzo Davoli University of Bologna - Italy
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License, version 2 or 
+ *   (at your option) any later version, as published by the Free Software Foundation.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
+ *
+ *   $Id: um_add_service.c 775 2009-09-01 21:15:23Z rd235 $
+ *
+ */
+
+#include <config.h>
 #include<stdio.h>
 #include<stdlib.h>
 #include<unistd.h>
@@ -5,6 +30,7 @@
 #include <sys/wait.h>
 #include <getopt.h>
 #include <pwd.h>
+#include <grp.h>
 #include <string.h>
 #include <libgen.h>
 #include <um_lib.h>
@@ -87,11 +113,11 @@ int main(int argc, char *argv[])
 	int status;
 	int c;
 	struct passwd *pwd;
-	
+
 	/* outside viewos use su(1) */
 	if (um_check_viewos()==0) 
 		execvp("su",argv);
-	
+
 	while (1) {
 		int option_index = 0;
 		c = getopt_long(argc, argv, "c:ls:mph",
@@ -105,9 +131,9 @@ int main(int argc, char *argv[])
 								break;
 			case 's': shell=optarg;
 								break;
-		//	case 'm':
-		//	case 'p': preserve_environment=1;
-		//						break;
+								//	case 'm':
+								//	case 'p': preserve_environment=1;
+								//						break;
 			case 'h': usage(argv[0]);
 								break;
 		}
@@ -124,7 +150,7 @@ int main(int argc, char *argv[])
 	}
 
 	//if (!preserve_environment)
-		//clearenv();
+	//clearenv();
 	if (user) {
 		pwd=getpwnam(user);
 		if (pwd == NULL) {
@@ -166,9 +192,9 @@ int main(int argc, char *argv[])
 							 setgroups(ngroups,groups);
 							 setpath();
 							 if (command)
-								 execl(shell,arg0,"-c",command,0);
+								 execl(shell,arg0,"-c",command,(char *)0);
 							 else
-								 execl(shell,arg0,0);
+								 execl(shell,arg0,(char *)0);
 							 perror(arg0);
 						 }
 						 exit(1);

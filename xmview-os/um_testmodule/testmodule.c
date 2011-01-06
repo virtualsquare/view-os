@@ -62,7 +62,7 @@ static long delmodule(char *sender)
 
 static long ctl(int type, char *sender, va_list ap)
 {
-	int id, ppid, max, code;
+	int id, ppid, max;
 	char* arg;
 
 	if (type & MC_USER)
@@ -77,6 +77,8 @@ static long ctl(int type, char *sender, va_list ap)
 				GMESSAGE("service %s is managing open(\"%s\", ...)",
 						sender, arg);
 				return 0;
+			default:
+				return -1;
 		}
 	}
 	else

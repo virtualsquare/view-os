@@ -62,4 +62,5 @@ int main(int argc, char * argv[])
 
 	if (umount2(target, umountflags))
 		perror("umount");
+	return 0;
 }

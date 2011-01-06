@@ -70,4 +70,5 @@ int main(int argc, char * argv[])
 
 	if (mount(source, target, type, mountflags, options))
 		perror("mount");
+	return 0;
 }

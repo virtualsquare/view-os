@@ -151,7 +151,6 @@ static long ummisc_open(char *path, int flags, mode_t mode)
 	if (fse != NULL) {
 		int fd = addfiletab(sizeof(struct fileinfo));
 		struct fileinfo *ft=getfiletab(fd);
-		int rv;
 		ft->pos = 0;
 		ft->flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
 		ft->path=strdup(upath);
@@ -181,13 +180,12 @@ static long ummisc_open(char *path, int flags, mode_t mode)
 
 static long ummisc_close(int fd)
 {
-	int rv;
 	struct fileinfo *ft=getfiletab(fd);
 
 	struct ummisc *mh = ft->ummisc;
 	//printk("close %s\n",ft->path);
 	if (ft->fse->getputfun != NULL &&
-			ft->flags & O_ACCMODE != 0) { /*O_WRONLY or O_RDWR */
+			(ft->flags & O_ACCMODE) != 0) { /*O_WRONLY or O_RDWR */
 		ft->fse->getputfun(UMMISC_PUT,ft->buf,ft->size,mh,
 				ft->fse->tag,ft->path);
 	}
@@ -232,7 +230,7 @@ static long ummisc_write(int fd, char *buf, size_t count)
 	return rv;
 }
 
-static setstat64(struct stat64 *buf64, int isdir)
+static void setstat64(struct stat64 *buf64, int isdir)
 {
 	memset(buf64,0,sizeof(struct stat64));
 	if (isdir)
@@ -291,7 +289,6 @@ static long ummisc_access(char *path, int mode)
 
 static loff_t ummisc_lseek(int fd, off_t offset, int whence)
 {
-	int rv;
 	struct fileinfo *ft=getfiletab(fd);
 	switch (whence) {
 		case SEEK_SET: ft->pos=offset; break;
@@ -299,6 +296,7 @@ static loff_t ummisc_lseek(int fd, off_t offset, int whence)
 		case SEEK_END: ft->pos=strlen(ft->buf)+offset; break;
 	}
 	if (ft->pos < 0) ft->pos=0;
+	return ft->pos;
 }
 
 static long dirsize(struct fsentry *fsdir)
@@ -382,7 +380,6 @@ static long ummisc_mount(char *source, char *target, char *filesystemtype,
 	} else {
 		struct ummisc *new = (struct ummisc *) malloc(sizeof(struct ummisc));
 		struct stat64 *s64;
-		int i;
 		assert(new);
 		s64=um_mod_getpathstat();
 		new->path = strdup(target);
@@ -420,6 +417,7 @@ static long ummisc_umount2(char *target, int flags)
 		ummisc_umount_internal(mh, flags);
 		ht_tab_del(scht);
 		ht_tab_del(um_mod_get_hte());
+		return 0;
 	}
 }
 
@@ -442,6 +440,8 @@ void *ummisc_getprivatedata(struct ummisc *mischandle)
 {
 	if(mischandle)
 		return mischandle->private_data;
+	else
+		return NULL;
 }
 
 	static void

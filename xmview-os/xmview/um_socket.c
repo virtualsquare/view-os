@@ -157,31 +157,36 @@ int wrap_in_accept(int sc_number,struct pcb *pc,
 		/* get the system call args */
 		long sock_plen=pc->sysargs[2];
 		int sock_len;
-		if (sock_plen != umNULL)
+		if (sock_plen != umNULL) {
 			umoven(pc,sock_plen,4,&sock_len);
-		/* safety check for sock */
-		if (sock_len == 0 || sock_len > MAX_SOCKLEN) {
-			pc->retval= -1;
-			pc->erno= EINVAL;
-		} else {
-			long sock_addr=pc->sysargs[1];
-			char *sock;
-			if (__builtin_expect((sock_len > MAX_SOCKET_NAME),0)) 
-				sock_len=MAX_SOCKET_NAME;
-			sock=(char *)alloca(sock_len);
-			/* get the sock_addr */
+			/* safety check for sock */
+			if (sock_len == 0 || sock_len > MAX_SOCKLEN) {
+				pc->retval= -1;
+				pc->erno= EINVAL;
+			} else {
+				long sock_addr=pc->sysargs[1];
+				char *sock;
+				if (__builtin_expect((sock_len > MAX_SOCKET_NAME),0)) 
+					sock_len=MAX_SOCKET_NAME;
+				sock=(char *)alloca(sock_len);
+				/* get the sock_addr */
 				umoven(pc,sock_addr,sock_len,sock);
 				/* virtual syscall */
-			if ((pc->retval = um_syscall(sfd,sock,&sock_len)) < 0)
-				pc->erno=errno;
-			else {
-			/* store the results (if the call was successful) */
-				if (sock_addr != umNULL)
-					ustoren(pc,sock_addr,sock_len,sock);
-				if (sock_plen != umNULL)
-					umoven(pc,sock_plen,4,&sock_len);
+				if ((pc->retval = um_syscall(sfd,sock,&sock_len)) < 0)
+					pc->erno=errno;
+				else {
+					/* store the results (if the call was successful) */
+					if (sock_addr != umNULL)
+						ustoren(pc,sock_addr,sock_len,sock);
+					if (sock_plen != umNULL)
+						umoven(pc,sock_plen,4,&sock_len);
+				}
 			}
+		} else {
+			if ((pc->retval = um_syscall(sfd,NULL,NULL)) < 0)
+				pc->erno=errno;
 		}
+
 		/* open the new fifo, (accept creates a new fd) */
 		if (pc->retval >= 0 && 
 				(pc->retval=lfd_open(hte,pc->retval,NULL,O_RDWR,0)) >= 0) {

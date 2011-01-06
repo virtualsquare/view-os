@@ -61,10 +61,9 @@ int quiet;
 int unameok=1;
 struct viewinfo vi;
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	int c;
-	int position=0;
 	int i;
 	while (1) {
 		int option_index = 0;
@@ -166,7 +165,7 @@ main(int argc, char *argv[])
 			if(flags[0] || flags[9])
 				printf("%s%d",SPACE,vi.serverid);
 			if(flags[0] || flags[10])
-				printf("%s%d",SPACE,vi.viewid);
+				printf("%s%lu",SPACE,vi.viewid);
 			if(flags[0] || flags[11])
 				printf("%s%s",SPACE,vi.viewname);
 		}
@@ -174,4 +173,5 @@ main(int argc, char *argv[])
 	} else {
 			printf("%s\n",vi.uname.nodename);
 	}
+	return 0;
 }

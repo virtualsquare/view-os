@@ -181,7 +181,7 @@ static int fuseaddargs(char *fmt, char *source, char *mountpoint, char *opts, ch
 	return nargc;
 }
 
-int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, char ***pargv,struct fuse_context *fc,int *pflags,char ***pexceptions)
+int fuseargs(char* filesystemtype,char *source, char *mountpoint, char *opts, char ***pargv,struct fuse_context *fc,unsigned long *pflags,char ***pexceptions)
 {
 	char *sepopts[MAXARGS];
 	char *exceptions[MAXARGS];

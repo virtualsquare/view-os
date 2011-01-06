@@ -579,7 +579,7 @@ long nw_sysfcntl(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall
 											struct um_flock64 *flock=(struct um_flock64 *)npc->sysargs[2];
 #ifdef __NR_fcntl64
 											if (scno == __NR_fcntl && 
-													(cmd == F_GETLK || cmd == F_SETLK || F_SETLKW)) {
+													(cmd == F_GETLK || cmd == F_SETLK || cmd == F_SETLKW)) {
 												struct um_flock64 *flock64=alloca(sizeof(struct um_flock64));
 												struct um_flock32 *flock32=(struct um_flock32 *)npc->sysargs[2];
 												flock32to64(flock32,flock64);
@@ -589,7 +589,7 @@ long nw_sysfcntl(int scno,struct npcb *npc,struct ht_elem *hte,sysfun um_syscall
 											rv=um_syscall(sfd,cmd,flock);
 #ifdef __NR_fcntl64
 											if (scno == __NR_fcntl && 
-													(cmd == F_GETLK || cmd == F_SETLK || F_SETLKW)) {
+													(cmd == F_GETLK || cmd == F_SETLK || cmd == F_SETLKW)) {
 												struct um_flock64 *flock64=flock;
 												struct um_flock32 *flock32=(struct um_flock32 *)npc->sysargs[2];
 												flock64to32(flock64,flock32);

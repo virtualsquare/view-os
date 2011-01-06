@@ -9,6 +9,7 @@
 #ifndef _UMNET_H_
 #define _UMNET_H_
 #include <stdint.h>
+#include <module.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>

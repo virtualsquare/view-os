@@ -79,9 +79,9 @@ struct umregister {
 	char type;
 	unsigned char offset;
 	unsigned char len;
-	unsigned char *flags;
-	unsigned char *magic;
-	unsigned char *mask;
+	char *flags;
+	char *magic;
+	char *mask;
 	char *interpreter;
 	struct umregister *next;
 };
@@ -533,7 +533,6 @@ static long umbinfmt_open(char *path, int flags, mode_t mode)
 
 static long umbinfmt_close(int fd)
 {
-	int rv;
 	struct binfileinfo *ft=getfiletab(fd);
 
 	if (ft->bfmount->flags & UMBINFMT_DEBUG) 
@@ -563,7 +562,6 @@ static int count_dents64(void *buf, int count, int max) {
 }
 
 static long umbinfmt_getdents64(int fd, void *buf, size_t count){
-	int rv;
 	struct binfileinfo *ft=getfiletab(fd);
 	if (! UBM_IS_ROOT(ft->reg)) {
 		errno=ENOTDIR;
@@ -644,7 +642,6 @@ static char *dechex(char *src,unsigned char *len)
 			src++;
 		}
 	}
-	buf[i];
 	if (*len == 0)
 		*len=i;
 	else
@@ -839,10 +836,12 @@ static long umbinfmt__llseek(unsigned int fd, unsigned long offset_high,  unsign
 	}
 }
 
+#if 0
 static void contextclose(struct umbinfmt *fc)
 {
 	umbinfmt_umount2(fc->path,MNT_FORCE);
 }
+#endif
 
 static long umbinfmt_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 {

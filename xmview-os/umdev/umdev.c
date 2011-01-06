@@ -143,7 +143,6 @@ static inline int mode2char(mode_t mode)
 
 static int set_dev(dev_t *dev, struct umdev *umdev,char *path)
 {
-	register int i;
 	mode_t mode;
 
 	struct stat64 buf;
@@ -351,7 +350,6 @@ static long umdev_mount(char *source, char *target, char *filesystemtype,
 		if (umdev_ops->init) {
 			if (umdev_ops->init(mode2char(new->mode),new->dev,source,
 						mountflags,data?data:"", new) < 0) {
-				deldevicetab(new);
 				free(new->path);
 				free(new);
 				errno=EINVAL;
@@ -414,14 +412,6 @@ static void umdev_destructor(int type,struct ht_elem *mp)
 	}
 }
 
-#define TRUE 1
-#define FALSE 0
-
-static int alwaysfalse()
-{
-	return FALSE;
-}
-
 static long umdev_ioctlparms(int fd,int req)
 {
 	struct fileinfo *ft=getfiletab(fd);
@@ -443,8 +433,6 @@ static long umdev_open(char *path, int flags, mode_t mode)
 	int fd = addfiletab(sizeof(struct fileinfo));
 	struct fileinfo *ft=getfiletab(fd);
 	int rv;
-	int exists_err;
-	struct stat buf;
 	assert(fc!=NULL);
 
 #ifdef __UMDEV_DEBUG__
@@ -607,29 +595,10 @@ static long umdev_write(int fd, void *buf, size_t count)
 	}
 }
 
-static int stat2stat64(struct stat64 *s64, struct stat *s)
-{
-	s64->st_dev= s->st_dev;
-	s64->st_ino= s->st_ino;
-	s64->st_mode= s->st_mode;
-	s64->st_nlink= s->st_nlink;
-	s64->st_uid= s->st_uid;
-	s64->st_gid= s->st_gid;
-	s64->st_rdev= s->st_rdev;
-	s64->st_size= s->st_size;
-	s64->st_blksize= s->st_blksize;
-	s64->st_blocks= s->st_blocks;
-	s64->st_atim= s->st_atim;
-	s64->st_mtim= s->st_mtim;
-	s64->st_ctim= s->st_ctim;
-	return 0;
-}
-
 static inline int common_stat64(struct umdev *fc, char type, dev_t device, struct stat64 *buf64)
 {
 	int rv;
 	assert(fc != NULL);
-	struct dev_info di;
 	memset(buf64, 0, sizeof(struct stat64));
 	if(fc->devops->getattr)
 		rv = fc->devops->getattr(type, device,buf64,fc);
@@ -745,7 +714,7 @@ static long umdev_lchown(char *path, uid_t owner, gid_t group)
 	assert(umdev != NULL);
 	type=set_dev(&device,umdev,path);
 
-	if (umdev->devops->chmod)
+	if (umdev->devops->chown)
 		rv= umdev->devops->chown(type,device,owner,group,umdev);
 	else {
 		umdev->uid=owner;
@@ -878,10 +847,12 @@ static long umdev_ioctl(int fd, int req, void *arg)
 		return rv;
 }
 
+#if 0
 static void contextclose(struct umdev *fc)
 {
 	umdev_umount2(fc->path,MNT_FORCE);
 }
+#endif
 
 static long umdev_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 {
@@ -913,6 +884,8 @@ void *umdev_getprivatedata(struct umdev *devhandle)
 {
 	if(devhandle)
 		return devhandle->private_data;
+	else
+		return NULL;
 }
 
 void umdev_setnsubdev(struct umdev *devhandle, int nsubdev)
@@ -925,12 +898,16 @@ int umdev_getnsubdev(struct umdev *devhandle)
 {
 	if(devhandle)
 		return devhandle->nsubdev;
+	else
+		return -1;
 }
 
 dev_t umdev_getbasedev(struct umdev *devhandle)
 {
 	if(devhandle)
 		return devhandle->dev;
+	else
+		return 0;
 }
 
 void umdev_setmode(struct umdev *devhandle, mode_t mode)
@@ -943,6 +920,8 @@ mode_t umdev_getmode(struct umdev *devhandle)
 {
 	if(devhandle)
 		return devhandle->mode;
+	else
+		return 0;
 }
 
 

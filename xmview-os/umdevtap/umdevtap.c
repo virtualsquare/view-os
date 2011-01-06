@@ -33,6 +33,7 @@
 #include <linux/if.h>
 #include <linux/if_tun.h>
 #include <config.h>
+#include <module.h>
 
 struct umtap {
 	VDECONN *conn;
@@ -45,6 +46,7 @@ static int umtap_open(char type, dev_t device, struct dev_info *di)
 	umtap->conn=NULL;
 	umtap->name=NULL;
 	di->fh=(uint64_t)((long) umtap);
+	return 0;
 }
 
 static int umtap_read(char type, dev_t device, char *buf, size_t len, loff_t pos, struct dev_info *di)
@@ -70,6 +72,7 @@ static int umtap_release(char type, dev_t device, struct dev_info *di)
 	struct umtap *umtap=(struct umtap *)((long) di->fh);
 	if (umtap->conn) {
 		vde_close(umtap->conn);
+		return 0;
 	} else
 		return -ENOTCONN;
 }
@@ -78,19 +81,21 @@ static int umtap_init(char type, dev_t device, char *path, unsigned long flags, 
 {
 /* TODO parse args */
 	umdev_setprivatedata(devhandle,strdup(path));
+	return 0;
 }
 
 static int umtap_fini(char type, dev_t device, struct umdev *devhandle)
 {
 	char *path=umdev_getprivatedata(devhandle);
 	free(path);
+	return 0;
 }
 
 static int umtap_ioctl(char type, dev_t device, int req, void * arg, struct dev_info *di)
 {
 	char *path=umdev_getprivatedata(di->devhandle);
 	struct umtap *umtap=(struct umtap *)((long) di->fh);
-	static tapcount;
+	static int tapcount;
 	switch (req) {
 		case TUNSETIFF:
 			{
