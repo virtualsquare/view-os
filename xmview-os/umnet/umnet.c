@@ -92,7 +92,6 @@ static struct umnetdefault **defnet=NULL;
 /* TAG for NULLNET */
 #define NULLNET ((struct umnet*)defnet)
 static int defnetsize=0;
-static struct ht_elem *socket_ht;
 
 void *net_getdl(struct umnet *mh)
 {
@@ -173,6 +172,9 @@ static long umnet_setdefstack(int id, int domain, struct umnet *defstack)
 			errno=EINVAL;
 			return -1;
 		}
+	} else {
+		errno=EINVAL;
+		return -1;
 	}
 }
 
@@ -517,7 +519,7 @@ static long umnet_ioctl(int fd, int req, void *arg)
 	}
 }
 
-static setstat64(struct stat64 *buf64, struct umnet *um)
+static void setstat64(struct stat64 *buf64, struct umnet *um)
 {
 	memset(buf64,0,sizeof(struct stat64));
 	buf64->st_mode=um->mode;
@@ -552,12 +554,14 @@ static long umnet_fcntl64(int fd, int cmd, int arg)
 	//return 0;
 }
 
+#if 0
 static long umnet_fsync(int fd, int cmd, void *arg)
 {
 	//printk("umnet_fsync\n");
 	errno=0;
 	return 0;
 }
+#endif
 
 static long umnet_access(char *path, int mode)
 {
@@ -601,7 +605,6 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 	} else {
 		struct umnet *new = (struct umnet *) malloc(sizeof(struct umnet));
 		struct stat64 *s64;
-		int i;
 		assert(new);
 		s64=um_mod_getpathstat();
 		new->path = strdup(target);
@@ -666,6 +669,8 @@ void *umnet_getprivatedata(struct umnet *nethandle)
 {
 	if(nethandle)
 		return nethandle->private_data;
+	else
+		return NULL;
 }
 
 static long umnet_event_subscribe(void (* cb)(), void *arg, int fd, int how)

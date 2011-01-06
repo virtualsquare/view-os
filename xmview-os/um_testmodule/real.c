@@ -68,7 +68,7 @@ static long delmodule(char *sender)
 
 static long ctl(int type, char *sender, va_list ap)
 {
-	int id, ppid, max, code;
+	int id, ppid, max;
 
 	switch(type)
 	{

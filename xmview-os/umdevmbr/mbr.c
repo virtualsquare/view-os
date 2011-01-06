@@ -48,13 +48,13 @@ struct mbr_header {
 
 #define LE32_INT(X) (((X)[0])+(((X)[1])<<8)+(((X)[2])<<16)+(((X)[3])<<24))
 
-static void maxgeom(struct hd_geometry *geom, const char *chs)
+static void maxgeom(struct hd_geometry *geom, const unsigned char *chs)
 {
 	unsigned char s,h;
 	unsigned short c;
-	h=(unsigned char)chs[0];
-	s=((unsigned char)chs[1]) & 0x3f;
-	c=((unsigned char)chs[2]) + (((unsigned char)chs[1]) & 0xc0) << 2;
+	h=chs[0];
+	s=chs[1] & 0x3f;
+	c=chs[2] + ((chs[1] & 0xc0) << 2);
 	if ((h+1) > geom->heads)
 		geom->heads = h+1;
 	if (s > geom->sectors)
@@ -104,7 +104,7 @@ static void mbr_read(struct mbr *mbr)
 			off_t base=((off_t)(ext_part_base+offset)) << IDE_BLOCKSIZE_LOG;
 			pread64(mbr->fd, &mbr_header, sizeof(mbr_header), base);
 			if (memcmp(mbr_header.signature,mbrsignature,2) != 0) {
-				fprintf(stderr,"bad signature in block %d=%x %x\n",base,
+				fprintf(stderr,"bad signature in block %lld=%x %x\n", base,
 						mbr_header.signature[0],mbr_header.signature[1]);
 				ext_part_base=0;
 			} else {

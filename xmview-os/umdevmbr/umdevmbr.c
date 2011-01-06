@@ -146,6 +146,7 @@ static int hdmbr_fini(char type, dev_t device, struct umdev *devhandle)
 {
 	struct mbr *mbr=umdev_getprivatedata(devhandle);
 	mbr_close(mbr);
+	return 0;
 }
 
 static int hdmbr_ioctl(char type, dev_t device, int req, void * arg, struct dev_info *di)

@@ -67,6 +67,7 @@ int misc_sethostname(const char *name, size_t len, struct ummisc *mh)
 	memset(field,0,_UTSNAME_SYSNAME_LENGTH);
 	if (len>_UTSNAME_SYSNAME_LENGTH) len=_UTSNAME_SYSNAME_LENGTH;
 	strncpy(field,name,len);
+	return 0;
 }
 
 int misc_setdomainname(const char *name, size_t len, struct ummisc *mh)
@@ -76,6 +77,7 @@ int misc_setdomainname(const char *name, size_t len, struct ummisc *mh)
 	memset(field,0,_UTSNAME_SYSNAME_LENGTH);
 	if (len>_UTSNAME_SYSNAME_LENGTH) len=_UTSNAME_SYSNAME_LENGTH;
 	strncpy(field,name,len);
+	return 0;
 }
 
 loff_t gp_uname(int op,char *value,int size,struct ummisc *mh,int tag, char *path) {

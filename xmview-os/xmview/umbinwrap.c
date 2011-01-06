@@ -32,6 +32,8 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <config.h>
 
 /* return value: 0=the file is mmapable, 1 otherwise */

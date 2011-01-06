@@ -41,6 +41,7 @@
 #include "module.h"
 #include "libummod.h"
 #include "umfusestd.h"
+#include "umfuseargs.h"
 #include "gdebug.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -362,6 +363,7 @@ int check_owner(char *path){
 	if ((fc->uid!=0) && (buf.st_uid != fc->uid)) {
 		return -EACCES;
 	}
+	return 0;
 }
 /**/
 
@@ -407,6 +409,8 @@ static char *mountflag2options(unsigned long mountflags, void *data)
 	GDEBUG(10,"opts: %s",opts);
 	return(strdup(opts));
 }
+
+int umfuse_abort(struct fuse *f);
 
 static void *startmain(void *vsmo)
 {
@@ -556,6 +560,7 @@ int umfuse_abort(struct fuse *f)
 	pthread_mutex_lock( &condition_mutex );
 	pthread_cond_signal( &f->startloop );
 	pthread_mutex_unlock( &condition_mutex );
+	return 0;
 }
 
 void fuse_exit(struct fuse *f)
@@ -683,7 +688,6 @@ static void umfuse_umount_internal(struct fuse_context *fc, int flags)
 {
 	struct fuse_context *fc_norace=fc;
 	char *target=fc->fuse->path;
-	char *ppath;
 	ht_tab_invalidate(um_mod_get_hte());
 	fc_norace->pid=um_mod_getpid();
 	//printk("umount %s\n",target);
@@ -711,7 +715,6 @@ static void umfuse_umount_internal(struct fuse_context *fc, int flags)
 
 static long umfuse_umount2(char *target, int flags)
 {
-	char *ppath;
 	struct fuse_context *fc=um_mod_get_private_data();
 	if (fc == NULL) {
 		errno=EINVAL;
@@ -902,14 +905,6 @@ static long umfuse_getdents64(unsigned int fd, struct dirent64 *dirp, unsigned i
 		}
 	}
 	return curoffs;
-}
-
-#define TRUE 1
-#define FALSE 0
-
-static int alwaysfalse()
-{
-	return FALSE;
 }
 
 static long umfuse_access(char *path, int mode);
@@ -1690,7 +1685,6 @@ static long umfuse_symlink(char *oldpath, char *newpath)
 {
 
 	struct fuse_context *fc=um_mod_get_private_data();
-	struct stat buf;
 	int rv=0;
 
 	assert(fc != NULL);
@@ -1971,11 +1965,6 @@ static loff_t umfuse_lseek64(int fd, loff_t offset, int whence)
 	return ft->pos;
 }
 
-static long umfuse_lseek(int fd, int offset, int whence)
-{
-	return (long) umfuse_lseek64(fd, offset, whence);
-}
-
 #if __WORDSIZE == 32 
 static long umfuse__llseek(unsigned int fd, unsigned long offset_high,  unsigned  long offset_low, loff_t *result, unsigned int whence)
 {
@@ -1996,6 +1985,11 @@ static long umfuse__llseek(unsigned int fd, unsigned long offset_high,  unsigned
 			return -1;
 		}
 	}
+}
+#else
+static long umfuse_lseek(int fd, int offset, int whence)
+{
+	return (long) umfuse_lseek64(fd, offset, whence);
 }
 #endif
 

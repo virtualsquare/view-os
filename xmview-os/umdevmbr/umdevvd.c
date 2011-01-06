@@ -332,6 +332,7 @@ static int vd_fini(char type, dev_t device, struct umdev *devhandle)
 		free(vddisk);
 		unload_VBoxDD();
 	}
+	return 0;
 }
 
 static int vd_ioctl(char type, dev_t device, int req, void * arg, struct dev_info *di)

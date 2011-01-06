@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <module.h>
 #define AF_MAXMAX (AF_MAX + 2)
 
 #define IOCTLLENMASK      0x07ffffff

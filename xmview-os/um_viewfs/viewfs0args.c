@@ -28,6 +28,7 @@
 #include <string.h>
 #include <errno.h>
 #include <config.h>
+#include <module.h>
 #include "viewfs0args.h"
 
 //#define DEBUGVIEWFSARGS

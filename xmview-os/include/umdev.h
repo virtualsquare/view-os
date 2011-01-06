@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <module.h>
 
 #define IOCTLLENMASK      0x07ffffff
 #define IOCTL_R           0x10000000

@@ -64,7 +64,7 @@ struct umproc proc_mounts={PROC_MOUNTS};
 
 static void fill_proc_mounts(struct fileinfo *ft)
 {
-	int size;
+	size_t size;
 	FILE *f=open_memstream(&(ft->buf),&size);
 	int fd=open("/proc/mounts",O_RDONLY);
 	if (fd>=0) {
@@ -85,7 +85,6 @@ static long umproc_open(char *path, int flags, mode_t mode)
 	assert(mh);
 	int fd = addfiletab(sizeof(struct fileinfo));
 	struct fileinfo *ft=getfiletab(fd);
-	int rv;
 	ft->pos = 0;
 	ft->flags = flags & ~(O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC);
 	ft->path=strdup(path);
@@ -102,7 +101,6 @@ static long umproc_open(char *path, int flags, mode_t mode)
 
 static long umproc_close(int fd)
 {
-	int rv;
 	struct fileinfo *ft=getfiletab(fd);
 	if (ft->buf != NULL)
 		free(ft->buf);
@@ -170,7 +168,6 @@ static long umproc_access(char *path, int mode)
 
 static loff_t umproc_lseek(int fd, off_t offset, int whence)
 {
-	int rv;
 	struct fileinfo *ft=getfiletab(fd);
 	switch (whence) {
 		case SEEK_SET: ft->pos=offset; break;
@@ -179,6 +176,7 @@ static loff_t umproc_lseek(int fd, off_t offset, int whence)
 	}
 	if (ft->pos < 0) ft->pos=0;
 	if (ft->pos > ft->size) ft->pos=ft->size;
+	return ft->pos;
 }
 
 void *viewos_init(char *args)
@@ -186,7 +184,7 @@ void *viewos_init(char *args)
 	return ht_tab_pathadd(CHECKPATH,"none","/proc/mounts","proc",MS_GHOST,"ro",&s,0,NULL,&proc_mounts);
 }
 
-void *viewos_fini(void *data)
+void viewos_fini(void *data)
 {
 	struct ht_elem *proc_ht=data;
 	ht_tab_del(proc_ht);
