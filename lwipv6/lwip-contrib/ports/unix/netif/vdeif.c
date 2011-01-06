@@ -161,7 +161,7 @@ static int low_level_init(struct netif *netif, char *path)
 	/* Do whatever else is needed to initialize interface. */
 
 	snprintf(descr, MAXDESCR, "%sLWIPv6 if=vd%c", 
-		(getenv("_INSIDE_UMVIEW_MODULE") != NULL) ? "UMVIEW-" : "", 
+		(getenv("_INSIDE_VIEWOS_MODULE") != NULL) ? "VIEWOS-" : "", 
 		netif->num + '0');
 	if (path==NULL || *path != '-') {
 		vdeif->vdefd=vdeplug.vde_open(path,descr,NULL);
