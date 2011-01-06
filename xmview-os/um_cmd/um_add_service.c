@@ -21,6 +21,7 @@
  *   $Id$
  *
  */   
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -34,7 +35,7 @@ void usage()
 	exit(2);
 }
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	int c;
 	int permanent=0;
@@ -65,5 +66,6 @@ main(int argc, char *argv[])
 		else
 			exit(0);
 	}
+	return 0;
 }
 

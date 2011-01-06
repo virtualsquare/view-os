@@ -19,7 +19,8 @@
  *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
  *
  */
-
+ 
+#include <config.h>
 #include<stdio.h>
 #include<stdlib.h>
 #include<fcntl.h>
@@ -70,4 +71,5 @@ int main(int argc, char * argv[])
 
 	if (mount(source, target, type, mountflags, options))
 		perror("mount");
+	return 0;
 }

@@ -44,7 +44,7 @@ void usage()
 	exit(2);
 }
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	int c;
 	struct viewinfo vi;
@@ -84,7 +84,7 @@ main(int argc, char *argv[])
 			if (strlen (vi.viewname) > 0) 
 				printf("%s\n",vi.viewname);
 			else
-				printf("%s[%d:%d]\n",vi.uname.nodename,vi.serverid,vi.viewid);
+				printf("%s[%d:%lu]\n",vi.uname.nodename,vi.serverid,vi.viewid);
 		} else
 		printf("%s\n",vi.viewname);
 	} else {

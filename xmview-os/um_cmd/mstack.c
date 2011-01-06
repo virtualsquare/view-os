@@ -21,6 +21,7 @@
  *   $Id: um_add_service.c 362 2007-06-08 14:31:54Z rd235 $
  *
  */   
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -153,9 +154,9 @@ struct option long_options[] = {
 	{0, 0, 0, 0}
 };
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
-	int i,c;
+	int i;
 	argv++;
 	argc--;
 	for (i=1;i<AF_MAXMAX;i++)
@@ -215,4 +216,5 @@ main(int argc, char *argv[])
 		execvp(cmd,argv);
 		perror("mstack: exec");
 	}
+	return 0;
 }

@@ -21,10 +21,12 @@
  *   $Id$
  *
  */   
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <config.h>
 #include <limits.h>
+#include <string.h>
 #include <um_lib.h>
 
 void usage()
@@ -35,7 +37,7 @@ void usage()
 
 int main(int argc, char *argv[])
 {
-	unsigned char lsbuf[PATH_MAX];
+	char lsbuf[PATH_MAX];
 	char descr[PATH_MAX];
 	int n;
 	if (um_check_viewos()==0) {
@@ -64,4 +66,5 @@ int main(int argc, char *argv[])
 			exit(0);
 		}
 	}
+	return 0;
 }

@@ -20,6 +20,7 @@
  *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
  *
  */   
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -39,7 +40,7 @@ void usage(char *name,char *what)
 	exit(2);
 }
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	char *aliasname;
 	char *what;
@@ -62,5 +63,5 @@ main(int argc, char *argv[])
 	else
 		aliasname=argv[2];
 	aliasfun(argv[1],aliasname);
-	exit (0);
+	return 0;
 }
