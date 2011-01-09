@@ -266,6 +266,7 @@ void tracehand(void *useless)
 					ump.umpid=newpcb(event[i].x.newthread.pid,event[i].x.newthread.kmpid,
 							event[i].x.newthread.umppid);
 					pc=umpid2pcb(ump.umpid);
+					pcb_constructor(pc,event[i].x.newthread.flags,0);
 					if (ump.umpid <= 1) {
 						if (ump.umpid == 1) /* the root process is starting */
 						{
@@ -278,7 +279,6 @@ void tracehand(void *useless)
 						}
 					}
 					r_ioctl(kmviewfd, KMVIEW_UMPID, &ump);
-					pcb_constructor(pc,event[i].x.newthread.flags,0);
 				}
 				break;
 			case KMVIEW_EVENT_TERMTHREAD:
