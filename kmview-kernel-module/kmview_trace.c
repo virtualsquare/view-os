@@ -226,7 +226,7 @@ static inline pid_t kmview_new_thread(
 	/*skip the ioctl exit call! */
 	kmt->flags=KMVIEW_THREAD_FLAG_SKIP_EXIT | inherited_flags;
 #ifdef KMVIEW_NEWSTOP
-	init_MUTEX_LOCKED(&kmt->kmstop);
+	sema_init(&kmt->kmstop, 0);
 #endif
 	down(&kmt->tracer->sem);
 	kmt->tracer->ntraced++;

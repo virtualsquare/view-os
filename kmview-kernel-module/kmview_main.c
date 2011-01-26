@@ -70,7 +70,7 @@ static int kmview_open(struct inode *inode, struct file *filp)
 #ifdef KMDEBUG
 	printk("NEW_TRACER %d %p\n",current->pid,kmt);
 #endif
-	init_MUTEX(&kmt->sem);
+	sema_init(&kmt->sem, 1);
 	init_waitqueue_head(&kmt->event_waitqueue);
 	kmt->task=current;
 	kmt->ntraced=0;
@@ -218,7 +218,7 @@ static ssize_t kmview_read(struct file *filp, char __user *buf, size_t count, lo
 	return len;
 }
 
-static int kmview_ioctl(struct inode *inode, struct file *filp,
+static int kmview_ioctl(struct file *filp,
 		                       unsigned int cmd, unsigned long arg)
 {
 	struct kmview_tracer *kmt=filp->private_data;
@@ -517,7 +517,7 @@ struct file_operations kmview_fops = {
 	.open  = kmview_open,
 	.release = kmview_release,
 	.read  = kmview_read,
-	.ioctl = kmview_ioctl,
+	.unlocked_ioctl = kmview_ioctl,
 	.poll = kmview_poll
 };
 

@@ -23,6 +23,7 @@
 #include <linux/err.h>
 #include <linux/fs.h>
 #include <linux/errno.h>
+#include <linux/version.h>
 #include "kmview_alloc.h"
 
 #define STEPHEAD 16
@@ -34,7 +35,11 @@ int kmpid_deny_new_threads=0;
 static struct kmpid_struct **km_head;
 static pid_t km_maxhead, km_nhead, km_nthread;
 static pid_t km_freehead;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37)
 DECLARE_MUTEX(kmpid_mutex);
+#else
+DEFINE_SEMAPHORE(kmpid_mutex);
+#endif
 
 static void km_realloc_head (void){
 	pid_t oldsize=km_maxhead;
