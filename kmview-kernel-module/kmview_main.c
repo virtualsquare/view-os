@@ -218,8 +218,8 @@ static ssize_t kmview_read(struct file *filp, char __user *buf, size_t count, lo
 	return len;
 }
 
-static int kmview_ioctl(struct file *filp,
-		                       unsigned int cmd, unsigned long arg)
+static long kmview_ioctl(struct file *filp,
+		unsigned int cmd, unsigned long arg)
 {
 	struct kmview_tracer *kmt=filp->private_data;
 	long ret=0;
