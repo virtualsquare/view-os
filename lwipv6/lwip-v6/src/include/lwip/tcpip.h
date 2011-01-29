@@ -71,7 +71,7 @@ struct tcpip_msg {
 
     /* Signal to the main thread to add a new network interface */
     struct {
-      sys_sem_t *sem;    // used for syncronous calls
+      sys_sem_t *sem;    // used for synchronous calls
       struct netif *netif;
       void *state;
       err_t (* init)(struct netif *netif);
@@ -82,7 +82,7 @@ struct tcpip_msg {
 
 
     struct {
-      sys_sem_t *sem;    // used for syncronous calls
+      sys_sem_t *sem;    // used for synchronous calls
       struct netif *netif;
       u32_t type;
     } netif_notify;

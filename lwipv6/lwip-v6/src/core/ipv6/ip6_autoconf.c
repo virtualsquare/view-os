@@ -69,6 +69,7 @@ ip_autoconf_shutdown(struct stack *stack)
 void 
 ip_autoconf_netif_init(struct netif *netif)
 {
+	netif->autoconf = NULL;
 	LWIP_DEBUGF(IP_AUTOCONF_DEBUG, ("%s: Init interface %c%c%d.\n", __func__, netif->name[0],netif->name[1],netif->num));
 }
 
@@ -620,7 +621,6 @@ remove_autoconf_data(struct netif *netif)
 	struct ip_addr_list *list, *new_list;
 
 	/* FIX: UNLOCK netif->addr */
-
 
 	/* Remove assigned addresses */	
 	if (netif->addrs != NULL) {
