@@ -124,22 +124,22 @@ struct ifname {
 
 static void iffree(struct ifname *head)
 {
-	  if (head==NULL)
-			    return;
-		  else {
-				    iffree(head->next);
-						    free(head->name);
-								    free(head);
-										  }
+	if (head==NULL)
+		return;
+	else {
+		iffree(head->next);
+		free(head->name);
+		free(head);
+	}
 }
 
 static char *ifname(struct ifname *head,unsigned char type,unsigned char num)
 {
-	  if (head==NULL)
-			    return NULL;
-		  else if (head->type == type && head->num == num)
-				    return head->name;
-			  else return ifname(head->next,type,num);
+	if (head==NULL)
+		return NULL;
+	else if (head->type == type && head->num == num)
+		return head->name;
+	else return ifname(head->next,type,num);
 }
 
 static void ifaddname(struct ifname **head,char type,char num,char *name)
@@ -195,42 +195,50 @@ static void lwipargtoenv(struct stack *s,char *initargs)
 	memset(paramval,0,sizeof(paramval));
 
 	if (initargs==0 || *initargs == 0) initargs=stdargs;
-	while (*initargs != 0) {
-		next=initargs;
-		unquoted=initargs;
-		while ((*next != ',' || quoted) && *next != 0) {
-			*unquoted=*next;
-			if (*next == quoted)
-				quoted=0;
-			else if (*next == '\'' || *next == '\"')
-				quoted=*next;
+	if (strcmp(initargs,"lo") != 0) {
+		while (*initargs != 0) {
+			next=initargs;
+			unquoted=initargs;
+			while ((*next != ',' || quoted) && *next != 0) {
+				*unquoted=*next;
+				if (*next == quoted)
+					quoted=0;
+				else if (*next == '\'' || *next == '\"')
+					quoted=*next;
 			else
 				unquoted++;
 			next++;
+			}
+			if (*next == ',') {
+				*unquoted=*next=0;
+				next++;
+			}
+			if (*initargs != 0)
+				myputenv(&ifh,intnum,paramval,initargs);
+			initargs=next;
 		}
-		if (*next == ',') {
-			*unquoted=*next=0;
-			next++;
+		/* load interfaces */
+		for (i=0;i<INTTYPES;i++)
+			totint+=intnum[i];
+		if (totint==0)
+			intnum[0]=1;
+		for (j=0;j<intnum[0];j++) {
+			if (lwip_vdeif_add(s,ifname(ifh,0,j)) == NULL) 
+				fprintf(stderr,"umnetlwip: vd[%d] configuration error\n",j);
 		}
-		if (*initargs != 0)
-			myputenv(&ifh,intnum,paramval,initargs);
-		initargs=next;
-	}
-	/* load interfaces */
-	for (i=0;i<INTTYPES;i++)
-		totint+=intnum[i];
-	if (totint==0)
-		intnum[0]=1;
-	for (j=0;j<intnum[0];j++)
-		lwip_vdeif_add(s,ifname(ifh,0,j));
-	for (j=0;j<intnum[1];j++)
-		lwip_tunif_add(s,ifname(ifh,1,j));
-	for (j=0;j<intnum[2];j++)
-		lwip_tapif_add(s,ifname(ifh,2,j));
-	iffree(ifh);
+		for (j=0;j<intnum[1];j++) {
+			if (lwip_tunif_add(s,ifname(ifh,1,j)) == NULL)
+				fprintf(stderr,"umnetlwip: vd[%d] configuration error\n",j);
+		}
+		for (j=0;j<intnum[2];j++) {
+			if (lwip_tapif_add(s,ifname(ifh,2,j)) == NULL)
+				fprintf(stderr,"umnetlwip: vd[%d] configuration error\n",j);
+		}
+		iffree(ifh);
 
-	if (paramval[0] != NULL)
-		lwip_radv_load_configfile(s,paramval[0]);
+		if (paramval[0] != NULL)
+			lwip_radv_load_configfile(s,paramval[0]);
+	}
 }
 
 
