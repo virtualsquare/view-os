@@ -576,10 +576,12 @@ int wrap_in_readlink(int sc_number,struct pcb *pc,
 		pbuf=pc->sysargs[1];
 		bufsiz=pc->sysargs[2];
 	}
-	lbuf=(char *)lalloca(bufsiz);
-	if ((pc->retval = (long) um_syscall(pc->path,lbuf,bufsiz)) >= 0)
+	lbuf=(char *)lalloca(PATH_MAX+1);
+	if ((pc->retval = (long) um_syscall(pc->path,lbuf,PATH_MAX+1)) >= 0) {
+		if (pc->retval > bufsiz)
+			pc->retval = bufsiz;
 		ustoren(pc,pbuf,pc->retval,lbuf);
-	else
+	} else
 		pc->erno=errno;
 	lfree(lbuf,bufsiz);
 	GDEBUG(10,"wrap_in_readlink - rv=%ld\n",pc->retval);
