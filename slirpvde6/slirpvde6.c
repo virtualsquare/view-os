@@ -45,7 +45,7 @@
 #include "slirpvde6.h"
 #include "config.h"
 
-//#define RADV
+#define RADV
 
 #ifdef HAVE_GETOPT_LONG_ONLY
 #define GETOPT_LONG getopt_long_only
