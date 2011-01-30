@@ -130,6 +130,7 @@ static void brutecache_rmiso(iso9660_t *isofs)
 	}
 }
 #endif
+
 static int f_iso9660_readlink(const char *path, char *buf, size_t size)
 {
 	struct fuse_context *mycontext=fuse_get_context();
@@ -140,37 +141,11 @@ static int f_iso9660_readlink(const char *path, char *buf, size_t size)
 
 	if (isostat->rr.b3_rock == yep &&
 			S_ISLNK(isostat->rr.st_mode)) {
-		/*
-		 *  if (isostat->rr.i_symlink < size)
-		 *    size=isostat->rr.i_symlink;
-		 *  strncpy(buf,isostat->rr.psz_symlink,size);
-		 */
-		/* ISO library iso9660_ifs_stat does not return rr.psz_symlink */
-		/* workaround! */
-		char *newpath=strdup(path);
-		char *base=basename(newpath);
-		char *dir=dirname(newpath);
-		iso9660_stat_t *dirstat=iso9660_ifs_stat(isofs,dir);
-		if (dirstat !=NULL) {
-			CdioList *entlist;
-			CdioListNode *entnode;
-			entlist = iso9660_ifs_readdir (isofs, dir);
-			if (entlist != NULL) {
-				_CDIO_LIST_FOREACH (entnode, entlist)
-				{
-					iso9660_stat_t *p_statbuf = _cdio_list_node_data (entnode);
-					if (strcmp(base,p_statbuf->filename)==0) {
-						if (p_statbuf->rr.i_symlink < size)
-							size=p_statbuf->rr.i_symlink;
-						strncpy(buf,p_statbuf->rr.psz_symlink,size);
-						break;
-					}
-				}
-			}
-			_cdio_list_free (entlist, true);
-		}
-		free(dirstat);
-		free(newpath);
+		
+		if (isostat->rr.i_symlink < size)
+			size=isostat->rr.i_symlink;
+		strncpy(buf,isostat->rr.psz_symlink,size);
+		 
 		free(isostat);
 		return size;
 	} else {
@@ -207,7 +182,7 @@ static int f_iso9660_readdir(const char *path, void *buf, fuse_fill_dir_t filler
 				char filename[4096];
 				int type;
 				iso9660_stat_t *p_statbuf = _cdio_list_node_data (entnode);
-//	printf("f_iso9660_translate %s %s\n",p_statbuf->filename,p_statbuf->rr.psz_symlink);
+	//printf("f_iso9660_translate %s %s\n",p_statbuf->filename,p_statbuf->rr.psz_symlink);
 				//iso9660_name_translate(p_statbuf->filename, filename);
 				//iso9660_name_translate_ext(p_statbuf->filename, filename, iso9660_ifs_get_joliet_level(isofs));
 				strcpy(filename,p_statbuf->filename);
