@@ -576,6 +576,8 @@ int wrap_in_readlink(int sc_number,struct pcb *pc,
 		pbuf=pc->sysargs[1];
 		bufsiz=pc->sysargs[2];
 	}
+	if (bufsiz > PATH_MAX)
+		bufsiz = PATH_MAX;
 	lbuf=(char *)lalloca(bufsiz);
 	if ((pc->retval = (long) um_syscall(pc->path,lbuf,bufsiz)) >= 0)
 		ustoren(pc,pbuf,pc->retval,lbuf);
@@ -616,7 +618,7 @@ int wrap_in_getdents(int sc_number,struct pcb *pc,
 	long pbuf=pc->sysargs[1];
 	unsigned long bufsiz=pc->sysargs[2];
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	//printk("wrap_in_getdents(sc:%d ,pc,service:%s,syscall);\n",sc_numberervicename(hte));
+	//printk("wrap_in_getdents(sc:%d ,pc,service:%s,syscall);\n",sc_number,ht_get_servicename(hte));
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;
