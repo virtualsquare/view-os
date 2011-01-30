@@ -23,6 +23,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -118,12 +119,15 @@ struct umnet_operations umnet_ops={
 	.send=send,
 	.sendto=sendto,
 	.recvfrom=recvfrom,
+	.sendmsg=sendmsg,
+	.recvmsg=recvmsg,
 	.getsockopt=getsockopt,
 	.setsockopt=setsockopt,
 	.read=read,
 	.write=write,
 	.ioctl=umnetnative_ioctl,
 	.close=close,
+	.fcntl=(void *)fcntl,
 	.ioctlparms=umnetnative_ioctlparms,
 	.init=umnetnative_init,
 	.fini=umnetnative_fini,

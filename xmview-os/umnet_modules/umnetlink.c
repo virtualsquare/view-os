@@ -113,29 +113,70 @@ int umnetlink_msocket (int domain, int type, int protocol,
 	}
 }
 
+static uint32_t hash4(char *s) {
+	uint32_t result=0;
+	uint32_t wrap=0;
+	while (*s) {
+		wrap = result >> 24;
+		result <<= 8;
+		result |= (*s ^ wrap);
+		s++;
+	}
+	return result;
+}
+
 static void umnetlink_setproto(char *args,char *proto,char *flags)
 {
-	while (*args) {
-		switch (*args) {
-			case 'u' : proto[AF_UNIX]=1;args++;break;
-			case '4' : proto[AF_INET]=1;args++;break;
-			case '6' : proto[AF_INET6]=1;args++;break;
-			case 'n' : proto[AF_NETLINK]=1;args++;break;
-			case 'p' : proto[AF_PACKET]=1;args++;break;
-			case 'b' : proto[AF_BLUETOOTH]=1;args++;break;
-			case 'i' : proto[AF_IRDA]=1;args++;break;
-			case 'o' : *flags |= UMNETLINK_OVERRIDE;
-			case 'f' : {
-									 args++;
-									 proto[atoi(args)]=1;
-									 while(*args >= '0' && *args <= '9')
-										 args++;
-									 break;
-								 }
-			case ',' : args++;
-								 break;
-			default: printk("umnetlink mount unknown option %c\n",*args);
-							 args++;
+	char *str, *token, *saveptr;
+	int i,val=1;
+	if (args[0] == '+' || (args[0] == '-' && args[1] == 0)) {
+		for (i=0; i<AF_MAXMAX; i++)
+			proto[i]=0;
+	} else {
+		for (i=0; i<AF_MAXMAX; i++)
+			proto[i]=1;
+	}
+	for (str=args;
+			(token=strtok_r(str, ",", &saveptr))!=NULL;str=NULL) {
+		if (*token=='+' || *token=='-') {
+			val=(*token=='+')?1:0;
+			token++;
+		}
+		switch (hash4(token)) {
+			case 0x00000000:
+			case 0x00616c6c: for (i=0; i<AF_MAXMAX; i++)
+												 proto[AF_UNIX]=val;
+											 break;
+			case 0x00000075:
+			case 0x756e6978: proto[AF_UNIX]=val; break;
+			case 0x00000034:
+			case 0x69707634: proto[AF_INET]=val; break;
+			case 0x00000036:
+			case 0x69707636: proto[AF_INET6]=val; break;
+			case 0x0000006e:
+			case 0x6c070b1f: proto[AF_NETLINK]=val; break;
+			case 0x00000070:
+			case 0x636b1515: proto[AF_PACKET]=val; break;
+			case 0x00000062:
+			case 0x031a117e: proto[AF_BLUETOOTH]=val; break;
+			case 0x00000069:
+			case 0x69726461: proto[AF_IRDA]=val; break;
+			case 0x00006970: proto[AF_INET]=val;
+											 proto[AF_INET6]=val;
+											 proto[AF_NETLINK]=val;
+											 proto[AF_PACKET]=val;
+											 break;
+			case 0x0000006f:
+			case 0x1d1f0117: *flags |= UMNETLINK_OVERRIDE;
+											 break;
+			default: if (*token == '#' || *token == 'f') {
+								 int family=atoi(token+1);
+								 if (family > 0 && family < AF_MAXMAX)
+									 proto[family]=val;
+								 else
+									 printk("umnetlink: unknown protocol \"%s\"\n",token);
+							 } else
+								 printk("umnetlink: unknown protocol \"%s\"\n",token);
 							 break;
 		}
 	}
@@ -169,6 +210,7 @@ int umnetlink_fini (struct umnet *nethandle){
 }
 
 int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
+
 struct umnet_operations umnet_ops={
 	.msocket=umnetlink_msocket,
 	.bind=bind,
@@ -180,6 +222,8 @@ struct umnet_operations umnet_ops={
 	.send=send,
 	.sendto=sendto,
 	.recvfrom=recvfrom,
+	.sendmsg=sendmsg,
+	.recvmsg=recvmsg,
 	.getsockopt=getsockopt,
 	.setsockopt=setsockopt,
 	.read=read,
