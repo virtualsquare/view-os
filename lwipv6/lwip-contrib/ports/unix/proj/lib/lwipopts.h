@@ -83,11 +83,11 @@
 
 #define IPv6_AUTO_CONFIGURATION        1
 
-#define IPv6_ROUTER_ADVERTISEMENT      0
-#define IPv6_RADVCONF                  0
+#define IPv6_ROUTER_ADVERTISEMENT      1
+#define IPv6_RADVCONF                  1
 
-#define LWIP_USERFILTER                0
-#define LWIP_NAT                       0
+#define LWIP_USERFILTER                1
+#define LWIP_NAT                       1
 
 /* Set to 1 to enable DHCP IPv4 */
 #define LWIP_DHCP                      1
