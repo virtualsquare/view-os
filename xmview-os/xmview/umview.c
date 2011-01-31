@@ -70,6 +70,7 @@ unsigned int ptrace_vm_mask;
 unsigned int ptrace_sysvm_tag;
 unsigned int hasppoll;
 unsigned int quiet = 0;
+unsigned int printk_current_level = PRINTK_STARTUP_LEVEL;
 unsigned int secure = 0;
 static char *viewname;
 
@@ -470,6 +471,11 @@ int main(int argc,char *argv[])
 	
 	if (rcfile==NULL && !isloginshell(argv[0]))
 		asprintf(&rcfile,"%s/%s",getenv("HOME"),".viewosrc");
+
+	if (quiet) {
+		setenv("_VIEWOS_QUIET","1",1);
+		printk_current_level = PRINTK_QUIET_LEVEL; /* warnings or errors only */
+	}
 
 	if (hasppoll) {
 		sigset_t unblockchild;

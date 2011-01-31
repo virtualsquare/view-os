@@ -194,7 +194,7 @@ void viewos_fini(void *data)
 	__attribute__ ((constructor))
 init (void)
 {
-	printk("umproc init\n");
+	printk(KERN_NOTICE "umproc init\n");
 	s.name="umproc";
 	s.description="/proc virtualization";
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
@@ -215,5 +215,5 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	printk("umproc fini\n");
+	printk(KERN_NOTICE "umproc fini\n");
 }

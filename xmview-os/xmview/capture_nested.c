@@ -1236,7 +1236,7 @@ void capture_nested_init()
 	/* setting of _pure_syscall and _pure_socketcall, loading 
 	 * of native_syscall to bypass the library */
 	if ((_pure_start_p=dlsym(RTLD_DEFAULT,"_pure_start")) != NULL) {
-		printf("pure_libc library found: syscall tracing allowed\n\n");
+		printk(KERN_NOTICE "pure_libc library found: syscall tracing allowed\n\n");
 #if __NR_socketcall != __NR_doesnotexist
 		native_syscall=_pure_start_p(capture_nested_syscall,capture_nested_socketcall,0);
 #else

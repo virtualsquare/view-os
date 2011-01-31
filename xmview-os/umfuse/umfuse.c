@@ -2038,7 +2038,7 @@ static void umfuse_destructor(int type,struct ht_elem *mp)
 	__attribute__ ((constructor))
 init (void)
 {
-	GMESSAGE("umfuse init");
+	printk(KERN_NOTICE "umfuse init\n");
 	s.name="umfuse";
 	s.description="virtual file systems (user level FUSE)";
 	s.destructor=umfuse_destructor;
@@ -2095,6 +2095,6 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	GMESSAGE("umfuse fini");
+	printk(KERN_NOTICE "umfuse fini\n");
 }
 

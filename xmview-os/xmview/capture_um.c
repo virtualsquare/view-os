@@ -64,27 +64,34 @@ pthread_key_t pcb_key=0; /* key to grab the current thread pcb */
 sfun native_syscall=syscall;
 
 /* debugging output, (bypass pure_libc when loaded) */
-int printk(const char *fmt, ...) {
-	char *s;
-	int rv;
-	va_list ap;
-	va_start(ap,fmt);
-	rv=vasprintf(&s, fmt, ap);
-	va_end(ap);
-	if (rv>0)
-		rv=r_write(2,s,strlen(s));
-	free(s);
-	return rv;
-}
-
 int vprintk(const char *fmt, va_list ap) {
 	char *s;
 	int rv;
-	rv=vasprintf(&s, fmt, ap);
+	int level=PRINTK_STANDARD_LEVEL;
+	if (fmt[0] == '<' && fmt[1] != 0 && fmt[2] == '>') {
+		/*level*/
+		switch (fmt[1]) {
+			case '0' ... '7':
+				level=fmt[1] - '0';
+				fmt+=3;
+				break;
+		}
+	}
+	if (level <= printk_current_level) {
+		rv=vasprintf(&s, fmt, ap);
+		if (rv>0)
+			rv=r_write(2,s,strlen(s));
+		free(s);
+	}
+	return rv;
+}
+
+int printk(const char *fmt, ...) {
+	int rv;
+	va_list ap;
+	va_start(ap,fmt);
+	rv=vprintk(fmt,ap);
 	va_end(ap);
-	if (rv>0)
-		rv=r_write(2,s,strlen(s));
-	free(s);
 	return rv;
 }
 

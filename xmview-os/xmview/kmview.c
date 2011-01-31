@@ -68,6 +68,7 @@ int _umview_version = 2; /* modules interface version id.
 										modules can test to be compatible with
 										um-viewos kernel*/
 unsigned int quiet = 0;
+unsigned int printk_current_level = PRINTK_STARTUP_LEVEL;
 unsigned int secure = 0;
 static char *viewname;
 
@@ -442,6 +443,12 @@ int main(int argc,char *argv[])
 	sigset_t unblockchild;
 	sigprocmask(SIG_BLOCK,NULL,&unblockchild);
 	pcb_inits(0);
+
+	if (quiet) {
+		setenv("_VIEWOS_QUIET","1",1);
+		printk_current_level = PRINTK_QUIET_LEVEL; /* warnings or errors only */
+	}
+
 	if (capture_main(argv+optind,root_process_init,rcfile) < 0) {
 		printk("Kmview: kernel module not loaded\n");
 		exit(1);
