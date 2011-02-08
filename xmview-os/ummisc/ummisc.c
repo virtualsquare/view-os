@@ -324,6 +324,10 @@ static void dirpopulate(struct fsentry *fsdir,char *dirp)
 			off+=this->d_reclen;
 			//off+=WORDALIGN(12+strlen(fsdir->name));;
 			this->d_off=off;
+			if (fsdir->subdir != NULL)
+				this->d_type=DT_DIR;
+			else
+				this->d_type=DT_REG;
 			strcpy(this->d_name,fsdir->name);
 			dirp+=this->d_reclen;
 			fsdir++;

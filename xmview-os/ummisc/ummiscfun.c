@@ -96,7 +96,7 @@ struct misc_call misc_calls[]={
 sysfun getfun(struct ummisc *mh,int scno) {
 	void *dl=misc_getdl(mh);
 	assert (dl != NULL);
-	return (sysfun)(dlsym(dl,misc_calls[muscno[scno]].misccall));
+	return (sysfun)(dlsym(dl,misc_calls[(int)(muscno[scno])].misccall));
 }
 
 static int umm_gettimeofday(struct timeval *tv, struct timezone *tz) {
