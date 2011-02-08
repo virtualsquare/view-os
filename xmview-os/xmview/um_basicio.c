@@ -598,12 +598,14 @@ void dents64_to_dents(void* buf,int count){
 	unsigned short int buf_len;
 	
 	for( counter=0; counter<count ; ){
+		char tmptype;
 		GDEBUG(10,"dirent64: ino:%lld - off:%lld - reclen:%d - name:%s",dirp64->d_ino,dirp64->d_off,dirp64->d_reclen,&(dirp64->d_name));
 		dirp->d_ino = (unsigned long) dirp64->d_ino;
 		dirp->d_off = (unsigned long) dirp64->d_off;
 		buf_len = dirp->d_reclen = dirp64->d_reclen;
-		*((char *) dirp + buf_len - 1)=dirp64->d_type;
-		strcpy(dirp->d_name,dirp64->d_name);
+		tmptype = dirp64->d_type;
+		memmove(dirp->d_name,dirp64->d_name,strlen(dirp->d_name));
+		*((char *) dirp + buf_len - 1)=tmptype;
 		counter= counter + dirp->d_reclen; //bad...
 		GDEBUG(10,"dirent: ino:%ld - off:%ld - reclen:%d - name:%s",dirp->d_ino,dirp->d_off,dirp->d_reclen,(dirp->d_name));
 		GDEBUG(10,"counter: %d count: %d ",counter,count);
@@ -618,7 +620,7 @@ int wrap_in_getdents(int sc_number,struct pcb *pc,
 	long pbuf=pc->sysargs[1];
 	unsigned long bufsiz=pc->sysargs[2];
 	int sfd=fd2sfd(pc->fds,pc->sysargs[0]);
-	//printk("wrap_in_getdents(sc:%d ,pc,service:%s,syscall);\n",sc_numberervicename(hte));
+	//printk("wrap_in_getdents(sc:%d ,pc,service:%s,syscall);\n",sc_number,ht_get_servicename(hte));
 	if (sfd < 0) {
 		pc->retval= -1;
 		pc->erno= EBADF;

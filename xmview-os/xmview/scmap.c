@@ -239,7 +239,7 @@ struct sc_map scmap[]={
 	{__NR_fcntl64,	choice_fd,	wrap_in_fcntl, wrap_out_fcntl,	nchoice_fd,	nw_sysfcntl, 0,	3, SOC_FILE},
 #if (__NR__llseek == __NR_doesnotexist)
 	{__NR_lseek,	choice_fd,	wrap_in_lseek, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	3, SOC_FILE},
-	{__NR__llseek,	choice_fd,	wrap_in_llseek, wrap_out_std,	nchoice_fd,	nw_sysfd_std, 0,	5, SOC_FILE},
+	{__NR__llseek, always_null, NULL, NULL,always_null,NULL,0,6,0},
 #else
 	{__NR_lseek,	choice_fd,	wrap_in_lseek, wrap_out_std,	nchoice_fd,	nw_syslseek, 0,	3, SOC_FILE},
 	{__NR__llseek,	choice_fd,	wrap_in_llseek, wrap_out_std,	nchoice_fd,	nw_sysllseek, 0,	5, SOC_FILE},
