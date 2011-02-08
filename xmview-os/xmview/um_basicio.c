@@ -598,12 +598,14 @@ void dents64_to_dents(void* buf,int count){
 	unsigned short int buf_len;
 	
 	for( counter=0; counter<count ; ){
+		char tmptype;
 		GDEBUG(10,"dirent64: ino:%lld - off:%lld - reclen:%d - name:%s",dirp64->d_ino,dirp64->d_off,dirp64->d_reclen,&(dirp64->d_name));
 		dirp->d_ino = (unsigned long) dirp64->d_ino;
 		dirp->d_off = (unsigned long) dirp64->d_off;
 		buf_len = dirp->d_reclen = dirp64->d_reclen;
-		*((char *) dirp + buf_len - 1)=dirp64->d_type;
-		strcpy(dirp->d_name,dirp64->d_name);
+		tmptype = dirp64->d_type;
+		memmove(dirp->d_name,dirp64->d_name,strlen(dirp->d_name));
+		*((char *) dirp + buf_len - 1)=tmptype;
 		counter= counter + dirp->d_reclen; //bad...
 		GDEBUG(10,"dirent: ino:%ld - off:%ld - reclen:%d - name:%s",dirp->d_ino,dirp->d_off,dirp->d_reclen,(dirp->d_name));
 		GDEBUG(10,"counter: %d count: %d ",counter,count);

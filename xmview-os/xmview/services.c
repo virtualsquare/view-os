@@ -79,6 +79,7 @@ static struct syscall_unifier scunify[] = {
 	{__NR_setpgrp,__NR_setpgid},
 #endif
 	{__NR_getpgrp,__NR_getpgid},
+	{__NR_getdents,	__NR_getdents64},
 #if ! defined(__x86_64__)
 	{__NR_umount,	__NR_umount2},
 	{__NR_stat,		__NR_lstat64},
@@ -86,7 +87,6 @@ static struct syscall_unifier scunify[] = {
 	{__NR_fstat,	__NR_lstat64},
 	{__NR_stat64, __NR_lstat64},
 	{__NR_fstat64,__NR_lstat64},
-	{__NR_getdents,	__NR_getdents64},
 	{__NR_truncate,	__NR_truncate64},
 	{__NR_ftruncate,__NR_ftruncate64},
 	{__NR_statfs,	__NR_statfs64},
@@ -121,7 +121,7 @@ static struct syscall_unifier scunify[] = {
 	{__NR_readlinkat,	__NR_readlink},
 	{__NR_fchmodat,	__NR_chmod},
 	{__NR_faccessat,	__NR_access},
-#if defined(__NR_getuid32) && __NR_getuid32 != __NR_getuid
+#if defined(__NR_getuid32) && __NR_getuid32 != __NR_doesnotexist
 	{__NR_getuid,    __NR_getresuid32},
 	{__NR_getgid,    __NR_getresgid32},   
 	{__NR_geteuid,   __NR_getresuid32},
