@@ -55,11 +55,11 @@
 #include "syscallnames.h"
 #endif
 
-static int nested_call_syscall (int sysno, struct npcb *npc);
+static long nested_call_syscall (int sysno, struct npcb *npc);
 #if __NR_socketcall != __NR_doesnotexist
-static int nested_call_sockcall (int sysno, struct npcb *npc);
+static long nested_call_sockcall (int sysno, struct npcb *npc);
 #endif
-static int nested_call_virsc (int sysno, struct npcb *npc);
+static long nested_call_virsc (int sysno, struct npcb *npc);
 
 static struct pcb_file umview_file;
 
@@ -281,7 +281,7 @@ struct ht_elem * nchoice_socket(int sc_number,struct npcb *npc) {
 }
 
 /* call the implementation */
-int do_nested_call(sysfun um_syscall,unsigned long *args,int nargx)
+long do_nested_call(sysfun um_syscall,unsigned long *args,int nargx)
 {
 	/* int narg=NARGS(nargx)*/
 	return um_syscall(args[0],args[1],args[2],args[3],args[4],args[5]);
@@ -913,7 +913,7 @@ static int nested_sockvirindex(struct npcb *npc, int scno)
 
 
 /* do_kernel_call for syscalls */
-static int nested_call_syscall (int sysno, struct npcb *npc)
+static long nested_call_syscall (int sysno, struct npcb *npc)
 {
 	return native_syscall(sysno, npc->sysargs[0], npc->sysargs[1], npc->sysargs[2],
 			      npc->sysargs[3], npc->sysargs[4], npc->sysargs[5]);
@@ -921,13 +921,13 @@ static int nested_call_syscall (int sysno, struct npcb *npc)
 
 #if __NR_socketcall != __NR_doesnotexist
 /* do_kernel_call for sockets */
-static int nested_call_sockcall (int sysno, struct npcb *npc)
+static long nested_call_sockcall (int sysno, struct npcb *npc)
 {
 	return native_syscall(__NR_socketcall,sysno,npc->sysargs);
 }
 #endif
 
-static int nested_call_virsc (int sysno, struct npcb *npc)
+static long nested_call_virsc (int sysno, struct npcb *npc)
 {
 	npc->erno=EOPNOTSUPP;
 	return -1;
@@ -935,9 +935,9 @@ static int nested_call_virsc (int sysno, struct npcb *npc)
 
 /* COMMON WRAP FOR NESTED CALLS */
 typedef int (*nested_commonwrap_index_function)(struct npcb *pc, int scno);
-typedef int (*nested_commonwrap_call_function)(int sysno,struct npcb *pc);
+typedef long (*nested_commonwrap_call_function)(int sysno,struct npcb *pc);
 typedef sysfun (*service_call)(struct ht_elem *hte, int scno);
-int nested_commonwrap(int sc_number,struct npcb *npc,
+long nested_commonwrap(int sc_number,struct npcb *npc,
 		nested_commonwrap_index_function dcif,
 		nested_commonwrap_call_function do_kernel_call,
 		service_call sc,
