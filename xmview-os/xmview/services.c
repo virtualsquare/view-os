@@ -148,7 +148,7 @@ static struct syscall_unifier scunify[] = {
 	{__NR_setuid,    __NR_setresuid},
 	{__NR_setgid,    __NR_setresgid},
 #endif
-#if defined(__NR_chown32) && __NR_chown32 != __NR_chown
+#if defined(__NR_chown32) && __NR_chown32 != __NR_doesnotexist
 	{__NR_chown, __NR_lchown32},
 	{__NR_fchown, __NR_lchown32},
 	{__NR_lchown, __NR_lchown32},
