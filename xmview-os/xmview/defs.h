@@ -274,10 +274,10 @@ typedef	int (*divfun)(int sc_number,int inout,struct pcb *ppcb);
 
 /* UNAME HISTORY */
 #ifndef __NR_oldolduname
-#define __NR_oldolduname __NR_uname
+#define __NR_oldolduname __NR_doesnotexist
 #endif
 #ifndef __NR_olduname
-#define __NR_olduname __NR_uname
+#define __NR_olduname __NR_doesnotexist
 #endif
 
 #ifndef __NR_dup3

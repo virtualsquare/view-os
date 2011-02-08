@@ -75,16 +75,6 @@ struct viewfs {
 #define WORDALIGN(X) (((X) + WORDLEN) & ~(WORDLEN-1))
 #define SIZEDIRENT64NONAME (sizeof(__u64)+sizeof(__s64)+sizeof(unsigned short)+sizeof(unsigned char))
 
-#define DT_UNKNOWN  0
-#define DT_FIFO   1
-#define DT_CHR    2
-#define DT_DIR    4
-#define DT_BLK    6
-#define DT_REG    8
-#define DT_LNK    10
-#define DT_SOCK   12
-#define DT_WHT    14
-
 struct viewfs_dirent64 {
 	__u64             d_ino;
 	__s64             d_off;
