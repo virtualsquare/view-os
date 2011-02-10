@@ -447,7 +447,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 	if (inout == IN) {
 		struct ht_elem *hte;
 		int index;
-		puterrno(0,pc);
+		puterrno0(pc);
 		/* timestamp the call */
 		pc->tst.epoch=pc->nestepoch=get_epoch();
 		/* extract argument */
@@ -1390,9 +1390,9 @@ int capcheck(int capability, struct pcb *pc)
 static pthread_mutex_t g_filetab_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void **g_filetab=NULL;
-static int g_filetabmax=0;
-static int g_filetabsize=0;
-static int g_filetabfree=-1;
+static long g_filetabmax=0;
+static long g_filetabsize=0;
+static long g_filetabfree=-1;
 
 int addfiletab(int size)
 {
@@ -1400,7 +1400,7 @@ int addfiletab(int size)
 	pthread_mutex_lock( &g_filetab_mutex );
 	if (g_filetabfree>=0) {
 		rv=g_filetabfree;
-		g_filetabfree=(int)(g_filetab[rv]);
+		g_filetabfree=(long)(g_filetab[rv]);
 	} else {
 		rv=g_filetabmax++;
 		if (rv>=g_filetabsize) {
@@ -1419,6 +1419,8 @@ void delfiletab(int i)
 {
 	free(g_filetab[i]);
 	pthread_mutex_lock( &g_filetab_mutex );
+	/* unused elements gets linked by re-using the void pointers
+		 as the index of the next element */
 	g_filetab[i]=(void *)g_filetabfree;
 	g_filetabfree=i;
 	pthread_mutex_unlock( &g_filetab_mutex );

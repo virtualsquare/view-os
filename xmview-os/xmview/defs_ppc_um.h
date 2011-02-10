@@ -91,6 +91,7 @@ static inline long setregs(struct pcb *pc, enum __ptrace_request call,
 				(PC)->saved_regs[PT_R3]=(ERR);\
 				} 0;\
 				})
+#define puterrno0(PC)
 #define getsp(PC) ( (PC)->saved_regs[PT_R1] )
 #define getpc(PC) ( (PC)->saved_regs[10] )
 #define putsp(SP,PC) ( (PC)->saved_regs[PT_R1]=(SP) ;

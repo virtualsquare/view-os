@@ -145,8 +145,8 @@ static inline void *lfd_forall_r(void *(*f)(int lfd,void *arg1,void *arg2),
 
 //static struct lfd_table **lfd_tab=NULL;
 //static int lfd_tabmax=0;
-static int lfd_tabsize=0;
-static int lfd_tabfree=-1;
+static long lfd_tabsize=0;
+static long lfd_tabfree=-1;
 
 int lfd_alloc()
 {
@@ -154,7 +154,7 @@ int lfd_alloc()
 	//pthread_mutex_lock( &lfd_tab_mutex );
 	if (lfd_tabfree>=0) {
 		rv=lfd_tabfree;
-		lfd_tabfree=(int)(lfd_tab[rv]);
+		lfd_tabfree=(long)(lfd_tab[rv]);
 	} else {
 		rv=lfd_tabmax++;
 		if (rv>=lfd_tabsize) {
@@ -173,6 +173,8 @@ void lfd_free(int lfd)
 {
 	free(lfd_tab[lfd]);
 	//pthread_mutex_lock( &lfd_tab_mutex );
+	/* unused elements get linked together by using the pointers as the
+		 index of the next unused element */
 	lfd_tab[lfd]=(void *)lfd_tabfree;
 	lfd_tabfree=lfd;
 	//pthread_mutex_unlock( &lfd_tab_mutex );
@@ -182,9 +184,10 @@ static inline void lfd_forall(void (*f)(int lfd,void *arg),void *arg)
 {
 	int lfd;
 	//pthread_mutex_lock( &lfd_tab_mutex );
+	/* the unused elements list gets deleted and recreated */
 	while (lfd_tabfree>=0) {
 		lfd=lfd_tabfree;
-		lfd_tabfree=(int)(lfd_tab[lfd]);
+		lfd_tabfree=(long)(lfd_tab[lfd]);
 		lfd_tab[lfd]=NULL;
 	}
 	for (lfd=0; lfd<lfd_tabmax; lfd++) {
@@ -204,9 +207,10 @@ static inline void *lfd_forall_r(void *(*f)(int lfd,void *arg1,void *arg2),
 	int lfd;
 	void *rv=NULL;
 	//pthread_mutex_lock( &lfd_tab_mutex );
+	/* the unused elements list gets deleted and recreated */
 	while (lfd_tabfree>=0) {
 		lfd=lfd_tabfree;
-		lfd_tabfree=(int)(lfd_tab[lfd]);
+		lfd_tabfree=(long)(lfd_tab[lfd]);
 		lfd_tab[lfd]=NULL;
 	}
 	for (lfd=0; lfd<lfd_tabmax; lfd++) {
