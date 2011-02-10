@@ -291,7 +291,9 @@ struct umnet_operations umnet_ops={
 };
 
 typedef int (*intfun)();
+typedef ssize_t (*ssizefun)();
 #define UMNETLWIPV6(X) umnet_ops.X=(intfun)lwip_##X
+#define UMNETLWIPV6S(X) umnet_ops.X=(ssizefun)lwip_##X
 
 	static void
 	__attribute__ ((constructor))
@@ -304,17 +306,17 @@ init (void)
 	UMNETLWIPV6(accept);
 	UMNETLWIPV6(getsockname);
 	UMNETLWIPV6(getpeername);
-	UMNETLWIPV6(send);
-	UMNETLWIPV6(recv);
-	UMNETLWIPV6(sendto);
-	UMNETLWIPV6(recvfrom);
-	UMNETLWIPV6(sendmsg);
-	UMNETLWIPV6(recvmsg);
+	UMNETLWIPV6S(send);
+	UMNETLWIPV6S(recv);
+	UMNETLWIPV6S(sendto);
+	UMNETLWIPV6S(recvfrom);
+	UMNETLWIPV6S(sendmsg);
+	UMNETLWIPV6S(recvmsg);
 	//UMNETLWIPV6(shutdown);
 	UMNETLWIPV6(getsockopt);
 	UMNETLWIPV6(setsockopt);
-	UMNETLWIPV6(read);
-	UMNETLWIPV6(write);
+	UMNETLWIPV6S(read);
+	UMNETLWIPV6S(write);
 	UMNETLWIPV6(close);
 	UMNETLWIPV6(event_subscribe);
 }
