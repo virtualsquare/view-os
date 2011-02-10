@@ -65,7 +65,7 @@ sfun native_syscall=syscall;
 /* debugging output, (bypass pure_libc when loaded) */
 int vprintk(const char *fmt, va_list ap) {
 	char *s;
-	int rv;
+	int rv=0;
 	int level=PRINTK_STANDARD_LEVEL;
 	if (fmt[0] == '<' && fmt[1] != 0 && fmt[2] == '>') {
 		/*level*/
