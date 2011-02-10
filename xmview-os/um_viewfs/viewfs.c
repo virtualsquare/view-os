@@ -41,7 +41,7 @@
 
 #include "gdebug.h"
 #define INFOEXT "\377"
-#define MAXSIZE ((1LL<<((sizeof(size_t)*8)-1))-1)
+#define MAXSIZE ((1ULL<<((sizeof(size_t)*8)-1))-1)
 #define MERGEROFS
 #define FILEINFO
 
