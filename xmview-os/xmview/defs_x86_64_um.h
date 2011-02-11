@@ -29,6 +29,7 @@
 
 #include <sys/user.h>
 
+#define LIBC_VFORK_DIRTY_TRICKS
 #define _KERNEL_NSIG   64
 #define _KERNEL_SIGSET_SIZE _KERNEL_NSIG/8
 
