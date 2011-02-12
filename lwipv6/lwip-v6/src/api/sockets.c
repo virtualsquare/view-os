@@ -2326,13 +2326,13 @@ int lwip_poll(struct pollfd *fds, nfds_t nfds, int timeout) {
 }
 
 /* FIX: change implementations. Do not use a private buffer */
-int lwip_writev(int s, struct iovec *vector, int count)
+ssize_t lwip_writev(int s, struct iovec *vector, int count)
 {
-	int totsize=0;
+	ssize_t totsize=0;
 	int i;
-	int pos;
+	ssize_t pos;
 	char *temp_buf;
-	int ret;
+	ssize_t ret;
 
 	/* Check for invalid parameter */
 	if (count < 0 || count > UIO_MAXIOV) {
@@ -2372,13 +2372,13 @@ int lwip_writev(int s, struct iovec *vector, int count)
 	return ret;
 }
 
-int lwip_readv(int s, struct iovec *vector, int count)
+ssize_t lwip_readv(int s, struct iovec *vector, int count)
 {
-	int totsize=0;
+	ssize_t totsize=0;
 	int i;
-	int pos;
+	ssize_t pos;
 	char *temp_buf;
-	int ret;
+	ssize_t ret;
 
 	/* Check for invalid parameter */
 	if (count < 0 || count > UIO_MAXIOV) {

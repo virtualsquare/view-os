@@ -492,8 +492,8 @@ struct iovec {
 };
 #endif
 
-int lwip_readv(int s, struct iovec *vector, int count);
-int lwip_writev(int s, struct iovec *vectorc, int count);
+ssize_t lwip_readv(int s, struct iovec *vector, int count);
+ssize_t lwip_writev(int s, struct iovec *vectorc, int count);
 
 
 #if LWIP_COMPAT_SOCKETS
