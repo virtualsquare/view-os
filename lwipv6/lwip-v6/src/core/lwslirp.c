@@ -375,8 +375,8 @@ err_t slirp_tcp_connected(void *arg, struct tcp_pcb *pcb, err_t err)
 /* this callback function is called when tcp data is leaving the sndbuf */
 err_t slirp_tcp_sent(void *arg, struct tcp_pcb *pcb, u16_t len)
 {
-	int posfd = (int) arg;
-	//printf("data sent on %d l%d\n",posfd,len);
+	//long posfd = (int) arg;
+	//printf("data sent on %ld l%d\n",posfd,len);
 	netif_slirp_events(pcb) |= (POLLIN | POLLOUT);
 	return ERR_OK;
 }

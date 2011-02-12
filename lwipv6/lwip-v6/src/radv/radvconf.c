@@ -39,7 +39,9 @@
 #include "lwip/icmp.h"
 
 #include "lwip/inet.h"
-#include "lwip/sockets.h"
+#ifndef AF_INET6
+#define AF_INET6 10
+#endif
 
 #include "lwip/ip_radv.h"
 #include "lwip/radvconf.h"
