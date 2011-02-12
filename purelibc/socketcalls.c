@@ -36,29 +36,27 @@ static char sockargc[]={0,3,3,3,2,3,3,3,4,4,4,6,6,2,5,5,3,3};
 
 #if defined(__x86_64__) || defined(__ia64__) || defined(__alpha__) || defined(__hppa__)
 
-static struct socket64_mapping{
-	int socketcallno;
-	int syscallno;
-} sock64_map[]={
-/* 1*/  {SYS_SOCKET,		__NR_socket},
-/* 2*/  {SYS_BIND,		__NR_bind},
-/* 3*/  {SYS_CONNECT,		__NR_connect},
-/* 4*/  {SYS_LISTEN,		__NR_listen},
-/* 5*/  {SYS_ACCEPT,		__NR_accept},
-/* 6*/  {SYS_GETSOCKNAME,	__NR_getsockname},
-/* 7*/  {SYS_GETPEERNAME,	__NR_getpeername},
-/* 8*/  {SYS_SOCKETPAIR,	__NR_socketpair},
-/* 9*/  {SYS_SEND,      	__NR_sendto}, // not used, converted to sendto
-/*10*/  {SYS_RECV,      	__NR_recvfrom}, //converted to recvfrom
-/*11*/  {SYS_SENDTO,		__NR_sendto},
-/*12*/  {SYS_RECVFROM,  	__NR_recvfrom},
-/*13*/  {SYS_SHUTDOWN,		__NR_shutdown},
-/*14*/  {SYS_SETSOCKOPT,	__NR_setsockopt},
-/*15*/  {SYS_GETSOCKOPT,	__NR_getsockopt},
-/*16*/  {SYS_SENDMSG,		__NR_sendmsg},
-/*17*/  {SYS_RECVMSG,		__NR_recvmsg},
+static int sock64_map[] = {
+	/* 0 */ 0,
+	/* 1 SYS_SOCKET */		__NR_socket,
+	/* 2 SYS_BIND */		__NR_bind,
+	/* 3 SYS_CONNECT */		__NR_connect,
+	/* 4 SYS_LISTEN */		__NR_listen,
+	/* 5 SYS_ACCEPT */		__NR_accept,
+	/* 6 SYS_GETSOCKNAME */	__NR_getsockname,
+	/* 7 SYS_GETPEERNAME */	__NR_getpeername,
+	/* 8 SYS_SOCKETPAIR */	__NR_socketpair,
+	/* 9 SYS_SEND */	__NR_sendto, // not used, converted to sendto
+	/*10 SYS_RECV */	__NR_recvfrom, //converted to recvfrom
+	/*11 SYS_SENDTO */		__NR_sendto,
+	/*12 SYS_RECVFROM */	__NR_recvfrom,
+	/*13 SYS_SHUTDOWN */		__NR_shutdown,
+	/*14 SYS_SETSOCKOPT */	__NR_setsockopt,
+	/*15 SYS_GETSOCKOPT */	__NR_getsockopt,
+	/*16 SYS_SENDMSG */		__NR_sendmsg,
+	/*17 SYS_RECVMSG */		__NR_recvmsg,
 #ifdef __NR_accept4
-/*18*/  {SYS_ACCEPT4,		__NR_accept4},
+	/*18 SYS_ACCEPT4 */		__NR_accept4,
 #endif
 };
 
@@ -66,7 +64,7 @@ static long int pure_int_socketcall(long int sockcallno, ...){
 	va_list ap;
 	register int i;
 	register int narg = sockargc[sockcallno];
-	int sysno = sock64_map[sockcallno].syscallno;
+	int sysno = sock64_map[sockcallno];
 	long int args[6];
 	va_start(ap, sockcallno);
 	for (i=0; i<narg;i++)
