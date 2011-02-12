@@ -95,7 +95,7 @@ static struct syscall_unifier scunify[] = {
 #else
 	{__NR_fstatfs,	__NR_statfs},
 	{__NR_stat,	__NR_lstat},
-	{__NR_fstat,	__NR_stat},
+	{__NR_fstat,	__NR_lstat},
 #endif 
 #if (__NR_fcntl64 != __NR_doesnotexist)
 	{__NR_fcntl64,	__NR_fcntl},
@@ -109,7 +109,7 @@ static struct syscall_unifier scunify[] = {
 #endif
 	{__NR_utime,	__NR_utimes},
 #ifdef __NR_newfstatat
-	{__NR_newfstatat,	__NR_lstat64},
+	{__NR_newfstatat,	__NR_lstat},
 #endif
 #ifdef __NR_fstatat64
 	{__NR_fstatat64,	__NR_lstat64},
