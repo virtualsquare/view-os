@@ -48,6 +48,19 @@
 #include "hashtab.h"
 #include "gdebug.h"
 #define FAKECWD "fakecwd"
+/* management of FD flags stored in lfdlist
+ * MST = invalid (usually closed fd are set to -1) i.e. <0 means invalid
+ * MST-1 = FD_CLOEXEC
+ * (for now there are no more flags, in case add here, provided the
+ * space for fd is large enough)
+ * Lower bits: lfd;
+ */
+#define X_FD_FLAGS   0xc0000000
+#define X_FD_INVALID 0x80000000
+#define X_FD_CLOEXEC 0x40000000
+#define X_FD_NBITS 30
+#define FD2LFD(p,fd) (((p)->lfdlist[(fd)]) & ~X_FD_FLAGS)
+#define FD2FDFLAGS(p,fd) (((p)->lfdlist[(fd)]) >> X_FD_NBITS)
 
 static char *um_proc_root;
 static char *um_tmpfile;
@@ -362,8 +375,8 @@ void umproc_addproc(struct pcb *pc,int flags,int npcbflag)
 				p->lfdlist=(int *)malloc(p->nolfd * sizeof(int));
 				memcpy(p->lfdlist,pc->pp->fds->lfdlist,p->nolfd * sizeof(int));
 				for (i=0; i<p->nolfd; i++) {
-					if (p->lfdlist[i] >=0 )
-						++lfd_tab[p->lfdlist[i]]->count;
+					if (p->lfdlist[i] >=0)
+						++lfd_tab[FD2LFD(p,i)]->count;
 				}
 			}
 		}
@@ -537,20 +550,6 @@ char *lfd_getpath(int lfd)
 	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
 	return lfd_tab[lfd]->path;
 }
-
-/* management of FD flags stored in lfdlist
- * MST = invalid (usually closed fd are set to -1) i.e. <0 means invalid
- * MST-1 = FD_CLOEXEC
- * (for now there are no more flags, in case add here, provided the
- * space for fd is large enough)
- * Lower bits: lfd;
- */
-#define X_FD_FLAGS   0xc0000000
-#define X_FD_INVALID 0x80000000
-#define X_FD_CLOEXEC 0x40000000
-#define X_FD_NBITS 30
-#define FD2LFD(p,fd) (((p)->lfdlist[(fd)]) & ~X_FD_FLAGS)
-#define FD2FDFLAGS(p,fd) (((p)->lfdlist[(fd)]) >> X_FD_NBITS)
 
 /* fd 2 ldf mapping (in a process file table) */
 int fd2lfd(struct pcb_file *p, int fd)
