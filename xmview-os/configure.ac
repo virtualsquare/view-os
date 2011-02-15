@@ -35,7 +35,7 @@ AC_FUNC_ALLOCA
 AC_HEADER_DIRENT
 AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
-AC_CHECK_HEADERS([fcntl.h limits.h stddef.h stdint.h stdlib.h string.h sys/ioctl.h sys/mount.h sys/param.h sys/socket.h sys/statfs.h sys/statvfs.h sys/time.h unistd.h utime.h values.h],, AC_MSG_ERROR([required header file missing]))
+AC_CHECK_HEADERS([fcntl.h limits.h stddef.h stdint.h stdlib.h string.h sys/ioctl.h sys/mount.h sys/param.h sys/socket.h sys/statfs.h sys/statvfs.h sys/time.h sys/capability.h unistd.h utime.h values.h],, AC_MSG_ERROR([required header file missing]))
 
 AC_CHECK_HEADERS([fuse.h fuse/fuse.h], [enable_umfuse=yes], [enable_umfuse=warn], [#define _FILE_OFFSET_BITS 64])
 
