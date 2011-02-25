@@ -313,7 +313,7 @@ static int handle_new_proc(int pid, struct pcb *pp)
 			getregs(pc);
 			putargn(0,pp->sysargs[0],pc);
 			putargn(1,pp->sysargs[1],pc);
-			////printk("starting1 %x %x was %x %x\n",pp->sysargs[0],pp->sysargs[1],getargn(0,pc),getargn(1,pc));
+			////printk("starting1 pc->pid %d  %x %x was %x %x\n",pc->pid, pp->sysargs[0],pp->sysargs[1],getargn(0,pc),getargn(1,pc));
 			if(setregs(pc,PTRACE_SYSCALL,0,SIGSTOP) < 0){
 				GPERROR(0, "continuing");
 				exit(1);
@@ -557,12 +557,18 @@ void tracehand()
 				if (isreproducing) {
 					long newpid;
 					newpid=getrv(pc);
-					handle_new_proc(newpid,pc);
+					if (newpid >= 0) {
+						handle_new_proc(newpid,pc);
+						offspring_exit(pc);
+						putrv(newpid,pc);
+					} else {
+						////printf("ERESTARTNOINTR scno %d %ld %ld\n",scno, newpid,pc->saved_regs[MY_RAX]);
+						offspring_exit(pc);
+					}
+
 					GDEBUG(3, "FORK! %d->%d",pid,newpid);
 
 					/* restore original arguments */
-					offspring_exit(pc);
-					putrv(newpid,pc);
 				}
 				/* It is just for the sake of correctness, this test could be
 				 * safely eliminated  to increase the performance*/
