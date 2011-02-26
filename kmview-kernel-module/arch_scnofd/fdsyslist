@@ -3,15 +3,12 @@ __NR_accept4
 __NR_bind
 __NR_close
 __NR_connect
-__NR_faccessat
 __NR_fadvise64
 __NR_fadvise64_64
 __NR_fchdir
 __NR_fchmod
-__NR_fchmodat
 __NR_fchown
 __NR_fchown32
-__NR_fchownat
 __NR_fcntl
 __NR_fcntl64
 __NR_fdatasync
@@ -28,7 +25,6 @@ __NR_fstatfs64
 __NR_fsync
 __NR_ftruncate
 __NR_ftruncate64
-__NR_futimesat
 __NR_getdents
 __NR_getdents64
 __NR_getpeername
@@ -38,7 +34,6 @@ __NR_ioctl
 __NR_listen
 __NR__llseek
 __NR_lseek
-__NR_newfstatat
 __NR_oldfstat
 __NR_pread64
 __NR_pwrite64

@@ -148,12 +148,12 @@ static inline unsigned int scbitmap_isset(unsigned int *bitmap,unsigned long scn
 }
 
 static inline void scbitmap_set(unsigned int *bitmap,unsigned long scno) {
-	if (likely(scno < MAXSYSCALL))
+	if (scno < MAXSYSCALL)
 		bitmap[SYSCALLBITMAPEL(scno)] |= 1<<SYSCALLBITMAPOFF(scno);
 }
 
 static inline void scbitmap_clr(unsigned int *bitmap,unsigned long scno) {
-	if (likely(scno < MAXSYSCALL))
+	if (scno < MAXSYSCALL)
 		bitmap[SYSCALLBITMAPEL(scno)] &= ~(1<<SYSCALLBITMAPOFF(scno));
 }
 

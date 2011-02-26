@@ -435,14 +435,14 @@ static inline int iskmviewfd (unsigned long sysno, int fd, struct kmview_fdset *
 	return isinfdset(fd,fdset);
 }
 
+#ifdef __NR_socketcall
 static inline int iskmviewsockfd(unsigned long socketcallno, int fd, struct kmview_fdset *fdset)
 {
-#ifdef __NR_socketcall
 	if (!isfdsocket(socketcallno))
 		return 1;
-#endif
 	return isinfdset(fd,fdset);
 }
+#endif
 
 static inline unsigned int hashadd (long prevhash, char c) {
 	  return prevhash ^ ((prevhash << 5) + (prevhash >> 2) + c);
