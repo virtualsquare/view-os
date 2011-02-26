@@ -33,6 +33,7 @@
 #include <linux/poll.h>
 #include <linux/cache.h>
 #include <asm/unistd.h>
+#define __KMVIEW_MAIN
 #include "kmview_data.h"
 #include "kmview_alloc.h"
 #include "kmview_trace.h"

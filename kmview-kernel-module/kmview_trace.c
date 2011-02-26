@@ -33,7 +33,7 @@
 
 #include "kmview_data.h"
 #include "kmview_alloc.h"
-#include "kmview_arch_i386.h"
+#include "kmview_arch.h"
 #include "kmview_fdsysset.h"
 
 //#define KMVIEW_DEBUG
@@ -437,8 +437,10 @@ static inline int iskmviewfd (unsigned long sysno, int fd, struct kmview_fdset *
 
 static inline int iskmviewsockfd(unsigned long socketcallno, int fd, struct kmview_fdset *fdset)
 {
+#ifdef __NR_socketcall
 	if (!isfdsocket(socketcallno))
 		return 1;
+#endif
 	return isinfdset(fd,fdset);
 }
 

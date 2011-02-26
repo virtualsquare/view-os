@@ -1,6 +1,6 @@
 ARCH = x86
-EXT = _32
-KERNELDIR = "/usr/src/experimental/linux-source-2.6.29-utrace"
+EXT = _64
+KERNELDIR = "/usr/src/experimental/linux-2.6.37-utrace-vm"
 ARCHUNISTD = $(KERNELDIR)/arch/$(ARCH)/include/asm/unistd$(EXT).h
 
 arch_syslist: arch_syslist.o

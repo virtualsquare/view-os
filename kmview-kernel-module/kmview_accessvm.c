@@ -62,11 +62,12 @@ int kmview_access_process_vm(struct task_struct *tsk, unsigned long addr, char _
 
 		maddr = kmap(page);
 		if (write) {
-			__copy_from_user(buf,ubuf,bytes);
-			copy_to_user_page(vma, page, addr,
-					maddr + offset, buf, bytes);
-			if (!PageCompound(page))
-				set_page_dirty_lock(page);
+			if (likely(__copy_from_user(buf,ubuf,bytes) == 0)) {
+				copy_to_user_page(vma, page, addr,
+						maddr + offset, buf, bytes);
+				if (!PageCompound(page))
+					set_page_dirty_lock(page);
+			}
 		} else {
 			copy_from_user_page(vma, page, addr,
 					buf, maddr + offset, bytes);
