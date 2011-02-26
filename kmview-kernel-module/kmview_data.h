@@ -85,7 +85,7 @@ struct kmview_module_event {
 	unsigned long arg2; /*clone_flags*/
 };
 
-static inline unsigned int scbitmap_isset_locked(struct kmview_tracer *kmt,int scno) {
+static inline unsigned int scbitmap_isset_locked(struct kmview_tracer *kmt,unsigned long scno) {
 	unsigned long flags;
 	unsigned int rv;
 	spin_lock_irqsave(&kmt->lock, flags);

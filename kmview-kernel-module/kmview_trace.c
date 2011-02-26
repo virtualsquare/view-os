@@ -415,7 +415,7 @@ void kmview_module_event_free(struct kmview_module_event *kme)
 static inline int isinfdset(int fd, struct kmview_fdset *fdset)
 {
 	struct kmview_fdsysset *fdsysset=fdset->fdsysset;
-	if (fdsysset == NULL)
+	if (unlikely(fd < 0 || fd >= __FD_SETSIZE || fdsysset == NULL))
 		return 0;
 	return FD_ISSET(fd,&fdsysset->fdset);
 }

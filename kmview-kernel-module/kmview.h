@@ -140,20 +140,20 @@ struct ghosthash64 {
 #define SYSCALLBITMAPEL(x)	((x) >> 5)
 #define SYSCALLBITMAPOFF(x)	((x)&0x1f)
 
-static inline unsigned int scbitmap_isset(unsigned int *bitmap,int scno) {
-	if (scno < MAXSYSCALL)
+static inline unsigned int scbitmap_isset(unsigned int *bitmap,unsigned long scno) {
+	if (likely(scno < MAXSYSCALL))
 		return bitmap[SYSCALLBITMAPEL(scno)] & 1<<SYSCALLBITMAPOFF(scno);
 	else
 		return 0;
 }
 
-static inline void scbitmap_set(unsigned int *bitmap,int scno) {
-	if (scno < MAXSYSCALL)
+static inline void scbitmap_set(unsigned int *bitmap,unsigned long scno) {
+	if (likely(scno < MAXSYSCALL))
 		bitmap[SYSCALLBITMAPEL(scno)] |= 1<<SYSCALLBITMAPOFF(scno);
 }
 
-static inline void scbitmap_clr(unsigned int *bitmap,int scno) {
-	if (scno < MAXSYSCALL)
+static inline void scbitmap_clr(unsigned int *bitmap,unsigned long scno) {
+	if (likely(scno < MAXSYSCALL))
 		bitmap[SYSCALLBITMAPEL(scno)] &= ~(1<<SYSCALLBITMAPOFF(scno));
 }
 

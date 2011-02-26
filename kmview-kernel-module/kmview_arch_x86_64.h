@@ -23,19 +23,6 @@ int _kmview_permute[]={14,13,12,7,9,8};
 extern int _kmview_permute[];
 #endif
 
-/*static inline inline permute(int x) {
-	switch (x) {
-		case 0: return 14;
-		case 1: return 13;
-		case 2: return 12;
-		case 3: return 7;
-		case 4: return 9;
-		case 5: return 8;
-	}
-	return 0;
-}*/
-
-//#define arch_n(X,N) (*(((unsigned long *)(X))+(N))
 #define arch_n(X,N) (*(((unsigned long *)(X))+(_kmview_permute[(N)])))
 
 #define arch_sp(X) ((X)->sp)
