@@ -91,7 +91,6 @@ struct kmview_fdsysset *fdsysset_clr(int fd, struct kmview_fdsysset *fds)
 				*ret=*fds;
 				ret->nfd=fds->nfd;
 				ret->ncopy=1;
-				fds->ncopy--;
 			}
 		} else {
 			if (fds->nfd == 1) {
@@ -113,7 +112,7 @@ void fdsysset_free(struct kmview_fdsysset *fds) {
 	if (fds) {
 		if (fds->ncopy > 1)
 			fds->ncopy--;
-		else 
+		else
 			fdsysset_internal_free(fds);
 	}
 }

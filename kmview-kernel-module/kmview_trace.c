@@ -239,7 +239,7 @@ static inline pid_t kmview_new_thread(
 #ifdef USE_KMEM_CACHE
 		kmt->fdset=kmem_cache_alloc(kmview_fdset_cache, GFP_KERNEL);
 #else
-		kmt->fdset=kmalloc(sizeof(struct kmview_thread),GFP_KERNEL);
+		kmt->fdset=kmalloc(sizeof(struct kmview_fdset),GFP_KERNEL);
 #endif
 		atomic_set(&kmt->fdset->nusers,1);
 		if (fdset == NULL) 
