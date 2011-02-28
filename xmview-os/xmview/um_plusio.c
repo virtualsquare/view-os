@@ -324,7 +324,10 @@ int wrap_in_dup(int sc_number,struct pcb *pc,
 		if (pc->retval >= 0) {
 			lfd_dup(pc->retval);
 			return SC_CALLONXIT;
-		} else if (fd2lfd(pc->fds,pc->sysargs[1]) >= 0)
+		} 
+		/* dup2/dup3: if the file to close is virtual, CALLONEXIT to
+			 update the file table if the call succeeds */
+		else if (fd2lfd(pc->fds,pc->sysargs[1]) >= 0)
 			return SC_CALLONXIT;
 		else
 			return STD_BEHAVIOR;
@@ -538,7 +541,7 @@ int wrap_out_fcntl(int sc_number,struct pcb *pc)
 		case F_DUPFD:
 			fd=getrv(pc);
 			//printk("F_DUPFD %d->%d\n",pc->retval,fd);
-			if (fd>=0)
+			if (fd>=0 && addfd(pc,fd) == 0)
 				lfd_register(pc->fds,fd,pc->retval);
 			else
 				lfd_close(pc->retval);
@@ -724,8 +727,13 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 		char *ghost;
 		umovestr(pc,pdata,PATH_MAX,data);
 		if ((ghost=strstr(data,"ghost")) != NULL && (ghost==data || ghost[-1]==',') &&
-				(ghost[5]=='\0' || ghost[5]==','))
+				(ghost[5]=='\0' || ghost[5]==',')) {
 			mountflags |= MS_GHOST;
+			if (ghost[5] == '\0')
+				ghost[0]='\0';
+			else
+				memmove(ghost,ghost+6,strlen(ghost+6));
+		}
 	} else
 		datax=NULL;
 	if ((pc->retval = um_syscall(source,pc->path,get_alias(CHECKFSALIAS,filesystemtype),
