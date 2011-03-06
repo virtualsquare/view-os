@@ -604,7 +604,7 @@ void dents64_to_dents(void* buf,int count){
 		dirp->d_off = (unsigned long) dirp64->d_off;
 		buf_len = dirp->d_reclen = dirp64->d_reclen;
 		tmptype = dirp64->d_type;
-		memmove(dirp->d_name,dirp64->d_name,strlen(dirp->d_name));
+		memmove(dirp->d_name,dirp64->d_name,strlen(dirp64->d_name));
 		*((char *) dirp + buf_len - 1)=tmptype;
 		counter= counter + dirp->d_reclen; //bad...
 		GDEBUG(10,"dirent: ino:%ld - off:%ld - reclen:%d - name:%s",dirp->d_ino,dirp->d_off,dirp->d_reclen,(dirp->d_name));
