@@ -1020,21 +1020,29 @@ struct ht_elem *choice_pl5at(int sc_number,struct pcb *pc)
 /* choice link (dirname must be defined, basename can be non-existent second arg)*/
 struct ht_elem *choice_link2(int sc_number,struct pcb *pc)
 {
-	int link;
-	/* is this the right semantics? */
-#ifdef __NR_linkat
-	if (sc_number == __NR_linkat)
-		link=pc->sysargs[3] & AT_SYMLINK_NOFOLLOW;
-	else
-#endif
-		link=1;
-
-	pc->path=um_abspath(AT_FDCWD,pc->sysargs[1],pc,&(pc->pathstat),link); 
-	//printk("choice_path %d %s\n",sc_number,pc->path);
+	pc->path=um_abspath(AT_FDCWD,pc->sysargs[1],pc,&(pc->pathstat),1); 
+	//printk("choice_link2 %d %s\n",sc_number,pc->path);
 	if (pc->path==um_patherror)
 		return NULL;
-	else 
-		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
+	else {
+		struct ht_elem *hte_new=ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
+		/* if NEW is real and OLD is virtual ==> EXDEV */
+		if (hte_new == NULL && sc_number != __NR_symlink) {
+			struct stat64 oldstat;
+			char *oldpath=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&oldstat,1);
+			if (oldpath != um_patherror) {
+				struct ht_elem *hte_old=ht_check(CHECKPATH,oldpath,&oldstat,0);
+				if (hte_old != NULL) {
+					free(pc->path);
+					pc->path = um_patherror;
+					pc->erno = EXDEV;
+				}
+				free(oldpath);
+			}
+			return NULL;
+		} else
+			return hte_new;
+	}
 }
 
 struct ht_elem *choice_link2at(int sc_number,struct pcb *pc)
@@ -1053,8 +1061,31 @@ struct ht_elem *choice_link3at(int sc_number,struct pcb *pc)
 	//printk("choice_path %d %s\n",sc_number,pc->path);
 	if (pc->path==um_patherror)
 		return NULL;
-	else
-		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
+	else {
+		struct ht_elem *hte_new=ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
+		/* if NEW is real and OLD is virtual ==> EXDEV */
+		if (hte_new == NULL) {
+			struct stat64 oldstat;
+			int dontfollowlink;
+			char *oldpath;
+			if (sc_number == __NR_linkat)
+				dontfollowlink=!(pc->sysargs[4] & AT_SYMLINK_FOLLOW);
+			else
+				dontfollowlink=1;
+			oldpath=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&oldstat,dontfollowlink);
+			if (oldpath != um_patherror) {
+				struct ht_elem *hte_old=ht_check(CHECKPATH,oldpath,&oldstat,0);
+				if (hte_old != NULL) {
+					free(pc->path);
+					pc->path = um_patherror;
+					pc->erno = EXDEV;
+				}
+				free(oldpath);
+			}
+			return NULL;
+		} else
+			return hte_new;
+	}
 }
 
 /* choice function for 'socket', usually depends on the Protocol Family */
