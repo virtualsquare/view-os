@@ -68,7 +68,6 @@ int _umview_version = 2; /* modules interface version id.
 unsigned int has_ptrace_multi;
 unsigned int ptrace_vm_mask;
 unsigned int ptrace_sysvm_tag;
-unsigned int hasppoll;
 unsigned int quiet = 0;
 unsigned int printk_current_level = PRINTK_STARTUP_LEVEL;
 unsigned int secure = 0;
@@ -191,7 +190,6 @@ static void usage(char *s)
 			"  --nokmulti                avoid using PTRACE_MULTI\n"
 			"  --noksysvm                avoid using PTRACE_SYSVM\n"
 			"  --nokviewos               avoid using PTRACE_VIEWOS\n\n"
-			"  --noppoll                 avoid using ppoll\n\n"
 			"  -s, --secure              force permissions and capabilities\n",
 			s);
 	exit(0);
@@ -212,7 +210,6 @@ static struct option long_options[] = {
 	{"nokmulti",0,0,0x100},
 	{"noksysvm",0,0,0x101},
 	{"nokviewos",0,0,0x102},
-	{"noppoll",0,0,0x103},
 	{"secure",0,0,'s'},
 	{0,0,0,0}
 };
@@ -332,7 +329,8 @@ static int has_pselect_test()
 int main(int argc,char *argv[])
 {
 	char *rcfile=NULL;
-	unsigned int want_ptrace_multi, want_ptrace_vm, want_ptrace_viewos, want_ppoll;
+	unsigned int want_ptrace_multi, want_ptrace_vm, want_ptrace_viewos;
+	sigset_t unblockchild;
 	if (argc == 1 && argv[0][0] == '-' && argv[0][1] != '-') /* login shell */
 		loginshell_view();
 	/* try to set the priority to -11 provided umview has been installed
@@ -369,10 +367,8 @@ int main(int argc,char *argv[])
 	scdtab_init();
 	/* test the ptrace support */
 	has_ptrace_multi=test_ptracemulti(&ptrace_vm_mask,&ptrace_sysvm_tag);
-	hasppoll=hasppolltest();
 	want_ptrace_multi = has_ptrace_multi;
 	want_ptrace_vm = ptrace_vm_mask;
-	want_ppoll = hasppoll;
 	/* option management */
 	while (1) {
 		int c;
@@ -427,27 +423,22 @@ int main(int argc,char *argv[])
 			case 0x102: /* do not use ptrace_viewos */
 					 want_ptrace_viewos = 0;
 					 break;
-			case 0x103: /* do not use ppoll */
-					 want_ppoll = 0;
-					 break;
 		}
 	}
 	
 	if (!quiet)
 	{
-		if (has_ptrace_multi || ptrace_vm_mask || hasppoll)
+		if (has_ptrace_multi || ptrace_vm_mask)
 		{
 			fprintf(stderr, "This kernel supports: ");
 			if (has_ptrace_multi)
 				fprintf(stderr, "PTRACE_MULTI ");
 			if (ptrace_vm_mask)
 				fprintf(stderr, "PTRACE_SYSVM ");
-			if (hasppoll)
-				fprintf(stderr, "ppoll ");
 			fprintf(stderr, "\n");
 		}
 
-		if (has_ptrace_multi || ptrace_vm_mask || hasppoll ||
+		if (has_ptrace_multi || ptrace_vm_mask ||
 				want_ptrace_multi || want_ptrace_vm || want_ptrace_viewos)
 		{
 			fprintf(stderr, "%s will use: ", UMVIEW_NAME);	
@@ -457,9 +448,7 @@ int main(int argc,char *argv[])
 				fprintf(stderr,"PTRACE_SYSVM ");
 			if (want_ptrace_viewos)
 				fprintf(stderr,"PTRACE_VIEWOS ");
-			if (want_ppoll)
-				fprintf(stderr,"ppoll ");
-			if (!want_ptrace_multi && !want_ptrace_vm && !want_ptrace_viewos && !want_ppoll)
+			if (!want_ptrace_multi && !want_ptrace_vm && !want_ptrace_viewos)
 				fprintf(stderr,"nothing");
 			fprintf(stderr,"\n\n");
 		}
@@ -467,7 +456,6 @@ int main(int argc,char *argv[])
 
 	has_ptrace_multi = want_ptrace_multi;
 	ptrace_vm_mask = want_ptrace_vm;
-	hasppoll = want_ppoll;
 	
 	if (rcfile==NULL && !isloginshell(argv[0]))
 		asprintf(&rcfile,"%s/%s",getenv("HOME"),".viewosrc");
@@ -477,35 +465,17 @@ int main(int argc,char *argv[])
 		printk_current_level = PRINTK_QUIET_LEVEL; /* warnings or errors only */
 	}
 
-	if (hasppoll) {
-		sigset_t unblockchild;
-		sigprocmask(SIG_BLOCK,NULL,&unblockchild);
-		pcb_inits(1);
-		capture_main(argv+optind,1,rcfile);
-		setenv("_INSIDE_VIEWOS_MODULE","",1);
-		do_preload(prehead);
-		do_set_viewname(viewname);
-		while (nprocs) {
-			mp_ppoll(&unblockchild);
-			tracehand();
-		}
+	sigprocmask(SIG_BLOCK,NULL,&unblockchild);
+	pcb_inits(1);
+	capture_main(argv+optind,rcfile);
+	setenv("_INSIDE_VIEWOS_MODULE","",1);
+	do_preload(prehead);
+	do_set_viewname(viewname);
+	while (nprocs) {
+		mp_ppoll(&unblockchild);
+		tracehand();
 	}
-	else {
-		int wt=wake_tracer_init();
-		/* logically should follow pcb_inits, but the wake tracer fd will be the
-		 * most hit, so this inversion gives performance to the system */
-		mp_add(wt,POLLIN,do_wake_tracer,NULL,1);
-		pcb_inits(0);
-		capture_main(argv+optind,0,NULL);
-		setenv("_INSIDE_VIEWOS_MODULE","",1);
-		do_preload(prehead);
-		do_set_viewname(viewname);
-		while (nprocs)  {
-			mp_poll();
-			do_wake_tracer();
-		}
-	}
-	pcb_finis(hasppoll);
+	pcb_finis(1);
 	return first_child_exit_status;
 }
 

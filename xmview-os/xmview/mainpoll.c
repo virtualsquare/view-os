@@ -1,7 +1,7 @@
 /*   This is part of um-ViewOS
  *   The user-mode implementation of OSVIEW -- A Process with a View
  *
- *   Mainpoll: management of the main event poll/ppoll
+ *   Mainpoll: management of the main event ppoll
  *
  *   Copyright 2006 Renzo Davoli University of Bologna - Italy
  *
@@ -32,10 +32,6 @@
 #include "defs.h"
 #include "services.h"
 
-#ifndef _VIEWOS_KM
-static int useppoll;
-#endif
-
 #define STEP_SIZE_POLLFD_TABLE 8
 
 static struct pollfd *gpollfd;
@@ -60,28 +56,10 @@ struct blockq {
 	void (*fun)(struct pcb *);
 };
 
-#ifndef _VIEWOS_KM
-int hasppolltest()
-{
-	struct timespec timeout={0,0};
-	if (r_ppoll(NULL,0,&timeout,NULL,_KERNEL_SIGSET_SIZE) < 0)
-		return 0;
-	else
-		return 1;
-}
-#endif
-
 static int umviewmainpid;
 static void restart_main_loop(void)
 {
-#ifndef _VIEWOS_KM
-	if (useppoll==0) 
-	{
-		char x = 0;
-		r_write(bqpipe[1], &x, 1);
-	} else
-#endif
-		r_kill(umviewmainpid,SIGUSR1);
+	r_kill(umviewmainpid,SIGUSR1);
 }
 
 void bq_add(void (*fun)(struct pcb *), struct pcb *pc)
@@ -150,19 +128,6 @@ void bq_wake(int signal)
 	bqsignaled=1;
 }
 
-#ifndef _VIEWOS_KM
-void bq_polltry()
-{
-	/* this block '{}' is needed to reuse immediately the stack size of 
-	 * the buffer */
-	{
-		char buf[256];
-		r_read(bqpipe[0], buf, 256);
-	}
-	bq_try();
-}
-#endif
-
 void bq_ppolltry()
 {
 	if (bqsignaled) {
@@ -229,56 +194,6 @@ static void mp_pack()
 	gnfds=j;
 }
 
-#ifndef _VIEWOS_KM
-/* For linux < 2.6.18 */
-int mp_poll()
-{
-#ifndef USE_SELECT_INSTEAD_OF_POLL
-	/* poll implementation */
-	//printk("r_poll %d\n",gnfds);
-	int rv=r_poll(gpollfd,gnfds,-1);
-	int i;
-	for (i=0; rv>0; i++) {
-		assert(i<gnfds);
-		if (gpollfd[i].revents)	{
-			rv--;
-			if (pollext[i]->fun) {
-				pollext[i]->fun(pollext[i]->arg);
-				if (!pollext[i]->persistent)
-					pollext[i]->fun=NULL;
-			}
-		}
-	}
-	mp_pack();
-#else
-	/* poll 2 select conversion for performance evaluation */
-	fd_set rf,wf,ef;
-	int rv,i,max=0;
-	FD_ZERO(&rf);
-	FD_ZERO(&wf);
-	FD_ZERO(&ef);
-	for (i=0; i<gnfds; i++) {
-		if(gpollfd[i].events & POLLIN) FD_SET(gpollfd[i].fd,&rf);
-		if(gpollfd[i].events & POLLOUT) FD_SET(gpollfd[i].fd,&wf);
-		if(gpollfd[i].events & POLLERR) FD_SET(gpollfd[i].fd,&ef);
-		if (gpollfd[i].fd > max) max=gpollfd[i].fd;
-	}
-	rv=r_select(max+1,&rf,&wf,&ef,NULL);
-	for (i=0; i<gnfds && rv>0; i++) {
-		if (
-				(gpollfd[i].events & POLLIN && FD_ISSET(gpollfd[i].fd,&rf)) ||
-				(gpollfd[i].events & POLLOUT && FD_ISSET(gpollfd[i].fd,&wf)) ||
-				(gpollfd[i].events & POLLIN && FD_ISSET(gpollfd[i].fd,&ef))) {
-			pollext[i]->fun(pollext[i]->arg);
-			rv--;
-		}
-	}
-#endif
-
-	return rv;
-}
-#endif
-
 /* newer linux-es use ppoll */
 int mp_ppoll( const sigset_t *sigmask)
 {
@@ -336,25 +251,14 @@ void mainpoll_delproc(struct pcb *pc,int flags,int npcbflag)
 
 void mainpoll_init(int want_ppoll)
 {
+	struct sigaction sa;
+	sigset_t blockusr1;
 	umviewmainpid=r_getpid();
-#ifndef _VIEWOS_KM
-	useppoll=want_ppoll;
-	if (useppoll == 0) 
-	{
-		r_pipe(bqpipe);
-		r_fcntl(bqpipe[0],F_SETFL,O_NONBLOCK);
-		mp_add(bqpipe[0],POLLIN,bq_polltry,NULL,1);
-	} else 
-#endif
-	{
-		struct sigaction sa;
-		sigset_t blockusr1;
-		sigemptyset(&blockusr1);
-		sigaddset(&blockusr1,SIGUSR1);
-		r_sigprocmask(SIG_BLOCK,&blockusr1,NULL);
-		sigfillset(&sa.sa_mask);
-		sa.sa_handler = bq_wake;
-		sa.sa_flags = 0;
-		r_sigaction(SIGUSR1, &sa, NULL);
-	} 
+	sigemptyset(&blockusr1);
+	sigaddset(&blockusr1,SIGUSR1);
+	r_sigprocmask(SIG_BLOCK,&blockusr1,NULL);
+	sigfillset(&sa.sa_mask);
+	sa.sa_handler = bq_wake;
+	sa.sa_flags = 0;
+	r_sigaction(SIGUSR1, &sa, NULL);
 }
