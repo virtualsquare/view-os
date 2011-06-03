@@ -37,6 +37,7 @@
 #include "nrsyscalls.h"
 #include <sys/ptrace.h>
 #include <sys/utsname.h>
+#include <sys/mount.h>
 #include <asm/ptrace.h>
 #include <sys/capability.h>
 
