@@ -1,0 +1,103 @@
+diff -Naur linux-2.6.39.1/include/linux/ptrace.h linux-2.6.39.1-utrace1-tracehook/include/linux/ptrace.h
+--- linux-2.6.39.1/include/linux/ptrace.h	2011-06-03 02:34:20.000000000 +0200
++++ linux-2.6.39.1-utrace1-tracehook/include/linux/ptrace.h	2011-06-13 11:35:50.000000000 +0200
+@@ -104,6 +104,7 @@
+ 			unsigned long addr, unsigned long data);
+ extern int ptrace_readdata(struct task_struct *tsk, unsigned long src, char __user *dst, int len);
+ extern int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned long dst, int len);
++extern bool __ptrace_detach(struct task_struct *tracer, struct task_struct *tracee);
+ extern void ptrace_disable(struct task_struct *);
+ extern int ptrace_check_attach(struct task_struct *task, int kill);
+ extern int ptrace_request(struct task_struct *child, long request,
+diff -Naur linux-2.6.39.1/include/linux/sched.h linux-2.6.39.1-utrace1-tracehook/include/linux/sched.h
+--- linux-2.6.39.1/include/linux/sched.h	2011-06-03 02:34:20.000000000 +0200
++++ linux-2.6.39.1-utrace1-tracehook/include/linux/sched.h	2011-06-13 11:33:22.000000000 +0200
+@@ -2106,6 +2106,7 @@
+ extern int kill_pid(struct pid *pid, int sig, int priv);
+ extern int kill_proc_info(int, struct siginfo *, pid_t);
+ extern int do_notify_parent(struct task_struct *, int);
++extern void do_notify_parent_cldstop(struct task_struct *, int);
+ extern void __wake_up_parent(struct task_struct *p, struct task_struct *parent);
+ extern void force_sig(int, struct task_struct *);
+ extern int send_sig(int, struct task_struct *, int);
+diff -Naur linux-2.6.39.1/include/linux/tracehook.h linux-2.6.39.1-utrace1-tracehook/include/linux/tracehook.h
+--- linux-2.6.39.1/include/linux/tracehook.h	2011-06-03 02:34:20.000000000 +0200
++++ linux-2.6.39.1-utrace1-tracehook/include/linux/tracehook.h	2011-06-13 11:33:22.000000000 +0200
+@@ -134,7 +134,7 @@
+  */
+ static inline void tracehook_report_syscall_exit(struct pt_regs *regs, int step)
+ {
+-	if (step) {
++	if (step && (task_ptrace(current) & PT_PTRACED)) {
+ 		siginfo_t info;
+ 		user_single_step_siginfo(current, regs, &info);
+ 		force_sig_info(SIGTRAP, &info, current);
+@@ -156,7 +156,7 @@
+ {
+ 	int unsafe = 0;
+ 	int ptrace = task_ptrace(task);
+-	if (ptrace & PT_PTRACED) {
++	if (ptrace) {
+ 		if (ptrace & PT_PTRACE_CAP)
+ 			unsafe |= LSM_UNSAFE_PTRACE_CAP;
+ 		else
+@@ -178,7 +178,7 @@
+  */
+ static inline struct task_struct *tracehook_tracer_task(struct task_struct *tsk)
+ {
+-	if (task_ptrace(tsk) & PT_PTRACED)
++	if (task_ptrace(tsk))
+ 		return rcu_dereference(tsk->parent);
+ 	return NULL;
+ }
+@@ -386,7 +386,7 @@
+ 					    const struct k_sigaction *ka,
+ 					    struct pt_regs *regs, int stepping)
+ {
+-	if (stepping)
++	if (stepping && (task_ptrace(current) & PT_PTRACED))
+ 		ptrace_notify(SIGTRAP);
+ }
+ 
+@@ -492,7 +492,7 @@
+  */
+ static inline int tracehook_notify_jctl(int notify, int why)
+ {
+-	return notify ?: (current->ptrace & PT_PTRACED) ? why : 0;
++	return notify ?: task_ptrace(current) ? why : 0;
+ }
+ 
+ /**
+diff -Naur linux-2.6.39.1/kernel/ptrace.c linux-2.6.39.1-utrace1-tracehook/kernel/ptrace.c
+--- linux-2.6.39.1/kernel/ptrace.c	2011-06-03 02:34:20.000000000 +0200
++++ linux-2.6.39.1-utrace1-tracehook/kernel/ptrace.c	2011-06-13 11:33:22.000000000 +0200
+@@ -274,7 +274,7 @@
+  * reap it now, in that case we must also wake up sub-threads sleeping in
+  * do_wait().
+  */
+-static bool __ptrace_detach(struct task_struct *tracer, struct task_struct *p)
++bool __ptrace_detach(struct task_struct *tracer, struct task_struct *p)
+ {
+ 	__ptrace_unlink(p);
+ 
+diff -Naur linux-2.6.39.1/kernel/signal.c linux-2.6.39.1-utrace1-tracehook/kernel/signal.c
+--- linux-2.6.39.1/kernel/signal.c	2011-06-03 02:34:20.000000000 +0200
++++ linux-2.6.39.1-utrace1-tracehook/kernel/signal.c	2011-06-13 11:33:22.000000000 +0200
+@@ -1536,7 +1536,7 @@
+ 	return ret;
+ }
+ 
+-static void do_notify_parent_cldstop(struct task_struct *tsk, int why)
++void do_notify_parent_cldstop(struct task_struct *tsk, int why)
+ {
+ 	struct siginfo info;
+ 	unsigned long flags;
+@@ -1808,7 +1808,7 @@
+ static int ptrace_signal(int signr, siginfo_t *info,
+ 			 struct pt_regs *regs, void *cookie)
+ {
+-	if (!task_ptrace(current))
++	if (!(task_ptrace(current) & PT_PTRACED))
+ 		return signr;
+ 
+ 	ptrace_signal_deliver(regs, cookie);
