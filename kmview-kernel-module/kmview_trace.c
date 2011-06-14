@@ -179,7 +179,6 @@ static inline void kmview_event_enqueue(
 static inline struct utrace_engine *kmview_attach_engine(struct task_struct *task)
 {
 	struct utrace_engine *task_engine;
-	int rv=-100;
 	task_engine = utrace_attach_task(task, UTRACE_ATTACH_CREATE, &kmview_ops, 0);
 #ifdef KMVIEW_DEBUG
 	printk("utrace_attach %d %lx\n",task->pid,KMVIEW_EVENTS);
@@ -191,10 +190,11 @@ static inline struct utrace_engine *kmview_attach_engine(struct task_struct *tas
 	} if (task_engine==NULL) 
 		printk("ERROR in attaching process %d => NULL\n", task->pid);
 	else {
+		int rv;
 		utrace_engine_put(task_engine);
-		rv=utrace_set_events(task, task_engine, KMVIEW_EVENTS);
+		rv = utrace_set_events(task, task_engine, KMVIEW_EVENTS);
 #ifdef KMVIEW_DEBUG
-	printk("utrace_set events %d %d\n",task->pid,rv);
+		printk("utrace_set events %d %d\n",task->pid,rv);
 #endif
 	}
 	return task_engine;
@@ -256,15 +256,17 @@ pid_t kmview_root_thread(struct task_struct *task, struct kmview_tracer *tracer)
 {
 	struct utrace_engine *engine=kmview_attach_engine(task);
 	pid_t kmpid;
-	struct kmview_thread* kmt;
 	if (!engine)
 		return -EIO;
 	kmpid=kmview_new_thread(task,tracer,engine,NULL,0,0);
 	if (kmpid < 0)
 		return -EIO;
-	kmt = (struct kmview_thread*)engine->data;
 	/*skip the ioctl exit call! */
-	/*kmt->flags |= KMVIEW_THREAD_FLAG_SKIP_EXIT;*/
+	/* {
+		struct kmview_thread* kmt; 
+		kmt = (struct kmview_thread*)engine->data;
+		kmt->flags |= KMVIEW_THREAD_FLAG_SKIP_EXIT;
+	} */
 	kmview_event_enqueue(KMVIEW_EVENT_NEWTHREAD,kmpid_search(kmpid)->km_thread,-1,0);
 	return kmpid;
 }
@@ -377,7 +379,7 @@ void kmview_thread_free(struct kmview_thread *kmt, int kill)
 {
 	if (kill && kmt->task) {
 		int rv;
-		rv=utrace_control(kmt->task,kmt->engine,UTRACE_DETACH);
+		rv = utrace_control(kmt->task,kmt->engine,UTRACE_DETACH);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
 		send_sig(SIGKILL,kmt->task,1);
 #else
@@ -458,10 +460,9 @@ static inline unsigned int hashsum (int sum,const char *path,int len) {
 static inline int ghosthash_match(struct ghosthash64 *gh,char *path)
 {
 	unsigned short len=strlen(path);
-	unsigned short scanlen,pos;
 	unsigned int scanhash;
 	int i;
-	for (i=0,scanhash=0,scanlen=pos=0;
+	for (i=0,scanhash=0;
 			i<GH_SIZE && gh->deltalen[i] < GH_TERMINATE && len>=0;
 			i++) {
 		if (gh->deltalen[i] > 0) {

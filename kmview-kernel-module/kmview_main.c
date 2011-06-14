@@ -78,7 +78,7 @@ static int kmview_open(struct inode *inode, struct file *filp)
 	atomic_set(&kmt->flags,0);
 	kmt->magicpoll_addr=0;
 	kmt->magicpoll_cnt=0;
-	kmt->lock = SPIN_LOCK_UNLOCKED;
+	kmt->lock = __SPIN_LOCK_UNLOCKED(kmt->lock);
 	scbitmap_zero(kmt->syscall_bitmap);
 	ghosthash_new(&kmt->ghostmounts);
 	INIT_LIST_HEAD(&kmt->event_queue);
