@@ -795,23 +795,26 @@ int stime(const time_t *t){
 	return _pure_syscall(__NR_settimeofday,&tivu,NULL);
 }
 
-/* it does not work yet */
-#if 0
 long int ptrace (enum __ptrace_request request, ...){
 	va_list ap;
 	pid_t pid;
 	void *addr;
-	int data;
-	void *addr2;
+	void *data;
+	long int res, ret;
 	va_start(ap, request);
 	pid=va_arg(ap, pid_t);
 	addr=va_arg(ap, void *);
-	data=va_arg(ap, int);
-	addr2=va_arg(ap, void *);
+	data=va_arg(ap, void *);
 	va_end(ap);
-	return _pure_syscall(__NR_ptrace,request,pid,addr,data,addr2);
+	if (request > 0 && request < 4)
+		data = &ret;
+	res = _pure_syscall(__NR_ptrace,request,pid,addr,data);
+	if (res >= 0 && request > 0 && request < 4) {
+		errno = 0;
+		return ret;
+	} else
+		return res;
 }
-#endif
 
 int nice(int inc){
 #if ! defined(__x86_64__)
