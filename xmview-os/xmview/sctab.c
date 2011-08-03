@@ -244,7 +244,11 @@ int um_parentwaccess(char *filename, struct pcb *pc)
 	pc->tst.epoch=epoch;
 	pc->nestepoch=nestepoch;
 	filename[lastslash]='/';
-	if (pc->suid == stbuf.st_uid && (stbuf.st_mode & S_IWUSR))
+	if (retval < 0) {
+		errno=EIO;
+		return -1;
+	}
+	else if (pc->suid == stbuf.st_uid && (stbuf.st_mode & S_IWUSR))
 		return 0;
 	else if ((stbuf.st_mode & S_IWGRP) && 
 			(pc->sgid == stbuf.st_gid || in_supgrplist(stbuf.st_gid, pc)))
@@ -447,7 +451,7 @@ int dsys_commonwrap(int sc_number,int inout,struct pcb *pc,
 	if (inout == IN) {
 		struct ht_elem *hte;
 		int index;
-		puterrno(0,pc);
+		puterrno0(pc);
 		/* timestamp the call */
 		pc->tst.epoch=pc->nestepoch=get_epoch();
 		/* extract argument */
@@ -1020,21 +1024,29 @@ struct ht_elem *choice_pl5at(int sc_number,struct pcb *pc)
 /* choice link (dirname must be defined, basename can be non-existent second arg)*/
 struct ht_elem *choice_link2(int sc_number,struct pcb *pc)
 {
-	int link;
-	/* is this the right semantics? */
-#ifdef __NR_linkat
-	if (sc_number == __NR_linkat)
-		link=pc->sysargs[3] & AT_SYMLINK_NOFOLLOW;
-	else
-#endif
-		link=1;
-
-	pc->path=um_abspath(AT_FDCWD,pc->sysargs[1],pc,&(pc->pathstat),link); 
-	//printk("choice_path %d %s\n",sc_number,pc->path);
+	pc->path=um_abspath(AT_FDCWD,pc->sysargs[1],pc,&(pc->pathstat),1); 
+	//printk("choice_link2 %d %s\n",sc_number,pc->path);
 	if (pc->path==um_patherror)
 		return NULL;
-	else 
-		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
+	else {
+		struct ht_elem *hte_new=ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
+		/* if NEW is real and OLD is virtual ==> EXDEV */
+		if (hte_new == NULL && sc_number != __NR_symlink) {
+			struct stat64 oldstat;
+			char *oldpath=um_abspath(AT_FDCWD,pc->sysargs[0],pc,&oldstat,1);
+			if (oldpath != um_patherror) {
+				struct ht_elem *hte_old=ht_check(CHECKPATH,oldpath,&oldstat,0);
+				if (hte_old != NULL) {
+					free(pc->path);
+					pc->path = um_patherror;
+					pc->erno = EXDEV;
+				}
+				free(oldpath);
+			}
+			return NULL;
+		} else
+			return hte_new;
+	}
 }
 
 struct ht_elem *choice_link2at(int sc_number,struct pcb *pc)
@@ -1053,8 +1065,31 @@ struct ht_elem *choice_link3at(int sc_number,struct pcb *pc)
 	//printk("choice_path %d %s\n",sc_number,pc->path);
 	if (pc->path==um_patherror)
 		return NULL;
-	else
-		return ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
+	else {
+		struct ht_elem *hte_new=ht_check(CHECKPATH,pc->path,&(pc->pathstat),1);
+		/* if NEW is real and OLD is virtual ==> EXDEV */
+		if (hte_new == NULL) {
+			struct stat64 oldstat;
+			int dontfollowlink;
+			char *oldpath;
+			if (sc_number == __NR_linkat)
+				dontfollowlink=!(pc->sysargs[4] & AT_SYMLINK_FOLLOW);
+			else
+				dontfollowlink=1;
+			oldpath=um_abspath(pc->sysargs[0],pc->sysargs[1],pc,&oldstat,dontfollowlink);
+			if (oldpath != um_patherror) {
+				struct ht_elem *hte_old=ht_check(CHECKPATH,oldpath,&oldstat,0);
+				if (hte_old != NULL) {
+					free(pc->path);
+					pc->path = um_patherror;
+					pc->erno = EXDEV;
+				}
+				free(oldpath);
+			}
+			return NULL;
+		} else
+			return hte_new;
+	}
 }
 
 /* choice function for 'socket', usually depends on the Protocol Family */
@@ -1390,9 +1425,9 @@ int capcheck(int capability, struct pcb *pc)
 static pthread_mutex_t g_filetab_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void **g_filetab=NULL;
-static int g_filetabmax=0;
-static int g_filetabsize=0;
-static int g_filetabfree=-1;
+static long g_filetabmax=0;
+static long g_filetabsize=0;
+static long g_filetabfree=-1;
 
 int addfiletab(int size)
 {
@@ -1400,7 +1435,7 @@ int addfiletab(int size)
 	pthread_mutex_lock( &g_filetab_mutex );
 	if (g_filetabfree>=0) {
 		rv=g_filetabfree;
-		g_filetabfree=(int)(g_filetab[rv]);
+		g_filetabfree=(long)(g_filetab[rv]);
 	} else {
 		rv=g_filetabmax++;
 		if (rv>=g_filetabsize) {
@@ -1419,6 +1454,8 @@ void delfiletab(int i)
 {
 	free(g_filetab[i]);
 	pthread_mutex_lock( &g_filetab_mutex );
+	/* unused elements gets linked by re-using the void pointers
+		 as the index of the next element */
 	g_filetab[i]=(void *)g_filetabfree;
 	g_filetabfree=i;
 	pthread_mutex_unlock( &g_filetab_mutex );

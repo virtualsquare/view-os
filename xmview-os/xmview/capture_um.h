@@ -36,7 +36,7 @@ extern int first_child_exit_status;
 /* start a rc file */
 void capture_execrc(const char *path,const char *argv1);
 /* let the game start! */
-int capture_main(char **argv,int has_pselect,char *rc);
+int capture_main(char **argv, char *rc);
 /* resume a process previously suspended */
 void sc_resume(void *pc);
 
@@ -47,13 +47,6 @@ void set_pcb(void *new);
 /* just ask for the current size of the pcbtable */
 int pcbtablesize(void);
 
-/* set up an internal pipe for ancient kernels (< 2.6.18)
- * not supporting ppoll */
-int wake_tracer_init();
-/* wake up the tracer by the pipe (ancient kernels) */
-void wake_tracer(int s);
-/* read from the pipe to rearm the pipe trigger */
-void do_wake_tracer();
 /* This is the handler of sigchld from user processes */
 void tracehand();
 /* pcb search (linear scan) */

@@ -70,6 +70,7 @@ static inline void printregs(struct pcb *pc)
 		(eax<0 && -eax < MAXERR)? -1 : eax; })
 #define putrv(RV,PC) ( (PC)->saved_regs[EAX]=(RV) )
 #define puterrno(ERR,PC) ( ((ERR)!=0 && (PC)->retval==-1)?(PC)->saved_regs[EAX]=-(ERR) : 0 )
+#define puterrno0(PC)
 /*
 #define putexit(RV,ERR,PC) \
 	do { \

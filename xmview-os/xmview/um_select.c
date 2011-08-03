@@ -288,7 +288,7 @@ int wrap_out_select(int sc_number,struct pcb *pc)
 	if (sd != NULL) {
 		epoch_t oldepoch=um_setnestepoch(0);
 		register int n=pc->sysargs[0];
-		int pfds[3];
+		long pfds[3];
 		fd_set lfds[3]; /* local copy of the signaled SC fds */
 		int i,j,fd;
 		pc->retval=getrv(pc);

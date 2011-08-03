@@ -86,9 +86,11 @@ int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 	} else {
 		struct pollfd pdf={fd,how,0};
 		rv=poll(&pdf,1,0);
-		mp_del(fd,arg);
-		if (cb && rv == 0) 
+		if (cb) {
+			if (rv == 0) 
 				mp_add(fd,how,cb,arg,0);
+		}else
+			mp_del(fd,arg);
 		if (rv > 0) 
 			rv = pdf.revents;
   }	
@@ -242,25 +244,57 @@ struct ht_elem * nchoice_link2(int sc_number,struct npcb *npc) {
 	npc->path=nest_abspath(AT_FDCWD,npc->sysargs[1],npc,&(npc->pathstat),1);
 	if(npc->path==um_patherror)
 		return NULL;
-	else
-		return ht_check(CHECKPATH,npc->path,&(npc->pathstat),1);
+	else {
+		struct ht_elem *hte_new=ht_check(CHECKPATH,npc->path,&(npc->pathstat),1);
+		/* if NEW is real and OLD is virtual ==> EXDEV */
+		if (hte_new == NULL && sc_number != __NR_symlink) {
+			struct stat64 oldstat;
+			char *oldpath=nest_abspath(AT_FDCWD,npc->sysargs[0],npc,&oldstat,1);
+			if (oldpath != um_patherror) {
+				struct ht_elem *hte_old=ht_check(CHECKPATH,oldpath,&oldstat,0);
+				if (hte_old != NULL) {
+					free(npc->path);
+					npc->path = um_patherror;
+					npc->erno = EXDEV;
+				}
+				free(oldpath);
+			}
+			return NULL;
+		} else
+			return hte_new;
+	}
 }
 
 /* choice function for nested calls: dirfd/link (3rd/4th arg) */
 struct ht_elem * nchoice_link3at(int sc_number,struct npcb *npc) {
-	int link;
-	/* is this the right semantics? */
-#ifdef __NR_linkat
-	if (sc_number == __NR_linkat)
-		link=npc->sysargs[3] & AT_SYMLINK_NOFOLLOW;
-	else
-#endif
-		link=1;
-	npc->path=nest_abspath(npc->sysargs[2],npc->sysargs[3],npc,&(npc->pathstat),link);
+	npc->path=nest_abspath(npc->sysargs[2],npc->sysargs[3],npc,&(npc->pathstat),1);
 	if(npc->path==um_patherror)
 		return NULL;
-	else
-		return ht_check(CHECKPATH,npc->path,&(npc->pathstat),1);
+	else {
+		struct ht_elem *hte_new=ht_check(CHECKPATH,npc->path,&(npc->pathstat),1);
+		 /* if NEW is real and OLD is virtual ==> EXDEV */
+		if (hte_new == NULL) {
+			struct stat64 oldstat;
+			int dontfollowlink;
+			char *oldpath;
+			if (sc_number == __NR_linkat)
+				dontfollowlink=!(npc->sysargs[4] & AT_SYMLINK_FOLLOW);
+			else
+				dontfollowlink=1;
+			oldpath=nest_abspath(npc->sysargs[0],npc->sysargs[1],npc,&oldstat,dontfollowlink);
+			if (oldpath != um_patherror) {
+				struct ht_elem *hte_old=ht_check(CHECKPATH,oldpath,&oldstat,0);
+				if (hte_old != NULL) {
+					free(npc->path);
+					npc->path = um_patherror;
+					npc->erno = EXDEV;
+				}
+				free(oldpath);
+			}
+			return NULL;
+		} else
+			return hte_new;
+	}
 }
 
 /* choice function for nested calls: dirfd/link (3rd/4th arg) */
@@ -1234,7 +1268,7 @@ void capture_nested_init()
 	/* setting of _pure_syscall and _pure_socketcall, loading 
 	 * of native_syscall to bypass the library */
 	if ((_pure_start_p=dlsym(RTLD_DEFAULT,"_pure_start")) != NULL) {
-		printf("pure_libc library found: syscall tracing allowed\n\n");
+		printk(KERN_NOTICE "pure_libc library found: syscall tracing allowed\n\n");
 #if __NR_socketcall != __NR_doesnotexist
 		native_syscall=_pure_start_p(capture_nested_syscall,capture_nested_socketcall,0);
 #else

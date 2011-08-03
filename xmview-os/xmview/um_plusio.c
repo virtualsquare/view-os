@@ -319,7 +319,10 @@ int wrap_in_dup(int sc_number,struct pcb *pc,
 		if (pc->retval >= 0) {
 			lfd_dup(pc->retval);
 			return SC_CALLONXIT;
-		} else if (fd2lfd(pc->fds,oldfd) >= 0)
+		} 
+		/* dup2/dup3: if the file to close is virtual, CALLONEXIT to
+			 update the file table if the call succeeds */
+		else if (fd2lfd(pc->fds,oldfd) >= 0)
 			return SC_CALLONXIT;
 		else
 			return STD_BEHAVIOR;
@@ -507,7 +510,7 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 			default:
 				if ((pc->retval = um_syscall(sfd,cmd,arg)) == -1)
 					pc->erno= errno;
-				/* remember the change (if the syscall succeeded */
+				/* remember the change (if the syscall succeeded) */
 				if (pc->retval >= 0 && cmd == F_SETFL)
 					fd_setflfl(pc->fds,fd,arg);
 				if (pc->retval < 0 && pc->erno == ENOSYS) { /* last chance */

@@ -95,7 +95,7 @@ static struct syscall_unifier scunify[] = {
 #else
 	{__NR_fstatfs,	__NR_statfs},
 	{__NR_stat,	__NR_lstat},
-	{__NR_fstat,	__NR_stat},
+	{__NR_fstat,	__NR_lstat},
 #endif 
 #if (__NR_fcntl64 != __NR_doesnotexist)
 	{__NR_fcntl64,	__NR_fcntl},
@@ -109,7 +109,11 @@ static struct syscall_unifier scunify[] = {
 #endif
 	{__NR_utime,	__NR_utimes},
 #ifdef __NR_newfstatat
+#if ! defined(__x86_64__)
 	{__NR_newfstatat,	__NR_lstat64},
+#else
+	{__NR_newfstatat,	__NR_lstat},
+#endif
 #endif
 #ifdef __NR_fstatat64
 	{__NR_fstatat64,	__NR_lstat64},
@@ -121,7 +125,7 @@ static struct syscall_unifier scunify[] = {
 	{__NR_readlinkat,	__NR_readlink},
 	{__NR_fchmodat,	__NR_chmod},
 	{__NR_faccessat,	__NR_access},
-#if defined(__NR_getuid32) && __NR_getuid32 != __NR_getuid
+#if defined(__NR_getuid32) && __NR_getuid32 != __NR_doesnotexist
 	{__NR_getuid,    __NR_getresuid32},
 	{__NR_getgid,    __NR_getresgid32},   
 	{__NR_geteuid,   __NR_getresuid32},
@@ -344,6 +348,8 @@ int add_service(char *file,int permanent)
 		return s_error(EFAULT);
 	}
 }
+
+
 
 /* delete a service */
 static void del_service_internal(struct ht_elem *hte,void *arg)

@@ -64,27 +64,34 @@ pthread_key_t pcb_key=0; /* key to grab the current thread pcb */
 sfun native_syscall=syscall;
 
 /* debugging output, (bypass pure_libc when loaded) */
-int printk(const char *fmt, ...) {
+int vprintk(const char *fmt, va_list ap) {
 	char *s;
-	int rv;
-	va_list ap;
-	va_start(ap,fmt);
-	rv=vasprintf(&s, fmt, ap);
-	va_end(ap);
-	if (rv>0)
-		rv=r_write(2,s,strlen(s));
-	free(s);
+	int rv=0;
+	int level=PRINTK_STANDARD_LEVEL;
+	if (fmt[0] == '<' && fmt[1] != 0 && fmt[2] == '>') {
+		/*level*/
+		switch (fmt[1]) {
+			case '0' ... '7':
+				level=fmt[1] - '0';
+				fmt+=3;
+				break;
+		}
+	}
+	if (level <= printk_current_level) {
+		rv=vasprintf(&s, fmt, ap);
+		if (rv>0)
+			rv=r_write(2,s,strlen(s));
+		free(s);
+	}
 	return rv;
 }
 
-int vprintk(const char *fmt, va_list ap) {
-	char *s;
+int printk(const char *fmt, ...) {
 	int rv;
-	rv=vasprintf(&s, fmt, ap);
+	va_list ap;
+	va_start(ap,fmt);
+	rv=vprintk(fmt,ap);
 	va_end(ap);
-	if (rv>0)
-		rv=r_write(2,s,strlen(s));
-	free(s);
 	return rv;
 }
 
@@ -122,11 +129,6 @@ static char socketcallnargs[] = {
 	4  /* sys_msocket new call for multiple stack access */
 };
 #endif
-
-/* When a SIGCHLD is received, the main select will be notified through this
- * pipe; the counter is used to notify it no more than one time. */
-/* if the kernel supports ppoll tracerpipe is not used */
-int tracerpipe[2];
 
 /* umview have to exit with the exit code of the first child: here we remember
  * what the first child was, and save its exit value */
@@ -284,7 +286,9 @@ static void allocatepcbtab()
 static int handle_new_proc(int pid, struct pcb *pp)
 {
 	struct pcb *oldpc,*pc;
+#ifdef LIBC_VFORK_DIRTY_TRICKS
 	long saved_regs[VIEWOS_FRAME_SIZE];
+#endif /*LIBC_VFORK_DIRTY_TRICKS*/
 
 	//printk("handle_new_proc %d %p\n",pid,pp);
 	if ((oldpc=pc=pid2pcb(pid)) == NULL && (pc = newpcb(pid))== NULL) {
@@ -304,7 +308,7 @@ static int handle_new_proc(int pid, struct pcb *pp)
 			getregs(pc);
 			putargn(0,pp->sysargs[0],pc);
 			putargn(1,pp->sysargs[1],pc);
-			////printk("starting1 %x %x was %x %x\n",pp->sysargs[0],pp->sysargs[1],getargn(0,pc),getargn(1,pc));
+			////printk("starting1 pc->pid %d  %x %x was %x %x\n",pc->pid, pp->sysargs[0],pp->sysargs[1],getargn(0,pc),getargn(1,pc));
 			if(setregs(pc,PTRACE_SYSCALL,0,SIGSTOP) < 0){
 				GPERROR(0, "continuing");
 				exit(1);
@@ -548,12 +552,18 @@ void tracehand()
 				if (isreproducing) {
 					long newpid;
 					newpid=getrv(pc);
-					handle_new_proc(newpid,pc);
+					if (newpid >= 0) {
+						handle_new_proc(newpid,pc);
+						offspring_exit(pc);
+						putrv(newpid,pc);
+					} else {
+						////printf("ERESTARTNOINTR scno %d %ld %ld\n",scno, newpid,pc->saved_regs[MY_RAX]);
+						offspring_exit(pc);
+					}
+
 					GDEBUG(3, "FORK! %d->%d",pid,newpid);
 
 					/* restore original arguments */
-					offspring_exit(pc);
-					putrv(newpid,pc);
 				}
 				/* It is just for the sake of correctness, this test could be
 				 * safely eliminated  to increase the performance*/
@@ -760,46 +770,14 @@ void sc_resume(struct pcb *pc)
 	}
 }
 
-/*
- * Set up the pipe used by the SIGCHLD signal handler to wake the main
- * select() and tell it to start tracehand().
- * (ONLY used when ppoll is not a valid syscall)
- */
-int wake_tracer_init()
-{
-	r_pipe(tracerpipe);
-	r_fcntl(tracerpipe[0],F_SETFL,O_NONBLOCK);
-	return(tracerpipe[0]);
-}
-
-/*
- * Write data to the tracerpipe: we received a SIGCHLD and the main
- * select cycle must run tracehand()
- * (ONLY used when ppoll is not a valid syscall)
- */
-void wake_tracer(int s)
-{
-	char x = 0;
-	r_write(tracerpipe[1], &x, 1);
-}
-
-void do_wake_tracer()
-{
-	{
-		char buf[256];
-		r_read(tracerpipe[0], buf, 256);
-	}
-	tracehand();
-}
-
-/* fake function used when ppoll is a valid system call */
 void wake_null(int s)
 {
 }
 
-static void setsigaction(int has_ppoll)
+static void setsigaction(void)
 {
 	struct sigaction sa;
+	sigset_t blockchild; 
 
 	sa.sa_handler = SIG_IGN;
 	sigemptyset(&sa.sa_mask);
@@ -823,14 +801,10 @@ static void setsigaction(int has_ppoll)
 	 * With ppoll there is no need for pipe: in this latter
 	 * case SIGCHLD gets blocked. SIGCHLD will unblock ppoll
 	 */
-	if (has_ppoll==1) {
-		sigset_t blockchild; 
-		sigemptyset(&blockchild);
-		sigaddset(&blockchild,SIGCHLD);
-		r_sigprocmask(SIG_BLOCK,&blockchild,NULL);
-		sa.sa_handler = wake_null;
-	} else 
-		sa.sa_handler = wake_tracer;
+	sigemptyset(&blockchild);
+	sigaddset(&blockchild,SIGCHLD);
+	r_sigprocmask(SIG_BLOCK,&blockchild,NULL);
+	sa.sa_handler = wake_null;
 	r_sigaction(SIGCHLD, &sa, NULL);
 }
 
@@ -912,7 +886,7 @@ void capture_execrc(const char *path,const char *argv1)
 }
 
 /* main capture startup */
-int capture_main(char **argv,int has_ppoll,char *rc)
+int capture_main(char **argv, char *rc)
 {
 	int status;
 #if __NR_socketcall != __NR_doesnotexist
@@ -926,12 +900,7 @@ int capture_main(char **argv,int has_ppoll,char *rc)
 			exit(1);
 			break;
 		case 0:
-			/* FIRST PROCESS STARTUP */
-			/* no pipes are needed when the system supports ppoll */
-			if (!has_ppoll) {
-				close(tracerpipe[0]);
-				close(tracerpipe[1]);
-			} else {
+			{
 				sigset_t unblockall;
 				sigemptyset(&unblockall);
 				r_sigprocmask(SIG_SETMASK,&unblockall,NULL);
@@ -969,7 +938,7 @@ int capture_main(char **argv,int has_ppoll,char *rc)
 				exit(1);
 			}
 			/* set up the signal management */
-			setsigaction(has_ppoll);
+			setsigaction();
 			/* okay, the first process can start (traced) */
 			if(ptrace(PTRACE_SYSCALL, first_child_pid, 0, 0) < 0){
 				GPERROR(0, "continuing");

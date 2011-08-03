@@ -11,7 +11,6 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <module.h>
 
 #define IOCTLLENMASK      0x07ffffff
 #define IOCTL_R           0x10000000
@@ -52,7 +51,7 @@ struct umdev_operations {
 
 	int (*event_subscribe) (char, dev_t, voidfun cb, void *arg, int how, struct dev_info *);
 
-	int (*ioctlparms) (char, dev_t, int arg, struct umdev *devhandle);
+	int (*ioctlparms) (char, dev_t, int arg, struct dev_info *);
 	int (*init) (char, dev_t, char *path, unsigned long flags, char *args, struct umdev *devhandle);
 	int (*fini) (char, dev_t, struct umdev *devhandle);
 };	

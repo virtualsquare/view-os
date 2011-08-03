@@ -32,16 +32,15 @@
 void usage()
 {
 	fprintf(stderr, "Usage:\n\tum_del_service service_name\n");
-	exit(2);
 }
 
 int main(int argc, char *argv[])
 {
 	int c;
-	int position=0;
 	if (um_check_viewos()==0) {
 		fprintf(stderr,"This is a View-OS command. It works only inside a umview/kmview virtual machine\n");
 		usage();
+		return 2;
 	}            
 	while (1) {
 		int option_index = 0;
@@ -51,15 +50,16 @@ int main(int argc, char *argv[])
 		c=getopt_long(argc,argv,"",long_options,&option_index);
 		if (c == -1) break;
 	}
-	if (argc - optind != 1)
+	if (argc - optind != 1) {
 		usage();
-	else {
+		return 2;
+	} else {
 		if (um_del_service(argv[optind]) < 0) {
 			perror("um_del_service");
-			exit(1);
+			return 1;
 		}
 		else
-			exit(0);
+			return 0;
 	}
 }
 

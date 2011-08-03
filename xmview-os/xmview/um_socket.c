@@ -669,7 +669,7 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,
 			umoven(pc,(long)msg.msg_control,msg.msg_controllen,lmsg.msg_control);
 		}
 		{
-			unsigned int i,totalsize,size;
+			unsigned int i,totalsize;
 			char *lbuf;
 			for (i=0,totalsize=0;i<msg.msg_iovlen;i++)
 				totalsize += iovec[i].iov_len;
@@ -688,8 +688,6 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,
 			}
 			if ((pc->retval = um_syscall(sfd,&lmsg,flags)) < 0)
 				pc->erno=errno;
-			else
-				size=pc->retval;
 			//printk("%d size->%d\n",sfd,size);
 			lfree(lbuf,totalsize);
 		}

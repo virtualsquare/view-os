@@ -48,6 +48,19 @@
 #include "hashtab.h"
 #include "gdebug.h"
 #define FAKECWD "fakecwd"
+/* management of FD flags stored in lfdlist
+ * MST = invalid (usually closed fd are set to -1) i.e. <0 means invalid
+ * MST-1 = FD_CLOEXEC
+ * (for now there are no more flags, in case add here, provided the
+ * space for fd is large enough)
+ * Lower bits: lfd;
+ */
+#define X_FD_FLAGS   0xc0000000
+#define X_FD_INVALID 0x80000000
+#define X_FD_CLOEXEC 0x40000000
+#define X_FD_NBITS 30
+#define FD2LFD(p,fd) (((p)->lfdlist[(fd)]) & ~X_FD_FLAGS)
+#define FD2FDFLAGS(p,fd) (((p)->lfdlist[(fd)]) >> X_FD_NBITS)
 
 static char *um_proc_root;
 static char *um_tmpfile;
@@ -161,8 +174,8 @@ static inline void *lfd_forall_r(void *(*f)(int lfd,void *arg1,void *arg2),
 
 //static struct lfd_table **lfd_tab=NULL;
 //static int lfd_tabmax=0;
-static int lfd_tabsize=0;
-static int lfd_tabfree=-1;
+static long lfd_tabsize=0;
+static long lfd_tabfree=-1;
 
 int lfd_alloc()
 {
@@ -170,7 +183,7 @@ int lfd_alloc()
 	//pthread_mutex_lock( &lfd_tab_mutex );
 	if (lfd_tabfree>=0) {
 		rv=lfd_tabfree;
-		lfd_tabfree=(int)(lfd_tab[rv]);
+		lfd_tabfree=(long)(lfd_tab[rv]);
 	} else {
 		rv=lfd_tabmax++;
 		if (rv>=lfd_tabsize) {
@@ -189,6 +202,8 @@ void lfd_free(int lfd)
 {
 	free(lfd_tab[lfd]);
 	//pthread_mutex_lock( &lfd_tab_mutex );
+	/* unused elements get linked together by using the pointers as the
+		 index of the next unused element */
 	lfd_tab[lfd]=(void *)lfd_tabfree;
 	lfd_tabfree=lfd;
 	//pthread_mutex_unlock( &lfd_tab_mutex );
@@ -198,9 +213,10 @@ static inline void lfd_forall(void (*f)(int lfd,void *arg),void *arg)
 {
 	int lfd;
 	//pthread_mutex_lock( &lfd_tab_mutex );
+	/* the unused elements list gets deleted and recreated */
 	while (lfd_tabfree>=0) {
 		lfd=lfd_tabfree;
-		lfd_tabfree=(int)(lfd_tab[lfd]);
+		lfd_tabfree=(long)(lfd_tab[lfd]);
 		lfd_tab[lfd]=NULL;
 	}
 	for (lfd=0; lfd<lfd_tabmax; lfd++) {
@@ -220,9 +236,10 @@ static inline void *lfd_forall_r(void *(*f)(int lfd,void *arg1,void *arg2),
 	int lfd;
 	void *rv=NULL;
 	//pthread_mutex_lock( &lfd_tab_mutex );
+	/* the unused elements list gets deleted and recreated */
 	while (lfd_tabfree>=0) {
 		lfd=lfd_tabfree;
-		lfd_tabfree=(int)(lfd_tab[lfd]);
+		lfd_tabfree=(long)(lfd_tab[lfd]);
 		lfd_tab[lfd]=NULL;
 	}
 	for (lfd=0; lfd<lfd_tabmax; lfd++) {
@@ -374,8 +391,8 @@ void umproc_addproc(struct pcb *pc,int flags,int npcbflag)
 				p->lfdlist=(int *)malloc(p->nolfd * sizeof(int));
 				memcpy(p->lfdlist,pc->pp->fds->lfdlist,p->nolfd * sizeof(int));
 				for (i=0; i<p->nolfd; i++) {
-					if (p->lfdlist[i] >=0 )
-						++lfd_tab[p->lfdlist[i]]->count;
+					if (p->lfdlist[i] >=0)
+						++lfd_tab[FD2LFD(p,i)]->count;
 				}
 			}
 		}
@@ -414,7 +431,7 @@ void umproc_delproc(struct pcb *pc,int flags,int npcbflag)
  * When the file is virtualized there is the pvtab part*/
 int lfd_open (struct ht_elem *hte, int sfd, char *path, int flags, int nested)
 {
-	int lfd,fifo;
+	int lfd;
 	GDEBUG(3, "lfd_open sfd %d, path %s, nested %d", sfd, path, nested);
 	/*printk("lfd_open sfd %d, path %s, nested %d\n", sfd, path, nested);*/
 	/*printk("lfd_open %s sfd %d %s",ht_get_servicename(hte),sfd,(path==NULL)?"<null>":path);*/
@@ -440,8 +457,15 @@ int lfd_open (struct ht_elem *hte, int sfd, char *path, int flags, int nested)
 		 * it will be used to give a fd to the process and to unblock
 		 * select/pselect/poll/ppoll operations */
 		filename=lfd_tab[lfd]->pvtab->filename=strdup(um_proc_tmpfile(hte,lfd));
-		fifo=mkfifo(filename,0600);
-		assert(fifo==0);
+#ifdef NDEBUG
+		mkfifo(filename,0600);
+#else
+		{
+			int fifo;
+			fifo=mkfifo(filename,0600);
+			assert(fifo==0);
+		}
+#endif
 		/* the fifo is opened on both ends input and output, so that
 		 * 1- the call is not blocking
 		 * 2- it is possible to reread the data after the process gets unblocked */
@@ -461,7 +485,6 @@ int lfd_open (struct ht_elem *hte, int sfd, char *path, int flags, int nested)
 /* close a file */
 void lfd_close (int lfd)
 {
-	int rv;
 	GDEBUG(5, "close %d %x",lfd,lfd_tab[lfd]);
 	/*printk("lfd close %d %d %x %d %s\n",lfd_tab[lfd]->count,lfd,lfd_tabmax,lfd_tab[lfd],lfd_tab[lfd]->path);*/
 	assert (lfd < 0 || (lfd < lfd_tabmax && lfd_tab[lfd] != NULL));
@@ -472,12 +495,19 @@ void lfd_close (int lfd)
 		/* if it is a virtual fifo, close the fifo files, unlink
 		 * the fifo itself, and free the malloc'ed data */
 		if (lfd_tab[lfd]->pvtab != NULL) {
+#ifdef NDEBUG
+			r_close(lfd_tab[lfd]->pvtab->ififo);
+			r_close(lfd_tab[lfd]->pvtab->ofifo);
+			r_unlink(lfd_tab[lfd]->pvtab->filename);
+#else
+			int rv;
 			rv=r_close(lfd_tab[lfd]->pvtab->ififo);
 			assert(rv==0);
 			rv=r_close(lfd_tab[lfd]->pvtab->ofifo);
 			assert(rv==0);
 			rv=r_unlink(lfd_tab[lfd]->pvtab->filename);
 			assert(rv==0);
+#endif
 			free(lfd_tab[lfd]->pvtab->filename);
 			free(lfd_tab[lfd]->pvtab);
 		} 
@@ -563,20 +593,6 @@ char *lfd_getpath(int lfd)
 	assert (lfd < lfd_tabmax && lfd_tab[lfd] != NULL);
 	return lfd_tab[lfd]->path;
 }
-
-/* management of FD flags stored in lfdlist
- * MST = invalid (usually closed fd are set to -1) i.e. <0 means invalid
- * MST-1 = FD_CLOEXEC
- * (for now there are no more flags, in case add here, provided the
- * space for fd is large enough)
- * Lower bits: lfd;
- */
-#define X_FD_FLAGS   0xc0000000
-#define X_FD_INVALID 0x80000000
-#define X_FD_CLOEXEC 0x40000000
-#define X_FD_NBITS 30
-#define FD2LFD(p,fd) (((p)->lfdlist[(fd)]) & ~X_FD_FLAGS)
-#define FD2FDFLAGS(p,fd) (((p)->lfdlist[(fd)]) >> X_FD_NBITS)
 
 /* fd 2 ldf mapping (in a process file table) */
 int fd2lfd(struct pcb_file *p, int fd)

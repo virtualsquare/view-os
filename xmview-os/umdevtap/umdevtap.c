@@ -123,7 +123,7 @@ static int umtap_ioctl(char type, dev_t device, int req, void * arg, struct dev_
 	return 0;
 }
 
-static int umtap_ioctl_params(char type, dev_t device, int req, struct umdev *devhandle)
+static int umtap_ioctl_params(char type, dev_t device, int req, struct dev_info *di)
 {
 	switch (req) {
 		/*case BLKROSET: return (sizeof(int) | IOCTL_R);

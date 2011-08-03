@@ -68,13 +68,13 @@ static long delmodule(char *sender)
 
 static long ctl(int type, char *sender, va_list ap)
 {
-	int id, ppid, max;
+	int id, /*ppid,*/ max;
 
 	switch(type)
 	{
 		case MC_PROC | MC_ADD:
 			id = va_arg(ap, int);
-			ppid = va_arg(ap, int);
+			/*ppid = */ va_arg(ap, int);
 			max = va_arg(ap, int);
 			return addproc(id, max);
 			

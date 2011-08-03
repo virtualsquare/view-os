@@ -195,45 +195,50 @@ static void lwipargtoenv(struct stack *s,char *initargs)
 	memset(paramval,0,sizeof(paramval));
 
 	if (initargs==0 || *initargs == 0) initargs=stdargs;
-	while (*initargs != 0) {
-		next=initargs;
-		unquoted=initargs;
-		while ((*next != ',' || quoted) && *next != 0) {
-			*unquoted=*next;
-			if (*next == quoted)
-				quoted=0;
-			else if (*next == '\'' || *next == '\"')
-				quoted=*next;
+	if (strcmp(initargs,"lo") != 0) {
+		while (*initargs != 0) {
+			next=initargs;
+			unquoted=initargs;
+			while ((*next != ',' || quoted) && *next != 0) {
+				*unquoted=*next;
+				if (*next == quoted)
+					quoted=0;
+				else if (*next == '\'' || *next == '\"')
+					quoted=*next;
 			else
 				unquoted++;
 			next++;
+			}
+			if (*next == ',') {
+				*unquoted=*next=0;
+				next++;
+			}
+			if (*initargs != 0)
+				myputenv(&ifh,intnum,paramval,initargs);
+			initargs=next;
 		}
-		if (*next == ',') {
-			*unquoted=*next=0;
-			next++;
+		/* load interfaces */
+		for (i=0;i<INTTYPES;i++)
+			totint+=intnum[i];
+		if (totint==0)
+			intnum[0]=1;
+		for (j=0;j<intnum[0];j++) {
+			if (lwip_vdeif_add(s,ifname(ifh,0,j)) == NULL) 
+				fprintf(stderr,"umnetlwip: vd[%d] configuration error\n",j);
 		}
-		if (*initargs != 0)
-			myputenv(&ifh,intnum,paramval,initargs);
-		initargs=next;
-	}
-	/* load interfaces */
-	for (i=0;i<INTTYPES;i++)
-		totint+=intnum[i];
-	if (totint==0)
-		intnum[0]=1;
-	for (j=0;j<intnum[0];j++)
-		if (lwip_vdeif_add(s,ifname(ifh,0,j)) == NULL)
-			printk("umnetlwipv6: vd%d=%s error, interface not defined\n",j,ifname(ifh,0,j));
-	for (j=0;j<intnum[1];j++)
-		if (lwip_tunif_add(s,ifname(ifh,1,j)) == NULL)
-			printk("umnetlwipv6: tn%d=%s error, interface not defined\n",j,ifname(ifh,0,j));
-	for (j=0;j<intnum[2];j++)
-		if (lwip_tapif_add(s,ifname(ifh,2,j)) == NULL)
-			printk("umnetlwipv6: tp%d=%s error, interface not defined\n",j,ifname(ifh,0,j));
-	iffree(ifh);
+		for (j=0;j<intnum[1];j++) {
+			if (lwip_tunif_add(s,ifname(ifh,1,j)) == NULL)
+				fprintf(stderr,"umnetlwip: vd[%d] configuration error\n",j);
+		}
+		for (j=0;j<intnum[2];j++) {
+			if (lwip_tapif_add(s,ifname(ifh,2,j)) == NULL)
+				fprintf(stderr,"umnetlwip: vd[%d] configuration error\n",j);
+		}
+		iffree(ifh);
 
-	if (paramval[0] != NULL)
-		lwip_radv_load_configfile(s,paramval[0]);
+		if (paramval[0] != NULL)
+			lwip_radv_load_configfile(s,paramval[0]);
+	}
 }
 
 
@@ -275,6 +280,7 @@ int umnetlwipv6_supported_domain(int domain)
 	}
 }
 
+
 struct umnet_operations umnet_ops={
 	.msocket=umnetlwipv6_msocket,
 	.ioctl=umnetlwipv6_ioctl,
@@ -285,7 +291,9 @@ struct umnet_operations umnet_ops={
 };
 
 typedef int (*intfun)();
+typedef ssize_t (*ssizefun)();
 #define UMNETLWIPV6(X) umnet_ops.X=(intfun)lwip_##X
+#define UMNETLWIPV6S(X) umnet_ops.X=(ssizefun)lwip_##X
 
 	static void
 	__attribute__ ((constructor))
@@ -298,19 +306,18 @@ init (void)
 	UMNETLWIPV6(accept);
 	UMNETLWIPV6(getsockname);
 	UMNETLWIPV6(getpeername);
-	UMNETLWIPV6(send);
-	UMNETLWIPV6(recv);
-	UMNETLWIPV6(sendto);
-	UMNETLWIPV6(recvfrom);
-	UMNETLWIPV6(sendmsg);
-	UMNETLWIPV6(recvmsg);
+	UMNETLWIPV6S(send);
+	UMNETLWIPV6S(recv);
+	UMNETLWIPV6S(sendto);
+	UMNETLWIPV6S(recvfrom);
+	UMNETLWIPV6S(sendmsg);
+	UMNETLWIPV6S(recvmsg);
 	//UMNETLWIPV6(shutdown);
 	UMNETLWIPV6(getsockopt);
 	UMNETLWIPV6(setsockopt);
-	UMNETLWIPV6(read);
-	UMNETLWIPV6(write);
+	UMNETLWIPV6S(read);
+	UMNETLWIPV6S(write);
 	UMNETLWIPV6(close);
-	umnet_ops.fcntl = (intfun)lwip_fcntl64;
 	UMNETLWIPV6(event_subscribe);
 }
 

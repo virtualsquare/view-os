@@ -22,7 +22,6 @@
  *
  */   
 #include <config.h>
-#include <config.h>
 #include<stdio.h>
 #include<stdlib.h>
 #include<unistd.h>
@@ -152,4 +151,5 @@ int main(int argc, char *argv[])
 						 waitpid(pid,&status,0);
 						 return(WEXITSTATUS(status));
 	}
+	return 0;
 }

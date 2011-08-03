@@ -383,9 +383,9 @@ static long ummisc_mount(char *source, char *target, char *filesystemtype,
 		return -1;
 	} else {
 		struct ummisc *new = (struct ummisc *) malloc(sizeof(struct ummisc));
-		struct stat64 *s64;
+		/*struct stat64 *s64;*/
 		assert(new);
-		s64=um_mod_getpathstat();
+		/*s64=um_mod_getpathstat();*/ /* uncomment to check something on the stat */
 		new->path = strdup(target);
 		new->pathlen = strlen(target);
 		new->dlhandle=dlhandle;

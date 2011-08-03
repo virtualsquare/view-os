@@ -63,27 +63,34 @@ pthread_key_t pcb_key=0; /* key to grab the current thread pcb */
 sfun native_syscall=syscall;
 
 /* debugging output, (bypass pure_libc when loaded) */
-int printk(const char *fmt, ...) {
+int vprintk(const char *fmt, va_list ap) {
 	char *s;
-	int rv;
-	va_list ap;
-	va_start(ap,fmt);
-	rv=vasprintf(&s, fmt, ap);
-	va_end(ap);
-	if (rv>0)
-		rv=r_write(2,s,strlen(s));
-	free(s);
+	int rv=0;
+	int level=PRINTK_STANDARD_LEVEL;
+	if (fmt[0] == '<' && fmt[1] != 0 && fmt[2] == '>') {
+		/*level*/
+		switch (fmt[1]) {
+			case '0' ... '7':
+				level=fmt[1] - '0';
+				fmt+=3;
+				break;
+		}
+	}
+	if (level <= printk_current_level) {
+		rv=vasprintf(&s, fmt, ap);
+		if (rv>0)
+			rv=r_write(2,s,strlen(s));
+		free(s);
+	}
 	return rv;
 }
 
-int vprintk(const char *fmt, va_list ap) {
-	char *s;
+int printk(const char *fmt, ...) {
 	int rv;
-	rv=vasprintf(&s, fmt, ap);
+	va_list ap;
+	va_start(ap,fmt);
+	rv=vprintk(fmt,ap);
 	va_end(ap);
-	if (rv>0)
-		rv=r_write(2,s,strlen(s));
-	free(s);
 	return rv;
 }
 
@@ -266,6 +273,7 @@ void tracehand(void *useless)
 					ump.umpid=newpcb(event[i].x.newthread.pid,event[i].x.newthread.kmpid,
 							event[i].x.newthread.umppid);
 					pc=umpid2pcb(ump.umpid);
+					pcb_constructor(pc,event[i].x.newthread.flags,0);
 					if (ump.umpid <= 1) {
 						if (ump.umpid == 1) /* the root process is starting */
 						{
@@ -278,7 +286,6 @@ void tracehand(void *useless)
 						}
 					}
 					r_ioctl(kmviewfd, KMVIEW_UMPID, &ump);
-					pcb_constructor(pc,event[i].x.newthread.flags,0);
 				}
 				break;
 			case KMVIEW_EVENT_TERMTHREAD:

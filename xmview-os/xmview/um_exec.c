@@ -128,14 +128,20 @@ static char **getparms(struct pcb *pc,long laddr) {
 	int n=0;
 	int i;
 	do {
-		int rv;
 		if (n >= size) {
 			size+=CHUNKSIZE;
 			paddr=realloc(paddr,size*sizeof(long));
 			assert(paddr);
 		}
-		rv=umoven(pc,laddr,sizeof(char *),&(paddr[n]));
-		assert(rv>=0);
+#ifdef NDEBUG
+		umoven(pc,laddr,sizeof(char *),&(paddr[n]));
+#else
+		{
+			int rv;
+			rv=umoven(pc,laddr,sizeof(char *),&(paddr[n]));
+			assert(rv>=0);
+		}
+#endif
 		laddr+= sizeof(char *);
 		n++;
 	} while (paddr[n-1] != 0);
