@@ -33,7 +33,7 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	GMESSAGE("testmodul2 init");
+	printk(KERN_NOTICE "testmodul2 init");
 	s.name="test2";
 	s.description="Test Module 2";
 	s.syscall=NULL;
@@ -44,6 +44,6 @@ static void
 __attribute__ ((destructor))
 fini (void)
 {
-	GMESSAGE("testmodul2 fini");
+	printk(KERN_NOTICE "testmodul2 fini");
 }       
 

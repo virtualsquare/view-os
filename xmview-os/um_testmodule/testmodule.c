@@ -74,7 +74,7 @@ static long ctl(int type, char *sender, va_list ap)
 		{
 			case 42:
 				arg = va_arg(ap, char*);
-				GMESSAGE("service %s is managing open(\"%s\", ...)",
+				printk(KERN_NOTICE "service %s is managing open(\"%s\", ...)",
 						sender, arg);
 				return 0;
 			default:
@@ -110,7 +110,7 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	GMESSAGE("testmodule init");
+	printk(KERN_NOTICE "testmodule init");
 	fprintf(stderr, "testmodule init\n");
 	s.name="test";
 	s.description="Test Module";
@@ -129,5 +129,5 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	GMESSAGE("testmodule fini");
+	printk(KERN_NOTICE "testmodule fini");
 }

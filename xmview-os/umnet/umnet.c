@@ -787,7 +787,7 @@ void viewos_fini(void *arg)
 	__attribute__ ((constructor))
 init (void)
 {
-	printk("umnet init\n");
+	printk(KERN_NOTICE "umnet init\n");
 	s.name="umnet";
 	s.description="virtual (multi-stack) networking";
 	s.destructor=umnet_destructor;
@@ -836,5 +836,5 @@ fini (void)
 	free(s.socket);
 	free(s.virsc);
 	umnet_delallproc();
-	printk("umnet fini\n");
+	printk(KERN_NOTICE "umnet fini\n");
 }

@@ -929,7 +929,7 @@ mode_t umdev_getmode(struct umdev *devhandle)
 	__attribute__ ((constructor))
 init (void)
 {
-	printk("umdev init\n");
+	printk(KERN_NOTICE "umdev init\n");
 	s.name="umdev";
 	s.description="virtual devices";
 	s.destructor=umdev_destructor;
@@ -970,6 +970,6 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	printk("umdev fini\n");
+	printk(KERN_NOTICE "umdev fini\n");
 }
 

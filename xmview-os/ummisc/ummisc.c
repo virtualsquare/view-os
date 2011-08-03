@@ -452,7 +452,7 @@ void *ummisc_getprivatedata(struct ummisc *mischandle)
 	__attribute__ ((constructor))
 init (void)
 {
-	printk("ummisc init\n");
+	printk(KERN_NOTICE "ummisc init\n");
 	s.name="ummisc";
 	s.description="virtual miscellaneous (time, uname, uid/gid, ...)";
 	s.destructor=ummisc_destructor;
@@ -481,5 +481,5 @@ fini (void)
 	free(s.syscall);
 	free(s.socket);
 	finimuscno();
-	printk("ummisc fini\n");
+	printk(KERN_NOTICE "ummisc fini\n");
 }

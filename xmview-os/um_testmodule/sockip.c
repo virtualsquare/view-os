@@ -155,7 +155,7 @@ void viewos_fini(void *data)
 	__attribute__ ((constructor))
 init (void)
 {
-	GMESSAGE("sockettest init");
+	printk(KERN_NOTICE "sockettest init");
 	s.name="sockip";
 	s.description="socket syscall (AF_INET) are executed server side";
 	s.ioctlparms=ioctlparms;
@@ -198,5 +198,5 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	GMESSAGE("sockettest fini");
+	printk(KERN_NOTICE "sockettest fini");
 }
