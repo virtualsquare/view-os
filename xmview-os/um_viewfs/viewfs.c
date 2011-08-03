@@ -41,7 +41,7 @@
 
 #include "gdebug.h"
 #define INFOEXT "\377"
-#define MAXSIZE ((1LL<<((sizeof(size_t)*8)-1))-1)
+#define MAXSIZE ((1ULL<<((sizeof(size_t)*8)-1))-1)
 #define MERGEROFS
 #define FILEINFO
 
@@ -1754,7 +1754,7 @@ static long viewfs_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 	__attribute__ ((constructor))
 init (void)
 {
-	GMESSAGE("viewfs init");
+	printk(KERN_NOTICE "viewfs init\n");
 	s.name="viewfs";
 	s.description="filesystem patchwork";
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
@@ -1819,5 +1819,5 @@ fini (void)
 	free(s.syscall);
 	free(s.socket);
 	free(s.virsc);
-	GMESSAGE("viewfs fini");
+	printk(KERN_NOTICE "viewfs fini\n");
 }

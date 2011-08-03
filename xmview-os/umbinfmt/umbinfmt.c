@@ -883,7 +883,7 @@ static void umbinfmt_destructor(int type,struct ht_elem *mp)
 	__attribute__ ((constructor))
 init (void)
 {
-	printf("umbinfmt init\n");
+	printk(KERN_NOTICE "umbinfmt init\n");
 	s.name="umbinfmt";
 	s.description="virtual binfmt_misc";
 	s.destructor=umbinfmt_destructor;
@@ -916,6 +916,6 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	printf("umbinfmt fini\n");
+	printk(KERN_NOTICE "umbinfmt fini\n");
 }
 
