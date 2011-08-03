@@ -21,6 +21,7 @@
  *   $Id: um_add_service.c 362 2007-06-08 14:31:54Z rd235 $
  *
  */   
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

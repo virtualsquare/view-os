@@ -22,6 +22,7 @@
  *   $Id: vuname.c 364 2007-06-11 08:56:36Z rd235 $
  *
  */   
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>

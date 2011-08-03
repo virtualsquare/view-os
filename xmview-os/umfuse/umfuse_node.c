@@ -142,6 +142,6 @@ char *node_hiddenpath(struct fuse_node *node)
 {
 	char *name;
 	static unsigned long hiddencount;
-	asprintf(&name,"/.fuse%010lu%010lu",(unsigned long)node->fuse,hiddencount++);
+	asprintf(&name,"/.fuse%010u%010lu",(unsigned)node->fuse,hiddencount++);
 	return name;
 }

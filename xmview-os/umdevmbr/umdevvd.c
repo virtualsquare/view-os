@@ -36,6 +36,7 @@
 #include "umdev.h"
 #include <linux/fs.h>
 #include <linux/hdreg.h>
+#include "module.h"
 
 #define STD_SECTORSIZE 512
 #define STD_SECTORSIZE_OFFSET_MASK 0x1ff
@@ -332,6 +333,7 @@ static int vd_fini(char type, dev_t device, struct umdev *devhandle)
 		free(vddisk);
 		unload_VBoxDD();
 	}
+	return 0;
 }
 
 static int vd_ioctl(char type, dev_t device, int req, void * arg, struct dev_info *di)
@@ -364,7 +366,7 @@ static int vd_ioctl(char type, dev_t device, int req, void * arg, struct dev_inf
 	} else
 		return -ENODEV;
 }
-static int vd_ioctl_params(char type, dev_t device, int req, struct umdev *devhandle)
+static int vd_ioctl_params(char type, dev_t device, int req, struct dev_info *di)
 {
 	switch (req) {
 		case BLKROSET: return (sizeof(int) | IOCTL_R);

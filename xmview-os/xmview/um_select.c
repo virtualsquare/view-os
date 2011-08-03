@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 #include <sys/select.h>
 #include <sys/poll.h>
+#include <sys/epoll.h>
 #include <sys/uio.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
@@ -137,7 +138,9 @@ int check_suspend_on(struct pcb *pc, int fd, int how)
 	/* check the fd is managed by some service and gets its service fd (sfd) */
 	if (hte != NULL && (sfd=fd2sfd(pc->fds,fd)) >= 0) {
 		sysfun local_event_subscribe;
-		if ((local_event_subscribe=ht_event_subscribe(hte)) != NULL) {
+		int flfl=fd_getflfl(pc->fds,fd);
+		if ((local_event_subscribe=ht_event_subscribe(hte)) != NULL &&
+				!(flfl & O_NONBLOCK)) {
 			bq_block(pc);
 			if (local_event_subscribe(bq_signal, pc, sfd, how) == 0)
 			{
@@ -338,8 +341,9 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 	unsigned long pufds=pc->sysargs[0];
 	int i,count;
 	epoch_t oldepoch=um_setnestepoch(0);
+	int rv;
 
-	ufds=alloca(nfds*sizeof(struct pollfd));
+	ufds=lalloca(nfds*sizeof(struct pollfd));
 	umoven(pc,pufds,nfds*sizeof(struct pollfd),ufds);
 
 	/* count how many virtual file are there */
@@ -352,7 +356,7 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 	}
 	/* no virtual file: nothing to do here */
 	if (count == 0) {
-		return STD_BEHAVIOR;
+		rv = STD_BEHAVIOR;
 	} else {
 		/* ok, let's do the hard work */
 		struct seldata *sd=(struct seldata *)malloc(sizeof(struct seldata));
@@ -386,8 +390,10 @@ int wrap_in_poll(int sc_number,struct pcb *pc,
 			}
 		}
 		ustoren(pc,pufds,nfds*sizeof(struct pollfd),ufds);
-		return SC_CALLONXIT;
+		rv = SC_CALLONXIT;
 	}
+	lfree(ufds,nfds*sizeof(struct pollfd));
+	return rv;
 }
 
 int wrap_out_poll(int sc_number,struct pcb *pc)
@@ -400,7 +406,7 @@ int wrap_out_poll(int sc_number,struct pcb *pc)
 		unsigned int nfds=pc->sysargs[1];
 		int i,j;
 		pc->retval=getrv(pc);
-		ufds=alloca(nfds*sizeof(struct pollfd));
+		ufds=lalloca(nfds*sizeof(struct pollfd));
 		umoven(pc,pufds,nfds*sizeof(struct pollfd),ufds);
 		if (pc->retval >= 0) {
 			pc->retval=0;
@@ -439,9 +445,223 @@ int wrap_out_poll(int sc_number,struct pcb *pc)
 			}
 			cleanup_pending(pc);
 		}
+		lfree(ufds,nfds*sizeof(struct pollfd));
 	}
 	return SC_MODICALL;
 }
+
+#ifdef _UM_EPOLL
+
+/* The support of epoll is still under development */
+
+static char *epoll_tag = "EP";
+
+int wrap_in_epoll_create(int sc_number,struct pcb *pc,
+		    struct ht_elem *hte, sysfun um_syscall)
+{
+	int flags=0;
+#if __NR_epoll_create1 != __NR_epoll_create
+	if (sc_number== __NR_epoll_create1)
+		flags = pc->sysargs[0];
+#endif
+	/* Linux: EPOLL_CLOEXEC==O_CLOEXEC && EPOLL_NONBLOCK==O_NONBLOCK */
+	flags &= (EPOLL_CLOEXEC | EPOLL_NONBLOCK);
+	//printk("wrap_in_epoll_create %x\n",flags);
+	pc->retval=lfd_open(NULL,-1,epoll_tag,flags,0);
+	return SC_CALLONXIT;
+}
+
+int wrap_out_epoll_create(int sc_number,struct pcb *pc)
+{
+	if (pc->retval >= 0) {
+		int fd=getrv(pc);
+		//printk("wrap_out_epoll_create %d\n",fd);
+		if (fd >= 0) 
+			lfd_register(pc->fds,fd,pc->retval);
+		else
+			lfd_close(pc->retval);
+	} else {
+		putrv(pc->retval,pc);
+		puterrno(pc->erno,pc);
+	}
+	return SC_MODICALL;
+}
+
+int wrap_in_epoll_ctl(int sc_number,struct pcb *pc,
+		    struct ht_elem *hte, sysfun um_syscall)
+{
+	int epfd=pc->sysargs[0];
+	int op=pc->sysargs[1];
+	int fd=pc->sysargs[2];
+	long pevent=pc->sysargs[3];
+	char *tag=fd_getpath(pc->fds,epfd);
+	struct lfd_epoll_item *ep_item;
+	if (tag==NULL) return STD_BEHAVIOR;
+	//printk("wrap_in_epoll_ctl %d %d %s %p %p\n",op,fd,tag,tag,epoll_tag);
+	switch (op) {
+		case EPOLL_CTL_ADD:
+			ep_item=malloc(sizeof(struct lfd_epoll_item));
+			if (ep_item) {
+				struct epoll_event user_event;
+				struct ht_elem *hte=ht_fd(pc->fds,fd,1);
+				umoven(pc,pevent,sizeof(struct epoll_event),&user_event);
+				ep_item->fd=fd;
+				ep_item->event=user_event;
+				user_event.data.ptr = ep_item;
+				if (hte != NULL && fd2sfd(pc->fds,fd) >= 0 && ht_event_subscribe(hte))
+					user_event.events = EPOLLIN;
+				ustoren(pc,pevent,sizeof(struct epoll_event),&user_event);
+				/*printk("ADD real_data = %llx our_data = %llx ptr = %p\n",
+						ep_item->event.data.u64, user_event.data.u64, user_event.data.ptr);*/
+			}
+			pc->retval = (long) ep_item;
+			break;
+		case EPOLL_CTL_MOD:
+			ep_item=malloc(sizeof(struct lfd_epoll_item));
+			if (ep_item) {
+				struct epoll_event user_event;
+				struct ht_elem *hte=ht_fd(pc->fds,fd,1);
+				umoven(pc,pevent,sizeof(struct epoll_event),&user_event);
+				ep_item->fd=fd;
+				ep_item->event=user_event;
+				user_event.data.ptr = lfd_epoll_search(pc->fds, epfd, fd);
+				if (hte != NULL && fd2sfd(pc->fds,fd) >= 0 && ht_event_subscribe(hte))
+					user_event.events = EPOLLIN;
+				ustoren(pc,pevent,sizeof(struct epoll_event),&ep_item->event);
+			}
+			break;
+		case EPOLL_CTL_DEL:
+			pc->retval = (long) NULL;
+			break;
+	}
+	return SC_CALLONXIT;
+}
+
+int wrap_out_epoll_ctl(int sc_number,struct pcb *pc)
+{
+	int epfd=pc->sysargs[0];
+	int op=pc->sysargs[1];
+	int fd=pc->sysargs[2];
+	long pevent=pc->sysargs[3];
+	struct lfd_epoll_item *ep_item=(struct lfd_epoll_item *)pc->retval;
+	int rv=getrv(pc);
+	//printk("wrap_out_epoll_ctl %d %d\n",rv,fd);
+	if (rv >= 0) {
+		switch (op) {
+			case EPOLL_CTL_ADD:
+				if (ep_item) {
+					lfd_epoll_add(pc->fds, epfd, ep_item);
+					/*printk("ADD reset real data %llx\n", ep_item->event.data.u64);*/
+					ustoren(pc,pevent,sizeof(struct epoll_event *),&ep_item->event);
+				}
+				break;
+			case EPOLL_CTL_MOD: 
+				if (ep_item) {
+					struct lfd_epoll_item *ep_mod_item = lfd_epoll_search(pc->fds, epfd, fd);
+					if (ep_mod_item != NULL) ep_mod_item->event = ep_item->event;
+					ustoren(pc,pevent,sizeof(struct epoll_event *),&ep_item->event);
+					free(ep_item);
+				}
+				break;
+			case EPOLL_CTL_DEL:
+				lfd_epoll_del(pc->fds, epfd, fd);
+		}
+	} else {
+		if (ep_item != NULL)
+			free(ep_item);
+	}
+	return SC_MODICALL;
+}
+
+static void epoll_signal (void *arg)
+{
+	int lfd=(int)arg;
+	//printk("epoll_signal ---------> lfd %d\n",lfd);
+	lfd_signal(lfd);
+}
+
+static void wrap_in_epoll_wait_test(struct lfd_epoll_item *ep_item, void *arg)
+{
+	struct pcb *pc=arg;
+	int fd=ep_item->fd;
+	struct ht_elem *hte=ht_fd(pc->fds,fd,1);
+	if (hte != NULL) {
+		int sfd=fd2sfd(pc->fds,fd);
+		sysfun local_event_subscribe=ht_event_subscribe(hte);
+		if (sfd >= 0 && local_event_subscribe) {
+			int lfd=fd2lfd(pc->fds,fd);
+			if (local_event_subscribe(epoll_signal, (void *)lfd, sfd, ep_item->event.events) > 0) {
+				lfd_signal(lfd);
+			}
+		}
+	}
+}
+
+int wrap_in_epoll_wait(int sc_number,struct pcb *pc,
+		    struct ht_elem *hte, sysfun um_syscall)
+{
+	int epfd = pc->sysargs[0];
+	char *tag = fd_getpath(pc->fds,epfd);
+	if (tag == NULL) return STD_BEHAVIOR;
+	lfd_epoll_forall(pc->fds, epfd, wrap_in_epoll_wait_test, pc);
+	//printk("wrap_in_epoll_wait\n");
+	return SC_CALLONXIT;
+}
+
+static void wrap_out_epoll_wait_unsubscribe(struct lfd_epoll_item *ep_item, void *arg)
+{
+	struct pcb *pc=arg;
+	int fd=ep_item->fd;
+	struct ht_elem *hte=ht_fd(pc->fds,fd,1);
+	if (hte != NULL) {
+		int sfd=fd2sfd(pc->fds,fd);
+		sysfun local_event_subscribe=ht_event_subscribe(hte);
+		if (sfd >= 0 && local_event_subscribe) {
+			int lfd=fd2lfd(pc->fds,fd);
+			local_event_subscribe(NULL, (void *)lfd, sfd, ep_item->event.events); 
+		}
+	}
+}
+
+int wrap_out_epoll_wait(int sc_number,struct pcb *pc)
+{
+	int epfd = pc->sysargs[0];
+	long pevents = pc->sysargs[1];
+	int maxevents = pc->sysargs[2];
+	int size_events = maxevents * sizeof(struct epoll_event *);
+	int nevents = getrv(pc);
+	if (nevents > 0) {
+		struct epoll_event *events=lalloca(size_events);
+		if(events) {
+			int i;
+			umoven(pc,pevents,size_events,events);
+			for (i = 0; i < nevents; i++) {
+				struct lfd_epoll_item *ep_item = events[i].data.ptr;
+				struct ht_elem *hte;
+				//printk("wrap_out_epoll_wait reset from %p\n",ep_item);
+				events[i].data = ep_item->event.data;
+				hte=ht_fd(pc->fds,ep_item->fd,1);
+				if (hte != NULL) {
+					int sfd=fd2sfd(pc->fds,ep_item->fd);
+					sysfun local_event_subscribe=ht_event_subscribe(hte);
+					if (sfd >= 0 && local_event_subscribe) {
+						int lfd=fd2lfd(pc->fds,ep_item->fd);
+						events[i].events = local_event_subscribe(NULL, (void *)lfd, sfd, ep_item->event.events);
+						lfd_delsignal(lfd);
+					}
+				}
+				//printk("wrap_out_epoll_wait reset data %llx\n",events[i].data.u64);
+			}
+			ustoren(pc,pevents,size_events,events);
+		}
+		lfree(events,size_events);
+	}
+	lfd_epoll_forall(pc->fds, epfd, wrap_out_epoll_wait_unsubscribe, pc);
+	//printk("wrap_out_epoll_wait\n");
+	return SC_MODICALL;
+}
+
+#endif
 
 void um_select_addproc(struct pcb *pc,int flags,int npcbflag)
 {

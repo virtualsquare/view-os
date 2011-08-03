@@ -38,9 +38,6 @@ static struct pollfd *gpollfd;
 static struct pollext **pollext;
 static int gnfds,maxgnfds;
 static int bqsignaled;
-#ifndef _VIEWOS_KM
-static int bqpipe[2];
-#endif
 
 struct pollext {
 	void (*fun)(void *);

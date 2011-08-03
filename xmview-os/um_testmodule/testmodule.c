@@ -31,9 +31,9 @@
 static struct service s;
 VIEWOS_SERVICE(s)
 
-static long addproc(int id, int max)
+static long addproc(int id, int ppid, int max)
 {
-	fprintf(stderr, "testmodule add proc %d %d\n", id, max);
+	fprintf(stderr, "testmodule add proc %d %d %d\n", id, ppid, max);
 	GDEBUG(3, "new process id %d  pid %d   max %d",id,um_mod_getpid(),max);
 	return 0;
 }
@@ -74,7 +74,7 @@ static long ctl(int type, char *sender, va_list ap)
 		{
 			case 42:
 				arg = va_arg(ap, char*);
-				GMESSAGE("service %s is managing open(\"%s\", ...)",
+				printk(KERN_NOTICE "service %s is managing open(\"%s\", ...)",
 						sender, arg);
 				return 0;
 			default:
@@ -88,7 +88,7 @@ static long ctl(int type, char *sender, va_list ap)
 				id = va_arg(ap, int);
 				ppid = va_arg(ap, int);
 				max = va_arg(ap, int);
-				return addproc(id, max);
+				return addproc(id, ppid, max);
 
 			case MC_PROC | MC_REM:
 				id = va_arg(ap, int);
@@ -110,7 +110,7 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	GMESSAGE("testmodule init");
+	printk(KERN_NOTICE "testmodule init");
 	fprintf(stderr, "testmodule init\n");
 	s.name="test";
 	s.description="Test Module";
@@ -129,5 +129,5 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	GMESSAGE("testmodule fini");
+	printk(KERN_NOTICE "testmodule fini");
 }

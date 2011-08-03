@@ -123,6 +123,14 @@ wrapinfun wrap_in_adjtimex, wrap_in_clock_gettime, wrap_in_clock_settime;
 wrapinfun wrap_in_clock_getres;
 wrapinfun wrap_in_uname, wrap_in_gethostname, wrap_in_sethostname;
 
+#ifdef _UM_EPOLL
+#ifndef __NR_epoll_create1
+#define __NR_epoll_create1 __NR_epoll_create
+#endif
+wrapinfun wrap_in_epoll_create,wrap_in_epoll_ctl,wrap_in_epoll_wait;
+wrapoutfun wrap_out_epoll_create,wrap_out_epoll_ctl,wrap_out_epoll_wait;
+#endif
+
 /* we should keep this structure unique. the indexes can be used to forward
  * the call on a different computer.*/
 
@@ -189,6 +197,13 @@ struct sc_map scmap[]={
 	{__NR__newselect,always_null,	wrap_in_select,	wrap_out_select,always_null,	NULL, ALWAYS,	5, SOC_FILE|SOC_NET},
 	{__NR_pselect6,	always_null,	wrap_in_select,	wrap_out_select,always_null,	NULL, ALWAYS,	6, SOC_FILE|SOC_NET},
 	{__NR_ppoll,	always_null,	wrap_in_poll,	wrap_out_poll,  always_null,	NULL, ALWAYS,	4, SOC_FILE|SOC_NET},
+#ifdef _UM_EPOLL
+	{__NR_epoll_create,	always_null,	wrap_in_epoll_create,	wrap_out_epoll_create,  always_null,	NULL, ALWAYS,	1, SOC_FILE|SOC_NET},
+	{__NR_epoll_create1,	always_null,	wrap_in_epoll_create,	wrap_out_epoll_create,  always_null,	NULL, ALWAYS,	1, SOC_FILE|SOC_NET},
+	{__NR_epoll_ctl,	always_null,	wrap_in_epoll_ctl,	wrap_out_epoll_ctl,  always_null,	NULL, ALWAYS,	4, SOC_FILE|SOC_NET},
+	{__NR_epoll_wait,	always_null,	wrap_in_epoll_wait,	wrap_out_epoll_wait,  always_null,	NULL, ALWAYS,	4, SOC_FILE|SOC_NET},
+	{__NR_epoll_pwait,	always_null,	wrap_in_epoll_wait,	wrap_out_epoll_wait,  always_null,	NULL, ALWAYS,	5, SOC_FILE|SOC_NET},
+#endif
 	{__NR_umask,	always_null,	wrap_in_umask,  wrap_out_std,	always_null,	NULL, ALWAYS,	1, SOC_FILE|SOC_NET},
 	{__NR_chroot,	choice_path,	wrap_in_chroot, wrap_out_chroot,	always_null,	NULL, ALWAYS,	1, SOC_FILE|SOC_NET},
 	{__NR_dup,	choice_fd,	wrap_in_dup,	wrap_out_dup,	nchoice_fd, nw_sysdup, ALWAYS,	1, SOC_FILE|SOC_NET},

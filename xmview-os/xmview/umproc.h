@@ -36,6 +36,14 @@ extern int um_mmap_secret;
 extern int um_mmap_pageshift;
 #endif
 
+#ifdef _UM_EPOLL
+#include <sys/epoll.h>
+struct lfd_epoll_item {
+	int fd;
+	struct epoll_event event;
+};
+#endif
+
 /* informations about the full set of file descriptors of a process */
 struct pcb_file {
 	/* with CLONE_FILES, more than one process can refer to the same file
@@ -70,6 +78,7 @@ int fd2lfd (struct pcb_file *p, int fd);
 int fd_getfdfl(struct pcb_file *p, int fd);
 int fd_setfdfl(struct pcb_file *p, int fd, int val);
 int fd_getflfl(struct pcb_file *p, int fd);
+int fd_setflfl(struct pcb_file *p, int fd, int flags);
 int fd2sfd (struct pcb_file *p, int fd);
 char *fd_getpath(struct pcb_file *p, int fd);
 void lfd_register (struct pcb_file *p, int fd, int lfd);
@@ -80,4 +89,14 @@ void lfd_delsignal(int lfd);
 struct ht_elem *ht_fd(struct pcb_file *p, int fd, int setepoch);
 char *sfd_getpath(struct ht_elem *hte, int sfd);
 
+#ifdef _UM_EPOLL
+void lfd_epoll_add(struct pcb_file *p,int epfd,struct lfd_epoll_item *ep_item);
+//void lfd_epoll_mod(struct pcb_file *p,int epfd,struct lfd_epoll_item *ep_item);
+void lfd_epoll_del(struct pcb_file *p,int epfd,int fd);
+struct lfd_epoll_item *lfd_epoll_search(struct pcb_file *p,int epfd,int fd);
+void lfd_epoll_forall(struct pcb_file *p, int epfd,
+		void (* fun)(struct lfd_epoll_item *epoll,void *arg),
+		void *arg);
+
+#endif
 #endif

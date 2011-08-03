@@ -244,7 +244,11 @@ int um_parentwaccess(char *filename, struct pcb *pc)
 	pc->tst.epoch=epoch;
 	pc->nestepoch=nestepoch;
 	filename[lastslash]='/';
-	if (pc->suid == stbuf.st_uid && (stbuf.st_mode & S_IWUSR))
+	if (retval < 0) {
+		errno=EIO;
+		return -1;
+	}
+	else if (pc->suid == stbuf.st_uid && (stbuf.st_mode & S_IWUSR))
 		return 0;
 	else if ((stbuf.st_mode & S_IWGRP) && 
 			(pc->sgid == stbuf.st_gid || in_supgrplist(stbuf.st_gid, pc)))

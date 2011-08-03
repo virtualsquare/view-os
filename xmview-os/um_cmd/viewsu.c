@@ -20,8 +20,7 @@
  *
  *   $Id: um_add_service.c 775 2009-09-01 21:15:23Z rd235 $
  *
- */
-
+ */   
 #include <config.h>
 #include<stdio.h>
 #include<stdlib.h>
@@ -113,11 +112,11 @@ int main(int argc, char *argv[])
 	int status;
 	int c;
 	struct passwd *pwd;
-
+	
 	/* outside viewos use su(1) */
 	if (um_check_viewos()==0) 
 		execvp("su",argv);
-
+	
 	while (1) {
 		int option_index = 0;
 		c = getopt_long(argc, argv, "c:ls:mph",
@@ -131,9 +130,9 @@ int main(int argc, char *argv[])
 								break;
 			case 's': shell=optarg;
 								break;
-								//	case 'm':
-								//	case 'p': preserve_environment=1;
-								//						break;
+		//	case 'm':
+		//	case 'p': preserve_environment=1;
+		//						break;
 			case 'h': usage(argv[0]);
 								break;
 		}
@@ -150,7 +149,7 @@ int main(int argc, char *argv[])
 	}
 
 	//if (!preserve_environment)
-	//clearenv();
+		//clearenv();
 	if (user) {
 		pwd=getpwnam(user);
 		if (pwd == NULL) {

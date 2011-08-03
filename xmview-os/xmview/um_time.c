@@ -96,7 +96,7 @@ int wrap_in_settimeofday(int sc_number,struct pcb *pc,
 	}
 	else
 		tzx=NULL;
-	if ((pc->retval = um_syscall(&tv,&tz)) < 0)
+	if ((pc->retval = um_syscall(tvx,tzx)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }

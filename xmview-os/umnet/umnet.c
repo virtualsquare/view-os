@@ -604,9 +604,9 @@ static long umnet_mount(char *source, char *target, char *filesystemtype,
 		return -1;
 	} else {
 		struct umnet *new = (struct umnet *) malloc(sizeof(struct umnet));
-		struct stat64 *s64;
+		/*struct stat64 *s64;*/
 		assert(new);
-		s64=um_mod_getpathstat();
+		/*s64=um_mod_getpathstat();*/ /* uncomment to check something on stat data */
 		new->path = strdup(target);
 		new->pathlen = strlen(target);
 		new->dlhandle=dlhandle;

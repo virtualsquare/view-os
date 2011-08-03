@@ -257,8 +257,8 @@ static int check_group(gid_t gid){
 		myuid=fc->uid;
 		mygid=fc->gid;
 	} else {
-		myuid=getuid();
-		mygid=getgid();
+		myuid=geteuid();
+		mygid=getegid();
 	}
 
 	pthread_mutex_lock( &m );
@@ -267,19 +267,23 @@ static int check_group(gid_t gid){
 	if (myuid!=0){
 		res=getpwuid_r(myuid, &pw,buf,buflen, &pwbufp);
 		if (res==0) {
-			res=-EACCES;
-			groups = (gid_t *) malloc(ng * sizeof (gid_t));
-			if (getgrouplist(pw.pw_name, pw.pw_gid, groups, &ng) < 0) {
-				free(groups);
+			if (mygid == gid)
+				res = 0;
+			else {
+				res=-EACCES;
 				groups = (gid_t *) malloc(ng * sizeof (gid_t));
-				if (groups!=NULL) {
-					getgrouplist(pw.pw_name, pw.pw_gid, groups, &ng);
-					for(i = 0; i < ng; i++) {							
-						if (groups[i]==gid) {res=0;break;}
+				if (getgrouplist(pw.pw_name, pw.pw_gid, groups, &ng) < 0) {
+					free(groups);
+					groups = (gid_t *) malloc(ng * sizeof (gid_t));
+					if (groups!=NULL) {
+						getgrouplist(pw.pw_name, pw.pw_gid, groups, &ng);
+						for(i = 0; i < ng; i++) {							
+							if (groups[i]==gid) {res=0;break;}
+						}
 					}
 				}
+				free(groups); 
 			}
-			free(groups); 
 		}
 	} else {res=0;}
 	pthread_mutex_unlock( &m );
@@ -290,14 +294,11 @@ static int check_permission(mode_t mode,uid_t uid,gid_t gid,int mask){
 	struct fuse_context *fc=um_mod_get_private_data();
 	int res=-EACCES;
 	uid_t myuid;
-	gid_t mygid;
 
 	if (fc!=NULL) {
 		myuid=fc->uid;
-		mygid=fc->gid;
 	} else {
-		myuid=getuid();
-		mygid=getgid();
+		myuid=geteuid();
 	}
 
 	if (myuid!=0){
@@ -435,7 +436,7 @@ static void *startmain(void *vsmo)
 	}
 
 	if (psmo->new->fuse->flags & FUSE_HUMAN)
-		printk("UmFUSE Human mode\n");
+		printk(KERN_NOTICE "UmFUSE Human mode\n");
 
 	/* some modules could change argv! */
 	if ((newnewargv=malloc(newargc * sizeof (char *))) != NULL) {

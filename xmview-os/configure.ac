@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.60)
-AC_INIT([View-OS], [0.8], [info@v2.cs.unibo.it], [umview])
+AC_INIT([View-OS], [0.8.2.1], [info@v2.cs.unibo.it], [umview])
 AM_INIT_AUTOMAKE([foreign dist-bzip2 1.10])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_SRCDIR([xmview/umview.c])
@@ -27,8 +27,20 @@ AC_CHECK_LIB([pthread], [pthread_key_create],, AC_MSG_ERROR([libpthread missing]
 AC_CHECK_LIB([vdeplug], [vde_recv], [enable_umdevtap=yes],
 			 [enable_umdevtap=warn])
 
-AC_SUBST(PYTHON_CFLAGS)
-AC_SUBST(PYTHON_LIBS)
+#umpyew temporary disabled (not yet upgraded to 0.8)
+#AM_PATH_PYTHON([2.4], [enable_umpyew=yes], [enable_umpyew=warn])
+## define PYTHOPN_CFLAGS & PYTHON_LIBS
+#PYTHON_CONFIG=`type -p python$PYTHON_VERSION-config`
+#if test "$PYTHON_CONFIG" != ""; then
+#	PYTHON_CFLAGS=`$PYTHON_CONFIG --includes`
+#	PYTHON_LIBS=`$PYTHON_CONFIG --libs`
+#else
+#	PYTHON_CFLAGS=`$PYTHON $srcdir/python-config.py --includes`
+#	PYTHON_LIBS=`$PYTHON $srcdir/python-config.py --libs`
+#fi
+#
+#AC_SUBST(PYTHON_CFLAGS)
+#AC_SUBST(PYTHON_LIBS)
 
 # Checks for header files.
 AC_FUNC_ALLOCA
@@ -42,6 +54,11 @@ AC_CHECK_HEADERS([fuse.h fuse/fuse.h], [enable_umfuse=yes], [enable_umfuse=warn]
 AC_CHECK_HEADER([libvdeplug.h],, [enable_umdevtap=warn])
 
 AC_CHECK_HEADER([lwipv6.h], [enable_um_lwip=yes], [enable_um_lwip=warn])
+
+#CPPFLAGS_save="${CPPFLAGS}"
+#CPPFLAGS="${PYTHON_CFLAGS}"
+#AC_CHECK_HEADER([Python.h],, [enable_umpyew=warn])
+#CPPFLAGS="${CPPFLAGS_save}"
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -100,9 +117,17 @@ AC_ARG_ENABLE([lwip],
 							 [Disable support for LWIPv6 networking]),
 							 [if test x$enableval = "xno"; then enable_um_lwip=no; fi],)
 
+# umpyew disabled
+#AC_ARG_ENABLE([python],
+#			  AS_HELP_STRING([--disable-python],
+#							 [Disable support for Python modules]),
+#							 [if test x$enableval = "xno"; then enable_umpyew=no; fi],)
+
 AM_CONDITIONAL([ENABLE_UMDEVTAP], [test x$enable_umdevtap = "xyes"])
 AM_CONDITIONAL([ENABLE_UMFUSE], [test x$enable_umfuse = "xyes"])
 AM_CONDITIONAL([ENABLE_UM_LWIP], [test x$enable_um_lwip = "xyes"])
+# umpyew disabled
+#AM_CONDITIONAL([ENABLE_UMPYEW], [test x$enable_umpyew = "xyes"])
 AM_CONDITIONAL([ENABLE_DEBUG], [test x$enable_debug = "xyes"])
 
 AC_CONFIG_FILES([Makefile
@@ -123,6 +148,7 @@ AC_CONFIG_FILES([Makefile
                  umnet/Makefile
                  umnet_modules/Makefile
                  umnetlwipv6/Makefile
+                 umfuse_modules/Makefile
                  xmview/Makefile])
 AC_OUTPUT
 
@@ -144,3 +170,10 @@ then
 	AC_MSG_WARN([UMView support for LWIPv6 networking (um_lwip) will NOT be
 compiled. You need LWIPv6 development files installed.])
 fi
+
+# umpyew disabled
+#if test x$enable_umpyew = "xwarn"
+#then
+#	AC_MSG_WARN([UMView support for Python modules (umpyew) will NOT be
+#compiled. You nedd Python >= 2.4 and Python >= 2.4 development files installed.])
+#fi

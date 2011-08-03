@@ -306,15 +306,10 @@ int wrap_in_dup(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {
 	int sfd;
-	if (sc_number == __NR_dup) 
-		pc->sysargs[1]= -1;
-#ifdef __NR_dup3
-	if (sc_number != __NR_dup3) 
-#endif
-		pc->sysargs[2]= 0;
+	int oldfd=(sc_number==__NR_dup)?-1:pc->sysargs[1];
 	sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	GDEBUG(4, "DUP %d %d sfd %d %s",pc->sysargs[0],pc->sysargs[1],sfd,fd_getpath(pc->fds,pc->sysargs[0]));
-	if (pc->sysargs[1] == um_mmap_secret || (sfd < 0 && hte != NULL)) {
+	if (oldfd == um_mmap_secret || (sfd < 0 && hte != NULL)) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 		return SC_FAKE;
@@ -327,7 +322,7 @@ int wrap_in_dup(int sc_number,struct pcb *pc,
 		} 
 		/* dup2/dup3: if the file to close is virtual, CALLONEXIT to
 			 update the file table if the call succeeds */
-		else if (fd2lfd(pc->fds,pc->sysargs[1]) >= 0)
+		else if (fd2lfd(pc->fds,oldfd) >= 0)
 			return SC_CALLONXIT;
 		else
 			return STD_BEHAVIOR;
@@ -336,6 +331,7 @@ int wrap_in_dup(int sc_number,struct pcb *pc,
 
 int wrap_out_dup(int sc_number,struct pcb *pc)
 {
+	int oldfd=(sc_number==__NR_dup)?-1:pc->sysargs[1];
 	/* SC_CALLONXIT both for NULL and module managed files.
 	 * FAKE only when the module gave an error */
 	if (pc->behavior == SC_CALLONXIT) {
@@ -346,8 +342,7 @@ int wrap_out_dup(int sc_number,struct pcb *pc)
 				 || addfd(pc,fd) == 0)) {
 			/* DUP2 case, the previous fd has been closed, umview must
 			 * update its lfd table */
-			if (pc->sysargs[1] != -1) {
-				int oldfd=pc->sysargs[1];
+			if (oldfd != -1) {
 				int oldlfd=fd2lfd(pc->fds,oldfd);
 				if (oldlfd >= 0) /* socket and stdin/out/err are -1*/
 				{
@@ -355,7 +350,7 @@ int wrap_out_dup(int sc_number,struct pcb *pc)
 					/* pc->hte for newfd is saved and restored */
 					struct ht_elem *newhte=pc->hte;
 					if ((pc->hte=lfd_getht(oldlfd)) != NULL)
-						delfd(pc,pc->sysargs[1]);
+						delfd(pc,oldfd);
 					lfd_deregister_n_close(pc->fds,oldfd);
 					pc->hte=newhte;
 				}
@@ -363,7 +358,7 @@ int wrap_out_dup(int sc_number,struct pcb *pc)
 			if (pc->retval >= 0)
 				lfd_register(pc->fds,fd,pc->retval);
 #ifdef __NR_dup3
-			if (pc->sysargs[2] & O_CLOEXEC) {
+			if ((sc_number == __NR_dup3) && (pc->sysargs[2] & O_CLOEXEC)) {
 				fd_setfdfl(pc->fds,fd,FD_CLOEXEC);
 			}
 #endif
@@ -515,6 +510,9 @@ int wrap_in_fcntl(int sc_number,struct pcb *pc,
 			default:
 				if ((pc->retval = um_syscall(sfd,cmd,arg)) == -1)
 					pc->erno= errno;
+				/* remember the change (if the syscall succeeded) */
+				if (pc->retval >= 0 && cmd == F_SETFL)
+					fd_setflfl(pc->fds,fd,arg);
 				if (pc->retval < 0 && pc->erno == ENOSYS) { /* last chance */
 					switch (cmd) {
 						/* this is just a workaround for module that does not manage
@@ -541,7 +539,9 @@ int wrap_out_fcntl(int sc_number,struct pcb *pc)
 		case F_DUPFD:
 			fd=getrv(pc);
 			//printk("F_DUPFD %d->%d\n",pc->retval,fd);
-			if (fd>=0 && addfd(pc,fd) == 0)
+			if (fd>=0 &&
+					(lfd_getht(pc->retval) == NULL
+					 || addfd(pc,fd) == 0))
 				lfd_register(pc->fds,fd,pc->retval);
 			else
 				lfd_close(pc->retval);
@@ -609,11 +609,11 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 			pc->hte=hte;
 			if (secure && (pc->retval=(um_parentwaccess(pc->path,pc))) < 0)
 				pc->erno=errno;
-			if (secure && 
+			else if (secure && 
 					(sc_number == __NR_rename || sc_number == __NR_renameat) &&
 					(pc->retval=(um_parentwaccess(source,pc))) < 0)
 				pc->erno=errno;
-			if ((pc->retval=um_syscall(source,pc->path)) < 0)
+			else if ((pc->retval=um_syscall(source,pc->path)) < 0)
 				pc->erno= errno;
 		}
 		free(source);
@@ -636,7 +636,7 @@ int wrap_in_symlink(int sc_number,struct pcb *pc,
 	} else {
 		if (secure && (pc->retval=(um_parentwaccess(pc->path,pc))) < 0)
 			pc->erno=errno;
-		if ((pc->retval=um_syscall(source,pc->path)) < 0)
+		else if ((pc->retval=um_syscall(source,pc->path)) < 0)
 			pc->erno= errno;
 		free(source);
 	}
@@ -650,6 +650,7 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 	unsigned long argaddr;
 	struct timeval tv[2];
 	struct timeval *larg;
+	int sfd = -1;
 #ifdef __NR_futimesat
 	if (sc_number == __NR_futimesat
 #ifdef __NR_utimensat
@@ -679,6 +680,8 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 				tv[1].tv_sec=times[1].tv_sec;
 				tv[0].tv_usec=times[0].tv_nsec/1000;
 				tv[1].tv_usec=times[1].tv_nsec/1000;
+				if (pc->sysargs[1] == umNULL)
+					sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 			} else 
 #endif
 			/* UTIMES FUTIMESAT*/
@@ -687,7 +690,7 @@ int wrap_in_utime(int sc_number,struct pcb *pc,
 	}
 	if (secure && (pc->retval=(um_x_access(pc->path,W_OK,pc,&pc->pathstat))) < 0)
 		pc->erno=errno;
-	if ((pc->retval = um_syscall(pc->path,larg)) < 0)
+	else if ((pc->retval = um_syscall(pc->path,larg,sfd)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }
@@ -727,13 +730,8 @@ int wrap_in_mount(int sc_number,struct pcb *pc,
 		char *ghost;
 		umovestr(pc,pdata,PATH_MAX,data);
 		if ((ghost=strstr(data,"ghost")) != NULL && (ghost==data || ghost[-1]==',') &&
-				(ghost[5]=='\0' || ghost[5]==',')) {
+				(ghost[5]=='\0' || ghost[5]==','))
 			mountflags |= MS_GHOST;
-			if (ghost[5] == '\0')
-				ghost[0]='\0';
-			else
-				memmove(ghost,ghost+6,strlen(ghost+6));
-		}
 	} else
 		datax=NULL;
 	if ((pc->retval = um_syscall(source,pc->path,get_alias(CHECKFSALIAS,filesystemtype),
@@ -790,7 +788,7 @@ int wrap_in_truncate(int sc_number,struct pcb *pc,
 		off=pc->sysargs[1];
 	if (secure && (pc->retval=(um_x_access(pc->path,W_OK,pc,&pc->pathstat))) < 0)
 		pc->erno=errno;
-	if ((pc->retval=um_syscall(pc->path,off)) < 0)
+	else if ((pc->retval=um_syscall(pc->path,off)) < 0)
 		pc->erno=errno;
 	return SC_FAKE;
 }

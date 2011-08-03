@@ -20,9 +20,8 @@
  *
  *   $Id: um_add_service.c 775 2009-09-01 21:15:23Z rd235 $
  *
- */
-
-#include<config.h>
+ */   
+#include <config.h>
 #include<stdio.h>
 #include<stdlib.h>
 #include<unistd.h>
@@ -152,4 +151,5 @@ int main(int argc, char *argv[])
 						 waitpid(pid,&status,0);
 						 return(WEXITSTATUS(status));
 	}
+	return 0;
 }

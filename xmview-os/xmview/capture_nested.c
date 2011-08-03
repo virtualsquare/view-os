@@ -92,7 +92,7 @@ int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how)
 		}else
 			mp_del(fd,arg);
 		if (rv > 0) 
-			rv = pdf.revents ;
+			rv = pdf.revents;
   }	
 	pc->nestepoch = nestepoch;
 	pc->tst.epoch = epoch;

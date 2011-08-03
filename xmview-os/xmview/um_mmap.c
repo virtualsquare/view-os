@@ -349,7 +349,6 @@ static void store_mmap_secret(struct ht_elem *hte,const char *to, unsigned long 
 	char buf[BUFSIZ];
 	int fdf;
 	int n;
-	struct ht_elem *shte;
 	//printk("store_mmap_secret %s %ld %p\n",to, pgoffset,hte);
 #if __NR__llseek != __NR_doesnotexist
 	loff_t result;
@@ -359,8 +358,15 @@ static void store_mmap_secret(struct ht_elem *hte,const char *to, unsigned long 
 	r_lseek(um_mmap_secret,pgoffset << um_mmap_pageshift,SEEK_SET);
 #endif
 	/* hte is *not* set. search for "to".*/
-	shte=ht_check(CHECKPATH,(void *)to,NULL,0);
-	assert(hte==shte);
+#ifdef NDEBUG
+	ht_check(CHECKPATH,(void *)to,NULL,0);
+#else
+	{
+		struct ht_elem *shte;
+		shte=ht_check(CHECKPATH,(void *)to,NULL,0);
+		assert(hte==shte);
+	}
+#endif
 	if ((fdf=ht_syscall(hte,uscno(__NR_open))(to,O_WRONLY | O_TRUNC | O_CREAT,0)) < 0)
 		return;
 	while (length > 0) {

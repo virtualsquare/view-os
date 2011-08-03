@@ -68,13 +68,13 @@ static long delmodule(char *sender)
 
 static long ctl(int type, char *sender, va_list ap)
 {
-	int id, ppid, max;
+	int id, /*ppid,*/ max;
 
 	switch(type)
 	{
 		case MC_PROC | MC_ADD:
 			id = va_arg(ap, int);
-			ppid = va_arg(ap, int);
+			/*ppid = */ va_arg(ap, int);
 			max = va_arg(ap, int);
 			return addproc(id, max);
 			
@@ -108,7 +108,7 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	GMESSAGE("real init");
+	printk(KERN_NOTICE "real init");
 	s.name="real";
 	s.description="Identity (server side)";
 	s.ctl = ctl;
@@ -149,5 +149,5 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	GMESSAGE("real fini");
+	printk(KERN_NOTICE "real fini");
 }

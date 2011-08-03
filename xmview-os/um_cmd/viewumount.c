@@ -20,6 +20,7 @@
  *
  */
 
+#include <config.h>
 #include<stdio.h>
 #include<stdlib.h>
 #include<fcntl.h>
@@ -62,5 +63,6 @@ int main(int argc, char * argv[])
 
 	if (umount2(target, umountflags))
 		perror("umount");
+
 	return 0;
 }

@@ -370,7 +370,7 @@ int wrap_in_pwritev(int sc_number,struct pcb *pc,
 			p += qty;
 		}
 		/* PWRITEV is mapped onto PWRITE */
-		if ((pc->retval = um_syscall(sfd,lbuf,totalsize)) < 0)
+		if ((pc->retval = um_syscall(sfd,lbuf,totalsize,offset)) < 0)
 			pc->erno=errno;
 		lfree(lbuf,totalsize);
 	}

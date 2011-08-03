@@ -21,6 +21,7 @@
  *   $Id$
  *
  */   
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <config.h>
@@ -43,10 +44,9 @@ int main(int argc, char *argv[])
 		fprintf(stderr,"This is a View-OS command. It works only inside a umview/kmview virtual machine\n");
 		usage();
 	}            
-	if (argc != 1) {
+	if (argc != 1)
 		usage();
-		exit(1);
-	} else {
+	else {
 		if ((n=um_list_service(lsbuf,PATH_MAX)) < 0) {
 			perror("um_list_service");
 			exit(1);
@@ -66,4 +66,5 @@ int main(int argc, char *argv[])
 			exit(0);
 		}
 	}
+	return 0;
 }

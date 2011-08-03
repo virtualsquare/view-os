@@ -22,6 +22,7 @@
  *   $Id: viewname.c 464 2008-04-17 10:53:55Z garden $
  *
  */   
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

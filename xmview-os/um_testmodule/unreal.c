@@ -76,13 +76,13 @@ static long delmodule(char *sender)
 
 static long ctl(int type, char *sender, va_list ap)
 {
-	int id, ppid, max;
+	int id, /*ppid,*/ max;
 
 	switch(type)
 	{
 		case MC_PROC | MC_ADD:
 			id = va_arg(ap, int);
-			ppid = va_arg(ap, int);
+			/*ppid =*/ va_arg(ap, int);
 			max = va_arg(ap, int);
 			return addproc(id, max);
 			
@@ -237,7 +237,7 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	GMESSAGE("unreal init");
+	printk(KERN_NOTICE "unreal init");
 	s.name="unreal";
 	s.description="/unreal Mapping to FS (server side)";
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
@@ -300,5 +300,5 @@ fini (void)
 	GBACKTRACE(5,20);
 	free(s.syscall);
 	free(s.socket);
-	GMESSAGE("unreal fini");
+	printk(KERN_NOTICE "unreal fini");
 }

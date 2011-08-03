@@ -359,7 +359,6 @@ static int umstd_fgetattr (const char *path, struct stat *buf, struct fuse_file_
 
 struct fuse_operations defaultservice={
 	.getattr = umstd_getattr,
-	.getattr = umstd_getattr,
 	.readlink = umstd_readlink,
 	.getdir = umstd_getdir,
 	.mknod = umstd_mknod,

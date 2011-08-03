@@ -418,10 +418,10 @@ static long umdev_ioctlparms(int fd,int req)
 	if (ft->umdev->devops->ioctlparms) {
 		struct dev_info di;
 		di.fh = ft->fh;
-		di.flags = 0;
+		di.flags = ft->umdev->flags;
 		di.devhandle=ft->umdev;
 		return ft->umdev->devops->ioctlparms(
-				ft->type, ft->device, req, ft->umdev);
+				ft->type, ft->device, req, &di);
 	} else
 		return 0;
 }

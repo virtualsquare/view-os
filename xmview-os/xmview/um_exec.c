@@ -128,14 +128,20 @@ static char **getparms(struct pcb *pc,long laddr) {
 	int n=0;
 	int i;
 	do {
-		int rv;
 		if (n >= size) {
 			size+=CHUNKSIZE;
 			paddr=realloc(paddr,size*sizeof(long));
 			assert(paddr);
 		}
-		rv=umoven(pc,laddr,sizeof(char *),&(paddr[n]));
-		assert(rv>=0);
+#ifdef NDEBUG
+		umoven(pc,laddr,sizeof(char *),&(paddr[n]));
+#else
+		{
+			int rv;
+			rv=umoven(pc,laddr,sizeof(char *),&(paddr[n]));
+			assert(rv>=0);
+		}
+#endif
 		laddr+= sizeof(char *);
 		n++;
 	} while (paddr[n-1] != 0);
@@ -301,7 +307,7 @@ int wrap_in_execve(int sc_number,struct pcb *pc,
 			pc->erno=EACCES;
 		}
 		/* does the module define a semantics for execve? */
-		if (!isnosys(um_syscall)) {
+		else if (!isnosys(um_syscall)) {
 			long largv=pc->sysargs[1];
 			long lenv=pc->sysargs[2];
 			char **argv=getparms(pc,largv);

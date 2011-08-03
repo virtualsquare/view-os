@@ -21,6 +21,7 @@
  *   $Id$
  *
  */   
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -31,15 +32,15 @@
 void usage()
 {
 	fprintf(stderr, "Usage:\n\tum_del_service service_name\n");
-	exit(2);
 }
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	int c;
 	if (um_check_viewos()==0) {
 		fprintf(stderr,"This is a View-OS command. It works only inside a umview/kmview virtual machine\n");
 		usage();
+		return 2;
 	}            
 	while (1) {
 		int option_index = 0;
@@ -51,14 +52,14 @@ main(int argc, char *argv[])
 	}
 	if (argc - optind != 1) {
 		usage();
-		exit (1);
+		return 2;
 	} else {
 		if (um_del_service(argv[optind]) < 0) {
 			perror("um_del_service");
-			exit(1);
+			return 1;
 		}
 		else
-			exit(0);
+			return 0;
 	}
 }
 
