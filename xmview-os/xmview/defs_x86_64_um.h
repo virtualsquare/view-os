@@ -116,7 +116,7 @@
 static inline long getregs(struct pcb *pc)
 {
 	struct user_regs_struct temp;
-	long rv = ptrace(PTRACE_GETREGS, pc->pid,NULL,(void*) &temp);
+	long rv = r_ptrace(PTRACE_GETREGS, pc->pid,NULL,(void*) &temp);
 
 	pc->saved_regs[MY_RDI] = temp.rdi;
 	pc->saved_regs[MY_RSI] = temp.rsi;
@@ -186,14 +186,14 @@ static inline long setregs(struct pcb *pc, enum __ptrace_request call, long op, 
 		struct ptrace_multi req[] = {
 			{PTRACE_SETREGS, 0, (void *) &temp, 0},
 			{call, op, (void*) sig, 0}};
-		return ptrace(PTRACE_MULTI, pc->pid, req, 2); 
+		return r_ptrace(PTRACE_MULTI, pc->pid, req, 2); 
 	}
 	else
 	{
 		int rv;
-		rv = ptrace(PTRACE_SETREGS, pc->pid, NULL, (void*) &temp);
+		rv = r_ptrace(PTRACE_SETREGS, pc->pid, NULL, (void*) &temp);
 		if (rv == 0) 
-			rv = ptrace(call, pc->pid, op, sig);
+			rv = r_ptrace(call, pc->pid, op, sig);
 		return rv;
 	}
 }

@@ -42,16 +42,16 @@ static inline long getregs(struct pcb *pc)
 			{PTRACE_PEEKUSER, 4*PT_ORIG_R3, &(pc->saved_regs[11]), 1},
 			{PTRACE_PEEKUSER, 4*PT_CCR, &(pc->saved_regs[12]), 1}};
 			errno=0;
-			return ptrace(PTRACE_MULTI,pc->pid,req,4);
+			return r_ptrace(PTRACE_MULTI,pc->pid,req,4);
 	} else {
 		register int count;
 		for(count=0;count<10;count++){
-			pc->saved_regs[count]=ptrace(PTRACE_PEEKUSER,pc->pid,(void*)(4*count),0);
+			r_ptrace(PTRACE_PEEKUSER,pc->pid,(void*)(4*count),&(pc->saved_regs[count]));
 			if(errno!=0) break; 
 		}
-		pc->saved_regs[10]=ptrace(PTRACE_PEEKUSER,pc->pid,(void*)(4*PT_NIP),0);
-		pc->saved_regs[11]=ptrace(PTRACE_PEEKUSER,pc->pid,(void*)(4*PT_ORIG_R3),0);
-		pc->saved_regs[12]=ptrace(PTRACE_PEEKUSER,pc->pid,(void*)(4*PT_CCR),0);
+		r_ptrace(PTRACE_PEEKUSER,pc->pid,(void*)(4*PT_NIP),&(pc->saved_regs[10]));
+		r_ptrace(PTRACE_PEEKUSER,pc->pid,(void*)(4*PT_ORIG_R3),&(pc->saved_regs[11]));
+		r_ptrace(PTRACE_PEEKUSER,pc->pid,(void*)(4*PT_CCR),&(pc->saved_regs[12]));
 		return (errno!=0)?-1:0;
 	}
 }
@@ -65,16 +65,16 @@ static inline long setregs(struct pcb *pc, enum __ptrace_request call,
 			{PTRACE_POKEUSER, 4*PT_NIP, &(pc->saved_regs[10]), 1},
 			{PTRACE_POKEUSER, 4*PT_CCR, &(pc->saved_regs[12]), 1},
 			{call, op, (void *) sig, 0}};
-		return ptrace(PTRACE_MULTI,pc->pid,req,4); 
+		return r_ptrace(PTRACE_MULTI,pc->pid,req,4); 
 	} else {
 		int rv,count;
 		for(count=0;count<10;count++){
-			rv=ptrace(PTRACE_POKEUSER,pc->pid,(void*)(4*count),pc->saved_regs[count]);
+			rv=r_ptrace(PTRACE_POKEUSER,pc->pid,(void*)(4*count),pc->saved_regs[count]);
 			if(rv!=0)break;
 		}
-		if(rv==0) rv=ptrace(PTRACE_POKEUSER,pc->pid,(void*)(4*PT_NIP),pc->saved_regs[10]);
-		if(rv==0) rv=ptrace(PTRACE_POKEUSER,pc->pid,(void*)(4*PT_CCR),pc->saved_regs[12]);
-		if(rv==0) rv=ptrace(call,pc->pid,op,sig);
+		if(rv==0) rv=r_ptrace(PTRACE_POKEUSER,pc->pid,(void*)(4*PT_NIP),pc->saved_regs[10]);
+		if(rv==0) rv=r_ptrace(PTRACE_POKEUSER,pc->pid,(void*)(4*PT_CCR),pc->saved_regs[12]);
+		if(rv==0) rv=r_ptrace(call,pc->pid,op,sig);
 		return rv;
 	}
 }
