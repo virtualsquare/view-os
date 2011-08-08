@@ -189,6 +189,7 @@ extern unsigned int quiet;
 extern unsigned int printk_current_level;
 /* omnipotent/human */
 extern unsigned int secure;
+extern unsigned int secretdebug;
 #ifdef _UM_PTRACE
 extern unsigned int ptraceemu;
 #endif

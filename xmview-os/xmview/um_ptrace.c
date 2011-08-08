@@ -563,6 +563,8 @@ void um_ptrace_addproc(struct pcb *pc,int flags,int npcbflag)
 				if (pc->ptrace_pp != NULL) {
 					pc->ptrace_pp->ptrace_ntraced++;
 					/*printk("CLONED TRACED PROCESS %d p%d t%d\n",pc->pid,pc->pp->pid,pc->ptrace_pp->pid);*/
+					if (secretdebug)
+						printk("[%d] CLONED TRACED PROCESS %d p%d t%d\n",getpid(),pc->pid,pc->pp->pid,pc->ptrace_pp->pid);
 				}
 			}
 		}

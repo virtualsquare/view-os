@@ -57,6 +57,7 @@
 #ifdef GDEBUG_ENABLED
 #include "syscallnames.h"
 #endif
+#include "syscallnames.h"
 
 #ifdef _UM_PTRACE
 #define PT_M_OK(pc) (PT_VM_OK && PT_TRACED(pc) == NULL)
@@ -375,7 +376,7 @@ int fakesigstopcont(struct pcb *pc)
 /* FORK/VFORK/CLONE management */
 void offspring_enter(struct pcb *pc)
 {
-	//printf("offspring_enter:%d\n",pc->pid);
+	//printk("offspring_enter:%d\n",pc->pid);
 	pc->sysargs[0]=getargn(0,pc);
 	pc->sysargs[1]=getargn(1,pc);
 	//printk("offspring_enter %x %x\n",pc->sysargs[0],pc->sysargs[1]);
@@ -521,7 +522,6 @@ void tracehand()
 			{
 				divfun fun;
 				GDEBUG(3, "--> pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
-				//printf("IN\n");
 				pc->sysscno = scno;
 				switch (scdnarg[scno]) {
 					case 6:
@@ -606,7 +606,7 @@ void tracehand()
 						offspring_exit(pc);
 						putrv(newpid,pc);
 					} else {
-						////printf("ERESTARTNOINTR scno %d %ld %ld\n",scno, newpid,pc->saved_regs[MY_RAX]);
+						////printk("ERESTARTNOINTR scno %d %ld %ld\n",scno, newpid,pc->saved_regs[MY_RAX]);
 						offspring_exit(pc);
 					}
 
@@ -654,7 +654,7 @@ void tracehand()
 							GPERROR(0, "setregs");
 						if(!isreproducing && (pc->behavior & PTRACE_VM_SKIPEXIT))
 							pc->sysscno=NOSC; 
-					} else
+					} else {
 #ifdef _UM_PTRACE
 						if (setregs(pc,
 									(ptrace_hook_sysout(pc))?0:PTRACE_SYSCALL, 0, pc->signum) < 0)
@@ -663,6 +663,7 @@ void tracehand()
 						if (setregs(pc,PTRACE_SYSCALL, 0, pc->signum) < 0)
 							GPERROR(0, "setregs");
 #endif
+					}
 				} else /* register not modified */
 				{
 					//printk ("RESTART\n");
@@ -708,7 +709,7 @@ void tracehand()
 			/*if (!sigishandled(pc,  WSTOPSIG(status))) {
 			// also progenie, but for now 
 			//r_ptrace(PTRACE_KILL,pid,0,0);
-			//printf("KILLED %d %d\n", pid,pc->pid);
+			//printk("KILLED %d %d\n", pid,pc->pid);
 			}*/
 #ifdef FAKESIGSTOP
 			if (WSTOPSIG(status) == SIGTSTP && pc->pp != NULL) {
@@ -740,7 +741,7 @@ void tracehand()
 		}
 		/* process termination management */
 		else if(WIFEXITED(status)) {
-			//printf("%d: exited\n",pid);
+			//printk("%d: exited\n",pid);
 			/* the process has terminated */
 			droppcb(pc,status);
 			/* if it was the "init" process (first child), save its exit status,
@@ -823,7 +824,7 @@ void sc_resume(struct pcb *pc)
 				GPERROR(0, "setregs");
 			if(!isreproducing && (pc->behavior & PTRACE_VM_SKIPEXIT))
 				pc->sysscno=NOSC;
-		} else
+		} else {
 #ifdef _UM_PTRACE
 			if (setregs(pc,
 						(ptrace_hook_sysout(pc))?0:PTRACE_SYSCALL,0,signum) == -1)
@@ -832,6 +833,7 @@ void sc_resume(struct pcb *pc)
 			if (setregs(pc,PTRACE_SYSCALL,0,signum) == -1)
 				GPERROR(0, "setregs");
 #endif
+		}
 		free(pc->saved_regs);
 		pc->saved_regs=0;
 	}
@@ -978,16 +980,12 @@ int capture_main(char **argv, char *rc)
 			r_setpriority(PRIO_PROCESS,0,0);
 			if(r_ptrace(PTRACE_TRACEME, 0, 0, 0) < 0){
 				GPERROR(0, "ptrace");
-				printk("1\n");
 				exit(1);
 			}
 			r_kill(getpid(), SIGSTOP);
-			//printk("2\n");
 			capture_execrc("/etc/viewosrc",(char *)0);
-			//printk("3\n");
 			if (rc != NULL && *rc != 0)
 				capture_execrc(rc,(char *)0);
-			//printk("4\n");
 			/* maybe it is better to use execvp instead of r_execvp.
 			 * the former permits to load the startup executable through 
 			 * a (preloaded) module */
@@ -1006,7 +1004,7 @@ int capture_main(char **argv, char *rc)
 			pthread_setspecific(pcb_key,pcbtab[0]);
 			if(r_waitpid(first_child_pid, &status, WUNTRACED) < 0){
 				GPERROR(0, "Waiting for stop");
-				printk("B errno %d getpid %d\n",errno,getpid());
+				//printk("B errno %d getpid %d\n",errno,getpid());
 				exit(1);
 			}
 			/* set up the signal management */
@@ -1014,7 +1012,7 @@ int capture_main(char **argv, char *rc)
 			/* okay, the first process can start (traced) */
 			if(r_ptrace(PTRACE_SYSCALL, first_child_pid, 0, 0) < 0){
 				GPERROR(0, "continuing");
-				printk("A getpid %d\n",getpid());
+				//printk("A getpid %d\n",getpid());
 				exit(1);
 			}
 	}

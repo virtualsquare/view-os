@@ -57,7 +57,7 @@
 #include "mainpoll.h"
 #include "gdebug.h"
 
-#	define COMMON_OPTSTRING "+p:f:hvnxqV:sr"
+#define COMMON_OPTSTRING "+p:f:hvnxqV:srD::"
 #ifdef GDEBUG_ENABLED
 #	define GDEBUG_OPT "o:"
 #else
@@ -81,6 +81,7 @@ unsigned int printk_current_level = PRINTK_STARTUP_LEVEL;
 unsigned int secure = 0;
 unsigned int doptrace = 0;
 unsigned int realrecursion = 0;
+unsigned int secretdebug = 0;
 #ifdef _UM_PTRACE
 unsigned int ptraceemu = 0;
 #endif
@@ -346,6 +347,12 @@ static void umview_earlyargs(int argc,char *argv[])
 		switch (c) {
 			case 'r':
 				realrecursion = 1;
+				break;
+			case 'D':
+				if (optarg == 0 || *optarg == 0)
+					secretdebug=1;
+				else
+					secretdebug=atoi(optarg);
 				break;
 		}
 	}

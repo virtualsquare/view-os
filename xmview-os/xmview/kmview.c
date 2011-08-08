@@ -57,7 +57,7 @@
 #include "gdebug.h"
 #include "loginshell.h"
 
-#	define COMMON_OPTSTRING "+p:f:hvxqV:us"
+#define COMMON_OPTSTRING "+p:f:hvxqV:usD::"
 #ifdef GDEBUG_ENABLED
 # define GDEBUG_OPT "o:"
 #else
@@ -71,6 +71,7 @@ int _umview_version = 2; /* modules interface version id.
 unsigned int quiet = 0;
 unsigned int printk_current_level = PRINTK_STARTUP_LEVEL;
 unsigned int secure = 0;
+unsigned int secretdebug = 0;
 static char *viewname;
 
 extern int nprocs;
@@ -234,6 +235,12 @@ static void load_it_again(int argc,char *argv[],int login)
 				break;
 			case 'x': /* do not use pure_libc */
 				nesting=0;
+				break;
+			case 'D':
+				if (optarg == 0 || *optarg == 0)
+					secretdebug=1;
+				else
+					secretdebug=atoi(optarg);
 				break;
 		}
 	}
