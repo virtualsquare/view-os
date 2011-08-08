@@ -164,6 +164,9 @@ extern sfun native_syscall;
 #define r_getgroups(s,g) (native_syscall(__NR_getgroups,(s),(g)))
 #define r_setgroups(s,g) (native_syscall(__NR_setgroups,(s),(g)))
 #endif
+#define r_ptrace(r,p,a,d) (native_syscall(__NR_ptrace,(r),(p),(a),(d)))
+#define r_tkill(t,s) (native_syscall(__NR_tkill,(t),(s)))
+#define r_tgkill(t,g,s) (native_syscall(__NR_tgkill,(t),(g),(s)))
 
 /* debugging functions */
 #define KERN_EMERG      "<0>"   /* system is unusable                   */

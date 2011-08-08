@@ -32,7 +32,7 @@
 
 static inline long getregs(struct pcb *pc)
 {
-	return ptrace(PTRACE_GETREGS,pc->pid,NULL,(void*) pc->saved_regs);
+	return r_ptrace(PTRACE_GETREGS,pc->pid,NULL,(void*) pc->saved_regs);
 }
 
 static inline long setregs(struct pcb *pc, enum __ptrace_request call,
@@ -42,11 +42,11 @@ static inline long setregs(struct pcb *pc, enum __ptrace_request call,
 		struct ptrace_multi req[] = {
 			{PTRACE_SETREGS, 0, (void *) pc->saved_regs, 0}, 
 			{call,op,(void *)sig,0}};
-		return ptrace(PTRACE_MULTI,pc->pid,req,2);
+		return r_ptrace(PTRACE_MULTI,pc->pid,req,2);
 	} else {
 		int rv;
-		rv=ptrace(PTRACE_SETREGS,pc->pid,NULL,(void*) pc->saved_regs);
-		if(rv== 0) rv=ptrace(call,pc->pid,op,sig);
+		rv=r_ptrace(PTRACE_SETREGS,pc->pid,NULL,(void*) pc->saved_regs);
+		if(rv== 0) rv=r_ptrace(call,pc->pid,op,sig);
 		return rv;
 	}
 }
@@ -74,8 +74,8 @@ static inline void printregs(struct pcb *pc)
 /*
 #define putexit(RV,ERR,PC) \
 	do { \
-		ptrace(PTRACE_POKEUSER, ((PC)->pid), 4 * PT_R3, (RV)); \
-		ptrace(PTRACE_POKEUSER, ((PC)->pid), 4 * ORIG_EAX, (ERR)); \
+		r_ptrace(PTRACE_POKEUSER, ((PC)->pid), 4 * PT_R3, (RV)); \
+		r_ptrace(PTRACE_POKEUSER, ((PC)->pid), 4 * ORIG_EAX, (ERR)); \
 	} while (0)
 	*/
 #define getsp(PC) (PC)->saved_regs[UESP]

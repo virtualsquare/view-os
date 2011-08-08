@@ -293,7 +293,7 @@ static int handle_new_proc(int pid, struct pcb *pp)
 	//printk("handle_new_proc %d %p\n",pid,pp);
 	if ((oldpc=pc=pid2pcb(pid)) == NULL && (pc = newpcb(pid))== NULL) {
 		printk("[pcb table full]\n");
-		if(ptrace(PTRACE_KILL, pid, 0, 0) < 0){
+		if(r_ptrace(PTRACE_KILL, pid, 0, 0) < 0){
 			GPERROR(0, "KILL");
 			exit(1);
 		}
@@ -314,7 +314,7 @@ static int handle_new_proc(int pid, struct pcb *pp)
 				exit(1);
 			}
 #else
-			if(ptrace(PTRACE_SYSCALL, pid, 0, SIGSTOP) < 0){
+			if(r_ptrace(PTRACE_SYSCALL, pid, 0, SIGSTOP) < 0){
 				GPERROR(0, "continuing");
 				exit(1);
 			}
@@ -352,7 +352,7 @@ int fakesigstopcont(struct pcb *pc)
 	{
 		GDEBUG(1, "FAKECONT %d",kpid);
 		kpc->flags &= ~PCB_FAKESTOP;
-		if(ptrace(PTRACE_SYSCALL, kpid, 0, 0) < 0){
+		if(r_ptrace(PTRACE_SYSCALL, kpid, 0, 0) < 0){
 			GPERROR(0, "continuing");
 			exit(1);
 		}
@@ -415,7 +415,7 @@ void tracehand()
 			/* error case */
 			printk("signal from unknown pid %d: killed\n",pid);
 			GDEBUG(0, "signal from unknown pid %d: killed",pid);
-			if(ptrace(PTRACE_KILL, pid, 0, 0) < 0){
+			if(r_ptrace(PTRACE_KILL, pid, 0, 0) < 0){
 				GPERROR(0, "KILL");
 				exit(1);
 			}
@@ -612,12 +612,12 @@ void tracehand()
 				{
 					//printk ("RESTART\n");
 					if (PT_VM_OK) {
-						if (ptrace(PTRACE_SYSVM,pc->pid,pc->behavior & SC_VM_MASK,pc->signum) < 0)
+						if (r_ptrace(PTRACE_SYSVM,pc->pid,pc->behavior & SC_VM_MASK,pc->signum) < 0)
 							GPERROR(0, "restart");
 						if(pc->behavior & PTRACE_VM_SKIPEXIT)
 							pc->sysscno=NOSC; 
 					}else {
-						if (ptrace(PTRACE_SYSCALL,pc->pid,0,pc->signum) < 0)
+						if (r_ptrace(PTRACE_SYSCALL,pc->pid,0,pc->signum) < 0)
 							GPERROR(0, "restart");
 					}
 				}
@@ -647,7 +647,7 @@ void tracehand()
 			}
 			/*if (!sigishandled(pc,  WSTOPSIG(status))) {
 			// also progenie, but for now 
-			//ptrace(PTRACE_KILL,pid,0,0);
+			//r_ptrace(PTRACE_KILL,pid,0,0);
 			//printf("KILLED %d %d\n", pid,pc->pid);
 			}*/
 #ifdef FAKESIGSTOP
@@ -667,11 +667,11 @@ void tracehand()
 					putargn(1,pc->sysargs[1],pc);
 					setregs(pc,PTRACE_SYSCALL,0,SIGSTOP);
 #else
-					ptrace(PTRACE_SYSCALL, pid, 0, SIGSTOP);
+					r_ptrace(PTRACE_SYSCALL, pid, 0, SIGSTOP);
 #endif
 				} else
 					/* forward signals to the process */
-					if(ptrace(PTRACE_SYSCALL, pid, 0, WSTOPSIG(status)) < 0){
+					if(r_ptrace(PTRACE_SYSCALL, pid, 0, WSTOPSIG(status)) < 0){
 						GPERROR(0, "continuing");
 						exit(1);
 					}
@@ -858,12 +858,12 @@ static int r_execvp(const char *file, char *const argv[]){
 int capture_attach(struct pcb *pc,pid_t pid)
 {
 	handle_new_proc(pid,pc);
-	if (ptrace(PTRACE_ATTACH,pid,0,0) < 0)
+	if (r_ptrace(PTRACE_ATTACH,pid,0,0) < 0)
 		return -errno;
 	else {
 		int status;
 		if(r_waitpid(pid, &status, WUNTRACED) < 0 ||
-				ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0)
+				r_ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0)
 			GPERROR(0, "restarting attached");
 		return 0;
 	}
@@ -909,7 +909,7 @@ int capture_main(char **argv, char *rc)
 			/* try to set process priority back to standard prio (effective only when 
 			 * umview runs in setuid mode), useless call elsewhere */
 			r_setpriority(PRIO_PROCESS,0,0);
-			if(ptrace(PTRACE_TRACEME, 0, 0, 0) < 0){
+			if(r_ptrace(PTRACE_TRACEME, 0, 0, 0) < 0){
 				GPERROR(0, "ptrace");
 				exit(1);
 			}
@@ -940,7 +940,7 @@ int capture_main(char **argv, char *rc)
 			/* set up the signal management */
 			setsigaction();
 			/* okay, the first process can start (traced) */
-			if(ptrace(PTRACE_SYSCALL, first_child_pid, 0, 0) < 0){
+			if(r_ptrace(PTRACE_SYSCALL, first_child_pid, 0, 0) < 0){
 				GPERROR(0, "continuing");
 				exit(1);
 			}

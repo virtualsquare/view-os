@@ -49,7 +49,7 @@ umoven(struct pcb *pc, long addr, int len, void *_laddr)
 	/* ptrace_multi is the quickest way */
 	if (has_ptrace_multi) {
 		struct ptrace_multi req[] = {{PTRACE_PEEKCHARDATA, addr, _laddr, len}};
-		return ptrace(PTRACE_MULTI, pc->pid, req, 1); 
+		return r_ptrace(PTRACE_MULTI, pc->pid, req, 1); 
 	}
 	else {
 #ifdef _PROC_MEM_TEST
@@ -77,9 +77,7 @@ umoven(struct pcb *pc, long addr, int len, void *_laddr)
 				/* addr not a multiple of sizeof(long) */
 				n = addr - (addr & -sizeof(long)); /* residue */
 				addr &= -sizeof(long); /* residue */
-				errno = 0;
-				u.val = ptrace(PTRACE_PEEKDATA, pc->pid, (char *) addr, 0);
-				if (errno) {
+				if (r_ptrace(PTRACE_PEEKDATA, pc->pid, (char *) addr, &u.val) < 0) {
 					if (started && (errno==EPERM || errno==EIO)) {
 						/* Ran into 'end of memory' - stupid "printpath" */
 						return 0;
@@ -93,9 +91,7 @@ umoven(struct pcb *pc, long addr, int len, void *_laddr)
 				addr += sizeof(long), laddr += m, len -= m;
 			}
 			while (len) {
-				errno = 0;
-				u.val = ptrace(PTRACE_PEEKDATA, pc->pid, (char *) addr, 0);
-				if (errno) {
+				if (r_ptrace(PTRACE_PEEKDATA, pc->pid, (char *) addr, &u.val) < 0) {
 					if (started && (errno==EPERM || errno==EIO)) {
 						/* Ran into 'end of memory' - stupid "printpath" */
 						return 0;
@@ -122,7 +118,7 @@ umovestr(struct pcb *pc, long addr, int len, void *_laddr)
 	/* quick solution: ptrace_multi is available */
 	if (has_ptrace_multi) {
 		struct ptrace_multi req[] = {{PTRACE_PEEKSTRINGDATA, addr, _laddr, len}};
-		long rv=ptrace(PTRACE_MULTI, pc->pid, req, 1); 
+		long rv=r_ptrace(PTRACE_MULTI, pc->pid, req, 1); 
 		if (rv >= 0)
 			return 0;
 		else
@@ -152,9 +148,7 @@ umovestr(struct pcb *pc, long addr, int len, void *_laddr)
 				/* addr not a multiple of sizeof(long) */
 				n = addr - (addr & -sizeof(long)); /* residue */
 				addr &= -sizeof(long); /* residue */
-				errno = 0;
-				u.val = ptrace(PTRACE_PEEKDATA, pc->pid, (char *)addr, 0);
-				if (errno) {
+				if (r_ptrace(PTRACE_PEEKDATA, pc->pid, (char *)addr, &u.val) < 0) {
 					if (started && (errno==EPERM || errno==EIO)) {
 						/* Ran into 'end of memory' - stupid "printpath" */
 						return 0;
@@ -170,9 +164,7 @@ umovestr(struct pcb *pc, long addr, int len, void *_laddr)
 				addr += sizeof(long), laddr += m, len -= m;
 			}
 			while (len) {
-				errno = 0;
-				u.val = ptrace(PTRACE_PEEKDATA, pc->pid, (char *)addr, 0);
-				if (errno) {
+				if (r_ptrace(PTRACE_PEEKDATA, pc->pid, (char *)addr, &u.val) < 0) {
 					if (started && (errno==EPERM || errno==EIO)) {
 						/* Ran into 'end of memory' - stupid "printpath" */
 						return 0;
@@ -203,7 +195,7 @@ ustoren(struct pcb *pc, long addr, int len, void *_laddr)
 	if (has_ptrace_multi) {
 	/* wow: there is ptrace_multi, this is the quicky way */
 		struct ptrace_multi req[] = {{PTRACE_POKECHARDATA, addr, _laddr, len}};
-		return ptrace(PTRACE_MULTI, pc->pid, req, 1); 
+		return r_ptrace(PTRACE_MULTI, pc->pid, req, 1); 
 	}
 	else {
 #ifdef _PROC_MEM_TEST
@@ -230,9 +222,7 @@ ustoren(struct pcb *pc, long addr, int len, void *_laddr)
 				/* addr not a multiple of sizeof(long) */
 				n = addr - (addr & -sizeof(long)); /* residue */
 				addr &= -sizeof(long); /* residue */
-				errno = 0;
-				u.val = ptrace(PTRACE_PEEKDATA, pc->pid, (char *) addr, 0);
-				if (errno) {
+				if (r_ptrace(PTRACE_PEEKDATA, pc->pid, (char *) addr, &u.val) < 0) {
 					if (started && (errno==EPERM || errno==EIO)) {
 						/* Ran into 'end of memory' - stupid "printpath" */
 						return 0;
@@ -243,35 +233,31 @@ ustoren(struct pcb *pc, long addr, int len, void *_laddr)
 			}
 				started = 1;
 				memcpy(&u.x[n], laddr, m = MIN(sizeof(long) - n, len));
-				ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val);
-				addr += sizeof(long), laddr += m, len -= m;
-				if (errno) {
+				if (r_ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val) < 0) {
 					/*perror("ustoren2");*/
 					return -1;
 				}
+				addr += sizeof(long), laddr += m, len -= m;
 			}
 			while (len) {
-				errno = 0;
 				if (len < sizeof(long)) {
-					u.val = ptrace(PTRACE_PEEKDATA, pc->pid, (char *) addr, 0);
-				}
-				if (errno) {
-					if (started && (errno==EPERM || errno==EIO)) {
-						/* Ran into 'end of memory' - stupid "printpath" */
-						return 0;
+					if (r_ptrace(PTRACE_PEEKDATA, pc->pid, (char *) addr, &u.val) < 0) {
+						if (started && (errno==EPERM || errno==EIO)) {
+							/* Ran into 'end of memory' - stupid "printpath" */
+							return 0;
+						}
+						if (addr != 0)
+							/*perror("ustoren3");*/
+							return -1;
 					}
-					if (addr != 0)
-						/*perror("ustoren3");*/
-						return -1;
 				}
 				started = 1;
 				memcpy(u.x, laddr, m = MIN(sizeof(long), len));
-				ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val);
-				addr += sizeof(long), laddr += m, len -= m;
-				if (errno) {
+				if (r_ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val) < 0) {
 					/*perror("ustoren4");*/
 					return -1;
 				}
+				addr += sizeof(long), laddr += m, len -= m;
 			}
 			return 0;
 		}
@@ -287,7 +273,7 @@ ustorestr(struct pcb *pc, long addr, int len, void *_laddr)
 	if (has_ptrace_multi) {
 		/* ptrace is provided by this kernel -> let's go speedy */
 		struct ptrace_multi req[] = {{PTRACE_POKECHARDATA, addr, _laddr, len}};
-		return ptrace(PTRACE_MULTI, pc->pid, req, 1); 
+		return r_ptrace(PTRACE_MULTI, pc->pid, req, 1); 
 	}
 	else {
 #ifdef _PROC_MEM_TEST
@@ -315,9 +301,7 @@ ustorestr(struct pcb *pc, long addr, int len, void *_laddr)
 				/* addr not a multiple of sizeof(long) */
 				n = addr - (addr & -sizeof(long)); /* residue */
 				addr &= -sizeof(long); /* residue */
-				errno = 0;
-				u.val = ptrace(PTRACE_PEEKDATA, pc->pid, (char *)addr, 0);
-				if (errno) {
+				if (r_ptrace(PTRACE_PEEKDATA, pc->pid, (char *)addr, &u.val) < 0) {
 					if (started && (errno==EPERM || errno==EIO)) {
 						/* Ran into 'end of memory' - stupid "printpath" */
 						return 0;
@@ -327,8 +311,7 @@ ustorestr(struct pcb *pc, long addr, int len, void *_laddr)
 				}
 				started = 1;
 				memcpy(&u.x[n], laddr, m = MIN(sizeof(long)-n,len));
-				ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val);
-				if (errno) {
+				if (r_ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val) < 0) {
 					/*perror("ustoren");*/
 					return -1;
 				}
@@ -338,24 +321,22 @@ ustorestr(struct pcb *pc, long addr, int len, void *_laddr)
 				addr += sizeof(long), laddr += m, len -= m;
 			}
 			while (len) {
-				errno = 0;
-				for (i = 0; i < sizeof(long); i++)
+				for (i = 0; i < sizeof(long); i++) {
 					if (laddr[i] == '\0') {
-						u.val = ptrace(PTRACE_PEEKDATA, pc->pid, (char *)addr, 0);
+						if (r_ptrace(PTRACE_PEEKDATA, pc->pid, (char *)addr, &u.val) < 0) {
+							if (started && (errno==EPERM || errno==EIO)) {
+								/* Ran into 'end of memory' - stupid "printpath" */
+								return 0;
+							}
+							/*perror("ustorestr");*/
+							return -1;
+						}
 						break;
 					}
-				if (errno) {
-					if (started && (errno==EPERM || errno==EIO)) {
-						/* Ran into 'end of memory' - stupid "printpath" */
-						return 0;
-					}
-					/*perror("ustorestr");*/
-					return -1;
 				}
 				started = 1;
 				memcpy(u.x, laddr, m = MIN(sizeof(long), len));
-				ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val);
-				if (errno) {
+				if (r_ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val) < 0) {
 					/*perror("ustoren");*/
 					return -1;
 				}

@@ -33,7 +33,7 @@
 #include <asm/unistd.h>
 #include <errno.h>
 #include <config.h>
-#define r_waitpid(p,s,o) (syscall(__NR_wait4,(p),(s),(o),NULL))
+#include <defs.h>
 
 /* these constant should eventually enter in sys/ptrace.h */
 #ifndef PTRACE_SYSCALL_SKIPCALL
@@ -50,7 +50,7 @@ static int child(void *arg)
 {
 	int *featurep=arg;
 	int p[2]={-1,-1};
-	if(ptrace(PTRACE_TRACEME, 0, 0, 0) < 0){
+	if(r_ptrace(PTRACE_TRACEME, 0, 0, 0) < 0){
 		perror("ptrace test_ptracemulti");
 	}
 	kill(getpid(), SIGSTOP);
@@ -88,11 +88,11 @@ unsigned int test_ptracemulti(unsigned int *vm_mask, unsigned int *sysvm_tag) {
 	}
 
 	/* restart and wait for the next syscall (getpid)*/
-	rv=ptrace(PTRACE_SYSCALL, pid, 0, 0);
+	rv=r_ptrace(PTRACE_SYSCALL, pid, 0, 0);
 	if(waitpid(pid, &status, WUNTRACED) < 0)
 		goto out;
 	/* try to skip the exit call */
-	rv=ptrace(PTRACE_SYSCALL, pid, PTRACE_SYSCALL_SKIPEXIT, 0);
+	rv=r_ptrace(PTRACE_SYSCALL, pid, PTRACE_SYSCALL_SKIPEXIT, 0);
 	if (rv < 0)
 		goto out;
 	/* wait for the next stop */
@@ -104,14 +104,14 @@ unsigned int test_ptracemulti(unsigned int *vm_mask, unsigned int *sysvm_tag) {
 	if (*vm_mask<PTRACE_SYSCALL_SKIPEXIT)
 		goto out;
 	/* restart (pipe) and and try to skip the entire call */
-	rv=ptrace(PTRACE_SYSCALL, pid, PTRACE_SYSCALL_SKIPCALL, 0);
+	rv=r_ptrace(PTRACE_SYSCALL, pid, PTRACE_SYSCALL_SKIPCALL, 0);
 	if(waitpid(pid, &status, WUNTRACED) < 0)
 		return 0;
 out:
 	/*deprecated backward compatibility with SYS_VM */
 	if (*vm_mask == 0) {
 		errno=0;
-		*vm_mask=ptrace(PTRACE_OLDSYSVM, pid, PTRACE_VM_TEST, 0);
+		*vm_mask=r_ptrace(PTRACE_OLDSYSVM, pid, PTRACE_VM_TEST, 0);
 		if (errno != 0) {
 			*vm_mask=0;
 			*sysvm_tag=0;
@@ -119,11 +119,11 @@ out:
 			*sysvm_tag=PTRACE_OLDSYSVM;
 	} else
 		*sysvm_tag=PTRACE_SYSCALL;
-	if (ptrace(PTRACE_MULTI, pid, stack, 0) < 0) 
+	if (r_ptrace(PTRACE_MULTI, pid, stack, 0) < 0) 
 		rv=0;
 	else
 		rv=1;
-  ptrace(PTRACE_KILL,pid,0,0);
+  r_ptrace(PTRACE_KILL,pid,0,0);
   if((pid = r_waitpid(pid, &status, WUNTRACED)) < 0){
 	  perror("Waiting for stop");
 	  return 0;
