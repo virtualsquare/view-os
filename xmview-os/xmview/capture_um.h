@@ -38,7 +38,7 @@ void capture_execrc(const char *path,const char *argv1);
 /* let the game start! */
 int capture_main(char **argv, char *rc);
 /* resume a process previously suspended */
-void sc_resume(void *pc);
+void sc_resume(struct pcb *pc);
 
 /* get the pcb of the current thread (thread safe) */
 struct pcb *get_pcb();
@@ -53,5 +53,11 @@ void tracehand();
 struct pcb *pid2pcb(int pid);
 
 int capture_attach(struct pcb *pc,pid_t pid);
+
+#ifdef _UM_PTRACE
+int ptrace_hook_in(int status, struct pcb *pc);
+int ptrace_hook_out(int *status, struct pcb **pc);
+int ptrace_hook_sysout(struct pcb *pc);
+#endif
 
 #endif

@@ -40,6 +40,7 @@
 #endif
 #include <config.h>
 #include <loginshell.h>
+#include<errno.h>
 
 #ifndef _VIEWOS_UM
 #define _VIEWOS_UM
@@ -56,11 +57,18 @@
 #include "mainpoll.h"
 #include "gdebug.h"
 
+#	define COMMON_OPTSTRING "+p:f:hvnxqV:sr"
 #ifdef GDEBUG_ENABLED
-#	define OPTSTRING "+p:f:o:hvnxqV:s"
+#	define GDEBUG_OPT "o:"
 #else
-#	define OPTSTRING "+p:f:hvnxqV:s"
+#	define GDEBUG_OPT ""
 #endif
+#ifdef _UM_PTRACE
+# define PTRACE_OPT "t"
+#else
+# define PTRACE_OPT ""
+#endif
+#define OPTSTRING COMMON_OPTSTRING GDEBUG_OPT PTRACE_OPT
 
 int _umview_version = 2; /* modules interface version id.
 										modules can test to be compatible with
@@ -71,6 +79,11 @@ unsigned int ptrace_sysvm_tag;
 unsigned int quiet = 0;
 unsigned int printk_current_level = PRINTK_STARTUP_LEVEL;
 unsigned int secure = 0;
+unsigned int doptrace = 0;
+unsigned int realrecursion = 0;
+#ifdef _UM_PTRACE
+unsigned int ptraceemu = 0;
+#endif
 static char *viewname;
 
 extern int nprocs;
@@ -190,8 +203,12 @@ static void usage(char *s)
 			"  --nokmulti                avoid using PTRACE_MULTI\n"
 			"  --noksysvm                avoid using PTRACE_SYSVM\n"
 			"  --nokviewos               avoid using PTRACE_VIEWOS\n\n"
-			"  -s, --secure              force permissions and capabilities\n",
-			s);
+			"  -s, --secure              force permissions and capabilities\n"
+			"  -r, --realrecursion       real nested umview based on ptrace\n"
+#ifdef _UM_PTRACE
+			"  -t, --ptraceemu           emulation of ptrace\n"
+#endif
+			,s);
 	exit(0);
 }
 
@@ -211,6 +228,10 @@ static struct option long_options[] = {
 	{"noksysvm",0,0,0x101},
 	{"nokviewos",0,0,0x102},
 	{"secure",0,0,'s'},
+	{"realrecursion",0,0,'r'},
+#ifdef _UM_PTRACE
+	{"ptraceemu",0,0,'t'},
+#endif
 	{0,0,0,0}
 };
 
@@ -271,6 +292,7 @@ static void umview_recursive(int argc,char *argv[])
 		exit(1);
 	}
 
+	optind=1;
 	while (1) {
 		int c;
 		int option_index = 0;
@@ -312,7 +334,23 @@ static void umview_recursive(int argc,char *argv[])
 	exit(-1);
 }
 
-#include<errno.h>
+/* user recursion must be recognized very early */
+static void umview_earlyargs(int argc,char *argv[])
+{
+	optind=1;
+	while (1) {
+		int c;
+		int option_index = 0;
+		c = getopt_long(argc, argv, OPTSTRING, long_options, &option_index);
+		if (c == -1) break;
+		switch (c) {
+			case 'r':
+				realrecursion = 1;
+				break;
+		}
+	}
+}
+
 /* UMVIEW MAIN PROGRAM */
 int main(int argc,char *argv[])
 {
@@ -327,6 +365,8 @@ int main(int argc,char *argv[])
 	/* if it was setuid, return back to the user status immediately,
 	 * for safety! */
 	r_setuid(getuid());
+	/* set early args */
+	umview_earlyargs(argc,argv);
 	/* Check these cases only when *not* reloaded for purelibc */
 	if (strncmp(argv[0],"--umview",8)!=0) {
 	/* if this is a nested invocation of umview, notify the umview monitor
@@ -334,7 +374,8 @@ int main(int argc,char *argv[])
 	 * try the nested invocation notifying virtual syscall, 
 	 * if it succeeded it is actually a nested invocation,
 	 * otherwise nobody is notified and the call fails*/
-		if (int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_VIEWOS,0,0,0,0,0) >= 0)
+		if (!realrecursion &&
+				int_virnsyscall(__NR_UM_SERVICE,1,RECURSIVE_VIEWOS,0,0,0,0,0) >= 0)
 			umview_recursive(argc,argv);	/* do not return!*/
 		/* umview loads itself twice if there is pure_libc, to trace module 
 		 * generated syscalls, this condition manages the first call */
@@ -347,8 +388,6 @@ int main(int argc,char *argv[])
 		exit(1);
 	}
 
-	/* does this kernel provide pselect? */
-	/*has_pselect=has_pselect_test();*/
 	optind=1;
 	argv[0]="umview";
 	/* set up the scdtab */
@@ -411,6 +450,11 @@ int main(int argc,char *argv[])
 			case 0x102: /* do not use ptrace_viewos */
 					 want_ptrace_viewos = 0;
 					 break;
+#ifdef _UM_PTRACE
+			case 't':
+					 ptraceemu = 1;
+					 break;
+#endif
 		}
 	}
 	

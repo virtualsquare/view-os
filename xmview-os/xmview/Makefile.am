@@ -6,7 +6,8 @@ PCB_MODULES = \
 	pcb.01.sctab.h \
 	pcb.02.umproc.h \
 	pcb.03.mmap.h \
-	pcb.04.select.h
+	pcb.04.select.h \
+	pcb.05.ptrace.h
 
 COMMON_SOURCES = \
 	canonicalize.c canonicalize.h \
@@ -40,6 +41,7 @@ COMMON_SOURCES = \
 	utils.h \
 	loginshell.c loginshell.h \
 	hashtab.c hashtab.h \
+	um_ptrace.c \
 	kmview.h
 # kmview.h must be removed, it will be part of the dev package of the
 # kmview.ko kernel module
@@ -86,7 +88,7 @@ dist_man5_MANS = viewospasswd.5
 CBASEFLAGS = -DNDEBUG
 CDEBUGFLAGS = -g3 -ggdb3
 
-CPPBASEFLAGS = -Wall -I../include -D_GNU_SOURCE -DLIBEXECDIR=\"$(libexecdir)\" -DMODULES_DIR=\"$(pkglibdir)/modules\" -D_UM_MMAP -D_UM_EPOLL
+CPPBASEFLAGS = -Wall -I../include -D_GNU_SOURCE -DLIBEXECDIR=\"$(libexecdir)\" -DMODULES_DIR=\"$(pkglibdir)/modules\" -D_UM_MMAP -D_UM_EPOLL -D_UM_PTRACE
 CPPDEBUGFLAGS = -DGDEBUG_ENABLED -DGDEBUG_LEVEL=$(DEBUGLEVEL)
 
 if ENABLE_DEBUG

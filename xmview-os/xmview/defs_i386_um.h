@@ -38,7 +38,7 @@ static inline long getregs(struct pcb *pc)
 static inline long setregs(struct pcb *pc, enum __ptrace_request call,
 		long op, long sig)
 {
-	if (has_ptrace_multi) {
+	if (has_ptrace_multi && call > 0) {
 		struct ptrace_multi req[] = {
 			{PTRACE_SETREGS, 0, (void *) pc->saved_regs, 0}, 
 			{call,op,(void *)sig,0}};
@@ -46,7 +46,7 @@ static inline long setregs(struct pcb *pc, enum __ptrace_request call,
 	} else {
 		int rv;
 		rv=r_ptrace(PTRACE_SETREGS,pc->pid,NULL,(void*) pc->saved_regs);
-		if(rv== 0) rv=r_ptrace(call,pc->pid,op,sig);
+		if(rv == 0 && call > 0) rv=r_ptrace(call,pc->pid,op,sig);
 		return rv;
 	}
 }

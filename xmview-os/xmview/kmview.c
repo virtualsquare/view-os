@@ -57,12 +57,13 @@
 #include "gdebug.h"
 #include "loginshell.h"
 
+#	define COMMON_OPTSTRING "+p:f:hvxqV:us"
 #ifdef GDEBUG_ENABLED
-#	define OPTSTRING "+p:f:o:hvxqV:us"
+# define GDEBUG_OPT "o:"
 #else
-#	define OPTSTRING "+p:f:hvxqV:us"
+# define GDEBUG_OPT ""
 #endif
-#define KMVIEW_USER_NESTING
+#define OPTSTRING COMMON_OPTSTRING GDEBUG_OPT 
 
 int _umview_version = 2; /* modules interface version id.
 										modules can test to be compatible with

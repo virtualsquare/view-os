@@ -63,6 +63,8 @@
 
 #define __NR_setpgrp __NR_doesnotexist
 
+#define __NR_waitpid __NR_doesnotexist
+
 #define LITTLEENDIAN
 #define LONG_LONG(_l,_h) \
 	    ((long long)((unsigned long long)(unsigned)(_l) | ((unsigned long long)(_h)<<32)))

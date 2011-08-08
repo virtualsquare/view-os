@@ -181,7 +181,7 @@ static inline long setregs(struct pcb *pc, enum __ptrace_request call, long op, 
 	temp.fs = pc->saved_regs[FS];
 	temp.gs = pc->saved_regs[GS];
 
-	if (has_ptrace_multi)
+	if (has_ptrace_multi && call > 0)
 	{
 		struct ptrace_multi req[] = {
 			{PTRACE_SETREGS, 0, (void *) &temp, 0},
@@ -192,7 +192,7 @@ static inline long setregs(struct pcb *pc, enum __ptrace_request call, long op, 
 	{
 		int rv;
 		rv = r_ptrace(PTRACE_SETREGS, pc->pid, NULL, (void*) &temp);
-		if (rv == 0) 
+		if (rv == 0 && call > 0) 
 			rv = r_ptrace(call, pc->pid, op, sig);
 		return rv;
 	}
@@ -260,4 +260,6 @@ static inline long setregs(struct pcb *pc, enum __ptrace_request call, long op, 
 #define wrap_in_fstat wrap_in_fstat64
 
 #define __NR_setpgrp __NR_doesnotexist
+
+#define __NR_waitpid __NR_doesnotexist
 #endif // _DEFS_X86_64

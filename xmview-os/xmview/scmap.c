@@ -84,6 +84,12 @@ wrapinfun wrap_in_getresgid, wrap_in_setresgid,wrap_in_setregid;
 wrapinfun wrap_in_nice, wrap_in_getpriority, wrap_in_setpriority;
 wrapinfun wrap_in_getpid, wrap_in_setpid, wrap_in_getpid_1, wrap_in_setpgid;
 wrapinfun wrap_in_getpgrp, wrap_in_setpgrp;
+#ifdef _UM_PTRACE
+wrapinfun wrap_in_ptrace;
+wrapinfun wrap_in_waitpid;
+wrapinfun wrap_in_waitid;
+wrapoutfun wrap_out_ptrace;
+#endif
 
 wrapoutfun wrap_out_open, wrap_out_std, wrap_out_close, wrap_out_chdir;
 wrapoutfun wrap_out_dup, wrap_out_select, wrap_out_poll, wrap_out_fcntl;
@@ -397,8 +403,12 @@ struct sc_map scmap[]={
 #endif
 #if 0
 	{__NR_sysctl, choice_sysctl, wrap_in_sysctl, wrap_out_sysctl, always_null,	NULL, 0, 2, 0}
-	/* this is a trip */
-	{__NR_ptrace, always_null, wrap_in_ptrace, wrap_out_ptrace, always_null,	NULL, 0, 4, 0}
+#endif
+#ifdef _UM_PTRACE
+	{__NR_ptrace, always_null, wrap_in_ptrace, wrap_out_ptrace, always_null,  NULL, ALWAYS, 4, 0},
+		{__NR_waitpid, always_null, wrap_in_waitpid, wrap_out_std, always_null, NULL, ALWAYS, 3, 0},
+		{__NR_wait4, always_null, wrap_in_waitpid, wrap_out_std, always_null, NULL, ALWAYS, 4, 0},
+		{__NR_waitid, always_null, wrap_in_waitid, wrap_out_std, always_null, NULL, ALWAYS, 4, 0},
 #endif
 
 	/* signal management for unblocking processes */

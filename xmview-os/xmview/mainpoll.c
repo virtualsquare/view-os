@@ -54,7 +54,7 @@ struct blockq {
 };
 
 static int umviewmainpid;
-static void restart_main_loop(void)
+void restart_main_loop(void)
 {
 	r_kill(umviewmainpid,SIGUSR1);
 }

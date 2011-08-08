@@ -189,6 +189,9 @@ extern unsigned int quiet;
 extern unsigned int printk_current_level;
 /* omnipotent/human */
 extern unsigned int secure;
+#ifdef _UM_PTRACE
+extern unsigned int ptraceemu;
+#endif
 
 #ifdef _VIEWOS_UM
 	/* flags on the underlying kernel support */

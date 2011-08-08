@@ -9,10 +9,6 @@
 #include <stdlib.h>
 #include "defs.h"
 
-#ifndef _VIEWOS_KM
-int hasppolltest();
-#endif
-
 void bq_add(void (*fun)(struct pcb *), struct pcb *pc);
 void bq_signal(struct pcb *pc);
 int bq_pidwake(long pid,int signum);
@@ -24,6 +20,8 @@ void mp_del(int fd, void *arg);
 
 int mp_poll();
 int mp_ppoll( const sigset_t *sigmask);
+
+void restart_main_loop(void);
 
 void mainpoll_init(int useppoll);
 #endif
