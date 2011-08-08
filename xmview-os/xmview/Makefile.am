@@ -86,7 +86,7 @@ dist_man5_MANS = viewospasswd.5
 CBASEFLAGS = -DNDEBUG
 CDEBUGFLAGS = -g3 -ggdb3
 
-CPPBASEFLAGS = -Wall -I../include -D_GNU_SOURCE -DLIBEXECDIR=\"$(libexecdir)\" -DMODULES_DIR=\"$(pkglibdir)/modules\" -D_UM_MMAP -D_USE_PSELECT -D_UM_EPOLL
+CPPBASEFLAGS = -Wall -I../include -D_GNU_SOURCE -DLIBEXECDIR=\"$(libexecdir)\" -DMODULES_DIR=\"$(pkglibdir)/modules\" -D_UM_MMAP -D_UM_EPOLL
 CPPDEBUGFLAGS = -DGDEBUG_ENABLED -DGDEBUG_LEVEL=$(DEBUGLEVEL)
 
 if ENABLE_DEBUG

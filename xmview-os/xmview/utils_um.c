@@ -233,12 +233,11 @@ ustoren(struct pcb *pc, long addr, int len, void *_laddr)
 			}
 				started = 1;
 				memcpy(&u.x[n], laddr, m = MIN(sizeof(long) - n, len));
-				r_ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val);
-				addr += sizeof(long), laddr += m, len -= m;
-				if (errno) {
+				if (r_ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val) < 0) {
 					/*perror("ustoren2");*/
 					return -1;
 				}
+				addr += sizeof(long), laddr += m, len -= m;
 			}
 			while (len) {
 				if (len < sizeof(long)) {
@@ -254,12 +253,11 @@ ustoren(struct pcb *pc, long addr, int len, void *_laddr)
 				}
 				started = 1;
 				memcpy(u.x, laddr, m = MIN(sizeof(long), len));
-				r_ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val);
-				addr += sizeof(long), laddr += m, len -= m;
-				if (errno) {
+				if (r_ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val) < 0) {
 					/*perror("ustoren4");*/
 					return -1;
 				}
+				addr += sizeof(long), laddr += m, len -= m;
 			}
 			return 0;
 		}
@@ -313,8 +311,7 @@ ustorestr(struct pcb *pc, long addr, int len, void *_laddr)
 				}
 				started = 1;
 				memcpy(&u.x[n], laddr, m = MIN(sizeof(long)-n,len));
-				r_ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val);
-				if (errno) {
+				if (r_ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val) < 0) {
 					/*perror("ustoren");*/
 					return -1;
 				}
@@ -339,8 +336,7 @@ ustorestr(struct pcb *pc, long addr, int len, void *_laddr)
 				}
 				started = 1;
 				memcpy(u.x, laddr, m = MIN(sizeof(long), len));
-				r_ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val);
-				if (errno) {
+				if (r_ptrace(PTRACE_POKEDATA, pc->pid, (char *) addr, u.val) < 0) {
 					/*perror("ustoren");*/
 					return -1;
 				}

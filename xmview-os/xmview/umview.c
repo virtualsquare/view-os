@@ -312,18 +312,6 @@ static void umview_recursive(int argc,char *argv[])
 	exit(-1);
 }
 
-/*
-static int has_pselect_test()
-{
-#ifdef _USE_PSELECT
-	static struct timespec to={0,0};
-	return (r_pselect6(0,NULL,NULL,NULL,&to,NULL)<0)?0:1;
-#else
-	return 0;
-#endif
-}
-*/
-
 #include<errno.h>
 /* UMVIEW MAIN PROGRAM */
 int main(int argc,char *argv[])
