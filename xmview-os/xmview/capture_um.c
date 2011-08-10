@@ -57,7 +57,6 @@
 #ifdef GDEBUG_ENABLED
 #include "syscallnames.h"
 #endif
-#include "syscallnames.h"
 
 #ifdef _UM_PTRACE
 #define PT_M_OK(pc) (PT_VM_OK && PT_TRACED(pc) == NULL)
@@ -320,12 +319,12 @@ static int handle_new_proc(int pid, struct pcb *pp)
 			putargn(0,pp->sysargs[0],pc);
 			putargn(1,pp->sysargs[1],pc);
 			////printk("starting1 pc->pid %d  %x %x was %x %x\n",pc->pid, pp->sysargs[0],pp->sysargs[1],getargn(0,pc),getargn(1,pc));
-			if(setregs(pc,PTRACE_SYSCALL,0,SIGSTOP) < 0){
+			if(setregs(pc,PTRACE_SYSCALL,0, 0) < 0){
 				GPERROR(0, "continuing");
 				exit(1);
 			}
 #else
-			if(r_ptrace(PTRACE_SYSCALL, pid, 0, SIGSTOP) < 0){
+			if(r_ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0){
 				GPERROR(0, "continuing");
 				exit(1);
 			}
@@ -726,9 +725,9 @@ void tracehand()
 					////printk("starting2 %x %x was %x %x\n",pc->sysargs[0],pc->sysargs[1],getargn(0,pc),getargn(1,pc));
 					putargn(0,pc->sysargs[0],pc);
 					putargn(1,pc->sysargs[1],pc);
-					setregs(pc,PTRACE_SYSCALL,0,SIGSTOP);
+					setregs(pc,PTRACE_SYSCALL,0, 0);
 #else
-					r_ptrace(PTRACE_SYSCALL, pid, 0, SIGSTOP);
+					r_ptrace(PTRACE_SYSCALL, pid, 0, 0);
 #endif
 				} else
 					/* forward signals to the process */
