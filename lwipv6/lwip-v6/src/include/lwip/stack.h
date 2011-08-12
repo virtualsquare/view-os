@@ -12,6 +12,7 @@
 #include "lwip/netif.h"
 #include "lwip/ip_frag.h"
 #include "lwip/tcpip.h"
+#include <poll.h>
 
 struct pbuf;
 
@@ -33,10 +34,30 @@ struct tcp_hdr;
 struct tcp_pcb;
 
 /* IP_ROUTE_POOL_SIZE IP_ADDR_POOL_SIZE IP_REASS_POOL_SIZE need defs*/
+#define NETIF_POS2FD(stack,fpos) ((stack)->numif_pfd[(fpos)].fd)
+
+#define LWIP_STACK_FLAG_FORWARDING 0x1
+#define LWIP_STACK_FLAG_USERFILTER 0x2
+#define LWIP_STACK_FLAG_UF_NAT     0x10000
+
+#if LWIP_USERFILTER
+struct stack_userfilter;
+#if LWIP_NAT
+struct stack_nat;
+#endif
+#endif
 
 struct stack {
+	/* global */
+	u32_t	stack_flags;
+
 	/* lwip-v6/src/core/netif.c */
 	struct netif *netif_list;
+	struct pollfd *netif_pfd;
+	struct netif_args *netif_pfd_args;
+	int netif_npfd;
+	int netif_npfd_max;
+	sys_sem_t  netif_cleanup_mutex;
 
 	/* lwip-v6/src/core/ipv6/ip6.c */
 	u16_t ip_id;
@@ -77,7 +98,6 @@ struct stack {
 	union tcp_listen_pcbs_t tcp_listen_pcbs;
 	struct tcp_pcb *tcp_active_pcbs;  /* List of all TCP PCBs that are in a */
 	struct tcp_pcb *tcp_tw_pcbs;      /* List of all TCP PCBs in TIME-WAIT. */
-	struct tcp_pcb *tcp_tmp_pcb;
 	u8_t tcp_timer;
 
 	/* lwip-v6/src/api/tcpip.c */
@@ -92,5 +112,13 @@ struct stack {
 
 	/* lwip-v6/src/netif/loopif.c */
 	int netif_num[NETIF_NUMIF];
+
+#if LWIP_USERFILTER
+	struct stack_userfilter *stack_userfilter;
+#if LWIP_NAT
+	struct stack_nat *stack_nat;
+#endif
+#endif
+
 };
 #endif

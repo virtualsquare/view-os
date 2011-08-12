@@ -99,6 +99,12 @@
 //#define IP_DEBUG DBG_ON
 //#endif
 
+#ifdef LWSLIRP
+#define NOSLIRP ,NULL
+#else
+#define NOSLIRP 
+#endif
+
 /*--------------------------------------------------------------------------*/
 
 /* IPv4 ID counter */
@@ -125,28 +131,41 @@ ip_init(struct stack *stack)
   ip_autoconf_init(stack);
 #endif 
 
-#if LWIP_DHCP
-  dhcp_init(stack);
-#endif
-
 #if IPv6_ROUTER_ADVERTISEMENT
-  ip_radv_init();
+  ip_radv_init(stack);
 #endif 
 
 #if LWIP_USERFILTER
   /* init UserFilter's internal tables */
-  userfilter_init();
-
+	if (stack->stack_flags & LWIP_STACK_FLAG_USERFILTER) {
+		userfilter_init(stack);
 #if LWIP_NAT
-  nat_init();
+		if (stack->stack_flags & LWIP_STACK_FLAG_UF_NAT)
+			nat_init(stack);
+		else
+			stack->stack_nat = NULL;
 #endif
-
+	} else {
+		stack->stack_userfilter = NULL;
+#if LWIP_NAT
+		stack->stack_nat = NULL;
+#endif
+	}
 #endif
 }
 
 void 
 ip_shutdown(struct stack *stack)
 {
+#if LWIP_USERFILTER
+#if LWIP_NAT
+	if (stack->stack_nat != NULL)
+		nat_shutdown(stack);
+#endif
+	if (stack->stack_userfilter != NULL)
+		userfilter_shutdown(stack);
+#endif
+
 #if IPv6_AUTO_CONFIGURATION
   ip_autoconf_shutdown(stack);
 #endif 
@@ -159,124 +178,6 @@ ip_shutdown(struct stack *stack)
 }
 
 
-
-/*--------------------------------------------------------------------------*/
-
-
-/* ip_forward:
- *
- * Forwards an IP packet. It finds an appropriate route for the packet, decrements
- * the TTL value of the packet, adjusts the checksum and outputs the packet on the
- * appropriate interface.
- */
-
-INLINE static void
-ip_forward(struct stack *stack, struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif, 
-           struct netif *netif, struct ip_addr *nexthop,  struct pseudo_iphdr *piphdr)
-{
-  struct ip4_hdr *ip4hdr;
-
-  PERF_START;
-
-#if LWIP_USERFILTER
-  if (UF_HOOK(UF_IP_FORWARD, &p, NULL, netif, UF_FREE_BUF) <= 0) {
-    return;
-  }
-#endif
-
-  /* 
-   * Check TimeToLive (Ipv4) or Hop-Limit Field (Ipv6)
-   */
-  if (IPH_V(iphdr) == 4) {
-    ip4hdr = (struct ip4_hdr *) iphdr;
-    IPH4_TTL_SET(ip4hdr, IPH4_TTL(ip4hdr) - 1);
-    if (IPH4_TTL(ip4hdr) <= 0) {
-      LWIP_DEBUGF(IP_DEBUG, ("ip_forward: dropped packet! TTL <= 0 "));
-      /* Don't send ICMP messages in response to ICMP messages */
-      if (piphdr->proto != IP_PROTO_ICMP4) 
-        icmp4_time_exceeded(stack, p, ICMP_TE_TTL);
-      pbuf_free(p);
-      return;
-    }
-
-    /* Incrementally update the IP checksum. */
-    if (IPH4_CHKSUM(ip4hdr) >= htons(0xffff - 0x100)) {
-      IPH4_CHKSUM_SET(ip4hdr, IPH4_CHKSUM(ip4hdr) + htons(0x100) + 1);
-    } else {
-      IPH4_CHKSUM_SET(ip4hdr, IPH4_CHKSUM(ip4hdr) + htons(0x100));
-    }
-  }
-  else if (IPH_V(iphdr) == 6) {
-    /* Decrement TTL and send ICMP if ttl == 0. */
-    IPH_HOPLIMIT_SET(iphdr, IPH_HOPLIMIT(iphdr) -1);
-    if (IPH_HOPLIMIT(iphdr) <= 0) {
-      LWIP_DEBUGF(IP_DEBUG, ("ip_forward: dropped packet! HOPLIMIT <= 0 "));
-      /* Don't send ICMP messages in response to ICMP messages */
-      if (IPH_NEXTHDR(iphdr) != IP_PROTO_ICMP)
-        icmp_time_exceeded(stack, p, ICMP_TE_TTL);
-      pbuf_free(p);
-      return;
-    }
-  }
-
-  LWIP_DEBUGF(IP_DEBUG, ("ip_forward: forwarding packet to "));
-  ip_addr_debug_print(IP_DEBUG, piphdr->dest);
-  LWIP_DEBUGF(IP_DEBUG, (" via %c%c%d\n",netif->name[0], netif->name[1], netif->num));
-
-
-#if LWIP_USERFILTER
-  /* pbuf_free() is called by Caller */
-  if (UF_HOOK(UF_IP_POST_ROUTING, &p, NULL, netif, UF_FREE_BUF) <= 0) {
-    return;
-  }
-#endif
-
-  /*
-   * Check IP Fragmentation. Packet Size > Next Hop's MTU? 
-   */
-  if (p->tot_len > netif->mtu) {
-
-    if (IPH_V(iphdr) == 4) {
-#if IPv4_FRAGMENTATION 
-      ip4hdr = (struct ip4_hdr *) iphdr;
-
-      if (IPH4_OFFSET(ip4hdr) & htons(IP_MF)) {
-        LWIP_DEBUGF(IP_DEBUG, ("ip_forward: IPv4 DF bit set. Don't fragment!"));
-        icmp4_dest_unreach(stack, p, ICMP_DUR_FRAG, netif->mtu);
-        pbuf_free(p);
-        return;
-      }
-      else {
-        /* we can frag the packet */
-        IP_STATS_INC(ip.fw);
-        IP_STATS_INC(ip.xmit);
-
-        ip4_frag(stack, p , netif, nexthop);
-      }
-#else
-      LWIP_DEBUGF(IP_DEBUG, ("ip_forward: fragmentation on forwarded packets not implemented!"));
-      pbuf_free(p);
-      return;
-#endif
-    } 
-    else if (IPH_V(iphdr) == 6) {
-      /* IPv6 doesn't fragment forwarded packets  */
-      icmp_packet_too_big(stack, p, netif->mtu);
-      pbuf_free(p);
-      return;
-    }
-  }
-
-  IP_STATS_INC(ip.fw);
-  IP_STATS_INC(ip.xmit);
-
-  PERF_STOP("ip_forward");
-
-  netif->output(netif, p, nexthop);
-
-  pbuf_free(p);
-}
-
 /*--------------------------------------------------------------------------*/
 
 /* ip_input:
@@ -288,12 +189,16 @@ ip_forward(struct stack *stack, struct pbuf *p, struct ip_hdr *iphdr, struct net
  *
  * Finally, the packet is sent to the upper layer protocol input function.
  */
-INLINE static void
-ip_inpacket(struct stack *stack, struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piphdr) 
+static void
+ip_inpacket(struct stack *stack, struct ip_addr_list *addr, struct pbuf *p, struct pseudo_iphdr *piphdr
+#ifdef LWSLIRP
+		    , struct netif *slirpif
+#endif
+				) 
 {
 
 #if LWIP_USERFILTER
-  if (UF_HOOK(UF_IP_LOCAL_IN, &p, addr->netif, NULL, UF_FREE_BUF) <= 0) {
+  if (UF_HOOK(stack, UF_IP_LOCAL_IN, &p, addr->netif, NULL, UF_FREE_BUF) <= 0) {
     return;
   }
 #endif
@@ -362,14 +267,23 @@ ip_inpacket(struct stack *stack, struct ip_addr_list *addr, struct pbuf *p, stru
     case IP_PROTO_UDP + (4 << 8):
     case IP_PROTO_UDP + (6 << 8):
       LWIP_DEBUGF(IP_DEBUG,("->UDP\n"));
-      udp_input(p, addr, piphdr);
+
+      udp_input(p, addr, piphdr
+#ifdef LWSLIRP
+					, slirpif
+#endif
+					);
       break;
 #endif
 #if LWIP_TCP
     case IP_PROTO_TCP + (4 << 8):
     case IP_PROTO_TCP + (6 << 8):
       LWIP_DEBUGF(IP_DEBUG,("->TCP\n"));
-      tcp_input(p, addr, piphdr);
+      tcp_input(p, addr, piphdr
+#ifdef LWSLIRP
+					, slirpif
+#endif
+					);
       break;
 #endif
     case IP_PROTO_ICMP + (6 << 8):
@@ -386,6 +300,197 @@ ip_inpacket(struct stack *stack, struct ip_addr_list *addr, struct pbuf *p, stru
       IP_STATS_INC(ip.drop);
       pbuf_free(p);
   }
+}
+
+/*--------------------------------------------------------------------------*/
+
+
+/* ip_forward:
+ *
+ * Forwards an IP packet. It finds an appropriate route for the packet, decrements
+ * the TTL value of the packet, adjusts the checksum and outputs the packet on the
+ * appropriate interface.
+ */
+
+INLINE static void
+ip_forward(struct stack *stack, struct pbuf *p, struct ip_hdr *iphdr, struct netif *inif, 
+           struct netif *netif, struct ip_addr *nexthop,  struct pseudo_iphdr *piphdr)
+{
+  struct ip4_hdr *ip4hdr;
+
+  PERF_START;
+
+#if LWIP_USERFILTER
+  if (UF_HOOK(stack, UF_IP_FORWARD, &p, NULL, netif, UF_FREE_BUF) <= 0) {
+    return;
+  }
+#endif
+
+  /* 
+   * Check TimeToLive (Ipv4) or Hop-Limit Field (Ipv6)
+   */
+  if (IPH_V(iphdr) == 4) {
+    ip4hdr = (struct ip4_hdr *) iphdr;
+    IPH4_TTL_SET(ip4hdr, IPH4_TTL(ip4hdr) - 1);
+    if (IPH4_TTL(ip4hdr) <= 0) {
+      LWIP_DEBUGF(IP_DEBUG, ("ip_forward: dropped packet! TTL <= 0 "));
+      /* Don't send ICMP messages in response to ICMP messages */
+      if (piphdr->proto != IP_PROTO_ICMP4) 
+        icmp_time_exceeded(stack, p, ICMP_TE_TTL);
+      pbuf_free(p);
+      return;
+    }
+
+    /* Incrementally update the IP checksum. */
+    if (IPH4_CHKSUM(ip4hdr) >= htons(0xffff - 0x100)) {
+      IPH4_CHKSUM_SET(ip4hdr, IPH4_CHKSUM(ip4hdr) + htons(0x100) + 1);
+    } else {
+      IPH4_CHKSUM_SET(ip4hdr, IPH4_CHKSUM(ip4hdr) + htons(0x100));
+    }
+  }
+  else if (IPH_V(iphdr) == 6) {
+    /* Decrement TTL and send ICMP if ttl == 0. */
+    IPH_HOPLIMIT_SET(iphdr, IPH_HOPLIMIT(iphdr) -1);
+    if (IPH_HOPLIMIT(iphdr) <= 0) {
+      LWIP_DEBUGF(IP_DEBUG, ("ip_forward: dropped packet! HOPLIMIT <= 0 "));
+      /* Don't send ICMP messages in response to ICMP messages */
+      if (IPH_NEXTHDR(iphdr) != IP_PROTO_ICMP)
+        icmp_time_exceeded(stack, p, ICMP_TE_TTL);
+      pbuf_free(p);
+      return;
+    }
+  }
+
+  LWIP_DEBUGF(IP_DEBUG, ("ip_forward: forwarding packet to "));
+  ip_addr_debug_print(IP_DEBUG, piphdr->dest);
+  LWIP_DEBUGF(IP_DEBUG, (" via %c%c%d\n",netif->name[0], netif->name[1], netif->num));
+
+
+#if LWIP_USERFILTER
+  /* pbuf_free() is called by Caller */
+  if (UF_HOOK(stack, UF_IP_POST_ROUTING, &p, NULL, netif, UF_FREE_BUF) <= 0) {
+    return;
+  }
+#endif
+
+  /*
+   * Check IP Fragmentation. Packet Size > Next Hop's MTU? 
+   */
+  if (p->tot_len > netif->mtu) {
+
+    if (IPH_V(iphdr) == 4) {
+#if IPv4_FRAGMENTATION 
+      ip4hdr = (struct ip4_hdr *) iphdr;
+
+      if (IPH4_OFFSET(ip4hdr) & htons(IP_MF)) {
+        LWIP_DEBUGF(IP_DEBUG, ("ip_forward: IPv4 DF bit set. Don't fragment!"));
+        icmp_dest_unreach(stack, p, ICMP_DUR_FRAG /*, netif->mtu*/);
+        pbuf_free(p);
+        return;
+      }
+      else {
+        /* we can frag the packet */
+        IP_STATS_INC(ip.fw);
+        IP_STATS_INC(ip.xmit);
+
+        ip4_frag(stack, p , netif, nexthop);
+      }
+#else
+      LWIP_DEBUGF(IP_DEBUG, ("ip_forward: fragmentation on forwarded packets not implemented!"));
+      pbuf_free(p);
+      return;
+#endif
+    } 
+    else if (IPH_V(iphdr) == 6) {
+      /* IPv6 doesn't fragment forwarded packets  */
+      icmp_packet_too_big(stack, p, netif->mtu);
+      pbuf_free(p);
+      return;
+    }
+  }
+
+  IP_STATS_INC(ip.fw);
+  IP_STATS_INC(ip.xmit);
+
+
+	/* LWSLIRP TEST */
+#ifdef LWSLIRP
+	if (netif->link_type == NETIF_SLIRPIF) {
+		struct ip_addr_list *addr;
+
+		LWIP_DEBUGF(IP_DEBUG, ("ip_forward: slirp"));
+		if (piphdr->version == 6)
+			/* in ipv6 the length field conatins only the legnth of the payload
+			 * (the length of the ipv6 haeder is costant) */
+			pbuf_realloc(p, IP_HLEN + ntohs(iphdr->len));
+		else
+			/* in ipv4 the legnth filed contains also the  length of the header
+			 * (the length of the ipv4 header isn't costant) */
+			pbuf_realloc(p, ntohs(IPH4_LEN(ip4hdr)));
+		addr = ip_addr_list_alloc(stack);
+		if(addr == NULL) {
+			LWIP_DEBUGF(IP_DEBUG, ("ip_forward: ip_addr_list_alloc() failed, I abort\n"));
+			/* There aren't no more ip_addr_list avaible, so I abort.*/
+			abort();
+		}
+		addr->next = NULL;
+		/* I control if the destination address is a multicast-solicited address,
+		 * in this case I find the right unicast address and I copy it in addr->ipaddr.
+		 * Otherwise the dest address is copied in addr->ipaddr */
+		if(piphdr->version == 6 &&
+				ip_addr_is_addr_solicited(piphdr->dest)) {
+			struct ip_addr *unicast_addr;
+
+			LWIP_DEBUGF(IP_DEBUG, ("ip_input: destination address("));
+			ip_addr_debug_print(IP_DEBUG, piphdr->dest);
+			LWIP_DEBUGF(IP_DEBUG, (") is a solicited IPv6 address\n"));
+
+			unicast_addr = ip_addr_find_unicast_from_solicited(inif->addrs, piphdr->dest);
+
+			/* If unicast_addr is NULL, the pachet is not for us */
+			if(unicast_addr == NULL) {
+				LWIP_DEBUGF(IP_DEBUG, ("ip_input: multicast packet not for us\n"));
+				pbuf_free(p);
+				ip_addr_list_free(stack,addr);
+				return;
+			}
+			LWIP_DEBUGF(IP_DEBUG, ("ip_input: after ip_addr_find_unicast_from_solicited(), unicast_addr = "));
+			ip_addr_debug_print(IP_DEBUG, unicast_addr);
+			LWIP_DEBUGF(IP_DEBUG, ("\n"));
+
+			memcpy(&addr->ipaddr, unicast_addr, sizeof(struct ip_addr));
+		} else {
+			memcpy(&addr->ipaddr, piphdr->dest, sizeof(struct ip_addr));
+		}
+		/* addr->netmask; unused? */
+		addr->netif = inif;
+		/* addr->flags; unused?*/
+
+		/* I test if is not a solicited dest address and
+		 * the packet is a ICMP packet. If it so, I discard
+		 * it, because it's not for us, and I return */
+		if(!ip_addr_is_addr_solicited(piphdr->dest) &&
+				(piphdr->proto == IP_PROTO_ICMP4 || piphdr->proto == IP_PROTO_ICMP)) {
+			LWIP_DEBUGF(IP_DEBUG, ("ip_input: ICMP packet, I discard it.\n"));
+
+			pbuf_free(p);
+			ip_addr_list_free(stack,addr);
+			return;
+		}
+		/* Then I can pass the packet to an higher level of the stack */
+		ip_inpacket(stack,addr, p, piphdr, netif);
+		/* I free "addr"*/
+		ip_addr_list_free(stack,addr);
+		return;
+	} else 
+#endif
+	{
+		PERF_STOP("ip_forward");
+
+		netif->output(netif, p, nexthop);
+
+		pbuf_free(p);
+	}
 }
 
 /*--------------------------------------------------------------------------*/
@@ -426,7 +531,6 @@ ip_input(struct pbuf *p, struct netif *inp)
     IP_STATS_INC(ip.drop);
     return;
   }
-
 #if IPv4_CHECK_CHECKSUM
   if (IPH_V(iphdr) == 4) {
     /* Only IPv4 has checksum field */
@@ -442,7 +546,7 @@ ip_input(struct pbuf *p, struct netif *inp)
 #endif
 
 #if LWIP_USERFILTER
-  if (UF_HOOK(UF_IP_PRE_ROUTING, &p, inp, NULL, UF_FREE_BUF) <= 0) {
+  if (UF_HOOK(stack, UF_IP_PRE_ROUTING, &p, inp, NULL, UF_FREE_BUF) <= 0) {
     return;
   }
   /* NATed packets need a new pseudo header used by the stack */
@@ -465,13 +569,12 @@ ip_input(struct pbuf *p, struct netif *inp)
     else
       pbuf_realloc(p, ntohs(IPH4_LEN(ip4hdr)));
 
-    ip_inpacket(stack, addrel, p, &piphdr);
+    ip_inpacket(stack, addrel, p, &piphdr NOSLIRP);
 	goto ip_input_end;
   }
 
   /* FIX: handle IPv6 Multicast in this way? */
   if (ip_addr_ismulticast(piphdr.dest)) {
-
     struct ip_addr_list tmpaddr;
 
     LWIP_DEBUGF(IP_DEBUG | 2, ("ip_input: multicast!\n"));
@@ -480,7 +583,7 @@ ip_input(struct pbuf *p, struct netif *inp)
     tmpaddr.flags = 0;
     IP6_ADDR_LINKSCOPE(&tmpaddr.ipaddr, inp->hwaddr);
 
-    ip_inpacket(stack, &tmpaddr, p, &piphdr);
+    ip_inpacket(stack, &tmpaddr, p, &piphdr NOSLIRP);
 	goto ip_input_end;
   }
 
@@ -503,16 +606,14 @@ ip_input(struct pbuf *p, struct netif *inp)
       tmpaddr.netif = inp;
       tmpaddr.flags = 0;
 
-      ip_inpacket(stack, &tmpaddr, p, &piphdr);
+      ip_inpacket(stack, &tmpaddr, p, &piphdr NOSLIRP);
       goto ip_input_end;
     }
   }
 #endif /* LWIP_DHCP */
 
-
-
 #if IP_FORWARD
-  else if (ip_route_findpath(stack, piphdr.dest, &nexthop, &netif, &fwflags) == ERR_OK && netif != inp)
+  else if ((stack->stack_flags & LWIP_STACK_FLAG_FORWARDING) && ip_route_findpath(stack, piphdr.dest, &nexthop, &netif, &fwflags) == ERR_OK && netif != inp)
   { 
     /* forwarding */
     ip_forward(stack, p, iphdr, inp, netif, nexthop, &piphdr);
@@ -520,6 +621,7 @@ ip_input(struct pbuf *p, struct netif *inp)
   }
 #endif
 
+	/* LWSLIRP TEST */
   LWIP_DEBUGF(IP_DEBUG | 2, ("ip_input: unable to route IP packet. Droped\n"));
   pbuf_free(p);
 
@@ -559,12 +661,10 @@ ip_output_if (struct stack *stack, struct pbuf *p, struct ip_addr *src, struct i
 
   PERF_START;
 
-  if (!ip_addr_isany(src)) {
-  	version = ip_addr_is_v4comp(src) ? 4 : 6;
-  }
-  else {
+  if (ip_addr_isany(src)) 
   	version = ip_addr_is_v4comp(dest) ? 4 : 6;
-  }
+  else 
+  	version = (ip_addr_is_v4comp(src) && ip_addr_is_v4comp(dest)) ? 4 : 6;
 
   /* Get size for the IP header */
   if (dest != IP_LWHDRINCL && pbuf_header(p, version==6?IP_HLEN:IP4_HLEN)) {
@@ -626,7 +726,7 @@ ip_output_if (struct stack *stack, struct pbuf *p, struct ip_addr *src, struct i
 
 #if LWIP_USERFILTER
   /* FIX: LOCAL_OUT after routing decisions? It this the right place */
-  if (UF_HOOK(UF_IP_LOCAL_OUT, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
+  if (UF_HOOK(stack, UF_IP_LOCAL_OUT, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
     goto end_ip_output_if;
   }
 #endif
@@ -656,7 +756,7 @@ ip_output_if (struct stack *stack, struct pbuf *p, struct ip_addr *src, struct i
     if (r != NULL) {
 
 #if LWIP_USERFILTER
-      if (UF_HOOK(UF_IP_POST_ROUTING, &r, NULL, netif, UF_DONTFREE_BUF) <= 0) {
+      if (UF_HOOK(stack, UF_IP_POST_ROUTING, &r, NULL, netif, UF_DONTFREE_BUF) <= 0) {
         goto end_ip_output_if;
       }
 #if LWIP_NAT
@@ -676,7 +776,7 @@ ip_output_if (struct stack *stack, struct pbuf *p, struct ip_addr *src, struct i
     LWIP_DEBUGF(IP_DEBUG, ("SENDING OUT %c%c%d\n", netif->name[0],netif->name[1],netif->num));
 	
 #if LWIP_USERFILTER
-    if (UF_HOOK(UF_IP_POST_ROUTING, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
+    if (UF_HOOK(stack, UF_IP_POST_ROUTING, &p, NULL, netif, UF_DONTFREE_BUF) <= 0) {
       goto end_ip_output_if;
     }
 #endif
@@ -752,6 +852,12 @@ ip_output(struct stack *stack, struct pbuf *p, struct ip_addr *src, struct ip_ad
     return ERR_RTE;
   }
   else {
+		if (src==NULL) {
+			struct ip_addr_list *el;
+			if ((el=ip_route_select_source_ip(netif, dest, nexthop)) == NULL)
+				return ERR_RTE;
+			src = &(el->ipaddr);
+		}
     return ip_output_if (stack, p, src, dest, ttl, tos, proto, netif, nexthop, flags);
   }
 }
@@ -774,16 +880,18 @@ ip_notify(struct netif *netif, u32_t type)
         netif->name[0], netif->name[1], netif->num));
 
 #if LWIP_DHCP
-      /* FIX: under testing */
-      dhcp_start(netif);
+			if (netif->flags & NETIF_FLAG_DHCP)
+				dhcp_start(netif);
 #endif
 
 #if IPv6_AUTO_CONFIGURATION
-      ip_autoconf_start(netif);
+			if (netif->flags & NETIF_FLAG_AUTOCONF)
+				ip_autoconf_start(netif);
 #endif
 
 #if IPv6_ROUTER_ADVERTISEMENT
-      ip_radv_start(netif);
+			if (netif->flags & NETIF_FLAG_RADV)
+				ip_radv_start(netif);
 #endif
       break;
 
@@ -792,17 +900,20 @@ ip_notify(struct netif *netif, u32_t type)
         netif->name[0], netif->name[1], netif->num));
 
 #if LWIP_DHCP
-      /* FIX: under testing */
-      dhcp_release(netif);
-      dhcp_stop(netif);
+			if (netif->flags & NETIF_FLAG_DHCP) {
+				dhcp_release(netif);
+				dhcp_stop(netif);
+			}
 #endif
 
 #if IPv6_ROUTER_ADVERTISEMENT
-      ip_radv_stop(netif);
+			if (netif->flags & NETIF_FLAG_RADV)
+				ip_radv_stop(netif);
 #endif
 
 #if IPv6_AUTO_CONFIGURATION
-      ip_autoconf_stop(netif);
+			if (netif->flags & NETIF_FLAG_AUTOCONF)
+				ip_autoconf_stop(netif);
 #endif
       break;
 

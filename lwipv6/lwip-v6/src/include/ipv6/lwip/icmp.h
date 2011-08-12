@@ -107,9 +107,6 @@ void icmp_time_exceeded(struct stack *stack, struct pbuf *p, enum icmp_te_type t
 
 void icmp_packet_too_big(struct stack *stack, struct pbuf *p, u16_t mtu);
 
-void icmp4_dest_unreach(struct stack *stack, struct pbuf *p, enum icmp_dur_type t, u16_t nextmtu );
-void icmp4_time_exceeded(struct stack *stack, struct pbuf *p, enum icmp_te_type t);
-
 /*
  * ICMP Headers used for IPv4 and IPv6
  */
@@ -338,6 +335,8 @@ struct icmp_opt_prefix {
   PACK_STRUCT_FIELD(u8_t flags);      
 #define ICMP6_OPT_PREF_L  0x80
 #define ICMP6_OPT_PREF_A  0x40
+#define ICMP6_OPT_PREF_R  0x20
+#define ICMP6_OPT_PREF_S  0x10
   PACK_STRUCT_FIELD(u32_t valid);     
   PACK_STRUCT_FIELD(u32_t prefered);  /* seconds */
   PACK_STRUCT_FIELD(u32_t reserved);  /* seconds */

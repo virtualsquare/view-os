@@ -35,13 +35,13 @@ struct track_protocol
 
 	/* Tracking functions */
 
-	int (*error) (uf_verdict_t *verdict, struct pbuf *q);
-	int (*new)  (struct nat_pcb *pcb,  struct pbuf *p, void *iphdr, int iplen);
-	int (*handle) (uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction);
+	int (*error) (struct stack *stack, uf_verdict_t *verdict, struct pbuf *q);
+	int (*new)  (struct stack *stack, struct nat_pcb *pcb,  struct pbuf *p, void *iphdr, int iplen);
+	int (*handle) (struct stack *stack, uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction);
 
 	/* NAT functions */
 
-	int (*nat_tuple_inverse) (struct ip_tuple *reply, struct ip_tuple *tuple, 
+	int (*nat_tuple_inverse) (struct stack *stack, struct ip_tuple *reply, struct ip_tuple *tuple, 
 		nat_type_t type, struct manip_range *nat_manip);
 
 	int (*nat_free) (struct nat_pcb *pcb);

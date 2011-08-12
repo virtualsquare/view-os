@@ -99,7 +99,6 @@
 static void
 tcpip_tcp_timer(void *arg)
 {
-	//(void)arg;
 	struct stack *stack = (struct stack *) arg;
 	
 	/* call TCP timer handler */
@@ -320,7 +319,7 @@ static void tcpip_free(struct stack *stack)
 }
 
 struct stack *
-tcpip_start(tcpip_handler init_func, void *arg)
+tcpip_start(tcpip_handler init_func, void *arg, unsigned long flags)
 {
 	struct stack *stack;
 
@@ -335,6 +334,7 @@ tcpip_start(tcpip_handler init_func, void *arg)
 	stack->tcpip_init_sem      = sys_sem_new(0);
 	stack->tcpip_init_done     = init_func;
 	stack->tcpip_init_done_arg = arg;
+	stack->stack_flags         = flags;
 
 	sys_thread_new(tcpip_thread, (void*)stack, TCPIP_THREAD_PRIO);
 
@@ -347,10 +347,9 @@ tcpip_start(tcpip_handler init_func, void *arg)
 	return stack;
 }
 
-
 struct stack *tcpip_stack_get(void)
 {
-    return current_stack;
+	return current_stack;
 }
 
 struct stack *tcpip_stack_set(struct stack * id)

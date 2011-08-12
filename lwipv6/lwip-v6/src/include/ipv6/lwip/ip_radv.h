@@ -30,6 +30,9 @@
 /*--------------------------------------------------------------------------*/
 /* Costants */
 /*--------------------------------------------------------------------------*/
+#ifndef UNSPECIFIED
+#define UNSPECIFIED	0
+#endif
 
 #ifndef TRUE
 #define TRUE    1
@@ -69,9 +72,9 @@
 #define MAX_MaxRtrAdvInterval		    1800
 
 #define MIN_MinRtrAdvInterval		    3
-#define MAX_MinRtrAdvInterval(netif)    (0.75 * (netif)->radv.MaxRtrAdvInterval)
+#define MAX_MinRtrAdvInterval(netif)    (0.75 * (netif)->radv->MaxRtrAdvInterval)
 
-#define MIN_AdvDefaultLifetime(netif)   (RADV_MAX(1,(netif)->radv.MaxRtrAdvInterval))
+#define MIN_AdvDefaultLifetime(netif)   (RADV_MAX(1,(netif)->radv->MaxRtrAdvInterval))
 #define MAX_AdvDefaultLifetime		    9000
 
 #define	MIN_AdvLinkMTU			        1280
@@ -169,7 +172,7 @@ void ip_radv_netif_reset(struct netif *netif);
 /*--------------------------------------------------------------------------*/
 
 /* Called by ip_init() */
-void ip_radv_init(void);
+void ip_radv_init(struct stack *stack);
 
 /* Called when netif goes UP */
 void ip_radv_start(struct netif *netif);

@@ -52,6 +52,16 @@ struct udp_hdr {
 #define UDP_FLAGS_UDPLITE  0x02U
 #define UDP_FLAGS_CONNECTED  0x04U
 
+#ifdef LWSLIRP
+#define UDP_PCB_EXPIRE 240
+#define UDP_PCB_EXPIREFAST 10
+/* for tests
+#define UDP_PCB_EXPIRE 12
+#define UDP_PCB_EXPIREFAST 3
+*/
+#endif /* SLIRPVDE */
+
+
 struct udp_pcb {
 /* Common members of all PCB types */
   IP_PCB;
@@ -68,13 +78,21 @@ struct udp_pcb {
   void (* recv)(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     struct ip_addr *addr, u16_t port);
   void *recv_arg;  
+
+#ifdef LWSLIRP
+	u32_t slirp_expire;
+#endif
 };
 
 /* The following functions is the application layer interface to the
    UDP code. */
 struct udp_pcb * udp_new        (struct stack *stack);
 void             udp_remove     (struct udp_pcb *pcb);
-err_t            udp_bind       (struct udp_pcb *pcb, struct ip_addr *ipaddr, u16_t port);
+err_t            udp_bind       (struct udp_pcb *pcb, struct ip_addr *ipaddr, u16_t port
+#ifdef LWSLIRP
+		, struct netif *slirpif
+#endif
+		);
 err_t            udp_connect    (struct udp_pcb *pcb, struct ip_addr *ipaddr, u16_t port);
 void             udp_disconnect (struct udp_pcb *pcb);
 
@@ -92,7 +110,11 @@ err_t            udp_send       (struct udp_pcb *pcb, struct pbuf *p);
 #define          udp_setflags(pcb, f)  ((pcb)->flags = (f))
 
 /* The following functions are the lower layer interface to UDP. */
-void             udp_input      (struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr);
+void             udp_input      (struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr
+#ifdef LWSLIRP
+		, struct netif *slirpif
+#endif
+		);
 
 void             udp_init       (struct stack *stack);
 void             udp_shutdown   (struct stack *stack);

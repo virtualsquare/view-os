@@ -214,6 +214,7 @@ pbuf_alloc(pbuf_layer l, u16_t length, pbuf_flag flag)
 #define DEC_PBUF_STATS
 #endif /* PBUF_STATS */
 
+#if 0
 #define PBUF_POOL_FAST_FREE(p)  do {                                    \
                                   p->next = pbuf_pool;                  \
                                   pbuf_pool = p;                        \
@@ -234,6 +235,7 @@ pbuf_alloc(pbuf_layer l, u16_t length, pbuf_flag flag)
                              sys_sem_signal(pbuf_pool_free_sem);        \
                            } while (0)
 #endif /* SYS_LIGHTWEIGHT_PROT */
+#endif
 
 /**
  * Shrink a pbuf chain to a desired length.
@@ -678,13 +680,13 @@ pbuf_dequeue(struct pbuf *p)
 
 /**
  *
- * Create PBUF_POOL (or PBUF_RAM) copies of PBUF_REF pbufs.
+ * Create PBUF_RAM copies of PBUF_REF pbufs.
  *
  * Used to queue packets on behalf of the lwIP stack, such as
  * ARP based queueing.
  *
  * Go through a pbuf chain and replace any PBUF_REF buffers
- * with PBUF_POOL (or PBUF_RAM) pbufs, each taking a copy of
+ * with PBUF_RAM pbufs, each taking a copy of
  * the referenced data.
  *
  * @note You MUST explicitly use p = pbuf_take(p);
@@ -714,7 +716,6 @@ pbuf_take(struct pbuf *p)
     if (p->flags == PBUF_FLAG_REF) {
       LWIP_DEBUGF(PBUF_DEBUG | DBG_TRACE, ("pbuf_take: encountered PBUF_REF %p\n", (void *)p));
       /* allocate a pbuf (w/ payload) fully in RAM */
-      /* PBUF_POOL buffers are faster if we can use them */
         q = pbuf_alloc(PBUF_RAW, p->len, PBUF_RAM);
         if (q == NULL) {
           LWIP_DEBUGF(PBUF_DEBUG | DBG_TRACE | 2, ("pbuf_take: Could not allocate PBUF_RAM\n"));

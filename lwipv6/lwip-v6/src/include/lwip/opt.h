@@ -725,6 +725,10 @@ a lot of data that needs to be copied, this should be set high. */
 #define TCPIP_DEBUG                     DBG_OFF
 #endif
 
+#ifndef LWSLIRP_DEBUG
+#define LWSLIRP_DEBUG                   DBG_OFF
+#endif
+
 #endif /* __LWIP_OPT_H__ */
 
 

@@ -1,4 +1,4 @@
-/**
+/*
  * @file
  *
  * Transmission Control Protocol, incoming traffic
@@ -80,6 +80,7 @@
 #include "lwip/stack.h"
 
 #include "lwip/stats.h"
+#include "lwip/lwslirp.h"
 
 #include "arch/perf.h"
 
@@ -90,9 +91,20 @@ static err_t tcp_process(struct tcp_pcb *pcb,struct pseudo_iphdr *piphdr);
 static void tcp_receive(struct tcp_pcb *pcb);
 static void tcp_parseopt(struct tcp_pcb *pcb);
 
-static err_t tcp_listen_input(struct tcp_pcb_listen *pcb,struct pseudo_iphdr *piphdr);
+static err_t tcp_listen_input(struct tcp_pcb_listen *pcb,struct pseudo_iphdr *piphdr
+#ifdef LWSLIRP
+        , struct netif *slirpif
+#endif
+				);
+
 static err_t tcp_timewait_input(struct tcp_pcb *pcb);
 
+#ifdef LWSLIRP
+#define DROPWITHRESET(stack, tcphdr, piphdr) do {\
+	  tcp_rst(stack, 0, (tcphdr)->seqno + 1, (piphdr)->dest, (piphdr)->src, (tcphdr)->dest, (tcphdr)->src); \
+	  return; \
+} while(0)
+#endif
 
 /* tcp_input:
  *
@@ -103,7 +115,11 @@ static err_t tcp_timewait_input(struct tcp_pcb *pcb);
  */
 
 void
-tcp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr)
+tcp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr
+#ifdef LWSLIRP
+		    , struct netif *slirpif
+#endif
+				)
 {
   struct netif *netif = inad->netif;
   struct stack *stack = netif->stack;
@@ -293,21 +309,114 @@ tcp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr
     stack->tcp_listen_pcbs.listen_pcbs = lpcb;
   }
 
-  LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: packed for LISTENing connection.\n"));
-  tcp_listen_input(lpcb,piphdr);
-  pbuf_free(p);
-  return;
-      }
-      prev = (struct tcp_pcb *)lpcb;
-    }
-  }
+	LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: packed for LISTENing connection, "));
+#ifdef LWSLIRP
+	if (slirpif) {
+#if LWSLIRP_DEBUG
+		slirp_debug_print_state(TCP_INPUT_DEBUG, (struct tcp_pcb *)lpcb );
+#endif
+		LWIP_DEBUGF(TCP_INPUT_DEBUG, ("\n"));
+		/* If the socket is not configured (= -1) ... */
+		if(lpcb->slirp_state & SS_NOFDREF) {
+			/* There are two case in which ->slirp_state == SS_NOFDREF:
+			 * 1. The tcp pcb in new, and I try to connect its socket ->s with
+			 *    the real world, so its ->s is == -1. 
+			 * or
+			 * 2. The connection of the socket ->s is already failed so
+			 *    ->slirp_state has become SS_NOFDREF _but_ ->s its != -1 */
+			LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: lpcb->slirp_posfd\n", lpcb->slirp_posfd));
+			if(lpcb->slirp_posfd == -1) {
+				LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: lpcb->slirp = %d, so try to connect it.\n", lpcb->slirp_posfd));
+				/* ... set up it and  try to connect the socket. */
+				if(slirp_tcp_fconnect(lpcb, stack->tcphdr->dest, piphdr->dest, slirpif) == -1 && errno != EINPROGRESS) {
+
+					/* Some errors (different from EINPROGRESS) happen */
+					LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: socket connection to "
+								"Internet failed, errno %d-%s\n", errno, strerror(errno)));
+					if(errno == ECONNREFUSED) {
+						/* abort the conncetion: ACK the SYN, send RST to refuse the connection */
+						tcp_abort((struct tcp_pcb *) lpcb);
+					} else {
+						enum icmp_dur_type code = ICMP_DUR_NET;
+						if(errno == EHOSTUNREACH)
+							code = ICMP_DUR_HOST;
+						/* send host/net unreachable */
+						icmp_dest_unreach(stack, p, code);
+					}
+					/* close the connection and free the packet */
+					tcp_close((struct tcp_pcb *) lpcb);
+					pbuf_free(p);
+				} else {
+					/*
+					 * Haven't connected yet, save the current pbuf,
+					 * and return 
+					 */
+					/* I restore the packet as it was before the call of tcp_input, 
+					 * so: */
+					/* 1. I restore the tcp header field in network order */
+					stack->tcphdr->src = htons(stack->tcphdr->src);
+					stack->tcphdr->dest = htons(stack->tcphdr->dest);
+					stack->tcphdr->seqno = htonl(stack->tcphdr->seqno);
+					stack->tcphdr->ackno = htonl(stack->tcphdr->ackno);
+					stack->tcphdr->wnd = htons(stack->tcphdr->wnd);
+					/* 2. I restore the payload pointer to include the IP e TCP header */
+					pbuf_header(p, (TCPH_HDRLEN(stack->tcphdr) * 4) + piphdr->iphdrlen);
+
+					/* 3. Save the packet */
+					lpcb->slirp_m = p;
+
+				}
+
+				/* I return without menage the incoming packet.
+				 * I wait that the 3-way handshake teminates in the 
+				 * real world connection and tcp_listen_input() will
+				 * be call in slirp_select_pool if the connection was right setup*/
+				return;
+			} else { /* (->slirp_state & SS_NOFDREF && ->so != -1) */
+				/* an error is occurred during connection */
+				/* tcp_close((struct tcp_pcb *) lpcb); */
+				tcp_abort((struct tcp_pcb *) lpcb);
+				pbuf_free(p);
+			}
+		} else {
+			LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: lpcb->slirp = %d is connecting, ", lpcb->slirp_posfd));
+#if LWSLIRP_DEBUG
+			slirp_debug_print_state(TCP_INPUT_DEBUG, (struct tcp_pcb *)lpcb);
+#endif
+			LWIP_DEBUGF(TCP_INPUT_DEBUG, ("\n"));
+			/* ...otherwise menage the incoming packet. It should be a SYN packet.*/
+			if(tcp_listen_input(lpcb,piphdr,slirpif) != ERR_OK)
+				DROPWITHRESET(stack, stack->tcphdr, piphdr);
+			pbuf_free(p);
+
+			/* Now that I have created a connected TCP pcb, I remove the 
+			 * listen pcb from the list and I delete it. */
+			TCP_RMV(&stack->tcp_listen_pcbs.listen_pcbs, lpcb);
+			memp_free(MEMP_TCP_PCB_LISTEN, lpcb);
+			return;
+		}
+	} else 
+#endif /* LWSLIRP */
+	{
+		tcp_listen_input(lpcb,piphdr
+#ifdef LWSLIRP
+				,slirpif
+#endif
+				);
+		pbuf_free(p);
+		return;
+	}
+			}
+
+	prev = (struct tcp_pcb *)lpcb;
+			}
+		}
 
 #if TCP_INPUT_DEBUG
-  LWIP_DEBUGF(TCP_INPUT_DEBUG, ("+-+-+-+-+-+-+-+-+-+-+-+-+-+- tcp_input: flags "));
-  tcp_debug_print_flags(TCPH_FLAGS(stack->tcphdr));
-  LWIP_DEBUGF(TCP_INPUT_DEBUG, ("-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n"));
+		LWIP_DEBUGF(TCP_INPUT_DEBUG, ("+-+-+-+-+-+-+-+-+-+-+-+-+-+- tcp_input: flags "));
+		tcp_debug_print_flags(TCPH_FLAGS(stack->tcphdr));
+		LWIP_DEBUGF(TCP_INPUT_DEBUG, ("-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n"));
 #endif /* TCP_INPUT_DEBUG */
-
 
   if (pcb != NULL) {
     /* The incoming segment belongs to a connection. */
@@ -402,17 +511,72 @@ tcp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr
       goto end;
     }
 #endif /* SO_REUSE */
-    /* If no matching PCB was found, send a TCP RST (reset) to the
-       sender. */
-    LWIP_DEBUGF(TCP_RST_DEBUG, ("tcp_input: no PCB match found, resetting.\n"));
-    if (!(TCPH_FLAGS(stack->tcphdr) & TCP_RST)) {
-      TCP_STATS_INC(tcp.proterr);
-      TCP_STATS_INC(tcp.drop);
-      tcp_rst(stack, stack->ackno, stack->seqno + stack->tcplen,
-        piphdr->dest, piphdr->src,
-        stack->tcphdr->dest, stack->tcphdr->src);
-    }
+#ifdef LWSLIRP
+		if (slirpif) {
+			struct tcp_pcb *tcp_pcb;
+			struct tcp_pcb *ltcp_pcb;
+			LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: no PCB match found\n"));
+
+			/* XXX If a TCB does not exist, and the TCP_SYN flag is
+			 * the only flag set, then create a session, mark it
+			 * as if it was LISTENING, and continue... */
+			LWIP_DEBUGF(TCP_INPUT_DEBUG, ("(flags & (TCP_SYN | TCP_FIN | "
+						"TCP_RST | TCP_URG | TCP_ACK))(%d) != TCP_SYN (%d)=> %d\n",
+						(stack->flags & (TCP_SYN | TCP_FIN | TCP_RST | TCP_URG | TCP_ACK)), TCP_SYN,
+						(stack->flags & (TCP_SYN | TCP_FIN | TCP_RST | TCP_URG | TCP_ACK) != TCP_SYN)));
+
+			if((stack->flags & (TCP_SYN | TCP_FIN | TCP_RST | TCP_URG | TCP_ACK)) != TCP_SYN) {
+				DROPWITHRESET(stack, stack->tcphdr, piphdr);
+				return;
+			}
+			LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: only TCP_SYN flag set, so i create a new pcb.\n"));
+
+			/* I create a new tcp control block ...*/
+			if((tcp_pcb = tcp_new(stack)) == NULL) {
+				LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: creation of a new pcb failed.\n"));
+				DROPWITHRESET(stack, stack->tcphdr, piphdr);
+			}
+			/* ... I set the reuse port option ...*/
+			tcp_pcb->so_options |=  SOF_REUSEPORT;
+			LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: tcp_pcb->so_options & SOF_REUSEPORT(%d) = %d, tcp_pcb = %p, tcp_pcb->slirp =%d\n",
+						SOF_REUSEPORT, tcp_pcb->so_options & SOF_REUSEPORT, tcp_pcb, tcp_pcb->slirp_posfd));
+			LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: new TCP pcb created = %p.\n", tcp_pcb));
+
+			/* ... and i bind it to the destination address/port of the packet*/
+			if(tcp_bind(tcp_pcb, piphdr->dest, stack->tcphdr->dest) != ERR_OK) {
+				LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: tcp_bind() error.\n"));
+				DROPWITHRESET(stack, stack->tcphdr, piphdr);
+			}
+
+			/* set the state of the connection to LISTEN */
+			if((ltcp_pcb = tcp_listen(tcp_pcb)) == NULL){
+				LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: setting pcb in LISTEN state failed.\n"));
+				DROPWITHRESET(stack, stack->tcphdr, piphdr);
+			}
+
+			/* I register the callback function accept */
+			tcp_accept(ltcp_pcb, slirp_tcp_accept);
+			LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: after tcp_listen, tcp_pcb = %p.\n", tcp_pcb));
+
+			/* I go up, and search again in the TCP PCB, so now for this packet a pcb is
+			 * found in the tcp_listen_pcbs list and is menaged by the stack. */
+			goto again_1;
+
+		} else
+#endif
+			{
+				/* If no matching PCB was found, send a TCP RST (reset) to the
+					 sender. */
+			LWIP_DEBUGF(TCP_RST_DEBUG, ("tcp_input: no PCB match found, resetting.\n"));
+			if (!(TCPH_FLAGS(stack->tcphdr) & TCP_RST)) {
+				TCP_STATS_INC(tcp.proterr);
+				TCP_STATS_INC(tcp.drop);
+				tcp_rst(stack, stack->ackno, stack->seqno + stack->tcplen,
+						piphdr->dest, piphdr->src,
+						stack->tcphdr->dest, stack->tcphdr->src);
+			}
     pbuf_free(p);
+		}
   }
 #if SO_REUSE
  end:
@@ -428,7 +592,11 @@ tcp_input(struct pbuf *p, struct ip_addr_list *inad, struct pseudo_iphdr *piphdr
  */
 
 static err_t
-tcp_listen_input(struct tcp_pcb_listen *pcb, struct pseudo_iphdr *piphdr)
+tcp_listen_input(struct tcp_pcb_listen *pcb, struct pseudo_iphdr *piphdr
+#ifdef LWSLIRP
+		    , struct netif *slirpif
+#endif
+				)
 {
   struct stack *stack = pcb->stack;
   
@@ -472,14 +640,41 @@ tcp_listen_input(struct tcp_pcb_listen *pcb, struct pseudo_iphdr *piphdr)
     npcb->ssthresh = npcb->snd_wnd;
     npcb->snd_wl1 = stack->seqno - 1;/* initialise to seqno-1 to force window update */
     npcb->callback_arg = pcb->callback_arg;
+#ifdef LWSLIRP
+		if (slirpif) {
+			npcb->slirp_posfd = pcb->slirp_posfd;
+			npcb->slirp_state = pcb->slirp_state;
+			LWIP_DEBUGF(TCP_DEBUG, ("tcp_listen_input: npcb->slirp = %d\n", npcb->slirp_posfd));
+			/* I restore the ->s and the ->slirp_state fields, for new connections */
+			pcb->slirp_posfd = -1;
+			pcb->slirp_state = SS_NOFDREF;
+			LWIP_DEBUGF(TCP_DEBUG, ("tcp_listen_input: lpcb->slirp = %d\n", pcb->slirp_posfd));
+		}
+#endif /* LWSLIRP */
+
 #if LWIP_CALLBACK_API
     npcb->accept = pcb->accept;
+#ifdef LWSLIRP
+		if (slirpif) {
+			tcp_arg(npcb, NULL);
+			tcp_recv(npcb, slirp_tcp_recv);
+			tcp_sent(npcb, slirp_tcp_sent);
+		}
+#endif
 #endif /* LWIP_CALLBACK_API */
     /* inherit socket options */
     npcb->so_options = pcb->so_options & (SOF_DEBUG|SOF_DONTROUTE|SOF_KEEPALIVE|SOF_OOBINLINE|SOF_LINGER);
+#ifdef LWSLIRP
+		if (slirpif)
+			npcb->so_options |= SOF_REUSEPORT;
+#endif
+
     /* Register the new PCB so that we can begin receiving segments
        for it. */
     TCP_REG(&stack->tcp_active_pcbs, npcb);
+#ifdef LWSLIRP
+		slirp_tcp_update_listen2data(npcb);
+#endif
 
     /* Parse any options in the SYN. */
     tcp_parseopt(npcb);

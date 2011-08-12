@@ -123,6 +123,7 @@ loopif_init(struct netif *netif)
   
   netif->name[0] = 'l';
   netif->name[1] = 'o';
+	netif->link_type = NETIF_LOOPIF;
 	netif->num = netif_next_num(netif,NETIF_LOOPIF);
   netif->output = loopif_output;
   netif->flags |= NETIF_FLAG_UP | NETIF_FLAG_LOOPBACK;

@@ -106,16 +106,12 @@ struct tapif {
   struct eth_addr *ethaddr;
   /* Add whatever per-interface state that is needed here. */
   int fd;
-
-  u8_t      active;  
-  sys_sem_t cleanup_mutex;
+	int posfd;
 };
 
 /* Forward declarations. */
-static void  tapif_input(struct netif *netif);
+static void  tapif_input(struct netif *netif, int posfd, void *arg);
 static err_t tapif_output(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr);
-
-static void tapif_thread(void *data);
 
 /*-----------------------------------------------------------------------------------*/
 
@@ -156,37 +152,38 @@ low_level_init(struct netif *netif, char *ifname)
 		struct ifreq ifr;
 		memset(&ifr, 0, sizeof(ifr));
 		ifr.ifr_flags = IFF_TAP|IFF_NO_PI;
-		strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name) - 1);
+		if (ifname != NULL)
+			strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name) - 1);
 		if (ioctl(tapif->fd, TUNSETIFF, (void *) &ifr) < 0) {
-		perror("tapif_init: DEVTAP ioctl TUNSETIFF");
+			perror("tapif_init: DEVTAP ioctl TUNSETIFF");
 			return ERR_IF;
 		}
 	}
-
-	tapif->active = 1;
-	tapif->cleanup_mutex = sys_sem_new(0);
-
-	sys_thread_new(tapif_thread, netif, DEFAULT_THREAD_PRIO);
-	return ERR_OK;
+	if ((tapif->posfd=netif_addfd(netif,
+				tapif->fd, tapif_input, NULL, 0, POLLIN)) < 0)
+		return ERR_IF;
+	else
+		return ERR_OK;
 }
 
 /* cleanup: garbage collection */
-static err_t cleanup(struct netif *netif)
+static err_t tapif_ctl(struct netif *netif, int request, void *arg)
 {
 	struct tapif *tapif = netif->state;
 
 	if (tapif) {
 
-		close(tapif->fd);
+		switch (request) {
 
-		/* Unset ARP timeout on this interface */
-		sys_untimeout((sys_timeout_handler)arp_timer, netif);
+			case NETIFCTL_CLEANUP:
+				close(tapif->fd);
 
-		/* Stop interface thread and wait until it exits */
-		tapif->active = 0;
-		sys_sem_wait_timeout(tapif->cleanup_mutex, 0); 
-		sys_sem_free(tapif->cleanup_mutex);
-		mem_free(tapif);
+				/* Unset ARP timeout on this interface */
+				sys_untimeout((sys_timeout_handler)arp_timer, netif);
+
+				netif_delfd(netif->stack, tapif->posfd);
+				mem_free(tapif);
+		}
 	}
 	return ERR_OK;
 }
@@ -256,7 +253,6 @@ low_level_input(struct tapif *tapif,u16_t ifflags)
 	if (!(ETH_RECEIVING_RULE(buf,tapif->ethaddr->addr,ifflags))) {
 		return NULL;
 	}
-
   
 	/* We allocate a pbuf chain of pbufs from the pool. */
 	p = pbuf_alloc(PBUF_RAW, len, PBUF_POOL);
@@ -280,30 +276,7 @@ low_level_input(struct tapif *tapif,u16_t ifflags)
 
 	return p;  
 }
-/*-----------------------------------------------------------------------------------*/
-static void 
-tapif_thread(void *arg)
-{
-	struct netif *netif = arg;
-	struct tapif *tapif = netif->state;
-	struct pollfd pfd[]={{tapif->fd,POLLIN,0}};
-	int ret;
-	
-	/* Check if we have to exit and wait 100ms for new data */
-	while (tapif->active) {
-		/* Wait for a packet to arrive. */
-		ret = poll(pfd, 1, 100);
-		if(ret == 1) {
-			/* Handle incoming packet. */
-			tapif_input(netif);
-		} else if(ret == -1) {
-			perror("tapif_thread: poll");
-		}
-	}
 
-	/* Ok, signal cleanup mutex */
-	sys_sem_signal(tapif->cleanup_mutex);   
-}
 /*-----------------------------------------------------------------------------------*/
 /*
  * tapif_output():
@@ -336,7 +309,7 @@ tapif_output(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr)
  */
 /*-----------------------------------------------------------------------------------*/
 static void
-tapif_input(struct netif *netif)
+tapif_input(struct netif *netif, int posfd, void *arg)
 {
 	struct tapif *tapif;
 	struct eth_hdr *ethhdr;
@@ -401,10 +374,11 @@ tapif_init(struct netif *netif)
 	netif->state = tapif;
 	netif->name[0] = IFNAME0;
 	netif->name[1] = IFNAME1;
+	netif->link_type = NETIF_TAPIF;
 	netif->num=netif_next_num(netif,NETIF_TAPIF);
 	netif->output = tapif_output;
 	netif->linkoutput = low_level_output;
-	netif->cleanup = cleanup;
+	netif->netifctl = tapif_ctl;
 	netif->mtu = 1500; 	 
 	/* hardware address length */
 	netif->hwaddr_len = 6;

@@ -52,18 +52,18 @@ int track_default_inverse(struct ip_tuple *reply, struct ip_tuple *tuple)
 
 /*--------------------------------------------------------------------------*/
 
-int track_default_error (uf_verdict_t *verdict, struct pbuf *q)
+int track_default_error (struct stack *stack, uf_verdict_t *verdict, struct pbuf *q)
 {
 	* verdict = UF_DROP;
 	return -1;
 }
 
-int track_default_new(struct nat_pcb *pcb,  struct pbuf *p, void *iphdr, int iplen)
+int track_default_new(struct stack *stack, struct nat_pcb *pcb,  struct pbuf *p, void *iphdr, int iplen)
 { 
 	return 1;
 }
 
-int track_default_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction)
+int track_default_handle(struct stack *stack, uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction)
 { 
 	*verdict = UF_DROP;
 	return -1;
@@ -71,7 +71,7 @@ int track_default_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direc
 
 /*--------------------------------------------------------------------------*/
 
-int nat_default_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
+int nat_default_tuple_inverse (struct stack *stack, struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
 {
 	return -1;
 }

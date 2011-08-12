@@ -66,13 +66,13 @@ int track_udp_inverse(struct ip_tuple *reply, struct ip_tuple *tuple)
                 
 /*--------------------------------------------------------------------------*/
 
-int track_udp_error (uf_verdict_t *verdict, struct pbuf *p)
+int track_udp_error (struct stack *stack, uf_verdict_t *verdict, struct pbuf *p)
 {
 	// FIX: check packet len and checksum
 	return 1;
 }
 
-int track_udp_new(struct nat_pcb *pcb, struct pbuf *p, void *iphdr, int iplen) 
+int track_udp_new(struct stack *stack, struct nat_pcb *pcb, struct pbuf *p, void *iphdr, int iplen) 
 { 
 	pcb->proto.udp.isstream = 0;
 	pcb->timeout  = NAT_IDLE_UDP_TIMEOUT;
@@ -80,7 +80,7 @@ int track_udp_new(struct nat_pcb *pcb, struct pbuf *p, void *iphdr, int iplen)
 	return 1;
 }
 
-int track_udp_handle(uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction)
+int track_udp_handle(struct stack *stack, uf_verdict_t *verdict, struct pbuf *p, conn_dir_t direction)
 { 
 	struct udp_hdr  *udphdr  = NULL;
 	struct ip_hdr   *iphdr;
@@ -144,7 +144,7 @@ int nat_udp_manip (nat_manip_t type, void *iphdr, int iplen, struct ip_tuple *in
 	return -1;
 }
 
-int nat_udp_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
+int nat_udp_tuple_inverse (struct stack *stack, struct ip_tuple *reply, struct ip_tuple *tuple, nat_type_t type, struct manip_range *nat_manip )
 {
 	u16_t port;
 	u32_t min, max;
@@ -160,7 +160,7 @@ int nat_udp_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_t
 			max = 0xFFFF;
 		}
 
-		if (nat_ports_getnew(IP_PROTO_UDP, &port, min, max) > 0) {
+		if (nat_ports_getnew(stack, IP_PROTO_UDP, &port, min, max) > 0) {
 			reply->dst.proto.upi.udp.port = htons(port); 
 		}
 		else 
@@ -178,7 +178,7 @@ int nat_udp_tuple_inverse (struct ip_tuple *reply, struct ip_tuple *tuple, nat_t
 int nat_udp_free(struct nat_pcb *pcb)
 {
 	if (pcb->nat_type == NAT_SNAT) {
-		nat_ports_free(IP_PROTO_UDP, ntohs(pcb->tuple[CONN_DIR_REPLY].dst.proto.upi.udp.port));
+		nat_ports_free(pcb->stack, IP_PROTO_UDP, ntohs(pcb->tuple[CONN_DIR_REPLY].dst.proto.upi.udp.port));
 	} 
 
 	return 1;

@@ -514,18 +514,21 @@ tcp_output(struct tcp_pcb *pcb)
         useg = seg;
       /* unacked list is not empty? */
       } else {
-        /* In the case of fast retransmit, the packet should not go to the tail
-         * of the unacked queue, but rather at the head. We need to check for
-         * this case. -STJ Jul 27, 2004 */
-        if (TCP_SEQ_LT(ntohl(seg->tcphdr->seqno), ntohl(useg->tcphdr->seqno))){
-          /* add segment to head of unacked list */
-          seg->next = pcb->unacked;
-          pcb->unacked = seg;
-        } else {
-          /* add segment to tail of unacked list */
-          useg->next = seg;
-          useg = useg->next;
-        }
+				/********** XXX XXX *********/
+				if (useg == NULL)
+					printf("??????? race condition error ??? seg useg %p %p\n",seg,useg);
+				/* In the case of fast retransmit, the packet should not go to the tail
+				 * of the unacked queue, but rather at the head. We need to check for
+				 * this case. -STJ Jul 27, 2004 */
+				if (TCP_SEQ_LT(ntohl(seg->tcphdr->seqno), ntohl(useg->tcphdr->seqno))){
+					/* add segment to head of unacked list */
+					seg->next = pcb->unacked;
+					pcb->unacked = seg;
+				} else {
+					/* add segment to tail of unacked list */
+					useg->next = seg;
+					useg = useg->next;
+				}
       }
     /* do not queue empty segments on the unacked list */
     } else {

@@ -54,7 +54,13 @@
 #ifndef __LWIP_SOCKETS_H__
 #define __LWIP_SOCKETS_H__
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <sys/ioctl.h>
+#include <net/if_arp.h>
+
 #include "lwip/ip_addr.h"
+#if 0
 struct stack;
 struct in_addr {
           u32_t s_addr;
@@ -425,7 +431,13 @@ struct linger {
 			 *       */
 
 #define SIOCPROTOPRIVATE 0x89E0 /* to 89EF */
- 
+#endif 
+#ifndef SO_REUSEPORT
+#define SO_REUSEPORT 15
+#endif
+#ifndef ICMPV6_FILTER
+#define ICMPV6_FILTER                       1
+#endif
 
 int lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen);
 int lwip_bind(int s, struct sockaddr *name, socklen_t namelen);
@@ -469,6 +481,7 @@ int lwip_fcntl(int s, int cmd, long arg);
 
 #define size_t          u32_t
 
+#if 0
 /* Structure for scatter/gather I/O.  */
 struct iovec {
 	void *iov_base;     /* Pointer to data.  */
@@ -477,9 +490,10 @@ struct iovec {
 /* FIX: iov_len, and many other parameters should be size_t or socklen_t */
 
 };
+#endif
 
-int lwip_readv(int s, struct iovec *vector, int count);
-int lwip_writev(int s, struct iovec *vectorc, int count);
+ssize_t lwip_readv(int s, struct iovec *vector, int count);
+ssize_t lwip_writev(int s, struct iovec *vectorc, int count);
 
 
 #if LWIP_COMPAT_SOCKETS

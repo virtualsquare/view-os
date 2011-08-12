@@ -87,6 +87,14 @@ ip_addr_cmp(struct ip_addr *addr1, struct ip_addr *addr2)
          addr1->addr[3] == addr2->addr[3]);
 }
 
+static inline int
+ip_addr_is_dhcp_broadcast(struct ip_addr *from, struct ip_addr *to)
+{
+	return (from->addr[3]==0 && to->addr[3]==0xffffffff &&
+			from->addr[2]==IP64_PREFIX && to->addr[2]==IP64_PREFIX &&
+			(from->addr[0] | from->addr[1] | to->addr[0] | to->addr[1]) == 0);
+}
+
 void
 ip_addr_set(struct ip_addr *dest, struct ip_addr *src)
 {
@@ -317,12 +325,15 @@ struct ip_addr_list *ip_addr_list_deliveryfind(struct ip_addr_list *tail, struct
 		return NULL;
 	el=tail=tail->next;
 	do {
-		/*printf("ip_addr_list_deliveryfind ");
-		ip_addr_debug_printf(&(el->ipaddr));
+		/*
+		printf("ip_addr_list_deliveryfind ");
+		ip_addr_debug_print(DBG_ON,&(el->ipaddr));
 		printf(" - ");
-		ip_addr_debug_printf(addr);
+		ip_addr_debug_print(DBG_ON,addr);
 		printf(" - ");
-		ip_addr_debug_printf(&(el->netmask));
+		ip_addr_debug_print(DBG_ON,&(el->netmask));
+		printf(" -from ");
+		ip_addr_debug_print(DBG_ON,sender);
 		printf("\n"); */
 		/* local address */
 		if (ip_addr_cmp(&(el->ipaddr),addr))
@@ -342,6 +353,9 @@ struct ip_addr_list *ip_addr_list_deliveryfind(struct ip_addr_list *tail, struct
 				/*printf("v4comp\n");*/
 				return el;
 			}
+		}
+		if (ip_addr_is_dhcp_broadcast(sender,addr)) {
+			return el;
 		}
 		el=el->next;
 	} while (el != tail);
@@ -376,4 +390,40 @@ struct ip_addr_list *ip_addr_list_masquarade_addr(struct ip_addr_list *tail, u8_
 	} while (el != tail);
 	return NULL;
 }
+
+#ifdef LWSLIRP
+/**
+ * Added for slirp:
+ * It search in the list "tail" an address that has its triling 24 bits 
+ * equal to the trailing 24 bits of the multicast solicited IPv6 address "addr".
+ * The four address of slirpvde have the last 24 bit each one different from the other, 
+ * so the ip_addr returned is unique.
+ */
+struct ip_addr *ip_addr_find_unicast_from_solicited(struct ip_addr_list *tail, struct ip_addr *addr)
+{
+	struct ip_addr netmask;
+	struct ip_addr_list *el;
+	IP6_ADDR(&netmask, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x00ff, 0xffff);
+	if (tail == NULL)
+		return NULL;
+
+	el=tail=tail->next;
+	do {
+		LWIP_DEBUGF(IP_DEBUG, ("ip_addr_find_unicast_from_solicited: el->ipaddr = "));
+		ip_addr_debug_print(IP_DEBUG, &(el->ipaddr));
+		LWIP_DEBUGF(IP_DEBUG, (" addr = "));
+		ip_addr_debug_print(IP_DEBUG, addr);
+		LWIP_DEBUGF(IP_DEBUG, (" netmask = "));
+		ip_addr_debug_print(IP_DEBUG, &netmask);
+		LWIP_DEBUGF(IP_DEBUG, (" !ip_addr_is_v4comp(&(el->ipaddr)) = %d\n", !ip_addr_is_v4comp(&(el->ipaddr))));
+		/* I search only in the IPv6 addresses, not IPv4. */
+		if (!ip_addr_is_v4comp(&(el->ipaddr)) && ip_addr_maskcmp(&(el->ipaddr), addr, &netmask))
+			return &(el->ipaddr);
+		el=el->next;
+	} while (el != tail);
+
+	return NULL;
+}
+#endif /* SLIRPVDE */
+
 

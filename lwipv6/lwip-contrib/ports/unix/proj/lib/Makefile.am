@@ -92,6 +92,7 @@ LWIPHEADERS = $(LWIPDIR)/include/lwip/arch.h \
               $(LWIPDIR)/include/lwip/snmp.h \
               $(LWIPDIR)/include/lwip/arphdr.h \
               $(LWIPDIR)/include/lwip/stack.h \
+              $(LWIPDIR)/include/lwip/lwslirp.h \
               $(LWIPDIR)/include/ipv6/lwip/ip.h \
               $(LWIPDIR)/include/ipv6/lwip/ip_addr.h \
               $(LWIPDIR)/include/ipv6/lwip/ip_autoconf.h \
@@ -106,6 +107,7 @@ LWIPHEADERS = $(LWIPDIR)/include/lwip/arch.h \
               $(LWIPARCH)/include/netif/vdeif.h \
               $(LWIPARCH)/include/netif/tunif.h \
               $(LWIPARCH)/include/netif/tapif.h \
+              $(LWIPARCH)/include/netif/slirpif.h \
               $(LWIPARCH)/include/arch/cc.h \
               $(LWIPARCH)/include/arch/sys_arch.h \
               $(LWIPARCH)/include/arch/perf.h \
@@ -145,7 +147,8 @@ COREFILES += \
 	$(LWIPDIR)/core/udp.c     \
 	$(LWIPDIR)/core/raw.c     \
 	$(LWIPDIR)/core/packet.c  \
-	$(LWIPDIR)/core/dhcp.c
+	$(LWIPDIR)/core/dhcp.c    \
+	$(LWIPDIR)/core/lwslirp.c  
 
 CORE6FILES = $(LWIPDIR)/core/inet6.c \
              $(LWIPDIR)/core/ipv6/icmp6.c \
@@ -188,11 +191,12 @@ NETIFFILES = $(LWIPDIR)/netif/loopif.c \
 #
 # Different implementation of architecture backend
 #
-#ARCHFILES=$(LWIPARCH)/sys_arch_pipe.c 
-ARCHFILES=$(LWIPARCH)/sys_arch.2sem.c 
+ARCHFILES=$(LWIPARCH)/sys_arch_pipe.c 
+#ARCHFILES=$(LWIPARCH)/sys_arch.2sem.c 
 #ARCHFILES = $(LWIPARCH)/sys_arch.c 
 
 ARCHFILES += $(LWIPARCH)/netif/vdeif.c
+ARCHFILES += $(LWIPARCH)/netif/slirpif.c
 ARCHFILES += $(LWIPARCH)/netif/tapif.c
 ARCHFILES += $(LWIPARCH)/netif/tunif.c
 

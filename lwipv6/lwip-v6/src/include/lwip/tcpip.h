@@ -71,7 +71,7 @@ struct tcpip_msg {
 
     /* Signal to the main thread to add a new network interface */
     struct {
-      sys_sem_t *sem;    // used for syncronous calls
+      sys_sem_t *sem;    // used for synchronous calls
       struct netif *netif;
       void *state;
       err_t (* init)(struct netif *netif);
@@ -82,7 +82,7 @@ struct tcpip_msg {
 
 
     struct {
-      sys_sem_t *sem;    // used for syncronous calls
+      sys_sem_t *sem;    // used for synchronous calls
       struct netif *netif;
       u32_t type;
     } netif_notify;
@@ -96,7 +96,7 @@ int tcpip_init(void);
 typedef void (* tcpip_handler)(void *arg);
 
 /* Alloc a new stack thread and return stack number */
-struct stack *tcpip_start(tcpip_handler init_func, void *arg);
+struct stack *tcpip_start(tcpip_handler init_func, void *arg, unsigned long flags);
 
 /* Signal to the stack to shutdown */
 void tcpip_shutdown(struct stack *stack, tcpip_handler shutdown_func, void *arg);

@@ -29,27 +29,13 @@
  * Author: Adam Dunkels <adam@sics.se>
  *
  */
-#ifndef __ARCH_SYS_ARCH_H__
-#define __ARCH_SYS_ARCH_H__
+#ifdef LWSLIRP
+#ifndef __SLIRPIF_H__
+#define __SLIRPIF_H__
 
-#include <errno.h>
-#include <sys/time.h>
+#include "lwip/netif.h"
 
-#define SYS_MBOX_NULL NULL
-#define SYS_SEM_NULL  NULL
+err_t slirpif_init(struct netif *netif);
 
-typedef u32_t sys_prot_t;
-
-struct sys_sem;
-typedef struct sys_sem * sys_sem_t;
-
-struct sys_mbox;
-typedef struct sys_mbox *sys_mbox_t;
-
-//New management of timeouts 20100728
-//struct sys_thread;
-//typedef struct sys_thread * sys_thread_t;
-typedef pthread_t sys_thread_t;
-
-#endif /* __ARCH_SYS_ARCH_H__ */
-
+#endif /* __SLIRPIF_H__ */
+#endif /* LWSLIRP */

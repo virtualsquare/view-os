@@ -887,22 +887,16 @@ ip_route_ipv6_select_source(struct netif *outif, struct ip_addr *dst)
 	return prefer;
 }
 
-
 struct ip_addr_list * 
 ip_route_select_source_ip(struct netif *outif, 
                        struct ip_addr *dest,
                        struct ip_addr *nexthop)
 {
-    if (ip_addr_is_v4comp(dest)) 
+	if (ip_addr_is_v4comp(dest)) 
 		return ip_addr_list_maskfind(outif->addrs, nexthop);
-    else 
+	else 
 		return ip_route_ipv6_select_source(outif, dest);
 }
-
-
-
-
-
 
 /* added by Diego Billi */
 #if 0

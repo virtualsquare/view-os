@@ -65,6 +65,10 @@
  */
 #define LWIP_NOASSERT
 
+/*
+ * LWIPv6 SLIRP
+ */
+#define LWSLIRP
 
 /* Enable NETLINK sockets to support network configuration by using iproute2 tools */
 #define LWIP_NL                        1
@@ -79,15 +83,14 @@
 
 #define IPv6_AUTO_CONFIGURATION        1
 
-#define IPv6_ROUTER_ADVERTISEMENT      0
-#define IPv6_RADVCONF                  0
+#define IPv6_ROUTER_ADVERTISEMENT      1
+#define IPv6_RADVCONF                  1
 
-#define LWIP_USERFILTER                0
-#define LWIP_NAT                       0
+#define LWIP_USERFILTER                1
+#define LWIP_NAT                       1
 
 /* Set to 1 to enable DHCP IPv4 */
-#define LWIP_DHCP                      0
-
+#define LWIP_DHCP                      1
 
 
 /* ---------- Memory options ---------- */
@@ -280,11 +283,11 @@ a lot of data that needs to be copied, this should be set high. */
 //#define ICMP_DEBUG              DBG_ON
 //#define UDP_DEBUG               DBG_ON
 
-
 //#define TCPIP_DEBUG             DBG_ON
 //#define SOCKETS_DEBUG           DBG_ON
-
-
+//#define LWSLIRP_DEBUG           DBG_ON
+//#define TCP_INPUT_DEBUG           DBG_ON
+//#define TCP_DEBUG                 DBG_ON
 
 /* ---------- Debug options for /contrib/port/unix/netif files ------------- */
 

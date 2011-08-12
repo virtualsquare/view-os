@@ -39,10 +39,6 @@
  *    not created with sys_thread_new().  This includes
  *    the main thread and threads made with pthread_create().
  *
- *  - Catch overflows where more than SYS_MBOX_SIZE messages
- *    are waiting to be read.  The sys_mbox_post() routine
- *    will block until there is more room instead of just
- *    leaking messages.
  */
 #include "lwip/debug.h"
 
@@ -61,18 +57,6 @@
 
 #define UMAX(a, b)      ((a) > (b) ? (a) : (b))
 
-static struct sys_thread *threads = NULL;
-static pthread_mutex_t threads_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-#if 0
-struct sys_mbox_msg {
-  struct sys_mbox_msg *next;
-  void *msg;
-};
-#endif
-
-#define SYS_MBOX_SIZE 128
-
 struct sys_mbox {
   int pipe[2];
 };
@@ -82,15 +66,6 @@ struct sys_sem {
   pthread_cond_t cond;
   pthread_mutex_t mutex;
 };
-
-struct sys_thread {
-  struct sys_thread *next;
-  struct sys_timeouts timeouts;
-  pthread_t pthread;
-};
-
-
-static struct timeval starttime;
 
 static pthread_mutex_t lwprot_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t lwprot_thread = (pthread_t) 0xDEAD;
@@ -103,77 +78,24 @@ static u32_t cond_wait(pthread_cond_t * cond, pthread_mutex_t * mutex,
                        u32_t timeout);
 
 /*-----------------------------------------------------------------------------------*/
-static struct sys_thread * 
-introduce_thread(pthread_t id)
-{
-  struct sys_thread *thread;
-  
-  thread = malloc(sizeof(struct sys_thread));
-    
-  if (thread) {
-    pthread_mutex_lock(&threads_mutex);
-    thread->next = threads;
-    thread->timeouts.next = NULL;
-    thread->pthread = id;
-    threads = thread;
-    pthread_mutex_unlock(&threads_mutex);
-  }
-    
-  return thread;
-}
-/*-----------------------------------------------------------------------------------*/
-static struct sys_thread *
-current_thread(void)
-{
-  struct sys_thread *st;
-  pthread_t pt;
-  pt = pthread_self();
-  pthread_mutex_lock(&threads_mutex);
-
-  for(st = threads; st != NULL; st = st->next) {    
-    if (pthread_equal(st->pthread, pt)) {
-      pthread_mutex_unlock(&threads_mutex);
-      
-      return st;
-    }
-  }
-
-  pthread_mutex_unlock(&threads_mutex);
-
-  st = introduce_thread(pt);
-
-  if (!st) {
-    printf("current_thread???\n");
-    abort();
-  }
-
-  return st;
-}
-/*-----------------------------------------------------------------------------------*/
 sys_thread_t
 sys_thread_new(void (*function)(void *arg), void *arg, int prio)
 {
-  int code;
-  pthread_t tmp;
-  struct sys_thread *st = NULL;
-  
-  code = pthread_create(&tmp,
-                        NULL, 
-                        (void *(*)(void *)) 
-                        function, 
-                        arg);
-  
-  if (0 == code) {
-    st = introduce_thread(tmp);
-  }
-  
-  if (NULL == st) {
-    LWIP_DEBUGF(SYS_DEBUG, ("sys_thread_new: pthread_create %d, st = 0x%x",
-                       code, (int)st));
-    abort();
-  }
-  return st;
+	int code;
+	pthread_t tmp;
+				  
+	code = pthread_create(&tmp,
+			NULL, 
+			(void *(*)(void *)) 
+			function, 
+			arg);
+
+	if (0 == code) {
+		return tmp;
+	} else
+		return -1;
 }
+
 /*-----------------------------------------------------------------------------------*/
 struct sys_mbox *
 sys_mbox_new()
@@ -230,7 +152,7 @@ sys_arch_mbox_fetch(struct sys_mbox *mbox, void **msg, u32_t timeout)
 	FD_ZERO(&rds);
 	FD_SET(mbox->pipe[0],&rds);
 	//printf("TIMEOUT %p %p ->%d\n",(void *)mbox,(void *) msg,timeout);
-	
+
 	do {
 		if (timeout != 0) {
 			tv.tv_sec = timeout/1000;
@@ -252,11 +174,6 @@ sys_arch_mbox_fetch(struct sys_mbox *mbox, void **msg, u32_t timeout)
 	if (timeout != 0)
 		time=timeout - (tv.tv_sec * 1000+tv.tv_usec / 1000);
 	else time=0;
-			/***************************/
-	/*tv.tv_sec=tv.tv_usec=0;
-	FD_ZERO(&rds);
-	FD_SET(mbox->pipe[0],&rds);
-	printf("empty? %d\n",select(mbox->pipe[0]+1,&rds,NULL,NULL,&tv));*/
 			/***************************/
   LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_fetch: mbox %p msg %p timeout %d\n", (void *)mbox, (msg==NULL)?NULL:(void *)*msg,time));
 	} else {
@@ -399,6 +316,7 @@ sys_sem_free_(struct sys_sem *sem)
   free(sem);
 }
 /*-----------------------------------------------------------------------------------*/
+#if 0
 unsigned long
 sys_unix_now()
 {
@@ -414,21 +332,51 @@ sys_unix_now()
     
   return msec;
 }
+#endif
+unsigned long
+time_now()
+{
+	struct timeval tv;
+	struct timezone tz;
+	gettimeofday(&tv, &tz);
+						  
+	return tv.tv_sec;
+}
 /*-----------------------------------------------------------------------------------*/
 void
 sys_init()
 {
-  struct timezone tz;
-  gettimeofday(&starttime, &tz);
 }
 /*-----------------------------------------------------------------------------------*/
+static pthread_key_t key;
+static pthread_once_t key_once = PTHREAD_ONCE_INIT;
+
+static void del_key(void *ptr)
+{
+	free(ptr);
+}
+
+static void
+make_key()
+{
+	//printf("new_key %p\n",pthread_self());
+	(void) pthread_key_create(&key, del_key);
+}
+
 struct sys_timeouts *
 sys_arch_timeouts(void)
 {
-  struct sys_thread *thread;
+	struct sys_timeouts *ptr;
 
-  thread = current_thread();
-  return &thread->timeouts;
+	(void) pthread_once(&key_once, make_key);
+	if ((ptr = pthread_getspecific(key)) == NULL) {
+		ptr = malloc(sizeof(struct sys_timeouts));
+		ptr->next=NULL;
+		(void) pthread_setspecific(key, ptr);
+	}
+	//printf("key %p %p %p\n",pthread_self(), ptr, ptr->next);
+
+	return ptr;
 }
 /*-----------------------------------------------------------------------------------*/
 /** sys_prot_t sys_arch_protect(void)

@@ -61,7 +61,4 @@
 #define ARPHRD_IEEE802_TR 800           /* Magic type ident for TR.  */
 #define ARPHRD_IEEE80211 801            /* IEEE 802.11.  */
 
-#define ARPHRD_VOID   0xFFFF  /* Void type, nothing is known */
-#define ARPHRD_NONE   0xFFFE  /* zero header length */
-
 #endif

@@ -248,7 +248,13 @@ void ip4_addr_set(struct ip4_addr *dest, struct ip4_addr *src);
 	(solicited)->addr[2] = htonl(0x00000001); \
 	(solicited)->addr[3] = htonl(0xff000000) | (ipaddr)->addr[3]; } while (0)
 
-
+#ifdef LWSLIRP
+#define ip_addr_is_addr_solicited(addr1) \
+	(((addr1)->addr[0] == htonl(0xff020000)) && \
+	 ((addr1)->addr[1] == htonl(0)) && \
+	 ((addr1)->addr[2] == htonl(1)) && \
+	 (htonl(htonl((addr1)->addr[3])  >> 24 ) == htonl(0xff)))
+#endif
 
 #define ip_addr_is_v4comp(addr1) \
 	(((addr1)->addr[0] == 0) && \
@@ -324,6 +330,10 @@ struct ip_addr_list *ip_addr_list_deliveryfind(struct ip_addr_list *tail, struct
 
 /* Added by Diego Billi */
 struct ip_addr_list *ip_addr_list_masquarade_addr(struct ip_addr_list *tail, u8_t ipv);
+
+#ifdef LWSLIRP
+struct ip_addr *ip_addr_find_unicast_from_solicited(struct ip_addr_list *tail, struct ip_addr *addr);
+#endif
 
 #define ip_addr_list_first(x) (((x)==NULL) ? NULL : ((x)->next))
 

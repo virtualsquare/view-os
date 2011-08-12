@@ -318,6 +318,9 @@ packet_new(struct stack *stack, u16_t proto,u16_t dgramflag) {
     /* initialize PCB to all zeroes */
     memset(pcb, 0, sizeof(struct packet_pcb));
     pcb->stack = stack;
+#ifdef LWSLIRP
+		pcb->slirp_posfd = -1;
+#endif
     pcb->in_protocol = proto;
     pcb->next = stack->packet_pcbs;
 		pcb->tos = dgramflag; /* override type of service dgram (1) or raw (0) */

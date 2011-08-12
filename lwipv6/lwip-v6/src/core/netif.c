@@ -76,17 +76,165 @@
 #define NETIF_DEBUG DBG_OFF
 #endif
 
+#define NETIF_MAX_STEP 8
+#define NETIF_MIN_FREE 4
+
+static int netif_enlarge_fdtab(struct stack *stack)
+{
+	int newmax=stack->netif_npfd_max + NETIF_MAX_STEP;
+	void *newpfd=mem_realloc(stack->netif_pfd,(newmax * sizeof(struct pollfd)));
+	void *newpfdargs=mem_realloc(stack->netif_pfd_args,
+			(newmax * sizeof (struct netif_args)));
+	if (newpfd && newpfdargs) {
+		stack->netif_pfd=newpfd;
+		stack->netif_pfd_args=newpfdargs;
+		stack->netif_npfd_max=newmax;
+		return 0;
+	} else {
+		if (newpfd) mem_free(newpfd);
+		if (newpfdargs) mem_free(newpfdargs);
+		return -1;
+	}
+}
+
+int netif_addfd(struct netif *netif, int fd,
+		void (*fun)(struct netif *netif, int posfd, void *arg),
+		void *funarg, int flags, short events)
+{
+	struct stack *stack=netif->stack;
+	int n;
+
+	if (stack->netif_npfd_max < 0)
+		return -1;
+	
+	for (n=0; n < stack->netif_npfd && stack->netif_pfd[n].fd >= 0; n++)
+		;
+	if (n == stack->netif_npfd) {
+		if (n >= stack->netif_npfd_max) {
+			/*if (netif_enlarge_fdtab(stack) < 0)*/
+				return -1;
+#if 0
+			int newmax=stack->netif_npfd_max + NETIF_MAX_STEP;
+			void *newpfd=mem_realloc(stack->netif_pfd,(newmax * sizeof(struct pollfd)));
+			void *newpfdargs=mem_realloc(stack->netif_pfd_args,
+					(newmax * sizeof (struct netif_args)));
+			if (newpfd && newpfdargs) {
+				printf("OKAY %d\n",newmax);
+				stack->netif_pfd=newpfd;
+				stack->netif_pfd_args=newpfdargs;
+				stack->netif_npfd_max=newmax;
+			} else {
+				printf("NO %d\n",newmax);
+				if (newpfd) mem_free(newpfd);
+				if (newpfdargs) mem_free(newpfdargs);
+				return -1;
+			}
+#endif
+		}
+		stack->netif_npfd++;
+	}
+	stack->netif_pfd[n].fd = fd;
+	stack->netif_pfd[n].events = events;
+	stack->netif_pfd[n].revents = 0;
+	stack->netif_pfd_args[n].fun = fun;
+	stack->netif_pfd_args[n].netif = netif;
+	stack->netif_pfd_args[n].funarg = funarg;
+	stack->netif_pfd_args[n].flags = flags;
+	LWIP_DEBUGF( NETIF_DEBUG, ("netif_addfd %d %d (%d)\n",fd,n,stack->netif_npfd));
+	return n;
+}
+
+void netif_updatefd(struct stack *stack, int posfd,
+		void (*fun)(struct netif *netif, int posfd, void *arg),
+		void *funarg, int flags)
+{
+	LWIP_DEBUGF( NETIF_DEBUG, ("netif_update %d (%d)\n",posfd,stack->netif_npfd));
+	if (posfd < stack->netif_npfd) {
+		stack->netif_pfd_args[posfd].fun = fun;
+		stack->netif_pfd_args[posfd].funarg = funarg;
+		stack->netif_pfd_args[posfd].flags = flags;
+	}
+}
+
+void netif_delfd(struct stack *stack, int posfd)
+{
+	if (posfd < stack->netif_npfd) {
+		stack->netif_pfd[posfd].fd = -1;
+		stack->netif_pfd[posfd].events = 0;
+		stack->netif_pfd[posfd].revents = 0;
+		stack->netif_pfd_args[posfd].fun = NULL;
+		stack->netif_pfd_args[posfd].netif = NULL;
+		stack->netif_pfd_args[posfd].funarg = NULL;
+		stack->netif_pfd_args[posfd].flags = 0;
+		while (stack->netif_npfd > 0 && stack->netif_pfd[stack->netif_npfd-1].fd < 0)
+			stack->netif_npfd--;
+	}
+	LWIP_DEBUGF( NETIF_DEBUG, ("netif_delfd %d (%d)\n",posfd,stack->netif_npfd));
+}
+
+static void
+netif_thread(void *arg)
+{
+	struct stack *stack=arg;
+	unsigned long time=time_now();
+
+	while(stack->netif_npfd_max >= 0) { /* stack active! */
+		int i;
+		int ret;
+		unsigned long newtime;
+		{
+			unsigned int unused=stack->netif_npfd_max - stack->netif_npfd;
+			if (unused < NETIF_MIN_FREE) {
+				for (i=0; i<stack->netif_npfd; i++)
+					if (stack->netif_pfd[i].fd < 0) 
+						unused++;
+				if (unused < NETIF_MIN_FREE)
+					netif_enlarge_fdtab(stack);
+			}
+		}
+		LWIP_DEBUGF( NETIF_DEBUG, ("netif_thread poll %d %d\n",stack->netif_npfd_max,stack->netif_npfd));
+		ret = poll(stack->netif_pfd, stack->netif_npfd, 100);
+		LWIP_DEBUGF( NETIF_DEBUG, ("netif_thread poll %d out\n",stack->netif_npfd_max));
+		for (i=0; ret>0 && i<stack->netif_npfd; i++) {
+			if (stack->netif_pfd[i].revents != 0) {
+				ret--;
+				stack->netif_pfd_args[i].fun(
+						stack->netif_pfd_args[i].netif,
+						i,
+						stack->netif_pfd_args[i].funarg);
+			}
+		}
+		newtime=time_now();
+		if (newtime > time) {
+			time=newtime;
+			for (i=0; i<stack->netif_npfd; i++)
+				if (stack->netif_pfd_args[i].flags & NETIF_ARGS_1SEC_POLL) 
+					stack->netif_pfd_args[i].fun(
+							stack->netif_pfd_args[i].netif,
+							i,
+							stack->netif_pfd_args[i].funarg);
+		}
+	}
+	LWIP_DEBUGF( NETIF_DEBUG, ("netif_thread leaving loop \n"));
+	sys_sem_signal(stack->netif_cleanup_mutex);
+}
+
 void
 netif_init(struct stack *stack)
 {
 	/* FIX: move ip_addr_list_init() to ip6.c? */
 
-	//ip_addr_list_init();
 	ip_addr_list_init(stack);
 
 	//ip_route_list_init(stack); 
 	
 	stack->netif_list = NULL;
+
+	/* add some fds for interfaces */
+	netif_enlarge_fdtab(stack);
+
+	stack->netif_cleanup_mutex = sys_sem_new(0);
+	sys_thread_new(netif_thread, stack, DEFAULT_THREAD_PRIO);
 }
 
 void
@@ -94,12 +242,13 @@ netif_shutdown(struct stack *stack)
 {
   netif_cleanup(stack);
   
-  /* FIX: TODO */
+  LWIP_DEBUGF( NETIF_DEBUG, ("netif_shutdown!\n") );
+	stack->netif_npfd_max = -1;
+	sys_sem_wait_timeout(stack->netif_cleanup_mutex, 0);
+	sys_sem_free(stack->netif_cleanup_mutex);
 
   LWIP_DEBUGF( NETIF_DEBUG, ("netif_shutdown: done!\n") );
 }
-
-
 
 /**
  * Add a network interface to the list of lwIP netifs.
@@ -144,12 +293,12 @@ struct netif * netif_add(
   netif->addrs = NULL;
 
   netif->input = input;
-  netif->cleanup = NULL;
+  netif->netifctl = NULL;
   netif->change = change;
 
   netif->id = ++stack->uniqueid;
 
-  netif->flags = NETIF_RUNNING;
+  netif->flags |= NETIF_FLAG_LINK_UP;
   /* printf("netif_add %x netif->input %x\n",netif,netif->input); */
 
   /* call user specified initialization function for netif */
@@ -159,11 +308,17 @@ struct netif * netif_add(
   }
 
 #if IPv6_AUTO_CONFIGURATION  
-  ip_autoconf_netif_init(netif);
+	if (netif->flags & NETIF_FLAG_AUTOCONF)
+		ip_autoconf_netif_init(netif);
+	else
+		netif->autoconf = NULL;
 #endif
 
 #if IPv6_ROUTER_ADVERTISEMENT
-  ip_radv_netif_init(netif);
+	if (netif->flags & NETIF_FLAG_RADV)
+		ip_radv_netif_init(netif);
+	else
+		netif->radv = NULL;
 #endif
 
   if (stack->netif_list == NULL)
@@ -316,8 +471,8 @@ void netif_remove(struct netif * netif)
   
   ip_route_list_delnetif(stack, netif);
   
-  if(netif->cleanup)
-    netif->cleanup(netif);
+  if(netif->netifctl)
+    netif->netifctl(netif,NETIFCTL_CLEANUP,NULL);
     
   LWIP_DEBUGF( NETIF_DEBUG, ("netif_remove: removed netif\n") );
 }
@@ -376,10 +531,14 @@ netif_cleanup(struct stack *stack)
 {
 	struct netif *nip;
 	
-	for (nip=stack->netif_list; nip!=NULL; nip=nip->next)
-		// FIX: shutdown interface? RA needs this.
-		if (nip->cleanup)
-			nip->cleanup(nip);
+	for (nip=stack->netif_list; nip!=NULL; nip=nip->next) {
+		// shutdown interface
+		if ((nip->flags & IFF_UP) && (nip->change))
+			nip->change(nip, NETIF_CHANGE_DOWN);
+
+		if (nip->netifctl)
+			nip->netifctl(nip,NETIFCTL_CLEANUP,NULL);
+	}
 }
 
 
@@ -451,11 +610,24 @@ int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr)
 	struct netif *nip;
 	register int i;
 
+	/*printf("netif_ioctl %x %p\n",cmd,ifr);*/
 	if (ifr == NULL)
 		retval=EFAULT;
 	else {
 		if (cmd == SIOCGIFCONF) {
 			retval=netif_ifconf(stack, (struct ifconf *)ifr);
+		} if (cmd == SIOCGIFNAME) {
+			if ((nip = netif_find_id(stack, ifr->ifr_ifindex)) == NULL)
+				 retval=EINVAL;
+			else {
+				ifr->ifr_name[0]=nip->name[0];
+				ifr->ifr_name[1]=nip->name[1];
+				ifr->ifr_name[2]=(nip->num%10)+'0';
+				ifr->ifr_name[3]= 0;
+				ifr->ifr_name[4]= 0;
+				ifr->ifr_name[5]= 0;
+				retval=ERR_OK;
+			}
 		} else {
 #define ifrname ifr->ifr_name
 			ifrname[4]=ifrname[5]=0;
@@ -495,7 +667,6 @@ int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr)
 															LWIP_DEBUGF( NETIF_DEBUG, ("SIOCGIFADDR\n"));
 														}
 														retval = ERR_OK; break;
-														//retval = ENOSYS; break;
 
 					case SIOCGIFFLAGS: 
 						LWIP_DEBUGF( NETIF_DEBUG, ("SIOCGIFFLAGS %x\n",nip->flags));
@@ -559,9 +730,9 @@ u8_t netif_is_up(struct netif *netif)
 	return (netif->flags & NETIF_FLAG_UP)?1:0;
 }
 
-void netif_set_up(struct netif *netif)
+void netif_set_up(struct netif *netif, int flags)
 {
-	netif->flags |= NETIF_FLAG_UP;
+	netif->flags |= (NETIF_FLAG_UP | (flags & NETIF_IFUP_FLAGS));
 	
 	if (netif->change)
 		netif->change(netif, NETIF_CHANGE_UP);
@@ -584,8 +755,6 @@ void netif_set_down_low(struct netif *netif)
 {
 	netif->flags &= ~NETIF_FLAG_UP;
 }
-
-
 
 #if LWIP_NL
 
@@ -797,7 +966,6 @@ void netif_netlink_getaddr(struct stack *stack, struct nlmsghdr *msg,void * buf,
 		if ((flag & NLM_F_DUMP) == NLM_F_DUMP ||
 				ifa->ifa_index == nip->id) {
 			struct ip_addr_list *ial=nip->addrs;
-			/*for(ial=nip->addrs;ial != NULL;ial=ial->next)*/
 			if (ial != NULL) {
 				ial=nip->addrs->next;
 				do {
@@ -808,7 +976,6 @@ void netif_netlink_getaddr(struct stack *stack, struct nlmsghdr *msg,void * buf,
 					ial=ial->next;
 				} while (ial != nip->addrs->next);
 			}
-
 		}
 	}
 	msg->nlmsg_type = NLMSG_DONE;

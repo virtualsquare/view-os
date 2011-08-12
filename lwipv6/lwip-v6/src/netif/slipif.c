@@ -196,10 +196,13 @@ err_t
 slipif_init(struct netif *netif)
 {
   
-  LWIP_DEBUGF(SLIP_DEBUG, ("slipif_init: netif->num=%x\n", (int)netif->num));
 
   netif->name[0] = 's';
   netif->name[1] = 'l';
+	netif->link_type = NETIF_SLIPIF;
+	netif->num = netif_next_num(netif,NETIF_SLIPIF);
+  LWIP_DEBUGF(SLIP_DEBUG, ("slipif_init: netif->num=%x\n", (int)netif->num));
+
   netif->output = slipif_output;
   netif->mtu = 1500;  
   netif->flags = NETIF_FLAG_POINTTOPOINT;

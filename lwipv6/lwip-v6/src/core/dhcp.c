@@ -313,7 +313,7 @@ static err_t dhcp_select(struct netif *netif)
 
     /* TODO: we really should bind to a specific local interface here
        but we cannot specify an unconfigured netif as it is addressless */
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
 
     /* send broadcast to any DHCP server */
 	{
@@ -377,7 +377,7 @@ void dhcp_coarse_tmr(void *arg)
     netif = netif->next;
   }
 
-	sys_timeout(DHCP_COARSE_TIMER_SECS * 1000, dhcp_coarse_tmr  , NULL);
+	sys_timeout(DHCP_COARSE_TIMER_SECS * 1000, dhcp_coarse_tmr  , stack);
 }
 
 /**
@@ -411,17 +411,42 @@ void dhcp_fine_tmr(void *arg)
     netif = netif->next;
   }
 
-	sys_timeout(DHCP_FINE_TIMER_MSECS, dhcp_fine_tmr  , NULL);
+	sys_timeout(DHCP_FINE_TIMER_MSECS, dhcp_fine_tmr  , stack);
 }
 
-
-
+#if 0
 void dhcp_init(struct stack *stack)
 {
 	sys_timeout(DHCP_FINE_TIMER_MSECS        , dhcp_fine_tmr    , (void*)stack);
 	sys_timeout(DHCP_COARSE_TIMER_SECS * 1000, dhcp_coarse_tmr  , (void*)stack);
 }
+#endif
 
+/* start timers if there are no interfaces requiring DHCP,
+	 call this just before assigning netif->dhcp */
+static void dhcp_starttimers(struct stack *stack)
+{
+	struct netif *netif;
+	for(netif = stack->netif_list; netif != NULL; netif = netif->next)
+		if (netif->dhcp != NULL) break;
+	if (netif==NULL) {
+		sys_timeout(DHCP_FINE_TIMER_MSECS        , dhcp_fine_tmr    , (void*)stack);
+	  sys_timeout(DHCP_COARSE_TIMER_SECS * 1000, dhcp_coarse_tmr  , (void*)stack);
+	}
+}
+
+/* stop timers if there are no interfaces requiring DHCP,
+	 call this just after assigning netif->dhcp=NULL */
+static void dhcp_stoptimers(struct stack *stack)
+{
+	struct netif *netif;
+	for(netif = stack->netif_list; netif != NULL; netif = netif->next) 
+		if (netif->dhcp != NULL) break;
+	if (netif==NULL) {
+		sys_untimeout(dhcp_fine_tmr    , (void*)stack);
+		sys_untimeout(dhcp_coarse_tmr  , (void*)stack);
+	}
+}
 
 /**
  * A DHCP negotiation transaction, or ARP request, has timed out.
@@ -647,6 +672,7 @@ err_t dhcp_start(struct netif *netif)
       LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE, ("dhcp_start(): could not allocate dhcp\n"));
       return ERR_MEM;
     }
+		dhcp_starttimers(stack);
     /* store this dhcp client in the netif */
     netif->dhcp = dhcp;
     LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE, ("dhcp_start(): allocated dhcp"));
@@ -656,8 +682,7 @@ err_t dhcp_start(struct netif *netif)
     LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE | DBG_STATE | 3, ("dhcp_start(): restarting DHCP configuration\n"));
   }
 
-
-///  /* FIX FIX FIX: devo dare un indirizzo all'interfaccia altrimenti non funziona */
+///  /* FIX FIX FIX: I must give an address to the interface otherwise it does not work */
 ///  {	
 ///	struct ip_addr ip,netmask;
 ///	IP64_ADDR(&ip, 0,0,0,0);
@@ -665,8 +690,6 @@ err_t dhcp_start(struct netif *netif)
 ///	netif_add_addr(netif, &ip, &netmask);
 ///	//ip_route_list_add(&ip, &netmask, &netmask, netif, 0);		
 ///  }
-
-
   	
   /* clear data structure */
   memset(dhcp, 0, sizeof(struct dhcp));
@@ -676,6 +699,7 @@ err_t dhcp_start(struct netif *netif)
     LWIP_DEBUGF(DHCP_DEBUG  | DBG_TRACE, ("dhcp_start(): could not obtain pcb\n"));
     mem_free((void *)dhcp);
     netif->dhcp = dhcp = NULL;
+		dhcp_stoptimers(stack);
     return ERR_MEM;
   }
   LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE, ("dhcp_start(): starting DHCP configuration\n"));
@@ -712,6 +736,7 @@ void dhcp_inform(struct netif *netif)
     LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE | 2, ("dhcp_inform(): could not allocate dhcp\n"));
     return;
   }
+	dhcp_starttimers(stack);
   netif->dhcp = dhcp;
   memset(dhcp, 0, sizeof(struct dhcp));
 
@@ -719,7 +744,9 @@ void dhcp_inform(struct netif *netif)
   dhcp->pcb = udp_new(stack);
   if (dhcp->pcb == NULL) {
     LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE | 2, ("dhcp_inform(): could not obtain pcb"));
+		netif->dhcp=NULL;
     mem_free((void *)dhcp);
+		dhcp_stoptimers(stack);
     return;
   }
   LWIP_DEBUGF(DHCP_DEBUG | DBG_TRACE, ("dhcp_inform(): created new udp pcb\n"));
@@ -738,7 +765,7 @@ void dhcp_inform(struct netif *netif)
 
     pbuf_realloc(dhcp->p_out, sizeof(struct dhcp_msg) - DHCP_OPTIONS_LEN + dhcp->options_out_len);
 
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
 
 	{
     ///udp_connect(dhcp->pcb, IP4_ADDR_BROADCAST, DHCP_SERVER_PORT);
@@ -760,8 +787,9 @@ void dhcp_inform(struct netif *netif)
   if (dhcp != NULL) {
     if (dhcp->pcb != NULL) udp_remove(dhcp->pcb);
     dhcp->pcb = NULL;
-    mem_free((void *)dhcp);
     netif->dhcp = NULL;
+    mem_free((void *)dhcp);
+		dhcp_stoptimers(stack);
   }
 }
 
@@ -824,7 +852,7 @@ static err_t dhcp_decline(struct netif *netif)
     /* resize pbuf to reflect true size of options */
     pbuf_realloc(dhcp->p_out, sizeof(struct dhcp_msg) - DHCP_OPTIONS_LEN + dhcp->options_out_len);
 
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
 
     /* @todo: should we really connect here? we are performing sendto() */
     udp_connect(dhcp->pcb, IP4_ADDR_ANY, DHCP_SERVER_PORT);
@@ -893,7 +921,7 @@ static err_t dhcp_discover(struct netif *netif)
     ///CHANGED udp_recv(dhcp->pcb, dhcp_recv, netif);
 	udp_recv(dhcp->pcb, dhcp_recv_wrapper, netif);
 
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
 
     udp_connect(dhcp->pcb, IP4_ADDR_ANY, DHCP_SERVER_PORT);
 
@@ -995,9 +1023,10 @@ static void dhcp_bind(struct netif *netif)
     ip_addr_debug_print(DHCP_DEBUG | DBG_STATE, &sn_mask);
   LWIP_DEBUGF(DHCP_DEBUG | DBG_STATE, ("\nGW: "));
   	ip_addr_debug_print(DHCP_DEBUG | DBG_STATE, &gw_addr);
+  LWIP_DEBUGF(DHCP_DEBUG | DBG_STATE, ("\n"));
 
 
-///  /* FIX FIX FIX FIX: rimuovo l'indirizzo fittizio */
+///  /* FIX FIX FIX FIX: remove the fake address */
 ///  {	
 ///	struct ip_addr ip2,netmask2;
 ///	IP64_ADDR(&ip2, 0,0,0,0);
@@ -1062,7 +1091,7 @@ err_t dhcp_renew(struct netif *netif)
 
     pbuf_realloc(dhcp->p_out, sizeof(struct dhcp_msg) - DHCP_OPTIONS_LEN + dhcp->options_out_len);
 
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
 
     { //
     struct ip_addr serverip;
@@ -1125,7 +1154,7 @@ static err_t dhcp_rebind(struct netif *netif)
     pbuf_realloc(dhcp->p_out, sizeof(struct dhcp_msg) - DHCP_OPTIONS_LEN + dhcp->options_out_len);
 
     /* set remote IP association to any DHCP server */
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
     udp_connect(dhcp->pcb, IP4_ADDR_ANY, DHCP_SERVER_PORT);
 
     /* broadcast to server */
@@ -1195,7 +1224,7 @@ err_t dhcp_release(struct netif *netif)
 
     pbuf_realloc(dhcp->p_out, sizeof(struct dhcp_msg) - DHCP_OPTIONS_LEN + dhcp->options_out_len);
 
-    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT);
+    udp_bind(dhcp->pcb, IP4_ADDR_ANY, DHCP_CLIENT_PORT, NULL);
 
     { //
     struct ip_addr serverip;
@@ -1274,7 +1303,9 @@ void dhcp_stop(struct netif *netif)
     /* free unfolded reply */
     dhcp_free_reply(dhcp);
     mem_free((void *)dhcp);
+		netif->flags &= ~NETIF_FLAG_DHCP;
     netif->dhcp = NULL;
+		dhcp_stoptimers(netif->stack);
   }
 }
 
@@ -1518,15 +1549,13 @@ static void dhcp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, struct ip4
 }
 
 /* Work around for original dhcp_recv() */
-static void dhcp_recv_wrapper(void *arg, struct udp_pcb *pcb, struct pbuf *p, struct ip_addr *addr, u16_t port)
+static void dhcp_recv_wrapper(void *arg, struct udp_pcb *pcb, struct pbuf *p, 
+		struct ip_addr *addr, u16_t port)
 {
 	struct ip4_addr ip;
 	ip64_addr_set(&ip, addr);
 	dhcp_recv(arg, pcb, p, &ip, port);
 }
-
-
-
 
 static err_t dhcp_create_request(struct netif *netif)
 {
@@ -1773,7 +1802,7 @@ udp_send_netif(struct udp_pcb *pcb, struct pbuf *p, struct netif *netif)
   /* if the PCB is not yet bound to a port, bind it here */
   if (pcb->local_port == 0) {
     LWIP_DEBUGF(UDP_DEBUG | DBG_TRACE | 2, ("udp_send: not yet bound to a port, binding now\n"));
-    err = udp_bind(pcb, &pcb->local_ip, pcb->local_port);
+    err = udp_bind(pcb, &pcb->local_ip, pcb->local_port, NULL);
     if (err != ERR_OK) {
       LWIP_DEBUGF(UDP_DEBUG | DBG_TRACE | 2, ("udp_send: forced port bind failed\n"));
       return err;

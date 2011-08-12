@@ -63,9 +63,10 @@
  * beginning of a PCB type definition. It is located here so that
  * changes to this common part are made in one location instead of
  * having to change all PCB structs. */
+#ifdef LWSLIRP
 #define IP_PCB \
 	/* Stack */               \
-	struct stack *stack;          \
+	struct stack *stack;      \
 	/* IP tuple */            \
 	struct ip_addr local_ip;  \
 	struct ip_addr remote_ip; \
@@ -74,7 +75,23 @@
 	/* Type Of Service */     \
 	u8_t tos;                 \
 	/* Time To Live */        \
-	u8_t ttl
+	u8_t ttl;									\
+  /* Socket for Slirp */    \
+	int slirp_posfd          
+#else
+#define IP_PCB \
+	  /* Stack */               \
+  struct stack *stack;      \
+  /* IP tuple */            \
+  struct ip_addr local_ip;  \
+  struct ip_addr remote_ip; \
+  /* Socket options */      \
+  u16_t so_options;         \
+  /* Type Of Service */     \
+  u8_t tos;                 \
+  /* Time To Live */        \
+  u8_t ttl
+#endif
 
 
 /* This is passed as the destination address to ip_output_if (not

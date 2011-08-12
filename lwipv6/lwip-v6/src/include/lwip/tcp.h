@@ -99,7 +99,11 @@ void             tcp_fasttmr (struct stack *stack);
 
 
 /* Only used by IP to pass a TCP segment to TCP: */
-void             tcp_input   (struct pbuf *p, struct ip_addr_list *inad,struct pseudo_iphdr *piphdr);
+void             tcp_input   (struct pbuf *p, struct ip_addr_list *inad,struct pseudo_iphdr *piphdr
+#ifdef LWSLIRP
+		    , struct netif *slirpif
+#endif
+				);
 /* Used within the TCP code only: */
 err_t            tcp_output  (struct tcp_pcb *pcb);
 void             tcp_rexmit  (struct tcp_pcb *pcb);
@@ -197,6 +201,25 @@ PACK_STRUCT_END
 #define TCP_TCPLEN(seg) ((seg)->len + ((TCPH_FLAGS((seg)->tcphdr) & TCP_FIN || \
           TCPH_FLAGS((seg)->tcphdr) & TCP_SYN)? 1: 0))
 
+#ifdef LWSLIRP
+/*
+ * Socket state bits. (peer means the host on the Internet,
+ * local host means the host on the virtual net)
+ */
+
+#define SS_NOFDREF    0x001 /* No fd reference */
+#define SS_ISFCONNECTING  0x002 /* Socket is connecting to peer (non-blocking connect()'s) */
+#define SS_ISFCONNECTED   0x004 /* Socket is connected to peer */
+#define SS_FCANTRCVMORE   0x008 /* Socket can't receive more from peer (for half-closes) */
+#define SS_FCANTSENDMORE  0x010 /* Socket can't send more to peer (for half-closes) */
+#define SS_FWDRAIN    0x040 /* We received a FIN, drain data and set SS_FCANTSENDMORE */
+#define SS_CTL      0x080
+#define SS_FACCEPTCONN    0x100 /* Socket is accepting connections from a host on the internet */
+#define SS_FACCEPTONCE    0x200 /* If set, the SS_FACCEPTCONN socket will die after one accept */
+
+/* Socket state bits: END */
+#endif /* LWSLIRP */
+
 enum tcp_state {
   CLOSED      = 0,
   LISTEN      = 1,
@@ -218,6 +241,9 @@ struct tcp_pcb {
 /** protocol specific PCB members */
   struct tcp_pcb *next; /* for the linked list */
   enum tcp_state state; /* TCP state */
+#ifdef LWSLIRP
+	u32_t slirp_state;         /* internal state flags SS_* */
+#endif
   u8_t prio;
   void *callback_arg;
 
@@ -308,6 +334,13 @@ struct tcp_pcb {
   
   /* KEEPALIVE counter */
   u8_t keep_cnt;
+
+#ifdef LWSLIRP
+	/* Buffer of packet received by LWIP stack and 
+		 waiting to be sent on the socket ->slirp */
+	struct pbuf *slirp_recvbuf;
+#endif
+
 };
 
 struct tcp_pcb_listen {  
@@ -322,6 +355,9 @@ struct tcp_pcb_listen {
    * Until a cleaner solution emerges this is here.FIXME
    */ 
   enum tcp_state state;   /* TCP state */
+#ifdef LWSLIRP
+	u32_t slirp_state;         /* internal state flags SS_* */
+#endif
 
   u8_t prio;
   void *callback_arg;
@@ -332,6 +368,10 @@ struct tcp_pcb_listen {
   /* Function to call when a listener has been connected. */
   err_t (* accept)(void *arg, struct tcp_pcb *newpcb, err_t err);
 #endif /* LWIP_CALLBACK_API */
+#ifdef LWSLIRP
+	struct pbuf *slirp_m; /* Pointer to the original SYN packet,
+												 * for non-blocking connect() */
+#endif
 };
 
 #if LWIP_EVENT_API
@@ -512,14 +552,15 @@ extern struct tcp_pcb *tcp_tmp_pcb;      /* Only used for temporary storage. */
               tcp_timer_needed((npcb)->stack); \
                             } while(0)
 #define TCP_RMV(pcbs, npcb) do { \
+                            typeof (npcb) tcp_tmp_pcb; \
                             if(*(pcbs) == npcb) { \
                                (*(pcbs)) = (*pcbs)->next; \
                             } else \
-                              for((npcb)->stack->tcp_tmp_pcb = *pcbs; \
-                                  (npcb)->stack->tcp_tmp_pcb != NULL; \
-                                  (npcb)->stack->tcp_tmp_pcb = (npcb)->stack->tcp_tmp_pcb->next) { \
-                                if((npcb)->stack->tcp_tmp_pcb->next != NULL && (npcb)->stack->tcp_tmp_pcb->next == npcb) { \
-                                  (npcb)->stack->tcp_tmp_pcb->next = npcb->next; \
+                              for(tcp_tmp_pcb = *pcbs; \
+                                  tcp_tmp_pcb != NULL; \
+                                  tcp_tmp_pcb = tcp_tmp_pcb->next) { \
+                                if(tcp_tmp_pcb->next != NULL && tcp_tmp_pcb->next == npcb) { \
+                                  tcp_tmp_pcb->next = npcb->next; \
                                   break; \
                                 } \
                             } \

@@ -64,6 +64,7 @@
 #include "lwip/def.h"
 
 #include "lwip/stats.h"
+#include "netif/etharp.h"
 
 #if IPv6_AUTO_CONFIGURATION
 #include "lwip/ip_autoconf.h"
@@ -147,7 +148,7 @@ icmp_input(struct stack *stack, struct pbuf *p, struct ip_addr_list *inad, struc
 			break;
 
 		/*
-		 * Neighbor Sollicitation protocol
+		 * Neighbor Solicitation protocol
 		 */
 		case ICMP6_NS | (6 << 8):
 			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: icmp6 neighbor solicitation\n"));
@@ -258,11 +259,8 @@ icmp_input(struct stack *stack, struct pbuf *p, struct ip_addr_list *inad, struc
 			ip_autoconf_handle_na(inad->netif, p, iphdr, ina);
 #endif
 
-#if IPv6_PMTU_DISCOVERY
-			/* FIX: this function is 'static' in etharp.c 
-			update_arp_entry(inp, & ina->targetip, & opt->addr, 0); 
-			*/
-#endif
+			update_arp_entry(inp, (struct ip_addr *)&ina->targetip, 
+					(struct eth_addr *)&opt->addr, 0); 
 			break;
 
 		/*
@@ -491,31 +489,49 @@ icmp_router_solicitation(struct stack *stack, struct ip_addr *ipaddr, struct ip_
 	pbuf_free(q);
 }
 
+/* ipv4 mgmt added by Diego Billi */
 void
 icmp_dest_unreach(struct stack *stack, struct pbuf *p, enum icmp_dur_type t)
 {
 	struct pbuf *q;
-	struct ip_hdr *iphdr;
+	struct ip_hdr *iphdr=p->payload;
 	struct icmp_dur_hdr *idur;
+	if (IPH_V(iphdr) == 4) {
+		struct ip4_hdr *ip4hdr=p->payload;
+		struct ip_addr tmpdest;
 
-	/* ICMP header + IP header + 8 bytes of data */
-	q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_dur_hdr) + IP_HLEN + 8, PBUF_RAM);
+		q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_dur_hdr) + IP4_HLEN + 8, PBUF_RAM);
 
-	iphdr = p->payload;
+		idur = q->payload;
+		idur->type = (char)ICMP4_DUR;
+		idur->icode = (char)t;
+		memcpy((char *)q->payload + sizeof(struct icmp_dur_hdr), p->payload, IP4_HLEN + 8);
 
-	idur = q->payload;
-	idur->type = (char)ICMP6_DUR;
-	idur->icode = (char)t;
+		/* calculate checksum */
+		idur->chksum = 0;
+		idur->chksum = inet_chksum(idur, q->len);
 
-	memcpy((char *)q->payload + sizeof(struct icmp_dur_hdr), p->payload, IP_HLEN + 8);
+		ICMP_STATS_INC(icmp.xmit);
 
-	/* calculate checksum */
-	idur->chksum = 0;
-	idur->chksum = inet_chksum(idur, q->len);
-	ICMP_STATS_INC(icmp.xmit);
+		IP64_CONV(&tmpdest, &ip4hdr->src);
+		ip_output(stack, q, NULL, &tmpdest, ICMP_TTL, 0, IP_PROTO_ICMP4);
+	} else {
+		/* ICMP header + IP header + 8 bytes of data */
+		q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_dur_hdr) + IP_HLEN + 8, PBUF_RAM);
 
-	ip_output(stack, q, NULL, (struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
+		idur = q->payload;
+		idur->type = (char)ICMP6_DUR;
+		idur->icode = (char)t;
 
+		memcpy((char *)q->payload + sizeof(struct icmp_dur_hdr), p->payload, IP_HLEN + 8);
+
+		/* calculate checksum */
+		idur->chksum = 0;
+		idur->chksum = inet_chksum(idur, q->len);
+		ICMP_STATS_INC(icmp.xmit);
+
+		ip_output(stack, q, NULL, (struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
+	}
 	pbuf_free(q);
 }
 
@@ -523,28 +539,47 @@ void
 icmp_time_exceeded(struct stack *stack, struct pbuf *p, enum icmp_te_type t)
 {
 	struct pbuf *q;
-	struct ip_hdr *iphdr;
+	struct ip_hdr *iphdr=p->payload;
 	struct icmp_te_hdr *tehdr;
-	
-	q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_te_hdr) + IP_HLEN + 8, PBUF_RAM);
-	
-	iphdr = p->payload;
-	
-	tehdr = q->payload;
-	tehdr->type = (char)ICMP6_TE;
-	tehdr->icode = (char)t;
-	
-	/* copy fields from original packet */
-	memcpy((char *)q->payload + sizeof(struct icmp_te_hdr), (char *)p->payload, IP_HLEN + 8);
-	
-	/* calculate checksum */
-	tehdr->chksum = 0;
-	tehdr->chksum = inet_chksum(tehdr, q->len);
-	
-	ICMP_STATS_INC(icmp.xmit);
-	
-	ip_output(stack, q, NULL, (struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
+	if (IPH_V(iphdr) == 4) {
+		struct ip4_hdr *ip4hdr=p->payload;
+		struct ip_addr tmpdest;
 
+		q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_te_hdr) + IP4_HLEN + 8, PBUF_RAM);
+
+		tehdr = q->payload;
+		tehdr->type = (char)ICMP4_TE;
+		tehdr->icode = (char)t;
+		/* copy fields from original packet */
+		memcpy((char *)q->payload + sizeof(struct icmp_te_hdr), (char *)p->payload, IP4_HLEN + 8);
+
+		/* calculate checksum */
+		tehdr->chksum = 0;
+		tehdr->chksum = inet_chksum(tehdr, q->len);
+
+		ICMP_STATS_INC(icmp.xmit);
+
+		IP64_CONV(&tmpdest, &ip4hdr->src);
+
+		ip_output(stack, q, NULL, &tmpdest, ICMP_TTL, 0, IP_PROTO_ICMP4);
+	} else {
+		q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_te_hdr) + IP_HLEN + 8, PBUF_RAM);
+
+		tehdr = q->payload;
+		tehdr->type = (char)ICMP6_TE;
+		tehdr->icode = (char)t;
+
+		/* copy fields from original packet */
+		memcpy((char *)q->payload + sizeof(struct icmp_te_hdr), (char *)p->payload, IP_HLEN + 8);
+	
+		/* calculate checksum */
+		tehdr->chksum = 0;
+		tehdr->chksum = inet_chksum(tehdr, q->len);
+	
+		ICMP_STATS_INC(icmp.xmit);
+
+		ip_output(stack, q, NULL, (struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
+	}
 	pbuf_free(q);
 }
 
@@ -576,69 +611,6 @@ icmp_packet_too_big(struct stack *stack, struct pbuf *p, u16_t mtu)
 	/* Send */
 	ip_output(stack, q, NULL, (struct ip_addr *)&(iphdr->src), ICMP_TTL, 0, IP_PROTO_ICMP);
 
-	pbuf_free(q);
-}
-
-
-/* added by Diego Billi */
-
-void
-icmp4_dest_unreach(struct stack *stack, struct pbuf *p, enum icmp_dur_type t, u16_t nextmtu )
-{
-	struct pbuf *q;
-	struct ip4_hdr *iphdr;
-	struct icmp_dur_hdr *idur;
-	struct ip_addr tmpdest;
-
-	q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_dur_hdr) + IP4_HLEN + 8, PBUF_RAM);
-	
-	iphdr = p->payload;
-	
-	idur = q->payload;
-	idur->type = (char)ICMP4_DUR;
-	idur->icode = (char)t;
-	memcpy((char *)q->payload + sizeof(struct icmp_dur_hdr), p->payload, IP4_HLEN + 8);
-	
-	/* calculate checksum */
-	idur->chksum = 0;
-	idur->chksum = inet_chksum(idur, q->len);
-	
-	ICMP_STATS_INC(icmp.xmit);
-	
-	IP64_CONV(&tmpdest, &iphdr->src);
-	ip_output(stack, q, NULL, &tmpdest, ICMP_TTL, 0, IP_PROTO_ICMP4);
-	
-	pbuf_free(q);
-}
-
-void
-icmp4_time_exceeded(struct stack *stack, struct pbuf *p, enum icmp_te_type t)
-{
-	struct pbuf *q;
-	struct ip4_hdr *iphdr;
-	struct icmp_te_hdr *tehdr;
-	struct ip_addr tmpdest;
-	
-	q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_te_hdr) + IP4_HLEN + 8, PBUF_RAM);
-	
-	iphdr = p->payload;
-	
-	tehdr = q->payload;
-	tehdr->type = (char)ICMP4_TE;
-	tehdr->icode = (char)t;
-	/* copy fields from original packet */
-	memcpy((char *)q->payload + sizeof(struct icmp_te_hdr), (char *)p->payload, IP4_HLEN + 8);
-	
-	/* calculate checksum */
-	tehdr->chksum = 0;
-	tehdr->chksum = inet_chksum(tehdr, q->len);
-	
-	ICMP_STATS_INC(icmp.xmit);
-	
-	IP64_CONV(&tmpdest, &iphdr->src);
-	
-	ip_output(stack, q, NULL, &tmpdest, ICMP_TTL, 0, IP_PROTO_ICMP4);
-	
 	pbuf_free(q);
 }
 

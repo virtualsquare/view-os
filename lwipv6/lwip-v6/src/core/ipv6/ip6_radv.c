@@ -3,6 +3,8 @@
  *   Application Level Environment for Networking
  *   
  *   Copyright 2005 Diego Billi University of Bologna - Italy
+ *   Updated and integrated with the rest of the code
+ *   Copyright 2010 Renzo Davoli - University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -34,17 +36,18 @@
 #include "lwip/radvconf.h"
 
 #include "lwip/netlinkdefs.h"
+#include "lwip/mem.h"
 
 /*---------------------------------------------------------------------------*/
 
-//#ifndef IP_RADV_DEBUG
-//#define IP_RADV_DEBUG     DBG_OFF
-//#endif
+#ifndef IP_RADV_DEBUG
+#define IP_RADV_DEBUG     DBG_OFF
+#endif
 
 #define U_INT  (unsigned int)
 
 /*--------------------------------------------------------------------------*/
-
+#if 0
 #define PREFIX_POOL_SIZE   10
 
 static struct radv_prefix prefix_pool[PREFIX_POOL_SIZE];
@@ -87,7 +90,28 @@ radv_prefix_list_free(struct radv_prefix *el)
 	el->next        = prefix_freelist;
 	prefix_freelist = el;
 }
+#endif
 
+void 
+radv_prefix_list_init(void)
+{}
+
+void ip_radv_prefix_init(struct radv_prefix *prefix);
+
+struct radv_prefix *
+radv_prefix_list_alloc()
+{
+	struct radv_prefix *el=mem_malloc(sizeof(struct radv_prefix));
+	if (el != NULL)
+		ip_radv_prefix_init(el);
+	return el;
+}
+
+void 
+radv_prefix_list_free(struct radv_prefix *el)
+{
+	mem_free(el);
+}
 
 void 
 ip_radv_prefix_init(struct radv_prefix *prefix)
@@ -141,13 +165,12 @@ ip_radv_data_reset(struct radv *rinfo)
 void 
 ip_radv_netif_init(struct netif *netif) 
 {
-	struct radv *rinfo;
+	netif->radv = mem_malloc(sizeof(struct radv));
 
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: init '%c%c%d'.\n", __func__, netif->name[0], netif->name[1], netif->num) );
 
-	rinfo = &(netif->radv);
-
-	ip_radv_data_init(rinfo);
+	if (netif->radv != NULL)
+	ip_radv_data_init(netif->radv);
 }
 
 void 
@@ -157,9 +180,10 @@ ip_radv_netif_reset(struct netif *netif)
 
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: reset '%c%c%d'.\n", __func__, netif->name[0], netif->name[1], netif->num) );
 
-	rinfo = &(netif->radv);
+	rinfo = netif->radv;
 
-	ip_radv_data_reset(rinfo);
+	if (netif->radv != NULL)
+		ip_radv_data_reset(rinfo);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -184,6 +208,7 @@ static void
 send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
 {
 	int totlen;
+	struct stack *stack = netif->stack;
 	struct radv_prefix *list;
 
 	struct pbuf *p;
@@ -217,19 +242,19 @@ send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
 
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tLenght = RA(%d)", totlen) );
 
-	list = netif->radv.prefix_list;
+	list = netif->radv->prefix_list;
 	while (list != NULL) {
 		totlen += sizeof(struct icmp_opt_prefix);
 		LWIP_DEBUGF(IP_RADV_DEBUG, ("+Prefix(%d)", totlen) );
 		list = list->next;
 	}	
 
-	if (netif->radv.AdvLinkMTU != 0) {
+	if (netif->radv->AdvLinkMTU != 0) {
 		totlen += sizeof(struct icmp_opt_mtu);
 		LWIP_DEBUGF(IP_RADV_DEBUG, ("+MTU(%d)", totlen) );
 	}
 
-	if (netif->radv.AdvSourceLLAddress == TRUE) {
+	if (netif->radv->AdvSourceLLAddress == TRUE) {
 		totlen += sizeof(struct icmp_opt_addr) + netif->hwaddr_len;
 		LWIP_DEBUGF(IP_RADV_DEBUG, ("+LLAddr(%d)", totlen) );
 	}
@@ -251,28 +276,27 @@ send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
 	rahdr = p->payload;
 	rahdr->type      = ICMP6_RA;
 	rahdr->icode     = 0;
-	rahdr->hoplimit	 = netif->radv.AdvCurHopLimit;
-	rahdr->m_o_flag	 = netif->radv.AdvManagedFlag     ? ICMP6_RA_M : 0;
-	rahdr->m_o_flag	|= netif->radv.AdvOtherConfigFlag ? ICMP6_RA_O : 0;
-	rahdr->life	     = ip_forwarding_enabled() ? htons(netif->radv.AdvDefaultLifetime) : 0;
-	rahdr->reach     = htonl(netif->radv.AdvReachableTime);
-	rahdr->retran    = htonl(netif->radv.AdvRetransTimer);
-	rahdr++;
+	rahdr->hoplimit	 = netif->radv->AdvCurHopLimit;
+	rahdr->m_o_flag	 = netif->radv->AdvManagedFlag     ? ICMP6_RA_M : 0;
+	rahdr->m_o_flag	|= netif->radv->AdvOtherConfigFlag ? ICMP6_RA_O : 0;
+	rahdr->life	     = ip_forwarding_enabled() ? htons(netif->radv->AdvDefaultLifetime) : 0;
+	rahdr->reach     = htonl(netif->radv->AdvReachableTime);
+	rahdr->retran    = htonl(netif->radv->AdvRetransTimer);
 
 	/* Add MTU option */
-	opt_mtu = (struct icmp_opt_mtu *) (rahdr);
-	if (netif->radv.AdvLinkMTU != 0) {
+	opt_mtu = (struct icmp_opt_mtu *) (rahdr + 1);
+	if (netif->radv->AdvLinkMTU != 0) {
 		LWIP_DEBUGF(IP_RADV_DEBUG, ("+MTU") );
 		opt_mtu->type     = ICMP6_OPT_MTU;
 		opt_mtu->len      = 1;
 		opt_mtu->reserved = 0; 
-		opt_mtu->mtu      = htonl(netif->radv.AdvLinkMTU);
+		opt_mtu->mtu      = htonl(netif->radv->AdvLinkMTU);
 		opt_mtu++;
 	}
 
 	/* Add prefix options */
 	opt_prefix = (struct icmp_opt_prefix *) (opt_mtu);
-	list = netif->radv.prefix_list;
+	list = netif->radv->prefix_list;
 	while (list != NULL) {
 		LWIP_DEBUGF(IP_RADV_DEBUG, ("+Prefix") );
 
@@ -284,6 +308,7 @@ send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
 		opt_prefix->flags = 0;
 		if (list->AdvOnLinkFlag)      opt_prefix->flags |= ICMP6_OPT_PREF_L;
 		if (list->AdvAutonomousFlag)  opt_prefix->flags |= ICMP6_OPT_PREF_A;
+		opt_prefix->flags |= ICMP6_OPT_PREF_R;
 
 		opt_prefix->preflen   = (u8_t) list->PrefixLen;
 
@@ -300,7 +325,7 @@ send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
 
 	/* Add Link-level source addr */
 	opt_addr = (struct icmp_opt_addr *) (opt_prefix);
-	if (netif->radv.AdvSourceLLAddress == TRUE) {
+	if (netif->radv->AdvSourceLLAddress == TRUE) {
 
 		LWIP_DEBUGF(IP_RADV_DEBUG, ("+LLAddr") );
 		opt_addr->type = ICMP6_OPT_SRCADDR;
@@ -320,7 +345,7 @@ send_ra(struct netif *netif, struct ip_addr *rs_ipsrc)
 	
 	ICMP_STATS_INC(icmp.xmit);
 	
-	ip_output_if(p, &srcip, &dstip, 255, 0, IP_PROTO_ICMP , netif, &dstip, 0);
+	ip_output_if(stack, p, &srcip, &dstip, 255, 0, IP_PROTO_ICMP , netif, &dstip, 0);
 
 	pbuf_free(p);
 }
@@ -373,23 +398,23 @@ ip_radv_reset_timers(struct netif *netif, int waitmax)
 
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: reset RA timers for %c%c%d\n", __func__, netif->name[0], netif->name[1], netif->num));
 
-	netif->radv.solicited_received   = 0;
-	netif->radv.min_delay_RA_reached = 0;
+	netif->radv->solicited_received   = 0;
+	netif->radv->min_delay_RA_reached = 0;
 
 	remove_ra_timers(netif);
 
 	/* Calculate next multicast RA timeout */
 	if (waitmax) {
-		next_send = netif->radv.MaxRtrAdvInterval;
+		next_send = netif->radv->MaxRtrAdvInterval;
 	}
 	else
-		next_send = rand_between(netif->radv.MinRtrAdvInterval, netif->radv.MaxRtrAdvInterval); 
+		next_send = rand_between(netif->radv->MinRtrAdvInterval, netif->radv->MaxRtrAdvInterval); 
 
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tNext Multicast RA at %d s (%ld ms)\n", U_INT next_send, next_send * 1000));
 	sys_timeout(next_send                      * 1000, send_multicast_ra_timeout, netif);
 
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tMinDelayBetweenRAs = %d s (%ld ms)\n", U_INT netif->radv.MinDelayBetweenRAs, netif->radv.MinDelayBetweenRAs * 1000));
-	sys_timeout(netif->radv.MinDelayBetweenRAs * 1000, min_delay_RA_timeout     , netif);
+	LWIP_DEBUGF(IP_RADV_DEBUG, ("\tMinDelayBetweenRAs = %d s (%ld ms)\n", U_INT netif->radv->MinDelayBetweenRAs, netif->radv->MinDelayBetweenRAs * 1000));
+	sys_timeout(netif->radv->MinDelayBetweenRAs * 1000, min_delay_RA_timeout     , netif);
 }
 
 /* Send multicast RA and reset timers */
@@ -437,10 +462,10 @@ min_delay_RA_timeout(void *data)
 
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: reached! \n", __func__));
 
-	netif->radv.min_delay_RA_reached = 1;
+	netif->radv->min_delay_RA_reached = 1;
 
 	/* If we received a RS, now we must send a RA */
-	if (netif->radv.solicited_received == 1) {
+	if (netif->radv->solicited_received == 1) {
 		send_multicast_ra_with_delay(netif);
 	}
 }
@@ -448,7 +473,7 @@ min_delay_RA_timeout(void *data)
 static void 
 remember_rs(struct netif *netif)
 {
-	netif->radv.solicited_received = 1;
+	netif->radv->solicited_received = 1;
 
 	/* We received a solicitation, unset the next RA timeout.
 	   We are going to send it at the next min_delay_RA_timeout() */
@@ -494,11 +519,13 @@ send_unicast_ra_with_delay(struct netif *netif, struct ip_addr *src)
 /*--------------------------------------------------------------------------*/
 
 void
-ip_radv_init(void)
+ip_radv_init(struct stack *stack)
 {
+#if 0
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: init Routing Advertising tables.\n", __func__) );
 
 	radv_prefix_list_init();
+#endif
 }
 
 void 
@@ -506,7 +533,10 @@ ip_radv_start(struct netif *netif)
 {
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: Routing Advertising enabled.\n", __func__) );
 
-	if (netif->radv.AdvSendAdvert == TRUE) {
+	if (netif->radv == NULL) 
+		return;
+
+	if (netif-> radv && netif->radv->AdvSendAdvert == TRUE) {
 
 		LWIP_DEBUGF(IP_RADV_DEBUG, ("\tSending first RA\n"));
 
@@ -519,18 +549,22 @@ ip_radv_start(struct netif *netif)
 void 
 ip_radv_stop(struct netif *netif)
 {
-	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: Routing Advertising disabled.\n", __func__) );
+	if (netif->radv) {
+		LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: Routing Advertising disabled.\n", __func__) );
 
-	remove_ra_timers(netif);
+		remove_ra_timers(netif);
+	}
 }
 
 void 
 ip_radv_shutdown(struct netif *netif)
 {
-	netif->radv.AdvDefaultLifetime = 0;
-	send_ra(netif, NULL);
+	if (netif->radv) {
+		netif->radv->AdvDefaultLifetime = 0;
+		send_ra(netif, NULL);
 
-	remove_ra_timers(netif);
+		remove_ra_timers(netif);
+	}
 }
 
 
@@ -539,42 +573,44 @@ ip_radv_check_options(struct netif *netif)
 {
 	struct radv_prefix *prefix;
 	int res = 1;	
+	if (netif->radv == NULL)
+		return -1;
 
-	if ((netif->radv.MinRtrAdvInterval < MIN_MinRtrAdvInterval) || 
-	    (netif->radv.MinRtrAdvInterval > MAX_MinRtrAdvInterval(netif))) {
+	if ((netif->radv->MinRtrAdvInterval < MIN_MinRtrAdvInterval) || 
+	    (netif->radv->MinRtrAdvInterval > MAX_MinRtrAdvInterval(netif))) {
 		res = -1;
 	}
 
-	if ((netif->radv.MaxRtrAdvInterval < MIN_MaxRtrAdvInterval) || 
-	    (netif->radv.MaxRtrAdvInterval > MAX_MaxRtrAdvInterval)) {
+	if ((netif->radv->MaxRtrAdvInterval < MIN_MaxRtrAdvInterval) || 
+	    (netif->radv->MaxRtrAdvInterval > MAX_MaxRtrAdvInterval)) {
 		res = -1;
 	}
 
-	if (netif->radv.MinDelayBetweenRAs < MIN_DELAY_BETWEEN_RAS) {
+	if (netif->radv->MinDelayBetweenRAs < MIN_DELAY_BETWEEN_RAS) {
 		res = -1;
 	}
 
-	if ( (netif->radv.AdvLinkMTU != 0) &&
-	     ((netif->radv.AdvLinkMTU < MIN_AdvLinkMTU) || (netif->radv.AdvLinkMTU > netif->mtu)) )	{
+	if ( (netif->radv->AdvLinkMTU != 0) &&
+	     ((netif->radv->AdvLinkMTU < MIN_AdvLinkMTU) || (netif->radv->AdvLinkMTU > netif->mtu)) )	{
 		res = -1;
 	}
 
-	if (netif->radv.AdvReachableTime >  MAX_AdvReachableTime) {
+	if (netif->radv->AdvReachableTime >  MAX_AdvReachableTime) {
 		res = -1;
 	}
 
-	if (netif->radv.AdvCurHopLimit > MAX_AdvCurHopLimit) {                                                                            
+	if (netif->radv->AdvCurHopLimit > MAX_AdvCurHopLimit) {                                                                            
 		/* FIX: always true due to limited range of data type */
 		res = -1;
 	}
 	
-	if ((netif->radv.AdvDefaultLifetime != 0) &&
-	    ((netif->radv.AdvDefaultLifetime > MAX_AdvDefaultLifetime) ||
-	     (netif->radv.AdvDefaultLifetime < MIN_AdvDefaultLifetime(netif))) ) {
+	if ((netif->radv->AdvDefaultLifetime != 0) &&
+	    ((netif->radv->AdvDefaultLifetime > MAX_AdvDefaultLifetime) ||
+	     (netif->radv->AdvDefaultLifetime < MIN_AdvDefaultLifetime(netif))) ) {
 		res = -1;
 	}
 
-	prefix =  netif->radv.prefix_list;
+	prefix =  netif->radv->prefix_list;
 	while (prefix)
 	{
 		if (prefix->PrefixLen > MAX_PrefixLen) {
@@ -588,7 +624,7 @@ ip_radv_check_options(struct netif *netif)
 
 	if (res <= 0) {
 		LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: RA disabled on '%c%c%d'.\n", __func__, netif->name[0], netif->name[1], netif->num) );
-		netif->radv.AdvSendAdvert = FALSE;
+		netif->radv->AdvSendAdvert = FALSE;
 	}
 
 	return res;
@@ -597,6 +633,8 @@ ip_radv_check_options(struct netif *netif)
 void 
 ip_radv_handle_rs(struct netif *netif, struct pbuf *p, struct ip_hdr *iphdr, struct icmp_rs_hdr *irs)
 {
+	if (netif->radv == NULL)
+		return;
 
 	LWIP_DEBUGF(IP_RADV_DEBUG, ("%s: Processing received RS \n", __func__) );
 
@@ -610,7 +648,7 @@ ip_radv_handle_rs(struct netif *netif, struct pbuf *p, struct ip_hdr *iphdr, str
 		return;
 	}
 
-	if (netif->radv.AdvSendAdvert == FALSE)	{
+	if (netif->radv->AdvSendAdvert == FALSE)	{
 		LWIP_DEBUGF(IP_RADV_DEBUG, ("\tAdvSendAdvert is off.\n"));
 		return;
 	}
@@ -622,12 +660,12 @@ ip_radv_handle_rs(struct netif *netif, struct pbuf *p, struct ip_hdr *iphdr, str
 
 
 
-	if (netif->radv.UnicastOnly) {
+	if (netif->radv->UnicastOnly) {
 		send_unicast_ra_with_delay(netif, &iphdr->src);
 	}
 	else {
 		/* Have we reached the Mininum RA interval? */
-		if (netif->radv.min_delay_RA_reached == 0) {
+		if (netif->radv->min_delay_RA_reached == 0) {
 			LWIP_DEBUGF(IP_RADV_DEBUG, ("\tRS received before Mininum RA . wait!\n"));
 			remember_rs(netif);
 		}

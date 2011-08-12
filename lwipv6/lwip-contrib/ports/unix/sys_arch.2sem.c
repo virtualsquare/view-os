@@ -59,6 +59,8 @@
 
 #define UMAX(a, b)      ((a) > (b) ? (a) : (b))
 
+//new management of timeouts 20100728
+#if 0
 static struct sys_thread *threads = NULL;
 static pthread_mutex_t threads_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -66,6 +68,7 @@ struct sys_mbox_msg {
   struct sys_mbox_msg *next;
   void *msg;
 };
+#endif
 
 #define SYS_MBOX_SIZE 128
 
@@ -83,14 +86,17 @@ struct sys_sem {
   pthread_mutex_t mutex;
 };
 
+#if 0
 struct sys_thread {
   struct sys_thread *next;
   struct sys_timeouts timeouts;
   pthread_t pthread;
 };
+#endif
 
-
+#if 0
 static struct timeval starttime;
+#endif
 
 static pthread_mutex_t lwprot_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t lwprot_thread = (pthread_t) 0xDEAD;
@@ -103,6 +109,7 @@ static u32_t cond_wait(pthread_cond_t * cond, pthread_mutex_t * mutex,
                        u32_t timeout);
 
 /*-----------------------------------------------------------------------------------*/
+#if 0
 static struct sys_thread * 
 introduce_thread(pthread_t id)
 {
@@ -174,8 +181,27 @@ sys_thread_new(void (*function)(void *arg), void *arg, int prio)
   }
   return st;
 }
+#endif
+	sys_thread_t
+sys_thread_new(void (*function)(void *arg), void *arg, int prio)
+{
+	int code;
+	pthread_t tmp;
+
+	code = pthread_create(&tmp,
+			NULL,
+			(void *(*)(void *))
+			function,
+			arg);
+
+	if (0 == code) {
+		return tmp;
+	} else
+		return -1;
+}
+
 /*-----------------------------------------------------------------------------------*/
-struct sys_mbox *
+	struct sys_mbox *
 sys_mbox_new()
 {
   struct sys_mbox *mbox;
@@ -398,6 +424,7 @@ sys_sem_free_(struct sys_sem *sem)
   free(sem);
 }
 /*-----------------------------------------------------------------------------------*/
+#if 0
 unsigned long
 sys_unix_now()
 {
@@ -413,31 +440,78 @@ sys_unix_now()
     
   return msec;
 }
+#endif
+unsigned long
+time_now()
+{
+	struct timeval tv;
+	struct timezone tz;
+	gettimeofday(&tv, &tz);
+
+	return tv.tv_sec;
+}
+
 /*-----------------------------------------------------------------------------------*/
 void
 sys_init()
 {
+#if 0
   struct timezone tz;
   gettimeofday(&starttime, &tz);
+#endif
 }
 /*-----------------------------------------------------------------------------------*/
-struct sys_timeouts *
+#if 0
+	struct sys_timeouts *
 sys_arch_timeouts(void)
 {
-  struct sys_thread *thread;
+	struct sys_thread *thread;
 
-  thread = current_thread();
-  return &thread->timeouts;
+	thread = current_thread();
+	return &thread->timeouts;
 }
+#endif
+#if 1
+static pthread_key_t key;
+static pthread_once_t key_once = PTHREAD_ONCE_INIT;
+
+static void del_key(void *ptr)
+{
+	free(ptr);
+}
+
+	static void
+make_key()
+{
+	//printf("new_key %p\n",pthread_self());
+	(void) pthread_key_create(&key, del_key);
+}
+
+	struct sys_timeouts *
+sys_arch_timeouts(void)
+{
+	struct sys_timeouts *ptr;
+
+	(void) pthread_once(&key_once, make_key);
+	if ((ptr = pthread_getspecific(key)) == NULL) {
+		ptr = malloc(sizeof(struct sys_timeouts));
+		ptr->next=NULL;
+		(void) pthread_setspecific(key, ptr);
+	}
+
+	return ptr;
+}
+#endif
+
 /*-----------------------------------------------------------------------------------*/
 /** sys_prot_t sys_arch_protect(void)
 
-This optional function does a "fast" critical region protection and returns
-the previous protection level. This function is only called during very short
-critical regions. An embedded system which supports ISR-based drivers might
-want to implement this function by disabling interrupts. Task-based systems
-might want to implement this by using a mutex or disabling tasking. This
-function should support recursive calls from the same task or interrupt. In
+	This optional function does a "fast" critical region protection and returns
+	the previous protection level. This function is only called during very short
+	critical regions. An embedded system which supports ISR-based drivers might
+	want to implement this function by disabling interrupts. Task-based systems
+	might want to implement this by using a mutex or disabling tasking. This
+	function should support recursive calls from the same task or interrupt. In
 other words, sys_arch_protect() could be called while already protected. In
 that case the return value indicates that it is already protected.
 

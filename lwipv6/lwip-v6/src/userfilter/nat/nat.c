@@ -50,16 +50,15 @@
 
 /*--------------------------------------------------------------------------*/
 
-uf_verdict_t  nat_defrag  (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif);
+uf_verdict_t  nat_defrag  (struct stack *stack, uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif);
 
-uf_verdict_t  nat_track   (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif);
-uf_verdict_t  nat_perform (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif);
-uf_verdict_t  nat_confirm (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif);
+uf_verdict_t  nat_track   (struct stack *stack, uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif);
+uf_verdict_t  nat_perform (struct stack *stack, uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif);
+uf_verdict_t  nat_confirm (struct stack *stack, uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif);
 
 #if 0
 struct uf_hook_handler   nat_prerouting_defrag =
 {
-	.next     = NULL,
 	.hooknum  = UF_IP_PRE_ROUTING,
 	.hook     = nat_defrag,
 	.priority = UF_PRI_NAT_PREROUTING_DEFRAG
@@ -68,7 +67,6 @@ struct uf_hook_handler   nat_prerouting_defrag =
 
 struct uf_hook_handler   nat_prerouting_track =
 {
-	.next     = NULL,
 	.hooknum  = UF_IP_PRE_ROUTING,
 	.hook     = nat_track,
 	.priority = UF_PRI_NAT_PREROUTING_TRACK
@@ -76,7 +74,6 @@ struct uf_hook_handler   nat_prerouting_track =
 
 struct uf_hook_handler   nat_prerouting_dnat =
 {
-	.next     = NULL,
 	.hooknum  = UF_IP_PRE_ROUTING,
 	.hook     = nat_perform,
 	.priority = UF_PRI_NAT_PREROUTING_DNAT
@@ -84,7 +81,6 @@ struct uf_hook_handler   nat_prerouting_dnat =
 
 struct uf_hook_handler   nat_input_confirm =
 {
-	.next     = NULL,
 	.hooknum  = UF_IP_LOCAL_IN,
 	.hook     = nat_confirm,
 	.priority = UF_PRI_NAT_INPUT_CONFIRM
@@ -92,7 +88,6 @@ struct uf_hook_handler   nat_input_confirm =
 
 struct uf_hook_handler   nat_output_track =
 {
-	.next     = NULL,
 	.hooknum  = UF_IP_LOCAL_OUT,
 	.hook     = nat_track,
 	.priority = UF_PRI_NAT_OUTPUT_TRACK
@@ -100,7 +95,6 @@ struct uf_hook_handler   nat_output_track =
 
 struct uf_hook_handler   nat_postrouting_snat =
 {
-	.next     = NULL,
 	.hooknum  = UF_IP_POST_ROUTING,
 	.hook     = nat_perform,
 	.priority = UF_PRI_NAT_POSTROUTING_SNAT
@@ -108,7 +102,6 @@ struct uf_hook_handler   nat_postrouting_snat =
 
 struct uf_hook_handler   nat_postrouting_confirm =
 {
-	.next     = NULL,
 	.hooknum  = UF_IP_POST_ROUTING,
 	.hook     = nat_confirm,
 	.priority = UF_PRI_NAT_POSTROUTING_CONFIRM
@@ -118,31 +111,28 @@ struct uf_hook_handler   nat_postrouting_confirm =
 /* Nat PCBS */
 /*--------------------------------------------------------------------------*/
 
-sys_sem_t unique_mutex;
+/* it seems useless: rd20100730 */
+/*sys_sem_t unique_mutex;*/
 
-sys_sem_t nat_mutex;      /* Semaphore for critical section */
 
 #define LOCK(sem)         sys_sem_wait_timeout((sem), 0)
 #define UNLOCK(sem)       sys_sem_signal((sem))
 
-#define NAT_LOCK()        LOCK(nat_mutex)
-#define NAT_UNLOCK()      UNLOCK(nat_mutex)
+#define NAT_LOCK(stack)        LOCK(stack->stack_nat->nat_mutex)
+#define NAT_UNLOCK(stack)      UNLOCK(stack->stack_nat->nat_mutex)
 
-struct nat_pcb *nat_tentative_pcbs;
-struct nat_pcb *nat_active_pcbs; 
-
-#define NAT_PCB_REG(pcbs_list, npcb) \
+#define NAT_PCB_REG(stack, pcbs_list, npcb) \
 	do { \
-		NAT_LOCK(); \
+		NAT_LOCK(stack); \
 		npcb->next = *pcbs_list; \
 		*(pcbs_list) = npcb; \
-		NAT_UNLOCK(); \
+		NAT_UNLOCK(stack); \
 	} while(0)
 
-#define NAT_PCB_RMV(pcbs_list, npcb) \
+#define NAT_PCB_RMV(stack, pcbs_list, npcb) \
 	do { \
 		struct nat_pcb *___tmp; \
-		NAT_LOCK(); \
+		NAT_LOCK(stack); \
 		if(*(pcbs_list) == npcb) { \
 			(*(pcbs_list)) = (*pcbs_list)->next; \
 		} else \
@@ -153,14 +143,14 @@ struct nat_pcb *nat_active_pcbs;
 				} \
 			} \
 		npcb->next = NULL; \
-		NAT_UNLOCK(); \
+		NAT_UNLOCK(stack); \
 	} while(0)
 
 /*--------------------------------------------------------------------------*/
 
 #define MAX_TRACK_PROTO 256
 
-struct track_protocol *ip_ct_protos[MAX_TRACK_PROTO];
+static struct track_protocol *ip_ct_protos[MAX_TRACK_PROTO];
 
 struct track_protocol * track_proto_find(u8_t protocol)
 {
@@ -169,46 +159,76 @@ struct track_protocol * track_proto_find(u8_t protocol)
 
 /*--------------------------------------------------------------------------*/
 
-int nat_init(void)
+int nat_init(struct stack *stack)
 {
 	int i;
 
-	nat_mutex    = sys_sem_new(1);
-	unique_mutex = sys_sem_new(1);
+	/* global mapping, initialized once */
+	if (ip_ct_protos[0] == NULL) {
+		for (i = 0; i < MAX_TRACK_PROTO; i++)
+			ip_ct_protos[i] = &default_track;
+		ip_ct_protos[IP_PROTO_TCP]   = &tcp_track;
+		ip_ct_protos[IP_PROTO_UDP]   = &udp_track;
+		ip_ct_protos[IP_PROTO_ICMP4] = &icmp4_track;
+		ip_ct_protos[IP_PROTO_ICMP]  = &icmp6_track;
+	}
+
+	/* Register hooks */
+
+	stack->stack_nat = mem_malloc(sizeof(struct stack_nat));
+	if (stack->stack_nat == NULL)
+		return -ENOMEM;
+
+	stack->stack_nat->nat_mutex    = sys_sem_new(1);
+	/*unique_mutex = sys_sem_new(1);*/
 
 	// FIX: remove this and bind ip/port in the stack
-	nat_ports_init();
+	nat_ports_init(stack);
 
 	// Init rules lists
-	nat_in_rules  = NULL;
-	nat_out_rules = NULL;
+	stack->stack_nat->nat_in_rules  = NULL;
+	stack->stack_nat->nat_out_rules = NULL;
 
 	// Init pcbs lists
-	nat_active_pcbs    = NULL; 
-	nat_tentative_pcbs = NULL;
+	stack->stack_nat->nat_active_pcbs    = NULL; 
+	stack->stack_nat->nat_tentative_pcbs = NULL;
 
 	/* Set protocol handlers */
 
-	ip_conntrack_protocol_tcp_lockinit();
+	ip_conntrack_protocol_tcp_lockinit(stack);
 
-	for (i = 0; i < MAX_TRACK_PROTO; i++)
-		ip_ct_protos[i] = &default_track;
-	ip_ct_protos[IP_PROTO_TCP]   = &tcp_track;
-	ip_ct_protos[IP_PROTO_UDP]   = &udp_track;
-	ip_ct_protos[IP_PROTO_ICMP4] = &icmp4_track;
-	ip_ct_protos[IP_PROTO_ICMP]  = &icmp6_track;
-
-	/* Register hooks */
 	//uf_register_hook( & nat_prerouting_defrag);
-	uf_register_hook( & nat_prerouting_track);
-	uf_register_hook( & nat_prerouting_dnat);
-	uf_register_hook( & nat_input_confirm);
-	uf_register_hook( & nat_output_track);
-	uf_register_hook( & nat_postrouting_snat);
-	uf_register_hook( & nat_postrouting_confirm);
+	uf_register_hook(stack, & nat_prerouting_track);
+	uf_register_hook(stack, & nat_prerouting_dnat);
+	uf_register_hook(stack, & nat_input_confirm);
+	uf_register_hook(stack, & nat_output_track);
+	uf_register_hook(stack, & nat_postrouting_snat);
+	uf_register_hook(stack, & nat_postrouting_confirm);
 
 	LWIP_DEBUGF(NAT_DEBUG, ("%s: registered NAT hooks!\n", __func__));
 	
+	return ERR_OK;
+}
+
+void nat_free_pcb(struct nat_pcb *pcb);
+int nat_shutdown(struct stack *stack)
+{
+	struct nat_pcb *nat_pcb_tmp; 
+	if (stack->stack_nat == NULL)
+		return -EINVAL;
+
+	nat_rules_shutdown(stack);
+	while (stack->stack_nat->nat_tentative_pcbs != NULL) {
+		nat_pcb_tmp = stack->stack_nat->nat_tentative_pcbs;
+		NAT_PCB_RMV(stack, &stack->stack_nat->nat_tentative_pcbs, nat_pcb_tmp);
+		nat_free_pcb(nat_pcb_tmp);
+	}
+	while (stack->stack_nat->nat_active_pcbs != NULL) {
+		nat_pcb_tmp = stack->stack_nat->nat_active_pcbs;
+		NAT_PCB_RMV(stack, &stack->stack_nat->nat_active_pcbs, nat_pcb_tmp);
+		nat_free_pcb(nat_pcb_tmp);
+	}
+	mem_free(stack->stack_nat);
 	return ERR_OK;
 }
 
@@ -419,7 +439,7 @@ int tuple_create_nat_inverse(struct ip_tuple *reply, struct ip_tuple *tuple,
 		return -1;
 	}
 	
-	r = proto->nat_tuple_inverse(reply, tuple, type, nat_manip);
+	r = proto->nat_tuple_inverse(iface->stack, reply, tuple, type, nat_manip);
 
 	return r;
 }
@@ -528,6 +548,7 @@ void nat_session_get(struct nat_pcb *pcb)
 void nat_session_put(struct nat_pcb *pcb)
 {
 	struct track_protocol *proto;
+	struct stack *stack = pcb->stack;
 
 	LWIP_DEBUGF(NAT_DEBUG, ("%s: pcb id=%d ref=%d\n", __func__, pcb->id, (int)pcb->refcount));
 	pcb->refcount--;
@@ -536,7 +557,7 @@ void nat_session_put(struct nat_pcb *pcb)
 
 		/* The tracking not confirmed this connection, remove it */
 		if (!(pcb->status & TS_CONFIRMED)) {
-			NAT_PCB_RMV(&nat_tentative_pcbs, pcb);
+			NAT_PCB_RMV(stack, &stack->stack_nat->nat_tentative_pcbs, pcb);
 		} 
 
 		// Need to unbind() used ports for SNAT
@@ -561,11 +582,12 @@ void nat_session_put(struct nat_pcb *pcb)
 void close_timeout(void *arg)
 {
 	struct nat_pcb *pcb = (struct nat_pcb *) arg;
+	struct stack *stack = pcb->stack;
 
 	LWIP_DEBUGF(NAT_DEBUG, ("%s: session p=%p id=%d expired\n", __func__, pcb, pcb->id));
 	LWIP_DEBUGF(NAT_DEBUG, ("\t")); dump_tuple(&pcb->tuple[CONN_DIR_ORIGINAL]); 
 
-	NAT_PCB_RMV(&nat_active_pcbs, pcb);
+	NAT_PCB_RMV(stack, &stack->stack_nat->nat_active_pcbs, pcb);
 
 	nat_session_put(pcb);
 }
@@ -593,7 +615,8 @@ void conn_force_timeout(struct nat_pcb *pcb)
 	close_timeout(pcb);
 }
 
-int new_track(struct nat_pcb **newpcb, uf_hook_t hook, struct pbuf **q, 
+int new_track(struct stack *stack, struct nat_pcb **newpcb, uf_hook_t hook, 
+	struct pbuf **q, 
 	struct ip_tuple * tuple, conn_dir_t *direction, struct track_protocol *proto)
 {
 	struct ip_hdr *ip6hdr;
@@ -635,7 +658,7 @@ int new_track(struct nat_pcb **newpcb, uf_hook_t hook, struct pbuf **q,
 	else
 		return -1;
 
-	if (proto->new(pcb, p, p->payload, iphdrlen) < 0) {
+	if (proto->new(stack, pcb, p, p->payload, iphdrlen) < 0) {
 		LWIP_DEBUGF(NAT_DEBUG, ("%s: Unable to create new valid tracking.\n", __func__));
 
 		nat_free_pcb(pcb);
@@ -645,22 +668,23 @@ int new_track(struct nat_pcb **newpcb, uf_hook_t hook, struct pbuf **q,
 	*direction = CONN_DIR_ORIGINAL;
 	*newpcb    = pcb;
 
+	pcb->stack = stack;
 	pcb->refcount = 1;
 
 	pcb->next = NULL;
 	/* Register this connection as a Tentative */
-	NAT_PCB_REG(&nat_tentative_pcbs, pcb);
+	NAT_PCB_REG(stack, &stack->stack_nat->nat_tentative_pcbs, pcb);
 
 	return 1;
 }
 
-struct nat_pcb * conn_find_track(conn_dir_t *direction, struct ip_tuple * tuple )
+struct nat_pcb * conn_find_track(struct stack *stack, conn_dir_t *direction, struct ip_tuple * tuple )
 {
 	struct nat_pcb *pcb = NULL;
 
 	/* Search in the table */
-	NAT_LOCK();
-	for(pcb = nat_active_pcbs; pcb != NULL; pcb = pcb->next)  {
+	NAT_LOCK(stack);
+	for(pcb = stack->stack_nat->nat_active_pcbs; pcb != NULL; pcb = pcb->next)  {
 
 		LWIP_DEBUGF(NAT_DEBUG, ("\tpcb=%p\tORIGINAL: ", pcb)); 
 		dump_tuple(&pcb->tuple[CONN_DIR_ORIGINAL]);
@@ -683,7 +707,7 @@ struct nat_pcb * conn_find_track(conn_dir_t *direction, struct ip_tuple * tuple 
 		pcb->refcount++;
 	}
 
-	NAT_UNLOCK();
+	NAT_UNLOCK(stack);
 
 	return pcb;
 }
@@ -692,7 +716,7 @@ struct nat_pcb * conn_find_track(conn_dir_t *direction, struct ip_tuple * tuple 
  * Try to track the packet. If this packet doesn't belong to any existing connection
  * a new one will be created. On errors return -1.
  */
-int conn_track(conn_dir_t *direction, uf_hook_t hook, 
+int conn_track(struct stack *stack, conn_dir_t *direction, uf_hook_t hook, 
 	struct pbuf **q, struct netif *inif, struct netif *outif, struct track_protocol *proto)
 {
 	struct pbuf *p = * q;
@@ -711,15 +735,14 @@ int conn_track(conn_dir_t *direction, uf_hook_t hook,
 	dump_tuple (&tuple); 
 
 	/* Find tracking informations */	
-	tmppcb = conn_find_track(direction, &tuple);
+	tmppcb = conn_find_track(stack, direction, &tuple);
 	if (tmppcb == NULL) {
-		if (new_track(&tmppcb, hook, q, &tuple, direction, proto) < 0) {
+		if (new_track(stack, &tmppcb, hook, q, &tuple, direction, proto) < 0) {
 			LWIP_DEBUGF(NAT_DEBUG, ("%s: unable to create new track \n", __func__ ));
 			return -1;
 		}
 		LWIP_DEBUGF(NAT_DEBUG, ("%s: NEW track %p id=%d!!\n", __func__, tmppcb, tmppcb->id));
 	}
-
 
 	p->nat.track = tmppcb;
 	p->nat.dir   = *direction;
@@ -784,7 +807,7 @@ int conn_need_track(struct pbuf *p)
 /*--------------------------------------------------------------------------*/
 
 #if 0
-uf_verdict_t  nat_defrag  (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif)
+uf_verdict_t  nat_defrag  (struct stack *stack, uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif)
 {
 	struct pbuf *p = *q;
 	struct ip4_hdr *ip4hdr;
@@ -859,7 +882,7 @@ uf_verdict_t  nat_defrag  (uf_hook_t hooknum, struct pbuf **q, struct netif *ini
 #endif
 
 
-uf_verdict_t nat_track (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif)
+uf_verdict_t nat_track (struct stack *stack, uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif)
 {
 	struct pbuf *p = *q;
 	struct pbuf *new_p;
@@ -907,7 +930,7 @@ uf_verdict_t nat_track (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, 
 	LWIP_DEBUGF(NAT_DEBUG, ("%s: proto = %d\n", __func__, IPH4_PROTO(ip4hdr) ));
 
 	if (proto->error != NULL) {
-		if (proto->error(&verdict, p) < 0) {
+		if (proto->error(stack, &verdict, p) < 0) {
 			LWIP_DEBUGF(NAT_DEBUG, ("%s: proto error() -> %s\n", __func__, STR_VERDICT(verdict) ));
 			return verdict;				
 		}
@@ -919,13 +942,13 @@ uf_verdict_t nat_track (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, 
 	}
 
 	/* Find connection, if none is found a new will be created */	
-	if (conn_track(&direction, hooknum, q, inif, outif, proto ) < 0) {
+	if (conn_track(stack, &direction, hooknum, q, inif, outif, proto ) < 0) {
 		LWIP_DEBUGF(NAT_DEBUG, ("%s: tracking failed (not new valid connection)! DROP\n", __func__ ));
 		return UF_DROP;
 	}
 
 	/* Update tracking informations */
-	if (proto->handle(&verdict, p, direction) < 0) {
+	if (proto->handle(stack, &verdict, p, direction) < 0) {
 		LWIP_DEBUGF(NAT_DEBUG, ("%s: drop this packet!!\n", __func__));
 		/* Invalid: inverse of the return code tells
 		 * the netfilter core what to do*/
@@ -944,7 +967,7 @@ uf_verdict_t nat_track (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, 
 	return verdict;
 }
 
-uf_verdict_t  nat_confirm (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif)
+uf_verdict_t  nat_confirm (struct stack *stack, uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif)
 {
 	struct nat_pcb *pcb = NULL;
 	struct pbuf *p = *q;
@@ -968,8 +991,8 @@ uf_verdict_t  nat_confirm (uf_hook_t hooknum, struct pbuf **q, struct netif *ini
 		pcb->refcount++;
 		sys_timeout(pcb->timeout, (sys_timeout_handler) close_timeout, pcb);
 
-		NAT_PCB_RMV(&nat_tentative_pcbs, pcb);
-		NAT_PCB_REG(&nat_active_pcbs, pcb);
+		NAT_PCB_RMV(stack, &stack->stack_nat->nat_tentative_pcbs, pcb);
+		NAT_PCB_REG(stack, &stack->stack_nat->nat_active_pcbs, pcb);
 
 		LWIP_DEBUGF(NAT_DEBUG, ("%s: confirming track %p id=%d!!\n", __func__, pcb, pcb->id));
 	}
@@ -983,14 +1006,15 @@ int  nat_check_rule(struct nat_pcb *pcb, uf_hook_t hooknum, struct netif *inif,s
 	struct nat_rule * list, *rule;
 	struct netif    * netif = NULL;
 	struct manip_range *nat_manip;
-        nat_type_t      type;
+	nat_type_t      type;
+	struct stack *stack = pcb->stack;
 
 	if (hooknum == UF_IP_PRE_ROUTING) {
-		list  = nat_in_rules;
+		list  = stack->stack_nat->nat_in_rules;
 		netif = inif;
 	} 
 	else if (hooknum == UF_IP_POST_ROUTING) {
-		list  = nat_out_rules;
+		list  = stack->stack_nat->nat_out_rules;
 		netif = outif;
 	}
 	else {
@@ -1015,7 +1039,6 @@ int  nat_check_rule(struct nat_pcb *pcb, uf_hook_t hooknum, struct netif *inif,s
 
 	/* We try only SNAT or DNAT, not both */
 	pcb->status |= TS_NAT_TRY_MASK;
-
 
 	if (nat_create_session(type, pcb, netif, nat_manip) == NULL) {
 		LWIP_DEBUGF(NAT_DEBUG, ("%s: unable to create session with rule\n",__func__));
@@ -1115,7 +1138,7 @@ void nat_modify_ip(nat_manip_t nat, char *p, struct ip_tuple *inverse, u8_t mani
 
 int icmp_reply_translation(struct pbuf *p, nat_manip_t nat_here);
 
-uf_verdict_t  nat_perform   (uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif)
+uf_verdict_t  nat_perform   (struct stack *stack, uf_hook_t hooknum, struct pbuf **q, struct netif *inif, struct netif *outif)
 {
 	struct pbuf    *p = * q;
 	struct ip_hdr  *ip6hdr;

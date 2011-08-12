@@ -24,12 +24,30 @@
 #ifndef __NAT_PORTS_H__
 #define __NAT_PORTS_H__
 
+/*--------------------------------------------------------------------------*/
 
-void nat_ports_init(void);
+#define TCP_MIN_PORT          0
+#define TCP_MAX_PORT          65535
+#define TCP_MAX_PORTS         (TCP_MAX_PORT - TCP_MIN_PORT)     
+#define TCP_PORTS_TABLE_SIZE  (TCP_MAX_PORTS / 8)
 
-int  nat_ports_getnew(int protocol, u16_t *port, u32_t min, u32_t max);
+#define UDP_MIN_PORT          0
+#define UDP_MAX_PORT          65535
+#define UDP_MAX_PORTS         (UDP_MAX_PORT - UDP_MIN_PORT)     
+#define UDP_PORTS_TABLE_SIZE  (UDP_MAX_PORTS / 8)
 
-u16_t nat_ports_free(int protocol, u16_t val);
+#define ICMP_MIN_PORT          0
+#define ICMP_MAX_PORT          65535
+#define ICMP_MAX_PORTS         (ICMP_MAX_PORT - ICMP_MIN_PORT)     
+#define ICMP_PORTS_TABLE_SIZE  (ICMP_MAX_PORTS / 8)
+
+/*--------------------------------------------------------------------------*/
+
+void nat_ports_init(struct stack *stack);
+
+int  nat_ports_getnew(struct stack *stack, int protocol, u16_t *port, u32_t min, u32_t max);
+
+u16_t nat_ports_free(struct stack *stack, int protocol, u16_t val);
 
 #endif /* NAT_PORTS */
 

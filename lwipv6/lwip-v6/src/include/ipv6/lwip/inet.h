@@ -80,6 +80,8 @@ int inet_pton(int af, const char *src, void *dst);
 
 /*--------------------------------------------------------------------*/
 
+#ifndef htons
+
 #if BYTE_ORDER == BIG_ENDIAN
 #define htons(x) (x)
 #define ntohs(x) (x)
@@ -92,6 +94,7 @@ u32_t htonl(u32_t x);
 u32_t ntohl(u32_t x);
 #endif /* BYTE_ORDER == LITTLE_ENDIAN */
 
+#endif
 #endif /* __LWIP_INET_H__ */
 
 

@@ -108,18 +108,16 @@ static const struct eth_addr ethbroadcast = { {0xff, 0xff, 0xff, 0xff, 0xff, 0xf
 struct vdeif {
 	struct eth_addr *ethaddr;
 	/* Add whatever per-interface state that is needed here. */
-	int intno;
 	VDECONN *vdefd;
-
-	u8_t       active;
-	sys_sem_t  cleanup_mutex;
+	VDESTREAM *vdestream;
+	int posfd;
 };
 
 /* Forward declarations. */
-static void vdeif_input(struct netif *netif);
+static void vdeif_input(struct netif *netif, int posfd, void *arg);
+static void vdeif_stream_input(struct netif *netif, int posfd, void *arg);
+static ssize_t vdeif_streampkt_input(void *opaque, void *buf, size_t count);
 static err_t vdeif_output(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr);
-
-static void vdeif_thread(void *data);
 
 #define BUFSIZE        2048
 #define ETH_ALEN       6
@@ -165,39 +163,58 @@ static int low_level_init(struct netif *netif, char *path)
 	snprintf(descr, MAXDESCR, "%sLWIPv6 if=vd%c", 
 		(getenv("_INSIDE_VIEWOS_MODULE") != NULL) ? "VIEWOS-" : "", 
 		netif->num + '0');
-	vdeif->intno = netif->num;
-	vdeif->vdefd=vdeplug.vde_open(path,descr,NULL);
-	if (vdeif->vdefd) {
-
-		vdeif->active = 1;
-		vdeif->cleanup_mutex = sys_sem_new(0);
-
-		sys_thread_new(vdeif_thread, netif, DEFAULT_THREAD_PRIO);
-		return ERR_OK;
-	}
-	else {
-		return ERR_IF;
+	if (path==NULL || *path != '-') {
+		vdeif->vdefd=vdeplug.vde_open(path,descr,NULL);
+		vdeif->vdestream=NULL;
+		if (vdeif->vdefd && 
+				(vdeif->posfd=netif_addfd(netif, 
+																	vdeplug.vde_datafd(vdeif->vdefd),
+																	vdeif_input, NULL, 0, POLLIN))>=0
+		 ) 
+			return ERR_OK;
+		else 
+			return ERR_IF;
+	} else {
+		int fdin;
+		int fdout;
+		if (path[1]==0) {
+			fdin=STDIN_FILENO;
+			fdout=STDOUT_FILENO;
+		} else {
+			/* XXX not supported yet : connect to sockets or fifos */
+			return ERR_IF;
+		}
+		vdeif->vdefd=NULL;
+		vdeif->vdestream=vdeplug.vdestream_open(netif,fdout,vdeif_streampkt_input,NULL);
+		if (vdeif->vdestream != NULL &&
+				(vdeif->posfd=netif_addfd(netif, fdin, 
+																	vdeif_stream_input, NULL, 0, POLLIN))>=0)
+			return ERR_OK;
+		else
+			return ERR_IF;
 	}
 }
 
 /* cleanup: garbage collection */
-static err_t cleanup(struct netif *netif)
+static err_t vdeif_ctl(struct netif *netif, int request, void *arg)
 {
 	struct vdeif *vdeif = netif->state;
 
 	if (vdeif) {
-		vdeplug.vde_close(vdeif->vdefd);
 
-		/* Unset ARP timeout on this interface */
-		sys_untimeout((sys_timeout_handler)arp_timer, netif);
+		switch (request) {
+			case NETIFCTL_CLEANUP:
+				if (vdeif->vdefd)
+					vdeplug.vde_close(vdeif->vdefd);
+				if (vdeif->vdestream)
+					vdeplug.vdestream_close(vdeif->vdestream);
 
+				/* Unset ARP timeout on this interface */
+				sys_untimeout((sys_timeout_handler)arp_timer, netif);
 
-		/* Stop interface thread and wait until it exits */
-		vdeif->active = 0;
-		libvdeplug_dynclose(vdeplug);
-		sys_sem_wait_timeout(vdeif->cleanup_mutex, 0); 
-		sys_sem_free(vdeif->cleanup_mutex);
-		mem_free(vdeif);
+				netif_delfd(netif->stack, vdeif->posfd);
+				mem_free(vdeif);
+		}
 	}
 	return ERR_OK;
 }
@@ -240,13 +257,49 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
 		bufptr += q->len;
 	}
 
-	/* signal that packet should be sent(); */
-	if (vdeplug.vde_send(vdeif->vdefd, buf, p->tot_len, 0) == -1) {
+	if (vdeif->vdefd) {
+		/* signal that packet should be sent(); */
+		if (vdeplug.vde_send(vdeif->vdefd, buf, p->tot_len, 0) == -1) {
+		}
+	} else {
+		if (vdeplug.vdestream_send(vdeif->vdestream, buf, p->tot_len) == -1) {
+		}
 	}
 
 	LWIP_DEBUGF(VDEIF_DEBUG, ("%s: end\n", __func__));
 
 	return ERR_OK;
+}
+
+/*-----------------------------------------------------------------------------------*/
+/* low_level_pbuf_copy2pbuf
+ */
+
+static inline struct pbuf *low_level_pbuf_copy2pbuf(char *buf, u16_t len)
+{
+	struct pbuf *p, *q;
+	char *bufptr;
+	/* We allocate a pbuf chain of pbufs from the pool. */
+	p = pbuf_alloc(PBUF_RAW, len, PBUF_POOL);
+	if (p != NULL) {
+		/* We iterate over the pbuf chain until we have read the entire
+			 packet into the pbuf. */
+		bufptr = &buf[0];
+		for (q = p; q != NULL; q = q->next) {
+			/* Read enough bytes to fill this pbuf in the chain. The
+				 available data in the pbuf is given by the q->len
+				 variable. */
+			/* read data into(q->payload, q->len); */
+			memcpy(q->payload, bufptr, q->len);
+			bufptr += q->len;
+		}
+		/* acknowledge that packet has been read(); */
+	}
+	else {
+		/* drop packet(); */
+		fprintf(stderr, "vdeif: dropped packet (pbuf)\n");
+	}
+	return p;
 }
 
 /*-----------------------------------------------------------------------------------*/
@@ -258,14 +311,12 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
  *
  */
 /*-----------------------------------------------------------------------------------*/
+
 static struct pbuf *low_level_input(struct vdeif *vdeif, u16_t ifflags)
 {
-	struct pbuf *p, *q;
-	u16_t len;
+	struct pbuf *p;
 	char buf[1514];
-	char *bufptr;
-	struct sockaddr_un datain;
-	socklen_t datainsize = sizeof(struct sockaddr_un);
+	u16_t len;
 
 	LWIP_DEBUGF(VDEIF_DEBUG, ("%s: reading...\n", __func__));
 
@@ -290,53 +341,29 @@ static struct pbuf *low_level_input(struct vdeif *vdeif, u16_t ifflags)
 		   ifflags); */
 		return NULL;
 	}
-	/* We allocate a pbuf chain of pbufs from the pool. */
-	p = pbuf_alloc(PBUF_RAW, len, PBUF_POOL);
-	if (p != NULL) {
-		/* We iterate over the pbuf chain until we have read the entire
-		   packet into the pbuf. */
-		bufptr = &buf[0];
-		for (q = p; q != NULL; q = q->next) {
-			/* Read enough bytes to fill this pbuf in the chain. The
-			   available data in the pbuf is given by the q->len
-			   variable. */
-			/* read data into(q->payload, q->len); */
-			memcpy(q->payload, bufptr, q->len);
-			bufptr += q->len;
-		}
-		/* acknowledge that packet has been read(); */
-	}
-	else {
-		/* drop packet(); */
-		fprintf(stderr, "vdeif: dropped packet (pbuf)\n");
-	}
 
+	return low_level_pbuf_copy2pbuf(buf, len);
 	return p;
 }
 
-/*-----------------------------------------------------------------------------------*/
-static void vdeif_thread(void *arg)
+static struct pbuf *low_level_stream_input(struct vdeif *vdeif, u16_t ifflags, 
+		char *buf, u16_t len)
 {
-	struct netif *netif = arg;
-	struct vdeif *vdeif = netif->state;
-	struct pollfd pfd[]={{vdeplug.vde_datafd(vdeif->vdefd),POLLIN,0}};
-	int ret;
+	struct pbuf *p;
 
-	/* Check if we have to exit and wait 100ms for new data */
-	while (vdeif->active) {
-
-		/* Wait for a packet to arrive. */
-		ret = poll(pfd, 1, 100);
-		if (ret == 1) {
-			/* Handle incoming packet. */
-			vdeif_input(netif);
-		}
-		else if (ret == -1 && errno != EINTR) {
-			perror("vdeif_thread: poll");
-		}
+	if (!(ETH_RECEIVING_RULE(buf, vdeif->ethaddr->addr, ifflags))) {
+		LWIP_DEBUGF(VDEIF_DEBUG, ("%s: RECEIVING_RULE = false\n", __func__));
+		/*printf("PACKET DROPPED\n");
+			printf("%x:%x:%x:%x:%x:%x %x:%x:%x:%x:%x:%x %x\n",
+			buf[0], buf[1], buf[2], buf[3], buf[4], buf[5],
+			vdeif->ethaddr->addr[0], vdeif->ethaddr->addr[1], vdeif->ethaddr->addr[2],
+			vdeif->ethaddr->addr[3], vdeif->ethaddr->addr[4], vdeif->ethaddr->addr[5],
+			ifflags); */
+		return NULL;
 	}
 
-	sys_sem_signal(vdeif->cleanup_mutex);   
+	return low_level_pbuf_copy2pbuf(buf, len);
+	return p;
 }
 
 /*-----------------------------------------------------------------------------------*/
@@ -369,30 +396,13 @@ static err_t vdeif_output(struct netif *netif, struct pbuf *p, struct ip_addr *i
 }
 
 /*-----------------------------------------------------------------------------------*/
-/*
- * vdeif_input():
- *
- * This function should be called when a packet is ready to be read
- * from the interface. It uses the function low_level_input() that
- * should handle the actual reception of bytes from the network
- * interface.
- *
+/* vdeif_input_dispatch
+ * dispatch the packet to the upper layers 
  */
-/*-----------------------------------------------------------------------------------*/
-static void vdeif_input(struct netif *netif)
+static inline void vde_dispatch_input(struct netif *netif, struct pbuf *p)
 {
-	struct vdeif *vdeif;
+	struct vdeif *vdeif=netif->state;
 	struct eth_hdr *ethhdr;
-	struct pbuf *p;
-
-	vdeif = netif->state;
-
-	p = low_level_input(vdeif, netif->flags);
-
-	if (p == NULL) {
-		LWIP_DEBUGF(VDEIF_DEBUG, ("vdeif_input: low_level_input returned NULL\n"));
-		return;
-	}
 
 	ethhdr = p->payload;
 	/* printf("vdeif_input %x %d\n",htons(ethhdr->type),p->tot_len); */
@@ -425,6 +435,59 @@ static void vdeif_input(struct netif *netif)
 	}
 }
 
+
+/*-----------------------------------------------------------------------------------*/
+/*
+ * vdeif_input():
+ *
+ * This function should be called when a packet is ready to be read
+ * from the interface. It uses the function low_level_input() that
+ * should handle the actual reception of bytes from the network
+ * interface.
+ *
+ */
+/*-----------------------------------------------------------------------------------*/
+static void vdeif_input(struct netif *netif, int posfd, void *arg)
+{
+	struct vdeif *vdeif=netif->state;
+	struct pbuf *p;
+
+	p = low_level_input(vdeif, netif->flags);
+
+	if (p == NULL) {
+		LWIP_DEBUGF(VDEIF_DEBUG, ("vdeif_input: low_level_input returned NULL\n"));
+		return;
+	}
+
+	vde_dispatch_input(netif, p);
+}
+
+static void vdeif_stream_input(struct netif *netif, int posfd, void *arg)
+{
+	struct vdeif *vdeif=netif->state;
+	char buf[1514];
+	u16_t len;
+
+	len=read(netif->stack->netif_pfd[posfd].fd,buf,1514);
+	vdeplug.vdestream_recv(vdeif->vdestream,buf,len);
+}
+
+static ssize_t vdeif_streampkt_input(void *opaque, void *buf, size_t count)
+{
+	struct netif *netif=opaque;
+	struct vdeif *vdeif=netif->state;
+	struct pbuf *p;
+
+	p = low_level_stream_input(vdeif, netif->flags, buf, count);
+	if (p == NULL) {
+		LWIP_DEBUGF(VDEIF_DEBUG, ("vdeif_input: low_level_input returned NULL\n"));
+		return;
+	}
+
+	vde_dispatch_input(netif, p);
+	return count;
+}
+
 /*-----------------------------------------------------------------------------------*/
 /*
  * vdeif_init():
@@ -449,10 +512,11 @@ err_t vdeif_init(struct netif * netif)
 	netif->state = vdeif;
 	netif->name[0] = IFNAME0;
 	netif->name[1] = IFNAME1;
+	netif->link_type = NETIF_VDEIF;
 	netif->num=netif_next_num(netif,NETIF_VDEIF);
 	netif->output = vdeif_output;
 	netif->linkoutput = low_level_output;
-	netif->cleanup = cleanup;
+	netif->netifctl = vdeif_ctl;
 	netif->mtu = 1500;
 	/* hardware address length */
 	netif->hwaddr_len = 6;

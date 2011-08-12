@@ -54,14 +54,6 @@
 /* Rules functions */
 /*--------------------------------------------------------------------------*/
 
-// rules in INPUT (PREROUTING)
-struct nat_rule *nat_in_rules;     
-
-// rules in OUTPUT (POSTROUTING)
-struct nat_rule *nat_out_rules;    
-
-struct nat_rule *nat_tmp_rule;
-
 #define NAT_RULE_REG(rules_list, nrule) \
 	do { \
 		(nrule)->next = *(rules_list); \
@@ -70,6 +62,7 @@ struct nat_rule *nat_tmp_rule;
 
 #define NAT_RULE_APPEND(rules_list, nrule) \
 	do { \
+		struct nat_rule *nat_tmp_rule; \
 		if (*(rules_list) != NULL) { \
 			nat_tmp_rule = *(rules_list); \
 			while (nat_tmp_rule->next != NULL) \
@@ -87,6 +80,7 @@ struct nat_rule *nat_tmp_rule;
 		if(*pcbs_list == npcb) { \
 			*pcbs_list = (*pcbs_list)->next; \
 		} else \
+			struct nat_rule *nat_tmp_rule; \
 			for(nat_tmp_rule = *pcbs_list; nat_tmp_rule != NULL; nat_tmp_rule = nat_tmp_rule->next) { \
 				if (nat_tmp_rule->next != NULL && nat_tmp_rule->next == npcb) { \
 				    nat_tmp_rule->next = npcb->next; \
@@ -96,13 +90,15 @@ struct nat_rule *nat_tmp_rule;
 		npcb->next = NULL; \
 	} while(0)
 
-#define NAT_RULE_FIND(rules_list, netif, result) \
-	for(nat_tmp_rule = *(rules_list); nat_tmp_rule != NULL; nat_tmp_rule = nat_tmp_rule->next) { \
-		if(nat_tmp_rule->iface == (netif)) { \
-			* (result) = nat_tmp_pcb; \
-			break; \
+#define NAT_RULE_FIND(rules_list, netif, result) do {\
+		struct nat_rule *nat_tmp_rule; \
+		for(nat_tmp_rule = *(rules_list); nat_tmp_rule != NULL; nat_tmp_rule = nat_tmp_rule->next) { \
+			if(nat_tmp_rule->iface == (netif)) { \
+				* (result) = nat_tmp_pcb; \
+				break; \
+			} \
 		} \
-	} 
+	} while(0)
 
 //
 // Returns a new nat_rule structure.
@@ -126,21 +122,22 @@ void nat_free_rule(struct nat_rule *rule)
 	memp_free(MEMP_NAT_RULE, rule);
 }
 
-
-int  nat_add_rule(int ipv, nat_table_t where, struct nat_rule *new_rule)
+int  nat_add_rule(struct stack *stack, int ipv, nat_table_t where, struct nat_rule *new_rule)
 {
+	if (stack->stack_nat == NULL)
+		return -1;
 	// MASQUARADE e SNAT can be used only on POSTROUTING
 	if ((where == NAT_POSTROUTING) &&
 		((new_rule->type == NAT_MASQUERADE) || (new_rule->type == NAT_SNAT)) )
 	{
-		NAT_RULE_APPEND(&nat_out_rules, new_rule);
+		NAT_RULE_APPEND(&stack->stack_nat->nat_out_rules, new_rule);
 		return 1;
 	}
 	else
 	// DNAT can be used only on PREROUTING
 	if ((where == NAT_PREROUTING) && (new_rule->type == NAT_DNAT)) 
 	{
-		NAT_RULE_APPEND(&nat_in_rules, new_rule);
+		NAT_RULE_APPEND(&stack->stack_nat->nat_in_rules, new_rule);
 		return 1;
 	}
 
@@ -179,17 +176,26 @@ struct nat_rule * nat_del_rule_raw(struct nat_rule **list, int pos)
 	return NULL;     
 }
 
-struct nat_rule * nat_del_rule(nat_table_t where, int pos)
+struct nat_rule * nat_del_rule(struct stack *stack, nat_table_t where, int pos)
 {
+	if (stack->stack_nat == NULL)
+		return NULL;
 	if (where == NAT_POSTROUTING)
-		return nat_del_rule_raw(&nat_out_rules, pos);
+		return nat_del_rule_raw(&stack->stack_nat->nat_out_rules, pos);
 	else 
 	if (where == NAT_PREROUTING)
-		return nat_del_rule_raw(&nat_in_rules, pos);
+		return nat_del_rule_raw(&stack->stack_nat->nat_in_rules, pos);
 	else
 		return NULL;
 }
 
+void nat_rules_shutdown(struct stack *stack)
+{
+	while (stack->stack_nat->nat_out_rules != NULL) 
+		nat_free_rule(nat_del_rule_raw(&stack->stack_nat->nat_out_rules, 0));
+	while (stack->stack_nat->nat_in_rules != NULL) 
+		nat_free_rule(nat_del_rule_raw(&stack->stack_nat->nat_in_rules, 0));
+}
 
 int nat_match_rule(struct rule_matches *matches, struct netif *iface, struct ip_tuple *tuple)
 {

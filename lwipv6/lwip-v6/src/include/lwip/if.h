@@ -18,7 +18,6 @@
    02110-1301, USA. */ 
 
 /* modifies for ale4net */
-
 #ifndef _NET_IF_H
 #define _NET_IF_H	1
 

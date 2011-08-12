@@ -97,8 +97,6 @@ struct tcp_pcb *tcp_active_pcb; /* List of all TCP PCBs that are in a
 	 
 struct tcp_pcb *tcp_tw_pcbs;      /* List of all TCP PCBs in TIME-WAIT. */
 
-struct tcp_pcb *tcp_tmp_pcb;
-
 static u8_t tcp_timer;
 
 #endif
@@ -119,7 +117,6 @@ tcp_init(struct stack *stack)
   stack->tcp_listen_pcbs.listen_pcbs = NULL;
   stack->tcp_active_pcbs             = NULL;
   stack->tcp_tw_pcbs                 = NULL;
-  stack->tcp_tmp_pcb                 = NULL;
   
   /* initialize timer */
   stack->tcp_ticks = 0;
@@ -165,6 +162,7 @@ tcp_close(struct tcp_pcb *pcb)
   struct stack *stack = pcb->stack;
   
   err_t err;
+
 
 #if TCP_DEBUG
   LWIP_DEBUGF(TCP_DEBUG, ("tcp_close: closing in state "));
@@ -467,6 +465,10 @@ tcp_listen(struct tcp_pcb *pcb)
   }
   
   lpcb->stack = stack;
+#ifdef LWSLIRP
+	lpcb->slirp_posfd = pcb->slirp_posfd;
+	lpcb->slirp_state = pcb->slirp_state;
+#endif
   
   lpcb->callback_arg = pcb->callback_arg;
   lpcb->local_port = pcb->local_port;
@@ -1007,6 +1009,10 @@ tcp_alloc(struct stack *stack, u8_t prio)
     memset(pcb, 0, sizeof(struct tcp_pcb));
     
     pcb->stack = stack;
+#ifdef LWSLIRP
+		pcb->slirp_posfd = -1;
+		pcb->slirp_state = SS_NOFDREF;
+#endif
     
     pcb->prio = TCP_PRIO_NORMAL;
     pcb->snd_buf = TCP_SND_BUF;
@@ -1199,6 +1205,11 @@ tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb)
 {
   TCP_RMV(pcblist, pcb);
 
+#ifdef LWSLIRP
+	if (pcb->slirp_posfd >= 0)
+		slirp_tcp_close(pcb);
+#endif
+
   tcp_pcb_purge(pcb);
   
   /* if there is an outstanding delayed ACKs, send it */
@@ -1335,6 +1346,7 @@ void
 tcp_debug_print_pcbs(void)
 {
   struct tcp_pcb *pcb;
+  struct stack *stack=pcb->stack;
   LWIP_DEBUGF(TCP_DEBUG, ("Active PCB states:\n"));
   for(pcb = stack->tcp_active_pcbs; pcb != NULL; pcb = pcb->next) {
     LWIP_DEBUGF(TCP_DEBUG, ("Local port %u, foreign port %u snd_nxt %lu rcv_nxt %lu ",
@@ -1362,6 +1374,7 @@ int
 tcp_pcbs_sane(void)
 {
   struct tcp_pcb *pcb;
+  struct stack *stack=pcb->stack;
   for(pcb = stack->tcp_active_pcbs; pcb != NULL; pcb = pcb->next) {
     LWIP_ASSERT("tcp_pcbs_sane: active pcb->state != CLOSED", pcb->state != CLOSED);
     LWIP_ASSERT("tcp_pcbs_sane: active pcb->state != LISTEN", pcb->state != LISTEN);

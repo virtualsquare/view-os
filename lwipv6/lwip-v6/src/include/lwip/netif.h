@@ -39,7 +39,6 @@
 #include "lwip/ip_addr.h"
 #include "lwip/ip_route.h"
 
-
 #include "lwip/inet.h"
 #include "lwip/pbuf.h"
 
@@ -47,14 +46,9 @@
 #define NETIF_TAPIF 1
 #define NETIF_TUNIF 2
 #define NETIF_VDEIF 3
-#define NETIF_NUMIF 4
-
-#if 0
-#if LWIP_DHCP
-#include "lwip/dhcp.h"
-#endif
-#endif
-
+#define NETIF_SLIRPIF 4
+#define NETIF_SLIPIF 5
+#define NETIF_NUMIF 6
 
 #if IPv6_AUTO_CONFIGURATION
 #include "lwip/ip_autoconf.h"
@@ -78,17 +72,31 @@
 /** if set, the netif has broadcast capability */
 #define NETIF_FLAG_BROADCAST 0x2U
 /** if set, the netif is one end of a point-to-point connection */
-#define NETIF_FLAG_LOOPBACK 0x8U
-
-#define NETIF_FLAG_POINTTOPOINT 0x10U
+#define NETIF_FLAG_POINTTOPOINT 0x04U
 /** if set, the interface is configured using DHCP */
 #define NETIF_FLAG_DHCP 0x08U
 /** if set, the interface has an active link
  *  (set by the network interface driver) */
-#define NETIF_FLAG_LINK_UP NETIF_RUNNING
-#define NETIF_RUNNING 0x40U
+#define NETIF_FLAG_LINK_UP 0x10
+/* not used buf kept for comaptibility with LWIP
+#define NETIF_FLAG_ETHARP       0x20U
+#define NETIF_FLAG_ETHERNET     0x40U
+#define NETIF_FLAG_IGMP         0x80U
+*/
 
+/* Promisquous mode: pass all the traffic up to the stack */
 #define NETIF_PROMISC 0x100U
+/** if set, the netif id the loopback interface */
+#define NETIF_FLAG_LOOPBACK 0x200U
+
+/* if set use IPv6 AUTOCONF */
+#define NETIF_FLAG_AUTOCONF 0x1000U
+/* if set this interface supports Router Advertising */
+#define NETIF_FLAG_RADV	    0x2000U
+
+#define NETIF_STD_FLAGS (NETIF_FLAG_AUTOCONF)
+#define NETIF_ADD_FLAGS (NETIF_FLAG_AUTOCONF | NETIF_FLAG_RADV)
+#define NETIF_IFUP_FLAGS (NETIF_FLAG_DHCP)
 
 /** Generic data structure used for all lwIP network interfaces.
  *  The following fields should be filled in by the initialization
@@ -116,18 +124,20 @@ struct netif {
    *  the pbuf as-is on the link medium. */
   err_t (* linkoutput)(struct netif *netif, struct pbuf *p);
 
+#define NETIFCTL_CLEANUP 1
+#define NETIFCTL_SLIRPSOCK_DGRAM 0x100
+#define NETIFCTL_SLIRPSOCK_STREAM 0x101
+	/* netif netifctl function */
+  err_t (* netifctl)(struct netif *netif, int request, void *arg);
+
   /** This field can be set by the device driver and could point
    *  to state information for the device. */
-  err_t (* cleanup)(struct netif *netif);
-	/* garbage collection function */
   void *state;
-
 
 #define NETIF_CHANGE_UP    1
 #define NETIF_CHANGE_DOWN  2
 #define NETIF_CHANGE_MTU   3
   void (* change)(struct netif *netif, u32_t type);
-
 
 #if LWIP_DHCP
   /** the DHCP client state information for this netif */
@@ -135,13 +145,11 @@ struct netif {
 #endif
 
 #if IPv6_AUTO_CONFIGURATION
-  /* FIX: make this a pointer? */
-  struct autoconf autoconf;
+  struct autoconf *autoconf;
 #endif
 
 #if IPv6_ROUTER_ADVERTISEMENT
-  /* FIX: make this a pointer? */
-  struct radv radv;
+  struct radv *radv;
 #endif
 
   /** number of bytes used in hwaddr */
@@ -156,11 +164,10 @@ struct netif {
   char name[2];
   /** number of this interface */
   u8_t num;
+	/* unique id */
+	u8_t id;
 	/** NETIF_FLAG_* */
 	u16_t flags;
-	/** number of this interface */
-	u8_t id;
-	/* unique id */
 
 #ifdef LWIP_NL
 	u16_t type;
@@ -178,6 +185,32 @@ void netif_shutdown(struct stack *stack);
 
 /* netif_cleanup() must be called for a final garbage collection. */
 void netif_cleanup(struct stack *stack);
+
+int netif_addfd(struct netif *netif, int fd, 
+		void (*fun)(struct netif *netif, int posfd, void *arg),
+		void *funarg, int flags, short events);
+
+void netif_updatefd(struct stack *stack, int posfd, 
+		void (*fun)(struct netif *netif, int posfd, void *arg),
+		void *funarg, int flags);
+
+void netif_delfd(struct stack *stack, int posfd);
+
+#ifdef LWSLIRP
+#define netif_slirp_fd(stack, pcb) ((stack)->netif_pfd[(pcb)->slirp_posfd].fd)
+#define netif_slirp_events(pcb) \
+	((pcb)->stack->netif_pfd[(pcb)->slirp_posfd].events)
+#endif
+
+#define NETIF_ARGS_1SEC_POLL 0x1
+/* range 0x1000-0x8000 reserved for LWSLIRP_LISTEN */
+
+struct netif_args {
+	void (*fun)(struct netif *netif, int posfd, void *arg);
+	struct netif *netif;
+	void *funarg;
+	int flags;
+};
 
 struct netif * netif_add(
 	struct stack *stack,
@@ -208,7 +241,7 @@ struct netif *netif_find_id(struct stack *stack, int id);
 struct netif * netif_find_direct_destination(struct stack *stack, struct ip_addr *addr);
 
 /* These functions change interface state and inform IP layer */
-void netif_set_up(struct netif *netif);
+void netif_set_up(struct netif *netif, int flags);
 u8_t netif_is_up(struct netif *netif);
 void netif_set_down(struct netif *netif);
 

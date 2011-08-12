@@ -105,9 +105,8 @@ void sys_timeout_raw(struct sys_timeout * timeout);
 int  sys_untimeout_raw(struct sys_timeout *timeout);
 
 
-
-
-
+/* Added by Renzo Davoli: for slirp timeout */
+unsigned long time_now();
 
 /* Semaphore functions. */
 sys_sem_t sys_sem_new(u8_t count);
