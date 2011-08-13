@@ -252,7 +252,7 @@ ip_inpacket(struct stack *stack, struct ip_addr_list *addr, struct pbuf *p, stru
   }
 
 #if LWIP_RAW
-  raw_input(p, addr, piphdr); /* FIX MULTISTACK */
+  raw_input(p, addr, piphdr);
 #endif /* LWIP_RAW */
 
 
@@ -570,7 +570,7 @@ ip_input(struct pbuf *p, struct netif *inp)
       pbuf_realloc(p, ntohs(IPH4_LEN(ip4hdr)));
 
     ip_inpacket(stack, addrel, p, &piphdr NOSLIRP);
-	goto ip_input_end;
+		goto ip_input_end;
   }
 
   /* FIX: handle IPv6 Multicast in this way? */
