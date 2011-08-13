@@ -217,12 +217,8 @@ tcpip_thread(void *arg)
 		} else {                    
 			switch (msg->type) {
 				case TCPIP_MSG_INPUT:
-					//printf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-
 					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] IP packet %p\n", stack, (void *)msg));
 					ip_input(msg->msg.inp.p, msg->msg.inp.netif);
-
-					//printf("----------------------------------------------------------------------------\n");
 					break;
 
 				case TCPIP_MSG_API:

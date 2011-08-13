@@ -316,23 +316,6 @@ sys_sem_free_(struct sys_sem *sem)
   free(sem);
 }
 /*-----------------------------------------------------------------------------------*/
-#if 0
-unsigned long
-sys_unix_now()
-{
-  struct timeval tv;
-  struct timezone tz;
-  long sec, usec;
-  unsigned long msec;
-  gettimeofday(&tv, &tz);
-  
-  sec = tv.tv_sec - starttime.tv_sec;
-  usec = tv.tv_usec - starttime.tv_usec;
-  msec = sec * 1000 + usec / 1000;
-    
-  return msec;
-}
-#endif
 unsigned long
 time_now()
 {
