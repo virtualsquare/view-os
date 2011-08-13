@@ -19,7 +19,6 @@
  *   51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
  */ 
 
-//#ifdef LWIP_NAT
 #if LWIP_USERFILTER && LWIP_NAT
 
 #ifndef __NAT_RULES_H__
