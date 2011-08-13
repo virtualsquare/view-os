@@ -575,7 +575,7 @@ int wrap_out_epoll_ctl(int sc_number,struct pcb *pc)
 
 static void epoll_signal (void *arg)
 {
-	int lfd=(int)arg;
+	long lfd=(long)arg;
 	//printk("epoll_signal ---------> lfd %d\n",lfd);
 	lfd_signal(lfd);
 }
@@ -589,7 +589,7 @@ static void wrap_in_epoll_wait_test(struct lfd_epoll_item *ep_item, void *arg)
 		int sfd=fd2sfd(pc->fds,fd);
 		sysfun local_event_subscribe=ht_event_subscribe(hte);
 		if (sfd >= 0 && local_event_subscribe) {
-			int lfd=fd2lfd(pc->fds,fd);
+			long lfd=fd2lfd(pc->fds,fd);
 			if (local_event_subscribe(epoll_signal, (void *)lfd, sfd, ep_item->event.events) > 0) {
 				lfd_signal(lfd);
 			}
@@ -617,7 +617,7 @@ static void wrap_out_epoll_wait_unsubscribe(struct lfd_epoll_item *ep_item, void
 		int sfd=fd2sfd(pc->fds,fd);
 		sysfun local_event_subscribe=ht_event_subscribe(hte);
 		if (sfd >= 0 && local_event_subscribe) {
-			int lfd=fd2lfd(pc->fds,fd);
+			long lfd=fd2lfd(pc->fds,fd);
 			local_event_subscribe(NULL, (void *)lfd, sfd, ep_item->event.events); 
 		}
 	}
@@ -645,7 +645,7 @@ int wrap_out_epoll_wait(int sc_number,struct pcb *pc)
 					int sfd=fd2sfd(pc->fds,ep_item->fd);
 					sysfun local_event_subscribe=ht_event_subscribe(hte);
 					if (sfd >= 0 && local_event_subscribe) {
-						int lfd=fd2lfd(pc->fds,ep_item->fd);
+						long lfd=fd2lfd(pc->fds,ep_item->fd);
 						events[i].events = local_event_subscribe(NULL, (void *)lfd, sfd, ep_item->event.events);
 						lfd_delsignal(lfd);
 					}

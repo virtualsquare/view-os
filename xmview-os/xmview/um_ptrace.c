@@ -28,6 +28,7 @@
 #include <sys/ptrace.h>
 #include <sys/stat.h>
 #include <sys/select.h>
+#include <sys/reg.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
 #include <linux/net.h>
@@ -357,18 +358,19 @@ int wrap_in_ptrace(int sc_number,struct pcb *pc,
 
 static int ptrace_this(int status, struct pcb *pc)
 {
+#ifdef _VIEWOS_KM
+	return 0;
+#else
 	if (WIFSTOPPED(status) && (WSTOPSIG(status) == SIGTRAP)) {
 		/* syscall */
 		if (pc->ptrace_request & PTRACE_STATUS_SYSCALL) {
 			int scno;
 			/* workaround: execve->getpid when SC_FAKE, so the
 				 check in capture_um fails */
-			r_ptrace(PTRACE_PEEKUSER,pc->pid,4*ORIG_EAX,&scno);
+			r_ptrace(PTRACE_PEEKUSER,pc->pid,SCNOPEEKOFFSET,&scno);
 			if (pc->sysscno == __NR_getpid && scno != __NR_getpid)
 				pc->sysscno = __NR_execve;
 			if (pc->sysscno == __NR_execve) {
-				int scno;
-				r_ptrace(PTRACE_PEEKUSER,pc->pid,4*ORIG_EAX,&scno);
 				//printk("TEST EXECVE  PTRACE EXECVE %d\n",scno); 
 				if (
 #if __NR_socketcall != __NR_doesnotexist
@@ -394,12 +396,13 @@ static int ptrace_this(int status, struct pcb *pc)
 	} else
 		/* SINGLESTEP MISSING! */
 		return 1;
+#endif
 }
 
 int ptrace_hook_in(int status, struct pcb *pc)
 {
-	int scno;
-		r_ptrace(PTRACE_PEEKUSER,pc->pid,4*ORIG_EAX,&scno);
+	/*int scno;
+		r_ptrace(PTRACE_PEEKUSER,pc->pid,4*ORIG_EAX,&scno);*/
 	/*if (pc->ptrace_pp != NULL) 
 		printk("ptrace_hook_in %d %p SYSSCO %d SC %d\n",pc->pid,pc->ptrace_pp,pc->sysscno,scno);*/
 	if (pc->ptrace_pp != NULL) 

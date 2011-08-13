@@ -60,6 +60,7 @@ static inline void printregs(struct pcb *pc)
 			pc->saved_regs[EDX],pc->saved_regs[ESI]);
 }
 
+#define SCNOPEEKOFFSET (4*ORIG_EAX)
 #define getscno(PC) ( (PC)->saved_regs[ORIG_EAX] )
 #define putscno(X,PC) ( (PC)->saved_regs[ORIG_EAX]=(X) )
 #define getargn(N,PC) ( (PC)->saved_regs[(N)] )

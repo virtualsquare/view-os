@@ -46,7 +46,7 @@ char *node_hiddenpath(struct fuse_node *node);
 static inline int node_hiddenpathcheck(struct fuse_node *node)
 {
 	char check[17];
-	snprintf(check,17,"/.fuse%010u",(unsigned)node->fuse);
+	snprintf(check,17,"/.fuse%010lu",(unsigned long)node->fuse);
 	return (strncmp(node->path,check,16) == 0);
 }
 
