@@ -73,7 +73,6 @@
 #include "lwip/sys.h"
 #include "arch/perf.h"
 
-//#ifdef LWIP_NAT
 #if LWIP_USERFILTER && LWIP_NAT
 #include "lwip/netif.h"
 #include "lwip/ip.h"
@@ -195,7 +194,6 @@ pbuf_alloc(pbuf_layer l, u16_t length, pbuf_flag flag)
   }
 
 /* added by Diego Billi */
-//#ifdef LWIP_NAT
 #if LWIP_USERFILTER && LWIP_NAT
   nat_pbuf_init(p);
 #endif
@@ -213,29 +211,6 @@ pbuf_alloc(pbuf_layer l, u16_t length, pbuf_flag flag)
 #else /* PBUF_STATS */
 #define DEC_PBUF_STATS
 #endif /* PBUF_STATS */
-
-#if 0
-#define PBUF_POOL_FAST_FREE(p)  do {                                    \
-                                  p->next = pbuf_pool;                  \
-                                  pbuf_pool = p;                        \
-                                  DEC_PBUF_STATS;                       \
-                                } while (0)
-
-#if SYS_LIGHTWEIGHT_PROT
-#define PBUF_POOL_FREE(p)  do {                                         \
-                                SYS_ARCH_DECL_PROTECT(old_level);       \
-                                SYS_ARCH_PROTECT(old_level);            \
-                                PBUF_POOL_FAST_FREE(p);                 \
-                                SYS_ARCH_UNPROTECT(old_level);          \
-                               } while (0)
-#else /* SYS_LIGHTWEIGHT_PROT */
-#define PBUF_POOL_FREE(p)  do {                                         \
-                             sys_sem_wait(pbuf_pool_free_sem);          \
-                             PBUF_POOL_FAST_FREE(p);                    \
-                             sys_sem_signal(pbuf_pool_free_sem);        \
-                           } while (0)
-#endif /* SYS_LIGHTWEIGHT_PROT */
-#endif
 
 /**
  * Shrink a pbuf chain to a desired length.
@@ -447,7 +422,6 @@ pbuf_free(struct pbuf *p)
       q = p->next;
 
 /* added by Diego Billi */
-//#ifdef LWIP_NAT
 #if LWIP_USERFILTER && LWIP_NAT
       nat_pbuf_put(p);
 #endif
@@ -811,9 +785,6 @@ pbuf_dechain(struct pbuf *p)
   LWIP_ASSERT("p->tot_len == p->len", p->tot_len == p->len);
   return (tail_gone > 0? NULL: q);
 }
-
-
-
 
 /* added by Diego Billi */
 struct pbuf * pbuf_clone(pbuf_layer l, struct pbuf *p, pbuf_flag flag)

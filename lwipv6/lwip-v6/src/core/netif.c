@@ -76,6 +76,8 @@
 #define NETIF_DEBUG DBG_OFF
 #endif
 
+/* increase the number of fd available for interfaces of
+	 NETIF_MAX_STEP units when there are less than NETIF_MIN_FREE available */
 #define NETIF_MAX_STEP 8
 #define NETIF_MIN_FREE 4
 
@@ -111,25 +113,9 @@ int netif_addfd(struct netif *netif, int fd,
 		;
 	if (n == stack->netif_npfd) {
 		if (n >= stack->netif_npfd_max) {
-			/*if (netif_enlarge_fdtab(stack) < 0)*/
+			/* this should never happen, there are at least NETIF_MIN_FREE elements */
+			/*if (netif_enlarge_fdtab(stack) < 0)*/ 
 				return -1;
-#if 0
-			int newmax=stack->netif_npfd_max + NETIF_MAX_STEP;
-			void *newpfd=mem_realloc(stack->netif_pfd,(newmax * sizeof(struct pollfd)));
-			void *newpfdargs=mem_realloc(stack->netif_pfd_args,
-					(newmax * sizeof (struct netif_args)));
-			if (newpfd && newpfdargs) {
-				printf("OKAY %d\n",newmax);
-				stack->netif_pfd=newpfd;
-				stack->netif_pfd_args=newpfdargs;
-				stack->netif_npfd_max=newmax;
-			} else {
-				printf("NO %d\n",newmax);
-				if (newpfd) mem_free(newpfd);
-				if (newpfdargs) mem_free(newpfdargs);
-				return -1;
-			}
-#endif
 		}
 		stack->netif_npfd++;
 	}
@@ -215,7 +201,10 @@ netif_thread(void *arg)
 							stack->netif_pfd_args[i].funarg);
 		}
 	}
+	if (stack->netif_pfd) mem_free(stack->netif_pfd);
+	if (stack->netif_pfd_args) mem_free(stack->netif_pfd_args);
 	LWIP_DEBUGF( NETIF_DEBUG, ("netif_thread leaving loop \n"));
+
 	sys_sem_signal(stack->netif_cleanup_mutex);
 }
 
