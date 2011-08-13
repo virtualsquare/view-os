@@ -540,7 +540,7 @@ static int netif_ifconf(struct stack *stack, struct ifconf *ifc)
 	//printf("%s\n", __func__);
 #define ifr_v (ifc->ifc_req)
 
-	/*printf("-netif_ifconf %d\n",ifc->ifc_len);*/
+	/*printf("-netif_ifconf %p %p %d\n",ifc,ifc->ifc_req,ifc->ifc_len);*/
 	ifc->ifc_len=0;
 	memset(ifr_v, 0, maxlen); /* jjsa clear the memory area */
 	for (nip=stack->netif_list, i=0; nip!=NULL && ifc->ifc_len < maxlen; 
@@ -577,7 +577,7 @@ static int netif_ifconf(struct stack *stack, struct ifconf *ifc)
 		}
 	}
 	/*{int i;
-		printf("len %d %d\n",ifc->ifc_len,sizeof(struct ifreq));
+		printf("%p len %d %d\n",ifc->ifc_req,ifc->ifc_len,sizeof(struct ifreq));
 		for (i=0;i<ifc->ifc_len;i++) {
 		int c=*(((unsigned char *)(ifr_v))+i);
 		printf("%02x%c ",c,(c>=' '&&c<='~')?c:'.');
@@ -605,7 +605,7 @@ int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr)
 	else {
 		if (cmd == SIOCGIFCONF) {
 			retval=netif_ifconf(stack, (struct ifconf *)ifr);
-		} if (cmd == SIOCGIFNAME) {
+		} else if (cmd == SIOCGIFNAME) {
 			if ((nip = netif_find_id(stack, ifr->ifr_ifindex)) == NULL)
 				 retval=EINVAL;
 			else {
