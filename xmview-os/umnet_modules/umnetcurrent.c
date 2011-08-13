@@ -123,6 +123,7 @@ struct umnet_operations umnet_ops={
 	.recvmsg=recvmsg,
 	.getsockopt=getsockopt,
 	.setsockopt=setsockopt,
+	.shutdown=shutdown,
 	.read=read,
 	.write=write,
 	.ioctl=umnetnative_ioctl,

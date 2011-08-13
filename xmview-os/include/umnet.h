@@ -38,12 +38,6 @@ struct net_info {
 #endif
 
 struct umnet_operations {
-	//int (*getattr) (struct stat64 *, struct umnet *nethandle);
-	//int (*fgetattr) (struct stat64 *, struct net_info *);
-	//int (*chmod) (mode_t, struct umnet *nethandle);
-	//int (*chown) (uid_t, gid_t, struct umnet *nethandle);
-	//int (*access) (int, struct umnet *nethandle);
-  //int (*open) (char, net_t, struct net_info *);
 	int (*msocket) (int, int, int, struct umnet *);
 	int (*bind) (int, const struct sockaddr *, socklen_t);
 	int (*connect) (int, const struct sockaddr *, socklen_t);
@@ -59,6 +53,7 @@ struct umnet_operations {
 	ssize_t (*sendmsg)(int, const struct msghdr *, int);
 	int (*setsockopt) (int, int, int, const void *, socklen_t);
 	int (*getsockopt) (int, int, int, void *, socklen_t *);
+	int (*shutdown) (int, int);
 	ssize_t (*read) (int, void *, size_t);
 	ssize_t (*write) (int, const void *, size_t);
 	int (*ioctl) (int, int, void *);

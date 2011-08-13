@@ -466,6 +466,17 @@ static long umnet_setsockopt(int fd, int level, int optname,
 	}
 }
 
+static long umnet_shutdown(int fd, int how)
+{
+	struct fileinfo *ft=getfiletab(fd);
+	if(ft->umnet->netops->shutdown) {
+		return ft->umnet->netops->shutdown(ft->nfd, how);
+	} else {
+		errno = EINVAL;
+		return -1;
+	}
+}
+
 static long umnet_read(int fd, void *buf, size_t count)
 {
 	struct fileinfo *ft=getfiletab(fd);
@@ -816,6 +827,7 @@ init (void)
 	SERVICESOCKET(s, recvmsg, umnet_recvmsg);
 	SERVICESOCKET(s, getsockopt, umnet_getsockopt);
 	SERVICESOCKET(s, setsockopt, umnet_setsockopt);
+	SERVICESOCKET(s, shutdown, umnet_shutdown);
 	SERVICESYSCALL(s, read, umnet_read);
 	SERVICESYSCALL(s, write, umnet_write);
 	SERVICESYSCALL(s, close, umnet_close);

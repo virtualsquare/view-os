@@ -91,7 +91,6 @@ static int umnetlwipv6_ioctl(int d, int request, void *arg)
 		void *save;
 		struct ifconf *ifc=(struct ifconf *)arg;
 		save=ifc->ifc_buf;
-		ioctl(d,request,arg);
 		ifc->ifc_buf=malloc(ifc->ifc_len);
 		um_mod_umoven((long) save,ifc->ifc_len,ifc->ifc_buf);
 		rv=lwip_ioctl(d,request,arg);
@@ -312,12 +311,13 @@ init (void)
 	UMNETLWIPV6S(recvfrom);
 	UMNETLWIPV6S(sendmsg);
 	UMNETLWIPV6S(recvmsg);
-	//UMNETLWIPV6(shutdown);
 	UMNETLWIPV6(getsockopt);
 	UMNETLWIPV6(setsockopt);
+	UMNETLWIPV6(shutdown);
 	UMNETLWIPV6S(read);
 	UMNETLWIPV6S(write);
 	UMNETLWIPV6(close);
+	UMNETLWIPV6(fcntl);
 	UMNETLWIPV6(event_subscribe);
 }
 
