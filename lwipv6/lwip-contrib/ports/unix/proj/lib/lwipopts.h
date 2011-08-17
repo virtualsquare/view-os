@@ -66,6 +66,11 @@
 #define LWIP_NOASSERT
 
 /*
+ * Uncomment this to debug mem/memp
+ */
+//#define DEBUGMEM
+
+/*
  * LWIPv6 SLIRP
  */
 #define LWSLIRP

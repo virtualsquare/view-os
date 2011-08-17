@@ -33,6 +33,7 @@
 #include <stdlib.h>
 #include "lwip/opt.h"
 
+#include "lwip/mem.h"
 #include "lwip/memp.h"
 
 #include "lwip/pbuf.h"
@@ -84,6 +85,7 @@ static const u32_t memp_sizes[MEMP_MAX] = {
 #endif
 };
 
+#ifndef DEBUGMEM
 void
 memp_init(void)
 {
@@ -100,3 +102,23 @@ memp_free(memp_t type, void *mem)
 {
 	free(mem);
 }
+
+#else
+void
+memp_d_init(char *__file, int __line)
+{
+}
+
+void *
+memp_d_malloc(memp_t type, char *__file, int __line)
+{
+	return (mem_d_malloc(memp_sizes[type], __file, __line));
+}
+
+void
+memp_d_free(memp_t type, void *mem, char *__file, int __line)
+{
+	mem_d_free(mem, __file, __line);
+}
+
+#endif

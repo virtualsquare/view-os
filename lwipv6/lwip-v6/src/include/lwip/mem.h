@@ -38,13 +38,29 @@
 typedef unsigned long mem_size_t;
 
 
+#ifndef DEBUGMEM
 void mem_init(void);
 
 void *mem_malloc(mem_size_t size);
 void mem_free(void *mem);
 void *mem_realloc(void *mem, mem_size_t size);
 void *mem_reallocm(void *mem, mem_size_t size);
-/*
+#else
+void mem_d_init(char *file,int line);
+
+void *mem_d_malloc(mem_size_t size,char *file,int line);
+void mem_d_free(void *mem,char *file,int line);
+void *mem_d_realloc(void *mem, mem_size_t size,char *file,int line);
+void *mem_d_reallocm(void *mem, mem_size_t size,char *file,int line);
+
+#define mem_init() mem_d_init(__FILE__,__LINE__)
+#define mem_free(X) mem_d_free((X),__FILE__,__LINE__)
+#define mem_malloc(X) mem_d_malloc((X),__FILE__,__LINE__)
+#define mem_realloc(Y,X) mem_d_realloc((Y),(X),__FILE__,__LINE__)
+#define mem_reallocm(Y,X) mem_d_reallocm((Y),(X),__FILE__,__LINE__)
+#endif
+
+#if 0
 #define MEM_ALIGN_1 (MEM_ALIGNMENT - 1)
 #define ALIGN_SIZE(X) (((X) + MEM_ALIGN_1) & (~MEM_ALIGN_1))
 
@@ -64,7 +80,7 @@ void *mem_reallocm(void *mem, mem_size_t size);
 		    x=realloc(old,ALIGN_SIZE(X)); \
 		    printf("MEM-REALLOCM %x->%x %s %d\n",old,x,__FILE__,__LINE__); \
 		    x; })
-*/
+#endif
 
 #ifndef MEM_ALIGN_SIZE
 #define MEM_ALIGN_SIZE(size) (((size) + MEM_ALIGNMENT - 1) & ~(MEM_ALIGNMENT-1))

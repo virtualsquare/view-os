@@ -722,7 +722,7 @@ ip_output_if (struct stack *stack, struct pbuf *p, struct ip_addr *src, struct i
      buffer before return. */
   caller_p = p;
 	/* this allocation must be undone in end_ip_output_if when the buffer does not change */
-  pbuf_ref(p);
+  pbuf_ref(caller_p);
 #endif
 
 #if LWIP_USERFILTER
@@ -817,7 +817,6 @@ end_ip_output_if:
     pbuf_free(p);
 	} else {
 		/* the buffer did not change so we must undo the pbuf_ref above */
-		/* TO BE INVESTIGATED XXX XXX */
 		pbuf_free(caller_p);
 	}
 #endif

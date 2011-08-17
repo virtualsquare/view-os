@@ -304,7 +304,7 @@ alloc_socket(struct netconn *newconn,u16_t family)
 				int newlen=sockets_len+NUM_SOCKETS;
 				struct lwip_socket **newsockets;
 				if ((newsockets=mem_realloc(sockets,newlen*(sizeof(struct lwip_socket *)))) == NULL) {
-					free(this);
+					mem_free(this);
 					set_errno(ENOMEM);
 					sys_sem_signal(socksem);
 					return -1;
@@ -325,7 +325,7 @@ alloc_socket(struct netconn *newconn,u16_t family)
 					fd=socket(PF_INET, SOCK_DGRAM, 0);
 				if (fd < 0) {
 					sockets[i]=NULL;
-					free(this);
+					mem_free(this);
 					set_errno(EIO);
 					return -1;
 				} 
@@ -507,7 +507,7 @@ lwip_close(int s)
 		close(sock->fdfake);
 	set_lwip_sockmap(sock->fdfake, -1);
 	sock_set_errno(sock, err);
-	free(sock);
+	mem_free(sock);
 	sys_sem_signal(socksem);
 	return err;
 }
@@ -1134,7 +1134,7 @@ static struct um_sel_wait *um_sel_rec_del(struct um_sel_wait *p,void *arg,int fd
 	else {
 		struct um_sel_wait *next=um_sel_rec_del(p->next,arg,fd);
 		if (p->arg == arg && p->fd == fd) {
-			free(p);
+			mem_free(p);
 			return(next);
 		} else {
 			p->next=next;
@@ -1159,7 +1159,7 @@ static struct um_sel_wait *um_sel_rec_signal(struct um_sel_wait *p,int fd, int e
 			struct um_sel_wait *next=um_sel_rec_del(p->next,p->arg,fd);
 			//printf("UMSELECT SIGNALED %d\n",fd);
 			p->cb(p->arg);
-			free(p);
+			mem_free(p);
 			return um_sel_rec_signal(next,fd,events);
 		} else {
 			p->next=um_sel_rec_signal(p->next,fd,events);
