@@ -149,7 +149,7 @@ static void netlink_decode (struct stack *stack, void *msg,int size,int bufsize,
 	struct nlmsghdr *h=(struct nlmsghdr *)msg;
 
 	int offset=0;	
-	if ((nlbuf.data=(char *) malloc (bufsize)) == NULL)
+	if ((nlbuf.data=(char *) mem_malloc (bufsize)) == NULL)
 		nlbuf.length=0;
 	else
 		nlbuf.length=bufsize;
@@ -176,7 +176,7 @@ static void netlink_decode (struct stack *stack, void *msg,int size,int bufsize,
 		*out=pbuf_alloc(PBUF_RAW,offset,PBUF_RAM);
 		memcpy((*out)->payload,nlbuf.data,offset);
 	}
-	free(nlbuf.data);
+	mem_free(nlbuf.data);
 }
 
 

@@ -102,7 +102,7 @@ sys_mbox_new()
 {
   struct sys_mbox *mbox;
   
-  mbox = malloc(sizeof(struct sys_mbox));
+  mbox = mem_malloc(sizeof(struct sys_mbox));
   pipe(mbox->pipe);
   
 #if SYS_STATS
@@ -126,7 +126,7 @@ sys_mbox_free(struct sys_mbox *mbox)
 		close (mbox->pipe[0]);
 		close (mbox->pipe[1]);
     /*  LWIP_DEBUGF("sys_mbox_free: mbox 0x%lx\n", mbox); */
-    free(mbox);
+    mem_free(mbox);
   }
 }
 
@@ -204,7 +204,7 @@ sys_sem_new_(u8_t count)
 {
   struct sys_sem *sem;
   
-  sem = malloc(sizeof(struct sys_sem));
+  sem = mem_malloc(sizeof(struct sys_sem));
   sem->c = count;
   
   pthread_cond_init(&(sem->cond), NULL);
@@ -313,7 +313,7 @@ sys_sem_free_(struct sys_sem *sem)
 {
   pthread_cond_destroy(&(sem->cond));
   pthread_mutex_destroy(&(sem->mutex));
-  free(sem);
+  mem_free(sem);
 }
 /*-----------------------------------------------------------------------------------*/
 unsigned long
@@ -336,7 +336,7 @@ static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 
 static void del_key(void *ptr)
 {
-	free(ptr);
+	mem_free(ptr);
 }
 
 static void
@@ -353,7 +353,7 @@ sys_arch_timeouts(void)
 
 	(void) pthread_once(&key_once, make_key);
 	if ((ptr = pthread_getspecific(key)) == NULL) {
-		ptr = malloc(sizeof(struct sys_timeouts));
+		ptr = mem_malloc(sizeof(struct sys_timeouts));
 		ptr->next=NULL;
 		(void) pthread_setspecific(key, ptr);
 	}
