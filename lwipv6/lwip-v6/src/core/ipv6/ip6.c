@@ -721,7 +721,8 @@ ip_output_if (struct stack *stack, struct pbuf *p, struct ip_addr *src, struct i
      IF hooks replace buffer pointed by 'p' with an other, we have to free the new
      buffer before return. */
   caller_p = p;
-  pbuf_ref(p);
+	/* this allocation must be undone in end_ip_output_if when the buffer does not change */
+  pbuf_ref(caller_p);
 #endif
 
 #if LWIP_USERFILTER
@@ -814,7 +815,10 @@ end_ip_output_if:
        we have to free it because Caller will call pbuf_free() only on 
        buffer pointed by caller_p */
     pbuf_free(p);
-  }
+	} else {
+		/* the buffer did not change so we must undo the pbuf_ref above */
+		pbuf_free(caller_p);
+	}
 #endif
 
   return ret;
