@@ -228,6 +228,24 @@ extern unsigned int ptraceemu;
 #define lalloca(L) alloca(L)
 #define lnalloca(L) alloca(L)
 #define lfree(B,L)
+#if 0 
+	/* FOR DEBUGGING ONLY */
+#define lalloca(L) ({ \
+		void *m; if ((m=malloc(L))==NULL) \
+		    { pc->retval= -1; pc->erno=ENOMEM; return SC_FAKE; } \
+		printk("lalloca %d %p %s %d\n", (L), m, __FILE__, __LINE__); \
+		    m; \
+		}) 
+#define lnalloca(L) ({ \
+		void *m; if ((m=malloc(L))==NULL) \
+		    { errno=ENOMEM; return -1; } \
+		printk("lnalloca %d %p %s %d\n", (L), m, __FILE__, __LINE__); \
+		    m; \
+		})
+#define lfree(B,L) ({ printk("lfree %d %p %s %d\n", (L), (B), __FILE__, __LINE__); \
+		free(B); })
+#endif
+
 #endif
 
 /* there is a memory alignment problem in these architectures */
