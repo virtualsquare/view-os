@@ -1397,16 +1397,19 @@ struct supgroups *supgrp_create(size_t size)
 	return rv;
 }
 
+/* atomic operations as different umview threads may have access to this */
+
 struct supgroups *supgrp_get(struct supgroups *supgrp)
 {
-	supgrp->count++;
+	__sync_fetch_and_add(&(supgrp->count),1);
 	return supgrp;
 }
 
 void supgrp_put(struct supgroups *supgrp)
 {
-	supgrp->count--;
-	if (supgrp->count == 0)
+	int oldval = __sync_fetch_and_sub(&(supgrp->count),1);
+
+	if (oldval == 1)
 		free(supgrp);
 }
 

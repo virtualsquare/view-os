@@ -46,7 +46,6 @@
 #include "mainpoll.h"
 #include "hashtab.h"
 
-
 #define SOCK_DEFAULT 0
 
 #include "gdebug.h"
@@ -1052,7 +1051,7 @@ static long int capture_nested_virsc(long int sysno, ...){
 	struct pcb *caller_pcb=get_pcb();
 	/* this is a new pcb, the actual pcb for syscall evaluation */
 	struct npcb callee_pcb;
-	nsaveargs(caller_pcb, &callee_pcb,__NR_socketcall); /* socketcall ??? */
+	nsaveargs(caller_pcb, &callee_pcb,__NR_socketcall); /* it is for msocket only */
 	set_pcb(&callee_pcb);
 	va_start(ap, sysno);
 	for (i=0; i<narg;i++)
@@ -1128,6 +1127,36 @@ static long int capture_nested_socketcall(long int sysno, ...){
 	printk("->(Sk) %ld: return value:%ld %p\n",
 				sysno,rv,get_pcb());
 #endif
+	return rv;
+}
+#endif
+
+
+#if 0
+/* for debugging */
+static long int fake_capture_nested_syscall(long int sysno, ...)
+{
+	va_list ap;
+	long rv;
+	struct pcb *caller_pcb=get_pcb();
+	long int a1,a2,a3,a4,a5,a6;
+	struct npcb callee_pcb;
+	register int i;
+	register int narg=NARGS(scmap[uscno(sysno)].nargx);
+	nsaveargs(caller_pcb, &callee_pcb,sysno);
+	set_pcb(&callee_pcb);
+	va_start (ap, sysno);
+	//printk("SC=%ld\n",sysno);
+	a1=va_arg(ap,long int);
+	a2=va_arg(ap,long int);
+	a3=va_arg(ap,long int);
+	a4=va_arg(ap,long int);
+	a5=va_arg(ap,long int);
+	a6=va_arg(ap,long int);
+	va_end(ap);
+	rv = native_syscall(sysno,a1,a2,a3,a4,a5,a6);
+	nrestoreargs(caller_pcb, &callee_pcb);
+	set_pcb(caller_pcb);
 	return rv;
 }
 #endif
