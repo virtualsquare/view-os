@@ -592,10 +592,10 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,
 		}
 		{
 			unsigned int i,totalsize,size;
-			char *lbuf;
+			char *lbuf, *p;
 			for (i=0,totalsize=0;i<msg.msg_iovlen;i++)
 				totalsize += iovec[i].iov_len;
-			lbuf=(char *)lalloca(totalsize);
+			p=lbuf=(char *)lalloca(totalsize);
 			//printk("RECVMSG fd %d namesize %d msg_iovlen %d msg_controllen %d total %d\n",
 			//		pc->sysargs[0],msg.msg_namelen, msg.msg_iovlen, msg.msg_controllen, totalsize);
 			liovec.iov_base=lbuf;
@@ -611,8 +611,8 @@ int wrap_in_recvmsg(int sc_number,struct pcb *pc,
 			if (size > 0) {
 				for (i=0;i<msg.msg_iovlen && size>0;i++) {
 					int qty=(size > iovec[i].iov_len)?iovec[i].iov_len:size;
-					ustoren(pc,(long)iovec[i].iov_base,qty,lbuf);
-					lbuf += qty;
+					ustoren(pc,(long)iovec[i].iov_base,qty,p);
+					p += qty;
 					size -= qty;
 				}
 			}
@@ -670,15 +670,14 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,
 		}
 		{
 			unsigned int i,totalsize;
-			char *lbuf;
+			char *lbuf, *p;
 			for (i=0,totalsize=0;i<msg.msg_iovlen;i++)
 				totalsize += iovec[i].iov_len;
-			lbuf=(char *)lalloca(totalsize);
+			p=lbuf=(char *)lalloca(totalsize);
 			liovec.iov_base=lbuf;
 			liovec.iov_len=totalsize;
 			lmsg.msg_iov=&liovec;
 			lmsg.msg_iovlen=1;
-			char *p=lbuf;
 			//printk("SNDMSG fd %d namesize %d msg_iovlen %d msg_controllen %d total %d\n",
 			//		pc->sysargs[0], msg.msg_namelen, msg.msg_iovlen, msg.msg_controllen, totalsize);
 			for (i=0;i<msg.msg_iovlen;i++) {
