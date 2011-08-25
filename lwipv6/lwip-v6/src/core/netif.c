@@ -71,6 +71,7 @@
 #include "lwip/netif.h"
 #include "lwip/tcp.h"
 #include "lwip/stack.h"
+#include "lwip/memp.h"
 
 #ifndef NETIF_DEBUG
 #define NETIF_DEBUG DBG_OFF
@@ -81,134 +82,174 @@
 #define NETIF_MAX_STEP 8
 #define NETIF_MIN_FREE 4
 
-static int netif_enlarge_fdtab(struct stack *stack)
-{
-	int newmax=stack->netif_npfd_max + NETIF_MAX_STEP;
-	void *newpfd=mem_realloc(stack->netif_pfd,(newmax * sizeof(struct pollfd)));
-	void *newpfdargs=mem_realloc(stack->netif_pfd_args,
-			(newmax * sizeof (struct netif_args)));
-	if (newpfd && newpfdargs) {
-		stack->netif_pfd=newpfd;
-		stack->netif_pfd_args=newpfdargs;
-		stack->netif_npfd_max=newmax;
-		return 0;
-	} else {
-		if (newpfd) mem_free(newpfd);
-		if (newpfdargs) mem_free(newpfdargs);
-		return -1;
+//#define NETIF_THREAD_DEBUG
+#ifdef NETIF_THREAD_DEBUG
+#define PRINTTHREAD(X) do {\
+	  printf("thread %s: %p\n",(X),pthread_self());\
+} while(0);
+#else
+#define PRINTTHREAD(X)
+#endif
+
+#define NETIF_UPDATE_FDLIST_WAKE 0
+#define NETIF_UPDATE_FDLIST_ADDFD 1
+struct netif_update_fdlist_data {
+	int op;
+	void *data;
+};
+
+struct netif_fddata *netif_addfd(struct netif *netif, int fd,
+		void (*fun)(struct netif_fddata *fddata, short revents),
+		void *opaque, int flags, short events) {
+	struct netif_fddata *new= memp_malloc(MEMP_NETIF_FDDATA);
+	if (new) {
+		struct netif_update_fdlist_data req = {
+			.op = NETIF_UPDATE_FDLIST_ADDFD,
+			.data = new
+		};
+		new->fd = fd;
+		new->netif = netif;
+		new->fun = fun;
+		new->opaque = opaque;
+		new->flags = flags;
+		new->events = events;
+		new->refcnt = 1;
+	  int rv=write(netif->stack->netif_pipe[1], &req, sizeof(req));
+		//fprintf(stderr,"netif_addfd request! %d\n",rv);
 	}
+	return new;
 }
 
-int netif_addfd(struct netif *netif, int fd,
-		void (*fun)(struct netif *netif, int posfd, void *arg),
-		void *funarg, int flags, short events)
+void netif_thread_wake(struct stack *stack)
 {
-	struct stack *stack=netif->stack;
-	int n;
-
-	if (stack->netif_npfd_max < 0)
-		return -1;
-	
-	for (n=0; n < stack->netif_npfd && stack->netif_pfd[n].fd >= 0; n++)
-		;
-	if (n == stack->netif_npfd) {
-		if (n >= stack->netif_npfd_max) {
-			/* this should never happen, there are at least NETIF_MIN_FREE elements */
-			/*if (netif_enlarge_fdtab(stack) < 0)*/ 
-				return -1;
-		}
-		stack->netif_npfd++;
-	}
-	stack->netif_pfd[n].fd = fd;
-	stack->netif_pfd[n].events = events;
-	stack->netif_pfd[n].revents = 0;
-	stack->netif_pfd_args[n].fun = fun;
-	stack->netif_pfd_args[n].netif = netif;
-	stack->netif_pfd_args[n].funarg = funarg;
-	stack->netif_pfd_args[n].flags = flags;
-	LWIP_DEBUGF( NETIF_DEBUG, ("netif_addfd %d %d (%d)\n",fd,n,stack->netif_npfd));
-	return n;
+	struct netif_update_fdlist_data req = {
+		.op = NETIF_UPDATE_FDLIST_WAKE, .data = NULL
+	};
+	write(stack->netif_pipe[1], &req, sizeof(req));
 }
 
-void netif_updatefd(struct stack *stack, int posfd,
-		void (*fun)(struct netif *netif, int posfd, void *arg),
-		void *funarg, int flags)
-{
-	LWIP_DEBUGF( NETIF_DEBUG, ("netif_update %d (%d)\n",posfd,stack->netif_npfd));
-	if (posfd < stack->netif_npfd) {
-		stack->netif_pfd_args[posfd].fun = fun;
-		stack->netif_pfd_args[posfd].funarg = funarg;
-		stack->netif_pfd_args[posfd].flags = flags;
-	}
-}
-
-void netif_delfd(struct stack *stack, int posfd)
-{
-	if (posfd < stack->netif_npfd) {
-		stack->netif_pfd[posfd].fd = -1;
-		stack->netif_pfd[posfd].events = 0;
-		stack->netif_pfd[posfd].revents = 0;
-		stack->netif_pfd_args[posfd].fun = NULL;
-		stack->netif_pfd_args[posfd].netif = NULL;
-		stack->netif_pfd_args[posfd].funarg = NULL;
-		stack->netif_pfd_args[posfd].flags = 0;
-		while (stack->netif_npfd > 0 && stack->netif_pfd[stack->netif_npfd-1].fd < 0)
-			stack->netif_npfd--;
-	}
-	LWIP_DEBUGF( NETIF_DEBUG, ("netif_delfd %d (%d)\n",posfd,stack->netif_npfd));
-}
-
-static void
+	static void
 netif_thread(void *arg)
 {
 	struct stack *stack=arg;
 	unsigned long time=time_now();
+	struct pollfd *pfd=mem_malloc(NETIF_MAX_STEP * sizeof(struct pollfd));
+	struct netif_fddata **pfddata=mem_malloc(NETIF_MAX_STEP * sizeof(struct netif_fddata *));
+	int pfdmax=NETIF_MAX_STEP;
+	int pfdlen=1;
+	int read_pipe_offset=0;
+	struct netif_update_fdlist_data read_pipe_item;
+	int i;
 
-	while(stack->netif_npfd_max >= 0) { /* stack active! */
-		int i;
+	if (pfd == NULL || pfddata == NULL) {
+		fprintf(stderr,"netif_thread memory full: failed\n");
+		goto netif_thread_terminate;
+	}
+
+	pfd[0].fd = stack->netif_pipe[0];
+	pfd[0].events = POLLIN;
+	pfddata[0] = NULL;
+
+	PRINTTHREAD("NETIF_THREAD");
+	while(1) { /* stack active! This loop terminates when the pipe closes */
 		int ret;
 		unsigned long newtime;
-		{
-			unsigned int unused=stack->netif_npfd_max - stack->netif_npfd;
-			if (unused < NETIF_MIN_FREE) {
-				for (i=0; i<stack->netif_npfd; i++)
-					if (stack->netif_pfd[i].fd < 0) 
-						unused++;
-				if (unused < NETIF_MIN_FREE)
-					netif_enlarge_fdtab(stack);
+		/* eliminate closed files and copy events */
+		for (i=pfdlen-1; i>0; i--) {
+			if (pfddata[i] == NULL) {
+				//fprintf(stderr,"PFD #%d eliminated\n",i);
+				if (i < pfdlen-1) {
+					pfd[i] = pfd[pfdlen-1];
+					pfddata[i] = pfddata[pfdlen-1];
+				}
+				pfdlen--;
+			} else {
+				pfd[i].events = pfddata[i]->events;
 			}
 		}
-		LWIP_DEBUGF( NETIF_DEBUG, ("netif_thread poll %d %d\n",stack->netif_npfd_max,stack->netif_npfd));
-		ret = poll(stack->netif_pfd, stack->netif_npfd, 100);
-		LWIP_DEBUGF( NETIF_DEBUG, ("netif_thread poll %d out\n",stack->netif_npfd_max));
-		for (i=0; ret>0 && i<stack->netif_npfd; i++) {
-			if (stack->netif_pfd[i].revents != 0) {
+#if 0
+		for (i=0; i<pfdlen; i++)
+			fprintf(stderr, "%i-%d(%p,%d),",i,pfd[i].fd,pfddata[i],pfd[i].events);
+		fprintf(stderr, "netif POLL in %d\n",pfdlen);
+#endif
+		ret = poll(pfd, pfdlen, 100);
+#if 0
+		for (i=0; i<pfdlen; i++)
+			fprintf(stderr, "%i-%d(%p,%d),",i,pfd[i].fd,pfddata[i],pfd[i].revents);
+		fprintf(stderr, "netif POLL out %d\n",ret);
+#endif
+		if (pfd[0].revents) {
+			//fprintf(stderr, "netif GOT request\n");
+			if (pfd[0].revents & POLLNVAL || pfd[0].revents & POLLHUP)
+				break;
+			if (pfd[0].revents & POLLIN) {
+				int remaining = sizeof(struct netif_update_fdlist_data) - read_pipe_offset;
+				int n = read(stack->netif_pipe[0], 
+						(((u8_t *)&read_pipe_item)+read_pipe_offset), remaining);
+				if (n == 0)
+					break; /* pipe closed means thread termination <--------- */
+				if (n != remaining) {
+					read_pipe_offset += n;
+					continue;
+				}
+				//fprintf(stderr, "netif request isi %d\n", read_pipe_item.op);
+				switch (read_pipe_item.op) {
+					case NETIF_UPDATE_FDLIST_ADDFD:
+						{
+							if (pfdlen == pfdmax) {
+								int newmax = pfdmax + NETIF_MAX_STEP;
+								struct pollfd *newpfd = mem_realloc(pfd, newmax * sizeof(struct pollfd)); 
+								struct netif_fddata **newpfddata=mem_realloc(pfddata, newmax * sizeof(struct netif_fddata *));
+								if (newpfd) pfd = newpfd;
+								if (newpfddata) pfddata = newpfddata;
+								if (newpfd && newpfddata)
+									pfdmax = newmax;
+							}
+							if (pfdlen < pfdmax) {
+								struct netif_fddata *data = pfddata[pfdlen] = read_pipe_item.data;
+								pfd[pfdlen].fd = data->fd;
+								pfd[pfdlen].events = data->events;
+								pfdlen++;
+							}
+						}
+				}
+			}
+			continue;
+		}
+
+		for (i=1; ret>0 && i<pfdlen; i++) {
+			if (pfd[i].revents != 0) {
 				ret--;
-				stack->netif_pfd_args[i].fun(
-						stack->netif_pfd_args[i].netif,
-						i,
-						stack->netif_pfd_args[i].funarg);
+				if (pfd[i].revents & POLLNVAL /*|| pfd[i].revents & POLLHUP*/) { /* closed! delete the element */
+					//fprintf(stderr,"netif fd %d was closed\n",pfd[i].fd);
+					memp_free(MEMP_NETIF_FDDATA,pfddata[i]);
+					pfddata[i] = NULL;
+					pfd[i].fd = -1;
+				} else {
+					//fprintf(stderr, "netif request CALL %p %d %d\n", pfddata[i]->fun, pfd[i].fd, pfd[i].revents);
+					pfddata[i]->fun(pfddata[i], pfd[i].revents);
+				}
 			}
 		}
 		newtime=time_now();
 		if (newtime > time) {
 			time=newtime;
-			for (i=0; i<stack->netif_npfd; i++)
-				if (stack->netif_pfd_args[i].flags & NETIF_ARGS_1SEC_POLL) 
-					stack->netif_pfd_args[i].fun(
-							stack->netif_pfd_args[i].netif,
-							i,
-							stack->netif_pfd_args[i].funarg);
+			for (i=1; i<pfdlen; i++)
+				if (pfddata[i] && pfddata[i]->flags & NETIF_ARGS_1SEC_POLL) 
+					pfddata[i]->fun(pfddata[i], 0);
 		}
 	}
-	if (stack->netif_pfd) mem_free(stack->netif_pfd);
-	if (stack->netif_pfd_args) mem_free(stack->netif_pfd_args);
+netif_thread_terminate:
+	for (i=1; i<pfdlen; i++)
+		mem_free(pfddata[i]);
+	if (pfd) mem_free(pfd);
+	if (pfddata) mem_free(pfddata);
 	LWIP_DEBUGF( NETIF_DEBUG, ("netif_thread leaving loop \n"));
 
 	sys_sem_signal(stack->netif_cleanup_mutex);
 }
 
-void
+	void
 netif_init(struct stack *stack)
 {
 	/* FIX: move ip_addr_list_init() to ip6.c? */
@@ -216,26 +257,28 @@ netif_init(struct stack *stack)
 	ip_addr_list_init(stack);
 
 	//ip_route_list_init(stack); 
-	
+
 	stack->netif_list = NULL;
 
 	/* add some fds for interfaces */
-	netif_enlarge_fdtab(stack);
 
+	pipe(stack->netif_pipe);
 	stack->netif_cleanup_mutex = sys_sem_new(0);
+
 	sys_thread_new(netif_thread, stack, DEFAULT_THREAD_PRIO);
 }
 
-void
+	void
 netif_shutdown(struct stack *stack)
 {
   netif_cleanup(stack);
   
   LWIP_DEBUGF( NETIF_DEBUG, ("netif_shutdown!\n") );
-	stack->netif_npfd_max = -1;
+	close(stack->netif_pipe[1]);
+
 	sys_sem_wait_timeout(stack->netif_cleanup_mutex, 0);
 	sys_sem_free(stack->netif_cleanup_mutex);
-
+	close(stack->netif_pipe[0]);
   LWIP_DEBUGF( NETIF_DEBUG, ("netif_shutdown: done!\n") );
 }
 

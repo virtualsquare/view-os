@@ -76,8 +76,8 @@
 	u8_t tos;                 \
 	/* Time To Live */        \
 	u8_t ttl;									\
-  /* Socket for Slirp */    \
-	int slirp_posfd          
+  /* Data for Slirp */    \
+	void *slirp_fddata          
 #else
 #define IP_PCB \
 	  /* Stack */               \

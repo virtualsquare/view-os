@@ -363,14 +363,17 @@ struct tcp_pcb_listen {
   void *callback_arg;
   
   u16_t local_port; 
+  u16_t remote_port; 
 
 #if LWIP_CALLBACK_API
   /* Function to call when a listener has been connected. */
   err_t (* accept)(void *arg, struct tcp_pcb *newpcb, err_t err);
 #endif /* LWIP_CALLBACK_API */
+#if 1
 #ifdef LWSLIRP
 	struct pbuf *slirp_m; /* Pointer to the original SYN packet,
 												 * for non-blocking connect() */
+#endif
 #endif
 };
 
@@ -420,9 +423,9 @@ err_t lwip_tcp_event(void *arg, struct tcp_pcb *pcb,
 #define TCP_EVENT_POLL(pcb,ret) \
                         if((pcb)->poll != NULL) \
                         (ret = (pcb)->poll((pcb)->callback_arg,(pcb)))
-#define TCP_EVENT_ERR(errf,arg,err) \
+#define TCP_EVENT_ERR(errf,arg,errx) \
                         if((errf) != NULL) \
-                        (errf)((arg),(err))
+                        (errf)((arg),(errx)); 
 #endif /* LWIP_EVENT_API */
 
 /* This structure represents a TCP segment on the unsent and unacked queues */

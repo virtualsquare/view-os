@@ -277,7 +277,12 @@ udp_input(struct pbuf *p, struct ip_addr_list *inad,struct pseudo_iphdr *piphdr
         /* ...matching interface address? */
         ip_addr_cmp(&(pcb->local_ip), piphdr->dest)
 				/* or the socket wants broadcasts */
-				|| (pcb->so_options & SOF_BROADCAST))) {
+				|| (pcb->so_options & SOF_BROADCAST))
+#ifdef LWSLIRP
+				/* X1008 */
+				&& slirpif==NULL
+#endif
+				) {
 #if SO_REUSE
         if (pcb->so_options & SOF_REUSEPORT) {
           if (reuse) {
@@ -417,7 +422,7 @@ udp_input(struct pbuf *p, struct ip_addr_list *inad,struct pseudo_iphdr *piphdr
 		ret = udp_bind(udp_pcb, piphdr->dest, ntohs(udphdr->dest), slirpif);
 
 		/* If there were some errors or the socket() call failed */
-		if(ret != ERR_OK || udp_pcb->slirp_posfd == -1) {
+		if(ret != ERR_OK || udp_pcb->slirp_fddata == NULL) {
 			LWIP_DEBUGF(UDP_DEBUG, ("udp_input: udp_bind() error.\n"));
 			udp_remove(udp_pcb);
 			goto err_out;
@@ -917,7 +922,7 @@ udp_new(struct stack *stack) {
     
     pcb->stack = stack;
 #ifdef LWSLIRP
-		pcb->slirp_posfd = -1;
+		pcb->slirp_fddata = NULL;
 #endif
   }
   

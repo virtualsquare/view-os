@@ -409,7 +409,7 @@ raw_new(struct stack *stack, u16_t proto) {
     
     pcb->stack = stack;    
 #ifdef LWSLIRP
-		pcb->slirp_posfd = -1;
+		pcb->slirp_fddata = NULL;
 #endif
     
     pcb->in_protocol = proto;

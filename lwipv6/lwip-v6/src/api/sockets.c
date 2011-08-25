@@ -997,7 +997,7 @@ lwip_msocket(struct stack *stack, int domain, int type, int protocol)
 						return -1;
 					} else {
 						LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_socket(%s,XXX, %d) = ", domain_name(domain), protocol));
-						conn = netlink_open(stack, type,protocol);
+						conn = netlink_open(stack, type, protocol);
 					}
 					break;
 				default:
@@ -1354,7 +1354,7 @@ lwip_getpeername (int s, struct sockaddr *name, socklen_t *namelen)
 lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 {
 	struct lwip_socket *sock;
-	struct ip_addr *naddr;
+	struct ip_addr naddr;
 	u16_t port;
 
 	sock = get_socket(s);
@@ -1370,11 +1370,16 @@ lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 	else 
 #endif
 	{
+		int err;
 		/* get the IP address and port of the remote host */
-		netconn_addr(sock->conn, &naddr, &port);
+		err = netconn_addr(sock->conn, &naddr, &port);
+		if (err != ERR_OK) {
+			set_errno(EINVAL);
+			return -1;
+		}
 
 		LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_getsockname(%d, addr=", s));
-		ip_addr_debug_print(SOCKETS_DEBUG, naddr);
+		ip_addr_debug_print(SOCKETS_DEBUG, &naddr);
 		LWIP_DEBUGF(SOCKETS_DEBUG, (" port=%d)\n", port));
 
 		if (sock->family == PF_INET) {
@@ -1383,7 +1388,7 @@ lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 			sin.sin_family = PF_INET;
 			sin.sin_port = htons(port);
 			/*memcpy(&(sin.sin_addr.s_addr),&(naddr.addr),sizeof(sin.sin_addr.s_addr));*/
-			SOCK_IP46_CONV(&(sin.sin_addr.s_addr),naddr);
+			SOCK_IP46_CONV(&(sin.sin_addr.s_addr),&naddr);
 
 			if (*namelen > sizeof(sin))
 				*namelen = sizeof(sin);
@@ -1396,7 +1401,7 @@ lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 			memset(&sin, 0, sizeof(sin));
 			sin.sin6_family = PF_INET6;
 			sin.sin6_port = htons(port);
-			memcpy(&(sin.sin6_addr),naddr,sizeof(sin.sin6_addr));
+			memcpy(&(sin.sin6_addr),&naddr,sizeof(sin.sin6_addr));
 
 			if (*namelen > sizeof(sin))
 				*namelen = sizeof(sin);
@@ -1717,7 +1722,7 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 				break;
 			}
 
-			/* If this is no TCP socket, ignore any options. */
+			/* If this is not a TCP socket, ignore any options. */
 			if ( sock->conn->type != NETCONN_TCP ) return 0;
 
 			switch( optname ) {

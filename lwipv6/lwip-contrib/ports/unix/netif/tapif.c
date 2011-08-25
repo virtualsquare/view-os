@@ -106,11 +106,11 @@ struct tapif {
   struct eth_addr *ethaddr;
   /* Add whatever per-interface state that is needed here. */
   int fd;
-	int posfd;
+	struct netif_fddata *fddata;
 };
 
 /* Forward declarations. */
-static void  tapif_input(struct netif *netif, int posfd, void *arg);
+static void  tapif_input(struct netif_fddata *fddata, short revents);
 static err_t tapif_output(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr);
 
 /*-----------------------------------------------------------------------------------*/
@@ -159,8 +159,8 @@ low_level_init(struct netif *netif, char *ifname)
 			return ERR_IF;
 		}
 	}
-	if ((tapif->posfd=netif_addfd(netif,
-				tapif->fd, tapif_input, NULL, 0, POLLIN)) < 0)
+	if ((tapif->fddata=netif_addfd(netif,
+				tapif->fd, tapif_input, NULL, 0, POLLIN)) == NULL)
 		return ERR_IF;
 	else
 		return ERR_OK;
@@ -181,7 +181,6 @@ static err_t tapif_ctl(struct netif *netif, int request, void *arg)
 				/* Unset ARP timeout on this interface */
 				sys_untimeout((sys_timeout_handler)arp_timer, netif);
 
-				netif_delfd(netif->stack, tapif->posfd);
 				mem_free(tapif);
 		}
 	}
@@ -309,8 +308,9 @@ tapif_output(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr)
  */
 /*-----------------------------------------------------------------------------------*/
 static void
-tapif_input(struct netif *netif, int posfd, void *arg)
+tapif_input(struct netif_fddata *fddata, short revents)
 {
+	struct netif *netif = fddata->netif;
 	struct tapif *tapif;
 	struct eth_hdr *ethhdr;
 	struct pbuf *p;

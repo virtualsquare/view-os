@@ -466,12 +466,13 @@ tcp_listen(struct tcp_pcb *pcb)
   
   lpcb->stack = stack;
 #ifdef LWSLIRP
-	lpcb->slirp_posfd = pcb->slirp_posfd;
+	lpcb->slirp_fddata = pcb->slirp_fddata;
 	lpcb->slirp_state = pcb->slirp_state;
 #endif
   
   lpcb->callback_arg = pcb->callback_arg;
   lpcb->local_port = pcb->local_port;
+  lpcb->remote_port = pcb->remote_port;
   lpcb->state = LISTEN;
   lpcb->so_options = pcb->so_options;
   lpcb->so_options |= SOF_ACCEPTCONN;
@@ -1010,7 +1011,7 @@ tcp_alloc(struct stack *stack, u8_t prio)
     
     pcb->stack = stack;
 #ifdef LWSLIRP
-		pcb->slirp_posfd = -1;
+		pcb->slirp_fddata = NULL;
 		pcb->slirp_state = SS_NOFDREF;
 #endif
     
@@ -1072,6 +1073,7 @@ tcp_new(struct stack *stack)
 void
 tcp_arg(struct tcp_pcb *pcb, void *arg)
 {  
+	//fprintf(stderr,"tcp_arg %p %p\n",pcb,arg);
   pcb->callback_arg = arg;
 }
 #if LWIP_CALLBACK_API
@@ -1088,6 +1090,7 @@ void
 tcp_recv(struct tcp_pcb *pcb,
    err_t (* recv)(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err))
 {
+	//fprintf(stderr,"tcp_recv %p %p\n",pcb,recv);
   pcb->recv = recv;
 }
 
@@ -1103,6 +1106,7 @@ void
 tcp_sent(struct tcp_pcb *pcb,
    err_t (* sent)(void *arg, struct tcp_pcb *tpcb, u16_t len))
 {
+	//fprintf(stderr,"tcp_sent %p %p\n",pcb,sent);
   pcb->sent = sent;
 }
 
@@ -1118,6 +1122,7 @@ void
 tcp_err(struct tcp_pcb *pcb,
    void (* errf)(void *arg, err_t err))
 {
+	//fprintf(stderr,"tcp_err %p %p\n",pcb,errf);
   pcb->errf = errf;
 }
 
@@ -1133,6 +1138,7 @@ void
 tcp_accept(struct tcp_pcb *pcb,
      err_t (* accept)(void *arg, struct tcp_pcb *newpcb, err_t err))
 {
+	//fprintf(stderr,"tcp_accept %p %p\n",pcb,accept);
   ((struct tcp_pcb_listen *)pcb)->accept = accept;
 }
 #endif /* LWIP_CALLBACK_API */
@@ -1171,6 +1177,11 @@ tcp_pcb_purge(struct tcp_pcb *pcb)
      pcb->state != TIME_WAIT &&
      pcb->state != LISTEN) {
 
+#ifdef LWSLIRP
+		if (pcb->slirp_fddata != NULL)
+			slirp_tcp_close(pcb);
+#endif
+
     LWIP_DEBUGF(TCP_DEBUG, ("tcp_pcb_purge\n"));
     
     if (pcb->unsent != NULL) {    
@@ -1204,11 +1215,6 @@ void
 tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb)
 {
   TCP_RMV(pcblist, pcb);
-
-#ifdef LWSLIRP
-	if (pcb->slirp_posfd >= 0)
-		slirp_tcp_close(pcb);
-#endif
 
   tcp_pcb_purge(pcb);
   

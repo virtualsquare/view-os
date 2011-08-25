@@ -622,6 +622,14 @@ tcp_rst(struct stack *stack, u32_t seqno, u32_t ackno,
       return;
   }
 
+#if 0
+	fprintf(stderr, "RESET! %x %x %x %x:%d %x %x %x %x %d\n",
+			local_ip->addr[0], local_ip->addr[1], local_ip->addr[2], local_ip->addr[3],
+			local_port,
+			remote_ip->addr[0], remote_ip->addr[1], remote_ip->addr[2], remote_ip->addr[3],
+			remote_port);
+#endif
+
   tcphdr = p->payload;
   tcphdr->src = htons(local_port);
   tcphdr->dest = htons(remote_port);

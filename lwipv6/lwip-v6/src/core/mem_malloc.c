@@ -85,6 +85,7 @@ mem_malloc(mem_size_t size)
 #else
 struct mem_check {
 	void *addr;
+	mem_size_t size;
 	char *file;
 	int line; /*positive if allocated */
 };
@@ -131,7 +132,6 @@ mem_d_free(void *rmem,char *__file,int __line)
 mem_d_malloc(mem_size_t size,char *__file,int __line)
 {
 	void *rv = malloc(size);
-
 	if (rv < 0) 
 		fprintf(stderr, "MALLOC FAILED! %s %d\n",__file,__line);
 	else {
@@ -145,6 +145,18 @@ mem_d_malloc(mem_size_t size,char *__file,int __line)
 				table[i].file=__file;
 				table[i].line=__line;
 				break;
+			}
+			if (rv >= table[i].addr && rv < table[i].addr + table[i].size) {
+				if (table[i].line > 0) {
+					fprintf(stderr, "MALLOC OVERLAP %s %d and %s %d\n",__file,__line,
+							table[i].file, table[i].line);
+				}
+			}
+			if (table[i].addr >= rv && table[i].addr < rv + size) {
+				if (table[i].line > 0) {
+					fprintf(stderr, "MALLOC OVERLAP2 %s %d and %s %d\n",__file,__line,
+							table[i].file, table[i].line);
+				}
 			}
 			if (table[i].addr == 0) {
 				table[i].addr=rv;
@@ -195,6 +207,7 @@ mem_d_realloc(void *rmem, mem_size_t newsize,char *__file,int __line)
 		return mem_d_malloc(newsize, __file, __line);
 	else {
 		int i;
+		int matchi=-1;
 		void *rv=realloc(rmem,newsize);
 		for (i=0; i<MEMCHECKSIZE; i++) {
 			if (table[i].addr == rv) {
@@ -206,6 +219,18 @@ mem_d_realloc(void *rmem, mem_size_t newsize,char *__file,int __line)
 				table[i].line=__line;
 				break;
 			}
+			if (rv >= table[i].addr && rv < table[i].addr + table[i].size) {
+				if (table[i].line > 0) {
+					fprintf(stderr, "REALLOC OVERLAPS  %s %d and %s %d\n",__file,__line,
+							table[i].file, table[i].line);
+				}
+			}
+			if (table[i].addr >= rv && table[i].addr < rv + newsize) {
+				if (table[i].line > 0) {
+					fprintf(stderr, "MALLOC OVERLAP2 %s %d and %s %d\n",__file,__line,
+							table[i].file, table[i].line);
+				}
+			}
 			if (table[i].addr == rmem) {
 				if (table[i].line < 0) {
 					fprintf(stderr, "REALLOC FREED ADDR %s %d and %s %d\n",__file,__line,
@@ -213,11 +238,13 @@ mem_d_realloc(void *rmem, mem_size_t newsize,char *__file,int __line)
 				}                           
 				table[i].file=__file;
 				table[i].line=__line;
+				table[i].size=newsize;
 				table[i].addr=rv;
-				break;                          
+				matchi=i;
 			}                                       
 			if (table[i].addr == 0) {
-				fprintf(stderr, "REALLOC not allocated addr %s %d\n",__file,__line);
+				if (matchi < 0)
+					fprintf(stderr, "REALLOC not allocated addr %s %d\n",__file,__line);
 				break;                                        
 			}                                                     
 		} 

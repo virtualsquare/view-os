@@ -71,11 +71,11 @@
 struct tunif {
   /* Add whatever per-interface state that is needed here. */
   int fd;
-	int posfd;
+	struct netif_fddata *fddata;
 };
 
 /* Forward declarations. */
-static void  tunif_input(struct netif *netif, int posfd, void *arg);
+static void  tunif_input(struct netif_fddata *fddata, short revents);
 static err_t tunif_output(struct netif *netif, struct pbuf *p,
 			       struct ip_addr *ipaddr);
 
@@ -108,8 +108,8 @@ low_level_init(struct netif *netif, char *ifname)
 		}
 	}
 
-	if ((tunif->posfd=netif_addfd(netif,
-					tunif->fd, tunif_input, NULL, 0, POLLIN)) < 0)
+	if ((tunif->fddata=netif_addfd(netif,
+					tunif->fd, tunif_input, NULL, 0, POLLIN)) == NULL)
 		return ERR_IF;
 	else
 		return ERR_OK;
@@ -234,8 +234,9 @@ tunif_output(struct netif *netif, struct pbuf *p,
  */
 /*-----------------------------------------------------------------------------------*/
 static void
-tunif_input(struct netif *netif, int posfd, void *arg)
+tunif_input(struct netif_fddata *fddata, short revents)
 {
+	struct netif *netif = fddata->netif;
   struct tunif *tunif;
   struct pbuf *p;
 
@@ -263,7 +264,6 @@ static err_t tunif_ctl(struct netif *netif, int request, void *arg)
 			case NETIFCTL_CLEANUP:
 				close(tunif->fd);
 
-				netif_delfd(netif->stack, tunif->posfd);
 				mem_free(tunif);
 		}
 	}

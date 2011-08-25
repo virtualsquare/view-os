@@ -39,7 +39,6 @@
 #include "lwip/raw.h"
 #include "lwip/tcp.h"
 #include "lwip/api.h"
-#include "lwip/api_msg.h"
 #include "lwip/tcpip.h"
 
 
@@ -53,14 +52,17 @@ typedef enum {
 
   MEMP_NETBUF,
   MEMP_NETCONN,
-  MEMP_API_MSG,
   MEMP_TCPIP_MSG,
 
   MEMP_SYS_TIMEOUT,
 
 	MEMP_ROUTE,
 	MEMP_ADDR,
+	MEMP_NETIF_FDDATA,
+
+#if IPv4_FRAGMENTATION || IPv6_FRAGMENTATION
 	MEMP_REASS,
+#endif
 
 /* added by Diego Billi */  
 #if LWIP_USERFILTER && LWIP_NAT
@@ -106,7 +108,6 @@ void memp_d_free(memp_t type, void *mem, char *file, int line);
 		sizeof(struct tcp_seg),\
 		sizeof(struct netbuf),\
 		sizeof(struct netconn),\
-		sizeof(struct api_msg),\
 		sizeof(struct tcpip_msg),\
 		sizeof(struct sys_timeout),\
 		sizeof(struct ip_addr_list),\
@@ -128,7 +129,6 @@ void memp_d_free(memp_t type, void *mem, char *file, int line);
 		sizeof(struct tcp_seg),\
 		sizeof(struct netbuf),\
 		sizeof(struct netconn),\
-		sizeof(struct api_msg),\
 		sizeof(struct tcpip_msg),\
 		sizeof(struct sys_timeout),\
 		sizeof(struct ip_addr_list),\

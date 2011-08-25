@@ -246,3 +246,4 @@ liblwipv6_la_LDFLAGS = -version-number 2:0:0 -Xcompiler -nostartfiles
 
 include_HEADERS = $(LWIPARCH)/include/lwipv6.h
 
+CFLAGS = -g3 -ggdb3
