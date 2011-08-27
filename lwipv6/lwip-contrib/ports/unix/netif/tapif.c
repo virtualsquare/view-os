@@ -1,7 +1,7 @@
 /*   This is part of LWIPv6
  *   
  *   tap interface for ale4net
- *   Copyright 2005 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2005,2010,2011 Renzo Davoli University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by

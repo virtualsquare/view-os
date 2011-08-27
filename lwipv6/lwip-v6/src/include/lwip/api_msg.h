@@ -75,6 +75,8 @@ enum api_msg_type {
   API_MSG_MAX
 };
 
+struct netconn;
+
 struct api_msg_msg {
   struct netconn *conn;
   err_t err;
@@ -94,7 +96,7 @@ struct api_msg_msg {
       u8_t copy;
     } w;    
 		struct {
-			err_t (*fun) (void *arg);
+			err_t (*fun) (struct netconn *conn, void *arg);
 			void *arg;
 		} cb;
     u16_t len;

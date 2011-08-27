@@ -95,6 +95,7 @@ struct netconn {
 	err_t err;
 
   union {
+    struct common_pcb *common;
     struct tcp_pcb *tcp;
     struct udp_pcb *udp;
     struct raw_pcb *raw;
@@ -166,7 +167,7 @@ err_t             netconn_write   (struct netconn *conn,
 err_t             netconn_close   (struct netconn *conn);
 
 err_t             netconn_callback(struct netconn *conn, 
-           err_t (*fun)(void *),
+           err_t (*fun)(struct netconn *conn, void *),
            void *arg);
 
 err_t             netconn_err     (struct netconn *conn);

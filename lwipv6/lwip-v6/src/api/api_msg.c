@@ -2,7 +2,7 @@
  *   Developed for the Ale4NET project
  *   Application Level Environment for Networking
  *   
- *   Copyright 2004 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2004,2011 Renzo Davoli University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -1008,7 +1008,7 @@ do_callback(struct api_msg_msg *msg)
 	struct netconn *conn=msg->conn;
 	pending_conn_mbox(msg->conn);
 
-	msg->err = msg->msg.cb.fun(msg->msg.cb.arg);
+	msg->err = msg->msg.cb.fun(conn, msg->msg.cb.arg);
 
 	ack_conn_mbox(msg->conn);
 }

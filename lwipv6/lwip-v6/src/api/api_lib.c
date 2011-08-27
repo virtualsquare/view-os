@@ -2,7 +2,7 @@
  *   Developed for the Ale4NET project
  *   Application Level Environment for Networking
  *
- *   Copyright 2004 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2004,2011 Renzo Davoli University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -762,7 +762,7 @@ netconn_close(struct netconn *conn)
 }
 
 err_t
-netconn_callback(struct netconn *conn, err_t (*fun)(void *), void *arg)
+netconn_callback(struct netconn *conn, err_t (*fun)(struct netconn *conn, void *), void *arg)
 {
 	struct api_msg msg;
 

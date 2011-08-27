@@ -3,6 +3,8 @@
  *   Application Level Environment for Networking
  *   
  *   Copyright 2005 Diego Billi University of Bologna - Italy
+ *   updated:
+ *   Copyright 2011 Renzo Davoli University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by

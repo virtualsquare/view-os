@@ -2,7 +2,7 @@
  *   Developed for the Ale4NET project
  *   Application Level Environment for Networking
  *   
- *   Copyright 2004 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2004,..,2011 Renzo Davoli University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -92,6 +92,12 @@
   /* Time To Live */        \
   u8_t ttl
 #endif
+
+/* To cast common fields of all tcp types */
+struct common_pcb {
+	/* Common members of all PCB types */
+	IP_PCB;
+};
 
 
 /* This is passed as the destination address to ip_output_if (not

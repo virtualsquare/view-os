@@ -2,7 +2,7 @@
  *   Developed for the VDE project
  *   Virtual Distributed Ethernet
  *   
- *   Copyright 2010 Renzo Davoli
+ *   Copyright 2010,2011 Renzo Davoli
  *   based on a previous work by Andrea Forni 2005
  *   
  *   This program is free software; you can redistribute it and/or modify
