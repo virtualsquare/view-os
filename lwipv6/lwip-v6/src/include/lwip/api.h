@@ -165,6 +165,10 @@ err_t             netconn_write   (struct netconn *conn,
            u8_t copy);
 err_t             netconn_close   (struct netconn *conn);
 
+err_t             netconn_callback(struct netconn *conn, 
+           err_t (*fun)(void *),
+           void *arg);
+
 err_t             netconn_err     (struct netconn *conn);
 
 #endif /* __LWIP_API_H__ */

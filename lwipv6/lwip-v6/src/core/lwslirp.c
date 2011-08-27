@@ -89,7 +89,6 @@ void slirp_debug_print_state(int debk, struct tcp_pcb *pcb);
 struct tcp_sndbuf_output_arg {
 	struct tcp_pcb *pcb;
 	int len;
-	sys_sem_t *sem;
 };
 
 static void callback_from_tcp_sndbuf_output(void *varg)
@@ -106,22 +105,15 @@ static void callback_from_tcp_sndbuf_output(void *varg)
 		if (nin > 0 && arg->len == 0 && fddata)
 			fddata->events &= ~POLLIN;
 	}
-
-	sys_sem_signal(*arg->sem);
 }
 
 static int callback_to_tcp_sndbuf_output(struct stack *stack,struct tcp_pcb *pcb,int len)
 {
 	/* NETIF THREAD (w4callback)*/
 	struct tcp_sndbuf_output_arg arg;
-	sys_sem_t sync;
 	arg.pcb=pcb;
 	arg.len=len;
-	sync = sys_sem_new(0);
-	arg.sem = &sync;
-	tcpip_callback(stack, callback_from_tcp_sndbuf_output, &arg);
-	sys_sem_wait_timeout(sync, 0);
-	sys_sem_free(sync);
+	tcpip_callback(stack, callback_from_tcp_sndbuf_output, &arg, SYNC);
 	return arg.len;
 }
 
@@ -157,7 +149,7 @@ static void callback_to_tcp_write(struct stack *stack,struct tcp_pcb *pcb,char *
 		arg->pcb=pcb;
 		arg->buf=buf;
 		arg->len=len;
-		tcpip_callback(stack, callback_from_tcp_write, arg);
+		tcpip_callback(stack, callback_from_tcp_write, arg, ASYNC);
 	}
 }
 
@@ -206,7 +198,7 @@ static void callback_to_tcp_input(struct stack *stack,struct tcp_pcb_listen *pcb
 	if (arg) {
 		arg->pcb=pcb;
 		arg->netif=netif;
-		tcpip_callback(stack, callback_from_tcp_input, arg);
+		tcpip_callback(stack, callback_from_tcp_input, arg, ASYNC);
 	}
 }
 
@@ -234,7 +226,7 @@ static void callback_to_udp_sendto(struct stack *stack,struct udp_pcb *pcb,struc
 	if (arg) {
 		arg->pcb=pcb;
 		arg->m=m;
-		tcpip_callback(stack, callback_from_udp_sendto, arg);
+		tcpip_callback(stack, callback_from_udp_sendto, arg, ASYNC);
 	}
 }
 
@@ -275,7 +267,7 @@ static void callback_from_tcp_close(void *varg)
 static void callback_to_tcp_close(struct stack *stack,void *pcb)
 {
 	/* NETIF THREAD */
-	tcpip_callback(stack, callback_from_tcp_close, pcb);
+	tcpip_callback(stack, callback_from_tcp_close, pcb, ASYNC);
 }
 
 struct new_forwarding_arg {
@@ -287,7 +279,6 @@ struct new_forwarding_arg {
 	struct ip_addr *dest;
 	int destport;
 	void *new_pcb;
-	sys_sem_t *sem;
 };
 
 static void callback_from_tcp_new_forwarding(void *varg){
@@ -310,7 +301,6 @@ static void callback_from_tcp_new_forwarding(void *varg){
 		tcp_connect(pcb, arg->dest, arg->destport, slirp_tcp_connected);
 	}
 	arg->new_pcb=pcb;
-	sys_sem_signal(*arg->sem);
 }
 
 static void callback_from_udp_new_forwarding(void *varg){
@@ -332,7 +322,6 @@ static void callback_from_udp_new_forwarding(void *varg){
 		udp_connect(pcb, arg->dest, arg->destport);
 	}
 	arg->new_pcb=pcb;
-	sys_sem_signal(*arg->sem);
 }
 
 
@@ -343,7 +332,6 @@ static struct tcp_pcb *callback_to_tcp_new_forwarding(struct stack *stack,
 {
 	/* NETIF THREAD (w4callback)*/
 	struct new_forwarding_arg arg;
-	sys_sem_t sync;
 	arg.stack=stack;
 	arg.slirpif=slirpif;
 	arg.fd=fd;
@@ -351,11 +339,7 @@ static struct tcp_pcb *callback_to_tcp_new_forwarding(struct stack *stack,
 	arg.srcport=srcport;
 	arg.dest=dest;
 	arg.destport=destport;
-	sync = sys_sem_new(0);
-	arg.sem = &sync;
-	tcpip_callback(stack,callback_from_tcp_new_forwarding,&arg);
-	sys_sem_wait_timeout(sync, 0);
-	sys_sem_free(sync);
+	tcpip_callback(stack,callback_from_tcp_new_forwarding,&arg, SYNC);
 	return (struct tcp_pcb *)(arg.new_pcb);
 }
 
@@ -367,7 +351,6 @@ static struct udp_pcb *callback_to_udp_new_forwarding(struct stack *stack,
 	/* NETIF THREAD (w4callback)*/
 	struct new_forwarding_arg arg;
 
-	sys_sem_t sync;
 	arg.stack=stack;
 	arg.slirpif=slirpif;
 	arg.fd=fd;
@@ -375,11 +358,7 @@ static struct udp_pcb *callback_to_udp_new_forwarding(struct stack *stack,
 	arg.srcport=srcport;
 	arg.dest=dest;
 	arg.destport=destport;
-	sync = sys_sem_new(0);
-	arg.sem = &sync;
-	tcpip_callback(stack,callback_from_udp_new_forwarding,&arg);
-	sys_sem_wait_timeout(sync, 0);
-	sys_sem_free(sync);
+	tcpip_callback(stack,callback_from_udp_new_forwarding,&arg, SYNC);
 	return (struct udp_pcb *)(arg.new_pcb);
 }
 
@@ -680,7 +659,7 @@ static int callback_to_slirp_write(struct stack *stack,struct tcp_pcb *pcb,struc
 	if (arg) {
 		arg->pcb=pcb;
 		arg->netif=netif;
-		tcpip_callback(stack, callback_from_slirp_write, arg);
+		tcpip_callback(stack, callback_from_slirp_write, arg, ASYNC);
 	}
 }
 

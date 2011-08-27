@@ -1002,6 +1002,17 @@ do_addr(struct api_msg_msg *msg)
 	ack_conn_mbox(msg->conn);
 }
 
+static void
+do_callback(struct api_msg_msg *msg)
+{
+	struct netconn *conn=msg->conn;
+	pending_conn_mbox(msg->conn);
+
+	msg->err = msg->msg.cb.fun(msg->msg.cb.arg);
+
+	ack_conn_mbox(msg->conn);
+}
+
 typedef void (* api_msg_decode)(struct api_msg_msg *msg);
 static api_msg_decode decode[API_MSG_MAX] = {
 	do_newconn,
@@ -1016,7 +1027,8 @@ static api_msg_decode decode[API_MSG_MAX] = {
   do_write,
   do_close,
 	do_peer,
-	do_addr
+	do_addr,
+	do_callback
   };
 
 void

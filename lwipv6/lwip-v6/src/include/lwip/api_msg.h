@@ -70,6 +70,8 @@ enum api_msg_type {
   API_MSG_PEER,
   API_MSG_ADDR,
 
+	API_MSG_CALLBACK,
+
   API_MSG_MAX
 };
 
@@ -91,7 +93,10 @@ struct api_msg_msg {
       u16_t len;
       u8_t copy;
     } w;    
-    sys_mbox_t mbox;
+		struct {
+			err_t (*fun) (void *arg);
+			void *arg;
+		} cb;
     u16_t len;
   } msg;
 };

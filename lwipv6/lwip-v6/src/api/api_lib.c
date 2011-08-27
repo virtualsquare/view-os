@@ -762,6 +762,26 @@ netconn_close(struct netconn *conn)
 }
 
 err_t
+netconn_callback(struct netconn *conn, err_t (*fun)(void *), void *arg)
+{
+	struct api_msg msg;
+
+	if (conn == NULL) {
+		return ERR_VAL;
+	}
+
+	msg.type = API_MSG_CALLBACK;
+	msg.msg.conn = conn;
+	msg.msg.err = ERR_OK;
+	msg.msg.msg.cb.fun = fun;
+	msg.msg.msg.cb.arg = arg;
+
+	api_msg_post(conn->stack, &msg);
+	sys_mbox_fetch(conn->mbox, NULL);
+	return msg.msg.err;
+}
+
+err_t
 netconn_err(struct netconn *conn)
 {
   return conn->err;

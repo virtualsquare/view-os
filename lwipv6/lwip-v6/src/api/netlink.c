@@ -25,6 +25,7 @@
 #if LWIP_NL 
 
 #include "lwip/api.h"
+#include "lwip/tcpip.h"
 #include "lwip/sockets.h"
 #include "lwip/netlink.h"
 
@@ -303,6 +304,48 @@ netlink_recvfrom(void *sock, void *mem, int len, unsigned int flags,
 	}
 }
 
+/* netlink_send is the only function that reads/sets stack parameters like
+	 ip addrs/routes. These operations must be done in a synchronous way */
+
+struct netlink_send_data {
+	struct netlink *nl;
+	void *data;
+	int size;
+};
+
+static void netlink_sync_send(void *arg)
+{
+	struct netlink_send_data *nlss_data=arg;
+	struct netlink *nl=nlss_data->nl;
+	struct stack *stack = nl->stack;
+
+	/*printf("netlink_send\n"); dump(data,size);*/
+	/* one single answer pending, multiple requests return one long answer */
+	/*if (0 && nl->answer[0] != NULL)
+		return (-1);
+		else { */
+	netlink_decode(stack, nlss_data->data,nlss_data->size,nl->rcvbufsize,nl->answer,nl->pid);
+	memcpy(&(nl->hdr),nlss_data->data,sizeof(struct nlmsghdr));
+	/* } */
+}
+
+	int
+netlink_send(void *sock, void *data, int size, unsigned int flags)
+{
+	struct netlink *nl=sock;
+	struct stack *stack = nl->stack;
+	struct netlink_send_data nlss_data;
+	err_t rv;
+	nlss_data.nl = nl;
+	nlss_data.data = data;
+	nlss_data.size = size;
+
+	rv = tcpip_callback(stack, netlink_sync_send, &nlss_data, SYNC);
+
+	return 0;
+}
+
+#if 0
 	int
 netlink_send(void *sock, void *data, int size, unsigned int flags)
 {
@@ -320,6 +363,7 @@ netlink_send(void *sock, void *data, int size, unsigned int flags)
 	return 0;
 	/*}*/
 }
+#endif
 
 	int
 netlink_sendto(void *sock, void *data, int size, unsigned int flags,

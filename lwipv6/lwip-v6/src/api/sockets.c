@@ -1424,6 +1424,12 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 		set_errno(EBADF);
 		return -1;
 	}
+
+	if( NULL == optval || NULL == optlen ) {
+		sock_set_errno( sock, EFAULT );
+		return -1;
+	}
+
 #if LWIP_NL
 	if(sock->family == PF_NETLINK) {
 		int err=netlink_getsockopt(sock, level, optname, optval, optlen); 
@@ -1434,11 +1440,6 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 			return 0;
 	}
 #endif
-
-	if( NULL == optval || NULL == optlen ) {
-		sock_set_errno( sock, EFAULT );
-		return -1;
-	}
 
 	/* Do length and type checks for the various options first, to keep it readable. */
 	switch( level ) {
