@@ -1,20 +1,21 @@
-
-LWIPV6a - Light weight IP v 6 A
+LWIPV6a - Light weight IP v 6 (1.4a)
 ===============================
 
-LWIPV6a has been completely rewritten, it is based on LWIPv.1.1.0 
+LWIPV6a has been completely rewritten, it is based on LWIPv.1.1.0
 (by Adam Dunkels).
 
 LWIPV6a includes also the management of PF_PACKET (e.g. ethereal and
 DHCP user level management).
 
-Copyright 2004 Renzo Davoli University of Bologna - Italy
+Copyright 2004,...,2011 Renzo Davoli University of Bologna - Italy
 
+VirtualSquare Labs: wiki.virtualsquare.org
 
 Features
 ========
 
- * "Phisical" Layer
+ * Multi stack support
+ * "Physical" Layer
     o Virtual interfaces: TUNTAP driver support, VDE driver support.
     o ARP support
  * Network Layer
@@ -28,7 +29,7 @@ Features
  * Berkeley Socket API
     o Protocol family: PF_INET, PF_INET6, PF_PACKET, PF_NETLINK (partially)
     o Socket type: SOCK_STREAM, SOCK_DGRAM, SOCK_RAW.
-
+ * Slirp support
 
 License
 =======

@@ -3,7 +3,7 @@ LWIPv6 programming guide
 
 The most recent version of this document can be found on the VirtualSquare wiki:
 http://wiki.virtualsquare.org/index.php/LWIPv6_programming_guide
-This file has been updated on Jun 11, 2008.
+This file has been updated on Sept. 1, 2011.
 
 This is a short guide of the LWIPv6 library. It is intended for programmers
 wishing to write programs using LWIPv6.
@@ -32,6 +32,7 @@ Contents
     * 7 A complete example
     * 8 A different model for asynchrony: event_subscribe
     * 9 List of most relevant functions provided by LWIPv6
+		* 10 Slirp
 
 
 1. Loading and Linking LWIPV6
@@ -140,8 +141,9 @@ a new stack.
  struct netif *lwip_vdeif_add(struct stack *stack, void *arg);
  struct netif *lwip_tapif_add(struct stack *stack, void *arg);
  struct netif *lwip_tunif_add(struct stack *stack, void *arg);
+ struct netif *lwip_slirpif_add(struct stack *stack, void *arg);
 
-The three functions above define new interfaces. For tun and tap interfaces,
+The four functions above define new interfaces. For tun and tap interfaces,
 the argument is a string that will be used as the name of the virtual
 interface. lwip_vdeif_add argument is the path of the vde_switch.
 
@@ -157,6 +159,7 @@ square brackets syntax is commonly used in vde to indicate a specfic port of a
 switch.
 
 Interfaces must be assigned TCP-IP addresses to communicate.
+(notable exception slirpif).
 
  int lwip_add_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
  int lwip_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netmask);
@@ -428,6 +431,7 @@ Define new interfaces:
  struct netif *lwip_vdeif_add(struct stack *stack, void *arg);
  struct netif *lwip_tapif_add(struct stack *stack, void *arg);
  struct netif *lwip_tunif_add(struct stack *stack, void *arg);
+ struct netif *lwip_slirpif_add(struct stack *stack, void *arg);
 
 Add/delete addresses:
 
@@ -482,4 +486,40 @@ LWIPv6 implementation of comm syscalls:
 Management of asynchronous events:
 
  int lwip_event_subscribe(lwipvoidfun cb, void *arg, int fd, int how);
+
+10. SlirpV6
+-----------
+
+LWIPv6 provides slirpV6 support.
+A slirp interface can have no ip addresses and "forwards" all the packets 
+routed to it as a client of the hosting machine (like slirp).
+LWIPv6/slirpV6 supports both IPv4 and IPv6. It supports UDP connection 
+tracking, too.
+The slirp interface appears as a NAT router from LWIP.
+
+It is possible to forward specific ports (like port forwarding
+for NAT):
+
+#define SLIRP_LISTEN_UDP 0x1000
+#define SLIRP_LISTEN_TCP 0x2000
+#define SLIRP_LISTEN_UNIXSTREAM 0x3000
+
+int slirp_listen_add(struct netif *slirpif,
+	struct ip_addr *dest,  u16_t destport,
+	void *src,  u16_t srcport, int flags);
+
+where slirpif is the interface (the return value of lwip_slirpif_add),
+dest/destport is the lwipv6 address of the target of the forwarding service,
+while src/srcport is the source address (on the hosting machine).
+
+It is possible to forward UDP, TCP ports or convert a UNIX socket on the
+hosting OS to a tcp port in LWIPv6, depending on the value of flags:
+SLIRP_LISTEN_UDP, SLIRP_LISTEN_TCP, SLIRP_LISTEN_UNIXSTREAM respectively.
+
+The forwarding service for a port can be deleted using the following
+function. It has the same arguments of slirp_listen_add.
+
+int slirp_listen_del(struct netif *slirpif,
+	struct ip_addr *dest,  u16_t destport,
+	void *src,  u16_t srcport, int flags);
 
