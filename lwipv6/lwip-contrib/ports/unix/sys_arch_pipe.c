@@ -1,3 +1,22 @@
+/*   This is part of LWIPv6
+ *   
+ *   Copyright 2004,2008,2011 Renzo Davoli University of Bologna - Italy
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
+ */
+
 /*
  * Copyright (c) 2001-2003 Swedish Institute of Computer Science.
  * All rights reserved. 
@@ -102,7 +121,7 @@ sys_mbox_new()
 {
   struct sys_mbox *mbox;
   
-  mbox = malloc(sizeof(struct sys_mbox));
+  mbox = mem_malloc(sizeof(struct sys_mbox));
   pipe(mbox->pipe);
   
 #if SYS_STATS
@@ -126,7 +145,7 @@ sys_mbox_free(struct sys_mbox *mbox)
 		close (mbox->pipe[0]);
 		close (mbox->pipe[1]);
     /*  LWIP_DEBUGF("sys_mbox_free: mbox 0x%lx\n", mbox); */
-    free(mbox);
+    mem_free(mbox);
   }
 }
 
@@ -136,7 +155,7 @@ sys_mbox_post(struct sys_mbox *mbox, void *msg)
 {
   LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_post: mbox %p msg %p\n", (void *)mbox, (void *)msg));
   
-	//printf("sys_mbox_post %p %p %x\n",mbox,msg,(msg != NULL)?*((int *)msg):0);
+	//fprintf(stderr,"sys_mbox_post %p %p %x\n",mbox,msg,(msg != NULL)?*((int *)msg):0);
 	write(mbox->pipe[1],&msg,sizeof(void *));
 }
 /*-----------------------------------------------------------------------------------*/
@@ -151,7 +170,7 @@ sys_arch_mbox_fetch(struct sys_mbox *mbox, void **msg, u32_t timeout)
 	struct timeval tv;
 	FD_ZERO(&rds);
 	FD_SET(mbox->pipe[0],&rds);
-	//printf("TIMEOUT %p %p ->%d\n",(void *)mbox,(void *) msg,timeout);
+	//fprintf(stderr,"TIMEOUT %p %p ->%d\n",(void *)mbox,(void *) msg,timeout);
 
 	do {
 		if (timeout != 0) {
@@ -163,14 +182,14 @@ sys_arch_mbox_fetch(struct sys_mbox *mbox, void **msg, u32_t timeout)
 			fdn=select(mbox->pipe[0]+1,&rds,NULL,NULL,NULL);
 		}
 	} while (fdn < 0 && errno==EINTR);
-	//printf("FDN %p %d %s %d\n",(void *)mbox,fdn,strerror(errno),FD_ISSET(mbox->pipe[0],&rds));
+	//fprintf(stderr,"FDN %p %d %s %d\n",(void *)mbox,fdn,strerror(errno),FD_ISSET(mbox->pipe[0],&rds));
 
 	if (fdn > 0) {
 		if (msg != NULL)
 			n=read(mbox->pipe[0],msg,sizeof(void *));
 		else
 			n=read(mbox->pipe[0],&fdn,sizeof(void *));
-	//printf("sys_mbox_read %p %x\n",(msg==NULL)?NULL:(void *)*msg, (msg==NULL)?0:**(int **)msg);
+	//fprintf(stderr,"sys_mbox_read %p %p %x\n",mbox,(msg==NULL)?NULL:(void *)*msg, (msg==NULL || *msg==NULL)?0:**(int **)msg);
 	if (timeout != 0)
 		time=timeout - (tv.tv_sec * 1000+tv.tv_usec / 1000);
 	else time=0;
@@ -204,7 +223,7 @@ sys_sem_new_(u8_t count)
 {
   struct sys_sem *sem;
   
-  sem = malloc(sizeof(struct sys_sem));
+  sem = mem_malloc(sizeof(struct sys_sem));
   sem->c = count;
   
   pthread_cond_init(&(sem->cond), NULL);
@@ -313,7 +332,7 @@ sys_sem_free_(struct sys_sem *sem)
 {
   pthread_cond_destroy(&(sem->cond));
   pthread_mutex_destroy(&(sem->mutex));
-  free(sem);
+  mem_free(sem);
 }
 /*-----------------------------------------------------------------------------------*/
 unsigned long
@@ -336,13 +355,13 @@ static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 
 static void del_key(void *ptr)
 {
-	free(ptr);
+	mem_free(ptr);
 }
 
 static void
 make_key()
 {
-	//printf("new_key %p\n",pthread_self());
+	//fprintf(stderr,"new_key %p\n",pthread_self());
 	(void) pthread_key_create(&key, del_key);
 }
 
@@ -353,11 +372,11 @@ sys_arch_timeouts(void)
 
 	(void) pthread_once(&key_once, make_key);
 	if ((ptr = pthread_getspecific(key)) == NULL) {
-		ptr = malloc(sizeof(struct sys_timeouts));
+		ptr = mem_malloc(sizeof(struct sys_timeouts));
 		ptr->next=NULL;
 		(void) pthread_setspecific(key, ptr);
 	}
-	//printf("key %p %p %p\n",pthread_self(), ptr, ptr->next);
+	//fprintf(stderr,"key %p %p %p\n",pthread_self(), ptr, ptr->next);
 
 	return ptr;
 }

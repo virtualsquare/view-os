@@ -2,7 +2,7 @@
  *   Developed for the Ale4NET project
  *   Application Level Environment for Networking
  *   
- *   Copyright 2004,2008 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2004,2008,2011 Renzo Davoli University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -304,7 +304,7 @@ alloc_socket(struct netconn *newconn,u16_t family)
 				int newlen=sockets_len+NUM_SOCKETS;
 				struct lwip_socket **newsockets;
 				if ((newsockets=mem_realloc(sockets,newlen*(sizeof(struct lwip_socket *)))) == NULL) {
-					free(this);
+					mem_free(this);
 					set_errno(ENOMEM);
 					sys_sem_signal(socksem);
 					return -1;
@@ -325,7 +325,7 @@ alloc_socket(struct netconn *newconn,u16_t family)
 					fd=socket(PF_INET, SOCK_DGRAM, 0);
 				if (fd < 0) {
 					sockets[i]=NULL;
-					free(this);
+					mem_free(this);
 					set_errno(EIO);
 					return -1;
 				} 
@@ -338,6 +338,79 @@ alloc_socket(struct netconn *newconn,u16_t family)
 	}
 }
 
+
+/* syncronous access to pcb data */
+
+#define OPT_SETVALUE   1
+#define OPT_GETVALUE   2
+#define OPT_SETBITS    3
+#define OPT_CLRBITS    4
+#define OPT_GETMASKED  5
+
+#define OPT_SO_OPTIONS 1
+#define OPT_FLAGS      2
+#define OPT_TOS        3
+#define OPT_TTL        4
+#define OPT_KEEPALIVE  5
+#define OPT_CHECKSUMOFFSET  6
+
+#define opfield(op,field) (((op) << 5) | (field))
+struct opt_data {
+	u16_t opfieldtag;
+	u32_t *value;
+};
+
+static err_t sync_pcb_access(struct netconn *conn, void *arg)
+{
+	struct opt_data *data = arg;
+	switch (data->opfieldtag) {
+		case opfield(OPT_SETBITS, OPT_SO_OPTIONS): 
+			conn->pcb.common->so_options |= *data->value; break;
+		case opfield(OPT_CLRBITS, OPT_SO_OPTIONS): 
+			conn->pcb.common->so_options &= ~(*data->value); break;
+		case opfield(OPT_GETMASKED, OPT_SO_OPTIONS): 
+			*data->value = conn->pcb.common->so_options & (*data->value); break;
+
+		case opfield(OPT_SETBITS, OPT_FLAGS): 
+			conn->pcb.common->so_options |= *data->value; break;
+		case opfield(OPT_CLRBITS, OPT_FLAGS): 
+			conn->pcb.common->so_options &= ~(*data->value); break;
+		case opfield(OPT_GETMASKED, OPT_FLAGS): 
+			*data->value = conn->pcb.common->so_options & (*data->value); break;
+
+		case opfield(OPT_SETVALUE, OPT_TOS):
+			conn->pcb.tcp->tos = (*data->value); break;
+		case opfield(OPT_GETVALUE, OPT_TOS):
+			(*data->value) = conn->pcb.tcp->tos; break;
+
+		case opfield(OPT_SETVALUE, OPT_TTL):
+			conn->pcb.tcp->ttl = (*data->value); break;
+		case opfield(OPT_GETVALUE, OPT_TTL):
+			(*data->value) = conn->pcb.tcp->ttl; break;
+
+		case opfield(OPT_SETVALUE, OPT_KEEPALIVE):
+			conn->pcb.tcp->keepalive = (*data->value); break;
+		case opfield(OPT_GETVALUE, OPT_KEEPALIVE):
+			(*data->value) = conn->pcb.tcp->keepalive; break;
+
+		case opfield(OPT_SETVALUE, OPT_CHECKSUMOFFSET):
+			conn->pcb.raw->so_options |= SOF_IPV6_CHECKSUM;
+			conn->pcb.raw->checksumoffset = (*data->value); break;
+	}
+	return ERR_OK;
+}
+
+static u32_t pcb_access(struct netconn *conn, u8_t op, u8_t field, u32_t value)
+{
+	struct opt_data data = {
+		.opfieldtag = opfield(op,field),
+		.value = &value
+	};
+	netconn_callback(conn, sync_pcb_access, &data);
+	return value;
+}
+
+/* ----- end of syncronous access to pcb data functions ---- */
 
 	int
 lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
@@ -507,7 +580,7 @@ lwip_close(int s)
 		close(sock->fdfake);
 	set_lwip_sockmap(sock->fdfake, -1);
 	sock_set_errno(sock, err);
-	free(sock);
+	mem_free(sock);
 	sys_sem_signal(socksem);
 	return err;
 }
@@ -997,7 +1070,7 @@ lwip_msocket(struct stack *stack, int domain, int type, int protocol)
 						return -1;
 					} else {
 						LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_socket(%s,XXX, %d) = ", domain_name(domain), protocol));
-						conn = netlink_open(stack, type,protocol);
+						conn = netlink_open(stack, type, protocol);
 					}
 					break;
 				default:
@@ -1134,7 +1207,7 @@ static struct um_sel_wait *um_sel_rec_del(struct um_sel_wait *p,void *arg,int fd
 	else {
 		struct um_sel_wait *next=um_sel_rec_del(p->next,arg,fd);
 		if (p->arg == arg && p->fd == fd) {
-			free(p);
+			mem_free(p);
 			return(next);
 		} else {
 			p->next=next;
@@ -1159,7 +1232,7 @@ static struct um_sel_wait *um_sel_rec_signal(struct um_sel_wait *p,int fd, int e
 			struct um_sel_wait *next=um_sel_rec_del(p->next,p->arg,fd);
 			//printf("UMSELECT SIGNALED %d\n",fd);
 			p->cb(p->arg);
-			free(p);
+			mem_free(p);
 			return um_sel_rec_signal(next,fd,events);
 		} else {
 			p->next=um_sel_rec_signal(p->next,fd,events);
@@ -1354,7 +1427,7 @@ lwip_getpeername (int s, struct sockaddr *name, socklen_t *namelen)
 lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 {
 	struct lwip_socket *sock;
-	struct ip_addr *naddr;
+	struct ip_addr naddr;
 	u16_t port;
 
 	sock = get_socket(s);
@@ -1370,11 +1443,16 @@ lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 	else 
 #endif
 	{
+		int err;
 		/* get the IP address and port of the remote host */
-		netconn_addr(sock->conn, &naddr, &port);
+		err = netconn_addr(sock->conn, &naddr, &port);
+		if (err != ERR_OK) {
+			set_errno(EINVAL);
+			return -1;
+		}
 
 		LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_getsockname(%d, addr=", s));
-		ip_addr_debug_print(SOCKETS_DEBUG, naddr);
+		ip_addr_debug_print(SOCKETS_DEBUG, &naddr);
 		LWIP_DEBUGF(SOCKETS_DEBUG, (" port=%d)\n", port));
 
 		if (sock->family == PF_INET) {
@@ -1383,7 +1461,7 @@ lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 			sin.sin_family = PF_INET;
 			sin.sin_port = htons(port);
 			/*memcpy(&(sin.sin_addr.s_addr),&(naddr.addr),sizeof(sin.sin_addr.s_addr));*/
-			SOCK_IP46_CONV(&(sin.sin_addr.s_addr),naddr);
+			SOCK_IP46_CONV(&(sin.sin_addr.s_addr),&naddr);
 
 			if (*namelen > sizeof(sin))
 				*namelen = sizeof(sin);
@@ -1396,7 +1474,7 @@ lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 			memset(&sin, 0, sizeof(sin));
 			sin.sin6_family = PF_INET6;
 			sin.sin6_port = htons(port);
-			memcpy(&(sin.sin6_addr),naddr,sizeof(sin.sin6_addr));
+			memcpy(&(sin.sin6_addr),&naddr,sizeof(sin.sin6_addr));
 
 			if (*namelen > sizeof(sin))
 				*namelen = sizeof(sin);
@@ -1419,6 +1497,12 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 		set_errno(EBADF);
 		return -1;
 	}
+
+	if( NULL == optval || NULL == optlen ) {
+		sock_set_errno( sock, EFAULT );
+		return -1;
+	}
+
 #if LWIP_NL
 	if(sock->family == PF_NETLINK) {
 		int err=netlink_getsockopt(sock, level, optname, optval, optlen); 
@@ -1429,11 +1513,6 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 			return 0;
 	}
 #endif
-
-	if( NULL == optval || NULL == optlen ) {
-		sock_set_errno( sock, EFAULT );
-		return -1;
-	}
 
 	/* Do length and type checks for the various options first, to keep it readable. */
 	switch( level ) {
@@ -1547,7 +1626,8 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 				case SO_REUSEPORT:
 #endif /* SO_REUSE */
 					/*case SO_USELOOPBACK: UNIMPL */
-					*(int*)optval = sock->conn->pcb.tcp->so_options & so_map[optname];
+					//*(int*)optval = sock->conn->pcb.tcp->so_options & so_map[optname];
+					*(int*)optval = pcb_access(sock->conn,OPT_GETMASKED,OPT_SO_OPTIONS,so_map[optname]);
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_getsockopt(%d, SOL_SOCKET, optname=0x%x, ..) = %s\n", s, optname, (*(int*)optval?"on":"off")));
 					break;
 
@@ -1589,15 +1669,19 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 		case IPPROTO_IP:
 			switch( optname ) {
 				case IP_TTL:
-					*(int*)optval = sock->conn->pcb.tcp->ttl;
+					//*(int*)optval = sock->conn->pcb.tcp->ttl;
+					*(int*)optval = pcb_access(sock->conn,OPT_GETVALUE,OPT_TTL,0);
+
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_getsockopt(%d, IPPROTO_IP, IP_TTL) = %d\n", s, *(int *)optval));
 					break;
 				case IP_TOS:
-					*(int*)optval = sock->conn->pcb.tcp->tos;
+					//*(int*)optval = sock->conn->pcb.tcp->tos;
+					*(int*)optval = pcb_access(sock->conn,OPT_GETVALUE,OPT_TOS,0);
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_getsockopt(%d, IPPROTO_IP, IP_TOS) = %d\n", s, *(int *)optval));
 					break;
 				case IP_HDRINCL:
-					*(int*)optval = (sock->conn->pcb.tcp->so_options & SOF_HDRINCL);
+					//*(int*)optval = (sock->conn->pcb.tcp->so_options & SOF_HDRINCL);
+					*(int*)optval = pcb_access(sock->conn,OPT_GETMASKED,OPT_SO_OPTIONS,SOF_HDRINCL);
 					break;
 			}  /* switch */
 			break;
@@ -1606,11 +1690,13 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 		case IPPROTO_TCP:
 			switch( optname ) {
 				case TCP_NODELAY:
-					*(int*)optval = (sock->conn->pcb.tcp->flags & TF_NODELAY);
+					//*(int*)optval = (sock->conn->pcb.tcp->flags & TF_NODELAY);
+					*(int*)optval = pcb_access(sock->conn,OPT_GETMASKED,OPT_FLAGS,TF_NODELAY);
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_getsockopt(%d, IPPROTO_TCP, TCP_NODELAY) = %s\n", s, (*(int*)optval)?"on":"off") );
 					break;
 				case TCP_KEEPALIVE:
-					*(int*)optval = sock->conn->pcb.tcp->keepalive;
+					//*(int*)optval = sock->conn->pcb.tcp->keepalive;
+					*(int*)optval = pcb_access(sock->conn,OPT_GETVALUE,OPT_KEEPALIVE,0);
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_getsockopt(%d, IPPROTO_IP, TCP_KEEPALIVE) = %d\n", s, *(int *)optval));
 					break;
 			}  /* switch */
@@ -1717,7 +1803,7 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 				break;
 			}
 
-			/* If this is no TCP socket, ignore any options. */
+			/* If this is not a TCP socket, ignore any options. */
 			if ( sock->conn->type != NETCONN_TCP ) return 0;
 
 			switch( optname ) {
@@ -1832,9 +1918,11 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 #endif /* SO_REUSE */
 					/* UNIMPL case SO_USELOOPBACK: */
 					if ( *(int*)optval ) {
-						sock->conn->pcb.tcp->so_options |= so_map[optname];
+						//sock->conn->pcb.tcp->so_options |= so_map[optname];
+						pcb_access(sock->conn,OPT_SETBITS,OPT_SO_OPTIONS,so_map[optname]);
 					} else {
-						sock->conn->pcb.tcp->so_options &= ~(so_map[optname]);
+						//sock->conn->pcb.tcp->so_options &= ~(so_map[optname]);
+						pcb_access(sock->conn,OPT_CLRBITS,OPT_SO_OPTIONS,so_map[optname]);
 					}
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_setsockopt(%d, SOL_SOCKET, optname=0x%x, ..) -> %s\n", s, optname, (*(int*)optval?"on":"off")));
 					break;
@@ -1845,18 +1933,22 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 		case IPPROTO_IP:
 			switch( optname ) {
 				case IP_TTL:
-					sock->conn->pcb.tcp->ttl = (u8_t)(*(int*)optval);
+					//sock->conn->pcb.tcp->ttl = (u8_t)(*(int*)optval);
+					pcb_access(sock->conn,OPT_SETVALUE,OPT_TTL,(*(int*)optval));
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_setsockopt(%d, IPPROTO_IP, IP_TTL, ..) -> %u\n", s, sock->conn->pcb.tcp->ttl));
 					break;
 				case IP_TOS:
-					sock->conn->pcb.tcp->tos = (u8_t)(*(int*)optval);
+					//sock->conn->pcb.tcp->tos = (u8_t)(*(int*)optval);
+					pcb_access(sock->conn,OPT_SETVALUE,OPT_TOS,(*(int*)optval));
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_setsockopt(%d, IPPROTO_IP, IP_TOS, ..)-> %u\n", s, sock->conn->pcb.tcp->tos));
 					break;
 				case IP_HDRINCL:
 					if (*(int*)optval) 
-						sock->conn->pcb.tcp->so_options |= SOF_HDRINCL;
+						//sock->conn->pcb.tcp->so_options |= SOF_HDRINCL;
+						pcb_access(sock->conn,OPT_SETBITS,OPT_SO_OPTIONS,SOF_HDRINCL);
 					else
-						sock->conn->pcb.tcp->so_options &= ~SOF_HDRINCL;
+						//sock->conn->pcb.tcp->so_options &= ~SOF_HDRINCL;
+						pcb_access(sock->conn,OPT_CLRBITS,OPT_SO_OPTIONS,SOF_HDRINCL);
 					break;
 			}  /* switch */
 			break;
@@ -1866,14 +1958,17 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 			switch( optname ) {
 				case TCP_NODELAY:
 					if ( *(int*)optval ) {
-						sock->conn->pcb.tcp->flags |= TF_NODELAY;
+						//sock->conn->pcb.tcp->flags |= TF_NODELAY;
+						pcb_access(sock->conn,OPT_SETBITS,OPT_FLAGS,TF_NODELAY);
 					} else {
-						sock->conn->pcb.tcp->flags &= ~TF_NODELAY;
+						//sock->conn->pcb.tcp->flags &= ~TF_NODELAY;
+						pcb_access(sock->conn,OPT_CLRBITS,OPT_FLAGS,TF_NODELAY);
 					}
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_setsockopt(%d, IPPROTO_TCP, TCP_NODELAY) -> %s\n", s, (*(int *)optval)?"on":"off") );
 					break;
 				case TCP_KEEPALIVE:
-					sock->conn->pcb.tcp->keepalive = (u32_t)(*(int*)optval);
+					//sock->conn->pcb.tcp->keepalive = (u32_t)(*(int*)optval);
+					pcb_access(sock->conn,OPT_SETVALUE,OPT_KEEPALIVE,(u32_t)(*(int*)optval));
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_setsockopt(%d, IPPROTO_TCP, TCP_KEEPALIVE) -> %u\n", s, (int) sock->conn->pcb.tcp->keepalive));
 					break;
 			}  /* switch */
@@ -1884,7 +1979,8 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 				case IPV6_UNICAST_HOPS:
 				case IPV6_MULTICAST_HOPS:
 					/* TODO add a separate ttl for unicast */
-					sock->conn->pcb.tcp->ttl = (u8_t)(*(int*)optval);
+					//sock->conn->pcb.tcp->ttl = (u8_t)(*(int*)optval);
+					pcb_access(sock->conn,OPT_SETVALUE,OPT_TTL,(*(int*)optval));
 					LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_setsockopt(%d, IPPROTO_IPV6, IPV6_HOPLIMIT, ..) -> %u\n", s, sock->conn->pcb.tcp->ttl));
 					break;
 					/* TODO IPV6_HOPLIMIT is a flag to allow packet to inspect
@@ -1908,8 +2004,10 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 		case IPPROTO_RAW:
 			switch( optname ) {
 				case IPV6_CHECKSUM:
-					sock->conn->pcb.raw->so_options |= SOF_IPV6_CHECKSUM;
-					sock->conn->pcb.raw->checksumoffset=*(int*)optval;
+					//sock->conn->pcb.raw->so_options |= SOF_IPV6_CHECKSUM;
+					//sock->conn->pcb.raw->checksumoffset=*(int*)optval;
+					pcb_access(sock->conn,OPT_SETVALUE,OPT_CHECKSUMOFFSET,*(int*)optval);
+					break;
 				default:
 					break;
 			}

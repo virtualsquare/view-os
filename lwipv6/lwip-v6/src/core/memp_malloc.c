@@ -1,3 +1,24 @@
+/*   This is part of LWIPv6
+ *   Developed for the Ale4NET project
+ *   Application Level Environment for Networking
+ *   
+ *   Copyright 2011 Renzo Davoli University of Bologna - Italy
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
+ */
+
 /*
  * Copyright (c) 2001-2004 Swedish Institute of Computer Science.
  * All rights reserved. 
@@ -33,6 +54,7 @@
 #include <stdlib.h>
 #include "lwip/opt.h"
 
+#include "lwip/mem.h"
 #include "lwip/memp.h"
 
 #include "lwip/pbuf.h"
@@ -40,8 +62,8 @@
 #include "lwip/raw.h"
 #include "lwip/tcp.h"
 #include "lwip/api.h"
-#include "lwip/api_msg.h"
 #include "lwip/tcpip.h"
+#include "lwip/netif.h"
 
 #include "lwip/sys.h"
 #include "lwip/stats.h"
@@ -65,12 +87,12 @@ static const u32_t memp_sizes[MEMP_MAX] = {
   sizeof(struct tcp_seg),
   sizeof(struct netbuf),
   sizeof(struct netconn),
-  sizeof(struct api_msg),
   sizeof(struct tcpip_msg),
   sizeof(struct sys_timeout),
   sizeof(struct ip_route_list),
-  sizeof(struct ip_addr_list)
-
+  sizeof(struct ip_addr_list),
+  sizeof(struct netif_fddata)
+		
 #if IPv4_FRAGMENTATION || IPv6_FRAGMENTATION
   ,
   sizeof(struct ip_reassbuf)
@@ -84,6 +106,7 @@ static const u32_t memp_sizes[MEMP_MAX] = {
 #endif
 };
 
+#ifndef DEBUGMEM
 void
 memp_init(void)
 {
@@ -100,3 +123,66 @@ memp_free(memp_t type, void *mem)
 {
 	free(mem);
 }
+
+#else
+#include <signal.h>
+
+static char *stypes[] = {
+	"PBUF",
+	"RAW_PCB",
+	"UDP_PCB",
+	"TCP_PCB",
+	"TCP_PCB_LISTEN",
+	"TCP_SEG",
+	"NETBUF",
+	"NETCONN",
+	"TCPIP_MSG",
+	"SYS_TIMEOUT",
+	"ROUTE",
+	"ADDR",
+	"NETIF_FDDATA",
+#if IPv4_FRAGMENTATION || IPv6_FRAGMENTATION
+	"REASS",
+#endif
+#if LWIP_USERFILTER && LWIP_NAT
+	"NAT_PCB",
+	"NAT_RULE",
+#endif
+	"MAX"
+};
+
+int mempcount[MEMP_MAX];
+
+static void memstat(int signo)
+{
+	int i;
+	for (i=0; i<MEMP_MAX; i++)
+		fprintf(stderr,"memp %s -> %d\n",stypes[i],mempcount[i]);
+}
+
+void
+memp_d_init(char *__file, int __line)
+{
+	signal(SIGUSR2, memstat);
+}
+
+void *
+memp_d_malloc(memp_t type, char *__file, int __line)
+{
+	void *rv=(mem_d_malloc(memp_sizes[type], __file, __line));
+	mempcount[type]++;
+	//if (type == MEMP_TCP_PCB) fprintf(stderr, "memp_d_malloc MEMP_TCP_PCB %s %d %p\n",__file,__line,rv);
+	//if (type == MEMP_TCP_PCB_LISTEN) fprintf(stderr, "memp_d_malloc MEMP_TCP_PCB_LISTEN %s %d\ %pn",__file,__line,rv);
+	return rv;
+}
+
+void
+memp_d_free(memp_t type, void *mem, char *__file, int __line)
+{
+	mempcount[type]--;
+	//if (type == MEMP_TCP_PCB) fprintf(stderr, "memp_d_free MEMP_TCP_PCB %s %d %p\n",__file,__line,mem);
+	////if (type == MEMP_TCP_PCB_LISTEN) fprintf(stderr, "memp_d_free MEMP_TCP_PCB_LISTEN %s %d %p\n",__file,__line,mem);
+	mem_d_free(mem, __file, __line);
+}
+
+#endif

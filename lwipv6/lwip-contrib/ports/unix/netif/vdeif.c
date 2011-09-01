@@ -2,7 +2,7 @@
  *   
  *   VDE (virtual distributed ethernet) interface for ale4net
  *   (based on tapif interface Adam Dunkels <adam@sics.se>)
- *   Copyright 2005 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2005,2010,2011 Renzo Davoli University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -110,12 +110,12 @@ struct vdeif {
 	/* Add whatever per-interface state that is needed here. */
 	VDECONN *vdefd;
 	VDESTREAM *vdestream;
-	int posfd;
+	struct netif_fddata *fddata;
 };
 
 /* Forward declarations. */
-static void vdeif_input(struct netif *netif, int posfd, void *arg);
-static void vdeif_stream_input(struct netif *netif, int posfd, void *arg);
+static void vdeif_input(struct netif_fddata *fddata, short revents);
+static void vdeif_stream_input(struct netif_fddata *fddata, short revents);
 static ssize_t vdeif_streampkt_input(void *opaque, void *buf, size_t count);
 static err_t vdeif_output(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr);
 
@@ -167,9 +167,9 @@ static int low_level_init(struct netif *netif, char *path)
 		vdeif->vdefd=vdeplug.vde_open(path,descr,NULL);
 		vdeif->vdestream=NULL;
 		if (vdeif->vdefd && 
-				(vdeif->posfd=netif_addfd(netif, 
+				(vdeif->fddata=netif_addfd(netif, 
 																	vdeplug.vde_datafd(vdeif->vdefd),
-																	vdeif_input, NULL, 0, POLLIN))>=0
+																	vdeif_input, NULL, 0, POLLIN)) != NULL
 		 ) 
 			return ERR_OK;
 		else 
@@ -187,8 +187,8 @@ static int low_level_init(struct netif *netif, char *path)
 		vdeif->vdefd=NULL;
 		vdeif->vdestream=vdeplug.vdestream_open(netif,fdout,vdeif_streampkt_input,NULL);
 		if (vdeif->vdestream != NULL &&
-				(vdeif->posfd=netif_addfd(netif, fdin, 
-																	vdeif_stream_input, NULL, 0, POLLIN))>=0)
+				(vdeif->fddata=netif_addfd(netif, fdin, 
+																	vdeif_stream_input, NULL, 0, POLLIN)) != NULL)
 			return ERR_OK;
 		else
 			return ERR_IF;
@@ -212,7 +212,6 @@ static err_t vdeif_ctl(struct netif *netif, int request, void *arg)
 				/* Unset ARP timeout on this interface */
 				sys_untimeout((sys_timeout_handler)arp_timer, netif);
 
-				netif_delfd(netif->stack, vdeif->posfd);
 				mem_free(vdeif);
 		}
 	}
@@ -447,8 +446,9 @@ static inline void vde_dispatch_input(struct netif *netif, struct pbuf *p)
  *
  */
 /*-----------------------------------------------------------------------------------*/
-static void vdeif_input(struct netif *netif, int posfd, void *arg)
+static void vdeif_input(struct netif_fddata *fddata, short revents)
 {
+	struct netif *netif = fddata->netif;
 	struct vdeif *vdeif=netif->state;
 	struct pbuf *p;
 
@@ -462,13 +462,14 @@ static void vdeif_input(struct netif *netif, int posfd, void *arg)
 	vde_dispatch_input(netif, p);
 }
 
-static void vdeif_stream_input(struct netif *netif, int posfd, void *arg)
+static void vdeif_stream_input(struct netif_fddata *fddata, short revents)
 {
+	struct netif *netif = fddata->netif;
 	struct vdeif *vdeif=netif->state;
 	char buf[1514];
 	u16_t len;
 
-	len=read(netif->stack->netif_pfd[posfd].fd,buf,1514);
+	len=read(fddata->fd,buf,1514);
 	vdeplug.vdestream_recv(vdeif->vdestream,buf,len);
 }
 

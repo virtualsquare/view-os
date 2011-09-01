@@ -737,13 +737,8 @@ etharp_output(struct netif *netif, struct ip_addr *ipaddr, struct pbuf *q)
 		* IP layer wants us to forward to the default gateway */
 		/* XXX what is this? Is it incomplete code? */
 		else if ((al=ip_addr_list_maskfind(netif->addrs, ipaddr)) == NULL) {
-		
-			//printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
 			return ERR_RTE;
 		}
-
-		//printf("LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL");
-
 	}
 
 	/* XXX XXX XXX */

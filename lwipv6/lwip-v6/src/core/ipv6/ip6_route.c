@@ -57,7 +57,7 @@ static void ip_pmtu_free_list(struct pmtu_info  *head);
 
 /*---------------------------------------------------------------------------*/
 
-#ifdef ROUTE_DEBUG
+#if ROUTE_DEBUG == DBG_ON
 
 INLINE static void 
 sprintf_ip(char *str, struct ip_addr *addr)
@@ -107,7 +107,7 @@ void ip_route_debug_list(struct stack *stack)
 	}	
 }
 #else
-#define ip_route_debug_list() {}
+#define ip_route_debug_list(A)
 #endif
 
 /*---------------------------------------------------------------------------*/

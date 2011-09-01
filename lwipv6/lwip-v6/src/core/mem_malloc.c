@@ -4,6 +4,27 @@
  *
  */
 
+/*   This is part of LWIPv6
+ *   Developed for the Ale4NET project
+ *   Application Level Environment for Networking
+ *   
+ *   Copyright 2011 Renzo Davoli University of Bologna - Italy
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
+ */
+
 /* 
  * Copyright (c) 2001-2004 Swedish Institute of Computer Science.
  * All rights reserved. 
@@ -53,6 +74,7 @@
  *      implementation MUST be thread safe.
  */
 
+#ifndef DEBUGMEM
 void
 mem_init(void)
 {
@@ -81,3 +103,180 @@ mem_malloc(mem_size_t size)
 {
 	return (malloc(size));
 }
+#else
+struct mem_check {
+	void *addr;
+	mem_size_t size;
+	char *file;
+	int line; /*positive if allocated */
+};
+
+struct mem_stat {
+	int count;
+	char *file;
+	int line; /*positive if allocated */
+};
+
+#define MEMCHECKSIZE 32768
+#define STATSIZE 1024
+struct mem_check table[MEMCHECKSIZE];
+struct mem_stat stat[STATSIZE];
+
+	void
+mem_d_init(char *__file,int __line)
+{
+}
+
+	void
+mem_d_free(void *rmem,char *__file,int __line)
+{
+	int i;
+	for (i=0; i<MEMCHECKSIZE; i++) {
+		if (table[i].addr == rmem) {
+			if (table[i].line < 0) {
+				fprintf(stderr, "MALLOC DOUBLE FREE %s %d and %s %d\n",__file,__line,
+						table[i].file, -table[i].line);
+			} 
+			table[i].file=__file;
+			table[i].line= - __line;
+			break;
+		}
+		if (table[i].addr == 0) {
+			fprintf(stderr, "MALLOC FREE not allocated addr %s %d\n",__file,__line);
+			break;
+		}
+	}
+	free(rmem);
+}
+
+	void *
+mem_d_malloc(mem_size_t size,char *__file,int __line)
+{
+	void *rv = malloc(size);
+	if (rv < 0) 
+		fprintf(stderr, "MALLOC FAILED! %s %d\n",__file,__line);
+	else {
+		int i;
+		for (i=0; i<MEMCHECKSIZE; i++) {
+			if (table[i].addr == rv) {
+				if (table[i].line > 0) {
+					fprintf(stderr, "MALLOC DOUBLE ALLOCATION %s %d and %s %d\n",__file,__line,
+							table[i].file, table[i].line);
+				}
+				table[i].file=__file;
+				table[i].line=__line;
+				break;
+			}
+			if (rv >= table[i].addr && rv < table[i].addr + table[i].size) {
+				if (table[i].line > 0) {
+					fprintf(stderr, "MALLOC OVERLAP %s %d and %s %d\n",__file,__line,
+							table[i].file, table[i].line);
+				}
+			}
+			if (table[i].addr >= rv && table[i].addr < rv + size) {
+				if (table[i].line > 0) {
+					fprintf(stderr, "MALLOC OVERLAP2 %s %d and %s %d\n",__file,__line,
+							table[i].file, table[i].line);
+				}
+			}
+			if (table[i].addr == 0) {
+				table[i].addr=rv;
+				table[i].file=__file;
+				table[i].line=__line;
+				if ((i % 1024) == 1023) {
+					int allocated, freed;
+					int j;
+					for (i=0; i<STATSIZE; i++)
+						stat[i].count = 0;
+					for (i=allocated=freed=0; i<MEMCHECKSIZE; i++) {
+						if (table[i].line > 0) {
+							for (j=0; j<STATSIZE; j++) {
+								if (stat[j].count == 0) {
+									stat[j].count = 1;
+									stat[j].file = table[i].file;
+									stat[j].line = table[i].line;
+									break;
+								}
+								if (stat[j].file == table[i].file &&
+										stat[j].line == table[i].line) {
+									stat[j].count++;
+									break;
+								}
+							}
+							allocated++;
+						}
+						if (table[i].line < 0)
+							freed++;
+						if (table[i].addr == 0)
+							break;
+					}
+					fprintf(stderr, "allocated %d addresses %d/%d\n",i,allocated,freed);
+					for (j=0;j<STATSIZE && stat[j].count>0 ;j++)
+						fprintf(stderr, " count %d file %s line %d\n",stat[j].count,stat[j].file,stat[j].line);
+				}
+				break;
+			}
+		}
+	}
+	return rv;
+}
+
+	void *
+mem_d_realloc(void *rmem, mem_size_t newsize,char *__file,int __line)
+{
+	if (rmem == NULL) 
+		return mem_d_malloc(newsize, __file, __line);
+	else {
+		int i;
+		int matchi=-1;
+		void *rv=realloc(rmem,newsize);
+		for (i=0; i<MEMCHECKSIZE; i++) {
+			if (table[i].addr == rv) {
+				if (table[i].line > 0) {
+					fprintf(stderr, "REALLOC DOUBLE ALLOCATION %s %d and %s %d\n",__file,__line,
+							table[i].file, table[i].line);
+				}
+				table[i].file=__file;
+				table[i].line=__line;
+				break;
+			}
+			if (rv >= table[i].addr && rv < table[i].addr + table[i].size) {
+				if (table[i].line > 0) {
+					fprintf(stderr, "REALLOC OVERLAPS  %s %d and %s %d\n",__file,__line,
+							table[i].file, table[i].line);
+				}
+			}
+			if (table[i].addr >= rv && table[i].addr < rv + newsize) {
+				if (table[i].line > 0) {
+					fprintf(stderr, "MALLOC OVERLAP2 %s %d and %s %d\n",__file,__line,
+							table[i].file, table[i].line);
+				}
+			}
+			if (table[i].addr == rmem) {
+				if (table[i].line < 0) {
+					fprintf(stderr, "REALLOC FREED ADDR %s %d and %s %d\n",__file,__line,
+							table[i].file, -table[i].line); 
+				}                           
+				table[i].file=__file;
+				table[i].line=__line;
+				table[i].size=newsize;
+				table[i].addr=rv;
+				matchi=i;
+			}                                       
+			if (table[i].addr == 0) {
+				if (matchi < 0)
+					fprintf(stderr, "REALLOC not allocated addr %s %d\n",__file,__line);
+				break;                                        
+			}                                                     
+		} 
+		return rv;
+	}
+}
+
+	void *
+mem_d_reallocm(void *rmem, mem_size_t newsize,char *__file,int __line)
+{
+	return mem_d_realloc(rmem,newsize,__file,__line);
+}
+
+#endif

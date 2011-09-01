@@ -1,3 +1,22 @@
+/*   This is part of LWIPv6
+ *   
+ *   Copyright 2004,2008,2011 Renzo Davoli University of Bologna - Italy
+ *   
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License along
+ *   with this program; if not, write to the Free Software Foundation, Inc.,
+ *   51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
+ */
+
 /*
  * Copyright (c) 2001-2003 Swedish Institute of Computer Science.
  * All rights reserved. 
@@ -71,11 +90,11 @@
 struct tunif {
   /* Add whatever per-interface state that is needed here. */
   int fd;
-	int posfd;
+	struct netif_fddata *fddata;
 };
 
 /* Forward declarations. */
-static void  tunif_input(struct netif *netif, int posfd, void *arg);
+static void  tunif_input(struct netif_fddata *fddata, short revents);
 static err_t tunif_output(struct netif *netif, struct pbuf *p,
 			       struct ip_addr *ipaddr);
 
@@ -108,8 +127,8 @@ low_level_init(struct netif *netif, char *ifname)
 		}
 	}
 
-	if ((tunif->posfd=netif_addfd(netif,
-					tunif->fd, tunif_input, NULL, 0, POLLIN)) < 0)
+	if ((tunif->fddata=netif_addfd(netif,
+					tunif->fd, tunif_input, NULL, 0, POLLIN)) == NULL)
 		return ERR_IF;
 	else
 		return ERR_OK;
@@ -234,8 +253,9 @@ tunif_output(struct netif *netif, struct pbuf *p,
  */
 /*-----------------------------------------------------------------------------------*/
 static void
-tunif_input(struct netif *netif, int posfd, void *arg)
+tunif_input(struct netif_fddata *fddata, short revents)
 {
+	struct netif *netif = fddata->netif;
   struct tunif *tunif;
   struct pbuf *p;
 
@@ -263,7 +283,6 @@ static err_t tunif_ctl(struct netif *netif, int request, void *arg)
 			case NETIFCTL_CLEANUP:
 				close(tunif->fd);
 
-				netif_delfd(netif->stack, tunif->posfd);
 				mem_free(tunif);
 		}
 	}

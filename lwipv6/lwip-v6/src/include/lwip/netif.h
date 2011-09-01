@@ -178,6 +178,17 @@ struct netif {
   struct stack *stack;
 };
 
+
+struct netif_fddata {
+	int fd;
+	short events;
+	struct netif *netif;
+	void (*fun)(struct netif_fddata *fddata, short revents);
+	void *opaque; 
+	int flags;
+	int refcnt;
+};
+
 /* netif_init() must be called first. */
 void netif_init(struct stack *stack);
 
@@ -186,31 +197,23 @@ void netif_shutdown(struct stack *stack);
 /* netif_cleanup() must be called for a final garbage collection. */
 void netif_cleanup(struct stack *stack);
 
-int netif_addfd(struct netif *netif, int fd, 
-		void (*fun)(struct netif *netif, int posfd, void *arg),
-		void *funarg, int flags, short events);
+struct netif_fddata *netif_addfd(struct netif *netif, int fd, 
+		void (*fun)(struct netif_fddata *fddata, short revents),
+		void *opaque, int flags, short events);
 
-void netif_updatefd(struct stack *stack, int posfd, 
-		void (*fun)(struct netif *netif, int posfd, void *arg),
-		void *funarg, int flags);
-
-void netif_delfd(struct stack *stack, int posfd);
-
-#ifdef LWSLIRP
-#define netif_slirp_fd(stack, pcb) ((stack)->netif_pfd[(pcb)->slirp_posfd].fd)
-#define netif_slirp_events(pcb) \
-	((pcb)->stack->netif_pfd[(pcb)->slirp_posfd].events)
-#endif
+void netif_thread_wake(struct stack *stack);
 
 #define NETIF_ARGS_1SEC_POLL 0x1
 /* range 0x1000-0x8000 reserved for LWSLIRP_LISTEN */
 
+#if 0
 struct netif_args {
-	void (*fun)(struct netif *netif, int posfd, void *arg);
+	void (*fun)(struct netif *netif, int posfd, void *arg, short revents);
 	struct netif *netif;
 	void *funarg;
 	int flags;
 };
+#endif
 
 struct netif * netif_add(
 	struct stack *stack,

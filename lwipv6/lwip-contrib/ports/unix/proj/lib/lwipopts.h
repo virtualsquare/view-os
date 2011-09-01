@@ -66,6 +66,11 @@
 #define LWIP_NOASSERT
 
 /*
+ * Uncomment this to debug mem/memp
+ */
+//#define DEBUGMEM
+
+/*
  * LWIPv6 SLIRP
  */
 #define LWSLIRP
@@ -288,6 +293,7 @@ a lot of data that needs to be copied, this should be set high. */
 //#define LWSLIRP_DEBUG           DBG_ON
 //#define TCP_INPUT_DEBUG           DBG_ON
 //#define TCP_DEBUG                 DBG_ON
+//#define NETIF_DEBUG                 DBG_ON
 
 /* ---------- Debug options for /contrib/port/unix/netif files ------------- */
 

@@ -53,11 +53,8 @@ struct stack {
 
 	/* lwip-v6/src/core/netif.c */
 	struct netif *netif_list;
-	struct pollfd *netif_pfd;
-	struct netif_args *netif_pfd_args;
-	int netif_npfd;
-	int netif_npfd_max;
 	sys_sem_t  netif_cleanup_mutex;
+	int netif_pipe[2];
 
 	/* lwip-v6/src/core/ipv6/ip6.c */
 	u16_t ip_id;

@@ -2,7 +2,7 @@
  *   Developed for the Ale4NET project
  *   Application Level Environment for Networking
  *   
- *   Copyright 2004 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2004,2010,2011 Renzo Davoli University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -584,7 +584,7 @@ ip_input(struct pbuf *p, struct netif *inp)
     IP6_ADDR_LINKSCOPE(&tmpaddr.ipaddr, inp->hwaddr);
 
     ip_inpacket(stack, &tmpaddr, p, &piphdr NOSLIRP);
-	goto ip_input_end;
+	  goto ip_input_end;
   }
 
 #if LWIP_DHCP
@@ -594,7 +594,7 @@ ip_input(struct pbuf *p, struct netif *inp)
    */
   if (piphdr.version == 4 && IPH4_PROTO(ip4hdr) == IP_PROTO_UDP) {
 
-    struct udp_hdr * udphdr = (struct udp_hdr *)((u8_t *)ip4hdr + piphdr.iphdrlen); 
+    struct udp_hdr *udphdr = (struct udp_hdr *)((u8_t *)ip4hdr + piphdr.iphdrlen); 
 
     /* remote port is DHCP server? */
     LWIP_DEBUGF(IP_DEBUG, ("ip_input: UDP packet to DHCP client port %u\n", ntohs(udphdr->dest)));
@@ -613,7 +613,7 @@ ip_input(struct pbuf *p, struct netif *inp)
 #endif /* LWIP_DHCP */
 
 #if IP_FORWARD
-  else if ((stack->stack_flags & LWIP_STACK_FLAG_FORWARDING) && ip_route_findpath(stack, piphdr.dest, &nexthop, &netif, &fwflags) == ERR_OK && netif != inp)
+  if ((stack->stack_flags & LWIP_STACK_FLAG_FORWARDING) && ip_route_findpath(stack, piphdr.dest, &nexthop, &netif, &fwflags) == ERR_OK && netif != inp)
   { 
     /* forwarding */
     ip_forward(stack, p, iphdr, inp, netif, nexthop, &piphdr);

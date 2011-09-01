@@ -127,6 +127,7 @@ unsigned long sys_jiffies(void); /* since power up. */
 /* Mailbox functions. */
 sys_mbox_t sys_mbox_new(void);
 void sys_mbox_post(sys_mbox_t mbox, void *msg);
+void sys_mbox_post_d(sys_mbox_t mbox, void *msg, char *file, int line);
 u32_t sys_arch_mbox_fetch(sys_mbox_t mbox, void **msg, u32_t timeout);
 void sys_mbox_free(sys_mbox_t mbox);
 void sys_mbox_fetch(sys_mbox_t mbox, void **msg);

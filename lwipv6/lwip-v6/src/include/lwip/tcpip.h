@@ -42,11 +42,17 @@ enum tcpip_msg_type {
   TCPIP_MSG_API,
   TCPIP_MSG_INPUT,
   TCPIP_MSG_CALLBACK,
+  TCPIP_MSG_SYNC_CALLBACK,
 
   /* other messages */
   TCPIP_MSG_NETIFADD,
   TCPIP_MSG_SHUTDOWN,
   TCPIP_MSG_NETIF_NOTIFY
+};
+
+enum tcpip_sync {
+	ASYNC = 0,
+	SYNC = 1
 };
 
 struct tcpip_msg {
@@ -64,6 +70,7 @@ struct tcpip_msg {
     } inp;
 
     struct {
+      sys_sem_t *sem;    // used for synchronous calls
       void (*f)(void *ctx);
       void *ctx;
     } cb;
@@ -112,7 +119,7 @@ struct stack *tcpip_stack_set(struct stack *id);
    After tcpip_shutdown() they are unuseful. */
 void  tcpip_apimsg(struct stack *stack, struct api_msg *apimsg);
 err_t tcpip_input(struct pbuf *p, struct netif *inp);
-err_t tcpip_callback(struct stack *stack, void (*f)(void *ctx), void *ctx);
+err_t tcpip_callback(struct stack *stack, void (*f)(void *ctx), void *ctx, enum tcpip_sync sync);
 
 void tcpip_tcp_timer_needed(struct stack *stack);
 

@@ -88,14 +88,18 @@ struct netconn {
   
   struct stack *stack;
 
-  enum netconn_type type;
-  enum netconn_state state;
+  /* enum netconn_type */ u8_t type;
+  /* enum netconn_state */ u8_t state;
+  u8_t ack_pending;
+	u8_t connected;
+	err_t err;
+
   union {
+    struct common_pcb *common;
     struct tcp_pcb *tcp;
     struct udp_pcb *udp;
     struct raw_pcb *raw;
   } pcb;
-  err_t err;
   sys_mbox_t mbox;
   sys_mbox_t recvmbox;
   sys_mbox_t acceptmbox;
@@ -143,7 +147,7 @@ err_t             netconn_peer    (struct netconn *conn,
            struct ip_addr *addr,
            u16_t *port);
 err_t             netconn_addr    (struct netconn *conn,
-           struct ip_addr **addr,
+           struct ip_addr *addr,
            u16_t *port);
 err_t             netconn_bind    (struct netconn *conn,
            struct ip_addr *addr,
@@ -161,6 +165,10 @@ err_t             netconn_write   (struct netconn *conn,
            void *dataptr, u16_t size,
            u8_t copy);
 err_t             netconn_close   (struct netconn *conn);
+
+err_t             netconn_callback(struct netconn *conn, 
+           err_t (*fun)(struct netconn *conn, void *),
+           void *arg);
 
 err_t             netconn_err     (struct netconn *conn);
 

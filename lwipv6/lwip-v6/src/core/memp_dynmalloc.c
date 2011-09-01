@@ -39,7 +39,6 @@
 #include "lwip/raw.h"
 #include "lwip/tcp.h"
 #include "lwip/api.h"
-#include "lwip/api_msg.h"
 #include "lwip/tcpip.h"
 
 #include "lwip/sys.h"
@@ -66,12 +65,16 @@ static const u16_t memp_sizes[MEMP_MAX] = {
   MEM_ALIGN_SIZE(sizeof(struct tcp_seg)),
   MEM_ALIGN_SIZE(sizeof(struct netbuf)),
   MEM_ALIGN_SIZE(sizeof(struct netconn)),
-  MEM_ALIGN_SIZE(sizeof(struct api_msg)),
   MEM_ALIGN_SIZE(sizeof(struct tcpip_msg)),
 	MEM_ALIGN_SIZE(sizeof(struct sys_timeout)),
 	MEM_ALIGN_SIZE(sizeof(struct ip_route_list)),
 	MEM_ALIGN_SIZE(sizeof(struct ip_addr_list)),
+	MEM_ALIGN_SIZE(sizeof(struct netif_fddata)),
+
+#if IPv4_FRAGMENTATION || IPv6_FRAGMENTATION
+  ,
 	MEM_ALIGN_SIZE(sizeof(struct ip_reassbuf))
+#endif
 
 		/* added by Diego Billi */
 #if LWIP_USERFILTER && LWIP_NAT
@@ -90,7 +93,6 @@ static const u16_t memp_num[MEMP_MAX] = {
 	MEMP_NUM_TCP_SEG,
 	MEMP_NUM_NETBUF,
 	MEMP_NUM_NETCONN,
-	MEMP_NUM_API_MSG,
 	MEMP_NUM_TCPIP_MSG,
 	MEMP_NUM_SYS_TIMEOUT,
 	MEMP_NUM_ROUTES,

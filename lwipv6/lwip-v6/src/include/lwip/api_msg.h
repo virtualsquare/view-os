@@ -67,25 +67,38 @@ enum api_msg_type {
 
   API_MSG_CLOSE,
   
-  API_MSG_PACKBIND,
+  API_MSG_PEER,
+  API_MSG_ADDR,
+
+	API_MSG_CALLBACK,
+
   API_MSG_MAX
 };
 
+struct netconn;
+
 struct api_msg_msg {
   struct netconn *conn;
-  enum netconn_type conntype;
+  err_t err;
   union {
     struct pbuf *p;   
     struct  {
       struct ip_addr *ipaddr;
       u16_t port;
     } bc;
+    struct  {
+      struct ip_addr *ipaddr;
+      u16_t *port;
+    } bp;
     struct {
       void *dataptr;
       u16_t len;
-      unsigned char copy;
+      u8_t copy;
     } w;    
-    sys_mbox_t mbox;
+		struct {
+			err_t (*fun) (struct netconn *conn, void *arg);
+			void *arg;
+		} cb;
     u16_t len;
   } msg;
 };

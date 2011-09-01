@@ -8,7 +8,7 @@
  *   Developed for the Ale4NET project
  *   Application Level Environment for Networking
  *
- *   Copyright 2004 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2004,2010,2011 Renzo Davoli University of Bologna - Italy
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -621,6 +621,14 @@ tcp_rst(struct stack *stack, u32_t seqno, u32_t ackno,
       LWIP_DEBUGF(TCP_DEBUG, ("tcp_rst: could not allocate memory for pbuf\n"));
       return;
   }
+
+#if 0
+	fprintf(stderr, "RESET! %x %x %x %x:%d %x %x %x %x %d\n",
+			local_ip->addr[0], local_ip->addr[1], local_ip->addr[2], local_ip->addr[3],
+			local_port,
+			remote_ip->addr[0], remote_ip->addr[1], remote_ip->addr[2], remote_ip->addr[3],
+			remote_port);
+#endif
 
   tcphdr = p->payload;
   tcphdr->src = htons(local_port);

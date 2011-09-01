@@ -3,6 +3,8 @@
  *   Application Level Environment for Networking
  *   
  *   Copyright 2005 Diego Billi University of Bologna - Italy
+ *   updated:
+ *   Copyright 2011 Renzo Davoli University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -231,6 +233,12 @@ tcpip_thread(void *arg)
 					msg->msg.cb.f(msg->msg.cb.ctx);
 					break;
 
+				case TCPIP_MSG_SYNC_CALLBACK:
+					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] callback %p\n", stack, (void *)msg));
+					msg->msg.cb.f(msg->msg.cb.ctx);
+					sys_sem_signal(*msg->msg.cb.sem);
+					break;
+
 				case TCPIP_MSG_NETIFADD:
 					LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] add netif %p START\n", stack, (void *)msg));
 
@@ -390,7 +398,7 @@ tcpip_shutdown(struct stack *stack, tcpip_handler shutdown_func, void *arg)
 /*---------------------------------------------------------------------------*/
 
 err_t
-tcpip_callback(struct stack *stack, void (*f)(void *ctx), void *ctx)
+tcpip_callback(struct stack *stack, void (*f)(void *ctx), void *ctx, enum tcpip_sync sync)
 {
 	struct tcpip_msg *msg;
 
@@ -406,11 +414,21 @@ tcpip_callback(struct stack *stack, void (*f)(void *ctx), void *ctx)
 	if (msg == NULL)
 		return ERR_MEM;  
 	
-	msg->type = TCPIP_MSG_CALLBACK;
 	msg->msg.cb.f = f;
 	msg->msg.cb.ctx = ctx;
-	
-	sys_mbox_post(stack->stack_queue, msg);
+	if (sync) {
+		sys_sem_t sync;
+		msg->type = TCPIP_MSG_SYNC_CALLBACK;
+		sync = sys_sem_new(0);
+		msg->msg.cb.sem = &sync;
+		sys_mbox_post(stack->stack_queue, msg);
+		sys_sem_wait_timeout(sync, 0);
+		sys_sem_free(sync);
+	} else {
+		msg->type = TCPIP_MSG_CALLBACK;
+		msg->msg.cb.sem = NULL;
+		sys_mbox_post(stack->stack_queue, msg);
+	}
 
 	return ERR_OK;
 }
