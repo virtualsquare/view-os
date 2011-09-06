@@ -110,8 +110,7 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	printk(KERN_NOTICE "testmodule init");
-	fprintf(stderr, "testmodule init\n");
+	printk(KERN_NOTICE "testmodule init\n");
 	s.name="test";
 	s.description="Test Module";
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
@@ -129,5 +128,5 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	printk(KERN_NOTICE "testmodule fini");
+	printk(KERN_NOTICE "testmodule fini\n");
 }
