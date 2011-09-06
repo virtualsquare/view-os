@@ -146,6 +146,7 @@ extern sfun native_syscall;
 #define r_sigprocmask(h,s,o) (sigprocmask((h),(s),(o)))
 #endif
 #define r_ioctl(...) (native_syscall(__NR_ioctl,__VA_ARGS__))
+/*#define r_fork() (native_syscall(__NR_clone,SIGCHLD,NULL))*/
 #define r_fork() (native_syscall(__NR_fork))
 #ifdef __NR__llseek
 #define r_llseek(f,ohi,olo,r,w) (native_syscall(__NR__llseek,(f),(ohi),(olo),(r),(w)))

@@ -237,7 +237,7 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	printk(KERN_NOTICE "unreal init");
+	printk(KERN_NOTICE "unreal init\n");
 	s.name="unreal";
 	s.description="/unreal Mapping to FS (server side)";
 	s.syscall=(sysfun *)calloc(scmap_scmapsize,sizeof(sysfun));
@@ -300,5 +300,5 @@ fini (void)
 	GBACKTRACE(5,20);
 	free(s.syscall);
 	free(s.socket);
-	printk(KERN_NOTICE "unreal fini");
+	printk(KERN_NOTICE "unreal fini\n");
 }

@@ -960,9 +960,8 @@ int capture_main(char **argv, char *rc)
 #if __NR_socketcall != __NR_doesnotexist
 	scdnarg[__NR_socketcall]=2;
 #endif
-
 	allocatepcbtab();
-	switch (first_child_pid=fork()) {
+	switch (first_child_pid=r_fork()) {
 		case -1:
 			GPERROR(0, "strace: fork");
 			exit(1);

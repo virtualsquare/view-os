@@ -108,7 +108,7 @@ static void
 __attribute__ ((constructor))
 init (void)
 {
-	printk(KERN_NOTICE "real init");
+	printk(KERN_NOTICE "real init\n");
 	s.name="real";
 	s.description="Identity (server side)";
 	s.ctl = ctl;
@@ -149,5 +149,5 @@ fini (void)
 {
 	free(s.syscall);
 	free(s.socket);
-	printk(KERN_NOTICE "real fini");
+	printk(KERN_NOTICE "real fini\n");
 }
