@@ -153,8 +153,7 @@ init (void)
 	SERVICESYSCALL(s, fcntl, fcntl);
 #endif
 	SERVICESYSCALL(s, ioctl, sockioctl);
-	SERVICESYSCALL(s, _newselect, select);
-	SERVICESYSCALL(s, poll, poll);
+	s.event_subscribe=um_mod_event_subscribe;
 }
 
 	static void
