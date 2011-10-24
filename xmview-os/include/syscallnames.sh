@@ -54,8 +54,17 @@ int main(void)
 {
 _END_
 
+if [ -f /usr/include/asm/unistd.h ]
+then
+	UNISTD=/usr/include/asm/unistd.h
+elif [ -f /usr/include/`arch`-linux-gnu/asm/unistd.h ]
+then
+	UNISTD=/usr/include/`arch`-linux-gnu/asm/unistd.h
+else
+	exit 3
+fi
 
-cpp -dN /usr/include/asm/unistd.h | egrep "^#[[:blank:]]*define[[:blank:]]+__NR_" | 
+cpp -dN $UNISTD | egrep "^#[[:blank:]]*define[[:blank:]]+__NR_" | 
 	tr -s " 	" " " | cut -d" " -f2 | sed 's/__NR_//g' | sort | uniq | while read
 do
 	cat >> $tmpfile << _END_
