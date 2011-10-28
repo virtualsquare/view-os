@@ -187,9 +187,14 @@ static struct umnet *umnet_getdefstack(int id, int domain)
 	} else {
 		struct ht_elem *hte=ht_search(CHECKPATH,DEFAULT_NET_PATH,
 				strlen(DEFAULT_NET_PATH),&s);
-		if (hte)
-			return ht_get_private_data(hte);
-		else
+		if (hte) {
+			struct umnet *mh=ht_get_private_data(hte);
+			if (!mh->netops->supported_domain ||
+					mh->netops->supported_domain(domain))
+				return mh;
+			else
+				return NULL;
+		} else
 			return NULL;
 	}
 }
