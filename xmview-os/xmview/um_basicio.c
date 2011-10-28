@@ -82,7 +82,7 @@ int wrap_in_open(int sc_number,struct pcb *pc,
 			else 
 				errno=ENOENT;
 		} else 
-			rv=um_x_access(pc->path,MODE2ACCESSMODE(mode),pc,&pc->pathstat);
+			rv=um_x_access(pc->path,MODE2ACCESSMODE(flags),pc,&pc->pathstat);
 		if (rv) {
 			pc->retval=-1;
 			pc->erno=errno;
