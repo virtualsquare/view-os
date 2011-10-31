@@ -79,8 +79,6 @@
 #include "lwip/radvconf.h"
 #endif
 
-#define IFF_RUNNING 0x40
-
 /* #define MULTISTACKDEBUG*/
 
 static void multistack_daemon(void *argv);

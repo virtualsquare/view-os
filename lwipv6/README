@@ -1,15 +1,15 @@
-
-LWIPV6a - Light weight IP v 6 A
+LWIPV6a - Light weight IP v 6 (1.4a)
 ===============================
 
-LWIPV6a has been completely rewritten, it is based on LWIPv.1.1.0 
+LWIPV6a has been completely rewritten, it is based on LWIPv.1.1.0
 (by Adam Dunkels).
 
 LWIPV6a includes also the management of PF_PACKET (e.g. ethereal and
-DHCP user level management).
+		DHCP user level management).
 
-Copyright 2004 Renzo Davoli University of Bologna - Italy
+Copyright 2004,...,2011 Renzo Davoli University of Bologna - Italy
 
+VirtualSquare Labs: wiki.virtualsquare.org
 
 Features
 ========

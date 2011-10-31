@@ -3,7 +3,7 @@ LWIPv6 programming guide
 
 The most recent version of this document can be found on the VirtualSquare wiki:
 http://wiki.virtualsquare.org/index.php/LWIPv6_programming_guide
-This file has been updated on Jun 11, 2008.
+This file has been updated on Sept. 1, 2011.
 
 This is a short guide of the LWIPv6 library. It is intended for programmers
 wishing to write programs using LWIPv6.

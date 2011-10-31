@@ -330,7 +330,7 @@ struct netif * netif_add(
 
   netif->id = ++stack->uniqueid;
 
-  netif->flags |= NETIF_FLAG_LINK_UP;
+  netif->flags |= (NETIF_FLAG_LINK_UP | IFF_RUNNING);
   /* printf("netif_add %x netif->input %x\n",netif,netif->input); */
 
   /* call user specified initialization function for netif */
@@ -702,7 +702,7 @@ int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr)
 
 					case SIOCGIFFLAGS: 
 						LWIP_DEBUGF( NETIF_DEBUG, ("SIOCGIFFLAGS %x\n",nip->flags));
-						ifr->ifr_flags= nip->flags & ~(IFF_RUNNING);
+						ifr->ifr_flags= nip->flags & ~NETIF_IFF_INCOMPATIBLE_MASK;
 						retval=ERR_OK; 
 						break;
 					case SIOCSIFFLAGS:
@@ -714,7 +714,7 @@ int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr)
 							if (nip->change)
 							nip->change(nip, NETIF_CHANGE_DOWN);
 
-						nip->flags = (nip->flags & IFF_RUNNING) | (ifr->ifr_flags & ~(IFF_RUNNING));
+						nip->flags = (nip->flags & NETIF_IFF_INCOMPATIBLE_MASK) | (ifr->ifr_flags & ~NETIF_IFF_INCOMPATIBLE_MASK);
 
 						/* If interface is now up */
 						if ( !(oldflags & IFF_UP) &&  (ifr->ifr_flags & IFF_UP) )
@@ -868,7 +868,7 @@ static void netif_netlink_link_out(struct nlmsghdr *msg,struct netif *nip,void *
 	ifi.__ifi_pad=0;
 	ifi.ifi_type=nip->type; 
 	ifi.ifi_index=nip->id;
-	ifi.ifi_flags=nip->flags; 
+	ifi.ifi_flags=nip->flags & ~NETIF_IFF_INCOMPATIBLE_MASK; 
 	ifi.ifi_change=0xffffffff;
 	netlink_addanswer(buf,offset,&ifi,sizeof (struct ifinfomsg));
 
