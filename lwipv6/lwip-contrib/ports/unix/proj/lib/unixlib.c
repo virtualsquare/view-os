@@ -290,6 +290,7 @@ struct netif *lwip_add_tapif(struct stack *stack, void *arg, int flags)
 	pnetif = mem_malloc(sizeof (struct netif));
 
 	pnetif->flags = flags & NETIF_ADD_FLAGS;
+	pnetif->flags |= NETIF_FLAG_POINTTOPOINT;
 
 	if (arg == NULL) arg = nullstring;
 	if (tcpip_netif_add(stack, pnetif, arg, tapif_init, tcpip_input, tcpip_notify) == NULL) {
@@ -339,6 +340,8 @@ struct netif *lwip_add_tunif(struct stack *stack, void *arg, int flags)
 	pnetif = mem_malloc(sizeof (struct netif));
 
 	pnetif->flags = flags & NETIF_ADD_FLAGS;
+	pnetif->flags |= NETIF_FLAG_POINTTOPOINT;
+
 	if (arg == NULL) arg = nullstring;
 	if (tcpip_netif_add(stack, pnetif, arg, tunif_init, tcpip_input, tcpip_notify) == NULL) {
 		mem_free(pnetif);
