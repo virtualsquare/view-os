@@ -578,11 +578,16 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 	char *source;
 	int olddirfd;
 	long oldpath;
+	int dontfollowlink=1;
 
 #ifdef __NR_linkat
 	if (sc_number == __NR_linkat || sc_number == __NR_renameat) {
 		olddirfd=pc->sysargs[0];
 		oldpath=pc->sysargs[1];
+		if (sc_number == __NR_linkat) {
+			int flags=pc->sysargs[4];
+			if (flags & AT_SYMLINK_FOLLOW) dontfollowlink=0;
+		}
 	} else
 #endif
 	{
@@ -590,7 +595,7 @@ int wrap_in_link(int sc_number,struct pcb *pc,
 		oldpath=pc->sysargs[0];
 	} 
 
-	source=um_abspath(olddirfd,oldpath,pc,&sourcest,0);
+	source=um_abspath(olddirfd,oldpath,pc,&sourcest,dontfollowlink);
 	/*um_abspath updates pc->hte*/
 
 	if (pc->pathstat.st_mode != 0 &&
