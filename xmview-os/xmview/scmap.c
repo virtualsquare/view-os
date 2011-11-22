@@ -296,7 +296,7 @@ struct sc_map scmap[]={
 #endif
 	{__NR_unlinkat, choice_unlinkat, wrap_in_unlink, wrap_out_std, nchoice_unlinkat, nw_sysatpath_std, 0, PATH1 | 3, SOC_FILE},
 	{__NR_renameat, choice_link3at, wrap_in_link, wrap_out_std, nchoice_link3at, nw_syslink, 0, PATH3 | 4, SOC_FILE},
-	{__NR_linkat, choice_link3at, wrap_in_link, wrap_out_std, nchoice_link3at, nw_syslink, 0, PATH3 | 4, SOC_FILE},
+	{__NR_linkat, choice_link3at, wrap_in_link, wrap_out_std, nchoice_link3at, nw_syslink, 0, PATH3 | 5, SOC_FILE},
 	{__NR_symlinkat, choice_link2at, wrap_in_symlink, wrap_out_std, nchoice_link2at, nw_syssymlink, 0, PATH2 | 3, SOC_FILE},
 	{__NR_readlinkat, choice_linkat, wrap_in_readlink, wrap_out_std, nchoice_linkat, nw_sysatpath_std, 0, PATH1 | 4, SOC_FILE},
 	{__NR_fchmodat, choice_pl4at, wrap_in_chmod, wrap_out_std, nchoice_pl4at, nw_sysatpath_std, 0, PATH1 | 4, SOC_FILE},
