@@ -735,8 +735,17 @@ int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr)
 
 					case SIOCGIFHWADDR:
 						ifr->ifr_hwaddr.sa_family=nip->type;
+						if (nip->hwaddr_len > IFHWADDRLEN)
+							nip->hwaddr_len = IFHWADDRLEN;
 						for (i=0;i<nip->hwaddr_len;i++)
 						ifr->ifr_hwaddr.sa_data[i]=nip->hwaddr[i];
+						retval=ERR_OK; break;
+
+					case SIOCSIFHWADDR:
+						ifr->ifr_hwaddr.sa_family==nip->type;
+						nip->hwaddr_len = IFHWADDRLEN;
+						for (i=0;i<nip->hwaddr_len;i++)
+							nip->hwaddr[i]=ifr->ifr_hwaddr.sa_data[i];
 						retval=ERR_OK; break;
 
 					case SIOCGIFINDEX:

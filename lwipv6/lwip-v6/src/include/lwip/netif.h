@@ -88,7 +88,7 @@
 /* if set this interface supports Router Advertising */
 #define NETIF_FLAG_RADV	    0x2000U
 /** if set, the interface is configured using DHCP */
-#define NETIF_FLAG_DHCP 0x4000U
+#define NETIF_FLAG_DHCP 0x08U
 /** if set, the interface has an active link
  *  (set by the network interface driver) */
 #define NETIF_FLAG_LINK_UP 0x8000U
