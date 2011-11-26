@@ -97,14 +97,14 @@ struct ip_addr {
 	 ((ipaddr)->addr[2] == IP64_PREFIX))
 
 /* if set use IPv6 AUTOCONF */
-#define NETIF_FLAG_AUTOCONF 0x1000U
+#define NETIF_FLAG_AUTOCONF 0x800U
 /* if set this interface supports Router Advertising */
 #define NETIF_FLAG_RADV     0x2000U
 #define NETIF_STD_FLAGS (NETIF_FLAG_AUTOCONF)
 #define NETIF_ADD_FLAGS (NETIF_FLAG_AUTOCONF | NETIF_FLAG_RADV)
 
 /** if set, the interface is configured using DHCP */
-#define NETIF_FLAG_DHCP 0x08U
+#define NETIF_FLAG_DHCP 0x4000U
 #define NETIF_IFUP_FLAGS (NETIF_FLAG_DHCP)
 
 /* netif creation with standard flags */
