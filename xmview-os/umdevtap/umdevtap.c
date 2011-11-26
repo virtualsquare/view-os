@@ -126,9 +126,7 @@ static int umtap_ioctl(char type, dev_t device, int req, void * arg, struct dev_
 static int umtap_ioctl_params(char type, dev_t device, int req, struct dev_info *di)
 {
 	switch (req) {
-		/*case BLKROSET: return (sizeof(int) | IOCTL_R);
-			case BLKROGET: return (sizeof(int) | IOCTL_W);*/
-		case TUNSETIFF: return (sizeof(struct ifreq) | IOCTL_W | IOCTL_R);
+		case TUNSETIFF: return _IOWR('T',202,struct ifreq);
 		default: return 0;
 	}
 }

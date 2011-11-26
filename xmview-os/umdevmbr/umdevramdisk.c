@@ -202,13 +202,13 @@ static int rd_ioctl(char type, dev_t device, int req, void * arg, struct dev_inf
 static int rd_ioctl_params(char type, dev_t device, int req, struct dev_info *di)
 {
 	switch (req) {
-		case BLKROSET: return (sizeof(int) | IOCTL_R);
-		case BLKROGET: return (sizeof(int) | IOCTL_W);
-		case BLKSSZGET: return (sizeof(int) | IOCTL_W);
+		case BLKROSET: return _IOW(0,0,int);
+		case BLKROGET: return _IOR(0,0,int);
+		case BLKSSZGET: return _IOR(0,0,int);
 		case BLKRRPART: return 0;
-		case BLKGETSIZE: return (sizeof(int) | IOCTL_W);
-		case BLKGETSIZE64: return (sizeof(long long) | IOCTL_W);
-		case HDIO_GETGEO: return (sizeof(struct hd_geometry) | IOCTL_W);
+		case BLKGETSIZE: return _IOR(0,0,int);
+		case BLKGETSIZE64: return _IOR(0,0,long long);
+		case HDIO_GETGEO: return _IOR(0,0,struct hd_geometry);
 		default: return 0;
 	}
 }

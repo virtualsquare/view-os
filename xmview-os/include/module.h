@@ -87,14 +87,13 @@ extern int msocket (char *path, int domain, int type, int protocol);
 #define CHECKFSALIAS 7
 
 // for IOCTL mgmt
-#define CHECKIOCTLPARMS   0x40000000
-#define IOCTLLENMASK      0x07ffffff
-#define IOCTL_R           0x10000000
-#define IOCTL_W           0x20000000
-struct ioctl_len_req {
-	int fd;
-	int req;
-};
+//#define IOCTLLENMASK      0x07ffffff
+//#define IOCTL_R           0x10000000
+//#define IOCTL_W           0x20000000
+//struct ioctl_len_req {
+//	int fd;
+//	int req;
+//};
 
 #define BINFMT_MODULE_ALLOC 1
 #define BINFMT_KEEP_ARG0 2

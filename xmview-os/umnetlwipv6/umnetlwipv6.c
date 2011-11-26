@@ -42,13 +42,13 @@ static int umnetlwipv6_ioctlparms(int fd, int req, struct umnet *nethandle)
 {
 	switch (req) {
 		case FIONREAD:
-			return sizeof(int) | IOCTL_W;
+			return _IOR(0,0,int);
 		case FIONBIO:
-			return sizeof(int) | IOCTL_R;
+			return _IOW(0,0,int);
 		case SIOCGIFCONF:
-			return sizeof(struct ifconf) | IOCTL_R | IOCTL_W;
+			return _IOWR(0,0,struct ifconf);
 		case SIOCGSTAMP:
-			return sizeof(struct timeval) | IOCTL_W;
+			return _IOR(0,0,struct timeval);
 		case SIOCGIFNAME:
 		case SIOCGIFFLAGS:
 		case SIOCGIFADDR:
@@ -61,7 +61,7 @@ static int umnetlwipv6_ioctlparms(int fd, int req, struct umnet *nethandle)
 		case SIOCGIFHWADDR:
 		case SIOCGIFINDEX:
 		case SIOCGIFTXQLEN:
-			return sizeof(struct ifreq) | IOCTL_R | IOCTL_W;
+			return _IOWR(0,0,struct ifreq);
 		case SIOCSIFNAME:
 		case SIOCSIFFLAGS:
 		case SIOCSIFADDR:
@@ -74,11 +74,11 @@ static int umnetlwipv6_ioctlparms(int fd, int req, struct umnet *nethandle)
 		case SIOCSIFHWADDR:
 		case SIOCSIFTXQLEN:
 		case SIOCSIFHWBROADCAST:
-			return sizeof(struct ifreq) | IOCTL_R;
+			return _IOW(0,0,struct ifreq);
 		case SIOCGIFMAP:
-			return sizeof(struct ifmap) | IOCTL_R | IOCTL_W;
+			return _IOWR(0,0,struct ifmap);
 		case SIOCSIFMAP:
-			return sizeof(struct ifmap) | IOCTL_W;
+			return _IOR(0,0,struct ifmap);
 		default:
 			return 0;
 	}

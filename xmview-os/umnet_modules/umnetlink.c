@@ -45,13 +45,13 @@ static int umnetlink_ioctlparms(int fd, int req, struct umnet *nethandle)
 {
 	switch (req) {
 		case FIONREAD:
-			return sizeof(int) | IOCTL_W;
+			return _IOR(0,0,int);
 		case FIONBIO:
-			return sizeof(int) | IOCTL_R;
+			return _IOW(0,0,int);
 		case SIOCGIFCONF:
-			return sizeof(struct ifconf) | IOCTL_R | IOCTL_W;
+			return _IOWR(0,0,struct ifconf);
 		case SIOCGSTAMP:
-			return sizeof(struct timeval) | IOCTL_W;
+			return _IOR(0,0,struct timeval);
 		case SIOCGIFFLAGS:
 		case SIOCGIFADDR:
 		case SIOCGIFDSTADDR:
@@ -63,7 +63,7 @@ static int umnetlink_ioctlparms(int fd, int req, struct umnet *nethandle)
 		case SIOCGIFHWADDR:
 		case SIOCGIFINDEX:
 		case SIOCGIFTXQLEN:
-			return sizeof(struct ifreq) | IOCTL_R | IOCTL_W;
+			return _IOWR(0,0,struct ifreq);
 		case SIOCSIFFLAGS:
 		case SIOCSIFADDR:
 		case SIOCSIFDSTADDR:
@@ -74,7 +74,7 @@ static int umnetlink_ioctlparms(int fd, int req, struct umnet *nethandle)
 		case SIOCSIFMTU:
 		case SIOCSIFHWADDR:
 		case SIOCSIFTXQLEN:
-			return sizeof(struct ifreq) | IOCTL_R;
+			return _IOW(0,0,struct ifreq);
 		default:
 			return 0;
 	}
