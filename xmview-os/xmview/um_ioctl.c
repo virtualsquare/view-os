@@ -86,12 +86,17 @@ int wrap_in_ioctl(int sc_number,struct pcb *pc,
 		int ioctlparms=0;
 		if ((checkarg=ht_ioctlparms(hte)) != NULL) 
 			ioctlparms=checkarg(sfd,req);
-		ioctl_getarg(pc,ioctlparms,arg,&larg);
-		if ((pc->retval = um_syscall(sfd,req,larg)) >= 0)
-			ioctl_putarg(pc,ioctlparms,arg,larg);
-		else {
+		if (ioctlparms == -1) {
+			pc->retval = -1;
 			pc->erno=errno;
-			ioctl_putarg(pc,ioctlparms & ~IOCTL_W,arg,larg);
+		} else {
+			ioctl_getarg(pc,ioctlparms,arg,&larg);
+			if ((pc->retval = um_syscall(sfd,req,larg)) >= 0)
+				ioctl_putarg(pc,ioctlparms,arg,larg);
+			else {
+				pc->erno=errno;
+				ioctl_putarg(pc,ioctlparms & ~IOC_OUT,arg,larg);
+			}
 		}
 		/*printk("wrap_in_ioctl %d req %x arg %x parms %x -> %d\n",sfd,req,larg,ioctlparms,pc->retval);*/
 

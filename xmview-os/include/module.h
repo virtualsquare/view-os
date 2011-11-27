@@ -229,6 +229,7 @@ extern int um_mod_setfs_uid_gid(uid_t fsuid, gid_t fsgid);
 extern int um_mod_getsyscalltype(int escno);
 extern int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
 extern int um_mod_nrsyscalls(void);
+extern int um_mod_capcheck(int capability);
 
 extern int uscno(int scno);
 extern void service_userctl(unsigned long type, struct service *sender, 

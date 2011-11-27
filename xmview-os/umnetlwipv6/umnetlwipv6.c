@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <sys/capability.h>
 #include <linux/net.h>
 #include <linux/net.h>
 #include <linux/sockios.h>
@@ -74,11 +75,21 @@ static int umnetlwipv6_ioctlparms(int fd, int req, struct umnet *nethandle)
 		case SIOCSIFHWADDR:
 		case SIOCSIFTXQLEN:
 		case SIOCSIFHWBROADCAST:
-			return _IOW(0,0,struct ifreq);
+			if (um_mod_capcheck(CAP_NET_ADMIN) == 0)
+				return _IOW(0,0,struct ifreq);
+			else {
+				errno = EPERM;
+				return -1;
+			}
 		case SIOCGIFMAP:
 			return _IOWR(0,0,struct ifmap);
 		case SIOCSIFMAP:
-			return _IOR(0,0,struct ifmap);
+			if (um_mod_capcheck(CAP_NET_ADMIN) == 0)
+				return _IOW(0,0,struct ifmap);
+			else {
+				errno = EPERM;
+				return -1;
+			}
 		default:
 			return 0;
 	}

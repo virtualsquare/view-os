@@ -58,12 +58,6 @@ typedef unsigned long c_set;
 #define CHECKFSTYPE      (PSEUDO_CHECK | CHECKMODULE)
 #define CHECKPATHEXACT   (PSEUDO_CHECK | CHECKPATH)
 
-// for IOCTL mgmt
-#define CHECKIOCTLPARMS   0x40000000
-#define IOCTLLENMASK      0x07ffffff
-#define IOCTL_R           0x10000000
-#define IOCTL_W           0x20000000
-	
 #define BINFMT_MODULE_ALLOC 1
 #define BINFMT_KEEP_ARG0 2
 struct binfmt_req {

@@ -1,5 +1,7 @@
 include $(top_srcdir)/modules-common.mk
 
+CBASEFLAGS += -finline-functions
+
 mod_LTLIBRARIES = umfuse.la
 
 dist_man1_MANS = umfuse.1viewos

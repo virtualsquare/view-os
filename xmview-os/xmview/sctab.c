@@ -1386,6 +1386,15 @@ int um_mod_nrsyscalls(void)
 	return _UM_NR_syscalls;
 }
 
+int um_mod_capcheck(int capability)
+{
+	struct pcb *pc=get_pcb();
+	if (secure && capcheck(capability,pc))
+		return -1;
+	else
+		return 0;
+}
+
 /* management of supplementary groups */
 
 struct supgroups *supgrp_create(size_t size)
