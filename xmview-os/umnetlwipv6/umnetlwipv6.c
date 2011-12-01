@@ -251,6 +251,38 @@ static void lwipargtoenv(struct stack *s,char *initargs)
 	}
 }
 
+int lwip_bind_capcheck(int sockfd, struct sockaddr *addr,
+		                socklen_t addrlen) {
+	switch (addr->sa_family) {
+		case AF_INET: {
+										struct sockaddr_in *ad_in = (struct sockaddr_in *) addr;
+										if (addrlen < sizeof(struct sockaddr_in)) {
+											errno=EINVAL;
+											return -1;
+										}
+										int port=ntohs(ad_in->sin_port);
+										if (port < 1024 && um_mod_capcheck(CAP_NET_BIND_SERVICE) != 0) {
+											errno=EPERM;
+											return -1;
+										}
+									}
+			break;
+		case AF_INET6: {
+										 struct sockaddr_in6 *ad_in6 = (struct sockaddr_in6 *) addr;
+										 if (addrlen < sizeof(struct sockaddr_in6)) {
+											 errno=EINVAL;
+											 return -1;
+										 }
+										 int port=ntohs(ad_in6->sin6_port);
+										 if (port < 1024 && um_mod_capcheck(CAP_NET_BIND_SERVICE) != 0) {
+											 errno=EPERM;
+											 return -1;
+										 }
+									 }
+			break;
+	}
+	return lwip_bind(sockfd, addr, addrlen);
+}
 
 int umnetlwipv6_init (char *source, char *mountpoint, unsigned long flags, char *args, struct umnet *nethandle) {
 	struct stack *s=lwip_stack_new();
@@ -290,7 +322,6 @@ int umnetlwipv6_supported_domain(int domain)
 	}
 }
 
-
 struct umnet_operations umnet_ops={
 	.msocket=umnetlwipv6_msocket,
 	.ioctl=umnetlwipv6_ioctl,
@@ -310,7 +341,7 @@ typedef ssize_t (*ssizefun)();
 init (void)
 {
 	/*printk("umnetlwipv6 constructor\n");*/
-	UMNETLWIPV6(bind);
+	umnet_ops.bind=lwip_bind_capcheck;
 	UMNETLWIPV6(connect);
 	UMNETLWIPV6(listen);
 	UMNETLWIPV6(accept);
