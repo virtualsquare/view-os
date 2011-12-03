@@ -36,6 +36,7 @@
 #define MAX_NL 4
 
 #define BUF_STDLEN 8192
+#define MAX_BUFLEN 32768
 
 struct netlinkbuf {
 	int length;
@@ -345,26 +346,6 @@ netlink_send(void *sock, void *data, int size, unsigned int flags)
 	return 0;
 }
 
-#if 0
-	int
-netlink_send(void *sock, void *data, int size, unsigned int flags)
-{
-	struct netlink *nl=sock;
-
-	struct stack *stack = nl->stack;
-
-	/*printf("netlink_send\n"); dump(data,size);*/
-	/* one single answer pending, multiple requests return one long answer */
-	/*if (0 && nl->answer[0] != NULL)
-		return (-1);
-		else { */
-	netlink_decode(stack, data,size,nl->rcvbufsize,nl->answer,nl->pid);
-	memcpy(&(nl->hdr),data,sizeof(struct nlmsghdr));
-	return 0;
-	/*}*/
-}
-#endif
-
 	int
 netlink_sendto(void *sock, void *data, int size, unsigned int flags,
 		struct sockaddr *to, socklen_t tolen)
@@ -421,11 +402,11 @@ netlink_getsockopt (void *sock, int level, int optname, void *optval, socklen_t 
 			case SOL_SOCKET:
 				switch(optname) {
 					case SO_RCVBUF:
-						nl->rcvbufsize= *(int *) optval;
+						*(int *) optval =nl->rcvbufsize;
 						break;
 					case SO_SNDBUF:
 						//printf("SO_SNDBUF\n");
-						nl->sndbufsize= *(int *) optval;
+						*(int *) optval =nl->sndbufsize;
 						break;
 				}
 				break;
@@ -469,11 +450,15 @@ netlink_setsockopt (void *sock, int level, int optname, const void *optval, sock
 			case SOL_SOCKET:
 				switch(optname) {
 					case SO_RCVBUF:
-						*(int *) optval =nl->rcvbufsize;
+						nl->rcvbufsize= *(int *) optval;
+						if (nl->rcvbufsize > MAX_BUFLEN)
+							nl->rcvbufsize = MAX_BUFLEN;
 						break;
 					case SO_SNDBUF:
 						//printf("SO_SNDBUF\n");
-						*(int *) optval =nl->sndbufsize;
+						nl->sndbufsize= *(int *) optval;
+						if (nl->sndbufsize > MAX_BUFLEN)
+							nl->sndbufsize = MAX_BUFLEN;
 						break;
 				}
 				break;
