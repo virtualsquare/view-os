@@ -50,6 +50,9 @@ struct stack_nat;
 struct stack {
 	/* global */
 	u32_t	stack_flags;
+#if LWIP_CAPABILITIES
+	lwip_capfun stack_capfun;
+#endif
 
 	/* lwip-v6/src/core/netif.c */
 	struct netif *netif_list;

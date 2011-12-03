@@ -1505,7 +1505,7 @@ lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen)
 
 #if LWIP_NL
 	if(sock->family == PF_NETLINK) {
-		int err=netlink_getsockopt(sock, level, optname, optval, optlen); 
+		int err=netlink_getsockopt(sock->conn, level, optname, optval, optlen); 
 		if (err != 0) {
 			sock_set_errno(sock, err);
 			return -1;
@@ -1726,7 +1726,7 @@ lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t op
 
 #if LWIP_NL
 	if(sock->family == PF_NETLINK) {
-		int err=netlink_setsockopt(sock, level, optname, optval, optlen);
+		int err=netlink_setsockopt(sock->conn, level, optname, optval, optlen);
 		if (err != 0) {
 			sock_set_errno(sock, err);
 			return -1;

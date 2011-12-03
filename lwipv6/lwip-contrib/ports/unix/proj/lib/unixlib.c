@@ -133,14 +133,22 @@ void lwip_init(void)
 	tcpip_init();
 }
 	
+#if LWIP_CAPABILITIES
+struct stack *lwip_add_stack_cap(unsigned long flags, lwip_capfun capfun)
+#else
 struct stack *lwip_add_stack(unsigned long flags)
+#endif
 {
 	sys_sem_t sem;
 	struct stack *newstack;  
 
 	/* Start the main stack */
 	sem = sys_sem_new(0);
+#if LWIP_CAPABILITIES
+	newstack = tcpip_start(init_done, &sem, flags, capfun);
+#else
 	newstack = tcpip_start(init_done, &sem, flags);
+#endif
 	
 	sys_sem_wait(sem);
 	sys_sem_free(sem);
@@ -154,6 +162,21 @@ struct stack *lwip_add_stack(unsigned long flags)
 
 	return newstack;
 }
+
+#if LWIP_CAPABILITIES
+struct stack *lwip_add_stack(unsigned long flags)
+{
+	return lwip_add_stack_cap(flags, NULL);
+}
+#else
+struct stack *lwip_add_stack_cap(unsigned long flags, void *must_be_null)
+{
+	if (must_be_null != NULL)
+		return NULL;
+	else
+		return lwip_add_stack_cap(flags, NULL);
+}
+#endif
 
 struct stack *lwip_stack_new(void)
 {

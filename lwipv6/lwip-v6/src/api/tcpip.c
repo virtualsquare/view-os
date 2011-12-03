@@ -323,7 +323,12 @@ static void tcpip_free(struct stack *stack)
 }
 
 struct stack *
+#if LWIP_CAPABILITIES
+tcpip_start(tcpip_handler init_func, void *arg, unsigned long flags,
+		lwip_capfun capfun)
+#else
 tcpip_start(tcpip_handler init_func, void *arg, unsigned long flags)
+#endif
 {
 	struct stack *stack;
 
@@ -339,6 +344,9 @@ tcpip_start(tcpip_handler init_func, void *arg, unsigned long flags)
 	stack->tcpip_init_done     = init_func;
 	stack->tcpip_init_done_arg = arg;
 	stack->stack_flags         = flags;
+#if LWIP_CAPABILITIES
+	stack->stack_capfun        = capfun;
+#endif
 
 	sys_thread_new(tcpip_thread, (void*)stack, TCPIP_THREAD_PRIO);
 
