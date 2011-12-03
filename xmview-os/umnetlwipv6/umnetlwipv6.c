@@ -228,11 +228,11 @@ static void lwipargtoenv(struct stack *s,char *initargs)
 		}
 		for (j=0;j<intnum[1];j++) {
 			if (lwip_tunif_add(s,ifname(ifh,1,j)) == NULL)
-				fprintf(stderr,"umnetlwip: vd[%d] configuration error\n",j);
+				fprintf(stderr,"umnetlwip: tn[%d] configuration error\n",j);
 		}
 		for (j=0;j<intnum[2];j++) {
 			if (lwip_tapif_add(s,ifname(ifh,2,j)) == NULL)
-				fprintf(stderr,"umnetlwip: vd[%d] configuration error\n",j);
+				fprintf(stderr,"umnetlwip: tp[%d] configuration error\n",j);
 		}
 		iffree(ifh);
 
