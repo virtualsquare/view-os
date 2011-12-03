@@ -251,7 +251,7 @@ static void lwipargtoenv(struct stack *s,char *initargs)
 	}
 }
 
-int lwip_bind_capcheck(int sockfd, struct sockaddr *addr,
+int lwip_bind_capcheck(int sockfd, const struct sockaddr *addr,
 		                socklen_t addrlen) {
 	switch (addr->sa_family) {
 		case AF_INET: {

@@ -161,22 +161,22 @@ int lwip_ifup_flags(struct netif *netif, int flags);
 int lwip_ifdown(struct netif *netif);
 
 int lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen);
-int lwip_bind(int s, struct sockaddr *name, socklen_t namelen);
+int lwip_bind(int s, const struct sockaddr *name, socklen_t namelen);
 int lwip_shutdown(int s, int how);
 int lwip_getpeername (int s, struct sockaddr *name, socklen_t *namelen);
 int lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen);
 int lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen);
 int lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t optlen);
 int lwip_close(int s);
-int lwip_connect(int s, struct sockaddr *name, socklen_t namelen);
+int lwip_connect(int s, const struct sockaddr *name, socklen_t namelen);
 int lwip_listen(int s, int backlog);
 ssize_t lwip_recv(int s, void *mem, int len, unsigned int flags);
 ssize_t lwip_read(int s, void *mem, int len);
 ssize_t lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 		      struct sockaddr *from, socklen_t *fromlen);
-ssize_t lwip_send(int s, void *dataptr, int size, unsigned int flags);
-ssize_t lwip_sendto(int s, void *dataptr, int size, unsigned int flags,
-		    struct sockaddr *to, socklen_t tolen);
+ssize_t lwip_send(int s, const void *dataptr, int size, unsigned int flags);
+ssize_t lwip_sendto(int s, const void *dataptr, int size, unsigned int flags,
+		    const struct sockaddr *to, socklen_t tolen);
 ssize_t lwip_recvmsg(int fd, struct msghdr *msg, int flags); 
 ssize_t lwip_sendmsg(int fd, const struct msghdr *msg, int flags); 
 
