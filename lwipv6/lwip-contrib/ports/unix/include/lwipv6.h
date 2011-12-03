@@ -138,8 +138,11 @@ void lwip_stack_free(struct stack *stack);
 #define LWIP_STACK_FLAG_USERFILTER 0x2
 #define LWIP_STACK_FLAG_UF_NAT     0x10000
 
+typedef int (* lwip_capfun) (void);
+
 /* new api */
 struct stack *lwip_add_stack(unsigned long flags);
+struct stack *lwip_add_stack_cap(unsigned long flags, lwip_capfun capfun);
 void lwip_del_stack(struct stack *stack);
 
 struct stack *lwip_stack_get(void);
@@ -204,6 +207,15 @@ int lwip_radv_load_configfile(struct stack *stack,void *arg);
 
 int lwip_event_subscribe(lwipvoidfun cb, void *arg, int fd, int how);
 
+/* Allows binding to TCP/UDP sockets below 1024 */
+#define LWIP_CAP_NET_BIND_SERVICE 1<<10
+/* Allow broadcasting, listen to multicast */
+#define LWIP_CAP_NET_BROADCAST    1<<11
+/* Allow interface configuration */
+#define LWIP_CAP_NET_ADMIN        1<<12
+/* Allow use of RAW sockets */
+/* Allow use of PACKET sockets */
+#define LWIP_CAP_NET_RAW          1<<13
 
 /* add/delete a slirp port forwarding rule.
 	 src/srcport is the local address/port (in the native stack)
@@ -237,7 +249,7 @@ typedef int (*lwiplongfun)();
 typedef ssize_t (*lwipssizetfun)();
 typedef void (*lwipvoidfun)();
 
-pstackfun lwip_stack_new;
+pstackfun lwip_stack_new,lwip_stack_new_cap;
 lwipvoidfun lwip_stack_free;
 pstackfun lwip_stack_get;
 lwipvoidfun lwip_stack_set;
@@ -292,6 +304,7 @@ static inline void *loadlwipv6dl()
 		lwiplongfun *f;
 	} lwiplibtab[] = {
 		{"lwip_stack_new", (lwiplongfun*)&lwip_stack_new},
+		{"lwip_stack_new_cap", (lwiplongfun*)&lwip_stack_new_cap},
 		{"lwip_stack_free", (lwiplongfun*)&lwip_stack_free},
 		{"lwip_stack_get", (lwiplongfun*)&lwip_stack_get},
 		{"lwip_stack_set", (lwiplongfun*)&lwip_stack_set}, 

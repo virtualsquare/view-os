@@ -230,6 +230,7 @@ extern int um_mod_getsyscalltype(int escno);
 extern int um_mod_event_subscribe(void (* cb)(), void *arg, int fd, int how);
 extern int um_mod_nrsyscalls(void);
 extern int um_mod_capcheck(int capability);
+extern int um_mod_secure(void);
 
 extern int uscno(int scno);
 extern void service_userctl(unsigned long type, struct service *sender, 

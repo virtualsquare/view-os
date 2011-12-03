@@ -635,7 +635,11 @@ static int netif_ifconf(struct stack *stack, struct ifconf *ifc)
 #undef ifr_v
 }
 
-int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr)
+int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr
+#if LWIP_CAPABILITIES
+		,int cap
+#endif
+		)
 {
 	u16_t oldflags;
 	int retval;
@@ -646,6 +650,31 @@ int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr)
 	if (ifr == NULL)
 		retval=EFAULT;
 	else {
+#if LWIP_CAPABILITIES
+		switch (cmd) {
+			case SIOCSIFLINK:
+			case SIOCSIFFLAGS:
+			case SIOCSIFADDR:
+			case SIOCSIFDSTADDR:
+			case SIOCSIFBRDADDR:
+			case SIOCSIFNETMASK:
+			case SIOCSIFMETRIC:
+			case SIOCSIFMEM:
+			case SIOCSIFMTU:
+			case SIOCSIFNAME:
+			case SIOCSIFHWADDR:
+			case SIOCSIFENCAP:
+			case SIOCSIFSLAVE:
+			case SIOCADDMULTI:
+			case SIOCDELMULTI:
+			case SIOCSIFPFLAGS:
+			case SIOCSIFHWBROADCAST:
+			case SIOCSIFBR:
+			case SIOCSIFTXQLEN:
+				if ((cap&LWIP_CAP_NET_ADMIN) == 0)
+					return EPERM;
+		}
+#endif
 		if (cmd == SIOCGIFCONF) {
 			retval=netif_ifconf(stack, (struct ifconf *)ifr);
 		} else if (cmd == SIOCGIFNAME) {

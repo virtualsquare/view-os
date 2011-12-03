@@ -521,6 +521,14 @@ lwip_bind(int s, struct sockaddr *name, socklen_t namelen)
 				local_port = ((struct sockaddr_in6 *)name)->sin6_port;
 			}
 
+#if LWIP_CAPABILITIES
+		struct stack *stack=netconn_stack(sock->conn);
+		if (stack->stack_capfun && (stack->stack_capfun()&LWIP_CAP_NET_BIND_SERVICE) == 0) {
+			set_errno(EPERM);
+			return -1;
+		}
+#endif
+
 		LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_bind(%d, addr=", s));
 		ip_addr_debug_print(SOCKETS_DEBUG, &local_addr);
 		LWIP_DEBUGF(SOCKETS_DEBUG, (" port=%u)\n", ntohs(local_port)));
@@ -1042,6 +1050,11 @@ lwip_msocket(struct stack *stack, int domain, int type, int protocol)
 	struct netconn *conn;
 	int i;
 
+	if (stack==NULL) {
+		set_errno(ENONET);
+		return -1;
+	}
+
 	if (domain != PF_INET && domain != PF_INET6
 #if LWIP_NL
 			&& domain != PF_NETLINK
@@ -1054,10 +1067,15 @@ lwip_msocket(struct stack *stack, int domain, int type, int protocol)
 		return -1;
 	}
 	
-	if (stack==NULL) {
-		set_errno(ENONET);
-		return -1;
+#if LWIP_CAPABILITIES
+	if (domain == PF_PACKET ||
+			(domain == PF_INET || domain == PF_INET6) && type == SOCK_RAW) {
+		if (stack->stack_capfun && (stack->stack_capfun()&LWIP_CAP_NET_RAW)==0) {
+			set_errno(EPERM);
+			return -1;
+		}
 	}
+#endif
 
 	switch(domain) {
 #if LWIP_NL
@@ -2024,6 +2042,8 @@ int multistack_cmd(int cmd, void *param);
 int lwip_ioctl(int s, unsigned long cmd, void *argp)
 {
 	struct lwip_socket *sock = get_socket(s);
+	struct stack *stack;
+	int cap;
 
 	if (!sock
 #if LWIP_NL
@@ -2081,10 +2101,20 @@ int lwip_ioctl(int s, unsigned long cmd, void *argp)
 			}
 			return 0;
 		default:
-
+			stack=netconn_stack(sock->conn);
+#if LWIP_CAPABILITIES
+			if (stack->stack_capfun)
+				cap=stack->stack_capfun();
+			else
+				cap= ~0;
+#endif
 			if (cmd >= SIOCGIFNAME && cmd <= SIOCSIFTXQLEN) {
 				int err;
-				err=netif_ioctl(netconn_stack(sock->conn), cmd, argp);
+				err=netif_ioctl(stack, cmd, argp
+#if LWIP_CAPABILITIES
+						,cap
+#endif
+						);
 				sock_set_errno(sock, err);
 				LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_ioctl(%d, SIO TO NETIF) ret=%d\n",s,err));
 				if (err)
@@ -2094,7 +2124,11 @@ int lwip_ioctl(int s, unsigned long cmd, void *argp)
 			}
 			else if (cmd >= SIOCDARP && cmd <= SIOCSARP) {
 				int err=1;
-				err=etharp_ioctl(netconn_stack(sock->conn), cmd, argp);
+				err=etharp_ioctl(stack, cmd, argp
+#if LWIP_CAPABILITIES
+						,cap
+#endif
+						);
 				sock_set_errno(sock, err);
 				LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_ioctl(%d, SIO TO NETIF) ret=%d\n",s,err));
 				if (err)

@@ -1395,6 +1395,10 @@ int um_mod_capcheck(int capability)
 		return 0;
 }
 
+int um_mod_secure(void) {
+	return secure;
+}
+
 /* management of supplementary groups */
 
 struct supgroups *supgrp_create(size_t size)

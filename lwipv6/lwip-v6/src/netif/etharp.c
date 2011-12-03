@@ -1072,7 +1072,11 @@ u16_t eth_packet_out(struct netif *netif, struct pbuf *p, struct sockaddr_ll *sl
 }
 #endif
 
-int etharp_ioctl(struct stack *stack, int cmd,struct arpreq *arpreq)
+int etharp_ioctl(struct stack *stack, int cmd,struct arpreq *arpreq
+#if LWIP_CAPABILITIES
+		,int cap
+#endif
+		)
 {
 	int retval;
 	if (arpreq == NULL)
@@ -1099,10 +1103,22 @@ int etharp_ioctl(struct stack *stack, int cmd,struct arpreq *arpreq)
 			memcpy(&ethaddr,arpreq->arp_ha.sa_data, sizeof(ethaddr));
 			switch (cmd) {
 				case SIOCSARP:
-					err=update_arp_entry(nip, &ipaddr, &ethaddr, arpreq->arp_flags | ETHARP_TRY_HARD);
+#if LWIP_CAPABILITIES
+					if ((cap&LWIP_CAP_NET_ADMIN) == 0) {
+						retval=EPERM;
+						err=0;
+					} else
+#endif
+						err=update_arp_entry(nip, &ipaddr, &ethaddr, arpreq->arp_flags | ETHARP_TRY_HARD);
 					break;
 				case SIOCDARP:
-					err=find_entry(&ipaddr, 0);
+#if LWIP_CAPABILITIES
+					if ((cap&LWIP_CAP_NET_ADMIN) == 0) {
+						retval=EPERM;
+						err=0;
+					} else
+#endif
+						err=find_entry(&ipaddr, 0);
 					if (err >= 0) {
 						/* clean up entries that have just been expired */
 						arp_table[err].state == ETHARP_STATE_EXPIRED;

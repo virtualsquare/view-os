@@ -78,7 +78,7 @@
 /*
  * LWIP access control (capability fun)
  */
-#define LWIP_CAPABILITIES              0
+#define LWIP_CAPABILITIES              1
 
 /* Enable NETLINK sockets to support network configuration by using iproute2 tools */
 #define LWIP_NL                        1

@@ -234,7 +234,11 @@ netif_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netma
 void netif_remove(struct netif * netif);
 
 struct ifreq;
-int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr);
+int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr
+#if LWIP_CAPABILITIES
+		,int cap
+#endif
+		);
 
 /* Returns a network interface given its name. The name is of the form
    "et0", where the first two letters are the "name" field in the

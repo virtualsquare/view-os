@@ -75,21 +75,11 @@ static int umnetlwipv6_ioctlparms(int fd, int req, struct umnet *nethandle)
 		case SIOCSIFHWADDR:
 		case SIOCSIFTXQLEN:
 		case SIOCSIFHWBROADCAST:
-			if (um_mod_capcheck(CAP_NET_ADMIN) == 0)
-				return _IOW(0,0,struct ifreq);
-			else {
-				errno = EPERM;
-				return -1;
-			}
+			return _IOW(0,0,struct ifreq);
 		case SIOCGIFMAP:
 			return _IOWR(0,0,struct ifmap);
 		case SIOCSIFMAP:
-			if (um_mod_capcheck(CAP_NET_ADMIN) == 0)
-				return _IOW(0,0,struct ifmap);
-			else {
-				errno = EPERM;
-				return -1;
-			}
+			return _IOW(0,0,struct ifmap);
 		default:
 			return 0;
 	}
@@ -238,11 +228,11 @@ static void lwipargtoenv(struct stack *s,char *initargs)
 		}
 		for (j=0;j<intnum[1];j++) {
 			if (lwip_tunif_add(s,ifname(ifh,1,j)) == NULL)
-				fprintf(stderr,"umnetlwip: vd[%d] configuration error\n",j);
+				fprintf(stderr,"umnetlwip: tn[%d] configuration error\n",j);
 		}
 		for (j=0;j<intnum[2];j++) {
 			if (lwip_tapif_add(s,ifname(ifh,2,j)) == NULL)
-				fprintf(stderr,"umnetlwip: vd[%d] configuration error\n",j);
+				fprintf(stderr,"umnetlwip: tp[%d] configuration error\n",j);
 		}
 		iffree(ifh);
 
@@ -251,41 +241,24 @@ static void lwipargtoenv(struct stack *s,char *initargs)
 	}
 }
 
-int lwip_bind_capcheck(int sockfd, const struct sockaddr *addr,
-		                socklen_t addrlen) {
-	switch (addr->sa_family) {
-		case AF_INET: {
-										struct sockaddr_in *ad_in = (struct sockaddr_in *) addr;
-										if (addrlen < sizeof(struct sockaddr_in)) {
-											errno=EINVAL;
-											return -1;
-										}
-										int port=ntohs(ad_in->sin_port);
-										if (port < 1024 && um_mod_capcheck(CAP_NET_BIND_SERVICE) != 0) {
-											errno=EPERM;
-											return -1;
-										}
-									}
-			break;
-		case AF_INET6: {
-										 struct sockaddr_in6 *ad_in6 = (struct sockaddr_in6 *) addr;
-										 if (addrlen < sizeof(struct sockaddr_in6)) {
-											 errno=EINVAL;
-											 return -1;
-										 }
-										 int port=ntohs(ad_in6->sin6_port);
-										 if (port < 1024 && um_mod_capcheck(CAP_NET_BIND_SERVICE) != 0) {
-											 errno=EPERM;
-											 return -1;
-										 }
-									 }
-			break;
-	}
-	return lwip_bind(sockfd, addr, addrlen);
+static int umnetlwipv6_capcheck(void)
+{
+	return 
+		(um_mod_capcheck(CAP_NET_BIND_SERVICE)?0:LWIP_CAP_NET_BIND_SERVICE) |
+		(um_mod_capcheck(CAP_NET_BROADCAST)?0:LWIP_CAP_NET_BROADCAST) |
+		(um_mod_capcheck(CAP_NET_ADMIN)?0:LWIP_CAP_NET_ADMIN) |
+		(um_mod_capcheck(CAP_NET_RAW)?0:LWIP_CAP_NET_RAW) 
+		;
 }
 
 int umnetlwipv6_init (char *source, char *mountpoint, unsigned long flags, char *args, struct umnet *nethandle) {
-	struct stack *s=lwip_stack_new();
+	struct stack *s=lwip_add_stack_cap(0,umnetlwipv6_capcheck);
+	if (!s) {
+		s=lwip_add_stack(0);
+		if (s && um_mod_secure())
+			fprintf(stderr,"warning: lwipv6 does not support capabilities"
+					" (access control disabled)\n");
+	}
 	if (s) {
 		lwipargtoenv(s,args);
 		umnet_setprivatedata(nethandle,s);
@@ -341,7 +314,7 @@ typedef ssize_t (*ssizefun)();
 init (void)
 {
 	/*printk("umnetlwipv6 constructor\n");*/
-	umnet_ops.bind=lwip_bind_capcheck;
+	UMNETLWIPV6(bind);
 	UMNETLWIPV6(connect);
 	UMNETLWIPV6(listen);
 	UMNETLWIPV6(accept);
