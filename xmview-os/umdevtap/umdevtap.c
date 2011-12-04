@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <libvdeplug.h>
 #include <sys/socket.h>
+#include <sys/capability.h>
 #include <linux/ioctl.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>
@@ -126,7 +127,13 @@ static int umtap_ioctl(char type, dev_t device, int req, void * arg, struct dev_
 static int umtap_ioctl_params(char type, dev_t device, int req, struct dev_info *di)
 {
 	switch (req) {
-		case TUNSETIFF: return _IOWR('T',202,struct ifreq);
+		case TUNSETIFF: 
+			if (um_mod_capcheck(CAP_NET_ADMIN)==0)
+				return _IOWR('T',202,struct ifreq);
+			else {
+				errno=EPERM;
+				return -1;
+			}
 		default: return 0;
 	}
 }

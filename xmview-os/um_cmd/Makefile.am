@@ -11,7 +11,7 @@ dist_man1_MANS = \
 	viewsu.1 \
 	viewsudo.1 \
 	um_fsalias.1 \
-	um_attach.c
+	um_attach.1
 
 CPPFLAGS = -I../include
 
