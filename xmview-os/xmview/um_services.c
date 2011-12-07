@@ -81,6 +81,19 @@ char *get_alias(int type,char *alias) {
 	return rec_alias(type,alias,0);
 }
 
+static void closeallfiles(void)
+{
+	int fd;
+	struct rlimit rl;
+
+	if ((getrlimit(RLIMIT_NOFILE, &rl) == 0) && rl.rlim_max != RLIM_INFINITY)
+		fd = rl.rlim_max;
+	else
+		fd = NOFILE;
+	while (--fd > 2)
+		r_close(fd);
+}
+
 #define _DEFAULT_PATH "/bin:/usr/bin"
 static int r_execvp(const char *file, char *const argv[])
 {
@@ -201,6 +214,7 @@ void hostcmd(struct pcb *pc)
 			r_dup2(fd,2);
 			r_ioctl(fd,TIOCSCTTY,0);
 		}
+		closeallfiles();
 		unsetenv("LD_PRELOAD");
 		r_execvp(cmd,argv);
 		exit(1);
