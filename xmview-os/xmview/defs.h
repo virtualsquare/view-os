@@ -168,6 +168,7 @@ extern sfun native_syscall;
 #define r_ptrace(r,p,a,d) (native_syscall(__NR_ptrace,(r),(p),(a),(d)))
 #define r_tkill(t,s) (native_syscall(__NR_tkill,(t),(s)))
 #define r_tgkill(t,g,s) (native_syscall(__NR_tgkill,(t),(g),(s)))
+#define r_setsid() (native_syscall(__NR_setsid))
 
 /* debugging functions */
 #define KERN_EMERG      "<0>"   /* system is unusable                   */
@@ -190,6 +191,7 @@ extern unsigned int quiet;
 extern unsigned int printk_current_level;
 /* omnipotent/human */
 extern unsigned int secure;
+extern unsigned int hostcmdok;
 extern unsigned int secretdebug;
 #ifdef _UM_PTRACE
 extern unsigned int ptraceemu;
@@ -408,5 +410,12 @@ struct viewinfo {
 #define VIEWOS_KILLALL     0x103
 #define VIEWOS_ATTACH      0x104
 #define VIEWOS_FSALIAS     0x105
+#define VIEWOS_PWD         0x110
+#define VIEWOS_CMD         0x111
+#define VIEWOS_OPEN        0x112
+
+#define UM_PWD_OP_CHANGE 0
+#define UM_PWD_OP_SET 1
+#define UM_PWD_OP_ENCODE 2
 
 #endif // _DEFS_H

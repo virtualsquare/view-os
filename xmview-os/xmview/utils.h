@@ -24,6 +24,9 @@
 #ifndef _UTILS_H_
 #define _UTILS_H_
 
+char **getparms(struct pcb *pc,long laddr);
+void freeparms(char **parms);
+
 #ifdef _VIEWOS_KM
 extern int kmviewfd;
 #	include <string.h>

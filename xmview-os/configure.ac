@@ -26,6 +26,7 @@ AC_CHECK_LIB([pthread], [pthread_key_create],, AC_MSG_ERROR([libpthread missing]
 # Is part of this package
 AC_CHECK_LIB([vdeplug], [vde_recv], [enable_umdevtap=yes],
 			 [enable_umdevtap=warn])
+AC_CHECK_LIB([mhash], [mhash_init],, AC_MSG_ERROR([mhash missing]), [-lmhash])
 
 #umpyew temporary disabled (not yet upgraded to 0.8)
 #AM_PATH_PYTHON([2.4], [enable_umpyew=yes], [enable_umpyew=warn])

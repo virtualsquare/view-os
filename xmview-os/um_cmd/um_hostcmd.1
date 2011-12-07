@@ -1,0 +1,48 @@
+.\" Copyright (c) 2011 Renzo Davoli
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License,
+.\" version 2, as published by the Free Software Foundation.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+.\" MA 02110-1301 USA.
+
+.TH VIEW-OS 1 "December 07, 2011" "VIEW-OS: a process with a view"
+.SH NAME
+um_hostcmd \- run a command on the hosting O.S. (outside the View-OS machine)
+.SH SYNOPSIS
+.B um_hostcmd 
+.I cmd args ...
+.br
+.SH DESCRIPTION
+This command runs a command on the hosting operating system.
+
+This feature is disabled by default. Use '-c' option of \fBumview/kmview\fR.
+to enable it.
+
+It is possible to set up a password by \fBum_passwd\fR.
+
+.SH SEE ALSO
+.BR um_passwd(1),
+.BR umview(1),
+.BR kmview(1)
+.SH AUTHORS
+View-OS is a project of the Computer Science Department, University of
+Bologna. Project Leader: Renzo Davoli.
+.br
+<http://www.sourceforge.net/projects/view-os>
+
+Howto's and further information can be found on the project wiki
+<wiki.virtualsquare.org>.

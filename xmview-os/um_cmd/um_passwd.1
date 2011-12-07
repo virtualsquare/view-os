@@ -1,0 +1,69 @@
+.\" Copyright (c) 2011 Renzo Davoli
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License,
+.\" version 2, as published by the Free Software Foundation.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+.\" MA 02110-1301 USA.
+
+.TH VIEW-OS 1 "December 07, 2011" "VIEW-OS: a process with a view"
+.SH NAME
+um_passwd \- set a security password for View-OS.
+.SH SYNOPSIS
+.B um_passwd 
+.br
+.B um_passwd -e
+.br
+.B um_passwd 
+.I hash
+.br
+.SH DESCRIPTION
+This command sets a password to bypass View-OS and run commands on the hosting
+Operating System (see \fBum_hostcmd\fR).
+
+\fBum_passwd\fR without options or arguments sets a password or changes an
+existing password. The user is prompted for the old password and then he/she
+is required to type the new password twice.
+The operation succeeds if the old password matches the existing password and the
+two new password matches.
+An empty password disables the password protection.
+
+The password can be set using a hash instead of typing the password on a non-echoed
+prompt. This feature has been designed to set the View-OS password in a startup
+file. In this way the rc file does not include a password in clear-text.
+View-OS hashes use a 4 bytes salt to be protected against dictionary attacks, so
+it is natural that the encoding of the the same password several times
+provides different results.
+
+\fBum_passwd -e\fR does not set or change the password, it returns the hash of a 
+password.
+
+When \fBum_passwd\fR has a hash as its unique argument, it sets the password
+corresponding to the hash. The password can be set by a hash only if the password
+protection was previously disabled.
+
+.SH SEE ALSO
+.BR um_hostcmd(1),
+.BR umview(1),
+.BR kmview(1)
+.SH AUTHORS
+View-OS is a project of the Computer Science Department, University of
+Bologna. Project Leader: Renzo Davoli.
+.br
+<http://www.sourceforge.net/projects/view-os>
+
+Howto's and further information can be found on the project wiki
+<wiki.virtualsquare.org>.

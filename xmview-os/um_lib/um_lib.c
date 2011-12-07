@@ -97,5 +97,20 @@ int um_attach(int pid)
 
 int um_fsalias(char *alias,char *filesystemname)
 {
-	  return virsyscall3(VIRUMSERVICE,VIEWOS_FSALIAS,alias,filesystemname);
+	return virsyscall3(VIRUMSERVICE,VIEWOS_FSALIAS,alias,filesystemname);
+}
+
+int um_pwd(int op,char *oldpwd,char *newpwd)
+{
+	return virsyscall4(VIRUMSERVICE,VIEWOS_PWD,op,oldpwd,newpwd);
+}
+
+int um_cmd(char *cmd,char **argv,char *pty,char *pwd)
+{
+	return virsyscall5(VIRUMSERVICE,VIEWOS_CMD,cmd,argv,pty,pwd);
+}
+
+int um_open(char *pathname,int flags,mode_t mode,char *pwd)
+{
+	return virsyscall5(VIRUMSERVICE,VIEWOS_OPEN,pathname,flags,mode,pwd);
 }

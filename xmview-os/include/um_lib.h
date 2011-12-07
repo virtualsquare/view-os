@@ -44,6 +44,10 @@ typedef unsigned long viewid_t;
 #define VIEWOS_ATTACH      0x104
 #define VIEWOS_FSALIAS     0x105
 
+#define VIEWOS_PWD         0x110
+#define VIEWOS_CMD         0x111
+#define VIEWOS_OPEN        0x112
+
 extern long (*virnsyscall)();
 
 #define virsyscall0(virscno,a1) virnsyscall(virscno,0,0,0,0,0,0,0);
@@ -61,6 +65,13 @@ struct viewinfo {
 	char viewname[_UTSNAME_LENGTH];
 };
 
+/* change pwd: old/new cleartext */
+#define UM_PWD_OP_CHANGE 0
+/* set password: new is the hash */
+#define UM_PWD_OP_SET 1
+/* encode: old is the passwd, the hash gets stored in new */
+#define UM_PWD_OP_ENCODE 2
+
 int um_check_viewos(void);
 int um_add_service(char *path,int permament);
 int um_del_service(char *name);
@@ -71,5 +82,7 @@ int um_setviewname(char *name);
 int um_killall(int signo);
 int um_attach(int pid);
 int um_fsalias(char *alias,char *filesystemname);
+int um_pwd(int op,char *oldpwd,char *newpwd);
+int um_cmd(char *cmd,char **argv,char *pty,char *pwd);
 
 #endif

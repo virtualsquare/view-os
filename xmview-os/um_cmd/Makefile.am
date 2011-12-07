@@ -11,7 +11,9 @@ dist_man1_MANS = \
 	viewsu.1 \
 	viewsudo.1 \
 	um_fsalias.1 \
-	um_attach.1
+	um_attach.1 \
+	um_hostcmd.1 \
+	um_passwd.1
 
 CPPFLAGS = -I../include
 
@@ -28,7 +30,9 @@ bin_PROGRAMS = \
 	viewsu \
 	viewsudo \
 	um_fsalias \
-	um_attach
+	um_attach \
+	um_hostcmd \
+	um_passwd
 
 um_fsalias_SOURCES=um_alias.c
 

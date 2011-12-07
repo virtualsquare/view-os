@@ -57,7 +57,7 @@
 #include "gdebug.h"
 #include "loginshell.h"
 
-#define COMMON_OPTSTRING "+p:f:hvxqV:usD::"
+#define COMMON_OPTSTRING "+p:f:hvxqV:usD::c"
 #ifdef GDEBUG_ENABLED
 # define GDEBUG_OPT "o:"
 #else
@@ -71,6 +71,7 @@ int _umview_version = 2; /* modules interface version id.
 unsigned int quiet = 0;
 unsigned int printk_current_level = PRINTK_STARTUP_LEVEL;
 unsigned int secure = 0;
+unsigned int hostcmdok = 0;
 unsigned int secretdebug = 0;
 static char *viewname;
 
@@ -193,8 +194,9 @@ static void usage(char *s)
 #endif
 			"  -x, --nonesting           do not permit module nesting\n"
 			"  -u, --userrecursion       recursive invocation on the existing hypervisor\n"
-			"  -s, --secure		           force permissions and capabilities\n",
-			s);
+			"  -s, --secure		           force permissions and capabilities\n"
+			"  -c, --hostcmd             permit um_hostcmd\n"
+			,s);
 	exit(0);
 }
 
@@ -210,6 +212,7 @@ static struct option long_options[] = {
 	{"nonesting",0,0,'x'},
 	{"userrecursion",0,0,'u'},
 	{"secure",0,0,'s'},
+	{"hostcmd",0,0,'c'},
 	{0,0,0,0}
 };
 
@@ -427,6 +430,9 @@ int main(int argc,char *argv[])
 				break;
 			case 's':
 				secure = 1;
+				break;
+			case 'c':
+				hostcmdok=1;
 				break;
 #ifdef GDEBUG_ENABLED
 			case 'o': /* debugging output file redirection */ { 

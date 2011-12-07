@@ -57,7 +57,7 @@
 #include "mainpoll.h"
 #include "gdebug.h"
 
-#define COMMON_OPTSTRING "+p:f:hvnxqV:srD::"
+#define COMMON_OPTSTRING "+p:f:hvnxqV:srD::c"
 #ifdef GDEBUG_ENABLED
 #	define GDEBUG_OPT "o:"
 #else
@@ -79,6 +79,7 @@ unsigned int ptrace_sysvm_tag;
 unsigned int quiet = 0;
 unsigned int printk_current_level = PRINTK_STARTUP_LEVEL;
 unsigned int secure = 0;
+unsigned int hostcmdok = 0;
 unsigned int doptrace = 0;
 unsigned int realrecursion = 0;
 unsigned int secretdebug = 0;
@@ -209,6 +210,7 @@ static void usage(char *s)
 #ifdef _UM_PTRACE
 			"  -t, --ptraceemu           emulation of ptrace\n"
 #endif
+			"  -c, --hostcmd             permit um_hostcmd\n"
 			,s);
 	exit(0);
 }
@@ -233,6 +235,7 @@ static struct option long_options[] = {
 #ifdef _UM_PTRACE
 	{"ptraceemu",0,0,'t'},
 #endif
+	{"hostcmd",0,0,'c'},
 	{0,0,0,0}
 };
 
@@ -447,6 +450,9 @@ int main(int argc,char *argv[])
 					 break;
 			case 's':
 					 secure=1;
+					 break;
+			case 'c':
+					 hostcmdok=1;
 					 break;
 			case 0x100: /* do not use ptrace_multi */
 					 want_ptrace_multi = 0;

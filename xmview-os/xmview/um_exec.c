@@ -121,7 +121,7 @@ static struct ht_elem *checkscript(struct ht_elem *hte,struct binfmt_req *req)
 
 /* getparms (argv) from the user space */
 #define CHUNKSIZE 16
-static char **getparms(struct pcb *pc,long laddr) {
+char **getparms(struct pcb *pc,long laddr) {
 	long *paddr=NULL;
 	char **parms;
 	int size=0;
@@ -159,7 +159,7 @@ static char **getparms(struct pcb *pc,long laddr) {
 }
 
 /* freeparms: free the mem allocated for parms */
-static void freeparms(char **parms)
+void freeparms(char **parms)
 {
 	char **scan=parms;
 	while (*scan != 0) {
