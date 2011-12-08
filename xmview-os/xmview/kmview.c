@@ -74,6 +74,7 @@ unsigned int secure = 0;
 unsigned int hostcmdok = 0;
 unsigned int secretdebug = 0;
 static char *viewname;
+static char *console_ptyname;
 
 extern int nprocs;
 
@@ -351,7 +352,6 @@ static int test_recursion(int argc,char *argv[])
 static void activate_console(char c)
 {
 	int pty;
-	char *ptyname;
 	int pid;
 	if ((pty = open("/dev/ptmx", O_RDWR|O_NOCTTY)) < 0) {
 		printk(KERN_ERR "Unable to open /dev/ptmx (console): %s",strerror(errno));
@@ -365,8 +365,8 @@ static void activate_console(char c)
 		printk(KERN_ERR "Unable to grantpt (console): %s",strerror(errno));
 		return;
 	}
-	ptyname=strdup(ptsname(pty));
-	//printf("Opened a new pty: %s\n", ptyname);
+	console_ptyname=strdup(ptsname(pty));
+	//printf("Opened a new pty: %s\n", console_ptyname);
 
 	if ((pid=fork())>0)
 	{
@@ -383,9 +383,14 @@ static void activate_console(char c)
 	int fd;
 	setsid();    /* become session leader and */
 	close(pty);
-	//printf("sedsid %d %s %s\n",rv,strerror(errno),ptyname);
+	//printf("sedsid %d %s %s\n",rv,strerror(errno),console_ptyname);
+}
+
+static void redirect_on_console(void)
+{
+	int fd;
 	/* lose controlling tty */
-	fd = open(ptyname, O_RDWR);
+	fd = open(console_ptyname, O_RDWR);
 	if (fd < 0) {
 		printk(KERN_ERR "Unable to open console pts: %s",strerror(errno));
 		return;
@@ -395,7 +400,6 @@ static void activate_console(char c)
 		dup2(fd,2);
 		ioctl(fd,TIOCSCTTY,0);
 	}
-	free(ptyname);
 }
 
 static void root_process_init()
@@ -526,6 +530,8 @@ int main(int argc,char *argv[])
 		printk("Kmview: kernel module not loaded\n");
 		exit(1);
 	}
+	if(console_ptyname) redirect_on_console();
+	setenv("_INSIDE_VIEWOS_MODULE","",1);
 	mp_add(kmviewfd,POLLIN,tracehand,NULL,1);
 	GDEBUG(3,"ENTERING %d ",kmviewfd);
 	do {

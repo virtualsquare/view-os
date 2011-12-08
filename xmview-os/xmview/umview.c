@@ -87,6 +87,7 @@ unsigned int secretdebug = 0;
 unsigned int ptraceemu = 0;
 #endif
 static char *viewname;
+static char *console_ptyname;
 
 extern int nprocs;
 
@@ -346,7 +347,6 @@ static void umview_recursive(int argc,char *argv[])
 static void activate_console(char c)
 {
 	int pty;
-	char *ptyname;
 	int pid;
 	if ((pty = open("/dev/ptmx", O_RDWR|O_NOCTTY)) < 0) {
 		printk(KERN_ERR "Unable to open /dev/ptmx (console): %s",strerror(errno));
@@ -360,8 +360,8 @@ static void activate_console(char c)
 		printk(KERN_ERR "Unable to grantpt (console): %s",strerror(errno));
 		return;
 	}
-	ptyname=strdup(ptsname(pty));
-	//printf("Opened a new pty: %s\n", ptyname);
+	console_ptyname=strdup(ptsname(pty));
+	//printf("Opened a new pty: %s\n", console_ptyname);
 
 	if ((pid=fork())>0)
 	{
@@ -375,12 +375,16 @@ static void activate_console(char c)
 		printk(KERN_CRIT "Unable to run the console wrapper: %s",strerror(errno));
 		exit(1);
 	} 
-	int fd;
 	setsid();    /* become session leader and */
+	//printf("sedsid %d %s %s\n",rv,strerror(errno),console_ptyname);
 	close(pty);
-	//printf("sedsid %d %s %s\n",rv,strerror(errno),ptyname);
+}
+
+static void redirect_on_console(void)
+{
+	int fd;
 	/* lose controlling tty */
-	fd = open(ptyname, O_RDWR);
+	fd = open(console_ptyname, O_RDWR);
 	if (fd < 0) {
 		printk(KERN_ERR "Unable to open console pts: %s",strerror(errno));
 		return;
@@ -390,7 +394,6 @@ static void activate_console(char c)
 		dup2(fd,2);
 		ioctl(fd,TIOCSCTTY,0);
 	}
-	free(ptyname);
 }
 
 /* user recursion must be recognized very early */
@@ -572,6 +575,7 @@ int main(int argc,char *argv[])
 	sigprocmask(SIG_BLOCK,NULL,&unblockchild);
 	pcb_inits(1);
 	capture_main(argv+optind,rcfile);
+	if(console_ptyname) redirect_on_console();
 	setenv("_INSIDE_VIEWOS_MODULE","",1);
 	do_preload(prehead);
 	do_set_viewname(viewname);
