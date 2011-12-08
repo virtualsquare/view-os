@@ -28,15 +28,25 @@ um_console \- View-OS remote monitoring console client
 .I pid
 ]
 .br
+.B um_console -l
+.br
 .SH DESCRIPTION
 \fBum_console\fR is the client to connect to a View-OS monitor console.
 
 This feature is disabled by default. Use '-k' or '-K' option 
 of \fBumview/kmview\fR to enable it.
 
+The command \fBum_console -l\fR provides a list of available console
+sessions.
+
 \fIpid\fR can be omitted when \fBum_console\fR is used as a command of
 a View-OS machine (in this case it gives access to the console of
 the current View-OS monitor).
+
+This command can be launched without parameters as a command of the 
+hosting O.S. (outside any View-OS machine). In this case if there is
+one single console available \fBum_console\fR gets connected to it,
+otherwise the result is a list of the available session.
 
 .SH SEE ALSO
 .BR umview(1),

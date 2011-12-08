@@ -24,6 +24,7 @@
  */   
 #include <config.h>
 #include <stdio.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <getopt.h>
@@ -32,20 +33,84 @@
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <um_lib.h>
+#include <dirent.h>
+#include <pwd.h>
 
-void usage(int inside_viewos)
+#define CONSOLE_DIR "/tmp"
+#define CONSOLE_PREFIX ".umview-console"
+
+void usage(void)
 {
-	if (inside_viewos) 
-		fprintf(stderr, 
-				"Usage: umconsole [pid]\n"
-				"\n");
-	else
-		fprintf(stderr, 
-				"Usage: umconsole pid\n"
-				"   (pid can be omitted only inside a View-OS machine)\n"
-				"\n");
+	fprintf(stderr, 
+			"Usage: umconsole [pid]\n"
+			"\n");
 	exit(1);
+}
+
+void pidlist(void)
+{
+	int fd=open(CONSOLE_DIR,O_RDONLY|O_DIRECTORY);
+	DIR *dp=fdopendir(fd);
+	struct dirent *de;
+	uid_t me=geteuid();
+	int count=0;
+	if (!dp) usage();
+	while ((de=readdir(dp))!=NULL) {
+		if (strncmp(de->d_name,CONSOLE_PREFIX,strlen(CONSOLE_PREFIX))==0) {
+			struct stat sbuf;
+			if (fstatat(fd,de->d_name,&sbuf,AT_SYMLINK_NOFOLLOW) == 0) {
+				if (S_ISSOCK(sbuf.st_mode) && fstatat(fd,de->d_name,&sbuf,AT_SYMLINK_NOFOLLOW) == 0
+						&& faccessat(fd,de->d_name,R_OK|W_OK|X_OK,AT_SYMLINK_NOFOLLOW)==0) {
+					if (count++ == 0)
+						fprintf(stderr, "List of available View-OS consoles:\n");
+					if (sbuf.st_uid == me) 
+						fprintf(stderr,"%5s\n",de->d_name+strlen(CONSOLE_PREFIX));
+					else {
+						struct passwd *pwd=getpwuid(sbuf.st_uid);
+						fprintf(stderr,"%5s (%s)\n",de->d_name+strlen(CONSOLE_PREFIX),pwd->pw_name);
+					}
+				}
+				//fprintf(stderr,"PID %5d: user %d\n",de->d_name+strlen(CONSOLE_PREFIX),sbuf.st_uid);
+			}
+		}
+	}
+	closedir(dp); 
+	close(fd);
+	if (count == 0)
+		fprintf(stderr, "There are no console sessions available\n");
+	exit(1);
+}
+
+int uniquepid(void)
+{
+	int fd=open(CONSOLE_DIR,O_RDONLY|O_DIRECTORY);
+	DIR *dp=fdopendir(fd);
+	struct dirent *de;
+	uid_t me=geteuid();
+	int pid=0;
+	if (!dp) usage();
+	while ((de=readdir(dp))!=NULL) {
+		if (strncmp(de->d_name,CONSOLE_PREFIX,strlen(CONSOLE_PREFIX))==0) {
+			struct stat sbuf;
+			if (fstatat(fd,de->d_name,&sbuf,AT_SYMLINK_NOFOLLOW) == 0) {
+				if (S_ISSOCK(sbuf.st_mode) && sbuf.st_uid == me && 
+						faccessat(fd,de->d_name,R_OK|W_OK|X_OK,AT_SYMLINK_NOFOLLOW)==0) {
+					if (pid == 0)
+						pid = atoi(de->d_name+strlen(CONSOLE_PREFIX));
+					else {
+						pid=0;
+						break;
+					}
+				}
+			}
+		}
+	}
+	closedir(dp); 
+	close(fd);
+	return pid;
 }
 
 static int term_setraw()
@@ -86,7 +151,7 @@ void console_connect(int pid)
 	memset(&sun,0,sizeof(sun));
 	sun.sun_family = PF_UNIX;
 	fds[1].fd=conn;
-	snprintf(sun.sun_path,sizeof(sun.sun_path),"/tmp/.umview-console%d",pid);
+	snprintf(sun.sun_path,sizeof(sun.sun_path),"%s/%s%d",CONSOLE_DIR,CONSOLE_PREFIX,pid);
 	if (connect(conn,(struct sockaddr *) &sun, sizeof(sun)) < 0) {
 		perror("Connecting to console");
 		return;
@@ -115,18 +180,24 @@ int main(int argc, char *argv[])
 	int pid;
 	if (argc < 3) {
 		if (argc == 1) {
-			if (c < 0) 
-				usage(c==0);
-			pid=vi.serverid;
-		} else
-			pid=atoi(argv[1]);
+			if (c < 0) {
+				if ((pid=uniquepid())==0) 
+					pidlist();
+			} else
+				pid=vi.serverid;
+		} else {
+			if (strcmp(argv[1],"-l")==0)
+				pidlist();
+			else
+				pid=atoi(argv[1]);
+		}
 		term_setraw();
 		/* do the job! */
 		console_connect(pid);
 		term_setraw();
 		printf("\n");
 	} else {
-		usage(c==0);
+		usage();
 	}
 	return 0;
 }
