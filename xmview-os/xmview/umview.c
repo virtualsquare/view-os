@@ -375,8 +375,7 @@ static void activate_console(char c)
 		printk(KERN_CRIT "Unable to run the console wrapper: %s",strerror(errno));
 		exit(1);
 	} 
-	setsid();    /* become session leader and */
-	//printf("sedsid %d %s %s\n",rv,strerror(errno),console_ptyname);
+	//setsid();    /* become session leader and */
 	close(pty);
 }
 
@@ -384,6 +383,8 @@ static void redirect_on_console(void)
 {
 	int fd;
 	/* lose controlling tty */
+	setsid();    /* become session leader and */
+	//printf("sedsid %d %s %s\n",rv,strerror(errno),console_ptyname);
 	fd = open(console_ptyname, O_RDWR);
 	if (fd < 0) {
 		printk(KERN_ERR "Unable to open console pts: %s",strerror(errno));

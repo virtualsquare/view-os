@@ -381,15 +381,15 @@ static void activate_console(char c)
 		exit(1);
 	}
 	int fd;
-	setsid();    /* become session leader and */
 	close(pty);
-	//printf("sedsid %d %s %s\n",rv,strerror(errno),console_ptyname);
 }
 
 static void redirect_on_console(void)
 {
 	int fd;
 	/* lose controlling tty */
+	setsid();    /* become session leader and */
+	//printf("sedsid %d %s %s\n",rv,strerror(errno),console_ptyname);
 	fd = open(console_ptyname, O_RDWR);
 	if (fd < 0) {
 		printk(KERN_ERR "Unable to open console pts: %s",strerror(errno));
