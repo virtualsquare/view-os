@@ -77,9 +77,12 @@ umview_LDADD = -ldl -lpthread
 BUILT_SOURCES = pcb-all.h
 CLEANFILES = pcb-all.h
 
-libexec_PROGRAMS = umbinwrap
+libexec_PROGRAMS = umbinwrap umconsolewrap
 umbinwrap_SOURCES = \
 	umbinwrap.c
+
+umconsolewrap_SOURCES = \
+	umconsolewrap.c
 
 dist_man1_MANS = kmview.1 umview.1 
 dist_man2_MANS = msocket.2viewos

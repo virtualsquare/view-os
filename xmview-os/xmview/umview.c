@@ -57,7 +57,7 @@
 #include "mainpoll.h"
 #include "gdebug.h"
 
-#define COMMON_OPTSTRING "+p:f:hvnxqV:srD::c"
+#define COMMON_OPTSTRING "+p:f:hvnxqV:srD::ckK"
 #ifdef GDEBUG_ENABLED
 #	define GDEBUG_OPT "o:"
 #else
@@ -134,7 +134,7 @@ static int do_preload(struct prelist *head)
 	if (head != NULL) {
 		int rv=do_preload(head->next);
 		if (add_service(head->module,0) < 0) {
-			printk("module preload %s",strerror(errno));
+			printk(KERN_NOTICE "module preload %s",strerror(errno));
 			return -1 ;
 		} else
 			return rv;
@@ -211,6 +211,8 @@ static void usage(char *s)
 			"  -t, --ptraceemu           emulation of ptrace\n"
 #endif
 			"  -c, --hostcmd             permit um_hostcmd\n"
+			"  -k, --console             activate remote monitor console\n"
+			"  -K, --quietconsole        like -k + suppress local output\n"
 			,s);
 	exit(0);
 }
@@ -236,6 +238,8 @@ static struct option long_options[] = {
 	{"ptraceemu",0,0,'t'},
 #endif
 	{"hostcmd",0,0,'c'},
+	{"console",0,0,'k'},
+	{"quietconsole",0,0,'K'},
 	{0,0,0,0}
 };
 
@@ -336,6 +340,57 @@ static void umview_recursive(int argc,char *argv[])
 	/* exec the process */
 	execvp(*(argv+optind),argv+optind);
 	exit(-1);
+}
+
+#define UMCONSOLEWRAP LIBEXECDIR "/umconsolewrap"
+static void activate_console(char c)
+{
+	int pty;
+	char *ptyname;
+	int pid;
+	if ((pty = open("/dev/ptmx", O_RDWR|O_NOCTTY)) < 0) {
+		printk(KERN_ERR "Unable to open /dev/ptmx (console): %s",strerror(errno));
+		return;
+	}
+	if (unlockpt(pty) < 0) {
+		printk(KERN_ERR "Unable to unlockpt (console): %s",strerror(errno));
+		return;
+	}
+	if (grantpt(pty) < 0) {
+		printk(KERN_ERR "Unable to grantpt (console): %s",strerror(errno));
+		return;
+	}
+	ptyname=strdup(ptsname(pty));
+	//printf("Opened a new pty: %s\n", ptyname);
+
+	if ((pid=fork())>0)
+	{
+		//printf("FORK\n");
+		char *spty,*socketname;
+		asprintf(&spty,"%d%c",pty,(c=='K')?'q':' ');
+		asprintf(&socketname,"/tmp/.umview-console%d",pid);
+		unsetenv("LD_PRELOAD");
+		//printf("console exec %s\n",spty);
+		execl(UMCONSOLEWRAP,"umconsolewrap",socketname,spty,"stdout",(char *)NULL);
+		printk(KERN_CRIT "Unable to run the console wrapper: %s",strerror(errno));
+		exit(1);
+	} 
+	int fd;
+	setsid();    /* become session leader and */
+	close(pty);
+	//printf("sedsid %d %s %s\n",rv,strerror(errno),ptyname);
+	/* lose controlling tty */
+	fd = open(ptyname, O_RDWR);
+	if (fd < 0) {
+		printk(KERN_ERR "Unable to open console pts: %s",strerror(errno));
+		return;
+	} else {
+		dup2(fd,0);
+		dup2(fd,1);
+		dup2(fd,2);
+		ioctl(fd,TIOCSCTTY,0);
+	}
+	free(ptyname);
 }
 
 /* user recursion must be recognized very early */
@@ -468,6 +523,10 @@ int main(int argc,char *argv[])
 					 ptraceemu = 1;
 					 break;
 #endif
+			case 'K':
+			case 'k':
+					 activate_console(c);
+					 break;
 		}
 	}
 	

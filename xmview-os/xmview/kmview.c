@@ -196,6 +196,8 @@ static void usage(char *s)
 			"  -u, --userrecursion       recursive invocation on the existing hypervisor\n"
 			"  -s, --secure		           force permissions and capabilities\n"
 			"  -c, --hostcmd             permit um_hostcmd\n"
+			"  -k, --console             activate remote monitor console\n"
+			"  -K, --quietconsole        like -k + suppress local output\n"
 			,s);
 	exit(0);
 }
@@ -213,6 +215,8 @@ static struct option long_options[] = {
 	{"userrecursion",0,0,'u'},
 	{"secure",0,0,'s'},
 	{"hostcmd",0,0,'c'},
+	{"console",0,0,'k'},
+	{"quietconsole",0,0,'K'},
 	{0,0,0,0}
 };
 
@@ -343,6 +347,57 @@ static int test_recursion(int argc,char *argv[])
 
 #endif
 
+#define UMCONSOLEWRAP LIBEXECDIR "/umconsolewrap"
+static void activate_console(char c)
+{
+	int pty;
+	char *ptyname;
+	int pid;
+	if ((pty = open("/dev/ptmx", O_RDWR|O_NOCTTY)) < 0) {
+		printk(KERN_ERR "Unable to open /dev/ptmx (console): %s",strerror(errno));
+		return;
+	}
+	if (unlockpt(pty) < 0) {
+		printk(KERN_ERR "Unable to unlockpt (console): %s",strerror(errno));
+		return;
+	}
+	if (grantpt(pty) < 0) {
+		printk(KERN_ERR "Unable to grantpt (console): %s",strerror(errno));
+		return;
+	}
+	ptyname=strdup(ptsname(pty));
+	//printf("Opened a new pty: %s\n", ptyname);
+
+	if ((pid=fork())>0)
+	{
+		//printf("FORK\n");
+		char *spty,*socketname;
+		asprintf(&spty,"%d%c",pty,(c=='K')?'q':' ');
+		asprintf(&socketname,"/tmp/.umview-console%d",pid);
+		unsetenv("LD_PRELOAD");
+		//printf("console exec %s\n",spty);
+		execl(UMCONSOLEWRAP,"umconsolewrap",socketname,spty,"stdout",(char *)NULL);
+		printk(KERN_CRIT "Unable to run the console wrapper: %s",strerror(errno));
+		exit(1);
+	}
+	int fd;
+	setsid();    /* become session leader and */
+	close(pty);
+	//printf("sedsid %d %s %s\n",rv,strerror(errno),ptyname);
+	/* lose controlling tty */
+	fd = open(ptyname, O_RDWR);
+	if (fd < 0) {
+		printk(KERN_ERR "Unable to open console pts: %s",strerror(errno));
+		return;
+	} else {
+		dup2(fd,0);
+		dup2(fd,1);
+		dup2(fd,2);
+		ioctl(fd,TIOCSCTTY,0);
+	}
+	free(ptyname);
+}
+
 static void root_process_init()
 {
 	capture_nested_init();
@@ -433,6 +488,10 @@ int main(int argc,char *argv[])
 				break;
 			case 'c':
 				hostcmdok=1;
+				break;
+			case 'K':
+			case 'k':
+				activate_console(c);
 				break;
 #ifdef GDEBUG_ENABLED
 			case 'o': /* debugging output file redirection */ { 
