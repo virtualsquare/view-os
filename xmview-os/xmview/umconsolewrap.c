@@ -79,7 +79,9 @@ int main(int argc, char *argv[])
 	int conn=socket(PF_UNIX, SOCK_STREAM, 0);
 	struct sockaddr_un sun;
 	int i,j;
+	umask(077);
 	close(0);
+	memset(&sun,0,sizeof(sun));
 	if (argv[2][strlen(argv[2])-1]=='q') {
 		quiet=1;
 		close(1);
@@ -105,6 +107,7 @@ int main(int argc, char *argv[])
 				if (nfds<10) {
 					fds[nfds].fd=new;
 					fds[nfds].events=POLLIN;
+					fds[nfds].revents=0;
 					lb_send(new);
 					nfds++;
 				} else

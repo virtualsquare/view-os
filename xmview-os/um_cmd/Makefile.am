@@ -12,6 +12,7 @@ dist_man1_MANS = \
 	viewsudo.1 \
 	um_fsalias.1 \
 	um_attach.1 \
+	um_console.1 \
 	um_hostcmd.1 \
 	um_passwd.1
 
@@ -31,6 +32,7 @@ bin_PROGRAMS = \
 	viewsudo \
 	um_fsalias \
 	um_attach \
+	um_console \
 	um_hostcmd \
 	um_passwd
 
