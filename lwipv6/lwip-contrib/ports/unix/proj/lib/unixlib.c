@@ -79,8 +79,6 @@
 #include "lwip/radvconf.h"
 #endif
 
-#define IFF_RUNNING 0x40
-
 /* #define MULTISTACKDEBUG*/
 
 static void multistack_daemon(void *argv);
@@ -135,14 +133,22 @@ void lwip_init(void)
 	tcpip_init();
 }
 	
+#if LWIP_CAPABILITIES
+struct stack *lwip_add_stack_cap(unsigned long flags, lwip_capfun capfun)
+#else
 struct stack *lwip_add_stack(unsigned long flags)
+#endif
 {
 	sys_sem_t sem;
 	struct stack *newstack;  
 
 	/* Start the main stack */
 	sem = sys_sem_new(0);
+#if LWIP_CAPABILITIES
+	newstack = tcpip_start(init_done, &sem, flags, capfun);
+#else
 	newstack = tcpip_start(init_done, &sem, flags);
+#endif
 	
 	sys_sem_wait(sem);
 	sys_sem_free(sem);
@@ -156,6 +162,21 @@ struct stack *lwip_add_stack(unsigned long flags)
 
 	return newstack;
 }
+
+#if LWIP_CAPABILITIES
+struct stack *lwip_add_stack(unsigned long flags)
+{
+	return lwip_add_stack_cap(flags, NULL);
+}
+#else
+struct stack *lwip_add_stack_cap(unsigned long flags, void *must_be_null)
+{
+	if (must_be_null != NULL)
+		return NULL;
+	else
+		return lwip_add_stack_cap(flags, NULL);
+}
+#endif
 
 struct stack *lwip_stack_new(void)
 {
@@ -292,6 +313,7 @@ struct netif *lwip_add_tapif(struct stack *stack, void *arg, int flags)
 	pnetif = mem_malloc(sizeof (struct netif));
 
 	pnetif->flags = flags & NETIF_ADD_FLAGS;
+	pnetif->flags |= NETIF_FLAG_POINTTOPOINT;
 
 	if (arg == NULL) arg = nullstring;
 	if (tcpip_netif_add(stack, pnetif, arg, tapif_init, tcpip_input, tcpip_notify) == NULL) {
@@ -341,6 +363,8 @@ struct netif *lwip_add_tunif(struct stack *stack, void *arg, int flags)
 	pnetif = mem_malloc(sizeof (struct netif));
 
 	pnetif->flags = flags & NETIF_ADD_FLAGS;
+	pnetif->flags |= NETIF_FLAG_POINTTOPOINT;
+
 	if (arg == NULL) arg = nullstring;
 	if (tcpip_netif_add(stack, pnetif, arg, tunif_init, tcpip_input, tcpip_notify) == NULL) {
 		mem_free(pnetif);

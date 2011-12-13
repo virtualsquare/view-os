@@ -36,6 +36,7 @@
 #define MAX_NL 4
 
 #define BUF_STDLEN 8192
+#define MAX_BUFLEN 32768
 
 struct netlinkbuf {
 	int length;
@@ -108,6 +109,7 @@ void prefix2mask(int prefix,struct ip_addr *netmask)
 			
 typedef void (*netlink_mgmt)(struct stack *stack, struct nlmsghdr *msg,void * buf,int *offset);
 
+#define NETLINK_IS_GET(X) ((X) % 4 == 2)
 static netlink_mgmt mgmt_table[]={
 	/* NEW/DEL/GET/SET link */
 	netif_netlink_adddellink,
@@ -143,7 +145,11 @@ void netlink_ackerror(void *msg,int ackerr,void *buf,int *offset)
 	h->nlmsg_len=restorelen;
 }
 
-static void netlink_decode (struct stack *stack, void *msg,int size,int bufsize,struct pbuf **out,u32_t pid)
+static void netlink_decode (struct stack *stack, void *msg,int size,int bufsize,struct pbuf **out,u32_t pid
+#if LWIP_CAPABILITIES
+		,int cap
+#endif
+		)
 {
 	//char buf[BUF_MAXLEN];
 	struct netlinkbuf nlbuf;
@@ -165,8 +171,14 @@ static void netlink_decode (struct stack *stack, void *msg,int size,int bufsize,
 			return;
 		type=h->nlmsg_type - RTM_BASE;
 		h->nlmsg_pid=pid;
-		if (type >= 0 && type < MGMT_TABLE_SIZE && mgmt_table[type] != NULL)
-			mgmt_table[type](stack, h,&nlbuf,&offset);
+		if (type >= 0 && type < MGMT_TABLE_SIZE && mgmt_table[type] != NULL) {
+#if LWIP_CAPABILITIES
+			if (!NETLINK_IS_GET(type) && (cap&LWIP_CAP_NET_ADMIN) == 0)
+				netlink_ackerror(h,-EPERM,&nlbuf,&offset);
+			else
+#endif
+				mgmt_table[type](stack, h,&nlbuf,&offset);
+		}
 
 		h = NLMSG_NEXT(h, size);
 	}
@@ -311,6 +323,9 @@ struct netlink_send_data {
 	struct netlink *nl;
 	void *data;
 	int size;
+#if LWIP_CAPABILITIES
+	int cap;
+#endif
 };
 
 static void netlink_sync_send(void *arg)
@@ -320,11 +335,14 @@ static void netlink_sync_send(void *arg)
 	struct stack *stack = nl->stack;
 
 	/*printf("netlink_send\n"); dump(data,size);*/
-	/* one single answer pending, multiple requests return one long answer */
 	/*if (0 && nl->answer[0] != NULL)
 		return (-1);
 		else { */
-	netlink_decode(stack, nlss_data->data,nlss_data->size,nl->rcvbufsize,nl->answer,nl->pid);
+	netlink_decode(stack, nlss_data->data,nlss_data->size,nl->rcvbufsize,nl->answer,nl->pid
+#if LWIP_CAPABILITIES
+			,nlss_data->cap
+#endif
+			);
 	memcpy(&(nl->hdr),nlss_data->data,sizeof(struct nlmsghdr));
 	/* } */
 }
@@ -340,30 +358,17 @@ netlink_send(void *sock, void *data, int size, unsigned int flags)
 	nlss_data.data = data;
 	nlss_data.size = size;
 
+#if LWIP_CAPABILITIES
+	if (stack->stack_capfun)
+		nlss_data.cap=stack->stack_capfun();
+	else
+		nlss_data.cap= ~0;
+#endif
+	/* one single answer pending, multiple requests return one long answer */
 	rv = tcpip_callback(stack, netlink_sync_send, &nlss_data, SYNC);
 
 	return 0;
 }
-
-#if 0
-	int
-netlink_send(void *sock, void *data, int size, unsigned int flags)
-{
-	struct netlink *nl=sock;
-
-	struct stack *stack = nl->stack;
-
-	/*printf("netlink_send\n"); dump(data,size);*/
-	/* one single answer pending, multiple requests return one long answer */
-	/*if (0 && nl->answer[0] != NULL)
-		return (-1);
-		else { */
-	netlink_decode(stack, data,size,nl->rcvbufsize,nl->answer,nl->pid);
-	memcpy(&(nl->hdr),data,sizeof(struct nlmsghdr));
-	return 0;
-	/*}*/
-}
-#endif
 
 	int
 netlink_sendto(void *sock, void *data, int size, unsigned int flags,
@@ -421,11 +426,11 @@ netlink_getsockopt (void *sock, int level, int optname, void *optval, socklen_t 
 			case SOL_SOCKET:
 				switch(optname) {
 					case SO_RCVBUF:
-						nl->rcvbufsize= *(int *) optval;
+						*(int *) optval =nl->rcvbufsize;
 						break;
 					case SO_SNDBUF:
 						//printf("SO_SNDBUF\n");
-						nl->sndbufsize= *(int *) optval;
+						*(int *) optval =nl->sndbufsize;
 						break;
 				}
 				break;
@@ -469,11 +474,15 @@ netlink_setsockopt (void *sock, int level, int optname, const void *optval, sock
 			case SOL_SOCKET:
 				switch(optname) {
 					case SO_RCVBUF:
-						*(int *) optval =nl->rcvbufsize;
+						nl->rcvbufsize= *(int *) optval;
+						if (nl->rcvbufsize > MAX_BUFLEN)
+							nl->rcvbufsize = MAX_BUFLEN;
 						break;
 					case SO_SNDBUF:
 						//printf("SO_SNDBUF\n");
-						*(int *) optval =nl->sndbufsize;
+						nl->sndbufsize= *(int *) optval;
+						if (nl->sndbufsize > MAX_BUFLEN)
+							nl->sndbufsize = MAX_BUFLEN;
 						break;
 				}
 				break;

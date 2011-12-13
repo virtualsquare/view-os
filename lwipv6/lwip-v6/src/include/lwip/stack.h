@@ -47,9 +47,22 @@ struct stack_nat;
 #endif
 #endif
 
+/* Allows binding to TCP/UDP sockets below 1024 */
+#define LWIP_CAP_NET_BIND_SERVICE 1<<10
+/* Allow broadcasting, listen to multicast */
+#define LWIP_CAP_NET_BROADCAST    1<<11
+/* Allow interface configuration */
+#define LWIP_CAP_NET_ADMIN        1<<12
+/* Allow use of RAW sockets */
+/* Allow use of PACKET sockets */
+#define LWIP_CAP_NET_RAW          1<<13
+
 struct stack {
 	/* global */
 	u32_t	stack_flags;
+#if LWIP_CAPABILITIES
+	lwip_capfun stack_capfun;
+#endif
 
 	/* lwip-v6/src/core/netif.c */
 	struct netif *netif_list;

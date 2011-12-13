@@ -32,9 +32,11 @@
 #ifndef __LWIP_TCPIP_H__
 #define __LWIP_TCPIP_H__
 
-//#include "lwip/api_msg.h"
 #include "lwip/pbuf.h"
 #include "lwip/stack.h"
+#if LWIP_CAPABILITIES
+typedef int (*lwip_capfun)(void);
+#endif
 
 enum tcpip_msg_type {
 
@@ -102,8 +104,12 @@ int tcpip_init(void);
 
 typedef void (* tcpip_handler)(void *arg);
 
+#if LWIP_CAPABILITIES
+struct stack *tcpip_start(tcpip_handler init_func, void *arg, unsigned long flags, lwip_capfun capfun);
+#else
 /* Alloc a new stack thread and return stack number */
 struct stack *tcpip_start(tcpip_handler init_func, void *arg, unsigned long flags);
+#endif
 
 /* Signal to the stack to shutdown */
 void tcpip_shutdown(struct stack *stack, tcpip_handler shutdown_func, void *arg);

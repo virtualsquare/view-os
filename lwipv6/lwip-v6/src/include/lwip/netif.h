@@ -71,28 +71,29 @@
 #define NETIF_FLAG_UP 0x1U
 /** if set, the netif has broadcast capability */
 #define NETIF_FLAG_BROADCAST 0x2U
+/** if set, the netif is the loopback interface */
+/* NETIF_DEBUG 0x4U not used */
+#define NETIF_FLAG_LOOPBACK 0x8U
 /** if set, the netif is one end of a point-to-point connection */
-#define NETIF_FLAG_POINTTOPOINT 0x04U
-/** if set, the interface is configured using DHCP */
-#define NETIF_FLAG_DHCP 0x08U
-/** if set, the interface has an active link
- *  (set by the network interface driver) */
-#define NETIF_FLAG_LINK_UP 0x10
-/* not used buf kept for comaptibility with LWIP
-#define NETIF_FLAG_ETHARP       0x20U
-#define NETIF_FLAG_ETHERNET     0x40U
-#define NETIF_FLAG_IGMP         0x80U
-*/
-
+#define NETIF_FLAG_POINTTOPOINT 0x10U
+/* NETIF_NOTRAILERS 0x20U not used */
+/* #define NETIF_RUNNING 0x40U not used */
+/* NETIF_NOARP 0x80U not used */
 /* Promisquous mode: pass all the traffic up to the stack */
 #define NETIF_PROMISC 0x100U
-/** if set, the netif id the loopback interface */
-#define NETIF_FLAG_LOOPBACK 0x200U
 
+/* bits here below are not compatible with IFF */
 /* if set use IPv6 AUTOCONF */
-#define NETIF_FLAG_AUTOCONF 0x1000U
+#define NETIF_FLAG_AUTOCONF 0x800U
 /* if set this interface supports Router Advertising */
 #define NETIF_FLAG_RADV	    0x2000U
+/** if set, the interface is configured using DHCP */
+#define NETIF_FLAG_DHCP 0x4000U
+/** if set, the interface has an active link
+ *  (set by the network interface driver) */
+#define NETIF_FLAG_LINK_UP 0x8000U
+#define NETIF_IFF_INCOMPATIBLE_MASK \
+	(NETIF_FLAG_AUTOCONF | NETIF_FLAG_RADV | NETIF_FLAG_DHCP | NETIF_FLAG_LINK_UP)
 
 #define NETIF_STD_FLAGS (NETIF_FLAG_AUTOCONF)
 #define NETIF_ADD_FLAGS (NETIF_FLAG_AUTOCONF | NETIF_FLAG_RADV)
@@ -233,7 +234,11 @@ netif_del_addr(struct netif *netif,struct ip_addr *ipaddr, struct ip_addr *netma
 void netif_remove(struct netif * netif);
 
 struct ifreq;
-int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr);
+int netif_ioctl(struct stack *stack, int cmd,struct ifreq *ifr
+#if LWIP_CAPABILITIES
+		,int cap
+#endif
+		);
 
 /* Returns a network interface given its name. The name is of the form
    "et0", where the first two letters are the "name" field in the

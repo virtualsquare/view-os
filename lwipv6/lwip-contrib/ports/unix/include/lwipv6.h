@@ -97,14 +97,14 @@ struct ip_addr {
 	 ((ipaddr)->addr[2] == IP64_PREFIX))
 
 /* if set use IPv6 AUTOCONF */
-#define NETIF_FLAG_AUTOCONF 0x1000U
+#define NETIF_FLAG_AUTOCONF 0x800U
 /* if set this interface supports Router Advertising */
 #define NETIF_FLAG_RADV     0x2000U
 #define NETIF_STD_FLAGS (NETIF_FLAG_AUTOCONF)
 #define NETIF_ADD_FLAGS (NETIF_FLAG_AUTOCONF | NETIF_FLAG_RADV)
 
 /** if set, the interface is configured using DHCP */
-#define NETIF_FLAG_DHCP 0x08U
+#define NETIF_FLAG_DHCP 0x4000U
 #define NETIF_IFUP_FLAGS (NETIF_FLAG_DHCP)
 
 /* netif creation with standard flags */
@@ -138,8 +138,11 @@ void lwip_stack_free(struct stack *stack);
 #define LWIP_STACK_FLAG_USERFILTER 0x2
 #define LWIP_STACK_FLAG_UF_NAT     0x10000
 
+typedef int (* lwip_capfun) (void);
+
 /* new api */
 struct stack *lwip_add_stack(unsigned long flags);
+struct stack *lwip_add_stack_cap(unsigned long flags, lwip_capfun capfun);
 void lwip_del_stack(struct stack *stack);
 
 struct stack *lwip_stack_get(void);
@@ -161,22 +164,22 @@ int lwip_ifup_flags(struct netif *netif, int flags);
 int lwip_ifdown(struct netif *netif);
 
 int lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen);
-int lwip_bind(int s, struct sockaddr *name, socklen_t namelen);
+int lwip_bind(int s, const struct sockaddr *name, socklen_t namelen);
 int lwip_shutdown(int s, int how);
 int lwip_getpeername (int s, struct sockaddr *name, socklen_t *namelen);
 int lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen);
 int lwip_getsockopt (int s, int level, int optname, void *optval, socklen_t *optlen);
 int lwip_setsockopt (int s, int level, int optname, const void *optval, socklen_t optlen);
 int lwip_close(int s);
-int lwip_connect(int s, struct sockaddr *name, socklen_t namelen);
+int lwip_connect(int s, const struct sockaddr *name, socklen_t namelen);
 int lwip_listen(int s, int backlog);
 ssize_t lwip_recv(int s, void *mem, int len, unsigned int flags);
 ssize_t lwip_read(int s, void *mem, int len);
 ssize_t lwip_recvfrom(int s, void *mem, int len, unsigned int flags,
 		      struct sockaddr *from, socklen_t *fromlen);
-ssize_t lwip_send(int s, void *dataptr, int size, unsigned int flags);
-ssize_t lwip_sendto(int s, void *dataptr, int size, unsigned int flags,
-		    struct sockaddr *to, socklen_t tolen);
+ssize_t lwip_send(int s, const void *dataptr, int size, unsigned int flags);
+ssize_t lwip_sendto(int s, const void *dataptr, int size, unsigned int flags,
+		    const struct sockaddr *to, socklen_t tolen);
 ssize_t lwip_recvmsg(int fd, struct msghdr *msg, int flags); 
 ssize_t lwip_sendmsg(int fd, const struct msghdr *msg, int flags); 
 
@@ -204,6 +207,15 @@ int lwip_radv_load_configfile(struct stack *stack,void *arg);
 
 int lwip_event_subscribe(lwipvoidfun cb, void *arg, int fd, int how);
 
+/* Allows binding to TCP/UDP sockets below 1024 */
+#define LWIP_CAP_NET_BIND_SERVICE 1<<10
+/* Allow broadcasting, listen to multicast */
+#define LWIP_CAP_NET_BROADCAST    1<<11
+/* Allow interface configuration */
+#define LWIP_CAP_NET_ADMIN        1<<12
+/* Allow use of RAW sockets */
+/* Allow use of PACKET sockets */
+#define LWIP_CAP_NET_RAW          1<<13
 
 /* add/delete a slirp port forwarding rule.
 	 src/srcport is the local address/port (in the native stack)
@@ -237,7 +249,7 @@ typedef int (*lwiplongfun)();
 typedef ssize_t (*lwipssizetfun)();
 typedef void (*lwipvoidfun)();
 
-pstackfun lwip_stack_new;
+pstackfun lwip_stack_new,lwip_stack_new_cap;
 lwipvoidfun lwip_stack_free;
 pstackfun lwip_stack_get;
 lwipvoidfun lwip_stack_set;
@@ -292,6 +304,7 @@ static inline void *loadlwipv6dl()
 		lwiplongfun *f;
 	} lwiplibtab[] = {
 		{"lwip_stack_new", (lwiplongfun*)&lwip_stack_new},
+		{"lwip_stack_new_cap", (lwiplongfun*)&lwip_stack_new_cap},
 		{"lwip_stack_free", (lwiplongfun*)&lwip_stack_free},
 		{"lwip_stack_get", (lwiplongfun*)&lwip_stack_get},
 		{"lwip_stack_set", (lwiplongfun*)&lwip_stack_set}, 
