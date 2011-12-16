@@ -19,7 +19,7 @@
  */
 
 #include <linux/ptrace.h>
-#include <sys/ioctl.h>
+#include <linux/ioctl.h>
 
 #define KMVIEW_EVENT_NONE             0x00
 #define KMVIEW_EVENT_NEWTHREAD        0x01
