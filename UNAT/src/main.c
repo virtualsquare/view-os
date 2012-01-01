@@ -1200,7 +1200,11 @@ void stack_thread(void *arg)
 	stack=tcpip_start(stack_init_done, &stack_init_mutex,
 			LWIP_STACK_FLAG_FORWARDING|
 			LWIP_STACK_FLAG_USERFILTER|
-			LWIP_STACK_FLAG_UF_NAT);
+			LWIP_STACK_FLAG_UF_NAT
+#if LWIP_CAPABILITIES
+			,NULL
+#endif
+			);
 	/* Wait for stack initialization */
 	sys_sem_wait_timeout(stack_init_mutex, 0); 
 
