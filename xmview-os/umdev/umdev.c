@@ -70,7 +70,8 @@ struct umdev {
 	mode_t mode;
 	uid_t uid;
 	gid_t gid;
-	int nsubdev;
+	int minsubdev;
+	int maxsubdev;
 	struct umdev_operations *devops;	
 	int inuse;
 	unsigned long flags;
@@ -112,7 +113,7 @@ static int umdev_confirm(int type, void *arg, int arglen, struct ht_elem *ht)
 	char *suffix=path+strlen(fc->path);
 	//printk("umdev_confirm path %s suffix %s\n",path,suffix);
 	int sub=atoi(suffix);
-	if (sub <= fc->nsubdev)
+	if (sub >= fc->minsubdev && sub <= fc->maxsubdev)
 		return 1;
 	else
 		return 0;
@@ -124,8 +125,8 @@ static int umdev_confirm_dev(int type, void *arg, int arglen, struct ht_elem *ht
 	struct umdev *fc=ht_get_private_data(ht);
 	if (major(fc->dev) == major(*dev) &&
 			(minor(fc->dev) == -1 ||
-			 (minor(fc->dev) <= minor(*dev) &&
-				minor(fc->dev)+fc->nsubdev >= minor(*dev))))
+			 (minor(fc->dev)+fc->minsubdev <= minor(*dev) &&
+				minor(fc->dev)+fc->maxsubdev >= minor(*dev))))
 		return 1;
 	else
 		return 0;
@@ -212,12 +213,20 @@ static void minorfun(char *s,struct umdev *fc)
 	fc->dev=makedev(majx,minx);
 }
 
-static void plusnum(char *s,struct umdev *fc)
+static void minsubdev(char *s,struct umdev *fc)
 {
 #ifdef DEBUGUMDEVARGS
 	printk("PLUSNUM %s\n",s);
 #endif
-	fc->nsubdev=atoi(s);
+	fc->minsubdev=atoi(s);
+}
+
+static void maxsubdev(char *s,struct umdev *fc)
+{
+#ifdef DEBUGUMDEVARGS
+	printk("PLUSNUM %s\n",s);
+#endif
+	fc->maxsubdev=atoi(s);
 }
 
 static void modefun(char *s,struct umdev *fc)
@@ -301,7 +310,8 @@ static struct devargitem umdevargtab[] = {
 	{"mode=", modefun},
 	{"uid=", uidfun},
 	{"gid=", gidfun},
-	{"nsubdev=", plusnum}
+	{"minsubdev=", minsubdev},
+	{"maxsubdev=", maxsubdev}
 };
 #define UMDEVARGTABSIZE sizeof(umdevargtab)/sizeof(struct devargitem)
 
@@ -337,7 +347,8 @@ static long umdev_mount(char *source, char *target, char *filesystemtype,
 		}
 		new->dlhandle = dlhandle;
 		new->devops = umdev_ops;
-		new->nsubdev = 0;
+		new->minsubdev = 0;
+		new->maxsubdev = 0;
 		new->inuse = 0;
 		new->flags = 0;
 		new->private_data = NULL;
@@ -888,18 +899,20 @@ void *umdev_getprivatedata(struct umdev *devhandle)
 		return NULL;
 }
 
-void umdev_setnsubdev(struct umdev *devhandle, int nsubdev)
+void umdev_setsubdev(struct umdev *devhandle, int minsubdev, int maxsubdev)
 {
-	if(devhandle)
-		devhandle->nsubdev=nsubdev;
+	if(devhandle) {
+		devhandle->minsubdev=minsubdev;
+		devhandle->maxsubdev=maxsubdev;
+	}
 }
 
-int umdev_getnsubdev(struct umdev *devhandle)
+void umdev_getnsubdev(struct umdev *devhandle, int *minsubdev, int *maxsubdev)
 {
-	if(devhandle)
-		return devhandle->nsubdev;
-	else
-		return -1;
+	if(devhandle) {
+			*minsubdev=devhandle->minsubdev;
+			*maxsubdev=devhandle->maxsubdev;
+	}
 }
 
 dev_t umdev_getbasedev(struct umdev *devhandle)

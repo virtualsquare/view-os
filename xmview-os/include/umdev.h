@@ -66,8 +66,8 @@ void devargs(char *opts, struct devargitem *devargtab, int devargsize, void *arg
 void umdev_setprivatedata(struct umdev *devhandle, void *privatedata);
 void *umdev_getprivatedata(struct umdev *devhandle);
 
-void umdev_setnsubdev(struct umdev *devhandle, int nsubdev);
-int umdev_getnsubdev(struct umdev *devhandle);
+void umdev_setsubdev(struct umdev *devhandle, int minsubdev, int maxsubdev);
+void umdev_getsubdev(struct umdev *devhandle, int *minsubdev, int *maxsubdev);
 	
 void umdev_setmode(struct umdev *devhandle, mode_t mode);
 mode_t umdev_getmode(struct umdev *devhandle);

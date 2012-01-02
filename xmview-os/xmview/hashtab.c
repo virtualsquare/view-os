@@ -44,7 +44,7 @@ static void (*ht_upcall)(int, unsigned char,const void *,int,long)=ht_nullcall;
 	 @mtabline: mount tab line
 	 @type: type (see CHECK* in services.c)
 	 @trailingnumbers: boolean, match pathnames with trailing numbers
-	 @invalid: boolean, the element is logially deleted
+	 @invalid: boolean, the element is logically deleted
 	 @service: service associated to this item
 	 @private_data: opaque container for module data
 	 @objlen: len of the hash key

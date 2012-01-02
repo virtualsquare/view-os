@@ -168,7 +168,7 @@ int wrap_in_fchdir(int sc_number,struct pcb *pc,
 		int rv;
 		path=alloca(PATH_MAX);
 		snprintf(path,PATH_MAX,"/proc/%d/fd/%ld",pc->pid,pc->sysargs[0]);
-		if ((rv=readlink(path,path,PATH_MAX)) < 0) 
+		if ((rv=readlink(path,path,PATH_MAX-1)) < 0) 
 			path=NULL;
 		else 
 			path[rv]=0;

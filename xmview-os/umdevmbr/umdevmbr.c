@@ -135,7 +135,7 @@ static int hdmbr_init(char type, dev_t device, char *path, unsigned long flags, 
 			mode = (mode & ~S_IFMT) | S_IFBLK;
 			umdev_setmode(devhandle, mode);
 			umdev_setprivatedata(devhandle,mbr);
-			umdev_setnsubdev(devhandle, IDE_MAXPART);
+			umdev_setsubdev(devhandle, 0, IDE_MAXPART);
 			return 0;
 		} else
 			return -1;
