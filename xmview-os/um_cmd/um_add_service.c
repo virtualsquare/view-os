@@ -56,16 +56,18 @@ int main(int argc, char *argv[])
 								break;
 		}
 	}
-	if (argc - optind != 1)
+	if (argc - optind < 1)
 		usage();
 	else {
-		if (um_add_service(argv[optind],permanent) < 0) {
-			perror("um_add_service");
-			exit(1);
+		int rv=0;
+		int i;
+		for (i=optind; i<argc; i++) {
+			if (um_add_service(argv[i],permanent) < 0) {
+				perror("um_add_service");
+				rv=1;
+			}
 		}
-		else
-			exit(0);
+		return rv;
 	}
 	return 0;
 }
-

@@ -111,8 +111,8 @@ static int umdev_confirm(int type, void *arg, int arglen, struct ht_elem *ht)
 	char *path=arg;
 	struct umdev *fc=ht_get_private_data(ht);
 	char *suffix=path+strlen(fc->path);
-	//printk("umdev_confirm path %s suffix %s\n",path,suffix);
 	int sub=atoi(suffix);
+	//printk("umdev_confirm path %s suffix %s %d %d\n",path,suffix,sub, fc->minsubdev, fc->maxsubdev);
 	if (sub >= fc->minsubdev && sub <= fc->maxsubdev)
 		return 1;
 	else
@@ -915,6 +915,12 @@ void umdev_getnsubdev(struct umdev *devhandle, int *minsubdev, int *maxsubdev)
 	}
 }
 
+void umdev_setbasedev(struct umdev *devhandle, dev_t dev)
+{
+	if(devhandle && devhandle->devht == NULL)
+		devhandle->dev=dev;
+}
+
 dev_t umdev_getbasedev(struct umdev *devhandle)
 {
 	if(devhandle)
@@ -925,7 +931,7 @@ dev_t umdev_getbasedev(struct umdev *devhandle)
 
 void umdev_setmode(struct umdev *devhandle, mode_t mode)
 {
-	if(devhandle)
+	if(devhandle && devhandle->devht == NULL)
 		devhandle->mode=mode;
 }
 

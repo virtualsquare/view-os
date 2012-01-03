@@ -50,16 +50,19 @@ int main(int argc, char *argv[])
 		c=getopt_long(argc,argv,"",long_options,&option_index);
 		if (c == -1) break;
 	}
-	if (argc - optind != 1) {
+	if (argc - optind < 1) {
 		usage();
 		return 2;
 	} else {
-		if (um_del_service(argv[optind]) < 0) {
-			perror("um_del_service");
-			return 1;
+		int rv=0;
+		int i;
+		for (i=optind; i<argc; i++) {
+			if (um_del_service(argv[optind]) < 0) {
+				perror("um_del_service");
+				rv=1;
+			}
 		}
-		else
-			return 0;
+		return rv;
 	}
 }
 

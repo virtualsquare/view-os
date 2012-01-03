@@ -694,7 +694,7 @@ struct ht_elem *ht_fd(struct pcb_file *p, int fd, int setepoch)
 		} else
 			return NULL;
 }
-	
+
 /* second phase of lfd_open: map the process fd to to lfd,
  * fd is known only after the kernel has completed its open
  * of the fifo */

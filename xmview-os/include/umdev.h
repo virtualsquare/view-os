@@ -72,6 +72,7 @@ void umdev_getsubdev(struct umdev *devhandle, int *minsubdev, int *maxsubdev);
 void umdev_setmode(struct umdev *devhandle, mode_t mode);
 mode_t umdev_getmode(struct umdev *devhandle);
 
+void umdev_setbasedev(struct umdev *devhandle, dev_t dev);
 dev_t umdev_getbasedev(struct umdev *devhandle);
 #endif /* _UMDEV_H_ */
 

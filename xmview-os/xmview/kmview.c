@@ -380,7 +380,6 @@ static void activate_console(char c)
 		printk(KERN_CRIT "Unable to run the console wrapper: %s",strerror(errno));
 		exit(1);
 	}
-	int fd;
 	close(pty);
 }
 
