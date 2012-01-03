@@ -422,18 +422,20 @@ static inline int isinfdset(int fd, struct kmview_fdset *fdset)
 	return FD_ISSET(fd,&fdsysset->fdset);
 }
 
-static inline int iskmviewfd (unsigned long sysno, int fd, struct kmview_fdset *fdset,
-		    int except_close, int except_fchdir) {
-	if (!scbitmap_isset(fdsyscall,sysno))
+static inline int iskmviewfd (struct pt_regs *regs, 
+		struct kmview_fdset *fdset, int tracer_flags) {
+	unsigned long sysno=arch_scno(regs);
+	int fd=arch_n(regs,0);
+	if (unlikely(!scbitmap_isset(fdsyscall,sysno)))
 		return 1;
-	if (except_close && (sysno == __NR_close
-#ifdef __NR_shutdown
-				|| sysno == __NR_shutdown
-#endif
-				))
-		return 1;
-	if (except_fchdir && sysno == __NR_fchdir)
-		return 1;
+	if (unlikely(tracer_flags & KMVIEW_FLAG_EXCEPT_CLOSE)) {
+		if (sysno == __NR_close)
+			return 1;
+	}
+	if (unlikely(sysno == __NR_fchdir)) {
+		if (tracer_flags & KMVIEW_FLAG_EXCEPT_FCHDIR)
+			return 1;
+	}
 	return isinfdset(fd,fdset);
 }
 
@@ -568,9 +570,7 @@ static u32 kmview_syscall_entry(u32 action, struct utrace_engine *engine,
 		} else
 #endif
 		if (!(tracer_flags & KMVIEW_FLAG_FDSET) ||
-				 iskmviewfd(arch_scno(regs), arch_n(regs,0), kmt->fdset,
-					 tracer_flags & KMVIEW_FLAG_EXCEPT_CLOSE,
-					 tracer_flags & KMVIEW_FLAG_EXCEPT_FCHDIR)) {
+				 iskmviewfd(regs, kmt->fdset, tracer_flags)) {
 			kmt->regs=regs;
 			kmview_event_enqueue(KMVIEW_EVENT_SYSCALL_ENTRY,kmt,0,0);
 			//printk("STOP\n");
