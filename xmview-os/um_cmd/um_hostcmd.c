@@ -136,6 +136,9 @@ int main(int argc, char *argv[])
 	int pty;
 	char pts_name[256];
 	char password[64]="";
+	struct viewinfo vi;
+	if (um_view_getinfo(&vi) < 0)
+		execvp(argv[1],argv+1);
 
 	if ((pty = um_open("/dev/ptmx", O_RDWR|O_NOCTTY, 0, NULL)) < 0) {
 		if (errno==EPERM) {
