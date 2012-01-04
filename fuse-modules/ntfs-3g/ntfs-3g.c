@@ -4274,8 +4274,10 @@ static struct fuse *mount_fuse(char *parsed_options)
 	if (!fh)
 		goto err;
 	
+#ifndef _UMFUSE
 	if (fuse_set_signal_handlers(fuse_get_session(fh)))
 		goto err_destory;
+#endif
 out:
 	fuse_opt_free_args(&args);
 	return fh;
@@ -4464,7 +4466,10 @@ int main(int argc, char *argv[])
 		/* to initialize security data */
 	if (ntfs_open_secure(ctx->vol) && (ctx->vol->major_ver >= 3))
 		failed_secure = "Could not open file $Secure";
-	if (!ntfs_build_mapping(&ctx->security,ctx->usermap_path)) {
+	if (!ntfs_build_mapping(&ctx->security,ctx->usermap_path,
+			(ctx->vol->secure_flags
+			 & ((1 << SECURITY_DEFAULT) | (1 << SECURITY_ACL)))
+			&& !(ctx->vol->secure_flags & (1 << SECURITY_WANTED)))) {
 #if POSIXACLS
 		if (ctx->vol->secure_flags & (1 << SECURITY_DEFAULT))
 			permissions_mode = "User mapping built, Posix ACLs not used";
