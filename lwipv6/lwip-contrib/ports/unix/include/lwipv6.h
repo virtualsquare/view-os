@@ -137,6 +137,7 @@ void lwip_stack_free(struct stack *stack);
 #define LWIP_STACK_FLAG_FORWARDING 1
 #define LWIP_STACK_FLAG_USERFILTER 0x2
 #define LWIP_STACK_FLAG_UF_NAT     0x10000
+#define LWIP_STACK_FLAG_NO_ECHO    0x20000
 
 typedef int (* lwip_capfun) (void);
 

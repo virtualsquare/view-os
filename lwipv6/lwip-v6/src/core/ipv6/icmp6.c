@@ -112,6 +112,11 @@ icmp_input(struct stack *stack, struct pbuf *p, struct ip_addr_list *inad, struc
 
 		case ICMP6_ECHO | (6 << 8):
 			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input:  icmp6 ping\n"));
+			if (stack->stack_flags & LWIP_STACK_FLAG_NO_ECHO) {
+				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: ping echo disabled\n"));
+				pbuf_free(p);
+				return;
+			}
 			if (p->tot_len < sizeof(struct icmp_echo_hdr)) {
 				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: bad ICMP echo received\n"));
 				pbuf_free(p);
@@ -332,6 +337,11 @@ icmp_input(struct stack *stack, struct pbuf *p, struct ip_addr_list *inad, struc
 		 */
 		case ICMP4_ECHO | (4 << 8):
 			LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: icmp4 echo\n"));
+			if (stack->stack_flags & LWIP_STACK_FLAG_NO_ECHO) {
+				LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: ping echo disabled\n"));
+				pbuf_free(p);
+				return;
+			}
 			if (ip_addr_is_v4broadcast(piphdr->dest, &(inad->ipaddr), &(inad->netmask)) ||
 					ip_addr_ismulticast(piphdr->dest)) {
 				LWIP_DEBUGF(ICMP_DEBUG, ("Smurf.\n"));
