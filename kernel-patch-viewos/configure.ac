@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.60)
-AC_INIT([kernel-patch-viewos], [20080616], [info@v2.cs.unibo.it])
+AC_INIT([kernel-patch-viewos], [20120115], [info@v2.cs.unibo.it])
 AM_INIT_AUTOMAKE([foreign dist-bzip2])
 # Checks for programs.
 
