@@ -470,7 +470,12 @@ static void vdeif_stream_input(struct netif_fddata *fddata, short revents)
 	u16_t len;
 
 	len=read(fddata->fd,buf,1514);
-	vdeplug.vdestream_recv(vdeif->vdestream,buf,len);
+	if (len>0)
+		vdeplug.vdestream_recv(vdeif->vdestream,buf,len);
+	else {
+		vdeplug.vdestream_close(vdeif->vdestream);
+		close(fddata->fd);
+	}
 }
 
 static ssize_t vdeif_streampkt_input(void *opaque, void *buf, size_t count)
