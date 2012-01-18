@@ -72,8 +72,8 @@ static void xlocal_accept(int fd, void *arg)
 		int fdout=socket(AF_UNIX,SOCK_STREAM,0);
 		if (fdout >= 0 &&
 				connect(fdout, (struct sockaddr *)&addrun, sizeof(addrun)) >= 0) {
-			slirpoll_addfd(fdin,xlocal_inout,(void *)fdout);
-			slirpoll_addfd(fdout,xlocal_outin,(void *)fdin);
+			slirpoll_addfd(fdin,xlocal_inout,(void *)fdout, POLLIN);
+			slirpoll_addfd(fdout,xlocal_outin,(void *)fdin, POLLIN);
 		} else {
 			if (fdout >= 0)
 				close(fdout);
@@ -93,6 +93,6 @@ int xlocal_add(struct stack *stack, int port, char *sockname)
 			lwip_bind(xlocalfd, (struct sockaddr *)&saddr, sizeof(struct sockaddr_in6)) < 0 ||
 			lwip_listen(xlocalfd,5) < 0)
 			return -1;
-	slirpoll_addfd(xlocalfd,xlocal_accept,sockname);
+	slirpoll_addfd(xlocalfd,xlocal_accept,sockname, POLLIN);
 	return 0;
 }

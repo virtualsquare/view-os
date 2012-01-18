@@ -254,7 +254,7 @@ static void dns_lwip_input(int fd, void *arg)
 		if (s<0)
 			close(outfd);
 		else
-			slirpoll_addfd(outfd,dns_reply_input,(void *) s);
+			slirpoll_addfd(outfd,dns_reply_input,(void *) s, POLLIN);
 	}
 	//printf("dns -> %d %d\n",s,len);
 	if (s>=0) {
@@ -286,5 +286,5 @@ void dns_init(struct stack *stack, struct ip_addr *dnsaddr)
 	} else
 		dns_data.dynamic=1;
 	dns_data.fdin=dnsfd;
-	slirpoll_addfd(dnsfd,dns_lwip_input,&dns_data);
+	slirpoll_addfd(dnsfd,dns_lwip_input,&dns_data, POLLIN);
 }

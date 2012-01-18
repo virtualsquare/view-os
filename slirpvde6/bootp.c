@@ -366,5 +366,5 @@ void bootp_init(struct stack *stack, int dhcp_naddr)
 	saddr.sin_addr.s_addr = INADDR_ANY;
 	lwip_bind(dhcpfd, (struct sockaddr *)&saddr, sizeof(struct sockaddr_in));
 	lwip_setsockopt(dhcpfd, SOL_SOCKET, SO_BROADCAST, &one, sizeof(one));
-	slirpoll_addfd(dhcpfd, bootp_input, NULL);
+	slirpoll_addfd(dhcpfd, bootp_input, NULL, POLLIN);
 }

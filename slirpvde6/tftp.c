@@ -399,6 +399,6 @@ void tftp_init(struct stack *stack, char *tftp_prefix)
 		saddr.sin6_port = htons(69);
 		saddr.sin6_addr = in6addr_any;
 		lwip_bind(tftpfd, (struct sockaddr *)&saddr, sizeof(struct sockaddr_in));
-		slirpoll_addfd(tftpfd,tftp_input,tftp_prefix);
+		slirpoll_addfd(tftpfd,tftp_input,tftp_prefix,POLLIN);
 	}
 }

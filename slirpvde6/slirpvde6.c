@@ -105,7 +105,7 @@ int slirpoll_npfd_max;
 
 int slirpoll_addfd(int fd,
 		void (*fun)(int fd, void *arg),
-		void *funarg)
+		void *funarg, short events)
 {
 	int n;
 
@@ -130,7 +130,7 @@ int slirpoll_addfd(int fd,
 		slirpoll_npfd++;
 	}
 	slirpoll_pfd[n].fd = fd;
-	slirpoll_pfd[n].events = POLLIN;
+	slirpoll_pfd[n].events = events;
 	slirpoll_pfd[n].revents = 0;
 	slirpoll_pfd_args[n].fun = fun;
 	slirpoll_pfd_args[n].funarg = funarg;
@@ -486,6 +486,11 @@ void usage(char *name) {
 	exit(-1);
 }
 
+void stdin_hangup(int fd, void *arg)
+{
+	exit(0);
+}
+
 int main(int argc, char **argv)
 {
 	struct stack *stack;
@@ -657,6 +662,9 @@ int main(int argc, char **argv)
 		printlog(LOG_ERR, "getcwd: %s", strerror(errno));
 		exit(1);
 	}
+
+	if(sockname && sockname[0]=='-' && sockname[1]==0) 
+		slirpoll_addfd(0, stdin_hangup, NULL, POLLHUP); 
 
 	if(pidfile) save_pidfile();
 	if(dhcpmgmt) {
