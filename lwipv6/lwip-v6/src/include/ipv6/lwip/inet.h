@@ -52,6 +52,8 @@
 #ifndef __LWIP_INET_H__
 #define __LWIP_INET_H__
 
+#include <arpa/inet.h>
+
 #include "lwip/arch.h"
 
 #include "lwip/opt.h"
@@ -80,52 +82,4 @@ int inet_pton(int af, const char *src, void *dst);
 
 /*--------------------------------------------------------------------*/
 
-#ifndef htons
-
-#if BYTE_ORDER == BIG_ENDIAN
-#define htons(x) (x)
-#define ntohs(x) (x)
-#define htonl(x) (x)
-#define ntohl(x) (x)
-#else
-u16_t htons(u16_t x);
-u16_t ntohs(u16_t x);
-u32_t htonl(u32_t x);
-u32_t ntohl(u32_t x);
-#endif /* BYTE_ORDER == LITTLE_ENDIAN */
-
-#endif
 #endif /* __LWIP_INET_H__ */
-
-
-
-
-
-
-#if 0
-#ifdef htons
-#undef htons
-#endif /* htons */
-#ifdef htonl
-#undef htonl
-#endif /* htonl */
-#ifdef ntohs
-#undef ntohs
-#endif /* ntohs */
-#ifdef ntohl
-#undef ntohl
-#endif /* ntohl */
-#endif
-
-#if 0
-#ifndef _MACHINE_ENDIAN_H_
-#ifndef _NETINET_IN_H
-#ifndef _LINUX_BYTEORDER_GENERIC_H
-u16_t htons(u16_t n);
-u16_t ntohs(u16_t n);
-u32_t htonl(u32_t n);
-u32_t ntohl(u32_t n);
-#endif /* _LINUX_BYTEORDER_GENERIC_H */
-#endif /* _NETINET_IN_H */
-#endif /* _MACHINE_ENDIAN_H_ */
-#endif
