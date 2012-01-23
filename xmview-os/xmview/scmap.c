@@ -195,7 +195,7 @@ struct sc_map scmap[]={
 	{__NR_chdir,		choice_path,	wrap_in_chdir,	wrap_out_chdir, always_null,	NULL, ALWAYS,	PATH0 | 1, SOC_FILE},
 	{__NR_fchdir,		choice_fd,	wrap_in_fchdir,	wrap_out_chdir, always_null,	NULL, ALWAYS,	1, SOC_FILE},
 	{__NR_getcwd,		always_null, wrap_in_getcwd,	wrap_out_std,	always_null,	NULL, ALWAYS,	2, SOC_NONE},
-	{__NR_open,	choice_path,	wrap_in_open,	wrap_out_open,	nchoice_path,	nw_sysopen, ALWAYS,	PATH0 | 3, SOC_FILE},
+	{__NR_open,	choice_path,	wrap_in_open,	wrap_out_open,	nchoice_path,	nw_sysopen, ALWAYS,	PATH0 | OPENARGS, SOC_FILE},
 	{__NR_creat,	choice_path,	wrap_in_open,	wrap_out_open,	nchoice_path,	nw_sysopen, ALWAYS,	PATH0 | 2, SOC_FILE},
 	{__NR_close,	choice_fd,	wrap_in_close,	wrap_out_close,	nchoice_fd,	nw_sysclose, ALWAYS,	1, SOC_FILE|SOC_NET},
 	{__NR_select,	always_null,	wrap_in_select,	wrap_out_select,always_null,	NULL, ALWAYS,	5, SOC_FILE|SOC_NET},

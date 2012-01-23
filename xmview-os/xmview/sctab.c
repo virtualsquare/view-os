@@ -1547,7 +1547,7 @@ void scdtab_init()
 		int scno=scmap[i].scno;
 		if (scno >= 0)  {
 			scdtab[scno]=dsys_megawrap;
-			scdnarg[scno]=NARGS(scmap[i].nargx);
+			scdnarg[scno]=NARGSO(scmap[i].nargx);
 		}
 	}
 

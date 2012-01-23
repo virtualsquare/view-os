@@ -85,15 +85,17 @@ struct sc_map {
 	/* number of arguments of this system call - used for some
 	 * optimizations (lower three bits) */
 	/* path argument (for rewriting) in three more bits
-		 bits 7,6 unused
-		 bits 5,4,3 path arg (+1 !! path is arg 0
+		 bit 7 is OPEN (2 or three args)
+		 bits 6 unused
+		 bits 5,4,3 path arg (+1, no path=0, path in arg0=1 etc)
 		 bits 2,1,0 nargs */
-	char nargx;
+	unsigned char nargx;
 	/* set of calls, for a better selection (choice fun)*/
 	unsigned char setofcall;
 };
 
 #define NARGS(X) ((int)(X & 0x7))
+#define NARGSO(X) ((int)(X & 0x87))
 #define ISPATHARG(X) ((X >> 3) & 0x7)
 #define PATHARG(X) (((X >> 3) & 0x7) - 1)
 #define PATH0 (1<<3)
@@ -102,6 +104,7 @@ struct sc_map {
 #define PATH3 (4<<3)
 #define PATH4 (5<<3)
 #define PATH5 (6<<3)
+#define OPENARGS (3 | 1<<7)
 
 extern struct sc_map scmap[];
 extern int scmap_scmapsize;

@@ -99,7 +99,7 @@ int nprocs = 0;                       /* number of active processes */
 static int pcbtabsize;                /* actual size of the pcb table */
 
 divfun scdtab[_UM_NR_syscalls];                 /* upcalls */
-char scdnarg[_UM_NR_syscalls];  /*nargs*/
+unsigned char scdnarg[_UM_NR_syscalls];  /*nargs*/
 unsigned int scdtab_bitmap[INT_PER_MAXSYSCALL]; /* bitmap */
 struct ghosthash64 ghostmounts={{GH_TERMINATE},{}};
 

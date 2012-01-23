@@ -110,7 +110,7 @@ int nprocs = 0;                       /* number of active processes */
 static int pcbtabsize;                /* actual size of the pcb table */
 
 divfun scdtab[_UM_NR_syscalls];                 /* upcalls */
-char scdnarg[_UM_NR_syscalls];	/*nargs*/
+unsigned char scdnarg[_UM_NR_syscalls];	/*nargs 0x83 is OPEN */
 
 /* linux has a single call for all the socket calls 
  * in several architecture (i386, ppc), socket calls are standard
@@ -523,17 +523,18 @@ void tracehand()
 				GDEBUG(3, "--> pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
 				pc->sysscno = scno;
 				switch (scdnarg[scno]) {
-					case 6:
+					case 0x6:
 						pc->sysargs[5]=getargn(5,pc);
-					case 5:
+					case 0x5:
 						pc->sysargs[4]=getargn(4,pc);
-					case 4:
+					case 0x4:
 						pc->sysargs[3]=getargn(3,pc);
-					case 3:
+					case 0x83:
+					case 0x3:
 						pc->sysargs[2]=getargn(2,pc);
-					case 2:
+					case 0x2:
 						pc->sysargs[1]=getargn(1,pc);
-					case 1:
+					case 0x1:
 						pc->sysargs[0]=getargn(0,pc);
 				}
 #if __NR_socketcall != __NR_doesnotexist
@@ -578,17 +579,23 @@ void tracehand()
 						/* in case the call has been changed, count the 
 						 * args for the new call */
 						switch (scdnarg[getscno(pc)]) {
-							case 6:
-								putargn(5,pc->sysargs[5],pc);
-							case 5:
-								putargn(4,pc->sysargs[4],pc);
-							case 4:
-								putargn(3,pc->sysargs[3],pc);
-							case 3:
-								putargn(2,pc->sysargs[2],pc);
-							case 2:
+							case 0x83:
+								if ((pc->sysargs[1] & O_ACCMODE) != O_RDONLY)
+									putargn(2,pc->sysargs[2],pc);
 								putargn(1,pc->sysargs[1],pc);
-							case 1:
+								putargn(0,pc->sysargs[0],pc);
+								break;
+							case 0x6:
+								putargn(5,pc->sysargs[5],pc);
+							case 0x5:
+								putargn(4,pc->sysargs[4],pc);
+							case 0x4:
+								putargn(3,pc->sysargs[3],pc);
+							case 0x3:
+								putargn(2,pc->sysargs[2],pc);
+							case 0x2:
+								putargn(1,pc->sysargs[1],pc);
+							case 0x1:
 								putargn(0,pc->sysargs[0],pc);
 						}
 					}
@@ -793,17 +800,23 @@ void sc_resume(struct pcb *pc)
 				/* in case the call has been changed, count the 
 				 * args for the new call */
 				switch (scdnarg[getscno(pc)]) {
-					case 6:
-						putargn(5,pc->sysargs[5],pc);
-					case 5:
-						putargn(4,pc->sysargs[4],pc);
-					case 4:
-						putargn(3,pc->sysargs[3],pc);
-					case 3:
-						putargn(2,pc->sysargs[2],pc);
-					case 2:
+					case 0x83:
+						if ((pc->sysargs[1] & O_ACCMODE) != O_RDONLY)
+							putargn(2,pc->sysargs[2],pc);
 						putargn(1,pc->sysargs[1],pc);
-					case 1:
+						putargn(0,pc->sysargs[0],pc);
+						break;
+					case 0x6:
+						putargn(5,pc->sysargs[5],pc);
+					case 0x5:
+						putargn(4,pc->sysargs[4],pc);
+					case 0x4:
+						putargn(3,pc->sysargs[3],pc);
+					case 0x3:
+						putargn(2,pc->sysargs[2],pc);
+					case 0x2:
+						putargn(1,pc->sysargs[1],pc);
+					case 0x1:
 						putargn(0,pc->sysargs[0],pc);
 				}
 			}

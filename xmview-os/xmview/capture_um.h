@@ -27,7 +27,7 @@
 #include "defs.h"
 
 extern divfun scdtab[];
-extern char scdnarg[];
+extern unsigned char scdnarg[];
 #if __NR_socketcall != __NR_doesnotexist
 extern divfun sockcdtab[];
 #endif
