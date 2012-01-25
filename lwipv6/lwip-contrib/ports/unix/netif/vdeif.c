@@ -86,11 +86,18 @@
 #include <sys/un.h>
 #include <stdint.h>
 #include <libgen.h>
-#include <libvdeplug_dyn.h>
 #include <sys/poll.h>
 #include <pwd.h>
 
+#ifdef VDE_DYNLOAD
+#include <libvdeplug_dyn.h>
 struct vdepluglib vdeplug;
+#define VDEDYN(X) vdeplug.X
+#else
+#include <libvdeplug.h>
+#define VDEDYN(X) X
+#define libvdeplug_dynopen(X)
+#endif
 
 /*-----------------------------------------------------------------------------------*/
 
@@ -141,7 +148,7 @@ static int low_level_init(struct netif *netif, char *path)
 
 	libvdeplug_dynopen(vdeplug);
 
-	if (!vdeplug.vde_close)
+	if (!VDEDYN(vde_close))
 		return ERR_IF;
 
 	vdeif = netif->state;
@@ -164,11 +171,11 @@ static int low_level_init(struct netif *netif, char *path)
 		(getenv("_INSIDE_VIEWOS_MODULE") != NULL) ? "VIEWOS-" : "", 
 		netif->num + '0');
 	if (path==NULL || *path != '-') {
-		vdeif->vdefd=vdeplug.vde_open(path,descr,NULL);
+		vdeif->vdefd=VDEDYN(vde_open)(path,descr,NULL);
 		vdeif->vdestream=NULL;
 		if (vdeif->vdefd && 
 				(vdeif->fddata=netif_addfd(netif, 
-																	vdeplug.vde_datafd(vdeif->vdefd),
+																	vde_datafd(vdeif->vdefd),
 																	vdeif_input, NULL, 0, POLLIN)) != NULL
 		 ) 
 			return ERR_OK;
@@ -185,7 +192,7 @@ static int low_level_init(struct netif *netif, char *path)
 			return ERR_IF;
 		}
 		vdeif->vdefd=NULL;
-		vdeif->vdestream=vdeplug.vdestream_open(netif,fdout,vdeif_streampkt_input,NULL);
+		vdeif->vdestream=VDEDYN(vdestream_open)(netif,fdout,vdeif_streampkt_input,NULL);
 		if (vdeif->vdestream != NULL &&
 				(vdeif->fddata=netif_addfd(netif, fdin, 
 																	vdeif_stream_input, NULL, 0, POLLIN)) != NULL)
@@ -205,9 +212,9 @@ static err_t vdeif_ctl(struct netif *netif, int request, void *arg)
 		switch (request) {
 			case NETIFCTL_CLEANUP:
 				if (vdeif->vdefd)
-					vdeplug.vde_close(vdeif->vdefd);
+					VDEDYN(vde_close)(vdeif->vdefd);
 				if (vdeif->vdestream)
-					vdeplug.vdestream_close(vdeif->vdestream);
+					VDEDYN(vdestream_close)(vdeif->vdestream);
 
 				/* Unset ARP timeout on this interface */
 				sys_untimeout((sys_timeout_handler)arp_timer, netif);
@@ -258,10 +265,10 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
 
 	if (vdeif->vdefd) {
 		/* signal that packet should be sent(); */
-		if (vdeplug.vde_send(vdeif->vdefd, buf, p->tot_len, 0) == -1) {
+		if (VDEDYN(vde_send)(vdeif->vdefd, buf, p->tot_len, 0) == -1) {
 		}
 	} else {
-		if (vdeplug.vdestream_send(vdeif->vdestream, buf, p->tot_len) == -1) {
+		if (VDEDYN(vdestream_send)(vdeif->vdestream, buf, p->tot_len) == -1) {
 		}
 	}
 
@@ -320,7 +327,7 @@ static struct pbuf *low_level_input(struct vdeif *vdeif, u16_t ifflags)
 	LWIP_DEBUGF(VDEIF_DEBUG, ("%s: reading...\n", __func__));
 
 	/* Obtain the size of the packet and put it into the "len" variable. */
-	len = vdeplug.vde_recv(vdeif->vdefd, buf, sizeof(buf), 0);
+	len = VDEDYN(vde_recv)(vdeif->vdefd, buf, sizeof(buf), 0);
 
 	LWIP_DEBUGF(VDEIF_DEBUG, ("%s: read %d bytes (is UP? = %d)\n", __func__, len, ifflags & NETIF_FLAG_UP));
 
@@ -471,9 +478,9 @@ static void vdeif_stream_input(struct netif_fddata *fddata, short revents)
 
 	len=read(fddata->fd,buf,1514);
 	if (len>0)
-		vdeplug.vdestream_recv(vdeif->vdestream,buf,len);
+		VDEDYN(vdestream_recv)(vdeif->vdestream,buf,len);
 	else {
-		vdeplug.vdestream_close(vdeif->vdestream);
+		VDEDYN(vdestream_close)(vdeif->vdestream);
 		close(fddata->fd);
 	}
 }
