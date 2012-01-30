@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
 		}
 		printf("\n");
 	} else {
-			printf("%s\n",vi.uname.nodename);
+			printf("%s\n",vi.uname.sysname);
 	}
 	return 0;
 }
