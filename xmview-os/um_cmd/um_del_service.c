@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
 		int rv=0;
 		int i;
 		for (i=optind; i<argc; i++) {
-			if (um_del_service(argv[optind]) < 0) {
+			if (um_del_service(argv[i]) < 0) {
 				perror("um_del_service");
 				rv=1;
 			}
