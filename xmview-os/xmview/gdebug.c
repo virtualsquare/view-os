@@ -61,14 +61,38 @@ void gdebug_set_ofile(char* new_ofile)
 		setlinebuf(gdebug_ofile);
 }
 
+static void gdebug_color_on(FILE *ofile, int level)
+{
+	char color[15];
+	int i=0;
+	level=COLOR(level);
+	while (level) {
+		if (BGND(level)) { color[i++]='4'; color[i++]='0'+BGND(level); level &= ~BWH; }
+		else if (FGND(level)) { color[i++]='3'; color[i++]='0'+FGND(level); level &= ~FWH; }
+		else if (level & BOLD) { color[i++]=1; level &= ~BOLD; }
+		else if (level & BLINK) { color[i++]=5; level &= ~BLINK; }
+		else if (level & UNDER) { color[i++]=4; level &= ~UNDER; }
+		if (level)
+			color[i++]=';';
+	}
+	color[i]=0;
+	libc_fprintf(ofile,"\033[%sm",color);
+}
+
+static void gdebug_color_off(FILE *ofile)
+{
+	libc_fprintf(ofile,"\033[0m");
+}
+
 void fgdebug(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, const char *fmt, ...)
 {
 	va_list ap;
 
-	if (gdebug_level >= level)
+	if (gdebug_level >= LEVEL(level))
 	{
 		va_start(ap, fmt);
 
+		if (COLOR(level)) gdebug_color_on(ofile, level);
 #ifdef _PTHREAD_H
 		libc_fprintf(ofile, "[%d:%lu] %s:%d %s(): ", libc_getpid(), pthread_self(), file, line, func);
 #else
@@ -76,6 +100,7 @@ void fgdebug(FILE *ofile, int gdebug_level, int level, const char *file, const i
 #endif
 
 		libc_vfprintf(ofile, fmt, ap);
+		if (COLOR(level)) gdebug_color_off(ofile);
 		libc_fprintf(ofile, "\n");
 
 		va_end(ap);
@@ -94,8 +119,9 @@ void fgmsg(FILE *ofile, const char *fmt, ...)
 void fghexdump(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, char* text, int len)
 {
 	int i;
-	if (gdebug_level >= level)
+	if (gdebug_level >= LEVEL(level))
 	{
+		if (COLOR(level)) gdebug_color_on(ofile, level);
 #ifdef _PTHREAD_H
 		libc_fprintf(ofile, "[%d:%lu] %s:%d %s(): [%d] ", libc_getpid(), pthread_self(), file, line, func, len);
 #else
@@ -109,6 +135,7 @@ void fghexdump(FILE *ofile, int gdebug_level, int level, const char *file, const
 			libc_fprintf(ofile, "%02x", (unsigned char)text[i]);
 		}
 
+		if (COLOR(level)) gdebug_color_off(ofile);
 		libc_fprintf(ofile, "\n");
 	}
 }	
@@ -123,7 +150,7 @@ void fgbacktrace(FILE *ofile, int gdebug_level, int level, const char *file, con
 	 * user wants maxdepth entries so we must add 1 */
 	maxdepth++;
 	
-	if (gdebug_level >= level)
+	if (gdebug_level >= LEVEL(level))
 	{
 		if (maxdepth > backtrace_array_size)
 		{

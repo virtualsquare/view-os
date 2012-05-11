@@ -520,7 +520,7 @@ void tracehand()
 			else if (pc->sysscno == NOSC) /* PRE syscall tracing event (IN)*/
 			{
 				divfun fun;
-				GDEBUG(3, "--> pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
+				GDEBUG(/*FRD | BYL |*/ 3, "--> pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
 				pc->sysscno = scno;
 				switch (scdnarg[scno]) {
 					case 0x6:
@@ -602,7 +602,7 @@ void tracehand()
 				}
 			} else { /* POST syscall management (OUT phase) */
 				divfun fun;
-				GDEBUG(3, "<-- pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
+				GDEBUG(/*FYL | BRD*/ | 3, "<-- pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
 				//printk("OUT\n");
 				if (isreproducing) {
 					long newpid;

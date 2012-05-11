@@ -68,5 +68,36 @@ void fgbacktrace(FILE *ofile, int gdebug_level, int level, const char *file, con
 #	define GMESSAGE(args...) FGERROR(GDEBUG_OFILE, args)
 #endif
 
-
+/* COLOR DEBUG */
+#define BK 0
+#define RD 1
+#define GN 2
+#define YL 3
+#define BL 4
+#define MG 5
+#define CY 6
+#define WH 7
+#define BBK (BK<<16)
+#define BRD (RD<<16)
+#define BGN (GN<<16)
+#define BYL (YL<<16)
+#define BBL (BL<<16)
+#define BMG (MG<<16)
+#define BCY (CY<<16)
+#define BWH (WH<<16)
+#define BGND(level) (((level)>>16) & 07)
+#define FBK (BK<<19)
+#define FRD (RD<<19)
+#define FGN (GN<<19)
+#define FYL (YL<<19)
+#define FBL (BL<<19)
+#define FMG (MG<<19)
+#define FCY (CY<<19)
+#define FWH (WH<<19)
+#define FGND(level) (((level)>>19) & 07)
+#define BOLD (1<<22)
+#define BLINK (1<<23)
+#define UNDER (1<<24)
+#define COLOR(level) ((level) & (0777 << 16))
+#define LEVEL(level) ((level) & 0xffff)
 #endif
