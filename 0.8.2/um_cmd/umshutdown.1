@@ -1,0 +1,50 @@
+.\" Copyright (c) 2007 Renzo Davoli
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License,
+.\" version 2, as published by the Free Software Foundation.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+.\" MA 02110-1301 USA.
+
+.TH VIEW-OS 1 "October 19, 2007" "VIEW-OS: a process with a view"
+.SH NAME
+umshutdown \- shutdown a umview/kmview machine
+.SH SYNOPSIS
+.B umshutdown 
+[
+.I time
+]
+.br
+.SH DESCRIPTION
+This command is used to shut down the current umview/kmview virtual 
+machine.
+When called without any argument, it sends a TERM signal to all the processes
+running in the current virtual machine, waits for 30 second and then it sends
+a KILL signal to all the survining processes.
+The optional argument is the number of seconds between the TERM and KILL 
+signals.
+.SH SEE ALSO
+.BR umview(1), 
+.BR kmview(1)
+.SH AUTHORS
+View-OS is a project of the Computer Science Department, University of
+Bologna. Project Leader: Renzo Davoli. 
+.br
+<http://www.sourceforge.net/projects/view-os>
+
+Howto's and further information can be found on the project wiki
+<wiki.virtualsquare.org>.
+

@@ -1,0 +1,53 @@
+.\" Copyright (c) 2009 Renzo Davoli
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License,
+.\" version 2, as published by the Free Software Foundation.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+.\" MA 02110-1301 USA.
+
+.TH VIEW-OS 1 "July 22, 2009" "VIEW-OS: a process with a view"
+.SH NAME
+viewmount \- mount command for view-os (umview, kmview)
+.SH SYNOPSIS
+.B viewmount 
+[-hr]
+[-t
+.I vfstype
+]
+[-o
+.I options
+]
+.I device
+.I dir
+.br
+.SH DESCRIPTION
+This command has the same meaning and and a reduced set of features of 
+.B mount(8).
+View-OS previously used the standard mount command from linux-utils-ng.
+Since v.2.15.rc1 mount is not compatible any more with View-OS for
+an unnecessary restriction when the executable is not setuid.
+We hope the developers of linux-utils-ng can fix the problem asap.
+
+.SH SEE ALSO
+.BR umview(1),
+.BR kmview(1)
+.SH AUTHORS
+View-OS is a project of the Computer Science Department, University of
+Bologna. Project Leader: Renzo Davoli. 
+.br
+Howto's and further information can be found on the project wiki
+<wiki.virtualsquare.org>.

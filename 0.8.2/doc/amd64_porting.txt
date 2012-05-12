@@ -1,0 +1,137 @@
+List of necessary modify for make umviewos run on amd64 pure system
+( with 'pure' we intented that no 32bit emulation should be used )
+
+### 20/01/06 ###
+(hand)merged my branch with cvs version
+
+./include/libummod.h - row:38 
+	-fcntl is always fcntl64
+	  what happen in emulation mode? if someone call fcntl32, it's
+	  converted in a fcntl64 syscall (look at include/asm-x86_64/unistd.h for a
+	  list of supported syscall in this architecture)
+	-what should i do of list of __NR_somewhat define in this file?
+	- added a define that change __NR__new_select in __NR_select
+
+./um_lib/libummod.c
+	- fcntl32 where cutted of, cause of what I say few rows up.
+	- _llseek seem to be deprecated and purged on amd64
+
+./um_lib/um_lib.c
+	- UMSERVICE defined to 0, only to correctly compile. In fact um_cmd are not
+	  supported.
+	  	-NB: and how do we can support um_cmd? there a control on syscall number ,
+		and there's no way to remap syscalls (as we do in ppc and i386)
+		maybe a solution can be a umview module for manage the configuration of
+		umview itself.
+
+./um_testmodule/real.c
+./um_testmodule/socktest.c
+	- inserted under define syscalls not used in amd64 architecture.
+
+./um-viewos/capture_sc.c
+	- included file syscallnames_x86_64.h
+	- added an empty sc_remap array only for compile safely. check how to remove
+	  it.
+	- there are some "register int"... what should I do with these?
+	- int to long in fakesigstopcont()
+	- idem in sc_soft_suspend
+	- remove __NR_sigreturn in a tracehand() evaluation (remain into a define)
+	- int syscall=pc->scno should be long?? (sc_soft_resume)
+		a syscall could be at maximum 255, but it came from registers...
+	- int to long for a getrv() in tracehand()
+	- int to long for a newpid in tracehand()... for this i'm not sure...
+
+./um-viewos/def.h - here major patches...
+	- added FRAMESIZE for x86_64, because in ptrace.h it defines it at 168,
+	  could be it an offset in bytes? (check a better constant or check what the
+	  kernel does)
+	- in struct pcb: retval, arg0,arg1,arg2 must be long
+	- added a section with x86_64 registers define, and inline functions for
+	  gegtregs&co... getarg is'nt implemented, look at puterrno, that's changed
+	  from my branch
+	- in section with LITTLEENDIAN added also x86_64
+
+
+./um-viewos/scmap.c
+	- removed functions not supported in x86_64 architecture
+		like umount2, _newselect, *stat64
+		and *chown32, fcntl64, _llseek
+	- register int in init_scmap should be changed in long?
+
+./um-viewos/sctab.c
+	- um_x_lstat64 -> int to long?
+	- um_x_readlink -> int to long?
+	- um_getpath argument (laddr) changed from int to long 
+	- um_abspath argument (laddr) changed from int to long 
+	- in choice_fd made a selection of which syscall will be check
+	- int to long in choice_mount
+
+./um-viewos/sctab.h
+	- declaration of um_getpath
+	- declaration of um_abspath
+
+./um-viewos/um_basicio.c
+	- wrap_in_open:
+		- sp ported to long
+		- mode & flag as long does make sense? perhaps not although they came
+		  from registers.
+	- wrap_out_open
+		- a long fd?
+	- in wrap_in_open, wrap_in_write, wrap_in_pread, wrap_in_pwrite,
+	  wrap_in_readlink
+		- pbuf & count ported to long
+	- added a kstat for x86_64
+	- wrap_in_stat
+		- pbuf from int to long
+	- wrap_in_getdents
+		pbuf and bufsiz ported to long <yawn>
+	- modified in the same boring way also:
+		wrap_in_access, wrap_in_lseek, wrap_in_readv (with also
+		i,totalsize,size and qty) and wrap_in_writev
+
+./um-viewos/um_ioctl.c
+	- in ioctl_getarg() and putarg modified an argument
+	- wrap_in_ioctl
+
+./um-viewos/um_plusio.c
+	- in wrap_in_mkdir, same problem for mode in wrap_in_read: does it make
+	  sense?
+	- in wrap_in_chown not changed owner and group - uid_t should be int in
+	  64bit
+	  ( how do i manage chown32 question?)
+	- in wrap_in_utime changed argaddr
+	- in wrap_in_mount changes argaddr and pdata, but not fstype and mountflags
+
+./um-viewos/um_select.c
+	- __NR__newselect removed -> al posto di __x86_64 meglio verificare
+	  _NR__newselect??
+	- changed argument 1 of getfdset and putfdset
+	- ptimeout ported to long
+	- "register int n=pc->arg0" ... long? it refers to fd, so i don't changed
+	  it
+	- pufds is a pointer, so ported to long
+
+./um-viewos/um_services.c
+	- arg1,arg2,arg3 in dsys_um_service()
+		
+
+./um-viewos/um_socket.c
+	- in wrap_in_socket "long sp=getsp()"
+	- in wrap_in_bind, getsock, send
+		changed sock_addr and sock_plen, cause they are used as pointer (in user
+		space)
+
+utils.c
+	- ...
+	- umove*()  and ustore*()
+		"int i,n,m;": changed n and m, and retained i
+	...
+	...
+
+#### 22/01/06 ####
+
+defs.h
+	- registers are saved by ptrace in a strange order, so getargp() were in
+	  trouble... 
+
+/* vim : set tw=80 autoindent : */
