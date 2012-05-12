@@ -4,6 +4,7 @@
  *   gdebug.c: debugging functions
  *   
  *   Copyright 2005 Ludovico Gardenghi
+ *   2012: Renzo Davoli, ansi color output (an idea by Giacomo Bergami, Matteo Martelli, Gianluca Iselli)
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License, version 2, as
@@ -39,6 +40,7 @@
 #endif
 
 FILE *gdebug_ofile = NULL;
+static int gdebug_colorflag = 0;
 
 #define BACKTRACE_INITIAL_SIZE 10
 
@@ -50,6 +52,11 @@ static int (*libc_getpid)(void);
 
 static void **backtrace_array = NULL;
 static int backtrace_array_size = 0;
+
+void gdebug_set_color(int colorflag)
+{
+	gdebug_colorflag = colorflag;
+}
 
 void gdebug_set_ofile(char* new_ofile)
 {
@@ -63,25 +70,29 @@ void gdebug_set_ofile(char* new_ofile)
 
 static void gdebug_color_on(FILE *ofile, int level)
 {
-	char color[15];
-	int i=0;
-	level=COLOR(level);
-	while (level) {
-		if (BGND(level)) { color[i++]='4'; color[i++]='0'+BGND(level); level &= ~BWH; }
-		else if (FGND(level)) { color[i++]='3'; color[i++]='0'+FGND(level); level &= ~FWH; }
-		else if (level & BOLD) { color[i++]=1; level &= ~BOLD; }
-		else if (level & BLINK) { color[i++]=5; level &= ~BLINK; }
-		else if (level & UNDER) { color[i++]=4; level &= ~UNDER; }
-		if (level)
-			color[i++]=';';
+	if (gdebug_colorflag & COLOR_ENABLE) {
+		char color[15];
+		int i=0;
+		level=COLOR(level);
+		while (level) {
+			if (BGND(level)) { color[i++]='4'; color[i++]='0'+BGND(level); level &= ~BWH; }
+			else if (FGND(level)) { color[i++]='3'; color[i++]='0'+FGND(level); level &= ~FWH; }
+			else if (level & BOLD) { color[i++]=1; level &= ~BOLD; }
+			else if (level & BLINK) { color[i++]=5; level &= ~BLINK; }
+			else if (level & UNDER) { color[i++]=4; level &= ~UNDER; }
+			if (level)
+				color[i++]=';';
+		}
+		color[i]=0;
+		libc_fprintf(ofile,"\033[%sm",color);
 	}
-	color[i]=0;
-	libc_fprintf(ofile,"\033[%sm",color);
 }
 
 static void gdebug_color_off(FILE *ofile)
 {
-	libc_fprintf(ofile,"\033[0m");
+	if (gdebug_colorflag & COLOR_ENABLE) {
+		libc_fprintf(ofile,"\033[0m");
+	}
 }
 
 void fgdebug(FILE *ofile, int gdebug_level, int level, const char *file, const int line, const char *func, const char *fmt, ...)

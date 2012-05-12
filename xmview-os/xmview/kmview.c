@@ -59,7 +59,7 @@
 
 #define COMMON_OPTSTRING "+p:f:hvxqV:usD::c"
 #ifdef GDEBUG_ENABLED
-# define GDEBUG_OPT "o:"
+# define GDEBUG_OPT "o:C"
 #else
 # define GDEBUG_OPT ""
 #endif
@@ -192,6 +192,7 @@ static void usage(char *s)
 			"  -p file, --preload file   load plugin named `file' (must be a .so)\n"
 #ifdef GDEBUG_ENABLED
 			"  -o file, --output file    send debug messages to file instead of stderr\n"
+			"  -C --color                enable ansi color on debug\n"
 #endif
 			"  -x, --nonesting           do not permit module nesting\n"
 			"  -u, --userrecursion       recursive invocation on the existing hypervisor\n"
@@ -207,6 +208,7 @@ static struct option long_options[] = {
 	{"preload",1,0,'p'},
 #ifdef GDEBUG_ENABLED
 	{"output",1,0,'o'},
+	{"color",0,0,'C'},
 #endif
 	{"version",0,0,'v'},
 	{"quiet",0,0,'q'},
@@ -504,6 +506,9 @@ int main(int argc,char *argv[])
 						}
 						gdebug_set_ofile(optarg);
 					 }
+					 break;
+			case 'C':
+					 gdebug_set_color(COLOR_ENABLE);
 					 break;
 #endif
 		}

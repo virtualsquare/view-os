@@ -35,6 +35,8 @@
 extern FILE* gdebug_ofile;
 
 void gdebug_set_ofile(char* new_ofile);
+#define COLOR_ENABLE 1
+void gdebug_set_color(int colorflag);
 void fgmsg(FILE *ofile, const char *fmt, ...);
 
 #ifdef GDEBUG_ENABLED
