@@ -1,3 +1,8 @@
+Fuse-ext2 has been forked again.
+The latest development (for linux only) is in the dir ../fuse-umfuse-ext2
+
+May 13 2012
+
 The development of ext2/3/4 support for umfuse has been merged in the
 project named fuse-ext2:
 http://sourceforge.net/projects/fuse-ext2/
