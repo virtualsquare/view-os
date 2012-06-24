@@ -142,9 +142,12 @@ static int f_iso9660_readlink(const char *path, char *buf, size_t size)
 	if (isostat->rr.b3_rock == yep &&
 			S_ISLNK(isostat->rr.st_mode)) {
 		
-		if (isostat->rr.i_symlink < size)
+		if (isostat->rr.i_symlink < size) {
 			size=isostat->rr.i_symlink;
-		strncpy(buf,isostat->rr.psz_symlink,size);
+			strncpy(buf,isostat->rr.psz_symlink,size);
+			buf[size]='\0';
+		} else
+			strncpy(buf,isostat->rr.psz_symlink,size);
 		 
 		free(isostat);
 		return 0;
@@ -584,8 +587,6 @@ int main(int argc, char *argv[])
 	for (i=0; i<argc-1; i++)
 		argv[i]=argv[i+1];
 	argv[i]="-s";
-	for (i=0; i<argc; i++)
-		printf("%d ->%s\n", i,argv[i]);
 #if ( FUSE_MINOR_VERSION <= 5 )
 		init_data=isofs;
 		err=fuse_main(argc,argv,&iso9660_oper);
