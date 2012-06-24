@@ -1,0 +1,31 @@
+.TH FUSE-EXT2 "1" "May 2007" "FUSE/UMFUSE modules" "User Commands"
+.SH NAME
+FUSE-EXT2 \- FUSE module for Second Extended File System
+.SH SYNOPSIS
+.B fuse-ext2
+.RI [ OPTION ]...\&
+.I imagefile mountpoint
+.SH DESCRIPTION
+This fuse module permits the user-level mount of ext2/3/4 file systems.
+.SH OPTIONS
+.SS "General options"
+.TP
+\fB\-o\fR opt,[opt...]
+mount options
+.TP
+\fB\-h\fR   \fB\-\-help\fR
+print help
+.SS "FUSEEXT2 options:"
+.TP
+\fB\-o\fR rw+
+.TP
+\fB\-o\fR rw,force
+.br
+enable read-write mount (\fBEXPERIMENTAL\fR).
+.SS "general FUSE options:"
+see \fBfuse(8)\fR
+.SH AUTHORS
+This is a fork project of fuse-ext2 by Alper Akcan <alper.akcan@gmail.com>. See \fIhttp://wiki.virtualsquare.org\fR.
+.SH SEE ALSO
+.BR fuse(8), 
+.BR umview(1)
