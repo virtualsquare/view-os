@@ -147,7 +147,7 @@ static int f_iso9660_readlink(const char *path, char *buf, size_t size)
 		strncpy(buf,isostat->rr.psz_symlink,size);
 		 
 		free(isostat);
-		return size;
+		return 0;
 	} else {
 		free(isostat);
     return -EINVAL;
