@@ -566,6 +566,7 @@ int main(int argc, char *argv[])
 	int err;
 	struct fuse_context *mycontext;
 	iso9660_t *isofs;
+	int i;
 
 	if (argc < 3) 
 		v2f_usage(argv[0],&iso9660_oper);
@@ -579,11 +580,17 @@ int main(int argc, char *argv[])
 	if (!iso9660_ifs_read_superblock(isofs,ISO_EXTENSION_ALL))
 		return -1;
 	cdio_loglevel_default=CDIO_LOG_ERROR;
+	/* ADD -s: libiso9660 and our brute cache are not thread safe */
+	for (i=0; i<argc-1; i++)
+		argv[i]=argv[i+1];
+	argv[i]="-s";
+	for (i=0; i<argc; i++)
+		printf("%d ->%s\n", i,argv[i]);
 #if ( FUSE_MINOR_VERSION <= 5 )
 		init_data=isofs;
-		err=fuse_main(--argc,++argv,&iso9660_oper);
+		err=fuse_main(argc,argv,&iso9660_oper);
 #else
-		err=fuse_main(--argc,++argv,&iso9660_oper,isofs);
+		err=fuse_main(argc,argv,&iso9660_oper,isofs);
 #endif
 
 		iso9660_close(isofs);
