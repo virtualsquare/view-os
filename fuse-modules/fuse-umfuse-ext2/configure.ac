@@ -1,6 +1,6 @@
 AC_INIT([fuse-umfuse-ext2], [0.4], [renzo@cs.unibo.it])
 AC_CANONICAL_TARGET
-AM_INIT_AUTOMAKE([-Wall -Werror foreign])
+AM_INIT_AUTOMAKE([-Wall -Werror foreign dist-bzip2])
 AC_CONFIG_HEADER([config.h])
 
 # Checks for programs.
