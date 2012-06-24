@@ -1,4 +1,4 @@
-AC_INIT([fuse-umfuse-ext2], [0.3.8], [renzo@cs.unibo.it])
+AC_INIT([fuse-umfuse-ext2], [0.4.0], [renzo@cs.unibo.it])
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_CONFIG_HEADER([config.h])

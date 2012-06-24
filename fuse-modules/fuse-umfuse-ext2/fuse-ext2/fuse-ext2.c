@@ -22,7 +22,8 @@
 
 FUSE_EXT2_DEFINE_MUTEX;
 
-static const char *HOME = "http://sourceforge.net/projects/fuse-ext2/";
+static const char *V2 = "virtualsquare wiki: http://wiki.virtualsquare.org";
+static const char *HOME = "original fuse-ext2 home: http://sourceforge.net/projects/fuse-ext2/";
 
 #if __FreeBSD__ == 10
 static char def_opts[] = "allow_other,local,";
@@ -38,14 +39,16 @@ static const char *usage_msg =
 "\n"
 "Copyright (C) 2008-2010 Alper Akcan <alper.akcan@gmail.com>\n"
 "Copyright (C) 2009 Renzo Davoli <renzo@cs.unibo.it>\n"
+"(The version number is for the VirtualSquare fork only)\n"
 "\n"
-"Usage:    %s <device|image_file> <mount_point> [-o option[,...]]\n"
+"Usage:    fuse-ext2 <device|image_file> <mount_point> [-o option[,...]]\n"
 "\n"
 "Options:  ro, force, allow_others\n"
 "          Please see details in the manual.\n"
 "\n"
 "Example:  fuse-ext2 /dev/sda1 /mnt/sda1\n"
 "\n"
+"%s\n"
 "%s\n"
 "\n";
 
@@ -84,7 +87,7 @@ static int strappend (char **dest, const char *append)
 
 static void usage (void)
 {
-	printf(usage_msg, PACKAGE, VERSION, fuse_version(), PACKAGE, HOME);
+	printf(usage_msg, PACKAGE, VERSION, fuse_version(), V2, HOME);
 }
 
 static int parse_options (int argc, char *argv[], struct extfs_data *opts)

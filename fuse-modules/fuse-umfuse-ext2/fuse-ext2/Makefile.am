@@ -285,3 +285,5 @@ install-exec-local:
 	$(INSTALL) -d "$(DESTDIR)/usr/sbin"
 	$(LN_S) -f "$(DESTDIR)/$(bindir)/fuse-ext2" "$(DESTDIR)/sbin/mount.fuse-ext2"
 endif
+
+dist_man1_MANS = fuse-ext2.1
