@@ -1,0 +1,53 @@
+Fuse-umfuse-ext2 is a EXT2 Filesystem support for FUSE.
+(fork of the fuse-ext2 project for linux)
+
+This software is based on both ntfs-3g, and ext2fuse packages.
+
+Dependencies
+------------
+
+Fuse-ext2 requires at least Fuse version 2.6.0 and e2fslibs
+
+Build
+-----	
+
+$ autoreconf -if
+$ ./configure
+$ make
+$ sudo make install
+
+Usage
+-----
+
+Usage:    fuse-ext2 <device|image_file> <mount_point> [-o option[,...]]
+
+Options:  ro, force, allow_others
+          Please see details in the manual.
+
+Example:  fuse-ext2 /dev/sda1 /mnt/sda1
+
+Bugs
+----
+there are no known bugs for read-only mode, read only mode should be ok for every one.
+
+altough, write support is available (and it is pretty stable) please do not mount your
+filesystems with write support unless you do not have anything to loose.
+
+please send output the output of below command while reporting bugs.
+
+$ /usr/local/bin/fuse-ext2 -v /dev/path /mnt/point -o debug
+
+Labels
+------
+
+please do not use comma ',' in partition labels.
+
+wrong: e2label /dev/disk0s3 "linux,ext3"
+
+correct: e2label /dev/disk0s3 "linux-ext3"
+
+Contact
+-------
+
+Renzo Davoli <renzo@cs.unibo.it>
+Alper Akcan <alper.akcan@gmail.com>
