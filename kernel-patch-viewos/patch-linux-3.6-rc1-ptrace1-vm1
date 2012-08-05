@@ -1,0 +1,87 @@
+diff -Naur linux-3.6-rc1/include/linux/ptrace.h linux-3.6-rc1.vm1/include/linux/ptrace.h
+--- linux-3.6-rc1/include/linux/ptrace.h	2012-08-03 01:38:10.000000000 +0200
++++ linux-3.6-rc1.vm1/include/linux/ptrace.h	2012-08-05 15:31:43.000000000 +0200
+@@ -74,6 +74,11 @@
+ 
+ #define PTRACE_O_MASK		0x000000ff
+ 
++/* options for new PTRACE_SYSCALL syntax*/
++#define PTRACE_SYSCALL_SKIPEXIT  0x2
++#define PTRACE_SYSCALL_SKIPCALL  0x6
++#define PTRACE_SYSCALL_MASK    0x00000006
++
+ #include <asm/ptrace.h>
+ 
+ #ifdef __KERNEL__
+@@ -102,6 +107,11 @@
+ #define PT_TRACE_EXIT		PT_EVENT_FLAG(PTRACE_EVENT_EXIT)
+ #define PT_TRACE_SECCOMP	PT_EVENT_FLAG(PTRACE_EVENT_SECCOMP)
+ 
++#define PT_SYSCALL_SKIPEXIT  0x06000000
++#define PT_SYSCALL_SKIPCALL  0x04000000
++#define PT_SYSCALL_MASK      0x06000000
++#define PTRACE2PT_SYSCALL(X)  (((X) & PTRACE_SYSCALL_MASK) << 24)
++
+ /* single stepping state bits (used on ARM and PA-RISC) */
+ #define PT_SINGLESTEP_BIT	31
+ #define PT_SINGLESTEP		(1<<PT_SINGLESTEP_BIT)
+diff -Naur linux-3.6-rc1/include/linux/tracehook.h linux-3.6-rc1.vm1/include/linux/tracehook.h
+--- linux-3.6-rc1/include/linux/tracehook.h	2012-08-03 01:38:10.000000000 +0200
++++ linux-3.6-rc1.vm1/include/linux/tracehook.h	2012-08-05 15:31:43.000000000 +0200
+@@ -99,7 +99,8 @@
+ static inline __must_check int tracehook_report_syscall_entry(
+ 	struct pt_regs *regs)
+ {
+-	return ptrace_report_syscall(regs);
++	return ptrace_report_syscall(regs) ||
++		(current->ptrace & PT_SYSCALL_SKIPCALL);
+ }
+ 
+ /**
+@@ -128,7 +129,8 @@
+ 		return;
+ 	}
+ 
+-	ptrace_report_syscall(regs);
++	if (!(current->ptrace & PT_SYSCALL_SKIPEXIT))
++		ptrace_report_syscall(regs);
+ }
+ 
+ /**
+diff -Naur linux-3.6-rc1/kernel/ptrace.c linux-3.6-rc1.vm1/kernel/ptrace.c
+--- linux-3.6-rc1/kernel/ptrace.c	2012-08-03 01:38:10.000000000 +0200
++++ linux-3.6-rc1.vm1/kernel/ptrace.c	2012-08-05 15:31:43.000000000 +0200
+@@ -589,7 +589,7 @@
+ #endif
+ 
+ static int ptrace_resume(struct task_struct *child, long request,
+-			 unsigned long data)
++			 unsigned long addr, unsigned long data)
+ {
+ 	if (!valid_signal(data))
+ 		return -EIO;
+@@ -618,6 +618,9 @@
+ 		user_disable_single_step(child);
+ 	}
+ 
++	child->ptrace &= ~PT_SYSCALL_MASK;
++	child->ptrace |= PTRACE2PT_SYSCALL(addr);
++
+ 	child->exit_code = data;
+ 	wake_up_state(child, __TASK_TRACED);
+ 
+@@ -801,12 +804,12 @@
+ #endif
+ 	case PTRACE_SYSCALL:
+ 	case PTRACE_CONT:
+-		return ptrace_resume(child, request, data);
++		return ptrace_resume(child, request, addr, data);
+ 
+ 	case PTRACE_KILL:
+ 		if (child->exit_state)	/* already dead */
+ 			return 0;
+-		return ptrace_resume(child, request, SIGKILL);
++		return ptrace_resume(child, request, addr, SIGKILL);
+ 
+ #ifdef CONFIG_HAVE_ARCH_TRACEHOOK
+ 	case PTRACE_GETREGSET:

@@ -1,0 +1,441 @@
+diff -Naur linux-3.6-rc1.vm2/include/linux/mm.h linux-3.6-rc1.vm3/include/linux/mm.h
+--- linux-3.6-rc1.vm2/include/linux/mm.h	2012-08-03 01:38:10.000000000 +0200
++++ linux-3.6-rc1.vm3/include/linux/mm.h	2012-08-05 15:45:55.000000000 +0200
+@@ -1010,6 +1010,11 @@
+ extern int access_remote_vm(struct mm_struct *mm, unsigned long addr,
+ 		void *buf, int len, int write);
+ 
++extern int access_process_vm(struct task_struct *tsk, unsigned long addr,
++		void *buf, int len, int write);
++extern int access_process_vm_user(struct task_struct *tsk, unsigned long addr,
++		char __user *ubuf, int len, int write, int string);
++
+ int __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
+ 		     unsigned long start, int len, unsigned int foll_flags,
+ 		     struct page **pages, struct vm_area_struct **vmas,
+diff -Naur linux-3.6-rc1.vm2/include/linux/ptrace.h linux-3.6-rc1.vm3/include/linux/ptrace.h
+--- linux-3.6-rc1.vm2/include/linux/ptrace.h	2012-08-05 15:31:43.000000000 +0200
++++ linux-3.6-rc1.vm3/include/linux/ptrace.h	2012-08-05 15:45:55.000000000 +0200
+@@ -51,6 +51,18 @@
+ #define PTRACE_INTERRUPT	0x4207
+ #define PTRACE_LISTEN		0x4208
+ 
++#define PTRACE_MULTI            0x4300
++#define PTRACE_PEEKCHARDATA     0x4301
++#define PTRACE_POKECHARDATA     0x4302
++#define PTRACE_PEEKSTRINGDATA   0x4303
++
++struct ptrace_multi {
++	long request;
++	long addr;
++	void *localaddr;
++	long length;
++};
++
+ /* Wait extended result codes for the above trace options.  */
+ #define PTRACE_EVENT_FORK	1
+ #define PTRACE_EVENT_VFORK	2
+@@ -120,14 +132,13 @@
+ 
+ #include <linux/compiler.h>		/* For unlikely.  */
+ #include <linux/sched.h>		/* For struct task_struct.  */
++#include <linux/mm.h>   /* For access_vm*.  */
++#include <linux/uaccess.h>    /* For *_ACCESS */
+ #include <linux/err.h>			/* for IS_ERR_VALUE */
+ #include <linux/bug.h>			/* For BUG_ON.  */
+ 
+-
+ extern long arch_ptrace(struct task_struct *child, long request,
+ 			unsigned long addr, unsigned long data);
+-extern int ptrace_readdata(struct task_struct *tsk, unsigned long src, char __user *dst, int len);
+-extern int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned long dst, int len);
+ extern void ptrace_disable(struct task_struct *);
+ extern int ptrace_check_attach(struct task_struct *task, bool ignore_state);
+ extern int ptrace_request(struct task_struct *child, long request,
+@@ -145,6 +156,30 @@
+ /* Returns true on success, false on denial. */
+ extern bool ptrace_may_access(struct task_struct *task, unsigned int mode);
+ 
++static inline int ptrace_readdata(struct task_struct *tsk, unsigned long src,
++		char __user *dst, int len)
++{
++	if (!access_ok(VERIFY_WRITE, dst, len))
++		return -EIO;
++	return access_process_vm_user(tsk, src, dst, len, 0, 0);
++}
++
++static inline int ptrace_readstringdata(struct task_struct *tsk, unsigned long src,
++		char __user *dst, int len)
++{
++	if (!access_ok(VERIFY_WRITE, dst, len))
++		return -EIO;
++	return access_process_vm_user(tsk, src, dst, len, 0, 1);
++}
++
++static inline int ptrace_writedata(struct task_struct *tsk, char __user *src,
++		unsigned long dst, int len)
++{
++	if (!access_ok(VERIFY_READ, dst, len))
++		return -EIO;
++	return access_process_vm_user(tsk, dst, src, len, 1, 0);
++}
++
+ static inline int ptrace_reparented(struct task_struct *child)
+ {
+ 	return !same_thread_group(child->real_parent, child->parent);
+diff -Naur linux-3.6-rc1.vm2/kernel/ptrace.c linux-3.6-rc1.vm3/kernel/ptrace.c
+--- linux-3.6-rc1.vm2/kernel/ptrace.c	2012-08-05 15:31:43.000000000 +0200
++++ linux-3.6-rc1.vm3/kernel/ptrace.c	2012-08-05 15:45:55.000000000 +0200
+@@ -2,6 +2,7 @@
+  * linux/kernel/ptrace.c
+  *
+  * (C) Copyright 1999 Linus Torvalds
++ * PTRACE_MULTI support 2009 Renzo Davoli
+  *
+  * Common interfaces for "ptrace()" which we do not want
+  * to continually duplicate across every architecture.
+@@ -25,7 +26,6 @@
+ #include <linux/hw_breakpoint.h>
+ #include <linux/cn_proc.h>
+ 
+-
+ static int ptrace_trapping_sleep_fn(void *flags)
+ {
+ 	schedule();
+@@ -471,56 +471,6 @@
+ 	write_lock_irq(&tasklist_lock);
+ }
+ 
+-int ptrace_readdata(struct task_struct *tsk, unsigned long src, char __user *dst, int len)
+-{
+-	int copied = 0;
+-
+-	while (len > 0) {
+-		char buf[128];
+-		int this_len, retval;
+-
+-		this_len = (len > sizeof(buf)) ? sizeof(buf) : len;
+-		retval = access_process_vm(tsk, src, buf, this_len, 0);
+-		if (!retval) {
+-			if (copied)
+-				break;
+-			return -EIO;
+-		}
+-		if (copy_to_user(dst, buf, retval))
+-			return -EFAULT;
+-		copied += retval;
+-		src += retval;
+-		dst += retval;
+-		len -= retval;
+-	}
+-	return copied;
+-}
+-
+-int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned long dst, int len)
+-{
+-	int copied = 0;
+-
+-	while (len > 0) {
+-		char buf[128];
+-		int this_len, retval;
+-
+-		this_len = (len > sizeof(buf)) ? sizeof(buf) : len;
+-		if (copy_from_user(buf, src, this_len))
+-			return -EFAULT;
+-		retval = access_process_vm(tsk, dst, buf, this_len, 1);
+-		if (!retval) {
+-			if (copied)
+-				break;
+-			return -EIO;
+-		}
+-		copied += retval;
+-		src += retval;
+-		dst += retval;
+-		len -= retval;
+-	}
+-	return copied;
+-}
+-
+ static int ptrace_setoptions(struct task_struct *child, unsigned long data)
+ {
+ 	unsigned flags;
+@@ -857,6 +807,57 @@
+ #define arch_ptrace_attach(child)	do { } while (0)
+ #endif
+ 
++static int multi_ptrace(struct task_struct *child, long request, 
++		unsigned long addr, long size)
++{
++	int i, ret;
++	long j;
++	ret = 0;
++	if (!access_ok(VERIFY_READ, addr, size*sizeof(struct ptrace_multi))) {
++		ret = -EIO;
++		goto out_multi_ptrace;
++	}
++	for (i = 0; i < size && ret == 0; i++,
++			addr += sizeof(struct ptrace_multi)) {
++		unsigned long len;
++		struct ptrace_multi __user pm ;
++		if (unlikely(__copy_from_user(&pm, (struct ptrace_multi __user *)addr,
++						sizeof(struct ptrace_multi)) != 0))
++			continue;
++		len = pm.length;
++		switch (pm.request) {
++			case PTRACE_PEEKTEXT:
++			case PTRACE_PEEKDATA:
++			case PTRACE_PEEKUSR:
++			case PTRACE_POKETEXT:
++			case PTRACE_POKEDATA:
++			case PTRACE_POKEUSR:
++				if (len <= 0)
++					len = 1;
++				for (j = 0; j < len && ret == 0; j++)
++					ret = arch_ptrace(child, pm.request,
++							(long) (pm.addr) + j * sizeof(long),
++							(long) (pm.localaddr) + j * sizeof(long));
++				break;
++			case PTRACE_PEEKCHARDATA:
++				ret = ptrace_readdata(child, pm.addr, pm.localaddr, len);
++				break;
++			case PTRACE_POKECHARDATA:
++				ret = ptrace_writedata(child, pm.localaddr, pm.addr, len);
++				break;
++			case PTRACE_PEEKSTRINGDATA:
++				ret = ptrace_readstringdata(child, pm.addr, pm.localaddr, len);
++				break;
++			default:
++				ret = arch_ptrace(child, pm.request, (long) (pm.addr),
++						(long) (pm.localaddr));
++				break;
++		}
++	}
++out_multi_ptrace:
++	return ret;
++}
++
+ SYSCALL_DEFINE4(ptrace, long, request, long, pid, unsigned long, addr,
+ 		unsigned long, data)
+ {
+@@ -892,11 +893,14 @@
+ 	if (ret < 0)
+ 		goto out_put_task_struct;
+ 
+-	ret = arch_ptrace(child, request, addr, data);
++	if (request == PTRACE_MULTI)
++		ret = multi_ptrace(child, request, addr, data);
++	else
++		ret = arch_ptrace(child, request, addr, data);
+ 
+- out_put_task_struct:
++out_put_task_struct:
+ 	put_task_struct(child);
+- out:
++out:
+ 	return ret;
+ }
+ 
+@@ -956,14 +960,14 @@
+ 		ret = ptrace_getsiginfo(child, &siginfo);
+ 		if (!ret)
+ 			ret = copy_siginfo_to_user32(
+-				(struct compat_siginfo __user *) datap,
+-				&siginfo);
++					(struct compat_siginfo __user *) datap,
++					&siginfo);
+ 		break;
+ 
+ 	case PTRACE_SETSIGINFO:
+ 		memset(&siginfo, 0, sizeof siginfo);
+ 		if (copy_siginfo_from_user32(
+-			    &siginfo, (struct compat_siginfo __user *) datap))
++					&siginfo, (struct compat_siginfo __user *) datap))
+ 			ret = -EFAULT;
+ 		else
+ 			ret = ptrace_setsiginfo(child, &siginfo);
+@@ -1002,8 +1006,71 @@
+ 	return ret;
+ }
+ 
++struct compat_ptrace_multi {
++	compat_long_t request;
++	compat_ulong_t addr;
++	compat_ulong_t localaddr;
++	compat_ulong_t length;
++};
++
++static int compat_multi_ptrace(struct task_struct *child,
++		compat_long_t request, compat_ulong_t addr, compat_ulong_t size)
++{
++	int i, ret;
++	compat_long_t j;
++	ret = 0;
++	if (!access_ok(VERIFY_READ, addr,
++				size*sizeof(struct compat_ptrace_multi))) {
++		ret = -EIO;
++		goto out_multi_ptrace;
++	}
++	for (i = 0; i < size && ret == 0;
++			i++, addr += sizeof(struct compat_ptrace_multi)) {
++		compat_ulong_t len;
++		struct compat_ptrace_multi __user pm ;
++		if (unlikely(__copy_from_user(&pm,
++						(struct compat_ptrace_multi __user *)
++						(u_long)addr, sizeof(struct compat_ptrace_multi)) != 0))
++			continue;
++		len = pm.length;
++		switch (pm.request) {
++			case PTRACE_PEEKTEXT:
++			case PTRACE_PEEKDATA:
++			case PTRACE_PEEKUSR:
++			case PTRACE_POKETEXT:
++			case PTRACE_POKEDATA:
++			case PTRACE_POKEUSR:
++				if (len <= 0)
++					len = 1;
++				for (j = 0; j < len && ret == 0; j++)
++					ret = compat_arch_ptrace(child, pm.request,
++							(compat_long_t) (pm.addr) + j * sizeof(compat_long_t),
++							(compat_ulong_t) (pm.localaddr) + j * sizeof(compat_long_t));
++				break;
++			case PTRACE_PEEKCHARDATA:
++				ret = ptrace_readdata(child, pm.addr,
++						(char __user *)(long)pm.localaddr, len);
++				break;
++			case PTRACE_POKECHARDATA:
++				ret = ptrace_writedata(child,
++						(char __user *)(long)pm.localaddr, pm.addr, len);
++				break;
++			case PTRACE_PEEKSTRINGDATA:
++				ret = ptrace_readstringdata(child, pm.addr,
++						(char __user *)(long)pm.localaddr, len);
++				break;
++			default:
++				ret = compat_arch_ptrace(child, pm.request,
++						(compat_ulong_t) (pm.addr), (compat_ulong_t) (pm.localaddr));
++				break;
++		}
++	}
++out_multi_ptrace:
++	return ret;
++}
++
+ asmlinkage long compat_sys_ptrace(compat_long_t request, compat_long_t pid,
+-				  compat_long_t addr, compat_long_t data)
++		compat_long_t addr, compat_long_t data)
+ {
+ 	struct task_struct *child;
+ 	long ret;
+@@ -1032,8 +1099,12 @@
+ 
+ 	ret = ptrace_check_attach(child, request == PTRACE_KILL ||
+ 				  request == PTRACE_INTERRUPT);
+-	if (!ret)
+-		ret = compat_arch_ptrace(child, request, addr, data);
++	if (!ret) {
++		if (request == PTRACE_MULTI)
++			ret = compat_multi_ptrace(child, request, addr, data);
++		else
++			ret = compat_arch_ptrace(child, request, addr, data);
++	}
+ 
+  out_put_task_struct:
+ 	put_task_struct(child);
+diff -Naur linux-3.6-rc1.vm2/mm/memory.c linux-3.6-rc1.vm3/mm/memory.c
+--- linux-3.6-rc1.vm2/mm/memory.c	2012-08-03 01:38:10.000000000 +0200
++++ linux-3.6-rc1.vm3/mm/memory.c	2012-08-05 15:45:55.000000000 +0200
+@@ -3907,6 +3907,75 @@
+ }
+ 
+ /*
++ * Access another process' address space to/from user space
++ * Do not walk the page table directly, use get_user_pages
++ */
++int access_process_vm_user(struct task_struct *tsk, unsigned long addr,
++		char __user *ubuf, int len, int write, int string)
++{
++	struct mm_struct *mm;
++	struct vm_area_struct *vma;
++	struct page *page;
++	char *buf;
++	unsigned long old_addr = addr;
++
++	mm = get_task_mm(tsk);
++	if (!mm)
++		return 0;
++
++	buf = kmalloc(PAGE_SIZE, GFP_KERNEL);
++	if (!buf)
++		return 0;
++
++	down_read(&mm->mmap_sem);
++	/* ignore errors, just check how much was sucessfully transfered */
++	while (len) {
++		int bytes, ret, offset;
++		void *maddr;
++
++		ret = get_user_pages(tsk, mm, addr, 1,
++				write, 1, &page, &vma);
++		if (ret <= 0)
++			break;
++
++		bytes = len;
++		offset = addr & (PAGE_SIZE-1);
++		if (bytes > PAGE_SIZE-offset)
++			bytes = PAGE_SIZE-offset;
++
++		maddr = kmap(page);
++		if (write) {
++			__copy_from_user(buf, ubuf, bytes);
++			copy_to_user_page(vma, page, addr,
++					maddr + offset, buf, bytes);
++			if (!PageCompound(page))
++				set_page_dirty_lock(page);
++		} else {
++			copy_from_user_page(vma, page, addr,
++					buf, maddr + offset, bytes);
++			if (string) {
++				for (offset = 0; offset < bytes; offset++)
++					if (buf[offset] == 0)
++						break;
++				if (offset < bytes)
++					bytes = len = offset + 1;
++			}
++			ret = __copy_to_user(ubuf, buf, bytes);
++		}
++		kunmap(page);
++		page_cache_release(page);
++		len -= bytes;
++		ubuf += bytes;
++		addr += bytes;
++	}
++	up_read(&mm->mmap_sem);
++	mmput(mm);
++
++	kfree(buf);
++	return addr - old_addr;
++}
++
++/*
+  * Print the name of a VMA.
+  */
+ void print_vma_addr(char *prefix, unsigned long ip)
+diff -Naur linux-3.6-rc1.vm2/mm/nommu.c linux-3.6-rc1.vm3/mm/nommu.c
+--- linux-3.6-rc1.vm2/mm/nommu.c	2012-08-03 01:38:10.000000000 +0200
++++ linux-3.6-rc1.vm3/mm/nommu.c	2012-08-05 15:45:55.000000000 +0200
+@@ -2096,3 +2096,15 @@
+ 	up_write(&nommu_region_sem);
+ 	return 0;
+ }
++
++/*
++ * Access another process' address space to/from user space
++ * Do not walk the page table directly, use get_user_pages
++ * Unimplemented yet. 
++ */
++int access_process_vm_user(struct task_struct *tsk, unsigned long addr,
++		    char __user *ubuf, int len, int write, int string)
++{
++	return -EIO;
++}
++
