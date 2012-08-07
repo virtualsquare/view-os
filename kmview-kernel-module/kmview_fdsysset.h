@@ -29,4 +29,21 @@ struct kmview_fdsysset *fdsysset_clr(int fd, struct kmview_fdsysset *fds);
 void fdsysset_free(struct kmview_fdsysset *fds);
 int fdsysset_init(void);
 void fdsysset_fini(void);
+
+#ifndef FD_SETSIZE
+#define FD_SETSIZE __FD_SETSIZE
+#endif
+#ifndef FD_ISSET
+#define FD_ISSET(x,y) test_bit((x),(y)->fds_bits)
+#endif
+#ifndef FD_ZERO
+#define FD_ZERO(x) memset((x),0,sizeof(*(x)))
+#endif
+#ifndef FD_SET
+#define FD_SET(x,y) set_bit((x),(y)->fds_bits)
+#endif
+#ifndef FD_CLR
+#define FD_CLR(x,y) clear_bit((x),(y)->fds_bits)
+#endif
+
 #endif
