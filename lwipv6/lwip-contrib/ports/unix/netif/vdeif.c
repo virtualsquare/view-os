@@ -175,7 +175,7 @@ static int low_level_init(struct netif *netif, char *path)
 		vdeif->vdestream=NULL;
 		if (vdeif->vdefd && 
 				(vdeif->fddata=netif_addfd(netif, 
-																	vde_datafd(vdeif->vdefd),
+																	VDEDYN(vde_datafd)(vdeif->vdefd),
 																	vdeif_input, NULL, 0, POLLIN)) != NULL
 		 ) 
 			return ERR_OK;

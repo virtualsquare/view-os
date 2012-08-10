@@ -52,7 +52,6 @@
 #ifndef __LWIPOPTS_H__
 #define __LWIPOPTS_H__
 
-
 /*
  * These are the default options of liblwip.so library. 
  * Some of these are necessary if you are going to
