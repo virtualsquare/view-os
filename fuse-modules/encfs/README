@@ -34,10 +34,4 @@ $ make install
 
 that's it
 
-April, 30 2010 (renzo)
-
-Temporary note: (Apr. 30 2010) as to today's encfs version there is an
-incompatibility with libboost-serialization 1.42. 
-It works if linked against v. 1.40 or earlier.
-It is not a problem of viewos/umfuse, the behavior is the same when running
-fuse-encfs and umfuse-encfs.
+(tested on Debian SID, Aug 10 2012).
