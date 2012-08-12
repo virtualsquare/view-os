@@ -56,6 +56,7 @@
 #include "ptrace_multi_test.h"
 #include "mainpoll.h"
 #include "gdebug.h"
+#include "utils.h"
 
 #define COMMON_OPTSTRING "+p:f:hvnxqV:srD::ckK"
 #ifdef GDEBUG_ENABLED
@@ -74,13 +75,16 @@ int _umview_version = 2; /* modules interface version id.
 										modules can test to be compatible with
 										um-viewos kernel*/
 unsigned int has_ptrace_multi;
+#ifdef _PROCESS_VM_RW
+unsigned int has_process_vm_readv;
+unsigned int has_process_vm_writev;
+#endif
 unsigned int ptrace_vm_mask;
 unsigned int ptrace_sysvm_tag;
 unsigned int quiet = 0;
 unsigned int printk_current_level = PRINTK_STARTUP_LEVEL;
 unsigned int secure = 0;
 unsigned int hostcmdok = 0;
-unsigned int doptrace = 0;
 unsigned int realrecursion = 0;
 unsigned int secretdebug = 0;
 #ifdef _UM_PTRACE
@@ -206,7 +210,10 @@ static void usage(char *s)
 			"  -n, --nokernelpatch       avoid using kernel patches\n"
 			"  --nokmulti                avoid using PTRACE_MULTI\n"
 			"  --noksysvm                avoid using PTRACE_SYSVM\n"
-			"  --nokviewos               avoid using PTRACE_VIEWOS\n\n"
+			"  --nokviewos               avoid using PTRACE_VIEWOS\n"
+#ifdef _PROCESS_VM_RW
+			"  --nokprocessvmrw          avoid using process_vm_{read,write}v\n"
+#endif
 			"  -s, --secure              force permissions and capabilities\n"
 			"  -r, --realrecursion       real nested umview based on ptrace\n"
 #ifdef _UM_PTRACE
@@ -235,6 +242,9 @@ static struct option long_options[] = {
 	{"nokmulti",0,0,0x100},
 	{"noksysvm",0,0,0x101},
 	{"nokviewos",0,0,0x102},
+#ifdef _UM_PTRACE
+	{"nokprocessvmrw",0,0,0x103},
+#endif
 	{"secure",0,0,'s'},
 	{"realrecursion",0,0,'r'},
 #ifdef _UM_PTRACE
@@ -422,11 +432,36 @@ static void umview_earlyargs(int argc,char *argv[])
 	}
 }
 
+#ifdef _PROCESS_VM_RW
+int test_process_vm_readv(void)
+{
+	int inbuf[4];
+	int outbuf[4];
+	struct iovec in={inbuf,4};
+	struct iovec out={outbuf,4};
+	int rv=process_vm_readv(getpid(),&in,1,&out,1,0);
+	return rv==4;
+}
+
+int test_process_vm_writev(void)
+{
+	int inbuf[4];
+	int outbuf[4];
+	struct iovec in={inbuf,4};
+	struct iovec out={outbuf,4};
+	int rv=process_vm_writev(getpid(),&in,1,&out,1,0);
+	return rv==4;
+}
+#endif
+
 /* UMVIEW MAIN PROGRAM */
 int main(int argc,char *argv[])
 {
 	char *rcfile=NULL;
 	unsigned int want_ptrace_multi, want_ptrace_vm, want_ptrace_viewos;
+#ifdef _PROCESS_VM_RW
+	unsigned int want_process_vm_readv, want_process_vm_writev;
+#endif
 	sigset_t unblockchild;
 	if (argc == 1 && argv[0][0] == '-' && argv[0][1] != '-') /* login shell */
 		loginshell_view();
@@ -467,6 +502,10 @@ int main(int argc,char *argv[])
 	has_ptrace_multi=test_ptracemulti(&ptrace_vm_mask,&ptrace_sysvm_tag);
 	want_ptrace_multi = has_ptrace_multi;
 	want_ptrace_vm = ptrace_vm_mask;
+#ifdef _PROCESS_VM_RW
+	want_process_vm_readv=has_process_vm_readv=test_process_vm_readv();
+	want_process_vm_writev=has_process_vm_writev=test_process_vm_writev();
+#endif
 	/* option management */
 	while (1) {
 		int c;
@@ -527,6 +566,12 @@ int main(int argc,char *argv[])
 			case 0x102: /* do not use ptrace_viewos */
 					 want_ptrace_viewos = 0;
 					 break;
+#ifdef _PROCESS_VM_RW
+			case 0x103: /* do not use process_vm_readv/writev */
+					 want_process_vm_readv = 0;
+					 want_process_vm_writev = 0;
+					 break;
+#endif
 #ifdef _UM_PTRACE
 			case 't':
 					 ptraceemu = 1;
@@ -541,17 +586,31 @@ int main(int argc,char *argv[])
 	
 	if (!quiet)
 	{
-		if (has_ptrace_multi || ptrace_vm_mask)
+		if (has_ptrace_multi || ptrace_vm_mask
+#ifdef _PROCESS_VM_RW
+				|| has_process_vm_readv || has_process_vm_writev
+#endif
+				)
 		{
 			fprintf(stderr, "This kernel supports: ");
 			if (has_ptrace_multi)
 				fprintf(stderr, "PTRACE_MULTI ");
 			if (ptrace_vm_mask)
 				fprintf(stderr, "PTRACE_SYSVM ");
+#ifdef _PROCESS_VM_RW
+			if (has_process_vm_readv)
+				fprintf(stderr, "process_vm_readv ");
+			if (has_process_vm_writev)
+				fprintf(stderr, "process_vm_writev ");
+#endif
 			fprintf(stderr, "\n");
 		}
 
 		if (has_ptrace_multi || ptrace_vm_mask ||
+#ifdef _PROCESS_VM_RW
+				has_process_vm_readv || has_process_vm_writev ||
+				want_process_vm_readv || want_process_vm_writev ||
+#endif
 				want_ptrace_multi || want_ptrace_vm || want_ptrace_viewos)
 		{
 			fprintf(stderr, "%s will use: ", UMVIEW_NAME);	
@@ -561,7 +620,17 @@ int main(int argc,char *argv[])
 				fprintf(stderr,"PTRACE_SYSVM ");
 			if (want_ptrace_viewos)
 				fprintf(stderr,"PTRACE_VIEWOS ");
-			if (!want_ptrace_multi && !want_ptrace_vm && !want_ptrace_viewos)
+#ifdef _PROCESS_VM_RW
+			if (want_process_vm_readv)
+				fprintf(stderr, "process_vm_readv ");
+			if (want_process_vm_writev)
+				fprintf(stderr, "process_vm_writev ");
+#endif
+			if (!want_ptrace_multi && !want_ptrace_vm && !want_ptrace_viewos
+#ifdef _PROCESS_VM_RW
+					&& !want_process_vm_readv && !want_process_vm_writev
+#endif
+					)
 				fprintf(stderr,"nothing");
 			fprintf(stderr,"\n\n");
 		}
@@ -569,6 +638,26 @@ int main(int argc,char *argv[])
 
 	has_ptrace_multi = want_ptrace_multi;
 	ptrace_vm_mask = want_ptrace_vm;
+	if (has_ptrace_multi) {
+		umoven=umoven_multi;
+		ustoren=ustoren_multi;
+		umovestr=umovestr_multi;
+		ustorestr=ustorestr_multi;
+		/* ptrace_multi should be faster */
+		want_process_vm_readv=want_process_vm_writev=0;
+	}
+#ifdef _PROCESS_VM_RW
+	has_process_vm_readv=want_process_vm_readv;
+	has_process_vm_writev=want_process_vm_writev;
+	if (has_process_vm_readv) {
+		umoven=umoven_process_rw;
+		umovestr=umovestr_process_rw;
+	}
+	if (has_process_vm_writev) {
+		ustoren=ustoren_process_rw;
+		ustorestr=ustorestr_process_rw;
+	}
+#endif
 	
 	if (rcfile==NULL && !isloginshell(argv[0]))
 		asprintf(&rcfile,"%s/%s",getenv("HOME"),".viewosrc");
