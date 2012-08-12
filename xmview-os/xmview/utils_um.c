@@ -390,6 +390,8 @@ int umoven_process_rw(struct pcb *pc, long addr, int len, void *_laddr)
 	else {
 		int chunk_len;
 		while (len > 0) {
+			/* credit: chunking idea from strace patch by 
+				 Denys Vlasenko <vda.linux@googlemail.com> */
 			chunk_len=len;
 			long end_in_page = ((addr + chunk_len) & CHUNKMASK);
 			long r = chunk_len - end_in_page;
