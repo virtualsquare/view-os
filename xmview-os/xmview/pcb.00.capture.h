@@ -72,13 +72,13 @@
 #	endif
 	pid_t pid;                /* Process Id of this entry */
 	int signum;
-#	ifdef _PROC_MEM_TEST
-		int memfd; /* if !has_ptrace_multi, open /proc/PID/mem */
-#	endif
 	struct pcb *pp;         /* Parent Process */
 	uint16_t behavior;
 	long retval;
 #	ifdef _VIEWOS_UM
-		long *saved_regs;
+	long *saved_regs;
+#	ifdef _PROC_MEM_TEST
+	int memfd; /* if !has_ptrace_multi, open /proc/PID/mem */
+#	endif
 #	endif
 #endif

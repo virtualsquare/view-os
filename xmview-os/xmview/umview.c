@@ -76,8 +76,7 @@ int _umview_version = 2; /* modules interface version id.
 										um-viewos kernel*/
 unsigned int has_ptrace_multi;
 #ifdef _PROCESS_VM_RW
-unsigned int has_process_vm_readv;
-unsigned int has_process_vm_writev;
+unsigned int has_process_vm_rw;
 #endif
 unsigned int ptrace_vm_mask;
 unsigned int ptrace_sysvm_tag;
@@ -433,24 +432,19 @@ static void umview_earlyargs(int argc,char *argv[])
 }
 
 #ifdef _PROCESS_VM_RW
-int test_process_vm_readv(void)
+int test_process_vm_rw(void)
 {
 	int inbuf[4];
 	int outbuf[4];
 	struct iovec in={inbuf,4};
 	struct iovec out={outbuf,4};
 	int rv=process_vm_readv(getpid(),&in,1,&out,1,0);
-	return rv==4;
-}
-
-int test_process_vm_writev(void)
-{
-	int inbuf[4];
-	int outbuf[4];
-	struct iovec in={inbuf,4};
-	struct iovec out={outbuf,4};
-	int rv=process_vm_writev(getpid(),&in,1,&out,1,0);
-	return rv==4;
+	if (rv != 4)
+		return 0;
+	else {
+		rv=process_vm_writev(getpid(),&in,1,&out,1,0);
+		return rv==4;
+	}
 }
 #endif
 
@@ -460,7 +454,7 @@ int main(int argc,char *argv[])
 	char *rcfile=NULL;
 	unsigned int want_ptrace_multi, want_ptrace_vm, want_ptrace_viewos;
 #ifdef _PROCESS_VM_RW
-	unsigned int want_process_vm_readv, want_process_vm_writev;
+	unsigned int want_process_vm_rw;
 #endif
 	sigset_t unblockchild;
 	if (argc == 1 && argv[0][0] == '-' && argv[0][1] != '-') /* login shell */
@@ -503,8 +497,7 @@ int main(int argc,char *argv[])
 	want_ptrace_multi = has_ptrace_multi;
 	want_ptrace_vm = ptrace_vm_mask;
 #ifdef _PROCESS_VM_RW
-	want_process_vm_readv=has_process_vm_readv=test_process_vm_readv();
-	want_process_vm_writev=has_process_vm_writev=test_process_vm_writev();
+	want_process_vm_rw=has_process_vm_rw=test_process_vm_rw();
 #endif
 	/* option management */
 	while (1) {
@@ -568,8 +561,7 @@ int main(int argc,char *argv[])
 					 break;
 #ifdef _PROCESS_VM_RW
 			case 0x103: /* do not use process_vm_readv/writev */
-					 want_process_vm_readv = 0;
-					 want_process_vm_writev = 0;
+					 want_process_vm_rw = 0;
 					 break;
 #endif
 #ifdef _UM_PTRACE
@@ -588,7 +580,7 @@ int main(int argc,char *argv[])
 	{
 		if (has_ptrace_multi || ptrace_vm_mask
 #ifdef _PROCESS_VM_RW
-				|| has_process_vm_readv || has_process_vm_writev
+				|| has_process_vm_rw
 #endif
 				)
 		{
@@ -598,18 +590,16 @@ int main(int argc,char *argv[])
 			if (ptrace_vm_mask)
 				fprintf(stderr, "PTRACE_SYSVM ");
 #ifdef _PROCESS_VM_RW
-			if (has_process_vm_readv)
-				fprintf(stderr, "process_vm_readv ");
-			if (has_process_vm_writev)
-				fprintf(stderr, "process_vm_writev ");
+			if (has_process_vm_rw)
+				fprintf(stderr, "process_vm_rw ");
 #endif
 			fprintf(stderr, "\n");
 		}
 
 		if (has_ptrace_multi || ptrace_vm_mask ||
 #ifdef _PROCESS_VM_RW
-				has_process_vm_readv || has_process_vm_writev ||
-				want_process_vm_readv || want_process_vm_writev ||
+				has_process_vm_rw ||
+				want_process_vm_rw ||
 #endif
 				want_ptrace_multi || want_ptrace_vm || want_ptrace_viewos)
 		{
@@ -621,14 +611,12 @@ int main(int argc,char *argv[])
 			if (want_ptrace_viewos)
 				fprintf(stderr,"PTRACE_VIEWOS ");
 #ifdef _PROCESS_VM_RW
-			if (want_process_vm_readv)
-				fprintf(stderr, "process_vm_readv ");
-			if (want_process_vm_writev)
-				fprintf(stderr, "process_vm_writev ");
+			if (want_process_vm_rw)
+				fprintf(stderr, "process_vm_rw ");
 #endif
 			if (!want_ptrace_multi && !want_ptrace_vm && !want_ptrace_viewos
 #ifdef _PROCESS_VM_RW
-					&& !want_process_vm_readv && !want_process_vm_writev
+					&& !want_process_vm_rw 
 #endif
 					)
 				fprintf(stderr,"nothing");
@@ -643,17 +631,16 @@ int main(int argc,char *argv[])
 		ustoren=ustoren_multi;
 		umovestr=umovestr_multi;
 		ustorestr=ustorestr_multi;
+#ifdef _PROCESS_VM_RW
 		/* ptrace_multi should be faster */
-		want_process_vm_readv=want_process_vm_writev=0;
+		want_process_vm_rw=0;
+#endif
 	}
 #ifdef _PROCESS_VM_RW
-	has_process_vm_readv=want_process_vm_readv;
-	has_process_vm_writev=want_process_vm_writev;
-	if (has_process_vm_readv) {
+	has_process_vm_rw=want_process_vm_rw;
+	if (has_process_vm_rw) {
 		umoven=umoven_process_rw;
 		umovestr=umovestr_process_rw;
-	}
-	if (has_process_vm_writev) {
 		ustoren=ustoren_process_rw;
 		ustorestr=ustorestr_process_rw;
 	}
