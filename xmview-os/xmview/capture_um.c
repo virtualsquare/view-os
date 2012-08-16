@@ -67,7 +67,8 @@
 #define PT_M_OK(pc) PT_VM_OK
 #endif
 
-#define PCBSIZE 10
+#define PCBSIZE 16
+#define PCBSTEP 16
 
 pthread_key_t pcb_key=0; /* key to grab the current thread pcb */
 
@@ -108,6 +109,7 @@ int printk(const char *fmt, ...) {
 static struct pcb **pcbtab;           /* capture_um pcb table */
 int nprocs = 0;                       /* number of active processes */
 static int pcbtabsize;                /* actual size of the pcb table */
+static int pcbtabfree=-1;                /* actual size of the pcb table */
 
 divfun scdtab[_UM_NR_syscalls];                 /* upcalls */
 unsigned char scdnarg[_UM_NR_syscalls];	/*nargs 0x83 is OPEN */
@@ -168,56 +170,63 @@ static struct pcb *newpcb (int pid)
 	register int i,j;
 	struct pcb *pcb;
 
-	for (i=0; 1; i++) {
-		if (i==pcbtabsize) { /* expand the pcb table */
-			/* we double the size, from pcbtabsize to pcbtabsize*2; to do this, we
-			 * reallocate the newtab to double the size it was before; then we need
-			 * pcbtabsize more pointers; so we allocate a table of pointers of size
-			 * pcbtabsize, and the new pointers to pointers now points to that. It's
-			 * a bit difficult to understand - graphically:
-			 *
-			 * newtab:
-			 * +---------------------------------------------------------------+
-			 * |0123|45678...|                |                                |
-			 * +---------------------------------------------------------------+
-			 *   |       |             |                         |
-			 *   V       V             V                         V
-			 * first    second       third                     fourth
-			 * calloc   calloc       calloc                    calloc
-			 *  of        of           of                        of
-			 * newpcbs  newpcbs      newpcbs                   newpcbs
-			 *
-			 * Messy it can be, this way pointers to pcbs still remain valid after
-			 * a reallocation.
-			 */
-			struct pcb **newtab = (struct pcb **)
-				realloc(pcbtab, 2 * pcbtabsize * sizeof pcbtab[0]);
-			struct pcb *newpcbs = (struct pcb *) calloc(pcbtabsize, sizeof *newpcbs); 
-			if (newtab == NULL || newpcbs == NULL) {
-				if (newtab != NULL)
-					free(newtab);
-				return NULL;
-			}
-			for (j = pcbtabsize; j < 2 * pcbtabsize; ++j)
-				newtab[j] = &newpcbs[j - pcbtabsize];
-			pcbtabsize *= 2;
-			pcbtab = newtab;
+	if (pcbtabfree < 0) {
+		/* we enlarge the size, from pcbtabsize to pcbtabsize+PCBSTEP; to do this, we
+		 * reallocate the newtab to increase its size; then we need
+		 * PCBSTEP more pointers; so we allocate an array of struct pcb of size
+		 * PCBSTEP, and the new pointers now points to that. It's
+		 * a bit difficult to understand - graphically:
+		 *
+		 * newtab:
+		 * +---------------------------------------------------------------+
+		 * |01234567|89abfdef|......      |                                |
+		 * +---------------------------------------------------------------+
+		 *   |       |             |                         |
+		 *   V       V             V                         V
+		 * first    second       third                     fourth
+		 * calloc   calloc       calloc                    calloc
+		 *  of        of           of                        of
+		 * newpcbs  newpcbs      newpcbs                   newpcbs
+		 *
+		 * Messy it can be, this way pointers to pcbs still remain valid after
+		 * a reallocation.
+		 * umpid meaning is overloaded for O(1) free elements management: 
+		 * newpcb->umpid of unused pcbs stores the index of the next unused entry
+		 */
+		struct pcb **newtab = (struct pcb **)
+			realloc(pcbtab, (pcbtabsize+PCBSTEP) * sizeof pcbtab[0]);
+		struct pcb *newpcbs = (struct pcb *) calloc(PCBSTEP, sizeof *newpcbs); 
+		if (newtab == NULL || newpcbs == NULL) {
+			if (newtab != NULL)
+				free(newtab);
+			return NULL;
 		}
-		pcb=pcbtab[i];
-		if (! (pcb->flags & PCB_INUSE)) {
-			pcb->pid=pid;
-			pcb->umpid=i+1; // umpid==0 is reserved for umview itself
-			pcb->flags = PCB_INUSE | PCB_STARTING;
-			pcb->sysscno = NOSC;
-			pcb->pp = NULL;
-			nprocs++;
-			return pcb;
+		for (j = pcbtabsize; j < pcbtabsize+PCBSTEP; ++j) {
+			newtab[j] = &newpcbs[j - pcbtabsize];
+			newtab[j]->umpid = j+1;
 		}
+		newtab[pcbtabsize+PCBSTEP-1]->umpid=-1;
+		pcbtabfree = pcbtabsize;
+		pcbtabsize += PCBSTEP;
+		pcbtab = newtab;
 	}
+	i=pcbtabfree;
+	pcb=pcbtab[i];
+	pcbtabfree=pcb->umpid;
+	pcb->pid=pid;
+	pcb->umpid=i+1; // umpid==0 is reserved for umview itself
+	pcb->flags = PCB_INUSE | PCB_STARTING;
+	pcb->sysscno = NOSC;
+	pcb->pp = NULL;
+	nprocs++;
+	return pcb;
+}
 
-	/* never reach here! */
-	assert(0);
-	return NULL;
+static void freepcb(struct pcb *pc)
+{
+	int index=pc->umpid-1;
+	pc->umpid=pcbtabfree;
+	pcbtabfree=index;
 }
 
 /* this is an iterator on the pcb table */
@@ -274,12 +283,14 @@ static void droppcb(struct pcb *pc,int status)
 	if (nprocs > 0)
 #endif
 		pc->flags = 0; /*NOT PCB_INUSE */;
+	freepcb(pc);
 }
 
 /* initial PCB table allocation */
 static void allocatepcbtab()
 {
 	struct pcb *pc;
+	int i;
 
 	/* Allocate the initial pcbtab.  */
 	/* look at newpcb for some explanations about the structure */
@@ -287,10 +298,14 @@ static void allocatepcbtab()
 	/* allocation of pointers */
 	pcbtab = (struct pcb **) malloc (pcbtabsize * sizeof pcbtab[0]);
 	/* allocation of PCBs */
-	pcbtab[0] = (struct pcb *) calloc (pcbtabsize, sizeof *pcbtab[0]);
+	pc = (struct pcb *) calloc (pcbtabsize, sizeof *pcbtab[0]);
 	/* each pointer points to the corresponding PCB */
-	for (pc = pcbtab[0]; pc < &pcbtab[0][pcbtabsize]; ++pc)
-		pcbtab[pc - pcbtab[0]] = &pcbtab[0][pc - pcbtab[0]];
+	for (i = 0; i < PCBSIZE; i++) {
+		pcbtab[i] = &pc[i];
+		pcbtab[i]->umpid = i+1;
+	}
+	pcbtab[PCBSIZE-1]->umpid=-1;
+	pcbtabfree=0;
 }
 
 static int handle_new_proc(int pid, struct pcb *pp)
@@ -300,7 +315,6 @@ static int handle_new_proc(int pid, struct pcb *pp)
 	long saved_regs[VIEWOS_FRAME_SIZE];
 #endif /*LIBC_VFORK_DIRTY_TRICKS*/
 
-	//printk("handle_new_proc %d %p\n",pid,pp);
 	if ((oldpc=pc=pid2pcb(pid)) == NULL && (pc = newpcb(pid))== NULL) {
 		printk("[pcb table full]\n");
 		if(r_ptrace(PTRACE_KILL, pid, 0, 0) < 0){
@@ -955,6 +969,7 @@ void capture_execrc(const char *path,const char *argv1)
 	if (access(path,X_OK)==0) {
 		int pid;
 		int status;
+
 		switch (pid=fork()) {
 			case -1: exit (2);
 			case 0: execl(path,path,argv1,(char *)0);
@@ -993,7 +1008,7 @@ int capture_main(char **argv, char *rc)
 				GPERROR(0, "ptrace");
 				exit(1);
 			}
-			r_kill(getpid(), SIGSTOP);
+			r_kill(getpid(),SIGSTOP);
 			capture_execrc("/etc/viewosrc",(char *)0);
 			if (rc != NULL && *rc != 0)
 				capture_execrc(rc,(char *)0);

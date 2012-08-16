@@ -53,7 +53,8 @@ int kmviewfd;
 long kmflags;
 struct kmview_event event[NEVENTS];
 #define umpid2pcb(X) (pcbtab[(X)-1])
-#define PCBSIZE 10
+#define PCBSIZE 16
+#define PCBSTEP 16
 
 int first_child_exit_status = -1;
 void (*first_child_init)(void);
@@ -97,6 +98,7 @@ int printk(const char *fmt, ...) {
 static struct pcb **pcbtab;           /* capture_km pcb table */
 int nprocs = 0;                       /* number of active processes */
 static int pcbtabsize;                /* actual size of the pcb table */
+static int pcbtabfree=-1;                /* actual size of the pcb table */
 
 divfun scdtab[_UM_NR_syscalls];                 /* upcalls */
 unsigned char scdnarg[_UM_NR_syscalls];  /*nargs*/
@@ -130,56 +132,63 @@ static pid_t newpcb (pid_t pid,pid_t kmpid,pid_t umppid)
 	register int i,j;
 	struct pcb *pcb;
 
-	for (i=0; 1; i++) {
-		if (i==pcbtabsize) { /* expand the pcb table */
-			/* we double the size, from pcbtabsize to pcbtabsize*2; to do this, we
-			 * reallocate the newtab to double the size it was before; then we need
-			 * pcbtabsize more pointers; so we allocate a table of pointers of size
-			 * pcbtabsize, and the new pointers to pointers now points to that. It's
-			 * a bit difficult to understand - graphically:
-			 *
-			 * newtab:
-			 * +---------------------------------------------------------------+
-			 * |0123|45678...|                |                                |
-			 * +---------------------------------------------------------------+
-			 *   |       |             |                         |
-			 *   V       V             V                         V
-			 * first    second       third                     fourth
-			 * calloc   calloc       calloc                    calloc
-			 *  of        of           of                        of
-			 * newpcbs  newpcbs      newpcbs                   newpcbs
-			 *
-			 * Messy it can be, this way pointers to pcbs still remain valid after
-			 * a reallocation.
-			 */
-			struct pcb **newtab = (struct pcb **)
-				realloc(pcbtab, 2 * pcbtabsize * sizeof pcbtab[0]);
-			struct pcb *newpcbs = (struct pcb *) calloc(pcbtabsize, sizeof *newpcbs);
-			if (newtab == NULL || newpcbs == NULL) {
-				if (newtab != NULL)
-					free(newtab);
-				return -1;
-			}
-			for (j = pcbtabsize; j < 2 * pcbtabsize; ++j)
-				newtab[j] = &newpcbs[j - pcbtabsize];
-			pcbtabsize *= 2;
-			pcbtab = newtab;
+	if (pcbtabfree < 0) {
+		/* we enlarge the size, from pcbtabsize to pcbtabsize+PCBSTEP; to do this, we
+		 * reallocate the newtab to increase its size; then we need
+		 * PCBSTEP more pointers; so we allocate an array of struct pcb of size
+		 * PCBSTEP, and the new pointers now points to that. It's
+		 * a bit difficult to understand - graphically:
+		 *
+		 * newtab:
+		 * +---------------------------------------------------------------+
+		 * |01234567|89abfdef|......      |                                |
+		 * +---------------------------------------------------------------+
+		 *   |       |             |                         |
+		 *   V       V             V                         V
+		 * first    second       third                     fourth
+		 * calloc   calloc       calloc                    calloc
+		 *  of        of           of                        of
+		 * newpcbs  newpcbs      newpcbs                   newpcbs
+		 *
+		 * Messy it can be, this way pointers to pcbs still remain valid after
+		 * a reallocation.
+		 * umpid meaning is overloaded for O(1) free elements management: 
+		 * newpcb->umpid of unused pcbs stores the index of the next unused entry
+		 */
+		struct pcb **newtab = (struct pcb **)
+			realloc(pcbtab, (pcbtabsize+PCBSTEP) * sizeof pcbtab[0]);
+		struct pcb *newpcbs = (struct pcb *) calloc(PCBSTEP, sizeof *newpcbs);
+		if (newtab == NULL || newpcbs == NULL) {
+			if (newtab != NULL)
+				free(newtab);
+			return -1;
 		}
-		pcb=pcbtab[i];
-		if (! (pcb->flags & PCB_INUSE)) {
-			pcb->pid=pid;
-			pcb->kmpid=kmpid;
-			pcb->umpid=i+1; // umpid==0 is reserved for umview itself
-			pcb->flags = PCB_INUSE;
-			pcb->pp = (umppid < 0)?pcb:umpid2pcb(umppid);
-			nprocs++;
-			return i+1; /*umpid*/
+		for (j = pcbtabsize; j < pcbtabsize+PCBSTEP; ++j) {
+			newtab[j] = &newpcbs[j - pcbtabsize];
+			newtab[j]->umpid = j+1;
 		}
+		newtab[pcbtabsize+PCBSTEP-1]->umpid=-1;
+		pcbtabfree = pcbtabsize;
+		pcbtabsize += PCBSTEP;
+		pcbtab = newtab;
 	}
+	i=pcbtabfree;
+	pcb=pcbtab[i];
+	pcbtabfree=pcb->umpid;
+	pcb->pid=pid;
+	pcb->kmpid=kmpid;
+	pcb->umpid=i+1; // umpid==0 is reserved for umview itself
+	pcb->flags = PCB_INUSE;
+	pcb->pp = (umppid < 0)?pcb:umpid2pcb(umppid);
+	nprocs++;
+	return i+1; /*umpid*/
+}
 
-	/* never reach here! */
-	assert(0);
-	return -1;
+static void freepcb(struct pcb *pc)
+{
+	int index=pc->umpid-1;
+	pc->umpid=pcbtabfree;
+	pcbtabfree=index;
 }
 
 /* this is an iterator on the pcb table */
@@ -233,12 +242,14 @@ static void droppcb(struct pcb *pc)
 	if (nprocs > 0)
 #endif
 		pc->flags = 0; /*NOT PCB_INUSE */;
+	freepcb(pc);
 }
 
 /* initial PCB table allocation */
 static void allocatepcbtab()
 {
 	struct pcb *pc;
+	int i;
 
 	/* Allocate the initial pcbtab.  */
 	/* look at newpcb for some explanations about the structure */
@@ -246,10 +257,14 @@ static void allocatepcbtab()
 	/* allocation of pointers */
 	pcbtab = (struct pcb **) malloc (pcbtabsize * sizeof pcbtab[0]);
 	/* allocation of PCBs */
-	pcbtab[0] = (struct pcb *) calloc (pcbtabsize, sizeof *pcbtab[0]);
+	pc = (struct pcb *) calloc (pcbtabsize, sizeof *pcbtab[0]);
 	/* each pointer points to the corresponding PCB */
-	for (pc = pcbtab[0]; pc < &pcbtab[0][pcbtabsize]; ++pc)
-		pcbtab[pc - pcbtab[0]] = &pcbtab[0][pc - pcbtab[0]];
+	for (i = 0; i < PCBSIZE; i++) {
+		pcbtab[i] = &pc[i];
+		pcbtab[i]->umpid = i+1;
+	}
+	pcbtab[PCBSIZE-1]->umpid=-1;
+	pcbtabfree=0;
 }
 
 
