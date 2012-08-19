@@ -304,7 +304,7 @@ static void droppcb(struct pcb *pc,int status)
 }
 
 /* initial PCB table allocation */
-static void allocatepcbtab()
+static void allocatepcbtab(int flags)
 {
 	struct pcb *pc;
 	int i;
@@ -324,13 +324,15 @@ static void allocatepcbtab()
 	pcbtab[PCBSIZE-1]->umpid=-1;
 	pcbtabfree=0;
 #ifdef _UMPIDMAP
-	int fd;
-	fd=open("/proc/sys/kernel/pid_max",O_RDONLY);
-	if (fd) {
-		char buf[128];
-		if (read(fd,buf,128) > 0) {
-			int npids=atoi(buf);
-			umpidmap=calloc(npids, sizeof(*umpidmap));
+	if (flags & CAPTURE_USEPIDMAP) {
+		int fd;
+		fd=open("/proc/sys/kernel/pid_max",O_RDONLY);
+		if (fd) {
+			char buf[128];
+			if (read(fd,buf,128) > 0) {
+				int npids=atoi(buf);
+				umpidmap=calloc(npids, sizeof(*umpidmap));
+			}
 		}
 	}
 #endif
@@ -918,7 +920,7 @@ int capture_main(char **argv, char *rc, int flags)
 #if __NR_socketcall != __NR_doesnotexist
 	scdnarg[__NR_socketcall]=2;
 #endif
-	allocatepcbtab();
+	allocatepcbtab(flags);
 	switch (first_child_pid=r_fork()) {
 		case -1:
 			GPERROR(0, "strace: fork");
