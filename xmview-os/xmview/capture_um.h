@@ -32,11 +32,15 @@ extern unsigned char scdnarg[];
 extern divfun sockcdtab[];
 #endif
 
+#ifdef _UMPIDMAP
+#define CAPTURE_USEPIDMAP 0x1
+#endif
+
 extern int first_child_exit_status;
 /* start a rc file */
 void capture_execrc(const char *path,const char *argv1);
 /* let the game start! */
-int capture_main(char **argv, char *rc);
+int capture_main(char **argv, char *rc, int flags);
 /* resume a process previously suspended */
 void sc_resume(struct pcb *pc);
 

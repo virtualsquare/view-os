@@ -3,7 +3,7 @@
  *
  *   umview.c: main
  *   
- *   Copyright 2005 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2005-2012 Renzo Davoli University of Bologna - Italy
  *   Modified 2005 Ludovico Gardenghi, Andrea Gasparini, Andrea Seraghiti
  *   
  *   This program is free software; you can redistribute it and/or modify
@@ -211,7 +211,10 @@ static void usage(char *s)
 			"  --noksysvm                avoid using PTRACE_SYSVM\n"
 			"  --nokviewos               avoid using PTRACE_VIEWOS\n"
 #ifdef _PROCESS_VM_RW
-			"  --nokprocessvmrw          avoid using process_vm_{read,write}v\n"
+			"  --nokprocessvmrw          avoid using process_vm_{read,write}\n"
+#endif
+#ifdef _UMPIDMAP
+			"  --nopidmap                avoid using pidmap (save mem, slighly slower)\n"
 #endif
 			"  -s, --secure              force permissions and capabilities\n"
 			"  -r, --realrecursion       real nested umview based on ptrace\n"
@@ -241,8 +244,11 @@ static struct option long_options[] = {
 	{"nokmulti",0,0,0x100},
 	{"noksysvm",0,0,0x101},
 	{"nokviewos",0,0,0x102},
-#ifdef _UM_PTRACE
+#ifdef _PROCESS_VM_RW
 	{"nokprocessvmrw",0,0,0x103},
+#endif
+#ifdef _UMPIDMAP
+	{"nopidmap",0,0,0x104},
 #endif
 	{"secure",0,0,'s'},
 	{"realrecursion",0,0,'r'},
@@ -456,6 +462,13 @@ int main(int argc,char *argv[])
 #ifdef _PROCESS_VM_RW
 	unsigned int want_process_vm_rw;
 #endif
+	unsigned int captureflags= 
+#ifdef _UMPIDMAP
+		CAPTURE_USEPIDMAP
+#else
+		0
+#endif
+		;
 	sigset_t unblockchild;
 	if (argc == 1 && argv[0][0] == '-' && argv[0][1] != '-') /* login shell */
 		loginshell_view();
@@ -564,6 +577,11 @@ int main(int argc,char *argv[])
 					 want_process_vm_rw = 0;
 					 break;
 #endif
+#ifdef _UMPIDMAP
+			case 0x104: /* do not use process_vm_readv/writev */
+					 captureflags &= ~CAPTURE_USEPIDMAP;
+					 break;
+#endif
 #ifdef _UM_PTRACE
 			case 't':
 					 ptraceemu = 1;
@@ -656,7 +674,7 @@ int main(int argc,char *argv[])
 
 	sigprocmask(SIG_BLOCK,NULL,&unblockchild);
 	pcb_inits(1);
-	capture_main(argv+optind,rcfile);
+	capture_main(argv+optind,rcfile,captureflags);
 	if(console_ptyname) redirect_on_console();
 	setenv("_INSIDE_VIEWOS_MODULE","",1);
 	do_preload(prehead);

@@ -18,8 +18,6 @@
 # endif
 
 #	ifdef _VIEWOS_UM
-#		define PCB_STARTING 0x8
-                        /* the process/thread is starting */
 #		define NOSC -1
 #	endif
 

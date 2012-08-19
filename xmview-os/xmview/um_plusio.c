@@ -309,7 +309,11 @@ int wrap_in_dup(int sc_number,struct pcb *pc,
 	int oldfd=(sc_number==__NR_dup)?-1:pc->sysargs[1];
 	sfd=fd2sfd(pc->fds,pc->sysargs[0]);
 	GDEBUG(4, "DUP %d %d sfd %d %s",pc->sysargs[0],pc->sysargs[1],sfd,fd_getpath(pc->fds,pc->sysargs[0]));
-	if (oldfd == um_mmap_secret || (sfd < 0 && hte != NULL)) {
+	if (
+#if _UM_MMAP
+			oldfd == um_mmap_secret || 
+#endif
+			(sfd < 0 && hte != NULL)) {
 		pc->retval= -1;
 		pc->erno= EBADF;
 		return SC_FAKE;

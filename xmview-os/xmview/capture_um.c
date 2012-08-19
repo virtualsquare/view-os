@@ -3,7 +3,7 @@
  *
  *   capture_um.c : capture and divert system calls
  *   
- *   Copyright 2005 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2005-2012 Renzo Davoli University of Bologna - Italy
  *   Modified 2005 Mattia Belletti, Ludovico Gardenghi, Andrea Gasparini
  *   Modified 2006 Renzo Davoli
  *
@@ -69,6 +69,9 @@
 
 #define PCBSIZE 16
 #define PCBSTEP 16
+#ifdef _UMPIDMAP
+static unsigned short *umpidmap;
+#endif
 
 pthread_key_t pcb_key=0; /* key to grab the current thread pcb */
 
@@ -190,8 +193,6 @@ static struct pcb *newpcb (int pid)
 		 *
 		 * Messy it can be, this way pointers to pcbs still remain valid after
 		 * a reallocation.
-		 * umpid meaning is overloaded for O(1) free elements management: 
-		 * newpcb->umpid of unused pcbs stores the index of the next unused entry
 		 */
 		struct pcb **newtab = (struct pcb **)
 			realloc(pcbtab, (pcbtabsize+PCBSTEP) * sizeof pcbtab[0]);
@@ -215,9 +216,13 @@ static struct pcb *newpcb (int pid)
 	pcbtabfree=pcb->umpid;
 	pcb->pid=pid;
 	pcb->umpid=i+1; // umpid==0 is reserved for umview itself
-	pcb->flags = PCB_INUSE | PCB_STARTING;
+	pcb->flags = PCB_INUSE;
 	pcb->sysscno = NOSC;
 	pcb->pp = NULL;
+#ifdef _UMPIDMAP
+	if (umpidmap)
+		umpidmap[pid]=pcb->umpid;
+#endif
 	nprocs++;
 	return pcb;
 }
@@ -225,6 +230,10 @@ static struct pcb *newpcb (int pid)
 static void freepcb(struct pcb *pc)
 {
 	int index=pc->umpid-1;
+#ifdef _UMPIDMAP
+	if (umpidmap)
+		umpidmap[pc->pid]=0;
+#endif
 	pc->umpid=pcbtabfree;
 	pcbtabfree=index;
 }
@@ -248,12 +257,23 @@ void forallpcbdo(voidfun f,void *arg)
 struct pcb *pid2pcb(int pid)
 {
 	register int i;
-	for (i = 0; i < pcbtabsize; i++) {
-		struct pcb *pc = pcbtab[i];
-		if (pc->pid == pid && pc->flags & PCB_INUSE)
-			return pc;
+#ifdef _UMPIDMAP
+	if (umpidmap) {
+		i = umpidmap[pid] - 1;
+		if (i < 0)
+			return NULL;
+		else
+			return pcbtab[i];
+	} else
+#endif
+	{
+		for (i = 0; i < pcbtabsize; i++) {
+			struct pcb *pc = pcbtab[i];
+			if (pc->pid == pid && pc->flags & PCB_INUSE)
+				return pc;
+		}
+		return NULL;
 	}
-	return NULL;
 }
 
 /* orphan processes must NULL-ify their parent process pointer */
@@ -279,10 +299,7 @@ static void droppcb(struct pcb *pc,int status)
 	nprocs--;
 	forallpcbdo(_cut_pp,pc);
 	pcb_destructor(pc,status,0);
-#if 0
-	if (nprocs > 0)
-#endif
-		pc->flags = 0; /*NOT PCB_INUSE */;
+	pc->flags = 0; /*NOT PCB_INUSE */;
 	freepcb(pc);
 }
 
@@ -306,14 +323,22 @@ static void allocatepcbtab()
 	}
 	pcbtab[PCBSIZE-1]->umpid=-1;
 	pcbtabfree=0;
+#ifdef _UMPIDMAP
+	int fd;
+	fd=open("/proc/sys/kernel/pid_max",O_RDONLY);
+	if (fd) {
+		char buf[128];
+		if (read(fd,buf,128) > 0) {
+			int npids=atoi(buf);
+			umpidmap=calloc(npids, sizeof(*umpidmap));
+		}
+	}
+#endif
 }
 
-static int handle_new_proc(int pid, struct pcb *pp)
+static int handle_new_proc(int pid, struct pcb *pp, int flags)
 {
 	struct pcb *oldpc,*pc;
-#ifdef LIBC_VFORK_DIRTY_TRICKS
-	long saved_regs[VIEWOS_FRAME_SIZE];
-#endif /*LIBC_VFORK_DIRTY_TRICKS*/
 
 	if ((oldpc=pc=pid2pcb(pid)) == NULL && (pc = newpcb(pid))== NULL) {
 		printk("[pcb table full]\n");
@@ -324,31 +349,15 @@ static int handle_new_proc(int pid, struct pcb *pp)
 	}
 	if (pp != NULL) {
 		//		GDEBUG(2, "handle_new_proc(pid=%d,pp=%d) -- pc->pid: %d oldpc=%d pc=%d",pid,pp,pc->pid,oldpc,pc);
+		//printk("handle_new_proc(pid=%d,pp=%d)\n",pid,pp->pid);
 		pc->pp = pp;
 		if (oldpc != NULL) {
-			pc->flags &= ~PCB_STARTING;
-#ifdef LIBC_VFORK_DIRTY_TRICKS
-			pc->saved_regs=saved_regs;
-			getregs(pc);
-			putargn(0,pp->sysargs[0],pc);
-			putargn(1,pp->sysargs[1],pc);
-			////printk("starting1 pc->pid %d  %x %x was %x %x\n",pc->pid, pp->sysargs[0],pp->sysargs[1],getargn(0,pc),getargn(1,pc));
-			if(setregs(pc,PTRACE_SYSCALL,0, 0) < 0){
-				GPERROR(0, "continuing");
-				exit(1);
-			}
-#else
 			if(r_ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0){
 				GPERROR(0, "continuing");
 				exit(1);
 			}
 			pc->saved_regs=NULL;
-
-#endif /*LIBC_VFORK_DIRTY_TRICKS*/
-		} else {
-			pc->sysargs[0]=pp->sysargs[0];
-			pc->sysargs[1]=pp->sysargs[1];
-		}
+		} 
 #ifdef _PROC_MEM_TEST
 		if (!has_ptrace_multi) {
 			char *memfile;
@@ -359,7 +368,7 @@ static int handle_new_proc(int pid, struct pcb *pp)
 			pc->memfd= -1;
 #endif
 		pc->signum=0;
-		pcb_constructor(pc,pp->sysargs[2],0);
+		pcb_constructor(pc,flags,0);
 	}
 	return 0;
 }
@@ -385,31 +394,6 @@ int fakesigstopcont(struct pcb *pc)
 	return STD_BEHAVIOR;
 }
 #endif
-
-/* FORK/VFORK/CLONE management */
-void offspring_enter(struct pcb *pc)
-{
-	//printk("offspring_enter:%d\n",pc->pid);
-	pc->sysargs[0]=getargn(0,pc);
-	pc->sysargs[1]=getargn(1,pc);
-	//printk("offspring_enter %x %x\n",pc->sysargs[0],pc->sysargs[1]);
-	if (pc->sysscno == __NR_fork || pc->sysscno == __NR_vfork) {
-		putscno(__NR_clone,pc);
-		putargn(0,CLONE_PTRACE|SIGCHLD, pc);
-		putargn(1,0, pc);
-		pc->sysargs[2]=SIGCHLD;
-	}
-	else if (pc->sysscno == __NR_clone) {
-		putargn(0,pc->sysargs[0] | CLONE_PTRACE, pc);
-		pc->sysargs[2]=pc->sysargs[0];
-	}
-}
-
-void offspring_exit(struct pcb *pc)
-{
-	putargn(0,pc->sysargs[0],pc);
-	putargn(1,pc->sysargs[1],pc);
-}
 
 #ifdef _UM_PTRACE
 static pid_t tracing_wait(int *status, struct pcb **pc)
@@ -464,8 +448,8 @@ void tracehand()
 		/* get the id of the signalling process */
 
 		pid = tracing_wait(&status, &pc);
-		//////printk("tracing_wait %d\n",pid);
-		/* This is a safe exit if there are spurious chars in the pipe */
+		//printk("tracing_wait %d %x\n",pid,status);
+		/* This is a safe exit if there are no more events to process */
 		if (pid==0) return;
 		if (pc == NULL) {
 			/* race condition, new procs can be faster than parents*/
@@ -473,291 +457,277 @@ void tracehand()
 				/* create the descriptor, block the process
 				 * until the parent complete the pcb */
 				//printk("RACE CONDITION %d\n",pid);
-				handle_new_proc(pid,NULL);
+				handle_new_proc(pid,NULL,0);
 				continue;
 			}
 			/* error case */
 			GDEBUG(0, "signal from unknown pid %d: killed",pid);
 			if(r_ptrace(PTRACE_KILL, pid, 0, 0) < 0){
 				GPERROR(0, "KILL");
-				continue;
 			}
+			continue;
 		}
+		//printk("PC %p\n",pc);
 
 		/* set the pcb of the signalling (current) process as a
 		 * thread private data */
 		pthread_setspecific(pcb_key,pc);
 
-		if(WIFSTOPPED(status) && (WSTOPSIG(status) == SIGTRAP)){
-			int isreproducing=0;
-			long saved_regs[VIEWOS_FRAME_SIZE];
-			pc->saved_regs=saved_regs;
-			if ( getregs(pc) < 0 ){
-				GPERROR(0, "saving register");
-				/////printk("SAVING %d\n",pc->pid);
-				exit(1);
-			}
-			//printregs(pc);
-			scno=getscno(pc);
-			/* execve does not return */
-			if (
+		if (WIFSTOPPED(status)) {
+			int stopsig=WSTOPSIG(status);
+			if(stopsig == (0x80 | SIGTRAP)){
+				long saved_regs[VIEWOS_FRAME_SIZE];
+				pc->saved_regs=saved_regs;
+				if ( getregs(pc) < 0 ){
+					GPERROR(0, "saving register");
+					exit(1);
+				}
+				//printregs(pc);
+				scno=getscno(pc);
+				/* execve does not return */
+				if (
 #if __NR_socketcall != __NR_doesnotexist
-					pc->sockaddr == 0 && 
+						pc->sockaddr == 0 && 
 #endif
-					pc->sysscno == __NR_execve && 
-					scno != __NR_execve && 
-					(pc->behavior != SC_FAKE || scno != __NR_getpid)){
-				pc->sysscno = NOSC;
-			}
-			isreproducing=(scno == __NR_fork ||
-					scno == __NR_vfork ||
-					scno == __NR_clone);
-			/* sigreturn and rt_sigreturn give random "OUT" values, maybe 0.
-			 * this is a workaroud */
-#if defined(__x86_64__) //sigreturn and signal aren't defineed in amd64
-			/* x86_64 has not the single socketcall */
-			if (pc->sysscno == __NR_rt_sigreturn )
-				pc->sysscno = NOSC;
-#else
-			if (
-#if __NR_socketcall != __NR_doesnotexist
-					pc->sockaddr == 0 && 
-#endif
-					(pc->sysscno == __NR_rt_sigreturn || pc->sysscno == __NR_sigreturn)) 
-				pc->sysscno = NOSC;
-			/*0 is READ for x86_84*/
-			else if (scno == 0) {
-				if (pc->sysscno == __NR_execve)
+						pc->sysscno == __NR_execve && 
+						scno != __NR_execve && 
+						(pc->behavior != SC_FAKE || scno != __NR_getpid)){
 					pc->sysscno = NOSC;
-			}
-#endif
-			else if (pc->sysscno == NOSC) /* PRE syscall tracing event (IN)*/
-			{
-				divfun fun;
-				GDEBUG(FRD | BYL | 3, "--> pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
-				pc->sysscno = scno;
-				switch (scdnarg[scno]) {
-					case 0x6:
-						pc->sysargs[5]=getargn(5,pc);
-					case 0x5:
-						pc->sysargs[4]=getargn(4,pc);
-					case 0x4:
-						pc->sysargs[3]=getargn(3,pc);
-					case 0x83:
-					case 0x3:
-						pc->sysargs[2]=getargn(2,pc);
-					case 0x2:
-						pc->sysargs[1]=getargn(1,pc);
-					case 0x1:
-						pc->sysargs[0]=getargn(0,pc);
 				}
-#if __NR_socketcall != __NR_doesnotexist
-				if (scno==__NR_socketcall) {
-					//printk("socketcall %d %x\n",pc->sysargs[0],pc->sysargs[1]);
-					pc->sysscno=pc->sysargs[0];
-					pc->sockaddr=pc->sysargs[1];
-					umoven(pc,pc->sockaddr,
-							socketcallnargs[pc->sysscno] * sizeof(long), pc->sysargs);
-					fun=sockcdtab[pc->sysscno];
-				} else {
-					pc->sockaddr=0;
-					fun=scdtab[pc->sysscno];
-				}
+				/* sigreturn and rt_sigreturn give random "OUT" values, maybe 0.
+				 * this is a workaroud */
+#if defined(__x86_64__) //sigreturn and signal aren't defineed in amd64
+				if (pc->sysscno == __NR_rt_sigreturn )
+					pc->sysscno = NOSC;
 #else
-				fun=scdtab[pc->sysscno];
+				if (
+						/* x86_64 has not the single socketcall */
+#if __NR_socketcall != __NR_doesnotexist
+						pc->sockaddr == 0 && 
 #endif
-				if (fun != NULL)
-					pc->behavior=fun(pc->sysscno,IN,pc);
-				else
-					pc->behavior=STD_BEHAVIOR;
-#ifdef FAKESIGSTOP
-				if (scno == __NR_kill && pc->behavior == STD_BEHAVIOR)
-					pc->behavior=fakesigstopcont(pc);
+						(pc->sysscno == __NR_rt_sigreturn || pc->sysscno == __NR_sigreturn)) 
+					pc->sysscno = NOSC;
+				/*0 is READ for x86_84*/
+				else if (scno == 0) {
+					if (pc->sysscno == __NR_execve)
+						pc->sysscno = NOSC;
+				}
 #endif
-				if (pc->behavior & SC_SKIP_CALL) {
-					if (PT_M_OK(pc)) { /* kernel supports System call skip PTRACE_SYSVM */
-						if ((fun(scno,OUT,pc) & SC_SUSPENDED)==0)
-							pc->sysscno=NOSC;
-					} else 
-						/* fake syscall with getpid if the kernel does not support
-						 * syscall shortcuts */
-						putscno(__NR_getpid,pc);
-				} else
+				else if (pc->sysscno == NOSC) /* PRE syscall tracing event (IN)*/
 				{
-					/* fork is translated into clone 
-					 * offspring management */
-					if (isreproducing) {
-						offspring_enter(pc);
+					divfun fun;
+					GDEBUG(FRD | BYL | 3, "--> pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
+					pc->sysscno = scno;
+					switch (scdnarg[scno]) {
+						case 0x6:
+							pc->sysargs[5]=getargn(5,pc);
+						case 0x5:
+							pc->sysargs[4]=getargn(4,pc);
+						case 0x4:
+							pc->sysargs[3]=getargn(3,pc);
+						case 0x83:
+						case 0x3:
+							pc->sysargs[2]=getargn(2,pc);
+						case 0x2:
+							pc->sysargs[1]=getargn(1,pc);
+						case 0x1:
+							pc->sysargs[0]=getargn(0,pc);
 					}
-					if (pc->behavior & SC_SAVEREGS) {
-						/* in case the call has been changed, count the 
-						 * args for the new call */
-						switch (scdnarg[getscno(pc)]) {
-							case 0x83:
-								if ((pc->sysargs[1] & O_ACCMODE) != O_RDONLY)
-									putargn(2,pc->sysargs[2],pc);
-								putargn(1,pc->sysargs[1],pc);
-								putargn(0,pc->sysargs[0],pc);
-								break;
-							case 0x6:
-								putargn(5,pc->sysargs[5],pc);
-							case 0x5:
-								putargn(4,pc->sysargs[4],pc);
-							case 0x4:
-								putargn(3,pc->sysargs[3],pc);
-							case 0x3:
-								putargn(2,pc->sysargs[2],pc);
-							case 0x2:
-								putargn(1,pc->sysargs[1],pc);
-							case 0x1:
-								putargn(0,pc->sysargs[0],pc);
-						}
-					}
-				}
-			} else { /* POST syscall management (OUT phase) */
-				divfun fun;
-				GDEBUG(FYL | BRD | 3, "<-- pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
-				//printk("OUT\n");
-				if (isreproducing) {
-					long newpid;
-					newpid=getrv(pc);
-					if (newpid >= 0) {
-						handle_new_proc(newpid,pc);
-						offspring_exit(pc);
-						putrv(newpid,pc);
+#if __NR_socketcall != __NR_doesnotexist
+					if (scno==__NR_socketcall) {
+						//printk("socketcall %d %x\n",pc->sysargs[0],pc->sysargs[1]);
+						pc->sysscno=pc->sysargs[0];
+						pc->sockaddr=pc->sysargs[1];
+						umoven(pc,pc->sockaddr,
+								socketcallnargs[pc->sysscno] * sizeof(long), pc->sysargs);
+						fun=sockcdtab[pc->sysscno];
 					} else {
-						////printk("ERESTARTNOINTR scno %d %ld %ld\n",scno, newpid,pc->saved_regs[MY_RAX]);
-						offspring_exit(pc);
+						pc->sockaddr=0;
+						fun=scdtab[pc->sysscno];
 					}
-
-					GDEBUG(3, "FORK! %d->%d",pid,newpid);
-
-					/* restore original arguments */
-				}
-				/* It is just for the sake of correctness, this test could be
-				 * safely eliminated  to increase the performance*/
-				if ((pc->behavior == SC_FAKE && scno != __NR_getpid) && 
-#if __NR_socketcall != __NR_doesnotexist
-						(scno != __NR_socketcall && pc->sockaddr == 0) &&
-#endif
-						scno != pc->sysscno)
-					GDEBUG(0, "error FAKE != %s",SYSCALLNAME(scno));
-#if __NR_socketcall != __NR_doesnotexist
-				if (pc->sockaddr == 0) 
-					fun=scdtab[pc->sysscno];
-				else 
-					fun=sockcdtab[pc->sysscno];
 #else
-				fun=scdtab[pc->sysscno];
+					fun=scdtab[pc->sysscno];
 #endif
-				if (fun != NULL &&
-						(pc->behavior == SC_FAKE ||
-						 pc->behavior == SC_CALLONXIT ||
-						 pc->behavior == SC_TRACEONLY)) {
-					pc->behavior = fun(pc->sysscno,OUT,pc);
-					if ((pc->behavior & SC_SUSPENDED) == 0)
-						pc->sysscno=NOSC;
+					if (fun != NULL)
+						pc->behavior=fun(pc->sysscno,IN,pc);
 					else
-						pc->behavior=SC_SUSPOUT;
-				} else {
-					pc->behavior = STD_BEHAVIOR;
-					pc->sysscno=NOSC;
-				}
-			} // end if scno==NOSC (OUT)
-			/* resume the caller ONLY IF the syscall is not blocking */
-			/* setregs is a macro that resume the execution, too */
-			if ((pc->behavior & SC_SUSPENDED) == 0) {
-				if ((pc->behavior & SC_SAVEREGS) || isreproducing) {
-					if (PT_M_OK(pc)) {
-						/*printk("SC %s %d\n",SYSCALLNAME(scno),pc->behavior);*/
-						if(setregs(pc,PTRACE_SYSVM, (isreproducing ? 0 : (pc->behavior & SC_VM_MASK)),pc->signum) == -1)
-							GPERROR(0, "setregs");
-						if(!isreproducing && (pc->behavior & PTRACE_VM_SKIPEXIT))
-							pc->sysscno=NOSC; 
-					} else {
-#ifdef _UM_PTRACE
-						if (setregs(pc,
-									(ptrace_hook_sysout(pc))?0:PTRACE_SYSCALL, 0, pc->signum) < 0)
-							GPERROR(0, "setregs");
-#else
-						if (setregs(pc,PTRACE_SYSCALL, 0, pc->signum) < 0)
-							GPERROR(0, "setregs");
+						pc->behavior=STD_BEHAVIOR;
+#ifdef FAKESIGSTOP
+					if (scno == __NR_kill && pc->behavior == STD_BEHAVIOR)
+						pc->behavior=fakesigstopcont(pc);
 #endif
-					}
-				} else /* register not modified */
-				{
-					//printk ("RESTART\n");
-					if (PT_M_OK(pc)) {
-						if (r_ptrace(PTRACE_SYSVM,pc->pid,pc->behavior & SC_VM_MASK,pc->signum) < 0)
-							GPERROR(0, "restart");
-						if(pc->behavior & PTRACE_VM_SKIPEXIT)
-							pc->sysscno=NOSC; 
-					}else {
-#ifdef _UM_PTRACE
-						if (ptrace_hook_sysout(pc) == 0)
-#endif
-						{
-							if (r_ptrace(PTRACE_SYSCALL,pc->pid,0,pc->signum) < 0)
-							GPERROR(0, "restart");
+					if (pc->behavior & SC_SKIP_CALL) {
+						if (PT_M_OK(pc)) { /* kernel supports System call skip PTRACE_SYSVM */
+							if ((fun(scno,OUT,pc) & SC_SUSPENDED)==0)
+								pc->sysscno=NOSC;
+						} else 
+							/* fake syscall with getpid if the kernel does not support
+							 * syscall shortcuts */
+							putscno(__NR_getpid,pc);
+					} else
+					{
+						if (pc->behavior & SC_SAVEREGS) {
+							/* in case the call has been changed, count the 
+							 * args for the new call */
+							switch (scdnarg[getscno(pc)]) {
+								case 0x83:
+									if ((pc->sysargs[1] & O_ACCMODE) != O_RDONLY)
+										putargn(2,pc->sysargs[2],pc);
+									putargn(1,pc->sysargs[1],pc);
+									putargn(0,pc->sysargs[0],pc);
+									break;
+								case 0x6:
+									putargn(5,pc->sysargs[5],pc);
+								case 0x5:
+									putargn(4,pc->sysargs[4],pc);
+								case 0x4:
+									putargn(3,pc->sysargs[3],pc);
+								case 0x3:
+									putargn(2,pc->sysargs[2],pc);
+								case 0x2:
+									putargn(1,pc->sysargs[1],pc);
+								case 0x1:
+									putargn(0,pc->sysargs[0],pc);
+							}
 						}
 					}
-				}
+				} else { /* POST syscall management (OUT phase) */
+					divfun fun;
+					GDEBUG(FYL | BRD | 3, "<-- pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
+					//printk("OUT\n");
+					/* It is just for the sake of correctness, this test could be
+					 * safely eliminated  to increase the performance*/
+					if ((pc->behavior == SC_FAKE && scno != __NR_getpid) && 
+#if __NR_socketcall != __NR_doesnotexist
+							(scno != __NR_socketcall && pc->sockaddr == 0) &&
+#endif
+							scno != pc->sysscno)
+						GDEBUG(0, "error FAKE != %s",SYSCALLNAME(scno));
+#if __NR_socketcall != __NR_doesnotexist
+					if (pc->sockaddr == 0) 
+						fun=scdtab[pc->sysscno];
+					else 
+						fun=sockcdtab[pc->sysscno];
+#else
+					fun=scdtab[pc->sysscno];
+#endif
+					if (fun != NULL &&
+							(pc->behavior == SC_FAKE ||
+							 pc->behavior == SC_CALLONXIT ||
+							 pc->behavior == SC_TRACEONLY)) {
+						pc->behavior = fun(pc->sysscno,OUT,pc);
+						if ((pc->behavior & SC_SUSPENDED) == 0)
+							pc->sysscno=NOSC;
+						else
+							pc->behavior=SC_SUSPOUT;
+					} else {
+						pc->behavior = STD_BEHAVIOR;
+						pc->sysscno=NOSC;
+					}
+				} // end if scno==NOSC (OUT)
+				/* resume the caller ONLY IF the syscall is not blocking */
+				/* setregs is a macro that resume the execution, too */
+				if ((pc->behavior & SC_SUSPENDED) == 0) {
+					if ((pc->behavior & SC_SAVEREGS)) {
+						if (PT_M_OK(pc)) {
+							/*printk("SC %s %d\n",SYSCALLNAME(scno),pc->behavior);*/
+							if(setregs(pc,PTRACE_SYSVM, (pc->behavior & SC_VM_MASK),pc->signum) == -1)
+								GPERROR(0, "setregs");
+							if(pc->behavior & PTRACE_VM_SKIPEXIT)
+								pc->sysscno=NOSC; 
+						} else {
+#ifdef _UM_PTRACE
+							if (setregs(pc,
+										(ptrace_hook_sysout(pc))?0:PTRACE_SYSCALL, 0, pc->signum) < 0)
+								GPERROR(0, "setregs");
+#else
+							if (setregs(pc,PTRACE_SYSCALL, 0, pc->signum) < 0)
+								GPERROR(0, "setregs");
+#endif
+						}
+					} else /* register not modified */
+					{
+						//printk ("RESTART\n");
+						if (PT_M_OK(pc)) {
+							if (r_ptrace(PTRACE_SYSVM,pc->pid,pc->behavior & SC_VM_MASK,pc->signum) < 0)
+								GPERROR(0, "restart");
+							if(pc->behavior & PTRACE_VM_SKIPEXIT)
+								pc->sysscno=NOSC; 
+						}else {
+#ifdef _UM_PTRACE
+							if (ptrace_hook_sysout(pc) == 0)
+#endif
+							{
+								if (r_ptrace(PTRACE_SYSCALL,pc->pid,0,pc->signum) < 0)
+									GPERROR(0, "restart");
+							}
+						}
+					}
 					pc->saved_regs=NULL;
-			} else {
-				pc->saved_regs=malloc(sizeof(saved_regs));
-				memcpy(pc->saved_regs,saved_regs,sizeof(saved_regs));
+				} else {
+					pc->saved_regs=malloc(sizeof(saved_regs));
+					memcpy(pc->saved_regs,saved_regs,sizeof(saved_regs));
+				}
+
+			} else
+			if(stopsig == SIGTRAP) {
+				pid_t newpid;
+				switch (status >> 16) {
+					case PTRACE_EVENT_FORK:
+					case PTRACE_EVENT_VFORK:
+						r_ptrace(PTRACE_GETEVENTMSG, pid, NULL, (long) &newpid);
+						//printk("pid %d FORK pid %d\n", pid, newpid);
+						handle_new_proc(newpid,pc,SIGCHLD);
+						break;
+					case PTRACE_EVENT_CLONE:
+						r_ptrace(PTRACE_GETEVENTMSG, pid, NULL, (long) &newpid);
+						//printk("pid %d CLONE pid %d %x\n", pid, newpid,getargn(0,pc));
+						handle_new_proc(newpid,pc,getargn(0,pc));
+						break;
+				}
+				r_ptrace(PTRACE_SYSCALL, pid, NULL, NULL);
+				continue;
 			}
 
-		} // end if SIGTRAP
-		else if(WIFSIGNALED(status)) {
-			GDEBUG(3, "%d: signaled %d",pid,WTERMSIG(status));
-			/* process killed by a signal */
-			droppcb(pc,status);
-		}
-		/* Abend and signal management */
-		else if(WIFSTOPPED(status)) {
-			long saved_regs[VIEWOS_FRAME_SIZE];
-			pc->saved_regs=saved_regs;
-			GDEBUG(3, "%d: stopped sig=%d",pid,(WSTOPSIG(status)));
-			if(WSTOPSIG(status) == SIGSEGV)
-			{
-				if(getregs(pc) == -1)
-					GDEBUG(3, "[err]");
-				GDEBUG(3, "%d: stopped sig=SIGSEGV @ %p",
-						pc->pid, getpc(pc));
-			}
-			/*if (!sigishandled(pc,  WSTOPSIG(status))) {
-			// also progenie, but for now 
-			//r_ptrace(PTRACE_KILL,pid,0,0);
-			//printk("KILLED %d %d\n", pid,pc->pid);
-			}*/
+			/* Abend and signal management */
+			else {
+				long saved_regs[VIEWOS_FRAME_SIZE];
+				pc->saved_regs=saved_regs;
+				GDEBUG(3, "%d: stopped sig=%d",pid,(stopsig));
+				if(stopsig == SIGSEGV)
+				{
+					if(getregs(pc) == -1)
+						GDEBUG(3, "[err]");
+					GDEBUG(3, "%d: stopped sig=SIGSEGV @ %p",
+							pc->pid, getpc(pc));
+				}
+				/*if (!sigishandled(pc,  stopsig)) {
+				// also progenie, but for now 
+				//r_ptrace(PTRACE_KILL,pid,0,0);
+				//printk("KILLED %d %d\n", pid,pc->pid);
+				}*/
 #ifdef FAKESIGSTOP
-			if (WSTOPSIG(status) == SIGTSTP && pc->pp != NULL) {
-				pc->flags |= PCB_FAKESTOP;
-				GDEBUG(1, "KILL 28 %d",pc->pp->pid);
-				//SIGSTOP -> FAKE SIGWINCH
-				kill(pc->pp->pid,28);
-			} else
-#endif
-				if (WSTOPSIG(status) == SIGSTOP && (pc->flags & PCB_STARTING)) {
-					pc->flags &= ~PCB_STARTING;
-#ifdef LIBC_VFORK_DIRTY_TRICKS
-					getregs(pc);
-					////printk("starting2 %x %x was %x %x\n",pc->sysargs[0],pc->sysargs[1],getargn(0,pc),getargn(1,pc));
-					putargn(0,pc->sysargs[0],pc);
-					putargn(1,pc->sysargs[1],pc);
-					setregs(pc,PTRACE_SYSCALL,0, 0);
-#else
-					r_ptrace(PTRACE_SYSCALL, pid, 0, 0);
-#endif
+				if (stopsig == SIGTSTP && pc->pp != NULL) {
+					pc->flags |= PCB_FAKESTOP;
+					GDEBUG(1, "KILL 28 %d",pc->pp->pid);
+					//SIGSTOP -> FAKE SIGWINCH
+					kill(pc->pp->pid,28);
 				} else
+#endif
 					/* forward signals to the process */
-					if(r_ptrace(PTRACE_SYSCALL, pid, 0, WSTOPSIG(status)) < 0){
+					if(r_ptrace(PTRACE_SYSCALL, pid, 0, stopsig) < 0){
 						GPERROR(0, "continuing");
 						/////printk("XXXcontinuing %d\n",pid);
 						exit(1);
 					}
 				pc->saved_regs=NULL;
+			} 
+		}
+		else if(WIFSIGNALED(status)) {
+			GDEBUG(3, "%d: signaled %d",pid,WTERMSIG(status));
+			/* process killed by a signal */
+			//printk("%d: signaled %d \n",pid,WTERMSIG(status));
+			droppcb(pc,status);
 		}
 		/* process termination management */
 		else if(WIFEXITED(status)) {
@@ -780,9 +750,6 @@ void sc_resume(struct pcb *pc)
 	//printk("RESUME %d\n",pc->pid);
 	int scno=pc->sysscno;
 	int inout=pc->behavior-SC_SUSPENDED;
-	int	isreproducing=(scno == __NR_fork ||
-			scno == __NR_vfork ||
-			scno == __NR_clone);
 	int signum=0;
 	divfun fun;
 	/* set the current process */
@@ -808,8 +775,6 @@ void sc_resume(struct pcb *pc)
 			} else
 				putscno(__NR_getpid,pc);
 		} else {
-			if (isreproducing)
-				offspring_enter(pc);
 			if (pc->behavior & SC_SAVEREGS) {
 				/* in case the call has been changed, count the 
 				 * args for the new call */
@@ -846,15 +811,15 @@ void sc_resume(struct pcb *pc)
 	/* restore registers and restart ONLY IF the call is not already blocking */
 	if ((pc->behavior & SC_SUSPENDED) == 0) {
 		if (PT_M_OK(pc)) {
-			if(setregs(pc,PTRACE_SYSVM,isreproducing ? 0 : pc->behavior,signum) == -1)
+			if(setregs(pc,PTRACE_SYSVM,pc->behavior,signum) == -1)
 				GPERROR(0, "setregs");
-			if(!isreproducing && (pc->behavior & PTRACE_VM_SKIPEXIT))
+			if(pc->behavior & PTRACE_VM_SKIPEXIT)
 				pc->sysscno=NOSC;
 		} else {
 #ifdef _UM_PTRACE
 			if (setregs(pc,
 						(ptrace_hook_sysout(pc))?0:PTRACE_SYSCALL,0,signum) == -1)
-				        GPERROR(0, "setregs");
+				GPERROR(0, "setregs");
 #else
 			if (setregs(pc,PTRACE_SYSCALL,0,signum) == -1)
 				GPERROR(0, "setregs");
@@ -913,46 +878,9 @@ static void vir_pcb_free(void *arg)
 	}
 }
 
-#if 0
-/* execvp implementation (to avoid pure_libc management) */
-static int r_execvp(const char *file, char *const argv[]){
-	if(strchr(file,'/') != NULL)
-		return execve(file,argv,environ);
-	else {
-		char *path;
-		char *envpath;
-		char *pathelem;
-		char buf[PATH_MAX];
-		if ((envpath=getenv("PATH")) == NULL)
-			envpath="/bin:/usr/bin";
-		path=strdup(envpath);
-		while((pathelem=strsep(&path,":")) != NULL){
-			if (*pathelem != 0) {
-				register int i,j;
-				for (i=0; i<PATH_MAX && pathelem[i]; i++)
-					buf[i]=pathelem[i];
-				if(buf[i-1] != '/' && i<PATH_MAX)
-					buf[i++]='/';
-				for (j=0; i<PATH_MAX && file[j]; j++,i++)
-					buf[i]=file[j];
-				buf[i]=0;
-				if (r_execve(buf,argv,environ)<0 &&
-						((errno != ENOENT) && (errno != ENOTDIR) && (errno != EACCES))) {
-					free(path);
-					return -1;
-				}
-			}
-		}
-		free(path);
-		errno = ENOENT;
-		return -1;
-	}
-}
-#endif
-
 int capture_attach(struct pcb *pc,pid_t pid)
 {
-	handle_new_proc(pid,pc);
+	handle_new_proc(pid,pc,0);
 	if (r_ptrace(PTRACE_ATTACH,pid,0,0) < 0)
 		return -errno;
 	else {
@@ -981,8 +909,10 @@ void capture_execrc(const char *path,const char *argv1)
 	}
 }
 
+#define UMPTRACEOPT (PTRACE_O_TRACESYSGOOD|PTRACE_O_TRACEFORK|PTRACE_O_TRACEVFORK|PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC)
+
 /* main capture startup */
-int capture_main(char **argv, char *rc)
+int capture_main(char **argv, char *rc, int flags)
 {
 	int status;
 #if __NR_socketcall != __NR_doesnotexist
@@ -1025,7 +955,7 @@ int capture_main(char **argv, char *rc)
 			/* init the nested syscall capturing */
 			capture_nested_init();
 			/* create (by hand) the first process' pcb */
-			handle_new_proc(first_child_pid,pcbtab[0]);
+			handle_new_proc(first_child_pid,pcbtab[0],0);
 			/* set the pcb_key for this process */
 			pthread_setspecific(pcb_key,pcbtab[0]);
 			if(r_waitpid(first_child_pid, &status, WUNTRACED) < 0){
@@ -1035,6 +965,7 @@ int capture_main(char **argv, char *rc)
 			}
 			/* set up the signal management */
 			setsigaction();
+			r_ptrace(PTRACE_SETOPTIONS, first_child_pid, 0, UMPTRACEOPT);
 			/* okay, the first process can start (traced) */
 			if(r_ptrace(PTRACE_SYSCALL, first_child_pid, 0, 0) < 0){
 				GPERROR(0, "continuing");
