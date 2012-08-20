@@ -3,7 +3,7 @@
  *
  *   um_ptrace: ptrace management
  *   
- *   Copyright 2011 Renzo Davoli University of Bologna - Italy
+ *   Copyright 2011-2012 Renzo Davoli University of Bologna - Italy
  *   
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License, version 2, as
@@ -119,7 +119,7 @@ static struct pcb *pcblist_dequeue(struct pcblist **list)
 #ifndef _VIEWOS_KM
 static void ptrace_resume(struct pcb *pc)
 {
-	/*printk("ptrace_resume %d %x\n",pc->pid,pc->ptrace_request);*/
+	// printk("ptrace_resume %d %x\n",pc->pid,pc->ptrace_request);
 	if (pc->ptrace_request & PTRACE_STATUS_SYSOUT)
 	{
 		if (r_ptrace(PTRACE_SYSCALL,pc->pid,0,pc->signum) < 0)
@@ -155,7 +155,7 @@ int wrap_in_ptrace(int sc_number,struct pcb *pc,
 		long addr=pc->sysargs[2];
 		long data=pc->sysargs[3];
 		struct pcb *tracedpc;
-		//printk("PTRACE %d %d %x %x\n",request,pid,addr,data);
+		// printk("PTRACE %d %d %x %x\n",request,pid,addr,data);
 		pc->retval=0;
 		pc->erno=0;
 		switch (request) {
@@ -177,6 +177,7 @@ int wrap_in_ptrace(int sc_number,struct pcb *pc,
 			case PTRACE_SETFPREGS:
 			case PTRACE_DETACH:
 			case PTRACE_ATTACH:
+			case PTRACE_GETEVENTMSG:
 				tracedpc=ptrace_pid2pcb(pid,pc);
 				if (tracedpc == NULL) {
 					pc->retval=-1;
@@ -200,6 +201,7 @@ int wrap_in_ptrace(int sc_number,struct pcb *pc,
 				}
 				break;
 			case PTRACE_SETOPTIONS:
+				// printk ("%d PTRACE_SETOPTIONS %x\n",pc->pid,data);
 				pc->ptrace_options=data;
 				break;
 			case PTRACE_PEEKTEXT:
@@ -308,6 +310,18 @@ int wrap_in_ptrace(int sc_number,struct pcb *pc,
 					}
 				}
 				break;
+
+			case PTRACE_GETEVENTMSG:
+				{
+					unsigned long msg;
+					if (r_ptrace(PTRACE_GETEVENTMSG, tracedpc->pid, (void *)addr, &msg) ||
+							ustoren(pc, data, sizeof(msg), &msg) < 0) {
+						pc->retval=-1;
+						pc->erno=EFAULT;
+					}
+				}
+				break;
+
 			case PTRACE_KILL:
 				//printk("-----------------------KILL %d %d\n",pid,tracedpc->pid);
 				tracedpc->signum=9;
@@ -361,76 +375,153 @@ static int ptrace_this(int status, struct pcb *pc)
 #ifdef _VIEWOS_KM
 	return 0;
 #else
-	if (WIFSTOPPED(status) && (WSTOPSIG(status) == SIGTRAP)) {
-		/* syscall */
-		if (pc->ptrace_request & PTRACE_STATUS_SYSCALL) {
-			int scno;
-			/* workaround: execve->getpid when SC_FAKE, so the
-				 check in capture_um fails */
-			r_ptrace(PTRACE_PEEKUSER,pc->pid,SCNOPEEKOFFSET,&scno);
-			if (pc->sysscno == __NR_getpid && scno != __NR_getpid)
-				pc->sysscno = __NR_execve;
-			if (pc->sysscno == __NR_execve) {
-				//printk("TEST EXECVE  PTRACE EXECVE %d\n",scno); 
-				if (
+	if (WIFSTOPPED(status)) {
+		if (WSTOPSIG(status) == (0x80 | SIGTRAP)) {
+			/* syscall */
+			if (pc->ptrace_request & PTRACE_STATUS_SYSCALL) {
+				int scno;
+				/* workaround: execve->getpid when SC_FAKE, so the
+					 check in capture_um fails */
+				// printk("ptrace_this STATUS %x\n",status);
+				r_ptrace(PTRACE_PEEKUSER,pc->pid,SCNOPEEKOFFSET,&scno);
+				if (pc->sysscno == __NR_getpid && scno != __NR_getpid)
+					pc->sysscno = __NR_execve;
+				if (pc->sysscno == __NR_execve) {
+					//printk("TEST EXECVE  PTRACE EXECVE %d\n",scno); 
+					if (
 #if __NR_socketcall != __NR_doesnotexist
-						pc->sockaddr == 0 &&
+							pc->sockaddr == 0 &&
 #endif
-						scno != __NR_execve &&
-						(pc->behavior != SC_FAKE || scno != __NR_getpid)){
-					//printk("EXECVE  PTRACE EXECVE %d\n",scno); 
+							scno != __NR_execve &&
+							(pc->behavior != SC_FAKE || scno != __NR_getpid)){
+						//printk("EXECVE  PTRACE EXECVE %d\n",scno); 
+						pc->ptrace_request &= ~PTRACE_STATUS_SYSOUT;
+						return 1;
+					}
+				}
+				if (pc->sysscno < 0) {
 					pc->ptrace_request &= ~PTRACE_STATUS_SYSOUT;
 					return 1;
+				} else {
+					pc->ptrace_request |= PTRACE_STATUS_SYSOUT;
+					return 0;
 				}
-			}
-			if (pc->sysscno < 0) {
-				pc->ptrace_request &= ~PTRACE_STATUS_SYSOUT;
-				return 1;
-			} else {
-				pc->ptrace_request |= PTRACE_STATUS_SYSOUT;
+			} else
 				return 0;
-			}
-			return 1;
-		} else
+		} else if (WIFSTOPPED(status) && (status >> 16) > 0)
 			return 0;
-	} else
-		/* SINGLESTEP MISSING! */
-		return 1;
+		else
+			return 1;
+	} else 
+		/* if it is terminated or signaled, and the tracker is my parent DOES NOT TRACK IT!
+			 (will be signaled anyway.
+			 in all other cases forward the ptrace */
+		if ((WIFEXITED(status) || WIFSIGNALED(status)) && (pc->pp == pc->ptrace_pp))
+			return 0;
+		else
+			return 1;
 #endif
 }
 
 int ptrace_hook_in(int status, struct pcb *pc)
 {
-	/*int scno;
-		r_ptrace(PTRACE_PEEKUSER,pc->pid,4*ORIG_EAX,&scno);*/
-	/*if (pc->ptrace_pp != NULL) 
-		printk("ptrace_hook_in %d %p SYSSCO %d SC %d\n",pc->pid,pc->ptrace_pp,pc->sysscno,scno);*/
-	if (pc->ptrace_pp != NULL) 
-		if (pc->ptrace_pp != NULL) {
-			pc->ptrace_status=status;
-			/*select SYSCALL/CONT/SINGLESTEP*/
-			if (ptrace_this(status, pc)) {
-				//printk("ptrace_hook_in %d -> %x SC%d\n",pc->pid,status,scno);
-				pcblist_enqueue(&pc->ptrace_pp->ptrace_notify_head, pc);
-				if (pc->ptrace_pp->ptrace_waitpid < 0 || pc->ptrace_pp->ptrace_waitpid == pc->pid) {
-					pc->ptrace_pp->ptrace_waitpid = 0;
-					sc_resume(pc->ptrace_pp);
-				} else
-					r_kill(pc->ptrace_pp->pid,SIGCHLD);
-				if (WIFEXITED(status) || WIFSIGNALED(status))
-					return 0;
-				else
-					return 1;
-			}
-		} 
+	int scno;
+	r_ptrace(PTRACE_PEEKUSER,pc->pid,4*ORIG_EAX,&scno);
+	/* if (pc->ptrace_pp != NULL) 
+		 printk("ptrace_hook_in %d %p %x SYSSCO %d SC %d\n",pc->pid,pc->ptrace_pp,status,pc->sysscno,scno); */
+	if (pc->ptrace_pp != NULL) {
+		pc->ptrace_status=status;
+		/*select SYSCALL/CONT/SINGLESTEP*/
+		if (ptrace_this(status, pc)) {
+			// printk("ptrace_hook_in %d -> %x SC%d\n",pc->pid,status,scno);
+			pcblist_enqueue(&pc->ptrace_pp->ptrace_notify_head, pc);
+			if (pc->ptrace_pp->ptrace_waitpid < 0 || pc->ptrace_pp->ptrace_waitpid == pc->pid) {
+				pc->ptrace_pp->ptrace_waitpid = 0;
+				sc_resume(pc->ptrace_pp);
+			} else
+				r_kill(pc->ptrace_pp->pid,SIGCHLD);
+			//printk("%x %x %d\n",pc->pp,pc->ptrace_pp,((WIFEXITED(status) || WIFSIGNALED(status)) && (pc->pp != pc->ptrace_pp)));
+			/* DO NOT stop for termination tracking */
+			if (WIFEXITED(status) || WIFSIGNALED(status))
+				return 0;
+			else
+				return 1;
+		}
+	}
 	return 0;
+}
+
+static int matchrequest(int status,int options)
+{
+	// printk("matchrequest %x %x\n",status,options);
+	switch (status>>16) {
+		case PTRACE_EVENT_FORK:
+			return options & PTRACE_O_TRACEFORK;
+		case PTRACE_EVENT_VFORK:
+			return options & PTRACE_O_TRACEVFORK;
+		case PTRACE_EVENT_CLONE:
+			return options & PTRACE_O_TRACECLONE;
+		case PTRACE_EVENT_EXEC:
+			return options & PTRACE_O_TRACEEXEC;
+		case PTRACE_EVENT_VFORK_DONE:
+			return options & PTRACE_O_TRACEVFORKDONE;
+		case PTRACE_EVENT_EXIT:
+			return options & PTRACE_O_TRACEEXIT;
+		default:
+			return 0;
+	}
+}
+
+int ptrace_hook_event(int status, struct pcb *pc)
+{
+#ifdef _VIEWOS_KM
+	return 0;
+#else
+	if (pc->ptrace_pp != NULL && matchrequest(status,pc->ptrace_pp->ptrace_options)) {
+		pc->ptrace_status=status;
+		// printk("ptrace_hook_event NOTIFY %x!!\n",status);
+		pc->ptrace_request |= PTRACE_STATUS_SYSOUT;
+		pcblist_enqueue(&pc->ptrace_pp->ptrace_notify_head, pc);
+		if (pc->ptrace_pp->ptrace_waitpid < 0 || pc->ptrace_pp->ptrace_waitpid == pc->pid) {
+			pc->ptrace_pp->ptrace_waitpid = 0;
+			sc_resume(pc->ptrace_pp);
+		} else
+			r_kill(pc->ptrace_pp->pid,SIGCHLD);
+		return 1;
+	}
+	else
+		return 0;
+#endif
+}
+
+int ptrace_follow(int status, struct pcb *pc)
+{
+#ifdef _VIEWOS_KM
+	return 0;
+#else
+	if (pc->ptrace_pp == NULL)
+		return 0;
+	else {
+		int options=pc->ptrace_pp->ptrace_options;
+		switch (status>>16) {
+			case PTRACE_EVENT_FORK:
+				return options & PTRACE_O_TRACEFORK;
+			case PTRACE_EVENT_VFORK:
+				return options & PTRACE_O_TRACEVFORK;
+			case PTRACE_EVENT_CLONE:
+				return options & PTRACE_O_TRACECLONE;
+			default:
+				return 0;
+		}
+	}
+#endif
 }
 
 int ptrace_hook_out(int *status, struct pcb **pc)
 {
 	*pc = pcblist_dequeue(&pcblist_resume);
 	if (*pc) {
-		//printk("ptrace_hook_out %d %x\n",(*pc)->pid,(*pc)->ptrace_status); 
+		// printk("ptrace_hook_out %d %x\n",(*pc)->pid,(*pc)->ptrace_status); 
 		*status = (*pc)->ptrace_status;
 		return (*pc)->pid;
 	} else
@@ -468,6 +559,15 @@ int wrap_out_ptrace(int sc_number,struct pcb *pc)
 #endif
 }
 
+static inline int stripstatus(struct pcb *pc, int status)
+{
+	if (WIFSTOPPED(status) && (WSTOPSIG(status) == (0x80 | SIGTRAP))) {
+		if (!(pc->ptrace_options & PTRACE_O_TRACESYSGOOD))
+			return status & ~0x8000;
+	}
+	return status;
+}
+
 int wrap_in_waitpid(int sc_number,struct pcb *pc,
 		struct ht_elem *hte, sysfun um_syscall)
 {	
@@ -484,10 +584,11 @@ int wrap_in_waitpid(int sc_number,struct pcb *pc,
 		//printk("waitpid %d %d %x %d\n",pc->pid,pid,options,pc->ptrace_nterminated);
 		if (pc->ptrace_notify_head != NULL) {/*pending ptrace notifications*/
 			struct pcb *wpc=pcblist_dequeue(&pc->ptrace_notify_head);
+			int status=stripstatus(pc, wpc->ptrace_status);
 			pc->retval = wpc->pid;
-			ustoren (pc, pstatus, sizeof(long), &wpc->ptrace_status);
+			ustoren (pc, pstatus, sizeof(long), &status);
 			pc->signum = SIGCHLD;
-			//printk("pending ptrace %d %x -> %d\n",wpc->pid,wpc->ptrace_status,pc->pid);
+			// printk("pending ptrace %d %x -> %d\n",wpc->pid,wpc->ptrace_status,pc->pid);
 			return SC_FAKE;
 		}
 		if (pid >= 0)
@@ -560,12 +661,12 @@ void um_ptrace_addproc(struct pcb *pc,int flags,int npcbflag)
 		if (ptraceemu) {
 			if (pc->pp != pc)
 				pc->pp->ptrace_nchildren++;
-			//printk("+++++++++++++ um_ptrace_addproc %d %x\n",pc->pid,flags);
-			if (flags & CLONE_PTRACE) {
-				pc->ptrace_pp = pc->pp->ptrace_pp;
-				if (pc->ptrace_pp != NULL) {
+			// printk("um_ptrace_addproc %d %x\n",pc->pid,flags);
+			if (pc->pp->ptrace_pp != NULL) {
+				if (flags & CLONE_PTRACE) {
+					pc->ptrace_pp = pc->pp->ptrace_pp;
 					pc->ptrace_pp->ptrace_ntraced++;
-					/*printk("CLONED TRACED PROCESS %d p%d t%d\n",pc->pid,pc->pp->pid,pc->ptrace_pp->pid);*/
+					pc->ptrace_request |= PTRACE_STATUS_SYSOUT;
 					if (secretdebug)
 						printk("[%d] CLONED TRACED PROCESS %d p%d t%d\n",getpid(),pc->pid,pc->pp->pid,pc->ptrace_pp->pid);
 				}

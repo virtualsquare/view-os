@@ -61,8 +61,9 @@
 #ifdef _UM_PTRACE
 #define PT_M_OK(pc) (PT_VM_OK && PT_TRACED(pc) == NULL)
 #define ptrace_hook_in(A,pc) ((ptraceemu && PT_TRACED(pc)) ? ptrace_hook_in((A),(pc)) : 0)
-#define ptrace_hook_out(A,B) ((ptraceemu)? ptrace_hook_out((A),(B)) : 0)
-#define ptrace_hook_sysout(A) ((ptraceemu) ? ptrace_hook_sysout((A)) : 0)
+#define ptrace_hook_event(A,pc) ((ptraceemu && PT_TRACED(pc)) ? ptrace_hook_event((A),(pc)) : 0)
+#define ptrace_hook_out(A,pc) (ptraceemu ? ptrace_hook_out((A),(pc)) : 0)
+#define ptrace_hook_sysout(pc) ((ptraceemu && PT_TRACED(pc)) ? ptrace_hook_sysout(pc) : 0)
 #else
 #define PT_M_OK(pc) PT_VM_OK
 #endif
@@ -72,6 +73,13 @@
 #ifdef _UMPIDMAP
 static unsigned short *umpidmap;
 #endif
+
+#ifdef _UM_PTRACE
+#define UMPTRACEOPT (PTRACE_O_TRACESYSGOOD|PTRACE_O_TRACEFORK|PTRACE_O_TRACEVFORK|PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC|PTRACE_O_TRACEVFORKDONE|PTRACE_O_TRACEEXIT)
+#else
+#define UMPTRACEOPT (PTRACE_O_TRACESYSGOOD|PTRACE_O_TRACEFORK|PTRACE_O_TRACEVFORK|PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC)
+#endif
+
 
 pthread_key_t pcb_key=0; /* key to grab the current thread pcb */
 
@@ -353,13 +361,6 @@ static int handle_new_proc(int pid, struct pcb *pp, int flags)
 		//		GDEBUG(2, "handle_new_proc(pid=%d,pp=%d) -- pc->pid: %d oldpc=%d pc=%d",pid,pp,pc->pid,oldpc,pc);
 		//printk("handle_new_proc(pid=%d,pp=%d)\n",pid,pp->pid);
 		pc->pp = pp;
-		if (oldpc != NULL) {
-			if(r_ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0){
-				GPERROR(0, "continuing");
-				exit(1);
-			}
-			pc->saved_regs=NULL;
-		} 
 #ifdef _PROC_MEM_TEST
 		if (!has_ptrace_multi) {
 			char *memfile;
@@ -371,6 +372,13 @@ static int handle_new_proc(int pid, struct pcb *pp, int flags)
 #endif
 		pc->signum=0;
 		pcb_constructor(pc,flags,0);
+		if (oldpc != NULL) {
+			if(r_ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0){
+				GPERROR(0, "continuing");
+				exit(1);
+			}
+			pc->saved_regs=NULL;
+		} 
 	}
 	return 0;
 }
@@ -405,6 +413,7 @@ static pid_t tracing_wait(int *status, struct pcb **pc)
 	if (pid == 0) {
 		while (1) {
 			pid = r_waitpid(-1, status, WUNTRACED | __WALL | WNOHANG);
+			//printk("WAITPID %d %x\n",pid,*status);
 			if (pid == 0) break;
 			if (pid < 0) {
 				GPERROR(0, "wait");
@@ -450,7 +459,7 @@ void tracehand()
 		/* get the id of the signalling process */
 
 		pid = tracing_wait(&status, &pc);
-		//printk("tracing_wait %d %x\n",pid,status);
+		//printk("%d: tracing_wait %d %x\n",getpid(),pid,status);
 		/* This is a safe exit if there are no more events to process */
 		if (pid==0) return;
 		if (pc == NULL) {
@@ -482,6 +491,7 @@ void tracehand()
 				pc->saved_regs=saved_regs;
 				if ( getregs(pc) < 0 ){
 					GPERROR(0, "saving register");
+					printk("%d\n",pid);
 					exit(1);
 				}
 				//printregs(pc);
@@ -673,21 +683,52 @@ void tracehand()
 
 			} else
 			if(stopsig == SIGTRAP) {
-				pid_t newpid;
+				pid_t newpid=0;
+#ifdef _UM_PTRACE
+				int followflag = ptrace_follow(status,pc) ? CLONE_PTRACE : 0;
+#else
+				int followflag = 0;
+#endif
+				long saved_regs[VIEWOS_FRAME_SIZE];
+				pc->saved_regs=saved_regs;
+				if ( getregs(pc) < 0 ){
+					GPERROR(0, "saving register");
+					printk("%d\n",pid);
+					exit(1);
+				}
+
 				switch (status >> 16) {
 					case PTRACE_EVENT_FORK:
 					case PTRACE_EVENT_VFORK:
 						r_ptrace(PTRACE_GETEVENTMSG, pid, NULL, (long) &newpid);
-						//printk("pid %d FORK pid %d\n", pid, newpid);
-						handle_new_proc(newpid,pc,SIGCHLD);
+						// printk("pid %d FORK pid %d %d %d\n", pid, newpid,followflag,pc->sysscno);
+						/* Kernel BUG: clone calls PTRACE_EVENT_FORK!*/
+						if (pc->sysscno == __NR_clone)
+							handle_new_proc(newpid,pc,getargn(0,pc) | followflag);
+						else
+							handle_new_proc(newpid,pc,SIGCHLD | followflag);
 						break;
 					case PTRACE_EVENT_CLONE:
 						r_ptrace(PTRACE_GETEVENTMSG, pid, NULL, (long) &newpid);
-						//printk("pid %d CLONE pid %d %x\n", pid, newpid,getargn(0,pc));
-						handle_new_proc(newpid,pc,getargn(0,pc));
+						// printk("pid %d CLONE pid %d %x %d\n", pid, newpid,getargn(0,pc),followflag);
+						handle_new_proc(newpid,pc,getargn(0,pc) | followflag);
 						break;
+#ifdef _UM_PTRACE
+					case PTRACE_O_TRACEEXEC:
+					case PTRACE_O_TRACEVFORKDONE:
+					case PTRACE_O_TRACEEXIT:
+						r_ptrace(PTRACE_GETEVENTMSG, pid, NULL, (long) &newpid);
+						break;
+#endif
 				}
-				r_ptrace(PTRACE_SYSCALL, pid, NULL, NULL);
+#ifdef _UM_PTRACE
+				if (newpid == 0 || ptrace_hook_event(status,pc) == 0) {
+#endif
+					r_ptrace(PTRACE_SYSCALL, pid, NULL, NULL);
+#ifdef _UM_PTRACE
+				}
+#endif
+				pc->saved_regs=NULL;
 				continue;
 			}
 
@@ -728,12 +769,12 @@ void tracehand()
 		else if(WIFSIGNALED(status)) {
 			GDEBUG(3, "%d: signaled %d",pid,WTERMSIG(status));
 			/* process killed by a signal */
-			//printk("%d: signaled %d \n",pid,WTERMSIG(status));
+			// printk("%d: signaled %d \n",pid,WTERMSIG(status));
 			droppcb(pc,status);
 		}
 		/* process termination management */
 		else if(WIFEXITED(status)) {
-			//printk("%d: exited\n",pid);
+			// printk("%d: exited\n",pid);
 			/* the process has terminated */
 			droppcb(pc,status);
 			/* if it was the "init" process (first child), save its exit status,
@@ -841,6 +882,7 @@ static void setsigaction(void)
 	struct sigaction sa;
 	sigset_t blockchild; 
 
+	memset(&sa, 0, sizeof(sa));
 	sa.sa_handler = SIG_IGN;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
@@ -910,8 +952,6 @@ void capture_execrc(const char *path,const char *argv1)
 		}
 	}
 }
-
-#define UMPTRACEOPT (PTRACE_O_TRACESYSGOOD|PTRACE_O_TRACEFORK|PTRACE_O_TRACEVFORK|PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC)
 
 /* main capture startup */
 int capture_main(char **argv, char *rc, int flags)

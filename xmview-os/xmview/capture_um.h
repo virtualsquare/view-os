@@ -37,6 +37,7 @@ extern divfun sockcdtab[];
 #endif
 
 extern int first_child_exit_status;
+extern pid_t first_child_pid;
 /* start a rc file */
 void capture_execrc(const char *path,const char *argv1);
 /* let the game start! */
@@ -51,8 +52,15 @@ void set_pcb(void *new);
 /* just ask for the current size of the pcbtable */
 int pcbtablesize(void);
 
+void wake_null(int s);
+
 /* This is the handler of sigchld from user processes */
+#ifndef _ANGELS
 void tracehand();
+#else
+struct angel;
+int tracehand(struct pcb *orig_pcb, struct angel **sub);
+#endif
 /* pcb search (linear scan) */
 struct pcb *pid2pcb(int pid);
 
@@ -60,8 +68,10 @@ int capture_attach(struct pcb *pc,pid_t pid);
 
 #ifdef _UM_PTRACE
 int ptrace_hook_in(int status, struct pcb *pc);
+int ptrace_hook_event(int status, struct pcb *pc);
 int ptrace_hook_out(int *status, struct pcb **pc);
 int ptrace_hook_sysout(struct pcb *pc);
+int ptrace_follow(int status, struct pcb *pc);
 #endif
 
 #endif
