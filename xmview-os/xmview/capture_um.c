@@ -491,7 +491,6 @@ void tracehand()
 				pc->saved_regs=saved_regs;
 				if ( getregs(pc) < 0 ){
 					GPERROR(0, "saving register");
-					printk("%d\n",pid);
 					exit(1);
 				}
 				//printregs(pc);
@@ -929,10 +928,13 @@ int capture_attach(struct pcb *pc,pid_t pid)
 		return -errno;
 	else {
 		int status;
-		if(r_waitpid(pid, &status, WUNTRACED) < 0 ||
-				r_ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0)
-			GPERROR(0, "restarting attached");
-		return 0;
+		if(r_waitpid(pid, &status, WUNTRACED) >= 0) {
+			r_ptrace(PTRACE_SETOPTIONS, pid, 0, UMPTRACEOPT);
+			if (r_ptrace(PTRACE_SYSCALL, pid, 0, 0) < 0)
+				GPERROR(0, "restarting attached");
+			return 0;
+		} else
+			return -errno;
 	}
 }
 
