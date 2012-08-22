@@ -91,6 +91,8 @@ AC_FUNC_STRNLEN
 AC_FUNC_UTIME_NULL
 AC_FUNC_VPRINTF
 AC_CHECK_FUNCS([atexit ftruncate lchown memmove mempcpy memset mkdir mkfifo rmdir setenv strchr strdup strerror strrchr utime],, AC_MSG_ERROR([required functions missing]))
+AC_CHECK_FUNCS([process_vm_readv])
+AC_CHECK_FUNCS([process_vm_writev])
 
 PKG_CHECK_MODULES([GLIB20], [glib-2.0])
 
