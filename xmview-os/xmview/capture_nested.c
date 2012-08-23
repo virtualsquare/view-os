@@ -1026,6 +1026,7 @@ static void nsaveargs(struct pcb *caller,struct npcb *callee,long int sysno){
 	callee->sgid=caller->sgid;
 	callee->fsgid=caller->fsgid;
 	callee->grouplist=supgrp_get(caller->grouplist);
+	callee->tags=caller->tags;
 	pcb_constructor((struct pcb *)callee,0,1);
 }
 

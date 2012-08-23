@@ -413,9 +413,18 @@ struct viewinfo {
 #define VIEWOS_PWD         0x110
 #define VIEWOS_CMD         0x111
 #define VIEWOS_OPEN        0x112
+#define VIEWOS_TAG         0x120
+#define VIEWOS_TAGSTRING   0x121
 
 #define UM_PWD_OP_CHANGE 0
 #define UM_PWD_OP_SET 1
 #define UM_PWD_OP_ENCODE 2
+
+#define VIEWOS_TAG_SET	0
+#define VIEWOS_TAG_ADD	1
+#define VIEWOS_TAG_DEL	2
+
+#define VIEWOS_TAGSTRING_GET 0
+#define VIEWOS_TAGSTRING_SET 1
 
 #endif // _DEFS_H

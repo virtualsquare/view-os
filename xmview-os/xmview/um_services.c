@@ -474,6 +474,80 @@ int wrap_in_umservice(int sc_number,struct pcb *pc,
 				 }
 			 }
 			 break;
+		case VIEWOS_TAG:
+			 {
+				 long request=pc->sysargs[1];
+				 long newset=pc->sysargs[2];
+				 long oldset=pc->sysargs[3];
+				 long buflen=pc->sysargs[4];
+				 if (buflen != 4) {
+					 pc->retval=-1;
+					 pc->erno=EINVAL;
+				 } else {
+					 if (oldset != umNULL)
+						 ustoren(pc,oldset,buflen,&pc->tags);
+					 if (newset != umNULL) {
+						 uint32_t newtags;
+						 umoven(pc,newset,buflen,&newtags);
+						 uint32_t tags=pc->tags;
+						 pc->retval=pc->erno=0;
+						 switch (request) {
+							 case VIEWOS_TAG_SET: tags = newtags; break;
+							 case VIEWOS_TAG_ADD: tags |= newtags; break;
+							 case VIEWOS_TAG_DEL: tags &= ~newtags;break;
+							 default: 
+																		pc->retval=-1;
+																		pc->erno=EINVAL;
+
+						 }
+						 /* processes must always belong to at least one tag */
+						 // printk("%d %d %d -> %d\n",request,pc->tags,newtags,tags);
+						 if (tags == 0) {
+							 pc->retval=-1;
+							 pc->erno=EINVAL;
+						 } else 
+							 pc->tags=tags;
+					 }
+				 }
+			 }
+			 break;
+		case VIEWOS_TAGSTRING:
+			 {
+				 char string[256];
+				 char *gotstr;
+				 long request=pc->sysargs[1];
+				 long tag=pc->sysargs[2];
+				 long buf=pc->sysargs[3];
+				 long buflen=pc->sysargs[4];
+				 if (buflen>256) buflen=256;
+				 if (tag < 0 || tag >= 32) {
+					 pc->retval=-1;
+					 pc->erno=EINVAL;
+				 } else {
+					 switch (request) {
+						 case VIEWOS_TAGSTRING_GET:
+							 gotstr=gettagstring(tag);
+							 if (gotstr == NULL)
+								 *string=0;
+							 else
+								 strncpy(string,gotstr,256);
+							 //printk("GET %d %s %s\n",tag,string,gotstr);
+							 ustorestr(pc,buf,buflen,string);
+							 pc->retval=pc->erno=0;
+							 break;
+						 case VIEWOS_TAGSTRING_SET:
+							 umovestr(pc,buf,buflen,string);
+							 settagstring(tag, string);
+							 //printk("SET %d %s\n",tag,string);
+							 pc->retval=pc->erno=0;
+							 break;
+						 default:
+							 pc->retval=-1;
+							 pc->erno=EINVAL;
+					 }
+				 }
+			 }
+			 break;
 		default:
 			 pc->retval = -1;
 			 pc->erno = ENOSYS;

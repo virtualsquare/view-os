@@ -743,6 +743,7 @@ void pcb_plus(struct pcb *pc,int flags,int npcflag)
 			pc->hte=NULL;
 			pc->grouplist=supgrp_create(ngroups);
 			r_getgroups(ngroups,pc->grouplist->list);
+			pc->tags = 0xffffffff;
 		} else {
 			pc->ruid=pc->pp->ruid;
 			pc->euid=pc->fsuid=pc->pp->euid;
@@ -752,6 +753,7 @@ void pcb_plus(struct pcb *pc,int flags,int npcflag)
 			pc->sgid=pc->pp->sgid;
 			pc->hte=pc->pp->hte;
 			pc->grouplist=supgrp_get(pc->pp->grouplist);
+			pc->tags = pc->pp->tags;
 		}
 		pc->tst=tst_newproc(&(pc->pp->tst));
 #if 0
@@ -768,7 +770,7 @@ void pcb_plus(struct pcb *pc,int flags,int npcflag)
 void pcb_minus(struct pcb *pc,int flags,int npcbflag)
 {
 	if (!npcbflag) {
-		//printk("pcb_desctructor %d\n",pc->pid);
+		//printk("pcb_destructor %d\n",pc->pid);
 #if 0
 		/* delete all the file descriptors */
 		lfd_delproc(pc->fds);
@@ -1486,6 +1488,61 @@ void *getfiletab(int i)
 	return rv;
 }
 
+/* TAG MANAGEMENT */
+static char *tag2string[32];
+
+static void *tagfun(int request, void *arg)
+{
+	if (__builtin_expect(request == HT_TAGCHECK,1)) {
+		uint32_t tags = (uint32_t) ((long) arg);
+		struct pcb *pc=get_pcb();
+		return (void *) (tags & pc->tags);
+	} else {
+		switch (request) {
+			case HT_TAGGET:
+				{
+					struct pcb *pc=get_pcb();
+					return (void *) pc->tags;
+				}
+			case HT_TAGPUT:
+				return NULL;
+			case HT_TAGGETSTR:
+				{
+					uint32_t tags = (uint32_t) ((long) arg);
+					if (tags != 0xffffffff) {
+						char *s;
+						asprintf(&s,"tags=0x%08x,",tags);
+						return s;
+					} else
+						return NULL;
+				}
+			case HT_TAGPUTSTR:
+				if (arg)
+					free (arg);
+				return NULL;
+			default:
+				return NULL;
+		}
+	}
+}
+
+void settagstring(int tag, char *string)
+{
+	if (tag >= 0 && tag < 32) {
+		if (tag2string[tag] != NULL)
+			free(tag2string[tag]);
+		if (string)
+			tag2string[tag]=strdup(string);
+		else
+			tag2string[tag]=NULL;
+	}
+}
+
+char *gettagstring(int tag)
+{
+	return tag2string[tag];
+}
+
 #ifdef _VIEWOS_KM
 /* upcall: hashtable calls this function when an element gets added/deleted */
 static void ht_zerovirt_upcall(int tag, unsigned char type,const void *obj,int objlen,long mountflags)
@@ -1563,7 +1620,9 @@ void scdtab_init()
 	 * the final cleaning up */
 	um_proc_open();
 #ifdef _VIEWOS_KM
-	ht_init(ht_zerovirt_upcall);
+	ht_init(ht_zerovirt_upcall,tagfun);
+#else
+	ht_init(NULL,tagfun);
 #endif
 	atexit(um_proc_close);
 	atexit(ht_terminate);

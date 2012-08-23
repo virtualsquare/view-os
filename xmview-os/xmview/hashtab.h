@@ -74,8 +74,17 @@ int ht_get_count(struct ht_elem *hte);
 
 #define HT_ADD 0
 #define HT_DEL 1
+
+#define HT_TAGGET 0x10
+#define HT_TAGPUT 0x11
+#define HT_TAGGETSTR 0x20
+#define HT_TAGPUTSTR 0x21
+#define HT_TAGCHECK 0x40
+
 /* define upcall parameters: HT_ADD/HT_DEL, type, obj, objlen */
-void ht_init(void (*ht_upcall)(int, unsigned char,const void *,int,long));
+void ht_init(void (*ht_upcall_def)(int, unsigned char,const void *,int,long),
+		    void * (*ht_tagfun_def) (int, void *));
+
 void ht_terminate(void);
 
 #endif

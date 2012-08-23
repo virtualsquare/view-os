@@ -14,7 +14,8 @@ dist_man1_MANS = \
 	um_attach.1 \
 	um_console.1 \
 	um_hostcmd.1 \
-	um_passwd.1
+	um_passwd.1 \
+	um_tag.1
 
 CPPFLAGS = -I../include
 
@@ -34,7 +35,8 @@ bin_PROGRAMS = \
 	um_attach \
 	um_console \
 	um_hostcmd \
-	um_passwd
+	um_passwd \
+	um_tag
 
 um_fsalias_SOURCES=um_alias.c
 

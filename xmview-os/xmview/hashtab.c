@@ -38,6 +38,9 @@
 
 static void ht_nullcall(int tag, unsigned char type,const void *obj,int objlen,long mountflags);
 static void (*ht_upcall)(int, unsigned char,const void *,int,long)=ht_nullcall;
+static void * ht_nulltag (int tag, void *arg);
+static void * (*ht_tagfun) (int, void *)=ht_nulltag;
+
 
 /* struct ht_elem:
 	 @obj: hash key
@@ -67,6 +70,7 @@ struct ht_elem {
 	int objlen;
 	long hashsum;
 	int count;
+	void *tag;
 	confirmfun_t confirmfun;
 	struct ht_elem *prev,*next,**pprevhash,*nexthash;
 };
@@ -290,6 +294,7 @@ static struct ht_elem *ht_tab_internal_search(unsigned char type, void *obj, int
 					 printk("CHECK %s %s\n",obj,ht->obj); */
 				if (type==ht->type &&
 						sum==ht->hashsum &&
+						ht_tagfun(HT_TAGCHECK, ht->tag) &&
 						(ht->objlen >= len) &&
 						memcmp(obj,ht->obj,len)==0 &&
 						(ht->trailingnumbers || !trailnum(objc)) &&
@@ -386,6 +391,7 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 			new->private_data=private_data;
 			new->service=service;
 			new->service_hte=NULL; /*lazy*/
+			new->tag = ht_tagfun(HT_TAGGET, NULL);
 			new->confirmfun=confirmfun;
 			new->count=0;
 			new->hashsum=hashsum(type,new->obj,new->objlen);
@@ -456,6 +462,7 @@ struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 	if (source) {
 		char opts[PATH_MAX];
 		opts[0]=0;
+		char *strtag;
 		if (mountflags & MS_REMOUNT)
 			strncat(opts,"remount,",PATH_MAX);
 		if (mountflags & MS_RDONLY)
@@ -476,9 +483,11 @@ struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 			opts[strlen(opts)-1]=0;
 		else
 			strncpy(opts,"rw",PATH_MAX);
-		asprintf(&mtabline,"%s%s %s %s %s 0 %lld",
+		strtag=ht_tagfun(HT_TAGGETSTR,ht_tagfun(HT_TAGGET,NULL));
+		asprintf(&mtabline,"%s%s %s %s %s%s 0 %lld",
 				(confirmfun==NEGATIVE_MOUNT)?"-":"",
-				source,path,fstype,opts,get_epoch());
+				source,path,fstype,strtag,opts,get_epoch());
+		ht_tagfun(HT_TAGPUTSTR,strtag);
 	} else
 		mtabline=NULL;
 	if (path[1]=='\0' && path[0]=='/')
@@ -498,6 +507,7 @@ struct ht_elem *ht_tab_pathadd(unsigned char type, const char *source,
 /* delete an element from the hash table */
 static void ht_tab_del_locked(struct ht_elem *ht) {
 	int type=ht->type;
+	ht_tagfun(HT_TAGPUT, ht->tag);
 	if (ht == ht_head[type]) {
 		if (ht->next == ht)
 			ht_head[type]=NULL;
@@ -785,10 +795,21 @@ static void ht_nullcall(int tag, unsigned char type,const void *obj,int objlen,l
 {
 }
 
-void ht_init(void (*ht_upcall_def)(int, unsigned char,const void *,int,long))
+static void * ht_nulltag (int tag, void *arg)
+{
+	if (__builtin_expect(tag == HT_TAGCHECK,1))
+		return (void *) 1;
+	else
+		return NULL;
+}
+
+void ht_init(void (*ht_upcall_def)(int, unsigned char,const void *,int,long),
+		void * (*ht_tagfun_def) (int, void *))
 {
 	if (ht_upcall_def != NULL)
 		ht_upcall=ht_upcall_def;
+	if (ht_tagfun_def != NULL)
+		ht_tagfun = ht_tagfun_def;
 }
 
 void ht_terminate(void)

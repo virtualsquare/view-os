@@ -114,3 +114,13 @@ int um_open(char *pathname,int flags,mode_t mode,char *pwd)
 {
 	return virsyscall5(VIRUMSERVICE,VIEWOS_OPEN,pathname,flags,mode,pwd);
 }
+
+int um_tag(int request, unsigned int *tagset, unsigned int *otagset, int buflen)
+{
+	return virsyscall5(VIRUMSERVICE, VIEWOS_TAG, request, tagset, otagset, buflen);
+}
+
+int um_tagstring(int request, int tag, char *string, int strlen)
+{
+	return virsyscall5(VIRUMSERVICE, VIEWOS_TAGSTRING, request, tag, string, strlen);
+}

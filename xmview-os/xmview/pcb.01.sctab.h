@@ -31,6 +31,7 @@ gid_t rgid,egid,sgid,fsgid;
 struct supgroups *grouplist;
 uint16_t private_scno;
 uint8_t needs_path_rewrite;
+uint32_t tags;
 #endif
 
 #ifdef _PCB_ONLY_FIELDS

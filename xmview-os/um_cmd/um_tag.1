@@ -1,0 +1,169 @@
+.\" Copyright (c) 2012 Renzo Davoli
+.\"
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License,
+.\" version 2, as published by the Free Software Foundation.
+.\"
+.\" The GNU General Public License's references to "object code"
+.\" and "executables" are to be interpreted as the output of any
+.\" document formatting or typesetting system, including
+.\" intermediate and printed output.
+.\"
+.\" This manual is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public
+.\" License along with this manual; if not, write to the Free
+.\" Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
+.\" MA 02110-1301 USA.
+
+.TH VIEW-OS 1 "May 30, 2009" "VIEW-OS: a process with a view"
+.SH NAME
+um_tag \- View-OS tagged mount management
+.SH SYNOPSIS
+.B um_tag set 
+.I tagset
+.I command
+[
+.I args
+]
+.br
+.B um_tag add
+.I tagset
+.I command
+[
+.I args
+]
+.br
+.B um_tag del
+.I tagset
+.I command
+[
+.I args
+]
+.br
+.B um_tag get
+.br
+.B um_tag lget
+.br
+.B um_tag list
+.I tagset
+.br
+.B um_tag llist
+.I tagset
+.br
+.B um_tag listall
+.br
+.B um_tag setname
+.I tag
+.I name
+.br
+.B um_tag getname
+.I tag
+.br
+.SH DESCRIPTION
+This command permits the management of the ViewOS tagged mount feature.
+
+Each process has its own set of tags. The current implementation of View-OS supports
+32 tags, numbered 0 to 31. The default set of tags includes all the tags.
+The set of task of a process is inherited through fork and exec, i.e. when a process
+has a specific set of tags, all the processes it generates normally have the same
+set of tags.
+Each "mounted" file system or service is visible for the processes whose set ot tags
+intersects the set of tags of the process who did the mount.
+In other words, given the set of tags A used for the mount, that mount will be "visible" by
+all the processes which share at least one tag with A.
+
+This command permits to start a command having a different set of tags.
+For example
+.br
+\fBum_tag set 1,2,3,4 bash\fR
+.br
+this commands starts a shell whose set of tags is {1,2,3,4}.
+
+It is also possible to assign names to tags.
+For example
+.br
+\fBum_tag setname 1 foo
+.br
+\fBum_tag setname 2 bar
+.br
+\fBum_tag set foo,bar bash
+\fR
+.br
+this commands starts a shell whose set of tags is foo,bar {1,2}.
+
+It is also possible to write the tagset as a hexadecimal number:
+.br
+\fBum_tag set 0x1e bash\fR
+\fR
+.br
+this commands starts a shell whose set of tags is {1,2,3,4}.
+(i-th tag corresponds to the i-th least significant bit:
+0 is 0x1, 1 is 0x2, 2 is 0x4 and so on).
+
+.SH OPTIONS
+.TP
+.B um_tag set \fI tagset command [ args ] \fR
+.br
+set the set of tags for the command.
+
+.TP
+.B um_tag add \fI tagset command [ args ] \fR
+.br
+set the set of tags for the command, add the tags of the tagset parameter.
+
+.TP
+.B um_tag del \fI tagset command [ args ] \fR
+.br
+set the set of tags for the command, delete the tags of the tagset parameter.
+
+.TP
+.B um_tag get
+.br
+show the current tagset (the output is a hexadecimal number)
+
+.TP
+.B um_tag lget
+.br
+show the current tagset (the output is a list of tags)
+
+.TP
+.B um_tag list \fI tagset \fR
+.br
+show the equivalent list of tags of tagset.
+
+.TP
+.B um_tag llist \fI tagset \fR
+.br
+show the equivalent list of tags of tagset, the output shows the mapping between tags and bits.
+
+.TP
+.B um_tag listall
+.br
+list all the tags and their name.
+
+.TP
+.B um_tag setname \fI tag name \fR
+.br
+assign a name to a tag.
+
+.TP
+.B um_tag getname \fI tag \fR
+.br
+return the tag's name.
+
+.SH SEE ALSO
+.BR umview(1), 
+.BR kmview(1)
+.SH AUTHORS
+View-OS is a project of the Computer Science Department, University of
+Bologna. Project Leader: Renzo Davoli. 
+.br
+<http://www.sourceforge.net/projects/view-os>
+
+Howto's and further information can be found on the project wiki
+<wiki.virtualsquare.org>.
+

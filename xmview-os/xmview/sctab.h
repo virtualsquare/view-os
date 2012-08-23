@@ -65,6 +65,9 @@ void scdtab_init();
 char *um_getpath(long laddr,struct pcb *pc);
 char *um_abspath(int dirfd, long laddr,struct pcb *pc,struct stat64 *pst,int dontfollowlink);
 
+void settagstring(int tag, char *string);
+char *gettagstring(int tag);
+
 int pcb_newfork(struct pcb *pc);
 void pcb_getviewinfo(struct pcb *pc,struct viewinfo *vi);
 void pcb_setviewname(struct pcb *pc,char *name);

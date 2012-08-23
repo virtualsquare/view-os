@@ -195,6 +195,8 @@ int wrap_in_ptrace(int sc_number,struct pcb *pc,
 					//printk("PTRACE_TRACEME %d %d\n",pc->pid,pc->pp->pid);
 					pc->ptrace_pp=pc->pp;
 					pc->ptrace_pp->ptrace_ntraced++;
+					/* man page: This request turns the calling thread into a tracee.  The thread continues to  run */
+					// pc->signum=SIGSTOP; 
 				} else {
 					pc->retval=-1;
 					pc->erno=EPERM;
@@ -451,6 +453,7 @@ int ptrace_hook_in(int status, struct pcb *pc)
 	return 0;
 }
 
+#ifndef _VIEWOS_KM
 static int matchrequest(int status,int options)
 {
 	// printk("matchrequest %x %x\n",status,options);
@@ -471,6 +474,7 @@ static int matchrequest(int status,int options)
 			return 0;
 	}
 }
+#endif
 
 int ptrace_hook_event(int status, struct pcb *pc)
 {
