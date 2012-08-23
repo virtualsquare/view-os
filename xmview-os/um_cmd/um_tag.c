@@ -102,7 +102,7 @@ int str2tag (char *s)
 			if (tags & (1<<tag)) {
 				tags &= ~(1<<tag);
 				if (tags) 
-					fprintf(stderr,"'%s' does not refer to a single tag. Using '0x%08x' instead\n",1<<tag);
+					fprintf(stderr,"'%s' does not refer to a single tag. Using '0x%x' instead\n",1<<tag);
 				return tag;
 			}
 		}
@@ -159,7 +159,7 @@ main(int argc, char *argv[])
 		case get:
 			rv=um_tag(VIEWOS_TAG_SET, NULL, &tags, sizeof(int));
 			if (rv == 0)
-				printf("0x%08x\n",tags);
+				printf("0x%x\n",tags);
 			break;
 		case lget: 
 			rv=um_tag(VIEWOS_TAG_SET, NULL, &tags, sizeof(int));

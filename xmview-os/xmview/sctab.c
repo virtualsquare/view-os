@@ -1511,10 +1511,10 @@ static void *tagfun(int request, void *arg)
 					uint32_t tags = (uint32_t) ((long) arg);
 					if (tags != 0xffffffff) {
 						char *s;
-						asprintf(&s,"tags=0x%08x,",tags);
+						asprintf(&s,"tags=0x%x,",tags);
 						return s;
 					} else
-						return NULL;
+						return strdup("");
 				}
 			case HT_TAGPUTSTR:
 				if (arg)
