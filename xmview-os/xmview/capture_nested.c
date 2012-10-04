@@ -1248,6 +1248,7 @@ static struct npcb *new_npcb(struct pcb *old)
 	npcb->sgid=old->sgid;
 	npcb->fsgid=old->fsgid;
 	npcb->grouplist=supgrp_get(old->grouplist);
+	npcb->tags=old->tags;
 
 	pcb_constructor((struct pcb *)npcb,0,1);
 	return npcb;
