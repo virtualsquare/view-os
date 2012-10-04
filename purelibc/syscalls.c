@@ -1253,6 +1253,16 @@ int openat64(int dirfd,const char* pathname,int flags,...){
 	else
 		return _pure_syscall(__NR_openat,dirfd,pathname,flags|O_LARGEFILE);
 }
+
+int	__openat_2(int dirfd, const char *pathname, int flags)
+{
+	return _pure_syscall(__NR_openat,dirfd,pathname,flags);
+}
+
+int	__openat64_2(int dirfd, const char *pathname, int flags)
+{
+	return _pure_syscall(__NR_openat,dirfd,pathname,flags|O_LARGEFILE);
+}
 #endif
 
 #ifdef __NR_mkdirat
