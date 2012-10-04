@@ -106,6 +106,10 @@ int open(const char* pathname,int flags,...){
 		return _pure_syscall(__NR_open,pathname,flags);
 }
 
+int __open_2(const char* pathname,int flags){
+	return _pure_syscall(__NR_open,pathname,flags);
+}
+
 int open64(const char* pathname,int flags,...){
 	va_list arg_list;
 	if( flags &  O_CREAT ){
@@ -117,6 +121,10 @@ int open64(const char* pathname,int flags,...){
 	}
 	else
 		return _pure_syscall(__NR_open,pathname,flags|O_LARGEFILE);
+}
+
+int __open64_2 (const char* pathname,int flags){
+	return _pure_syscall(__NR_open,pathname,flags|O_LARGEFILE);
 }
 
 int creat(const char *pathname, mode_t mode)
