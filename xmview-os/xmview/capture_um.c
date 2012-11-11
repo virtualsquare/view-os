@@ -721,11 +721,10 @@ void tracehand()
 #endif
 				}
 #ifdef _UM_PTRACE
-				if (newpid == 0 || ptrace_hook_event(status,pc) == 0) {
-#endif
+				if (newpid == 0 || ptrace_hook_event(status,pc) == 0)
 					r_ptrace(PTRACE_SYSCALL, pid, NULL, NULL);
-#ifdef _UM_PTRACE
-				}
+#else
+				r_ptrace(PTRACE_SYSCALL, pid, NULL, NULL);
 #endif
 				pc->saved_regs=NULL;
 				continue;
@@ -756,12 +755,18 @@ void tracehand()
 					kill(pc->pp->pid,28);
 				} else
 #endif
+				{
 					/* forward signals to the process */
+					/* bugfix. Sometimes fake SIGSTOP get sent to processes.
+						 SIGSTOP is used by ptrace here */
+					if (stopsig == SIGSTOP)
+						stopsig=0;
 					if(r_ptrace(PTRACE_SYSCALL, pid, 0, stopsig) < 0){
 						GPERROR(0, "continuing");
 						/////printk("XXXcontinuing %d\n",pid);
 						exit(1);
 					}
+				}
 				pc->saved_regs=NULL;
 			} 
 		}
