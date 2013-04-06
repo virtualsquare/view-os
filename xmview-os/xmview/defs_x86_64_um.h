@@ -198,7 +198,7 @@ static inline long setregs(struct pcb *pc, enum __ptrace_request call, long op, 
 	}
 }
 
-#define SCNOPEEKOFFSET (8*ORIG_RAX)
+#define SCNOPEEKOFFSET (sizeof(long)*ORIG_RAX)
 #define getargp(PC) ((long*)(PC)->saved_regs[MY_RDI])
 #define printregs(PC)  // empty for a while... :P
 #define getscno(PC) ( (PC)->saved_regs[MY_ORIG_RAX] )											 

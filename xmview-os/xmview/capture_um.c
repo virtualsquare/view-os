@@ -524,10 +524,14 @@ void tracehand()
 						pc->sysscno = NOSC;
 				}
 #endif
+				else if (scno >= _UM_NR_syscalls) {
+				}
+
 				else if (pc->sysscno == NOSC) /* PRE syscall tracing event (IN)*/
 				{
 					divfun fun;
 					GDEBUG(FRD | BYL | 3, "--> pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
+					//printk("--> pid %d syscall %d (%s) @ %p\n", pid, scno, SYSCALLNAME(scno), getpc(pc));
 					pc->sysscno = scno;
 					switch (scdnarg[scno]) {
 						case 0x6:
@@ -571,10 +575,11 @@ void tracehand()
 						if (PT_M_OK(pc)) { /* kernel supports System call skip PTRACE_SYSVM */
 							if ((fun(scno,OUT,pc) & SC_SUSPENDED)==0)
 								pc->sysscno=NOSC;
-						} else 
+						} else {
 							/* fake syscall with getpid if the kernel does not support
 							 * syscall shortcuts */
 							putscno(__NR_getpid,pc);
+						}
 					} else
 					{
 						if (pc->behavior & SC_SAVEREGS) {
@@ -605,6 +610,7 @@ void tracehand()
 				} else { /* POST syscall management (OUT phase) */
 					divfun fun;
 					GDEBUG(FYL | BRD | 3, "<-- pid %d syscall %d (%s) @ %p", pid, scno, SYSCALLNAME(scno), getpc(pc));
+					//printk("<-- pid %d syscall %d (%s) @ %p\n", pid, scno, SYSCALLNAME(scno), getpc(pc));
 					//printk("OUT\n");
 					/* It is just for the sake of correctness, this test could be
 					 * safely eliminated  to increase the performance*/

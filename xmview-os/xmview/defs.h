@@ -51,6 +51,8 @@
 #		define FRAME_SIZE 13
 #	elif defined(__x86_64__) // asm-x86_64 define it as 168 [offset in bytes] ! 
 #		define VIEWOS_FRAME_SIZE 28
+# elif defined(__arm__)
+#   define VIEWOS_FRAME_SIZE 18
 #	endif
 
 #	ifndef VIEWOS_FRAME_SIZE
@@ -370,8 +372,10 @@ typedef	int (*divfun)(int sc_number,int inout,struct pcb *ppcb);
 #		include "defs_i386_um.h"
 #	elif defined(__powerpc__) //setregs/getresg and so on, for ppc
 #		include "defs_ppc_um.h"
-#	elif defined(__x86_64__) //setregs/getresg and so on, for ppc
+#	elif defined(__x86_64__) //setregs/getresg and so on, for x86_64
 #		include "defs_x86_64_um.h"
+# elif defined(__arm__) //setregs/getresg and so on, for arm
+#   include "defs_arm_um.h"
 #	else
 #		error Unsupported HW Architecure
 #	endif /* architecture */
@@ -380,8 +384,10 @@ typedef	int (*divfun)(int sc_number,int inout,struct pcb *ppcb);
 #		include "defs_i386_km.h"
 #	elif defined(__powerpc__) //setregs/getresg and so on, for ppc
 #		include "defs_ppc_km.h"
-#	elif defined(__x86_64__) //setregs/getresg and so on, for ppc
+#	elif defined(__x86_64__) //setregs/getresg and so on, for x86_64
 #		include "defs_x86_64_km.h"
+# elif defined(__arm__) //setregs/getresg and so on, for arm
+#   include "defs_arm_km.h"
 #	else
 #		error Unsupported HW Architecure
 #	endif /* architecture */

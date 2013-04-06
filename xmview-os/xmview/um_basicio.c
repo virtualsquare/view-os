@@ -402,7 +402,7 @@ struct kstat {
 	unsigned long   k__unused5;
 };
 #endif
-#ifdef __i386__
+#if defined(__i386__) || defined(__arm__)
 struct kstat {
 	unsigned short kst_dev;
 	unsigned short k__pad1;

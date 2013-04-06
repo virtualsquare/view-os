@@ -28,7 +28,6 @@
 #include <sys/ptrace.h>
 #include <sys/stat.h>
 #include <sys/select.h>
-#include <sys/reg.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
 #include <linux/net.h>
@@ -51,6 +50,9 @@
 #include "capture.h"
 #include "mainpoll.h"
 #ifdef _UM_PTRACE
+#if defined(__i386__) || defined(__x86_64__)
+#include <sys/reg.h>
+#endif
 
 struct pcblist {
 	struct pcblist *next;
@@ -249,7 +251,11 @@ int wrap_in_ptrace(int sc_number,struct pcb *pc,
 
 			case PTRACE_GETREGS:
 				{
+#ifdef __arm__
+					struct user_regs regs;
+#else
 					struct user_regs_struct regs;
+#endif
 					//printk("PTRACE_GETREGS %d %x\n",tracedpc->pid,data);
 					if (r_ptrace(PTRACE_GETREGS,  tracedpc->pid, NULL, &regs) < 0 ||
 							ustoren(pc, data, sizeof(regs), &regs) < 0) {
@@ -261,7 +267,11 @@ int wrap_in_ptrace(int sc_number,struct pcb *pc,
 
 			case PTRACE_SETREGS:
 				{
+#ifdef __arm__
+					struct user_regs regs;
+#else
 					struct user_regs_struct regs;
+#endif
 					if (umoven(pc, data, sizeof(regs), &regs) < 0 ||
 							r_ptrace(PTRACE_SETREGS,  tracedpc->pid, NULL, &regs) < 0) {
 						pc->retval=-1;
@@ -273,7 +283,11 @@ int wrap_in_ptrace(int sc_number,struct pcb *pc,
 
 			case PTRACE_GETFPREGS:
 				{
+#ifdef __arm__
+					struct user_fpregs regs;
+#else
 					struct user_fpregs_struct regs;
+#endif
 					if (r_ptrace(PTRACE_GETFPREGS,  tracedpc->pid, NULL, &regs) < 0 ||
 							ustoren(pc, data, sizeof(regs), &regs) < 0) {
 						pc->retval=-1;
@@ -283,7 +297,11 @@ int wrap_in_ptrace(int sc_number,struct pcb *pc,
 				break;
 			case PTRACE_SETFPREGS:
 				{
+#ifdef __arm__
+					struct user_fpregs regs;
+#else
 					struct user_fpregs_struct regs;
+#endif
 					if (umoven(pc, data, sizeof(regs), &regs) < 0 ||
 							r_ptrace(PTRACE_SETFPREGS,  tracedpc->pid, NULL, &regs) < 0) {
 						pc->retval=-1;
@@ -425,12 +443,16 @@ static int ptrace_this(int status, struct pcb *pc)
 #endif
 }
 
+
 int ptrace_hook_in(int status, struct pcb *pc)
 {
+#ifdef _VIEWOS_KM
+	return 0;
+#else
 	int scno;
-	r_ptrace(PTRACE_PEEKUSER,pc->pid,4*ORIG_EAX,&scno);
-	/* if (pc->ptrace_pp != NULL) 
-		 printk("ptrace_hook_in %d %p %x SYSSCO %d SC %d\n",pc->pid,pc->ptrace_pp,status,pc->sysscno,scno); */
+	r_ptrace(PTRACE_PEEKUSER,pc->pid,SCNOPEEKOFFSET,&scno);
+	/*if (pc->ptrace_pp != NULL) 
+		 printk("ptrace_hook_in %d %p %x SYSSCO %d SC %d\n",pc->pid,pc->ptrace_pp,status,pc->sysscno,scno);*/
 	if (pc->ptrace_pp != NULL) {
 		pc->ptrace_status=status;
 		/*select SYSCALL/CONT/SINGLESTEP*/
@@ -451,6 +473,7 @@ int ptrace_hook_in(int status, struct pcb *pc)
 		}
 	}
 	return 0;
+#endif
 }
 
 #ifndef _VIEWOS_KM

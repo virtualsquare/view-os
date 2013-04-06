@@ -11,6 +11,8 @@
 #define FRAME_SIZE 13
 #elif defined(__x86_64__) // asm-x86_64 define it as 168 [offset in bytes] ! 
 #define VIEWOS_FRAME_SIZE 28
+#elif defined(__arm__)
+#define VIEWOS_FRAME_SIZE 18
 #endif
 
 #ifndef VIEWOS_FRAME_SIZE

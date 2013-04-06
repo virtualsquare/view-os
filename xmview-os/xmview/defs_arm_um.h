@@ -20,11 +20,11 @@
  *   with this program; if not, write to the Free Software Foundation, Inc.,
  *   51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA.
  *
- *   $Id$
+ *   $Id: defs_i386_um.h 989 2011-08-13 22:04:56Z rd235 $
  *
  */   
-#ifndef _DEFS_I386
-#define _DEFS_I386
+#ifndef _DEFS_ARM
+#define _DEFS_ARM
 /* libc keeps some critical values inside registers */
 #define LIBC_VFORK_DIRTY_TRICKS
 #define _KERNEL_NSIG   64
@@ -60,17 +60,18 @@ static inline void printregs(struct pcb *pc)
 			pc->saved_regs[EDX],pc->saved_regs[ESI]);
 }
 
-#define SCNOPEEKOFFSET (sizeof(long)*ORIG_EAX)
-#define getscno(PC) ( (PC)->saved_regs[ORIG_EAX] )
-#define putscno(X,PC) ( (PC)->saved_regs[ORIG_EAX]=(X) )
+#define SCNOPEEKOFFSET (sizeof(long)*7)
+#define getscno(PC) ( (PC)->saved_regs[7] )
+//#define putscno(X,PC) ( (PC)->saved_regs[7]=(X) )
+#define putscno(X,PC) do { ptrace(PTRACE_SET_SYSCALL, (PC)->pid, 0, (X)); (PC)->saved_regs[7]=(X); } while(0)
 #define getargn(N,PC) ( (PC)->saved_regs[(N)] )
 #define getargp(PC) ((long*)(PC)->saved_regs)
 #define putargn(N,X,PC) ( (PC)->saved_regs[N]=(X) )
 #define getrv(PC) ({ int eax; \
-		eax = (PC)->saved_regs[EAX];\
+		eax = (PC)->saved_regs[0];\
 		(eax<0 && -eax < MAXERR)? -1 : eax; })
-#define putrv(RV,PC) ( (PC)->saved_regs[EAX]=(RV) )
-#define puterrno(ERR,PC) ( ((ERR)!=0 && (PC)->retval==-1)?(PC)->saved_regs[EAX]=-(ERR) : 0 )
+#define putrv(RV,PC) ( (PC)->saved_regs[0]=(RV) )
+#define puterrno(ERR,PC) ( ((ERR)!=0 && (PC)->retval==-1)?(PC)->saved_regs[0]=-(ERR) : 0 )
 #define puterrno0(PC)
 /*
 #define putexit(RV,ERR,PC) \
@@ -79,10 +80,10 @@ static inline void printregs(struct pcb *pc)
 		r_ptrace(PTRACE_POKEUSER, ((PC)->pid), 4 * ORIG_EAX, (ERR)); \
 	} while (0)
 	*/
-#define getsp(PC) (PC)->saved_regs[UESP]
-#define getpc(PC) (PC)->saved_regs[EIP]
-#define putsp(RV,PC) ( (PC)->saved_regs[UESP]=(RV) )
-#define putpc(RV,PC) ( (PC)->saved_regs[EIP]=(RV) )
+#define getsp(PC) (PC)->saved_regs[13]
+#define getpc(PC) (PC)->saved_regs[15]
+#define putsp(RV,PC) ( (PC)->saved_regs[13]=(RV) )
+#define putpc(RV,PC) ( (PC)->saved_regs[15]=(RV) )
 
 #define LITTLEENDIAN
 #define LONG_LONG(_l,_h) \
@@ -91,4 +92,12 @@ static inline void printregs(struct pcb *pc)
 #define MAXERR 4096
 
 #define __NR_setpgrp __NR_doesnotexist
+#define __NR_socketcall __NR_doesnotexist
+#define __NR_select __NR_doesnotexist
+#define __NR_umount __NR_doesnotexist
+#define __NR_utime __NR_doesnotexist
+#define __NR_mmap __NR_doesnotexist
+#define __NR_time __NR_doesnotexist
+#define __NR_waitpid __NR_doesnotexist
+
 #endif

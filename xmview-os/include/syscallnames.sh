@@ -1,4 +1,5 @@
 #!/bin/bash -e
+#set -x
 
 #   This is part of um-ViewOS
 #   The user-mode implementation of OSVIEW -- A Process with a View
@@ -55,7 +56,7 @@ int main(void)
 _END_
 
 echo "#include <asm/unistd.h>" |
-  cpp -dN | egrep "^#[[:blank:]]*define[[:blank:]]+__NR_" | 
+  cpp -dN | egrep "^#[[:blank:]]*define[[:blank:]]+__NR_[a-z_]" | 
 	tr -s " 	" " " | cut -d" " -f2 | sed 's/__NR_//g' | sort | uniq | while read
 do
 	cat >> $tmpfile << _END_

@@ -270,6 +270,10 @@ extern int vprintk(const char *fmt, va_list ap);
 #define __NR_recv __NR_doesnotexist
 #endif
 
+#if defined(__arm__)
+#define __NR_socketcall __NR_doesnotexist
+#endif
+
 #if (__NR_socketcall != __NR_doesnotexist)
 #define __NR_socket     SYS_SOCKET
 #define __NR_bind       SYS_BIND

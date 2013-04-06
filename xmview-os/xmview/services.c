@@ -245,7 +245,8 @@ void modify_um_syscall(struct service *s)
 			GERROR("         %s will be managed by the module function for %s.", 
 					SYSCALLNAME(scunify[i].proc_sc), SYSCALLNAME(scunify[i].mod_sc));
 		}
-		s->um_syscall[uscno(scunify[i].proc_sc)] = s->um_syscall[uscno(scunify[i].mod_sc)];
+		if (scunify[i].proc_sc >= 0)
+			s->um_syscall[uscno(scunify[i].proc_sc)] = s->um_syscall[uscno(scunify[i].mod_sc)];
 	}
 #if (__NR_socketcall != __NR_doesnotexist)
 	for (i = 0; i < SIZESOCKUNIFY; i++)

@@ -79,7 +79,7 @@ static inline long setregs(struct pcb *pc, enum __ptrace_request call,
 	}
 }
 
-#define SCNOPEEKOFFSET (4*PT_R0)
+#define SCNOPEEKOFFSET (sizeof(long)*PT_R0)
 #define getscno(PC) ( (PC)->saved_regs[PT_R0] )
 #define putscno(X,PC) ( (PC)->saved_regs[PT_R0]=(X) )
 #define getargn(N,PC) ( (PC)->saved_regs[PT_R3+(N)] )
