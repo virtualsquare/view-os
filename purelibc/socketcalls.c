@@ -34,7 +34,7 @@ sfun _pure_socketcall=pure_int_socketcall;
 extern sfun _pure_syscall;
 static char sockargc[]={0,3,3,3,2,3,3,3,4,4,4,6,6,2,5,5,3,3};
 
-#if defined(__x86_64__) || defined(__ia64__) || defined(__alpha__) || defined(__hppa__)
+#if defined(__x86_64__) || defined(__ia64__) || defined(__alpha__) || defined(__hppa__) || defined(__arm__)
 
 static int sock64_map[] = {
 	/* 0 */ 0,
@@ -117,14 +117,14 @@ int socketpair(int d, int type, int protocol, int sv[2]){
 	return _pure_socketcall(SYS_SOCKETPAIR,d,type,protocol,sv);
 }
 ssize_t send(int s, const void *buf, size_t len, int flags){
-#if defined(__x86_64__) || defined(__ia64__) || defined(__alpha__) || defined(__hppa__)
+#if defined(__x86_64__) || defined(__ia64__) || defined(__alpha__) || defined(__hppa__) || defined(__arm__)
 	return sendto(s,buf,len,flags,NULL,0);
 #else
 	return _pure_socketcall(SYS_SEND,s,buf,len,flags);
 #endif
 }
 ssize_t recv(int s, void *buf, size_t len, int flags){
-#if defined(__x86_64__) || defined(__ia64__) || defined(__alpha__) || defined(__hppa__)
+#if defined(__x86_64__) || defined(__ia64__) || defined(__alpha__) || defined(__hppa__) || defined(__arm__)
 	return recvfrom(s,buf,len,flags,NULL,0);
 #else
 	return _pure_socketcall(SYS_RECV,s,buf,len,flags);

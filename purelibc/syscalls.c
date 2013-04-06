@@ -378,12 +378,20 @@ int fchdir(int fd) {
 	return _pure_syscall(__NR_fchdir,fd);
 }
 
-int utime(const char* pathname,const struct utimbuf *buf){
-	return _pure_syscall(__NR_utime,pathname,buf);
-}
-
 int utimes(const char* pathname,const struct timeval tv[2]){
 	return _pure_syscall(__NR_utimes,pathname,tv);
+}
+
+int utime(const char* pathname,const struct utimbuf *buf){
+#ifdef __NR_utime
+	return _pure_syscall(__NR_utime,pathname,buf);
+#else
+	struct timeval tv[2];
+	tv[0].tv_sec = buf->actime;
+	tv[1].tv_sec = buf->modtime;
+	tv[0].tv_usec = tv[1].tv_usec = 0;
+	return utimes(pathname, tv);
+#endif
 }
 
 #ifdef __NR_pread
@@ -401,7 +409,7 @@ ssize_t pwrite(int fs,const void* buf, size_t count, __off_t offset){
 #ifdef __NR_pread64
 ssize_t pread64(int fs,void* buf, size_t count, __off64_t offset){
 	return _pure_syscall(__NR_pread64,fs,buf,count,
-#if defined(__powerpc__)
+#if defined(__powerpc__) || defined(__arm__)
 			0,
 #endif
 			__LONG_LONG_PAIR( (__off_t)(offset>>32),(__off_t)(offset&0xffffffff)));
@@ -414,7 +422,7 @@ ssize_t pread(int fs,void* buf, size_t count, __off_t offset){
 #ifdef __NR_pwrite64 
 ssize_t pwrite64(int fs,const void* buf, size_t count, __off64_t offset){
 	return _pure_syscall(__NR_pwrite64,fs,buf,count,
-#if defined(__powerpc__)
+#if defined(__powerpc__) || defined(__arm__)
 			0,
 #endif
 			__LONG_LONG_PAIR( (__off_t)(offset>>32),(__off_t)(offset&0xffffffff)));
@@ -428,7 +436,7 @@ ssize_t pwrite(int fs,const void* buf, size_t count, __off_t offset){
 ssize_t preadv64(int fs,const struct iovec *iov, int iovcnt, __off64_t offset){
 	ssize_t rv=_pure_syscall(__NR_preadv,fs,iov,iovcnt,
 #ifdef __NR_pread64
-#if defined(__powerpc__)
+#if defined(__powerpc__) || defined(__arm__)
 			0,
 #endif
 			__LONG_LONG_PAIR( (__off_t)(offset>>32),(__off_t)(offset&0xffffffff))
@@ -467,7 +475,7 @@ ssize_t preadv(int fs,const struct iovec *iov, int iovcnt, __off_t offset){
 ssize_t pwritev64(int fs,const struct iovec *iov, int iovcnt, __off64_t offset){
 	ssize_t rv=_pure_syscall(__NR_pwritev,fs,iov,iovcnt,
 #ifdef __NR_pwrite64
-#if defined(__powerpc__)
+#if defined(__powerpc__) || defined(__arm__)
 			0,    
 #endif
 			__LONG_LONG_PAIR( (__off_t)(offset>>32),(__off_t)(offset&0xffffffff))
@@ -794,10 +802,6 @@ pid_t vfork(void){
 	return _pure_syscall(__NR_fork);
 }
 
-time_t time(time_t *t){
-	return _pure_syscall(__NR_time,t);
-}
-
 int stime(const time_t *t){
 	struct timeval tivu = { *t,0};
 	return _pure_syscall(__NR_settimeofday,&tivu,NULL);
@@ -857,6 +861,20 @@ int sethostname(const char *name, size_t len){
 	return _pure_syscall(__NR_sethostname,name,len);
 }
 
+#ifdef __NR_prlimit64
+int prlimit(pid_t pid, enum __rlimit_resource resource, const struct rlimit *new_limit,
+		struct rlimit *old_limit) {
+	return _pure_syscall(__NR_prlimit64, pid, resource, new_limit, old_limit);
+}
+
+int setrlimit(__rlimit_resource_t resource, const struct rlimit *rlim){
+	return prlimit(0,resource,rlim,NULL);
+}
+
+int getrlimit(__rlimit_resource_t resource, struct rlimit *rlim){ 
+	return prlimit(0,resource,NULL,rlim);
+}
+#else
 int setrlimit(__rlimit_resource_t resource, const struct rlimit *rlim){
 	return _pure_syscall(__NR_setrlimit,resource,rlim);
 }
@@ -864,6 +882,7 @@ int setrlimit(__rlimit_resource_t resource, const struct rlimit *rlim){
 int getrlimit(__rlimit_resource_t resource, struct rlimit *rlim){ 
 	return _pure_syscall(__NR_getrlimit,resource,rlim);
 }
+#endif
 
 int getrusage(int who, struct rusage *usage){
 	return _pure_syscall(__NR_getrusage,usage);
@@ -875,6 +894,19 @@ int gettimeofday(struct timeval *tv, struct timezone *tz){
 
 int settimeofday(const struct timeval *tv , const struct timezone *tz){
 	return _pure_syscall(__NR_settimeofday, tv, tz);
+}
+
+time_t time(time_t *t){
+#ifdef __NR_time
+	return _pure_syscall(__NR_time,t);
+#else
+	struct timeval tv;
+	if (gettimeofday(&tv, NULL) == 0) {
+		if (t) *t = tv.tv_sec;
+		return tv.tv_sec;
+	} else
+		return -1;
+#endif
 }
 
 int getgroups(int size, gid_t list[]){
