@@ -197,8 +197,6 @@ int wrap_in_ptrace(int sc_number,struct pcb *pc,
 					//printk("PTRACE_TRACEME %d %d\n",pc->pid,pc->pp->pid);
 					pc->ptrace_pp=pc->pp;
 					pc->ptrace_pp->ptrace_ntraced++;
-					/* man page: This request turns the calling thread into a tracee.  The thread continues to  run */
-					// pc->signum=SIGSTOP; 
 				} else {
 					pc->retval=-1;
 					pc->erno=EPERM;
@@ -451,9 +449,13 @@ int ptrace_hook_in(int status, struct pcb *pc)
 #else
 	int scno;
 	r_ptrace(PTRACE_PEEKUSER,pc->pid,SCNOPEEKOFFSET,&scno);
-	/*if (pc->ptrace_pp != NULL) 
-		 printk("ptrace_hook_in %d %p %x SYSSCO %d SC %d\n",pc->pid,pc->ptrace_pp,status,pc->sysscno,scno);*/
+	/*if (pc->ptrace_pp != NULL)
+		printk("ptrace_hook_in %d %p %x (%x) SYSSCO %d SC %d\n",pc->pid,pc->ptrace_pp,status,pc->ptrace_request,pc->sysscno,scno);*/
 	if (pc->ptrace_pp != NULL) {
+		if ((pc->ptrace_request == 0) &&
+				pc->sysscno == __NR_execve && (scno == __NR_execve || scno == 0)) {
+			pc->signum = SIGSTOP;
+		}
 		pc->ptrace_status=status;
 		/*select SYSCALL/CONT/SINGLESTEP*/
 		if (ptrace_this(status, pc)) {
