@@ -433,7 +433,7 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 struct ht_elem *ht_tab_add(unsigned char type,void *obj,int objlen,
 		struct service *service, confirmfun_t confirmfun, void *private_data) {
 	return internal_ht_tab_add(type, obj, objlen, 0, NULL,
-			service, 0, confirmfun, private_data);
+			service, 1, confirmfun, private_data);
 }
 
 static int permanent_mount(const char *opts)
