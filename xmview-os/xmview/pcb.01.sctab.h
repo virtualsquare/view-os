@@ -8,7 +8,7 @@ struct supgroups {
 };
 struct supgroups *supgrp_create(size_t size);
 struct supgroups *supgrp_get(struct supgroups *supgrp);
-void supgrp_put(struct supgroups *supgrp);
+struct supgroups *supgrp_put(struct supgroups *supgrp);
 
 void pcb_plus(),pcb_minus();
 /* STATUS DEFINITIONS */

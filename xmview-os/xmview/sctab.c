@@ -778,7 +778,7 @@ void pcb_minus(struct pcb *pc,int flags,int npcbflag)
 		}
 		/* notify the treepoch */
 		tst_delproc(&(pc->tst));
-		supgrp_put(pc->grouplist);
+		pc->grouplist=supgrp_put(pc->grouplist);
 	}
 }
 
@@ -1402,16 +1402,22 @@ struct supgroups *supgrp_create(size_t size)
 
 struct supgroups *supgrp_get(struct supgroups *supgrp)
 {
-	__sync_fetch_and_add(&(supgrp->count),1);
+	if (supgrp)
+		__sync_fetch_and_add(&(supgrp->count),1);
 	return supgrp;
 }
 
-void supgrp_put(struct supgroups *supgrp)
+struct supgroups *supgrp_put(struct supgroups *supgrp)
 {
-	int oldval = __sync_fetch_and_sub(&(supgrp->count),1);
+	if (supgrp) {
+		int oldval = __sync_fetch_and_sub(&(supgrp->count),1);
 
-	if (oldval == 1)
-		free(supgrp);
+		if (oldval == 1) {
+			free(supgrp);
+			supgrp=NULL;
+		}
+	}
+	return supgrp;
 }
 
 int capcheck(int capability, struct pcb *pc)

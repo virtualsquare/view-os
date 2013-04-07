@@ -1032,7 +1032,7 @@ static void nsaveargs(struct pcb *caller,struct npcb *callee,long int sysno){
 
 /* restore args (there is nothing to do!) */
 static void nrestoreargs(struct pcb *caller,struct npcb *callee){
-	supgrp_put(callee->grouplist);
+	callee->grouplist=supgrp_put(callee->grouplist);
 }
 
 static long int capture_nested_virsc(long int sysno, ...);
