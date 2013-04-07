@@ -756,12 +756,6 @@ void pcb_plus(struct pcb *pc,int flags,int npcflag)
 			pc->tags = pc->pp->tags;
 		}
 		pc->tst=tst_newproc(&(pc->pp->tst));
-#if 0
-		/* if CLONE_FILES, file descriptor table is shared */
-		if (flags & CLONE_FILES)
-			pc->fds = pc->pp->fds;
-		lfd_addproc(&(pc->fds),flags);
-#endif
 		um_proc_add(pc);
 	}
 }
@@ -771,10 +765,6 @@ void pcb_minus(struct pcb *pc,int flags,int npcbflag)
 {
 	if (!npcbflag) {
 		//printk("pcb_destructor %d\n",pc->pid);
-#if 0
-		/* delete all the file descriptors */
-		lfd_delproc(pc->fds);
-#endif
 		/* notify services */
 		um_proc_del(pc);
 		assert (pc->fdfs != NULL);
@@ -788,10 +778,6 @@ void pcb_minus(struct pcb *pc,int flags,int npcbflag)
 		}
 		/* notify the treepoch */
 		tst_delproc(&(pc->tst));
-		/*if (pc->data != NULL) {
-			free(pc->data->fdfs->cwd);
-			free(pc->data);
-			}*/
 		supgrp_put(pc->grouplist);
 	}
 }
@@ -1624,6 +1610,11 @@ void scdtab_init()
 #else
 	ht_init(NULL,tagfun);
 #endif
-	atexit(um_proc_close);
-	atexit(ht_terminate);
+}
+
+void scdtab_fini()
+{
+	ht_terminate();
+	um_proc_close();
+  _service_fini();
 }

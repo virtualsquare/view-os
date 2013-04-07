@@ -61,10 +61,6 @@ void um_proc_open();
 void um_proc_close();
 char *um_proc_fakecwd();
 char *um_proc_tmpname();
-#if 0
-void lfd_addproc (struct pcb_file **p,int flag);
-void lfd_delproc (struct pcb_file *p);
-#endif
 int lfd_open (struct ht_elem *hte, int sfd, char *path, int flags, int nested);
 void lfd_close (int lfd);
 int lfd_dup(int lfd);

@@ -684,6 +684,8 @@ int main(int argc,char *argv[])
 		tracehand();
 	}
 	pcb_finis(1);
+	/* clean up the scdtab */
+	scdtab_fini();
 	return first_child_exit_status;
 }
 

@@ -533,7 +533,7 @@ void service_addregfun(int class, sysfun regfun, sysfun deregfun)
 	dereg_service[class] = deregfun;
 }
 
-static void _service_fini()
+void _service_fini()
 {
 	forall_ht_tab_do(CHECKMODULE,del_service_internal,NULL);
 }
@@ -541,6 +541,5 @@ static void _service_fini()
 /* set exit function */
 void _service_init()
 {
-	atexit(_service_fini);
 	service_addregfun(MC_MODULE, (sysfun)reg_modules, (sysfun)dereg_modules);
 }

@@ -123,12 +123,14 @@ struct service {
 #define UM_NONE 0xff
 #define UM_ERR 0x00
 
+void _service_init();
+void _service_fini();
+
 int add_service(char *file,int permanent);
 int del_service(char *name);
 int list_services(char *buf,int len);
 int name_service(char *name,char *buf,int len);
 void service_ctl(unsigned long type, char *sender, char *destination, ...);
-void _service_init();
 void service_addregfun(int, sysfun, sysfun);
 
 #endif

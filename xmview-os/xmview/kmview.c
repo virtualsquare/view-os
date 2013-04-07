@@ -542,6 +542,8 @@ int main(int argc,char *argv[])
 		mp_ppoll(&unblockchild);
 	} while (nprocs>0);
 	pcb_finis(0);
+	/* clean up the scdtab */
+	scdtab_fini();
 	return first_child_exit_status;
 }
 
