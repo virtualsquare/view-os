@@ -122,6 +122,25 @@ static struct pcb *pcblist_dequeue(struct pcblist **list)
 static void ptrace_resume(struct pcb *pc)
 {
 	// printk("ptrace_resume %d %x\n",pc->pid,pc->ptrace_request);
+#ifdef __arm__
+	/* ptrace on ARM generates an extra dummy event after an execve */
+	if (pc->ptrace_request & PTRACE_STATUS_SYSCALL) {
+		long scno;
+		r_ptrace(PTRACE_PEEKUSER,pc->pid,SCNOPEEKOFFSET,&scno);
+		// printk("ptrace_resume ARM %d %x %d\n",pc->pid,pc->ptrace_request,scno);
+		if (!(pc->ptrace_request & PTRACE_STATUS_SYSOUT) && scno == 0) {
+			r_ptrace(PTRACE_POKEUSER,pc->pid,12 * sizeof(long),0);
+			pc->ptrace_request |= PTRACE_STATUS_SYSOUT;
+			pcblist_enqueue(&pc->ptrace_pp->ptrace_notify_head, pc);
+			if (pc->ptrace_pp->ptrace_waitpid < 0 || pc->ptrace_pp->ptrace_waitpid == pc->pid) {
+				pc->ptrace_pp->ptrace_waitpid = 0;
+				sc_resume(pc->ptrace_pp);
+			} else
+				r_kill(pc->ptrace_pp->pid,SIGCHLD);
+			return;
+		}
+	}
+#endif
 	if (pc->ptrace_request & PTRACE_STATUS_SYSOUT)
 	{
 		if (r_ptrace(PTRACE_SYSCALL,pc->pid,0,pc->signum) < 0)
