@@ -203,12 +203,16 @@ static inline int trailnum(char *s)
 	/* "at least one" the first element needs a special case.
      performance:  >'9' is the most frequent case, <'0' are quite rare
 		 in pathnames, the end of string is more common */
+	register int nonzero=0;
 	if (*s > '9' || *s == 0 || *s < '0')
 		return 0;
-	for (s++;*s;s++) 
+	nonzero |= *s - '0';
+	for (s++;*s;s++) {
 		if (*s > '9' || *s < '0')
 			return 0;
-	return 1;
+		nonzero |= *s - '0';
+	}
+	return nonzero;
 }
 
 /* during the scan: search in the hash table if this returns 1 */
@@ -429,7 +433,7 @@ static struct ht_elem *internal_ht_tab_add(unsigned char type,
 struct ht_elem *ht_tab_add(unsigned char type,void *obj,int objlen,
 		struct service *service, confirmfun_t confirmfun, void *private_data) {
 	return internal_ht_tab_add(type, obj, objlen, 0, NULL,
-			service, 1, confirmfun, private_data);
+			service, 0, confirmfun, private_data);
 }
 
 static int permanent_mount(const char *opts)
