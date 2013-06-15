@@ -1,6 +1,0 @@
-__NR_select
-__NR_poll
-__NR__newselect
-__NR_pselect6
-__NR_pselect
-__NR_ppoll
