@@ -121,6 +121,7 @@ wrapinfun wrap_in_socket, wrap_out_socket;
 wrapinfun wrap_in_bind_connect, wrap_in_listen, wrap_in_getsock, wrap_in_send;
 wrapinfun wrap_in_recv, wrap_in_shutdown, wrap_in_setsockopt, wrap_in_getsockopt;
 wrapinfun wrap_in_sendmsg, wrap_in_recvmsg, wrap_in_accept;
+wrapinfun wrap_in_sendmmsg, wrap_in_recvmmsg;
 wrapinfun wrap_in_msocket;
 wrapinfun wrap_in_sendto, wrap_in_recvfrom;
 wrapinfun wrap_in_umservice, wrap_out_umservice;
@@ -397,6 +398,12 @@ struct sc_map scmap[]={
 	{__NR_getsid,	choice_sc,	wrap_in_getpid_1, wrap_out_std,	always_null,	NULL, 0,	1, SOC_PID},
 	{__NR_setsid,	choice_sc,	wrap_in_setpid,  wrap_out_std,	always_null,	NULL, 0,	0, SOC_PID},
 
+#ifdef __NR_sendmmsg
+	{__NR_sendmmsg,   choice_fd,	wrap_in_sendmmsg,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, 0,	4, SOC_SOCKET|SOC_NET},
+#endif
+#ifdef __NR_recvmmsg
+	{__NR_recvmmsg,   choice_fd,	wrap_in_recvmmsg,	wrap_out_std,	nchoice_sfd,	nw_sockfd_std, CB_R,	5, SOC_SOCKET|SOC_NET},
+#endif
 #ifdef VIEW_CAPABILITY
 	{__NR_capget, choice_sc, wrap_in_capget, wrap_out_std, always_null,  NULL, 0,  0, 0},
 	{__NR_capset, choice_sc, wrap_in_capset, wrap_out_std, always_null,  NULL, 0,  0, 0},

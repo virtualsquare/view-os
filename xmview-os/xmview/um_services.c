@@ -31,6 +31,8 @@
 #include <sys/select.h>
 #include <sys/utsname.h>
 #include <sys/param.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <asm/ptrace.h>
 #include <asm/unistd.h>
 #include <linux/net.h>

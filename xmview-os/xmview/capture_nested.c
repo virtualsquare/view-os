@@ -1222,13 +1222,12 @@ struct clonearg {
 	int (*fn) (void *arg);
 	void *arg;
 	void *parentpcb;
+	struct npcb *npcb;
 };
 
 /* create a new (reduced) pcb for a thread */
-static struct npcb *new_npcb(struct pcb *old)
+static struct npcb *new_npcb(struct npcb *npcb, struct pcb *old)
 {
-	struct npcb *npcb;
-	npcb=calloc(1,sizeof(struct npcb));
 	npcb->flags=PCB_ALLOCATED;
 	/* inherit the treepoch path from the generating thread */
 	npcb->tst=old->tst;
@@ -1256,11 +1255,12 @@ static struct npcb *new_npcb(struct pcb *old)
 
 /* thread wrapper */
 static int clonewrap(void *carg){
-	int (*fn) (void *arg) = ((struct clonearg *)(carg))->fn;
-	void *arg=((struct clonearg *)(carg))->arg;
+	struct clonearg *ccarg = (struct clonearg *)carg;
+	int (*fn) (void *arg) = ccarg->fn;
+	void *arg=ccarg->arg;
 	/* create a new pcb for the new thread, and link the pcb with this new 
 	 * thread */
-	set_pcb(new_npcb(((struct clonearg *)(carg))->parentpcb));	
+	set_pcb(new_npcb(ccarg->npcb,ccarg->parentpcb));	
 	/* free the data structure used to keep the thread info */
 	free(carg);
 	/* start the real thread */
@@ -1279,8 +1279,10 @@ int __clone (int (*fn) (void *arg), void *child_stack,
 	carg->fn=fn;
 	carg->arg=arg;
 	carg->parentpcb=get_pcb();
+	carg->npcb=calloc(1,sizeof(struct npcb));
 	/* start a wrapper to the real main function of the thread */
 	rv= libc__clone(clonewrap,child_stack,flags,carg,arg2,arg3,arg4);
+	if (rv<0) free(carg->npcb);
 	return rv;
 }
 

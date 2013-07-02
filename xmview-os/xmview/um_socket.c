@@ -73,6 +73,8 @@ int wrap_in_msocket(int sc_number,struct pcb *pc,
 			}
 			return SC_FAKE;
 		} else {
+			/* XXX support these flags */
+			type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
 			if ((pc->retval = um_syscall(pc->path,domain,type,protocol)) < 0) {
 				if (errno == ENOSYS && pc->path==NULL) {
 					/* backward compatibility:
@@ -291,7 +293,7 @@ int wrap_in_getsock(int sc_number,struct pcb *pc,
 			if (sock_addr != umNULL)
 				ustoren(pc,sock_addr,sock_len,sock);
 			if (sock_plen != umNULL)
-				umoven(pc,sock_plen,4,&sock_len);
+				ustoren(pc,sock_plen,4,&sock_len);
 		}
 	}
 	return SC_FAKE;
@@ -691,5 +693,21 @@ int wrap_in_sendmsg(int sc_number,struct pcb *pc,
 			lfree(lbuf,totalsize);
 		}
 	}
+	return SC_FAKE;
+}
+
+int wrap_in_recvmmsg(int sc_number,struct pcb *pc,
+		    struct ht_elem *hte, sysfun um_syscall)
+{
+	pc->retval= -1;
+	pc->erno= ENOSYS;
+	return SC_FAKE;
+}
+
+int wrap_in_sendmmsg(int sc_number,struct pcb *pc,
+		struct ht_elem *hte, sysfun um_syscall)
+{
+	pc->retval= -1;
+	pc->erno= ENOSYS;
 	return SC_FAKE;
 }

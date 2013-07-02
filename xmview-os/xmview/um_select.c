@@ -53,6 +53,13 @@
 #include "capture.h"
 #include "mainpoll.h"
 
+#ifndef __FDELT
+#ifndef __NFDBITS
+#define __NFDBITS       (8 * sizeof(unsigned long))
+#endif
+#define __FDELT(d)      ((d) / __NFDBITS)
+#endif
+
 enum {RX, WX, XX} stype;
 
 struct pendingdata {
