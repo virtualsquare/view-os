@@ -621,7 +621,7 @@ lwip_connect(int s, struct sockaddr *name, socklen_t namelen)
 		struct ip_addr remote_addr;
 		u16_t remote_port;
 
-		if(sock->family == PF_INET) {
+		if (((struct sockaddr_in *)name)->sin_family == PF_INET) {
 			SOCK_IP64_CONV(&(remote_addr),&(((struct sockaddr_in *)name)->sin_addr.s_addr));
 			remote_port = ((struct sockaddr_in *)name)->sin_port;
 		}
@@ -1441,6 +1441,18 @@ lwip_getpeername (int s, struct sockaddr *name, socklen_t *namelen)
 	return 0;
 }
 
+#if 0
+void dumpsockname(char *label, int sn, void *s, int len)
+{
+	unsigned char *v=(unsigned char *)s;
+	int i;
+	printf("%s(%d): ",label,sn);
+	for (i=0;i<len;i++)
+		printf("%02x:",v[i]);
+	printf("\n");
+}
+#endif
+
 	int
 lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 {
@@ -1485,7 +1497,6 @@ lwip_getsockname (int s, struct sockaddr *name, socklen_t *namelen)
 				*namelen = sizeof(sin);
 
 			memcpy(name, &sin, *namelen);
-			/*printf("%x %d\n",sin.sin_addr.s_addr,*namelen);*/
 		}
 		else {
 			struct sockaddr_in6 sin;

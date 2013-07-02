@@ -874,6 +874,41 @@ udp_recv(struct udp_pcb *pcb,
   pcb->recv = recv;
   pcb->recv_arg = recv_arg;
 }
+
+void
+udp_addr(struct udp_pcb *pcb,
+		struct ip_addr *addr, u16_t *port)
+{
+	struct stack *stack = pcb->stack;
+	
+
+	LWIP_DEBUGF(UDP_DEBUG | DBG_TRACE | 3, ("udp_addr\n"));
+
+	*port=pcb->local_port;
+	if (ip_addr_isany(&pcb->local_ip)) {
+		struct netif *netif;
+		struct ip_addr *src_ip;
+		struct ip_addr *nexthop;
+		int flags;
+		struct ip_addr_list *el;
+		if (ip_route_findpath(stack, &(pcb->remote_ip), &nexthop, &netif, &flags) != ERR_OK) {
+			LWIP_DEBUGF(UDP_DEBUG | 1, ("udp_addr: No route to 0x%lx\n", 0L /*pcb->remote_ip.addr*/));
+			goto local_addr;
+		}
+		if ((el=ip_route_select_source_ip(netif, &pcb->remote_ip, nexthop)) == NULL) {
+			LWIP_DEBUGF(UDP_DEBUG | 1, ("udp_addr: No local addr to 0x%lx\n", 0L /*pcb->remote_ip.addr*/));
+			goto local_addr;
+		}
+		*addr=el->ipaddr;
+	} else {
+		goto local_addr;
+	}
+	return;
+local_addr:
+	*addr=pcb->local_ip;
+	return;
+}
+
 /**
  * Remove an UDP PCB.
  *

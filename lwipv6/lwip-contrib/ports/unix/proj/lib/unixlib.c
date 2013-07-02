@@ -143,15 +143,11 @@ struct stack *lwip_add_stack(unsigned long flags)
 	struct stack *newstack;  
 
 	/* Start the main stack */
-	sem = sys_sem_new(0);
 #if LWIP_CAPABILITIES
-	newstack = tcpip_start(init_done, &sem, flags, capfun);
+	newstack = tcpip_start(NULL, NULL, flags, capfun);
 #else
-	newstack = tcpip_start(init_done, &sem, flags);
+	newstack = tcpip_start(NULL, NULL, flags);
 #endif
-	
-	sys_sem_wait(sem);
-	sys_sem_free(sem);
 	
 	/* Add loop interface at least */       
 	lwip_add_loopif(newstack);

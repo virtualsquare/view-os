@@ -186,7 +186,6 @@ tcpip_thread(void *arg)
 	int loop;
 	struct tcpip_msg *msg;
 		
-	//(void)arg;
 	stack = (struct stack *) arg;
 
 	LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: [%d] starting...\n", stack));

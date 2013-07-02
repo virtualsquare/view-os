@@ -983,8 +983,15 @@ do_addr(struct api_msg_msg *msg)
 			if (conn->pcb.udp == NULL)
 				msg->err = ERR_CONN;
 			else {
-				*(msg->msg.bp.ipaddr) = (conn->pcb.udp->local_ip);
-				*(msg->msg.bp.port) = conn->pcb.udp->local_port;
+				if ((conn->pcb.udp->flags & UDP_FLAGS_CONNECTED) != 0 && 
+						ip_addr_isany(&conn->pcb.udp->local_ip)) {
+					udp_addr(msg->conn->pcb.udp, msg->msg.bp.ipaddr, msg->msg.bp.port);
+					//*(msg->msg.bp.ipaddr) = (conn->pcb.udp->local_ip);
+					//*(msg->msg.bp.port) = conn->pcb.udp->local_port;
+				} else {
+					*(msg->msg.bp.ipaddr) = (conn->pcb.udp->local_ip);
+					*(msg->msg.bp.port) = conn->pcb.udp->local_port;
+				}
 			}
 			break;
 		case NETCONN_TCP:

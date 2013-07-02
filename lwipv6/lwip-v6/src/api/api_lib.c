@@ -392,7 +392,7 @@ netconn_addr(struct netconn *conn, struct ip_addr *addr, u16_t *port)
 		return ERR_VAL;
 	}         
 
-	msg.type = API_MSG_PEER;
+	msg.type = API_MSG_ADDR;
   msg.msg.conn = conn;
   msg.msg.err = ERR_OK;
 	msg.msg.msg.bp.ipaddr = addr;
