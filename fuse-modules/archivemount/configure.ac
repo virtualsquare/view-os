@@ -4,6 +4,8 @@ AC_INIT([archivemount],[0.6.1-umfuse], [andrel@cybernoia.de])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_CONFIG_MACRO_DIR([m4])
 AC_PROG_CC 
+AM_PROG_CC_C_O
+AM_PROG_AR
 AC_PROG_LIBTOOL
 
 AC_CONFIG_HEADERS([config.h]) 
