@@ -89,6 +89,7 @@
 #include <sys/poll.h>
 #include <pwd.h>
 
+#define VDE_DYNLOAD
 #ifdef VDE_DYNLOAD
 #include <libvdeplug_dyn.h>
 struct vdepluglib vdeplug;
@@ -172,7 +173,6 @@ static int low_level_init(struct netif *netif, char *path)
 		netif->num + '0');
 	if (path==NULL || *path != '-') {
 		vdeif->vdefd=VDEDYN(vde_open)(path,descr,NULL);
-		vdeif->vdestream=NULL;
 		if (vdeif->vdefd && 
 				(vdeif->fddata=netif_addfd(netif, 
 																	VDEDYN(vde_datafd)(vdeif->vdefd),
