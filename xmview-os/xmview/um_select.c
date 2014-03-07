@@ -471,8 +471,8 @@ int wrap_in_epoll_create(int sc_number,struct pcb *pc,
 	if (sc_number== __NR_epoll_create1)
 		flags = pc->sysargs[0];
 #endif
-	/* Linux: EPOLL_CLOEXEC==O_CLOEXEC && EPOLL_NONBLOCK==O_NONBLOCK */
-	flags &= (EPOLL_CLOEXEC | EPOLL_NONBLOCK);
+	/* Linux: EPOLL_CLOEXEC==O_CLOEXEC */
+	flags &= (EPOLL_CLOEXEC);
 	//printk("wrap_in_epoll_create %x\n",flags);
 	pc->retval=lfd_open(NULL,-1,epoll_tag,flags,0);
 	return SC_CALLONXIT;
