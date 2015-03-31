@@ -399,7 +399,7 @@ int wrap_in_ptrace(int sc_number,struct pcb *pc,
 
 			default:
 				pc->retval=-1;
-				pc->erno=EPERM;
+				pc->erno=EINVAL;
 		}
 		//printk("PTRACE %d %d %x %x DONE\n",request,pid,addr,data);
 		return SC_FAKE;
