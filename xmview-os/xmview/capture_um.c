@@ -54,6 +54,8 @@
 #include "gdebug.h"
 #include "capture_um.h"
 
+#define USE_PTRACE_SEIZE
+
 #ifdef GDEBUG_ENABLED
 #include "syscallnames.h"
 #endif
@@ -464,7 +466,12 @@ void tracehand()
 		if (pid==0) return;
 		if (pc == NULL) {
 			/* race condition, new procs can be faster than parents*/
-			if(WIFSTOPPED(status) && (WSTOPSIG(status) == SIGSTOP)) {
+#ifdef USE_PTRACE_SEIZE
+			if (WIFSTOPPED(status) && (WSTOPSIG(status) == SIGTRAP))
+#else
+			if (WIFSTOPPED(status) && (WSTOPSIG(status) == SIGSTOP))
+#endif
+			{
 				/* create the descriptor, block the process
 				 * until the parent complete the pcb */
 				//printk("RACE CONDITION %d\n",pid);
@@ -765,8 +772,10 @@ void tracehand()
 					/* forward signals to the process */
 					/* bugfix. Sometimes fake SIGSTOP get sent to processes.
 						 SIGSTOP is used by ptrace here */
+#ifndef USE_PTRACE_SEIZE
 					if (stopsig == SIGSTOP)
 						stopsig=0;
+#endif
 					if(r_ptrace(PTRACE_SYSCALL, pid, 0, stopsig) < 0){
 						GPERROR(0, "continuing");
 						/////printk("XXXcontinuing %d\n",pid);
@@ -934,6 +943,12 @@ static void vir_pcb_free(void *arg)
 
 int capture_attach(struct pcb *pc,pid_t pid)
 {
+#ifdef USE_PTRACE_SEIZE
+	if (r_ptrace(PTRACE_SEIZE,pid,0,UMPTRACEOPT))
+		return -errno;
+	handle_new_proc(pid,pc,0);
+	return 0;
+#else
 	handle_new_proc(pid,pc,0);
 	if (r_ptrace(PTRACE_ATTACH,pid,0,0) < 0)
 		return -errno;
@@ -947,6 +962,7 @@ int capture_attach(struct pcb *pc,pid_t pid)
 		} else
 			return -errno;
 	}
+#endif
 }
 
 void capture_execrc(const char *path,const char *argv1)
@@ -989,11 +1005,15 @@ int capture_main(char **argv, char *rc, int flags)
 			/* try to set process priority back to standard prio (effective only when 
 			 * umview runs in setuid mode), useless call elsewhere */
 			r_setpriority(PRIO_PROCESS,0,0);
+#ifdef USE_PTRACE_SEIZE
+			r_kill(getpid(),SIGSTOP);
+#else
 			if(r_ptrace(PTRACE_TRACEME, 0, 0, 0) < 0){
 				GPERROR(0, "ptrace");
 				exit(1);
 			}
-			r_kill(getpid(),SIGSTOP);
+			r_kill(getpid(),SIGSTOP);//XXX ???
+#endif
 			capture_execrc("/etc/viewosrc",(char *)0);
 			if (rc != NULL && *rc != 0)
 				capture_execrc(rc,(char *)0);
@@ -1013,6 +1033,22 @@ int capture_main(char **argv, char *rc, int flags)
 			handle_new_proc(first_child_pid,pcbtab[0],0);
 			/* set the pcb_key for this process */
 			pthread_setspecific(pcb_key,pcbtab[0]);
+#ifdef USE_PTRACE_SEIZE
+			if(r_waitpid(first_child_pid, &status, WSTOPPED) < 0){
+				GPERROR(0, "Waiting for stop");
+				//printk("B errno %d getpid %d\n",errno,getpid());
+				exit(1);
+			}
+			setsigaction();
+			r_ptrace(PTRACE_SEIZE,first_child_pid,0,UMPTRACEOPT);
+			r_kill(first_child_pid, SIGCONT);
+			if (r_waitpid(-1,&status,WSTOPPED) < 0)
+				exit(-1);
+			if(r_ptrace(PTRACE_SYSCALL, first_child_pid, 0, 0) < 0){
+				GPERROR(0, "continuing");
+				exit(1);
+			}
+#else
 			if(r_waitpid(first_child_pid, &status, WUNTRACED) < 0){
 				GPERROR(0, "Waiting for stop");
 				//printk("B errno %d getpid %d\n",errno,getpid());
@@ -1027,6 +1063,7 @@ int capture_main(char **argv, char *rc, int flags)
 				//printk("A getpid %d\n",getpid());
 				exit(1);
 			}
+#endif
 	}
 	return 0;
 }

@@ -176,7 +176,7 @@ int wrap_in_ptrace(int sc_number,struct pcb *pc,
 		long addr=pc->sysargs[2];
 		long data=pc->sysargs[3];
 		struct pcb *tracedpc;
-		// printk("PTRACE %d %d %x %x\n",request,pid,addr,data);
+		// printk("PTRACE %x %d %x %x\n",request,pid,addr,data);
 		pc->retval=0;
 		pc->erno=0;
 		switch (request) {
