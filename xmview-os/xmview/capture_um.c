@@ -1012,7 +1012,6 @@ int capture_main(char **argv, char *rc, int flags)
 				GPERROR(0, "ptrace");
 				exit(1);
 			}
-			r_kill(getpid(),SIGSTOP);//XXX ???
 #endif
 			capture_execrc("/etc/viewosrc",(char *)0);
 			if (rc != NULL && *rc != 0)
