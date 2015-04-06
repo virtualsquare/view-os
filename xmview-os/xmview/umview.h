@@ -30,7 +30,7 @@
 
 #define UMVIEW_URL "http://view-os.sourceforge.net"
 
-#define UMVIEW_COPYRIGHT "2005-2008 Renzo Davoli, University of Bologna, Italy"
+#define UMVIEW_COPYRIGHT "2005-2015 Renzo Davoli, University of Bologna, Italy"
 #define UMVIEW_TEAM \
 "P. Angelelli, A. Bacchelli, M. Belletti, P. Beverini, L. Bigliardi, D. Billi,\n" \
 "A. Forni, L. Gardenghi, A. Gasparini, F. Giunchedi, D. Lacamera, C. Martellini,\n" \

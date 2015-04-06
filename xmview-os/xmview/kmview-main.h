@@ -28,9 +28,9 @@
 #define KMVIEW_DESC "kmview: kernel-module implementation of View-OS"
 #define KMVIEW_VERSION PACKAGE_VERSION
 
-#define KMVIEW_URL "http://savannah.nongnu.org/projects/view-os"
+#define KMVIEW_URL "http://view-os.sourceforge.net"
 
-#define KMVIEW_COPYRIGHT "2007 Renzo Davoli, University of Bologna, Italy"
+#define KMVIEW_COPYRIGHT "2007-2015 Renzo Davoli, University of Bologna, Italy"
 #define KMVIEW_TEAM \
 "P. Angelelli, A. Bacchelli, M. Belletti, P. Beverini, D. Billi, A. Forni,\n" \
 "L. Gardenghi, A. Gasparini, D. Lacamera, C. Martellini, A. Seraghiti"
