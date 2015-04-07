@@ -55,6 +55,17 @@
 #include "capture_um.h"
 
 #define USE_PTRACE_SEIZE
+#ifdef USE_PTRACE_SEIZE
+#ifndef PTRACE_SEIZE
+#define PTRACE_SEIZE 0x4206
+#endif
+#ifndef PTRACE_INTERRUPT
+#define PTRACE_INTERRUPT 0x4207
+#endif
+#ifndef PTRACE_INTERRUPT
+#define PTRACE_LISTEN 0x4208
+#endif
+#endif
 
 #ifdef GDEBUG_ENABLED
 #include "syscallnames.h"
