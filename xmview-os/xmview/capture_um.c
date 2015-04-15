@@ -348,12 +348,13 @@ static void allocatepcbtab(int flags)
 	if (flags & CAPTURE_USEPIDMAP) {
 		int fd;
 		fd=open("/proc/sys/kernel/pid_max",O_RDONLY);
-		if (fd) {
+		if (fd >= 0) {
 			char buf[128];
 			if (read(fd,buf,128) > 0) {
 				int npids=atoi(buf);
 				umpidmap=calloc(npids, sizeof(*umpidmap));
 			}
+			close(fd);
 		}
 	}
 #endif
